@@ -22,8 +22,8 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | ProfileMenu.tsx | view | Lists compact profiles above or below its anchor |
 | profile-menu.ts | vm | Filters live profile options and switch gates |
 | profile-menu.test.ts | test | Tests live profile filtering and switch gates |
-| SessionProfileSelector.tsx | view | Shares guarded profile state with composer controls |
-| SessionProfileSelector.test.tsx | test | Tests profile routing and selection interactions |
+| SessionProfileSelector.tsx | view | Shows a mobile-colored desktop profile selector |
+| SessionProfileSelector.test.tsx | test | Tests profile routing, selection and chip chrome |
 | CenterChat.tsx | view | Reconciles chat state, startup progress and composer placement |
 | scheduled-chat.ts | vm | Cadence label and next-run delta helpers |
 | ChatHeader.tsx | view | Session title, command, browser, notes and session menu |
@@ -53,8 +53,8 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | InlineThreadCardProto.tsx | view | Live thread card opening modal detail |
 | thread-card-proto.ts | vm | Maps thread detail to inline card rows and pill |
 | thread-card-proto.test.ts | test | Unit tests for the inline thread card model |
-| Composer.tsx | view | Unified input card with browser startup and run status |
-| Composer.test.tsx | test | Tests shortcuts, startup status and rejected sends |
+| Composer.tsx | view | Mobile-aligned input card with startup and run status |
+| Composer.test.tsx | test | Tests shortcuts, input chrome, startup and failed sends |
 | ComposerActionRow.tsx | view | Toolbar row: ＋ menu and browser capsule left, profile/context/send right |
 | BrowserOptIn.tsx | model | Browser device options for the composer ＋ menu |
 | browser-status.ts | model | Phrases browser takeover and turn-start hints |

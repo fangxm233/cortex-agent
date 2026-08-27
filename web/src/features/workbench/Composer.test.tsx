@@ -1,5 +1,5 @@
 // input:  Desktop composer, UI handlers and bilingual vocabulary
-// output: local slash routing and failed-send render regressions
+// output: local routing, send failures and mobile-aligned chrome regressions
 // pos:    Desktop composer behavior specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { ComponentProps } from 'react';
@@ -89,6 +89,30 @@ function enterCommand(renderer: ReactTestRenderer, command: string): void {
   act(() => renderer.root.findByProps({ 'data-composer-input': true }).props.onChange({ target: { value: command } }));
   act(() => renderer.root.findByProps({ 'data-composer-input': true }).props.onKeyDown({ key: 'Enter', shiftKey: false, preventDefault: vi.fn() }));
 }
+
+describe('Composer mobile-aligned chrome', () => {
+  it('uses the mobile card surface and focus ring', () => {
+    const renderer = mountComposer(() => {});
+    const card = () => renderer.root.findByProps({ 'data-composer-card': true });
+    const input = renderer.root.findByProps({ 'data-composer-input': true });
+
+    expect(card().props.style).toMatchObject({
+      borderRadius: 18,
+      background: 'var(--m-card)',
+      boxShadow: 'var(--shadow-card-soft)',
+    });
+
+    act(() => input.props.onFocus());
+    expect(card().props.style).toMatchObject({
+      border: '1.5px solid var(--m-run)',
+      boxShadow: 'var(--focus-ring-accent)',
+    });
+
+    act(() => input.props.onBlur());
+    expect(card().props.style.boxShadow).toBe('var(--shadow-card-soft)');
+    act(() => renderer.unmount());
+  });
+});
 
 describe('Composer UI slash shortcuts', () => {
   it('routes all five commands locally instead of sending them', () => {

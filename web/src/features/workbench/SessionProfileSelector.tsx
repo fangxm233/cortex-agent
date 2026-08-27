@@ -1,5 +1,5 @@
 // input:  Session profile state, configured profiles and mutation
-// output: Shared profile controller and composer selector
+// output: Shared profile controller and mobile-colored composer selector
 // pos:    Desktop session profile control
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useEffect, useMemo, useState } from 'react';
@@ -79,7 +79,6 @@ export function useSessionProfileSelection(props: SessionProfileSelectorProps): 
 
 export function SessionProfileSelectorView({ selection }: { selection: ProfileSelection }): JSX.Element {
   const L = useVocab();
-  const [hover, setHover] = useState(false);
   const [open, setOpen] = useState(false);
   const close = () => setOpen(false);
   useDismissMenu(open, close);
@@ -87,17 +86,15 @@ export function SessionProfileSelectorView({ selection }: { selection: ProfileSe
   return (
     <span
       data-chip="profile"
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
       onClick={(event) => { event.stopPropagation(); setOpen((value) => !value); }}
       style={{
-        position: 'relative', font: CHIP_FONT, border: `1.5px solid ${hover ? 'var(--proto-accent-border)' : 'var(--proto-line-3)'}`,
-        color: hover ? 'var(--proto-accent)' : 'var(--proto-muted)', padding: '0 12px', height: 30, borderRadius: 999,
-        boxSizing: 'border-box', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5, flex: 'none',
+        position: 'relative', font: CHIP_FONT, border: '1.5px solid var(--m-run-border)',
+        background: 'var(--m-card)', color: 'var(--m-run)', padding: '0 12px', height: 30, borderRadius: 999,
+        boxSizing: 'border-box', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, flex: 'none',
       }}
     >
-      {L.wbProfile} · {selection.effectiveProfile}
-      <span style={{ fontSize: 8, color: 'var(--proto-faint)' }}>▾</span>
+      <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--m-run)', flex: 'none' }} />
+      <span>{`${L.wbProfile} · ${selection.effectiveProfile}`}</span>
       {open ? <ProfileMenu options={selection.options} placement="above" align="right" onPick={(name) => { close(); selection.pick(name); }} /> : null}
     </span>
   );
