@@ -117,8 +117,11 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 | MNotificationProvider.tsx | provider | Injects mobile route suppression and OS delivery into the shared feed, then deep-links actions |
 | MNotificationProvider.test.tsx | test | Tests mobile permission, external delivery, deep-links and thin feed-adapter wiring |
 | MNotificationToaster.tsx | view | Independently selects and renders stacked tappable top notification banners |
-| MHotUpdateProvider.tsx | provider | Mounts the prompt when an update is staged |
-| MHotUpdateDialog.tsx | view | Staged update alert with apply and ignore |
-| MAppUpdateProvider.tsx | provider | Mounts the prompt when a shell update is ready |
-| MAppUpdateDialog.tsx | view | Shell update alert with install, skip, later |
+| MUpdateProvider.tsx | provider | Renders the one shared-priority mobile update prompt |
+| MUpdateProvider.test.tsx | test | Verifies app/hot dialog selection and empty rendering |
+| MUpdateFrame.tsx | view | Preserves alert chrome shared only by mobile update dialogs |
+| MUpdateFrame.test.tsx | test | Characterizes mobile frame DOM, styles, icon and action slot |
+| MUpdateDialogs.test.tsx | test | Preserves both mobile dialogs' copy, actions and button state |
+| MHotUpdateDialog.tsx | view | Staged update apply/ignore content inside the mobile frame |
+| MAppUpdateDialog.tsx | view | Shell update install/skip/later content inside the mobile frame |
 | m-connection.ts | util | Maps connection status to pill tone and pulse |

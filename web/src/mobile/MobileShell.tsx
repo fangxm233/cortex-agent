@@ -1,5 +1,5 @@
-// input:  Router state, neutral project provider, mobile providers, and Tauri bridge
-// output: mobile shell with four bottom tabs
+// input:  Router state, project scope, mobile providers, and prioritized update provider
+// output: mobile shell with four bottom tabs and one update-overlay owner
 // pos:    Dedicated mobile app root frame
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -14,8 +14,7 @@ import { activeTabId, isTabRoute } from './mobile-tabs';
 import { switchMobileTab, useMobileBackNavigation } from './mobile-navigation';
 import { CurrentProjectProvider } from '@/features/projects/CurrentProjectProvider';
 import { MNotificationProvider } from './v3/MNotificationProvider';
-import { MHotUpdateProvider } from './v3/MHotUpdateProvider';
-import { MAppUpdateProvider } from './v3/MAppUpdateProvider';
+import { MUpdateProvider } from './v3/MUpdateProvider';
 import { MediaViewerProvider } from '@/features/media/MediaViewer';
 import { DocViewerProvider } from '@/features/media/DocViewer';
 import { ConnectionStatusProvider } from '@/features/connection/ConnectionStatusProvider';
@@ -69,8 +68,7 @@ function MobileProviders({ children }: { children: ReactNode }) {
             <DocViewerProvider>
               {children}
               <MNotificationProvider />
-              <MHotUpdateProvider />
-              <MAppUpdateProvider />
+              <MUpdateProvider />
             </DocViewerProvider>
           </MediaViewerProvider>
         </CurrentProjectProvider>

@@ -11,8 +11,7 @@
 //
 // Off-shell (plain browser / ui-http) every seam function is a no-op — the prompt is APP-only.
 // A pending shell update SUPERSEDES the SPA-only hot-update prompt (the new shell ships a fresh
-// SPA seed and OTA converges the rest), so the hot-update providers read this store and stand down
-// while an app update is available.
+// SPA seed and OTA converges the rest), so the shared headless prompt owner selects this store first.
 import { isNativeShell } from '@/lib/desktop-config';
 import { listenNativeEvent, safeInvoke } from '@/lib/native-bridge';
 import { formatUpdateSize } from '@/features/hot-update/frontend-update';

@@ -1,5 +1,5 @@
-// input:  Router outlet, neutral project scope, and global UI/modal/note providers
-// output: Persistent desktop application shell
+// input:  Router outlet, project scope, global UI providers, and prioritized update provider
+// output: persistent desktop application shell with one update-overlay owner
 // pos:    Keeps shared state and task/thread overlays across routes
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { Outlet } from 'react-router-dom';
@@ -13,8 +13,7 @@ import { IssuesProvider } from '@/features/issues/IssuesProvider';
 import { CurrentProjectProvider } from '@/features/projects/CurrentProjectProvider';
 import { SelectedSessionProvider } from '@/features/workbench/SelectedSessionProvider';
 import { NotificationProvider } from '@/features/notifications/NotificationProvider';
-import { HotUpdateProvider } from '@/features/hot-update/HotUpdateProvider';
-import { AppUpdateProvider } from '@/features/app-update/AppUpdateProvider';
+import { UpdateProvider } from '@/features/update/UpdateProvider';
 import { MediaViewerProvider } from '@/features/media/MediaViewer';
 import { DocViewerProvider } from '@/features/media/DocViewer';
 import { PinnedPreviewProvider } from '@/features/media/PinnedPreviewProvider';
@@ -45,8 +44,7 @@ export function AppShell() {
                 <Outlet />
                 <CommandPalette open={open} onOpenChange={setOpen} />
                 <NotificationProvider />
-                <HotUpdateProvider />
-                <AppUpdateProvider />
+                <UpdateProvider />
               </DocViewerProvider></MediaViewerProvider>
             </PinnedPreviewProvider></TaskModalProvider></ThreadDetailModalProvider>
           </IssuesProvider></SettingsProvider></ApprovalsProvider>

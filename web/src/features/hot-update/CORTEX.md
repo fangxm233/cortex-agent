@@ -1,13 +1,12 @@
 Please update me when files in this folder change
 
-Over-the-air frontend update prompt for the native shell, driven by a staged-bundle event.
-Applying relaunches the app so the staged bundle is promoted; in a plain browser it is a no-op.
+Over-the-air frontend update source, native adapter, and desktop dialog content.
+The neutral `features/update/` owner combines it with app-shell updates and applies shared typing gating.
 
 | filename | role | function |
 |---|---|---|
-| HotUpdateProvider.tsx | provider | Mounts the prompt when a bundle is staged |
-| HotUpdateDialog.tsx | view | New-version prompt with apply and ignore |
-| useHotUpdate.ts | hook | Exposes the staged update with apply and dismiss |
-| useHotUpdate.test.ts | test | Unit tests for the hot update hook |
+| HotUpdateDialog.tsx | view | Desktop apply/ignore content inside the desktop update frame |
+| useHotUpdate.ts | hook | Subscribes to staged updates and exposes shared-gated apply/dismiss state |
+| useHotUpdate.test.ts | test | Compatibility tests for editable-target gating used by the source |
 | frontend-update.ts | core | Parses unknown staged payloads, uses safe canonical bridge events/commands and adapts byte labels |
 | frontend-update.test.ts | test | Tests staged shell payload parsing and malformed fields |

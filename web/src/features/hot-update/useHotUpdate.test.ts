@@ -1,8 +1,12 @@
-import { describe, expect, it } from 'vitest';
-import { isEditableTarget } from './useHotUpdate';
+// input:  lightweight focused-element shapes consumed by the shared update typing gate
+// output: text-editing classification regressions used by the hot-update hook
+// pos:    Hot-update compatibility coverage for the neutral focus gate
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-// vitest runs in the node environment here (no jsdom), so we exercise the pure gate over lightweight
-// element-shaped mocks rather than real DOM nodes — it only reads tagName / type / isContentEditable.
+import { describe, expect, it } from 'vitest';
+import { isEditableTarget } from '@/features/update/useUpdateGating';
+
+// Vitest runs in the node environment here, so lightweight element-shaped mocks are sufficient.
 function mockEl(tagName: string, extra: Record<string, unknown> = {}): Element {
   return { tagName, ...extra } as unknown as Element;
 }

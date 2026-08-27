@@ -12,7 +12,7 @@ Android back handling consumes the manifest and canonical typed native bridge, i
 | mobile-route-manifest.test.ts | test | Tests registry integrity, dynamic matching and parameterized parents |
 | mobile-routes.tsx | entry | Explicitly maps manifest route ids to React screen elements |
 | mobile-routes.test.tsx | test | Verifies manifest registration plus supported settings routes |
-| MobileShell.tsx | core | Frames the shared project provider, outlet, native back and tabs |
+| MobileShell.tsx | core | Frames project scope, outlet, native back, tabs and one prioritized update provider |
 | MobileAnimatedOutlet.tsx | core | Animates routes and retains the source tab frame |
 | MobileAnimatedOutlet.test.tsx | test | Tests transitions and retained tab frames |
 | BottomTabBar.tsx | view | Four-tab bottom bar with icons and badges |

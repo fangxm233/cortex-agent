@@ -6,6 +6,6 @@ Native actions exposed by shell surfaces, including disconnect, route through th
 
 | filename | role | function |
 |---|---|---|
-| AppShell.tsx | core | Mounts shared project scope, routes, overlays and notes state |
+| AppShell.tsx | core | Mounts project scope, routes, overlays, notes and one prioritized update provider |
 | DaemonStatusModal.tsx | view | Adapts the shared daemon resource to desktop confirmation, status, restart and bridge-backed disconnect controls |
 | EmptyPane.tsx | view | Titled placeholder for unbuilt routes |

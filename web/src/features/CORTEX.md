@@ -31,7 +31,8 @@ Native-facing features consume `lib/native-bridge.ts`; they do not redeclare or 
 | connection/ | subdir | Connectivity status for the daemon badge |
 | rate-limit/ | subdir | Provider throttle times and waiting counts |
 | usage/ | subdir | Provider quota, spend, freshness and refresh state |
-| hot-update/ | subdir | Staged frontend update prompt fed unknown bridge payloads through its parser |
-| app-update/ | subdir | App shell update prompt with safe event and command fallback for older shells |
+| update/ | subdir | Shared headless update ownership, app-before-hot priority and desktop-only frame/provider |
+| hot-update/ | subdir | Staged frontend update source, parser and desktop dialog content |
+| app-update/ | subdir | App shell update source, safe bridge adapter and desktop dialog content |
 | kit/ | subdir | Design-system gallery page |
 | base-demo/ | subdir | Visual base specimen page |
