@@ -53,6 +53,11 @@ CAMPAIGN_SCHEMA_VERSION = "cortex-bench-campaign/1"
 ARM_SCHEMA_VERSION = "cortex-benchmark-arm/2"
 # Campaign, arm and task identifiers become one Harbor trial id, which is a container hostname.
 IDENTIFIER = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
+# A corpus picks its own task ids and Terminal-Bench 2.1 ships one with a dot in it
+# (`install-windows-3.11`). A dot is fine in a directory name and not fine in the hostname
+# a trial id becomes, so it is admitted here and resolved where the trial id is composed.
+TASK_IDENTIFIER = re.compile(r"^[a-z0-9](?:[a-z0-9.-]{0,61}[a-z0-9])?$")
+IDENTIFIER_CHARACTERS = re.compile(r"[a-z0-9-]")
 
 CAMPAIGN_REQUIRED_FIELDS = frozenset({
     "schema_version", "campaign", "paid", "trials_dir", "cli_version",
@@ -475,15 +480,17 @@ def _trial_id(campaign: str, task_id: str, arm_name: str, declared: str) -> str:
     arm segment gives up characters only if that was not enough, and a six-hex digest of the full
     declared id is appended so two tasks truncated to the same prefix stay distinct.
     """
-    if len(declared) <= TRIAL_ID_LIMIT:
-        if IDENTIFIER.fullmatch(declared) is None:
-            raise CampaignConfigError(
-                f"campaign, task_id and arm name compose the invalid trial id {declared!r}; "
-                "it must match [a-z0-9-] and stay within 63 characters")
+    if len(declared) <= TRIAL_ID_LIMIT and IDENTIFIER.fullmatch(declared) is not None:
         return declared
+    # Either too long for a hostname or carrying a character one cannot hold. Both are resolved
+    # the same way, and both must append the digest: `a.b` and `a-b` would otherwise become the
+    # same trial id and the second would resume the first's root.
+    campaign, task_id, arm_name = (
+        _hostname_safe(part) for part in (campaign, task_id, arm_name))
     suffix = hashlib.sha256(declared.encode()).hexdigest()[:TRIAL_ID_HASH_LENGTH]
     budget = TRIAL_ID_LIMIT - len(suffix) - 1
     fixed = len(campaign) + 2
+    del declared  # every decision below is made from the sanitized parts
     task_slug, arm_slug = task_id, arm_name
     if fixed + len(task_slug) + len(arm_slug) > budget:
         task_slug = _trim(task_slug, budget - fixed - len(arm_slug))
@@ -496,6 +503,12 @@ def _trial_id(campaign: str, task_id: str, arm_name: str, declared: str) -> str:
             f"shortened into a valid hostname (best effort was {trial_id!r}); shorten the "
             "campaign or arm name")
     return trial_id
+
+
+def _hostname_safe(value: str) -> str:
+    """Every character a hostname label cannot carry, replaced by the one it can."""
+    return "".join(character if IDENTIFIER_CHARACTERS.fullmatch(character) else "-"
+                   for character in value).strip("-")
 
 
 def _trim(value: str, length: int) -> str:
@@ -521,6 +534,16 @@ def _text(document: Mapping[str, object], field: str, label: str = "campaign") -
     value = document.get(field)
     if not isinstance(value, str) or not value:
         raise CampaignConfigError(f"{label} {field} must be a non-empty string")
+    return value
+
+
+def _task_identifier(document: Mapping[str, object], label: str) -> str:
+    """A corpus task id, which also has to be a safe relative directory name."""
+    value = _text(document, "task_id", label)
+    if TASK_IDENTIFIER.fullmatch(value) is None or ".." in value:
+        raise CampaignConfigError(
+            f"{label} task_id must match [a-z0-9.-] and start and end with [a-z0-9]; "
+            f"got {value!r}")
     return value
 
 
@@ -940,7 +963,7 @@ def _external_task(entry: Mapping[str, object], root: Path) -> CampaignTask:
     _require_fields(
         entry, EXTERNAL_INVENTORY_TASK_FIELDS, frozenset(),
         "campaign task_source inventory task")
-    task_id = _identifier(entry, "task_id", "campaign task_source inventory task")
+    task_id = _task_identifier(entry, "campaign task_source inventory task")
     image_id = _text(entry, "image_id", "campaign task_source inventory task")
     if IMAGE_DIGEST.fullmatch(image_id) is None:
         raise CampaignConfigError(

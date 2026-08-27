@@ -32,6 +32,7 @@ IMAGE_IDS = {
 
 
 def stage_corpus(root: Path, task_ids=tuple(IMAGE_IDS)) -> tuple[Path, Path]:
+    """Lay out corpus task directories, and an inventory naming exactly those the caller listed."""
     tasks = root / "corpus" / "tasks"
     for task_id in task_ids:
         directory = tasks / task_id
@@ -48,7 +49,7 @@ def stage_corpus(root: Path, task_ids=tuple(IMAGE_IDS)) -> tuple[Path, Path]:
         "task_tree_sha256": "b" * 64,
         "tasks": [
             {"task_id": task_id, "image_ref": f"alexgshaw/{task_id}:20251031",
-             "image_id": IMAGE_IDS[task_id]}
+             "image_id": IMAGE_IDS.get(task_id, f"sha256:{'9' * 64}")}
             for task_id in task_ids
         ],
     }), encoding="utf-8")
@@ -181,6 +182,49 @@ def test_an_over_long_trial_id_is_shortened_rather_than_refused(tmp_path: Path) 
     assert long.trial_id.endswith("-cortex-direct-pi-openai-codex-5f2baf")
     assert long.trial_id_was_shortened is True
     assert long.declared_trial_id == f"camp-01-{LONG_TASK_ID}-cortex-direct-pi-openai-codex"
+
+
+def test_a_corpus_task_id_a_hostname_cannot_carry_is_rewritten_not_refused(
+    tmp_path: Path,
+) -> None:
+    """Terminal-Bench 2.1 ships `install-windows-3.11`. A corpus does not negotiate its ids."""
+    document = external_document(tmp_path)
+    stage_corpus(tmp_path, ("install-windows-3.11",))
+    document["arms"] = [arm_document("cortex-a")]
+    config = load_campaign_config(write_campaign(tmp_path, document))
+
+    plan = next(iter(config.trials()))
+
+    assert config.tasks[0].task_id == "install-windows-3.11"
+    assert config.tasks[0].path.name == "install-windows-3.11"
+    assert plan.trial_id.startswith("camp-01-install-windows-3-11-cortex-a-")
+    assert plan.trial_id_was_shortened is True
+    assert plan.declared_trial_id == "camp-01-install-windows-3.11-cortex-a"
+
+
+def test_two_task_ids_that_sanitize_alike_stay_distinct(tmp_path: Path) -> None:
+    """`a.b` and `a-b` becoming one trial id is how the second resumes the first's root."""
+    document = external_document(tmp_path)
+    stage_corpus(tmp_path, ("install-win-3.11", "install-win-3-11"))
+    config = load_campaign_config(write_campaign(tmp_path, document))
+
+    ids = [plan.trial_id for plan in config.trials()]
+
+    assert len(set(ids)) == len(ids)
+
+
+@pytest.mark.parametrize("task_id", ["../escape", "Install-Windows", "-leading"])
+def test_a_task_id_that_is_not_a_safe_relative_name_is_refused(
+    tmp_path: Path, task_id: str,
+) -> None:
+    document = external_document(tmp_path)
+    inventory = Path(str(document["task_source"]["inventory"]))
+    payload = json.loads(inventory.read_text())
+    payload["tasks"][0]["task_id"] = task_id
+    inventory.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(CampaignConfigError, match="task_id"):
+        load_campaign_config(write_campaign(tmp_path, document))
 
 
 def test_a_shortened_trial_id_is_stable_and_distinct(tmp_path: Path) -> None:
