@@ -1,37 +1,14 @@
-import type { ProjectConduitInfo, SessionInfo } from '@cortex-agent/ui-contract';
-import { projectInitials } from './session-groups';
-import { projectAttentionBadge, type ProjectAttentionBadgeTone } from './project-menu';
+// input:  SessionInfo lists, per-project activity maps and keydown keys
+// output: relative ages, the activity order and the ⌘1–9 index
+// pos:    Shared project-ordering primitives for the rail tree and mobile
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+import type { SessionInfo } from '@cortex-agent/ui-contract';
 
-// Pure view-model for the 22a dual-zone left rail PROJECTS zone (scheme.dc.html §22a, L37–150).
-// Design contract: project rows are ordered by MOST RECENT ACTIVITY (the project whose newest
-// session activity is latest sorts first — see sortProjectsByActivity). Ordering derives from the
-// persistent session registry (SessionInfo.lastUsedAt), so it survives server/app restarts and never
-// degrades to raw filesystem order. ⌘1–9 follow the visible (activity) order — ⌘1 is the most recently
-// active project. A row's trailing slot shows its status badges + hotkey when it has any (mock rows
-// TR/LO), else the last-activity age (mock row PP "3d").
-// DATA GAP (flagged): the mock's per-row PENDING_APPROVALS dot has no project field. Rows can still
-// carry session-scoped action counts via SessionInfo.awaitingInput; the markdown approval pill stays
-// the all-projects aggregate.
-
-export interface ProjectRailRow {
-  id: string;
-  initials: string;
-  active: boolean;
-  /** Active thread count (running+waiting) — the blue pulse badge. */
-  running: number;
-  /** Unread session count, retained separately for title emphasis. */
-  unread: number;
-  /** Sessions blocked on a pending ask-user question or plan approval. */
-  actionRequired: number;
-  /** Combined unread + action count shown in the single project badge. */
-  badgeCount: number;
-  /** Action takes the amber tone; unread-only stays accent blue. */
-  badgeTone: ProjectAttentionBadgeTone;
-  /** '⌘1'…'⌘9' by list order for the first nine rows; null past that or when idleAge shows. */
-  hotkey: string | null;
-  /** Last-activity age ('3d') — only for badge-less idle rows with a known timestamp. */
-  idleAge: string | null;
-}
+// The rail's ordering contract: projects sort by MOST RECENT ACTIVITY — the project whose newest
+// session activity is latest comes first (see sortProjectsByActivity). Activity derives from the
+// persistent session registry (SessionInfo.lastUsedAt), so the order survives server/app restarts and
+// never degrades to raw filesystem order. The rail's manual mode (rail-order.ts) layers a stored
+// order on top of this one; row assembly itself lives in rail-tree.ts.
 
 /** Compact age label: <1m → 'now', <1h → 'Xm', <24h → 'Xh', else 'Xd'. Never negative. */
 export function relativeAge(thenMs: number, nowMs: number): string {
@@ -73,62 +50,8 @@ export function sortProjectsByActivity<T extends { id: string }>(
   });
 }
 
-/** SESSIONS zone-header project echo (design "quad-nav" from quad-nav-sim2real): the first two
- *  dash/underscore segments; two or fewer segments stay verbatim. */
-export function projectShortLabel(id: string): string {
-  const segments = id.split(/[-_]/).filter(Boolean);
-  if (segments.length <= 2) return id;
-  return segments[0] + '-' + segments[1];
-}
-
 /** ⌘1–⌘9 keydown → project list index (0–8); anything else → null. */
 export function projectIndexFromKey(key: string): number | null {
   if (key.length !== 1 || key < '1' || key > '9') return null;
   return key.charCodeAt(0) - '1'.charCodeAt(0);
-}
-
-// Draggable divider bounds. Default = the design's 322px projects-zone cap (~6 rows visible,
-// header pinned, rows scroll internally past that).
-export const PROJECTS_ZONE_DEFAULT_H = 322;
-export const PROJECTS_ZONE_MIN_H = 120;
-export const PROJECTS_ZONE_MAX_H = 560;
-
-export function clampProjectsZoneHeight(px: number): number {
-  if (!Number.isFinite(px)) return PROJECTS_ZONE_DEFAULT_H;
-  return Math.min(PROJECTS_ZONE_MAX_H, Math.max(PROJECTS_ZONE_MIN_H, px));
-}
-
-export function buildProjectRailRows(
-  projects: ProjectConduitInfo[],
-  activeId: string | null,
-  runningCounts: Record<string, number>,
-  unreadCounts: Record<string, number>,
-  lastActivity: Record<string, number>,
-  nowMs: number,
-  actionCounts: Record<string, number> = {},
-): ProjectRailRow[] {
-  return projects.map((p, i) => {
-    const active = p.id === activeId;
-    const running = runningCounts[p.id] ?? 0;
-    const unread = unreadCounts[p.id] ?? 0;
-    const actionRequired = actionCounts[p.id] ?? 0;
-    const badge = projectAttentionBadge(unread, actionRequired);
-    const hasBadge = running > 0 || badge.count > 0;
-    const activityMs = lastActivity[p.id];
-    // The active row never shows an age — its trailing sub-line carries the ⌘k echo instead.
-    const idleAge =
-      !active && !hasBadge && typeof activityMs === 'number' ? relativeAge(activityMs, nowMs) : null;
-    return {
-      id: p.id,
-      initials: projectInitials(p.id),
-      active,
-      running,
-      unread,
-      actionRequired,
-      badgeCount: badge.count,
-      badgeTone: badge.tone,
-      hotkey: idleAge === null && i < 9 ? '⌘' + (i + 1) : null,
-      idleAge,
-    };
-  });
 }

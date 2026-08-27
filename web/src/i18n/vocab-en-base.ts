@@ -234,11 +234,9 @@ export const enBase = {
   wbSessionToday: 'TODAY',
   wbSessionYesterday: 'YESTERDAY',
   wbSessionEarlier: 'EARLIER',
-  wbFromSchedule: 'from schedule',
 
   // ── 30a/30b/30c scheduled sessions ──
   wbAllRuns: 'all {n} runs',
-  wbSchedSection: 'SCHEDULED',
   wbSchedManage: 'manage ↗',
   wbSchedUnread: '{n} unread',
   wbSchedOnce: 'once',
@@ -247,10 +245,19 @@ export const enBase = {
   wbSchedRunListHint: 'click a run → opens that session in the chat pane',
   wbSchedReplyHint: 'Replying converts this run into a normal session — it moves into the timeline; the schedule\'s next run is unaffected',
 
-  // ── 22a dual-zone left rail ──
+  // ── project folder tree (left rail) ──
   wbProjects: 'PROJECTS',
-  wbSessions: 'SESSIONS',
-  wbNewShort: 'New',
+  wbNewSession: 'New session',
+  wbNewSessionIn: 'New session in {p}',
+  wbProjectOverview: '{p} overview',
+  wbFilterSessions: 'Filter sessions in all projects…',
+  wbFilterNoMatch: 'No matching session',
+  wbShowAllSessions: 'Show all {n}',
+  wbSchedGroup: 'Scheduled',
+  wbSortMode: 'Sort',
+  wbSortActivity: 'Recent activity',
+  wbSortManual: 'Manual',
+  wbReorderProject: 'Drag to reorder',
   wbCost: 'Cost',
 
   // ── Session ID (⋯ header menu → modal) ──

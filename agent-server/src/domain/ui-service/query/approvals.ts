@@ -32,6 +32,13 @@ const FIELD_KEYS: Record<
   Provenance: 'provenance',
 };
 
+// Words that close an entry without being a plain `approved` — the queue is hand-edited, and a
+// decision often gets recorded as what actually happened to the request rather than as a verdict:
+// `resolved <date> — …` (settled by discussion), `deferred <date> (…)` (decided not to act now),
+// `superseded …` (a later entry took over). All three are DECIDED. Before they were recognised the
+// fallback swept them into `pending`, so the rail's pending badge counted long-closed entries.
+const DECIDED_PREFIXES = /^(resolved|deferred|superseded)\b/i;
+
 // Classify a raw `Status` value. Prefix-matched because the real file has variants like
 // `approved — executed <date> (…)` and `rejected <date> (feedback)`.
 function parseStatus(raw: string): { status: ApprovalStatus; decidedAt: string | null; feedback: string | null } {
@@ -41,6 +48,10 @@ function parseStatus(raw: string): { status: ApprovalStatus; decidedAt: string |
   if (/^approved\b/i.test(value)) return { status: 'approved', decidedAt: date, feedback: null };
   if (/^rejected\b/i.test(value)) return { status: 'rejected', decidedAt: date, feedback };
   if (/^failed\b/i.test(value)) return { status: 'failed', decidedAt: date, feedback: null };
+  // Closed by one of the settlement words: report it as decided (`approved` is the only terminal
+  // state the UI treats as "no longer waiting on you") and keep the original wording in `feedback`
+  // so the approval centre can still show HOW it was closed.
+  if (DECIDED_PREFIXES.test(value)) return { status: 'approved', decidedAt: date, feedback: value };
   return { status: 'pending', decidedAt: null, feedback: null };
 }
 

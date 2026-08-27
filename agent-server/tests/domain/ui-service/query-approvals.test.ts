@@ -205,3 +205,58 @@ test('handleApprovalsList returns [] when the file is missing', async () => {
   const list = await handleApprovalsList(deps, {});
   assert.deepEqual(list, []);
 });
+
+// ── (7) settlement words are DECIDED, not pending ────────────────────────────
+// The queue is hand-edited and a decision is often recorded as what happened to the request
+// (`resolved` / `deferred` / `superseded`) rather than as a verdict. Before these were
+// recognised the fallback swept them into `pending`, so the rail's pending badge counted
+// long-closed entries.
+const SETTLED = `# Pending Approvals
+
+## 2026-04-01 Still waiting on you
+- **Operation**: do the thing
+- **Status**: pending
+
+## 2026-04-02 Settled by discussion
+- **Operation**: pick a branch
+- **Status**: resolved 2026-04-02 — owner decided in review
+
+## 2026-04-03 Not now
+- **Operation**: buy the disk
+- **Status**: deferred 2026-04-03 (source commit only)
+
+## 2026-04-04 Taken over by a later entry
+- **Operation**: first attempt
+- **Status**: superseded and blocked 2026-04-05
+`;
+
+test('parseApprovals treats resolved/deferred/superseded as decided', () => {
+  const all = parseApprovals(SETTLED);
+  assert.equal(all.length, 4);
+  assert.equal(all[0].status, 'pending');
+  for (const settled of all.slice(1)) {
+    assert.equal(settled.status, 'approved');
+  }
+
+  // Only the genuinely undecided entry is pending — this is the count the rail badge shows.
+  const pending = parseApprovals(SETTLED, 'pending');
+  assert.equal(pending.length, 1);
+  assert.equal(pending[0].title, 'Still waiting on you');
+});
+
+test('parseApprovals keeps the settlement wording and date', () => {
+  const [, resolved, deferred, superseded] = parseApprovals(SETTLED);
+  assert.equal(resolved.decidedAt, '2026-04-02');
+  assert.equal(resolved.feedback, 'resolved 2026-04-02 — owner decided in review');
+  assert.equal(deferred.decidedAt, '2026-04-03');
+  assert.equal(deferred.feedback, 'deferred 2026-04-03 (source commit only)');
+  // A settlement word anywhere but the start must NOT close the entry.
+  assert.equal(superseded.status, 'approved');
+  assert.equal(superseded.decidedAt, '2026-04-05');
+});
+
+test('parseApprovals leaves unknown status words pending', () => {
+  const md = '## 2026-04-06 Odd wording\n- **Status**: waiting on the vendor\n';
+  const [entry] = parseApprovals(md);
+  assert.equal(entry.status, 'pending');
+});

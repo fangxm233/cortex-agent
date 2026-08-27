@@ -234,11 +234,9 @@ export const zhBase = {
   wbSessionToday: '今天',
   wbSessionYesterday: '昨天',
   wbSessionEarlier: '更早',
-  wbFromSchedule: '来自调度',
 
   // ── 30a/30b/30c scheduled sessions ──
   wbAllRuns: '全部 {n} runs',
-  wbSchedSection: 'SCHEDULED',
   wbSchedManage: 'manage ↗',
   wbSchedUnread: '{n} 未读',
   wbSchedOnce: '单次',
@@ -247,10 +245,19 @@ export const zhBase = {
   wbSchedRunListHint: '点击任意 run → chat 栏打开该次 session',
   wbSchedReplyHint: '发送后提取为普通 session：移入时间线；schedule 的下次 run 不受影响',
 
-  // ── 22a dual-zone left rail ──
+  // ── 项目文件夹树（左栏）──
   wbProjects: '项目',
-  wbSessions: '会话',
-  wbNewShort: '新建',
+  wbNewSession: '新会话',
+  wbNewSessionIn: '在 {p} 新建会话',
+  wbProjectOverview: '{p} 概览',
+  wbFilterSessions: '在所有项目里过滤会话…',
+  wbFilterNoMatch: '没有匹配的会话',
+  wbShowAllSessions: '展开全部 {n}',
+  wbSchedGroup: '定时',
+  wbSortMode: '排序方式',
+  wbSortActivity: '最近活动',
+  wbSortManual: '手动',
+  wbReorderProject: '拖动排序',
   wbCost: '成本',
 
   // ── Session ID (⋯ header menu → modal) ──

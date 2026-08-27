@@ -6,15 +6,21 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | filename | role | function |
 |---|---|---|
 | WorkbenchPage.tsx | entry | Composes panes and global workbench actions |
-| LeftRail.tsx | view | Collapsible project, session and SCHEDULED navigation zones |
-| left-rail-projects.ts | vm | Builds ordered project rows with badges |
-| left-rail-projects.test.ts | test | Tests project activity ordering, hotkeys and attention counts |
+| LeftRail.tsx | view | Collapsible rail framing the project folder tree |
+| RailTree.tsx | view | Renders project folders with their sessions and schedules |
+| rail-tree.ts | vm | Builds project folder nodes with session and schedule rows |
+| rail-tree.test.ts | test | Tests folder ordering, capping, filtering and badges |
+| rail-order.ts | vm | Persists the rail's manual and activity project order |
+| rail-order.test.ts | test | Tests order reconciliation, moves and mode resolution |
+| ProjectFolderIcon.tsx | view | Draws the open or closed project folder glyph |
+| left-rail-projects.ts | vm | Relative ages, activity order and the hotkey index |
+| left-rail-projects.test.ts | test | Tests project activity ordering, ages and hotkeys |
 | project-menu.ts | vm | Counts per-project running and attention badges |
 | project-menu.test.ts | test | Unit tests for project menu counts |
 | NewProjectModal.tsx | view | Creates a project from a validated name |
 | new-project.ts | vm | Validates project names and maps create errors |
 | new-project.test.ts | test | Unit tests for project name validation |
-| session-groups.ts | vm | Day-groups sessions with meta and stamp helpers |
+| session-groups.ts | vm | Day-groups sessions with local stamp helpers |
 | session-groups.test.ts | test | Unit tests for session day grouping |
 | schedule-rail.ts | vm | Builds SCHEDULED rows, run ordinals and click routing |
 | schedule-rail.test.ts | test | Unit tests for the SCHEDULED section view model |

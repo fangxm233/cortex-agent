@@ -1,5 +1,5 @@
 // input:  SessionInfo DTO, i18n Vocab
-// output: groupSessions + row meta helpers
+// output: groupSessions + row stamp helpers
 // pos:    Day-grouped session-list view model (desktop + mobile)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { SessionInfo } from '@cortex-agent/ui-contract';
@@ -68,18 +68,10 @@ function pad2(n: number): string {
   return n < 10 ? '0' + n : '' + n;
 }
 
-// Meta line: local HH:MM of the effective timestamp, plus a "from schedule" marker for scheduled
-// sessions. SessionInfo carries no turns/cost/running fields (GAP-2) so the meta is time + kind only.
 // A bare clock is only unambiguous while the group header still dates the row: TODAY and YESTERDAY
 // say which day it was, EARLIER does not. So rows that fall into the EARLIER bucket — anything
 // before yesterday, by the same local-calendar-day test `groupSessions` uses — carry the date too,
 // as `MM-DD HH:MM`, widening to `YYYY-MM-DD HH:MM` once the year no longer matches the current one.
-export function sessionMeta(L: Vocab, s: SessionInfo, now: Date | number = Date.now()): string {
-  const stamp = sessionStamp(s, now);
-  return s.kind === 'scheduled' ? stamp + ' · ' + L.wbFromSchedule : stamp;
-}
-
-/** Raw time stamp of a session (no kind marker) — schedule-group run sub-rows use this directly. */
 export function sessionStamp(s: SessionInfo, now: Date | number = Date.now()): string {
   const nowMs = typeof now === 'number' ? now : now.getTime();
   const ms = effectiveMs(s);
@@ -94,7 +86,7 @@ export function sessionStamp(s: SessionInfo, now: Date | number = Date.now()): s
 }
 
 // Avatar initials from a project id: first letter of the first two `-`/`_`-split segments, else the
-// first two chars (single-segment). `quad-nav-sim2real` → `QN`, `nimbus` → `NI`.
+// first two chars (single-segment). `orchard-nav-sim` → `ON`, `nimbus` → `NI`.
 export function projectInitials(id: string): string {
   const segments = id.split(/[-_]/).filter(Boolean);
   if (segments.length >= 2) return (segments[0][0] + segments[1][0]).toUpperCase();

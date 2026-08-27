@@ -135,6 +135,23 @@ describe('buildCmdkItems', () => {
     expect(buildCmdkItems({ sessions: [], threads: [], tasks: [] })).toEqual([]);
   });
 
+  it('titles a session by its user-set label, falling back to name then id', () => {
+    const [labelled] = buildCmdkItems({
+      sessions: [session({ label: 'renamed by hand', name: 'morning review' })],
+      threads: [],
+      tasks: [],
+    });
+    expect(labelled.label).toBe('renamed by hand');
+    const [named] = buildCmdkItems({ sessions: [session({ label: null })], threads: [], tasks: [] });
+    expect(named.label).toBe('morning review');
+    const [bare] = buildCmdkItems({
+      sessions: [session({ label: null, name: undefined })],
+      threads: [],
+      tasks: [],
+    });
+    expect(bare.label).toBe('sess_1');
+  });
+
   it('drops empty keyword tokens', () => {
     const [item] = buildCmdkItems({
       sessions: [session({ label: null, name: 'n' })],

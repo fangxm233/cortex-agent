@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import type { ProjectConduitInfo, SessionInfo } from '@cortex-agent/ui-contract';
 import {
-  buildProjectRailRows,
   lastActivityByProject,
   projectIndexFromKey,
+  relativeAge,
   sortProjectsByActivity,
 } from './left-rail-projects';
 
@@ -24,6 +24,16 @@ const session = (projectId: string, lastUsedAt: string): SessionInfo =>
   }) as SessionInfo;
 
 const NOW = Date.parse('2026-07-16T12:00:00');
+
+describe('relativeAge', () => {
+  it('collapses a span into one compact unit, never a negative one', () => {
+    expect(relativeAge(NOW - 30_000, NOW)).toBe('now');
+    expect(relativeAge(NOW - 5 * 60_000, NOW)).toBe('5m');
+    expect(relativeAge(NOW - 3 * 3_600_000, NOW)).toBe('3h');
+    expect(relativeAge(NOW - 2 * 86_400_000, NOW)).toBe('2d');
+    expect(relativeAge(NOW + 60_000, NOW)).toBe('now');
+  });
+});
 
 describe('lastActivityByProject', () => {
   it('keeps the max effective timestamp per project', () => {
@@ -83,82 +93,5 @@ describe('projectIndexFromKey', () => {
     expect(projectIndexFromKey('0')).toBeNull();
     expect(projectIndexFromKey('a')).toBeNull();
     expect(projectIndexFromKey('10')).toBeNull();
-  });
-});
-
-describe('buildProjectRailRows', () => {
-  const projects = [project('quad-nav-sim2real'), project('tactile'), project('lab-ops'), project('paper-pipeline')];
-
-  it('preserves projects.list order (22a position stability — no unread hoisting)', () => {
-    const rows = buildProjectRailRows(projects, 'lab-ops', {}, { 'paper-pipeline': 3 }, {}, NOW);
-    expect(rows.map((r) => r.id)).toEqual([
-      'quad-nav-sim2real',
-      'tactile',
-      'lab-ops',
-      'paper-pipeline',
-    ]);
-  });
-
-  it('marks the active row and carries initials + counts', () => {
-    const rows = buildProjectRailRows(
-      projects,
-      'quad-nav-sim2real',
-      { 'quad-nav-sim2real': 2, 'lab-ops': 1 },
-      { tactile: 1 },
-      {},
-      NOW,
-    );
-    expect(rows[0]).toMatchObject({ id: 'quad-nav-sim2real', active: true, initials: 'QN', running: 2 });
-    expect(rows[1]).toMatchObject({ active: false, running: 0, unread: 1 });
-    expect(rows[2]).toMatchObject({ running: 1 });
-  });
-
-  it('adds unread + action counts and marks the badge as action-toned when any action exists', () => {
-    const rows = buildProjectRailRows(
-      projects,
-      'quad-nav-sim2real',
-      {},
-      { tactile: 2, 'lab-ops': 1 },
-      { 'paper-pipeline': NOW - 3 * 86_400_000 },
-      NOW,
-      { tactile: 1, 'paper-pipeline': 1 },
-    );
-    expect(rows[1]).toMatchObject({ unread: 2, actionRequired: 1, badgeCount: 3, badgeTone: 'action' });
-    expect(rows[2]).toMatchObject({ unread: 1, actionRequired: 0, badgeCount: 1, badgeTone: 'unread' });
-    expect(rows[3]).toMatchObject({ unread: 0, actionRequired: 1, badgeCount: 1, badgeTone: 'action', idleAge: null });
-  });
-
-  it('assigns ⌘1–⌘9 hotkeys by list order, none past the ninth', () => {
-    const many = Array.from({ length: 11 }, (_, i) => project('p' + i));
-    const rows = buildProjectRailRows(many, null, {}, {}, {}, NOW);
-    expect(rows[0].hotkey).toBe('⌘1');
-    expect(rows[8].hotkey).toBe('⌘9');
-    expect(rows[9].hotkey).toBeNull();
-  });
-
-  it('idle rows (no running/unread badge) trail with the last-activity age instead of the hotkey (design "3d" row)', () => {
-    const activity = { 'paper-pipeline': NOW - 3 * 86_400_000 };
-    const rows = buildProjectRailRows(projects, 'quad-nav-sim2real', { 'lab-ops': 1 }, {}, activity, NOW);
-    const pp = rows[3];
-    expect(pp.running).toBe(0);
-    expect(pp.unread).toBe(0);
-    expect(pp.idleAge).toBe('3d');
-    // badge rows keep the hotkey; the idle-age row shows age INSTEAD (mock rows TR/LO vs PP)
-    expect(rows[2].idleAge).toBeNull();
-    expect(rows[2].hotkey).toBe('⌘3');
-  });
-
-  it('idle rows with no known activity show neither age nor badges', () => {
-    const rows = buildProjectRailRows([project('fresh')], null, {}, {}, {}, NOW);
-    expect(rows[0].idleAge).toBeNull();
-    expect(rows[0].running).toBe(0);
-  });
-
-  it('the ACTIVE row never trades its hotkey for an idle age (sub-line shows ⌘k, mock L66)', () => {
-    const activity = { 'quad-nav-sim2real': NOW - 2 * 3_600_000 };
-    const rows = buildProjectRailRows(projects, 'quad-nav-sim2real', {}, {}, activity, NOW);
-    expect(rows[0].active).toBe(true);
-    expect(rows[0].idleAge).toBeNull();
-    expect(rows[0].hotkey).toBe('⌘1');
   });
 });

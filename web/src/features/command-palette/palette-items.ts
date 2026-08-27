@@ -82,7 +82,9 @@ function tokens(...parts: (string | null | undefined)[]): string[] {
 
 function sessionItem(s: SessionInfo): CmdkItem {
   return {
-    id: `session:${s.sessionId}`, glyph: 'SE', label: s.name || s.sessionId,
+    // Same title the rail shows (rail-tree sessionTitle): the user-set `label` wins over the
+    // generated `name`, so a session found here is not called something else in the tree.
+    id: `session:${s.sessionId}`, glyph: 'SE', label: s.label || s.name || s.sessionId,
     sub: s.projectId, kbd: 'session', route: '/workbench', focusId: s.sessionId,
     keywords: tokens(s.sessionId, s.name, s.label, s.projectId, s.backend, s.kind),
   };

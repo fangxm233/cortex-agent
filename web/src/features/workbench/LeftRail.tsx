@@ -1,37 +1,31 @@
 // input:  tRPC data, shared project/session/modal contexts
-// output: collapsible desktop rail with bounded project/session/schedule zones
+// output: collapsible desktop rail framing the project folder tree
 // pos:    Owns workbench navigation and global-overlay triggers
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
-import { groupSessions, groupLabel, sessionMeta } from './session-groups';
-import {
-  buildScheduleRows,
-  scheduleRowAction,
-  scheduleSubline,
-  unreadScheduleCount,
-  type ScheduleRow,
-} from './schedule-rail';
+import { scheduleRowAction, type ScheduleRow } from './schedule-rail';
 import { RunListModal } from './RunListModal';
 import { useScheduleModal } from '@/features/schedule/ScheduleModalProvider';
+import { projectIndexFromKey } from './left-rail-projects';
 import {
-  awaitingInputCountByProject,
-  runningCountByProject,
-  unreadCountByProject,
-} from './project-menu';
-import { formatCost } from './right-panel-vm';
+  buildRailTree,
+  projectOfSession,
+  type RailSessionRow,
+} from './rail-tree';
 import {
-  buildProjectRailRows,
-  clampProjectsZoneHeight,
-  lastActivityByProject,
-  projectIndexFromKey,
-  projectShortLabel,
-  sortProjectsByActivity,
-  PROJECTS_ZONE_DEFAULT_H,
-} from './left-rail-projects';
+  loadManualOrder,
+  loadSortMode,
+  moveInOrder,
+  reconcileManualOrder,
+  saveManualOrder,
+  saveSortMode,
+  type RailSortMode,
+} from './rail-order';
+import { RailTree } from './RailTree';
+import { ProjectFolderIcon } from './ProjectFolderIcon';
 import { NewProjectModal } from './NewProjectModal';
 import { PaneToggle } from './PaneToggle';
 import { useApprovals } from '@/features/approvals/ApprovalsProvider';
@@ -47,34 +41,34 @@ import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvi
 import { connectionDot, connectionLabelKey, type ConnectionDot } from '@/features/connection/connection-status';
 import { RailRateLimitStatus, useRateLimitStatus } from '@/features/rate-limit';
 import { PlusGlyph } from '@/design';
-import { filterProjectSessions, useAllSessions, useProjectSessions } from './useProjectSessions';
+import { useAllSessions } from './useProjectSessions';
+
 const mono = "'IBM Plex Mono',monospace";
 const RAIL_WIDTH = 340;
 // Mirrors the right panel's icon rail (RightPanel PANEL_RAIL_WIDTH) so both collapsed edges read
 // as the same object: a 26px square of content inside 8px gutters.
 const RAIL_COLLAPSED_WIDTH = 42;
 const RAIL_COLLAPSED_KEY = 'cortex:left-rail-collapsed';
-const ZONE_H_KEY = 'cortex.railProjectsH';
-const SCHED_OPEN_KEY = 'cortex.railSchedOpen';
+const EXPANDED_KEY = 'cortex.railExpanded';
+const SCHED_EXPANDED_KEY = 'cortex.railSchedExpanded';
 
-function initialZoneH(): number {
+function loadIdSet(key: string): Set<string> {
   try {
-    const raw = window.localStorage.getItem(ZONE_H_KEY);
-    if (raw === null) return PROJECTS_ZONE_DEFAULT_H;
-    return clampProjectsZoneHeight(Number(raw));
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return new Set();
+    const parsed: unknown = JSON.parse(raw);
+    return new Set(Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : []);
   } catch {
-    return PROJECTS_ZONE_DEFAULT_H;
+    return new Set();
   }
 }
 
-// Clock glyph marking SCHEDULED-section rows (design 30a: 时钟 = scheduled).
-function ClockIcon({ size, color }: { size: number; color: string }): JSX.Element {
-  return (
-    <svg width={size} height={size} viewBox="0 0 14 14" fill="none" stroke={color} strokeWidth={1.6} style={{ flex: 'none' }}>
-      <circle cx="7" cy="7" r="5.6" />
-      <path d="M7 4v3.2l2.2 1.3" />
-    </svg>
-  );
+function saveIdSet(key: string, value: Set<string>): void {
+  try {
+    window.localStorage.setItem(key, JSON.stringify([...value]));
+  } catch {
+    /* persistence is best-effort */
+  }
 }
 
 // 25c 皮层弧 C — 两弧一核成 C / 由核向外的信号 (scheme.dc.html §25c)
@@ -198,222 +192,154 @@ function useRailCollapsed() {
 
 export function LeftRail(): JSX.Element {
   const navigate = useNavigate();
-  const location = useLocation();
   const trpc = useTRPC();
   const theme = useTheme();
   const setTheme = useSetTheme();
   const { open: openSettings } = useSettings();
   const L = useVocab();
   // Live UI↔server connectivity for the daemon badge (green connected / amber (re)connecting /
-  // red disconnected) — replaces the former always-green hard-code.
+  // red disconnected).
   const connStatus = useConnectionStatus();
-  // Collapsed rail (mirrors the right panel): the pane animates down to an icon column of the brand
-  // badge, the project squares and the bottom cluster. Declared here because the project
-  // scroll-into-view effect below reads it.
   const [collapsed, setCollapsed] = useRailCollapsed();
   const rateLimitStatus = useRateLimitStatus();
   const connDot = connectionDot(connStatus);
   const connLabel = L[connectionLabelKey(connStatus)];
+
   const projectsQuery = useQuery(trpc.projects.list.queryOptions({}));
-
-  // Active project = the shared cross-pane current project (task 569c): the explicit selection,
-  // else the derived default (most-recent session's project, else first listed project).
-  const { currentProjectId: activeProjectId, setCurrentProject } = useCurrentProject();
-
-  // The timeline shows DIRECT conversations only (design 30a): scheduled runs moved out of the
-  // day buckets into the SCHEDULED section below. Both views select from shared unscoped caches.
-  const allSessionsQuery = useAllSessions('direct');
-  const scheduledSessionsQuery = useProjectSessions(activeProjectId, 'scheduled');
-  // Live schedule records: row identity (message) + cadence + the edit-modal prefill.
-  const schedulesQuery = useQuery(
-    trpc.schedules.list.queryOptions({ projectId: activeProjectId ?? undefined }),
-  );
+  // Every query below is UNSCOPED: the tree shows all projects at once, so scoping any of them to a
+  // single project would be the exact restriction this rail exists to remove.
+  const directSessionsQuery = useAllSessions('direct');
+  const scheduledSessionsQuery = useAllSessions('scheduled');
+  const schedulesQuery = useQuery(trpc.schedules.list.queryOptions({}));
+  const threadsQuery = useQuery(trpc.threads.list.queryOptions({}));
   const scheduleModal = useScheduleModal();
   // Keep every row's running dot live: one unscoped session.status subscription → refetch the list.
   useSessionsLiveSync();
 
-  // Active project's REAL today cost (mirrors RightPanel's cost bar, task 569c) — replaces the
-  // active row's former Tasks/Cost sub-entries with a direct today-cost readout.
-  const costQuery = useQuery({
-    ...trpc.cost.summary.queryOptions({ projectId: activeProjectId ?? undefined }),
-    enabled: !!activeProjectId,
-  });
-  const todayCost = costQuery.data?.today;
-  const todayCostLabel = typeof todayCost === 'number' ? formatCost(todayCost) : '—';
+  const { currentProjectId, setCurrentProject } = useCurrentProject();
+  const { selectedSessionId, setSelectedSession } = useSelectedSession();
 
-  const projects = projectsQuery.data ?? [];
-  const sessions = useMemo(
-    () => filterProjectSessions(allSessionsQuery.data ?? [], activeProjectId),
-    [allSessionsQuery.data, activeProjectId],
+  const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data]);
+  const directSessions = useMemo(() => directSessionsQuery.data ?? [], [directSessionsQuery.data]);
+  const scheduledSessions = useMemo(
+    () => scheduledSessionsQuery.data ?? [],
+    [scheduledSessionsQuery.data],
   );
 
-  // Real per-project running counts for the PROJECTS-zone badges (ThreadInfo has projectId+status).
-  const threadsQuery = useQuery(trpc.threads.list.queryOptions({}));
-  const threads = threadsQuery.data ?? [];
-  const runningCounts = useMemo(() => runningCountByProject(threads), [threads]);
-
-  // UNSCOPED direct-session list (all projects) → per-project unread badges + idle-age labels.
-  // Kept fresh by the same useSessionsLiveSync invalidation.
-  const unreadCounts = useMemo(
-    () => unreadCountByProject(allSessionsQuery.data ?? []),
-    [allSessionsQuery.data],
-  );
-  const actionCounts = useMemo(
-    () => awaitingInputCountByProject(allSessionsQuery.data ?? []),
-    [allSessionsQuery.data],
-  );
-  const lastActivity = useMemo(
-    () => lastActivityByProject(allSessionsQuery.data ?? []),
-    [allSessionsQuery.data],
-  );
-
-  // Order rows by most-recent activity (persistent — derived from the session registry's
-  // lastUsedAt, so it survives server/app restarts). ⌘1–9 follow this order (⌘1 = most recent).
-  const sortedProjects = useMemo(
-    () => sortProjectsByActivity(projects, lastActivity),
-    [projects, lastActivity],
-  );
-  const projectRows = useMemo(
-    () =>
-      buildProjectRailRows(
-        sortedProjects,
-        activeProjectId,
-        runningCounts,
-        unreadCounts,
-        lastActivity,
-        Date.now(),
-        actionCounts,
-      ),
-    [sortedProjects, activeProjectId, runningCounts, unreadCounts, lastActivity, actionCounts],
-  );
-
-  // New-project modal (kept from the retired switcher popover, task c551).
+  // Tree UI state. Expansion and the scheduled sub-groups persist; "show all" is per-visit, because
+  // an uncapped folder is a deliberate act for one look, not a standing preference.
+  const [expanded, setExpanded] = useState<Set<string>>(() => loadIdSet(EXPANDED_KEY));
+  const [schedExpanded, setSchedExpanded] = useState<Set<string>>(() => loadIdSet(SCHED_EXPANDED_KEY));
+  const [showAll, setShowAll] = useState<Set<string>>(() => new Set());
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [filter, setFilter] = useState('');
+  const [sort, setSort] = useState<RailSortMode>(loadSortMode);
+  const [manualOrder, setManualOrder] = useState<string[]>(loadManualOrder);
+  // A drag in ACTIVITY mode holds only until activity moves again — that is what the mode means.
+  // The flag lives in state (not storage) so a reload lands back on the honest activity order.
+  const [dragged, setDragged] = useState(false);
   const [newProjOpen, setNewProjOpen] = useState(false);
+  const [runModalId, setRunModalId] = useState<string | null>(null);
+  const [daemonOpen, setDaemonOpen] = useState(false);
+  const [hover, setHover] = useState<string | null>(null);
 
-  // Single click switches the project: the SESSIONS zone re-scopes and the selected-session
-  // provider re-derives the project's most-recent session; returning to /workbench opens it
-  // (22a: "单击即切换 … 自动打开其最新 session").
-  const onSwitchProject = (id: string) => {
-    if (id !== activeProjectId) setCurrentProject(id);
-    navigate('/workbench');
-  };
-
-  // ⌘1–9 switches by the visible PROJECTS order (most-recent-activity first; ⌘1 = latest active).
-  const projectRowsRef = useRef(projectRows);
-  projectRowsRef.current = projectRows;
-  const onSwitchProjectRef = useRef(onSwitchProject);
-  onSwitchProjectRef.current = onSwitchProject;
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
-      const idx = projectIndexFromKey(e.key);
-      if (idx === null) return;
-      const row = projectRowsRef.current[idx];
-      if (!row) return;
-      e.preventDefault();
-      onSwitchProjectRef.current(row.id);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
-
-  // Keep the active row visible inside the zone's internal scroller (20 real projects vs the
-  // design's 4 — without this a switch via ⌘k or derivation can leave the active row folded).
-  // Two scrollers, because the expanded zone stays mounted (display:none) while collapsed so its
-  // scroll position survives the round trip — a single ref would be claimed by the hidden one.
-  const projectsScrollRef = useRef<HTMLDivElement | null>(null);
-  const collapsedProjectsRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (!activeProjectId) return;
-    const selector = `[data-project-row="${CSS.escape(activeProjectId)}"]`;
-    const host = collapsed ? collapsedProjectsRef.current : projectsScrollRef.current;
-    host?.querySelector(selector)?.scrollIntoView({ block: 'nearest' });
-  }, [activeProjectId, projectRows.length, collapsed]);
-
-  // Draggable divider: adjusts the PROJECTS zone height (rows scroll internally, header pinned).
-  const [zoneH, setZoneH] = useState(initialZoneH);
-  const dragRef = useRef<{ startY: number; startH: number } | null>(null);
-  const onDividerDown = (e: React.MouseEvent) => {
-    e.preventDefault();
-    dragRef.current = { startY: e.clientY, startH: zoneH };
-    const onMove = (ev: MouseEvent) => {
-      const d = dragRef.current;
-      if (!d) return;
-      setZoneH(clampProjectsZoneHeight(d.startH + (ev.clientY - d.startY)));
-    };
-    const onUp = () => {
-      dragRef.current = null;
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-      setZoneH((h) => {
-        try {
-          window.localStorage.setItem(ZONE_H_KEY, String(h));
-        } catch {
-          /* persistence is best-effort */
-        }
-        return h;
-      });
-    };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-  };
-
-  // One `now` feeds both the bucketing and the per-row meta, so a row can never sit under EARLIER
-  // while its meta is computed against a later clock (or the reverse).
-  const { groups, scheduleRows, now } = useMemo(() => {
-    const now = Date.now();
-    return {
-      groups: groupSessions(sessions, now),
-      scheduleRows: buildScheduleRows(schedulesQuery.data ?? [], scheduledSessionsQuery.data ?? [], now),
-      now,
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessions, scheduledSessionsQuery.data, schedulesQuery.data]);
-
-  // SCHEDULED section state (design 30a): the whole section folds to its header row, collapsed by
-  // default; the choice persists. A repeating row opens the 30b run-list modal.
-  const [schedOpen, setSchedOpen] = useState<boolean>(() => {
-    try {
-      return window.localStorage.getItem(SCHED_OPEN_KEY) === '1';
-    } catch {
-      return false;
-    }
-  });
-  const toggleSchedSection = () => {
-    setSchedOpen((v) => {
-      const next = !v;
-      try {
-        window.localStorage.setItem(SCHED_OPEN_KEY, next ? '1' : '0');
-      } catch {
-        /* persistence is best-effort */
-      }
+  const toggleId = (
+    setter: React.Dispatch<React.SetStateAction<Set<string>>>,
+    storageKey: string | null,
+  ) => (id: string) => {
+    setter((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      if (storageKey) saveIdSet(storageKey, next);
       return next;
     });
   };
-  const [runModalId, setRunModalId] = useState<string | null>(null);
-  const runModalRow = runModalId ? scheduleRows.find((r) => r.scheduleId === runModalId) ?? null : null;
+  const toggleProject = toggleId(setExpanded, EXPANDED_KEY);
+  const toggleSchedules = toggleId(setSchedExpanded, SCHED_EXPANDED_KEY);
+  const openProject = (id: string) => {
+    setExpanded((prev) => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev).add(id);
+      saveIdSet(EXPANDED_KEY, next);
+      return next;
+    });
+  };
 
-  // Selection is the shared cross-pane state: clicking a row re-points the center chat.
-  const { selectedSessionId: effectiveSelected, setSelectedSession } = useSelectedSession();
+  // One `now` per render feeds both the row ages and the schedule sublines, so a row can never show
+  // an age computed against a different clock than its neighbours.
+  const now = Date.now();
+  const tree = useMemo(
+    () =>
+      buildRailTree({
+        projects,
+        directSessions,
+        scheduledSessions,
+        schedules: schedulesQuery.data ?? [],
+        threads: threadsQuery.data ?? [],
+        selectedSessionId,
+        expanded,
+        schedulesExpanded: schedExpanded,
+        showAll,
+        filter,
+        sort,
+        manualOrder,
+        dragged,
+        now,
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      projects, directSessions, scheduledSessions, schedulesQuery.data, threadsQuery.data,
+      selectedSessionId, expanded, schedExpanded, showAll, filter, sort, manualOrder, dragged,
+    ],
+  );
 
-  // Approval center (Stage-R3): real `approvals.list` pending count — the ALL-projects aggregate
-  // (22a keeps the bottom pill global; the queue has no per-project scope).
-  const approvals = useApprovals();
-  const approvalsQuery = useQuery(trpc.approvals.list.queryOptions({ status: 'pending' }));
-  const pendingCount = approvalsQuery.data?.length ?? 0;
-  const hasPendingApprovals = pendingCount > 0;
-  const pendingLabel =
-    pendingCount + ' ' + (pendingCount > 1 ? L.approvalsPending : L.approvalPending);
+  // The tree's notion of "current" is the project owning the selected session. Push it into the
+  // shared context so the right panel, notes and issues follow the chat without the user ever
+  // switching project explicitly.
+  useEffect(() => {
+    if (tree.currentProjectId && tree.currentProjectId !== currentProjectId) {
+      setCurrentProject(tree.currentProjectId);
+    }
+  }, [tree.currentProjectId, currentProjectId, setCurrentProject]);
+
+  // First visit: open the project the workbench already resolved to, so the rail does not greet a
+  // new user with 20 closed folders.
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (seededRef.current || !currentProjectId) return;
+    seededRef.current = true;
+    if (expanded.size === 0) openProject(currentProjectId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentProjectId]);
+
+  // Any activity change retires an activity-mode drag (the manual order it wrote is kept).
+  const activityStamp = directSessions.length + ':' + scheduledSessions.length + ':' +
+    directSessions.reduce((max, s) => Math.max(max, Date.parse(s.lastUsedAt || s.createdAt) || 0), 0);
+  useEffect(() => {
+    setDragged(false);
+  }, [activityStamp]);
+
+  const openSession = (projectId: string, sessionId: string) => {
+    // Both writes leave in the same event: React batches them into one commit, so the selection's
+    // project-membership check sees the NEW project and the chat never flashes the old one.
+    setCurrentProject(projectId);
+    setSelectedSession(sessionId);
+    openProject(projectId);
+    navigate('/workbench');
+  };
+  const onOpenSession = (row: RailSessionRow) => openSession(row.projectId, row.sessionId);
 
   // "+ New" (⌘N) enters draft mode (no server call) — the session is created lazily on first send.
-  const onNewSession = () => {
+  const newSessionIn = (projectId: string | null) => {
+    if (projectId) {
+      setCurrentProject(projectId);
+      openProject(projectId);
+    }
     setSelectedSession('__draft__');
     navigate('/workbench');
   };
-  const onSelectSession = (id: string) => {
-    setSelectedSession(id);
-    navigate('/workbench');
-  };
+  const onNewSession = () => newSessionIn(null);
   const onNewSessionRef = useRef(onNewSession);
   onNewSessionRef.current = onNewSession;
   useEffect(() => {
@@ -426,270 +352,103 @@ export function LeftRail(): JSX.Element {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // Active-row sub-entry: only the real Overview route now — the former Tasks/Cost entries were
-  // dropped in favour of a direct today-cost readout rendered alongside (real cost.summary.today).
-  const subEntries: { key: string; label: string; to: string }[] = [
-    { key: 'overview', label: L.overview, to: '/overview' },
-  ];
+  const onOverview = (projectId: string) => {
+    setCurrentProject(projectId);
+    navigate('/overview');
+  };
 
-  const [hover, setHover] = useState<string | null>(null);
-  const [daemonOpen, setDaemonOpen] = useState(false);
+  // ⌘1–9 follows the tree's visible order and is an explicit switch: expand the folder and open its
+  // most recent session (plain folder clicks only expand).
+  const treeRef = useRef(tree);
+  treeRef.current = tree;
+  const openSessionRef = useRef(openSession);
+  openSessionRef.current = openSession;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
+      const idx = projectIndexFromKey(e.key);
+      if (idx === null) return;
+      const node = treeRef.current.projects.filter((p) => !p.empty)[idx];
+      if (!node) return;
+      e.preventDefault();
+      const first = node.sessions[0];
+      if (first) openSessionRef.current(first.projectId, first.sessionId);
+      else openProject(node.id);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const onSort = (mode: RailSortMode) => {
+    // Switching to manual freezes exactly what is on screen right now, drag or not.
+    setManualOrder((prev) => reconcileManualOrder(prev, tree.projects.map((p) => p.id)));
+    setSort(mode);
+    saveSortMode(mode);
+    if (mode === 'activity') setDragged(false);
+  };
+  const onReorder = (draggedId: string, targetId: string) => {
+    const visible = tree.projects.map((p) => p.id);
+    const base = reconcileManualOrder(manualOrder, visible);
+    const next = moveInOrder(base, draggedId, targetId);
+    setManualOrder(next);
+    saveManualOrder(next);
+    setDragged(true);
+  };
+
+  const onToggleSearch = () => {
+    setSearchOpen((open) => {
+      if (open) setFilter('');
+      return !open;
+    });
+  };
+
+  // Click routing: repeat → run-list modal; once with a run → open the session; a live schedule with
+  // no runs yet → edit modal.
+  const scheduleRows = useMemo(
+    () => tree.projects.flatMap((p) => p.schedules),
+    [tree.projects],
+  );
+  const runModalRow = runModalId ? scheduleRows.find((r) => r.scheduleId === runModalId) ?? null : null;
+  const onScheduleRow = (row: ScheduleRow) => {
+    const action = scheduleRowAction(row);
+    if (action.type === 'modal') setRunModalId(row.scheduleId);
+    else if (action.type === 'open') {
+      const project = projectOfSession(action.sessionId, directSessions, scheduledSessions);
+      if (project) openSession(project, action.sessionId);
+    } else if (row.schedule) scheduleModal.openEdit(row.schedule);
+  };
+
+  // Approval center: real `approvals.list` pending count — the ALL-projects aggregate (the queue
+  // has no per-project scope).
+  const approvals = useApprovals();
+  const approvalsQuery = useQuery(trpc.approvals.list.queryOptions({ status: 'pending' }));
+  const pendingCount = approvalsQuery.data?.length ?? 0;
+  const hasPendingApprovals = pendingCount > 0;
+  const pendingLabel =
+    pendingCount + ' ' + (pendingCount > 1 ? L.approvalsPending : L.approvalPending);
+
   const hp = (key: string) => ({
     onMouseEnter: () => setHover(key),
     onMouseLeave: () => setHover((h) => (h === key ? null : h)),
   });
   const isHover = (key: string) => hover === key;
 
-  // Plain session row — manual conversations and adopted runs (design 30c: an adopted run is a
-  // normal timeline session). Scheduled runs live in the SCHEDULED section, not here.
-  const renderSessionRow = (s: SessionInfo) => {
-    const active = s.sessionId === effectiveSelected;
-    const running = s.running;
-    const awaitingInput = s.awaitingInput;
-    const rowKey = 'sess:' + s.sessionId;
-    const bg = active ? 'var(--proto-line-2)' : isHover(rowKey) ? 'var(--proto-gray)' : 'transparent';
-    return (
-      <div
-        key={s.sessionId}
-        {...hp(rowKey)}
-        className="sess-row"
-        data-session-id={s.sessionId}
-        onClick={() => onSelectSession(s.sessionId)}
-        style={{ borderRadius: 8, padding: '8px 10px', cursor: 'pointer', background: bg, position: 'relative' }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-          {(running || awaitingInput) && (
-            <span
-              style={{
-                width: 7,
-                height: 7,
-                borderRadius: '50%',
-                background: awaitingInput ? 'var(--proto-amber)' : 'var(--proto-accent)',
-                flex: 'none',
-                animation: 'cxpulse 1.6s ease-in-out infinite',
-              }}
-            />
-          )}
-          <span
-            style={{
-              flex: 1,
-              minWidth: 0,
-              fontSize: 12.5,
-              // Unread emphasis (honest addition): unread rows keep the full ink +
-              // semibold; read rows soften so unread reads darker at a glance.
-              fontWeight: active || s.unread ? 600 : 400,
-              color: s.unread || active ? 'var(--proto-ink)' : 'var(--proto-muted)',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
-          >
-            {s.label ?? s.name}
-          </span>
-          <span
-            className="sess-more"
-            style={{
-              flex: 'none',
-              color: 'var(--proto-muted-3)',
-              fontSize: 13,
-              letterSpacing: 1,
-              padding: '0 4px',
-              borderRadius: 5,
-              lineHeight: 1.2,
-            }}
-          >
-            ⋯
-          </span>
-        </div>
-        <div
-          style={{
-            font: `400 10px ${mono}`,
-            color: active ? 'var(--proto-muted-2)' : 'var(--proto-faint)',
-            marginTop: 3,
-            paddingLeft: running ? 14 : 0,
-          }}
-        >
-          {sessionMeta(L, s, now)}
-        </div>
-      </div>
-    );
-  };
-
-  // SCHEDULED-section row (design 30a): clock + schedule name + ×N / once + unread dot, with a
-  // real-data subline. Click routing: repeat → 30b run-list modal; once with a run → open the
-  // session directly; a live schedule with no runs yet → edit modal.
-  const onScheduleRow = (row: ScheduleRow) => {
-    const action = scheduleRowAction(row);
-    if (action.type === 'modal') setRunModalId(row.scheduleId);
-    else if (action.type === 'open') onSelectSession(action.sessionId);
-    else if (row.schedule) scheduleModal.openEdit(row.schedule);
-  };
-  const renderScheduleRow = (row: ScheduleRow) => {
-    const sub = scheduleSubline(row, now);
-    const activeInside = row.runs.some((r) => r.sessionId === effectiveSelected);
-    const rowKey = 'sched:' + row.scheduleId;
-    return (
-      <div
-        key={rowKey}
-        {...hp(rowKey)}
-        data-schedule-row={row.scheduleId}
-        onClick={() => onScheduleRow(row)}
-        style={{
-          borderRadius: 8,
-          padding: '8px 10px',
-          cursor: 'pointer',
-          background: activeInside ? 'var(--proto-line-2)' : isHover(rowKey) ? 'var(--proto-gray)' : 'transparent',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-          <ClockIcon size={11} color={row.unread ? 'var(--proto-accent)' : 'var(--proto-muted-3)'} />
-          <span
-            style={{
-              flex: 1,
-              minWidth: 0,
-              fontSize: 12.5,
-              fontWeight: row.unread ? 600 : 400,
-              color: row.unread ? 'var(--proto-ink)' : 'var(--proto-muted)',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
-          >
-            {row.title}
-          </span>
-          <span style={{ font: `500 9px ${mono}`, color: 'var(--proto-muted-3)', flex: 'none' }}>
-            {row.kind === 'repeat' ? `×${row.runs.length}` : L.wbSchedOnce}
-          </span>
-          {row.unread && (
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--proto-accent)', flex: 'none' }} />
-          )}
-        </div>
-        <div style={{ font: `400 10px ${mono}`, color: 'var(--proto-faint)', marginTop: 3, paddingLeft: 18 }}>
-          {sub.kind === 'run' && (
-            <>
-              {sub.stamp}
-              {sub.cost && <> · <span style={{ color: 'var(--proto-muted-2)' }}>{sub.cost}</span></>}
-            </>
-          )}
-          {sub.kind === 'pending' && (
-            <>
-              {sub.cadence}
-              {sub.nextDelta && <> · {L.wbSchedNextRun.replace('{d}', sub.nextDelta)}</>}
-            </>
-          )}
-          {sub.kind === 'paused' && (
-            <>
-              {sub.cadence} · <span style={{ color: 'var(--proto-amber)' }}>{L.wbSchedPausedPill}</span>
-            </>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  // SCHEDULED zone (design 30a): a sibling of SESSIONS with header row + rows and no card chrome.
-  // Collapsed (default) keeps only the header with count + unread tally.
-  const schedUnread = unreadScheduleCount(scheduleRows);
-  const renderScheduledSection = () => {
-    if (scheduleRows.length === 0) return null;
-    return (
-      <div
-        data-zone="scheduled"
-        style={{ borderTop: '1px solid var(--proto-line)', margin: '8px 12px 0', paddingBottom: 6, flex: 'none' }}
-      >
-        <div
-          {...hp('schedhead')}
-          onClick={toggleSchedSection}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '12px 4px 6px', cursor: 'pointer' }}
-        >
-          <span style={{ fontSize: 8, color: 'var(--proto-muted-3)', flex: 'none' }}>{schedOpen ? '▾' : '▸'}</span>
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.07em', color: 'var(--proto-faint)' }}>
-            {L.wbSchedSection}
-          </span>
-          <span style={{ font: `400 9.5px ${mono}`, color: 'var(--proto-muted-3)' }}>{scheduleRows.length}</span>
-          {schedOpen ? (
-            <span
-              data-action="scheduled-manage"
-              onClick={(e) => {
-                e.stopPropagation();
-                navigate('/overview');
-              }}
-              style={{ marginLeft: 'auto', font: `500 9px ${mono}`, color: 'var(--proto-accent)', flex: 'none' }}
-            >
-              {L.wbSchedManage}
-            </span>
-          ) : (
-            schedUnread > 0 && (
-              <span style={{ marginLeft: 'auto', font: `500 9.5px ${mono}`, color: 'var(--proto-accent)', flex: 'none' }}>
-                {L.wbSchedUnread.replace('{n}', String(schedUnread))}
-              </span>
-            )
-          )}
-        </div>
-        {schedOpen && (
-          <div data-scroll="scheduled" style={{ maxHeight: 230, overflowY: 'auto' }}>
-            {scheduleRows.map(renderScheduleRow)}
-          </div>
-        )}
-      </div>
-    );
-  };
+  // Keep the current folder visible inside the tree's scroller. Two scrollers, because the expanded
+  // tree stays mounted (display:none) while collapsed so its scroll position survives the round trip.
+  const treeScrollRef = useRef<HTMLDivElement | null>(null);
+  const collapsedProjectsRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!tree.currentProjectId) return;
+    const selector = `[data-project-row="${CSS.escape(tree.currentProjectId)}"]`;
+    const host = collapsed ? collapsedProjectsRef.current : treeScrollRef.current;
+    host?.querySelector(selector)?.scrollIntoView({ block: 'nearest' });
+  }, [tree.currentProjectId, tree.projects.length, collapsed]);
 
   // COLLAPSED RAIL — the pane folded to an icon column: brand badge (identity + link), the expand
-  // toggle, the project squares (⌘1–9 still drive them), then the bottom cluster. Sessions and
-  // SCHEDULED have no honest icon form, so they simply wait for the expand — the same trade the
-  // right panel's rail makes. The theme toggle drops out too; Settings → Appearance still holds it.
+  // toggle, the project folders (⌘1–9 still drive them), then the bottom cluster. Sessions have no
+  // honest icon form, so they simply wait for the expand.
   const railDivider = <div aria-hidden="true" style={{ width: 20, height: 1, background: 'var(--proto-line)', margin: '3px 0', flex: 'none' }} />;
-  const renderCollapsedProject = (row: (typeof projectRows)[number]) => {
-    const tone = row.badgeCount > 0
-      ? (row.badgeTone === 'action' ? 'var(--proto-amber)' : 'var(--proto-accent)')
-      : row.running > 0
-        ? 'var(--proto-accent)'
-        : null;
-    return (
-      <button
-        key={row.id}
-        type="button"
-        data-project-row={row.id}
-        aria-label={row.id}
-        aria-pressed={row.active}
-        title={row.id}
-        onClick={() => onSwitchProject(row.id)}
-        style={{
-          position: 'relative',
-          width: 26,
-          height: 26,
-          border: 0,
-          borderRadius: 7,
-          padding: 0,
-          cursor: 'pointer',
-          flex: 'none',
-          background: row.active ? 'var(--proto-accent)' : 'var(--proto-accent-bg)',
-          color: row.active ? 'var(--ink-solid-fg)' : 'var(--proto-accent)',
-          font: `600 9px ${mono}`,
-          display: 'grid',
-          placeItems: 'center',
-        }}
-      >
-        {row.initials}
-        {tone && (
-          <span
-            aria-hidden="true"
-            style={{
-              position: 'absolute',
-              right: -2,
-              top: -2,
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              background: tone,
-              border: '2px solid var(--proto-rail)',
-            }}
-          />
-        )}
-      </button>
-    );
-  };
   const renderCollapsedRail = () => (
     <nav
       aria-label={L.lrRailNavigation}
@@ -702,11 +461,55 @@ export function LeftRail(): JSX.Element {
         ref={collapsedProjectsRef}
         style={{ flex: 1, minHeight: 0, width: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}
       >
-        {projectRows.map(renderCollapsedProject)}
+        {tree.projects.map((node) => (
+          <button
+            key={node.id}
+            type="button"
+            data-project-row={node.id}
+            aria-label={node.id}
+            aria-pressed={node.current}
+            title={node.id}
+            onClick={() => {
+              const first = node.sessions[0];
+              if (first) openSession(first.projectId, first.sessionId);
+              else newSessionIn(node.id);
+            }}
+            style={{
+              position: 'relative',
+              width: 26,
+              height: 26,
+              border: 0,
+              borderRadius: 7,
+              padding: 0,
+              cursor: 'pointer',
+              flex: 'none',
+              display: 'grid',
+              placeItems: 'center',
+              background: node.current ? 'var(--proto-line-2)' : 'transparent',
+            }}
+          >
+            <ProjectFolderIcon open={false} current={node.current} dim={node.empty} size={16} />
+            {(node.attention > 0 || node.running > 0) && (
+              <span
+                aria-hidden="true"
+                style={{
+                  position: 'absolute',
+                  right: -2,
+                  top: -2,
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: node.attention > 0 ? 'var(--proto-amber)' : 'var(--proto-accent)',
+                  border: '2px solid var(--proto-rail)',
+                }}
+              />
+            )}
+          </button>
+        ))}
       </div>
       {railDivider}
       <RailIconButton
-        label={L.wbNewShort}
+        label={L.wbNewSession}
         color={isHover('crail:new') ? 'var(--proto-accent-strong)' : 'var(--proto-accent)'}
         onClick={onNewSession}
         {...hp('crail:new')}
@@ -753,406 +556,150 @@ export function LeftRail(): JSX.Element {
       }}
     >
       {collapsed && renderCollapsedRail()}
-      {/* The expanded tree stays mounted at its full width while collapsed, so the session list keeps
-          its scroll position and the pane slides out of view instead of reflowing into 42px. */}
-      <div style={{ display: collapsed ? 'none' : 'flex', flexDirection: 'column', flex: 1, minHeight: 0, width: RAIL_WIDTH }}>
-      {/* header: brand badge (carries the link dot) + wordmark + collapse toggle. Each rail corner
-          now holds exactly one job — identity here, panel control opposite, appearance and settings
-          in the footer — and the throttle/approval banners moved to the attention zone above it. */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '16px 16px 10px', flex: 'none' }}>
-        <BrandBadge dot={connDot} label={`${L.dmDaemon} · ${connLabel}`} onClick={() => setDaemonOpen(true)} />
-        <div style={{ fontWeight: 650, fontSize: 14, color: 'var(--proto-ink)', letterSpacing: '-.01em' }}>Cortex</div>
-        <div style={{ marginLeft: 'auto', display: 'flex' }}>
-          <PaneToggle side="left" expanded label={L.lrCollapseRail} onClick={() => setCollapsed(true)} />
+      {/* The expanded tree stays mounted at its full width while collapsed, so it keeps its scroll
+          position and the pane slides out of view instead of reflowing into 42px. */}
+      <div
+        ref={treeScrollRef}
+        style={{ display: collapsed ? 'none' : 'flex', flexDirection: 'column', flex: 1, minHeight: 0, width: RAIL_WIDTH }}
+      >
+        {/* header: brand badge (carries the link dot) + wordmark + collapse toggle */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '16px 16px 10px', flex: 'none' }}>
+          <BrandBadge dot={connDot} label={`${L.dmDaemon} · ${connLabel}`} onClick={() => setDaemonOpen(true)} />
+          <div style={{ fontWeight: 650, fontSize: 14, color: 'var(--proto-ink)', letterSpacing: '-.01em' }}>Cortex</div>
+          <div style={{ marginLeft: 'auto', display: 'flex' }}>
+            <PaneToggle side="left" expanded label={L.lrCollapseRail} onClick={() => setCollapsed(true)} />
+          </div>
         </div>
-      </div>
 
-      {/* PROJECTS zone (22a L49–84): header pinned, rows scroll internally up to the drag height */}
-      <div data-zone="projects" style={{ flex: 'none', padding: '2px 12px 0' }}>
-        <div style={{ display: 'flex', alignItems: 'center', padding: '0 4px 5px' }}>
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.07em', color: 'var(--proto-faint)' }}>
-            {L.wbProjects}
-          </span>
-          <span style={{ font: `500 9.5px ${mono}`, color: 'var(--proto-line-3)', marginLeft: 5 }}>{projects.length}</span>
-          <span
-            {...hp('newproj')}
-            onClick={() => setNewProjOpen(true)}
-            title={L.newProject}
-            style={{
-              marginLeft: 'auto',
-              fontSize: 13,
-              color: isHover('newproj') ? 'var(--proto-ink)' : 'var(--proto-muted-2)',
-              lineHeight: 1,
-              cursor: 'pointer',
-              padding: '0 2px',
-            }}
-          >
-            +
-          </span>
+        {/* The rail has exactly one primary action, so it gets a full row rather than a text link
+            competing with a section heading. */}
+        <div
+          {...hp('newsess')}
+          role="button"
+          onClick={onNewSession}
+          style={{
+            position: 'relative',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 7,
+            height: 34,
+            margin: '0 12px 10px',
+            borderRadius: 9,
+            flex: 'none',
+            cursor: 'pointer',
+            fontSize: 12.5,
+            fontWeight: 600,
+            color: 'var(--ink-solid-fg)',
+            background: isHover('newsess') ? 'var(--proto-accent-strong)' : 'var(--proto-accent)',
+          }}
+        >
+          <PlusGlyph size={13} />
+          {L.wbNewSession}
+          <span style={{ position: 'absolute', right: 10, font: `500 9.5px ${mono}`, color: 'var(--ink-solid-fg-dim)' }}>⌘N</span>
         </div>
-        <div ref={projectsScrollRef} style={{ maxHeight: zoneH, overflowY: 'auto' }}>
-          {projectRows.map((row) => {
-            const rowKey = 'proj:' + row.id;
-            if (row.active) {
-              return (
-                <div key={row.id} data-project-row={row.id} style={{ background: 'var(--proto-line-2)', borderRadius: 8, padding: '7px 9px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div
-                      style={{
-                        width: 20,
-                        height: 20,
-                        borderRadius: 6,
-                        background: 'var(--proto-accent)',
-                        color: 'var(--ink-solid-fg)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        font: `600 9px ${mono}`,
-                        flex: 'none',
-                      }}
-                    >
-                      {row.initials}
-                    </div>
-                    <span
-                      style={{
-                        fontSize: 12.5,
-                        fontWeight: 650,
-                        color: 'var(--proto-ink)',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}
-                    >
-                      {row.id}
-                    </span>
-                    <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5, flex: 'none' }}>
-                      {row.running > 0 && (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 3, font: `600 9.5px ${mono}`, color: 'var(--proto-accent)' }}>
-                          <span
-                            style={{
-                              width: 6,
-                              height: 6,
-                              borderRadius: '50%',
-                              background: 'var(--proto-accent)',
-                              animation: 'cxpulse 1.6s ease-in-out infinite',
-                            }}
-                          />
-                          {row.running}
-                        </span>
-                      )}
-                      {row.badgeCount > 0 && (
-                        <span
-                          data-project-attention-badge={row.id}
-                          style={{
-                            minWidth: 14,
-                            height: 14,
-                            padding: '0 4px',
-                            borderRadius: 7,
-                            background: row.badgeTone === 'action' ? 'var(--proto-amber)' : 'var(--proto-accent)',
-                            color: 'var(--ink-solid-fg)',
-                            font: `600 9px ${mono}`,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}
-                        >
-                          {row.badgeCount}
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                  {/* sub-entry line: Overview + direct today-cost readout + hotkey echo (22a L64–67) */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 9,
-                      padding: '5px 0 1px 28px',
-                      fontSize: 10.5,
-                      fontWeight: 600,
-                      color: 'var(--proto-muted)',
-                    }}
-                  >
-                    {subEntries.map((entry) => {
-                      const current = location.pathname.startsWith(entry.to);
-                      const k = 'sub:' + entry.key;
-                      return (
-                        <span
-                          key={entry.key}
-                          {...hp(k)}
-                          onClick={() => navigate(entry.to)}
-                          style={{
-                            color: current ? 'var(--proto-accent)' : isHover(k) ? 'var(--proto-ink)' : 'var(--proto-muted)',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          {entry.label}
-                        </span>
-                      );
-                    })}
-                    {/* Today cost — real cost.summary.today for the active project (replaces Tasks/Cost). */}
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <span style={{ color: 'var(--proto-muted-2)', fontWeight: 600 }}>{L.today}</span>
-                      <span style={{ font: `600 10px ${mono}`, color: 'var(--proto-accent)' }}>{todayCostLabel}</span>
-                    </span>
-                    {row.hotkey && (
-                      <span style={{ marginLeft: 'auto', font: `500 9px ${mono}`, color: 'var(--proto-faint)', fontWeight: 400 }}>
-                        {row.hotkey}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            }
-            return (
+
+        <RailTree
+          nodes={tree.projects}
+          projectCount={projects.length}
+          sort={sort}
+          onSort={onSort}
+          filter={filter}
+          onFilter={setFilter}
+          searchOpen={searchOpen}
+          onToggleSearch={onToggleSearch}
+          onNewProject={() => setNewProjOpen(true)}
+          onToggleProject={toggleProject}
+          onToggleSchedules={toggleSchedules}
+          onShowAll={(id) => setShowAll((prev) => new Set(prev).add(id))}
+          onOpenSession={onOpenSession}
+          onNewSessionIn={newSessionIn}
+          onOverview={onOverview}
+          onScheduleRow={onScheduleRow}
+          onReorder={onReorder}
+          now={now}
+        />
+
+        {/* attention zone — everything that appears intermittently and asks for attention stacks
+            here, just above the footer, so the header keeps a fixed layout no matter what the
+            system is doing. */}
+        {(rateLimitStatus || hasPendingApprovals) && (
+          <div style={{ margin: '0 12px 10px', display: 'flex', flexDirection: 'column', gap: 8, flex: 'none' }}>
+            <RailRateLimitStatus status={rateLimitStatus} />
+            {hasPendingApprovals && (
               <div
-                key={row.id}
-                {...hp(rowKey)}
-                data-project-row={row.id}
-                onClick={() => onSwitchProject(row.id)}
+                {...hp('approval')}
+                onClick={() => approvals.open()}
                 style={{
+                  padding: '9px 12px',
+                  background: 'var(--proto-amber-bg)',
+                  border: '1px solid ' + (isHover('approval') ? 'var(--proto-amber)' : 'var(--proto-amber-border)'),
+                  borderRadius: 9,
                   display: 'flex',
                   alignItems: 'center',
                   gap: 8,
-                  padding: '7px 9px',
-                  borderRadius: 8,
                   cursor: 'pointer',
-                  background: isHover(rowKey) ? 'var(--proto-gray)' : 'transparent',
+                  flex: 'none',
                 }}
               >
-                <div
-                  style={{
-                    width: 20,
-                    height: 20,
-                    borderRadius: 6,
-                    background: 'var(--proto-accent-bg)',
-                    color: 'var(--proto-accent)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    font: `600 9px ${mono}`,
-                    flex: 'none',
-                  }}
-                >
-                  {row.initials}
-                </div>
                 <span
                   style={{
-                    fontSize: 12.5,
-                    color: row.unread > 0 ? 'var(--proto-ink)' : 'var(--proto-ink-2)',
-                    fontWeight: row.unread > 0 ? 600 : 400,
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
+                    width: 7,
+                    height: 7,
+                    borderRadius: '50%',
+                    background: 'var(--proto-amber)',
+                    flex: 'none',
+                    animation: 'cxpulse 2s ease-in-out infinite',
                   }}
-                >
-                  {row.id}
-                </span>
-                <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5, flex: 'none' }}>
-                  {row.running > 0 && (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 3, font: `600 9.5px ${mono}`, color: 'var(--proto-accent)' }}>
-                      <span
-                        style={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: '50%',
-                          background: 'var(--proto-accent)',
-                          animation: 'cxpulse 1.6s ease-in-out infinite',
-                        }}
-                      />
-                      {row.running}
-                    </span>
-                  )}
-                  {row.badgeCount > 0 && (
-                    <span
-                      data-project-attention-badge={row.id}
-                      style={{
-                        minWidth: 14,
-                        height: 14,
-                        padding: '0 4px',
-                        borderRadius: 7,
-                        background: row.badgeTone === 'action' ? 'var(--proto-amber)' : 'var(--proto-accent)',
-                        color: 'var(--ink-solid-fg)',
-                        font: `600 9px ${mono}`,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      {row.badgeCount}
-                    </span>
-                  )}
-                  {row.idleAge !== null ? (
-                    <span style={{ font: `400 9.5px ${mono}`, color: 'var(--proto-faint)' }}>{row.idleAge}</span>
-                  ) : (
-                    row.hotkey && <span style={{ font: `400 9px ${mono}`, color: 'var(--proto-line-3)' }}>{row.hotkey}</span>
-                  )}
-                </span>
+                />
+                <div style={{ fontSize: 11.5, color: 'var(--proto-amber-fg)', fontWeight: 600 }}>{pendingLabel}</div>
+                <div style={{ marginLeft: 'auto', color: 'var(--proto-amber-accent)', fontSize: 11 }}>→</div>
               </div>
-            );
-          })}
-        </div>
-      </div>
+            )}
+          </div>
+        )}
 
-      {/* draggable divider (22a L86–90) */}
-      <div
-        data-divider="rail"
-        onMouseDown={onDividerDown}
-        title="drag to resize"
-        style={{
-          flex: 'none',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          padding: '7px 12px 5px',
-          cursor: 'row-resize',
-          userSelect: 'none',
-        }}
-      >
-        <div style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
-        <div style={{ display: 'flex', gap: 3 }}>
-          <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--proto-line-3)' }} />
-          <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--proto-line-3)' }} />
-          <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--proto-line-3)' }} />
-        </div>
-        <div style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
-      </div>
-
-      {/* SESSIONS zone (22a L92–122): header with project echo + "+ New" ⌘N, grouped rows below */}
-      <div
-        data-zone="sessions"
-        style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: '0 12px' }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', padding: '2px 4px 6px', flex: 'none' }}>
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.07em', color: 'var(--proto-faint)' }}>
-            {L.wbSessions}
-          </span>
-          {activeProjectId && (
-            <span style={{ font: `500 9.5px ${mono}`, color: 'var(--proto-accent-border)', marginLeft: 5 }}>
-              {projectShortLabel(activeProjectId)}
-            </span>
-          )}
-          <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5 }}>
-            <span
-              {...hp('newsess')}
-              onClick={onNewSession}
-              style={{
-                fontSize: 12,
-                fontWeight: 600,
-                color: isHover('newsess') ? 'var(--proto-accent-strong)' : 'var(--proto-accent)',
-                cursor: 'pointer',
-              }}
-            >
-              + {L.wbNewShort}
-            </span>
-            <span style={{ font: `500 9.5px ${mono}`, color: 'var(--proto-faint)' }}>⌘N</span>
-          </span>
-        </div>
-        <div style={{ flex: 1, overflowY: 'auto' }}>
-          {groups.map((g, gi) => (
-            <div key={g.label}>
-              <div
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  letterSpacing: '.07em',
-                  color: 'var(--proto-faint)',
-                  padding: gi === 0 ? '2px 4px 5px' : '10px 4px 6px',
-                }}
-              >
-                {groupLabel(L, g.label)}
-              </div>
-              {g.items.map(renderSessionRow)}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {renderScheduledSection()}
-
-      {/* attention zone — everything that appears intermittently and asks for attention stacks here,
-          just above the footer, so the header keeps a fixed three-element layout no matter what the
-          system is doing. Throttle carries the waiting tokens, approvals the amber ones. */}
-      {(rateLimitStatus || hasPendingApprovals) && (
-      <div style={{ margin: '0 12px 10px', display: 'flex', flexDirection: 'column', gap: 8, flex: 'none' }}>
-      <RailRateLimitStatus status={rateLimitStatus} />
-      {hasPendingApprovals && (
+        {/* footer: theme (☀/☾) toggle + Settings. The language switch lives in Settings → Appearance. */}
         <div
-          {...hp('approval')}
-          onClick={() => approvals.open()}
           style={{
-            padding: '9px 12px',
-            background: 'var(--proto-amber-bg)',
-            border: '1px solid ' + (isHover('approval') ? 'var(--proto-amber)' : 'var(--proto-amber-border)'),
-            borderRadius: 9,
             display: 'flex',
             alignItems: 'center',
             gap: 8,
-            cursor: 'pointer',
+            padding: '10px 16px 14px',
+            borderTop: '1px solid var(--proto-line-2)',
             flex: 'none',
           }}
         >
+          <div style={{ display: 'flex', border: '1px solid var(--proto-line)', borderRadius: 6, overflow: 'hidden' }}>
+            <span
+              onClick={() => setTheme('light')}
+              title={L.stThemeLight}
+              aria-label={L.stThemeLight}
+              style={{ fontSize: 10, fontWeight: 600, padding: '2.5px 7px', cursor: 'pointer', background: theme === 'light' ? 'var(--ink-solid-bg)' : 'transparent', color: theme === 'light' ? 'var(--ink-solid-fg)' : 'var(--proto-muted-2)' }}
+            >
+              ☀
+            </span>
+            <span
+              onClick={() => setTheme('dark')}
+              title={L.stThemeDark}
+              aria-label={L.stThemeDark}
+              style={{ fontSize: 10, fontWeight: 600, padding: '2.5px 7px', cursor: 'pointer', background: theme === 'dark' ? 'var(--ink-solid-bg)' : 'transparent', color: theme === 'dark' ? 'var(--ink-solid-fg)' : 'var(--proto-muted-2)' }}
+            >
+              ☾
+            </span>
+          </div>
+          {/* Settings is a gear key, not a word: a label here made the row read as competing texts. */}
           <span
-            style={{
-              width: 7,
-              height: 7,
-              borderRadius: '50%',
-              background: 'var(--proto-amber)',
-              flex: 'none',
-              animation: 'cxpulse 2s ease-in-out infinite',
-            }}
-          />
-          <div style={{ fontSize: 11.5, color: 'var(--proto-amber-fg)', fontWeight: 600 }}>{pendingLabel}</div>
-          <div style={{ marginLeft: 'auto', color: 'var(--proto-amber-accent)', fontSize: 11 }}>→</div>
-        </div>
-      )}
-      </div>
-      )}
-
-      {/* footer: theme (☀/☾) toggle + Settings. The language switch moved to Settings → Appearance. */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          padding: '10px 16px 14px',
-          borderTop: '1px solid var(--proto-line-2)',
-          flex: 'none',
-        }}
-      >
-        <div style={{ display: 'flex', border: '1px solid var(--proto-line)', borderRadius: 6, overflow: 'hidden' }}>
-          <span
-            onClick={() => setTheme('light')}
-            title={L.stThemeLight}
-            aria-label={L.stThemeLight}
-            style={{ fontSize: 10, fontWeight: 600, padding: '2.5px 7px', cursor: 'pointer', background: theme === 'light' ? 'var(--ink-solid-bg)' : 'transparent', color: theme === 'light' ? 'var(--ink-solid-fg)' : 'var(--proto-muted-2)' }}
+            {...hp('settings')}
+            onClick={openSettings}
+            role="button"
+            title={L.settings}
+            aria-label={L.settings}
+            style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 2, cursor: 'pointer', color: isHover('settings') ? 'var(--proto-ink)' : 'var(--proto-muted-2)' }}
           >
-            ☀
-          </span>
-          <span
-            onClick={() => setTheme('dark')}
-            title={L.stThemeDark}
-            aria-label={L.stThemeDark}
-            style={{ fontSize: 10, fontWeight: 600, padding: '2.5px 7px', cursor: 'pointer', background: theme === 'dark' ? 'var(--ink-solid-bg)' : 'transparent', color: theme === 'dark' ? 'var(--ink-solid-fg)' : 'var(--proto-muted-2)' }}
-          >
-            ☾
+            <GearIcon />
           </span>
         </div>
-        {/* Settings is a gear key, not a word: a label here made the row read as competing texts. The
-            build stamp that used to sit between them now lives in the daemon modal, which is the
-            system-status surface it belonged to. */}
-        <span
-          {...hp('settings')}
-          onClick={openSettings}
-          role="button"
-          title={L.settings}
-          aria-label={L.settings}
-          style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 2, cursor: 'pointer', color: isHover('settings') ? 'var(--proto-ink)' : 'var(--proto-muted-2)' }}
-        >
-          <GearIcon />
-        </span>
-      </div>
-
       </div>
 
       {newProjOpen && <NewProjectModal onClose={() => setNewProjOpen(false)} />}
@@ -1160,10 +707,11 @@ export function LeftRail(): JSX.Element {
       {runModalRow && (
         <RunListModal
           row={runModalRow}
-          selectedSessionId={effectiveSelected ?? null}
+          selectedSessionId={selectedSessionId ?? null}
           onOpenRun={(sessionId) => {
             setRunModalId(null);
-            onSelectSession(sessionId);
+            const project = projectOfSession(sessionId, directSessions, scheduledSessions);
+            if (project) openSession(project, sessionId);
           }}
           onManage={
             runModalRow.schedule
