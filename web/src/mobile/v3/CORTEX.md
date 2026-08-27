@@ -115,8 +115,9 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 | m-hooks-vm.test.ts | test | Tests mobile hook row/detail projection over shared grouping |
 | MPlanReadScreen.tsx | screen | Loads a plan from the compact transcript and handles approve or reject |
 | MPlanReadView.tsx | view | Full plan text with scroll progress and actions |
-| MNotificationProvider.tsx | provider | Streams messages and notices into banners |
-| MNotificationToaster.tsx | view | Stacked tappable top notification banners |
+| MNotificationProvider.tsx | provider | Injects mobile route suppression and OS delivery into the shared feed, then deep-links actions |
+| MNotificationProvider.test.tsx | test | Tests mobile permission, external delivery, deep-links and thin feed-adapter wiring |
+| MNotificationToaster.tsx | view | Independently selects and renders stacked tappable top notification banners |
 | MHotUpdateProvider.tsx | provider | Mounts the prompt when an update is staged |
 | MHotUpdateDialog.tsx | view | Staged update alert with apply and ignore |
 | MAppUpdateProvider.tsx | provider | Mounts the prompt when a shell update is ready |

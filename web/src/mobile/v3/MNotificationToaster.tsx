@@ -1,6 +1,6 @@
-// input:  notification view models, relative time, and shared mobile tokens
-// output: themed tappable mobile notification banners
-// pos:    Presentational mobile notification toaster
+// input:  full notification queue, relative time, and shared mobile tokens
+// output: newest visible themed, tappable mobile notification banners
+// pos:    Independent presentational mobile notification toaster and visibility adapter
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1q L876-883)
 // Presentational top-banner toaster for the mobile 1q notification. Props-driven (the provider binds
@@ -8,6 +8,7 @@
 // tappable to activate. Stacks the visible items; reserves the OS status-bar inset at the top.
 import { relTimeZh } from '@/mobile/ui/format';
 import { MC, MONO } from '@/mobile/ui/kit';
+import { splitVisible } from '@/features/notifications/notification-store';
 import type { NotificationItem } from '@/features/notifications/notification-vm';
 
 export interface MNotificationToasterProps {
@@ -19,6 +20,7 @@ export interface MNotificationToasterProps {
 
 export function MNotificationToaster({ items, now = Date.now(), onDismiss, onActivate }: MNotificationToasterProps) {
   if (items.length === 0) return null;
+  const { visible } = splitVisible(items);
   return (
     <div
       style={{
@@ -33,7 +35,7 @@ export function MNotificationToaster({ items, now = Date.now(), onDismiss, onAct
         pointerEvents: 'none',
       }}
     >
-      {items.map((item) => (
+      {visible.map((item) => (
         <div
           key={item.id}
           role="button"
