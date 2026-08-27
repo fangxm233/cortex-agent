@@ -116,3 +116,38 @@ One consequence is worth knowing before reading a score. `env -i` strips the ima
 from the agent's environment, so a task whose fixtures expect one — `multi-source-data-merger`
 ships `PYTHONPATH=/app:` — is solved without it. That is how this harness has always run tasks,
 and it is a property of the measurement, not of the agent being measured.
+
+## What a trial collects, and what it throws away
+
+The sealed environment names four scratch directories under `/logs/agent/trial-home` — `home`
+(HOME), `tmp` (TMPDIR/TEMP/TMP), `xdg-cache` (XDG_CACHE_HOME) and `xdg-config` (XDG_CONFIG_HOME).
+Naming them means third parties fill them, and until 2026-08-27 all four were collected as trial
+evidence. Measured over one campaign's 29 trials: 173.7 MB collected, of which pip's HTTP cache
+under `xdg-cache` was 157.84 MB — 91% of all evidence, none of it about the trial.
+
+It was not merely bulky. One cached PyPI response body in it held a package author's `/home/<name>`
+path, the leak scanner matched it exactly as it should, and the trial — which had solved its task
+with reward 1 — was discarded as an output leak. Chromium separately leaves root-owned directories
+under `xdg-config` and `tmp` that the collector cannot traverse, and a single unreadable entry
+marks the whole agent root unavailable, failing the trial outright.
+
+The harness now discards those four trees as root inside the live container, after the agent and
+the verifier have both finished and before anything is collected, writing
+`agent/trial-scratch-discarded.json` first so the evidence still records that each directory
+existed and how much it held. The scanner and the collector are unchanged; there is no new
+allowance for third-party content, because the third-party content is no longer there. Siblings
+under the same root that hold real trial state are untouched: this is four fixed names, not a
+wildcard. That distinction is what keeps the leak scan honest — every credential-bearing root the
+harness names sits outside HOME on purpose (`codex-home`, `codex-secrets`, `pi-agent`,
+`cortex-home`, `claude-config`, `projects`), so all of them are still collected and still scanned.
+What is discarded is scratch that no credential is ever written to.
+
+## A scored trial is not a failed trial
+
+A trial that publishes a canonical reward is a measurement, whatever the number. The campaign
+ledger used to key `state` off `TERMINAL_SUCCESS`, which called every zero-scoring trial a failure
+— including the graded safety refusals, which publish an outer envelope and a reward of 0 exactly
+as designed. A run of a benchmark nobody scores 100% on therefore reported `ok: false` and a
+non-zero `trials_failed` for doing its job, and the noise hid the trials that really had no
+result. `failed` now means what it says: no measurement — a verifier that never scored, a harness
+that never finished, an arm that never armed.

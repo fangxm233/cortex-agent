@@ -62,17 +62,23 @@ capabilities:
   codex-subscription:
     # Approved per-trial bounds; no broader than the envelope the committed vendor campaign
     # document for this capability already declares.
-    max_cost_usd: "2.00"
-    max_provider_requests: 500
-    deadline_seconds: 1800
-    max_output_tokens: 65536
+    #
+    # Raised 2026-08-27 for Terminal-Bench 2.1 at gpt-5.6-sol/xhigh, approved by the human who
+    # owns the subscription. The previous figures were sized for short vendor smokes, not for a
+    # 89-task benchmark whose hardest tasks are long multi-turn debugging sessions at a reasoning
+    # effort that spends output tokens freely. A cap below the work's natural size converts spend
+    # into waste rather than preventing it -- the paragraph at the top of this file, applied.
+    max_cost_usd: "10.00"
+    max_provider_requests: 1000
+    deadline_seconds: 3600
+    max_output_tokens: 131072
     request_body_limit_bytes: 67108864
     response_body_limit_bytes: 67108864
   pi-openai-codex-oauth:
-    # Identical approved per-trial bounds for the PI OpenAI Codex route.
-    max_cost_usd: "2.00"
-    max_provider_requests: 500
-    deadline_seconds: 1800
-    max_output_tokens: 65536
+    # Identical approved per-trial bounds for the PI OpenAI Codex route, raised with it.
+    max_cost_usd: "10.00"
+    max_provider_requests: 1000
+    deadline_seconds: 3600
+    max_output_tokens: 131072
     request_body_limit_bytes: 67108864
     response_body_limit_bytes: 67108864

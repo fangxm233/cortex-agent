@@ -22,7 +22,10 @@ from cortex_bench_harness.launcher.production_session import (
     ProductionSessionError,
     ProductionThreadResult,
 )
-from cortex_bench_harness.launcher.trial_admission import HarborTrialAdmissionError
+from cortex_bench_harness.launcher.trial_admission import (
+    HarborTrialAdmissionError,
+    trial_scratch_command,
+)
 
 ARTIFACT_NAME = "cortex-agent-server-test.tgz"
 BUNDLE_ROOT = "/installed-agent/npm/lib/node_modules/@cortex-agent/server"
@@ -62,9 +65,12 @@ DISCOVERY_COMMANDS = [
     "set -o pipefail; pi --version",
 ]
 VERSION_COMMAND = "set -o pipefail; cortex daemon --version"
-BUNDLE_ROOT_RESULT = 7
-CLI_PATH_RESULT = 9
-CLI_VERSION_RESULT = 10
+# Indices into install_results(). Result 4 is the scratch mkdir, so everything from the install
+# command on sits one later than the command list above reads.
+BUNDLE_ROOT_RESULT = 8
+CLI_PATH_RESULT = 10
+CLI_VERSION_RESULT = 11
+FIRST_VERIFY_RESULT = 6
 
 
 class FakeEnvironment:
@@ -114,7 +120,11 @@ def ok(stdout: str | None = None) -> ExecResult:
 
 def install_results() -> list[ExecResult]:
     return [
-        ok("/app\n"), ok("/app\n"), ok(), ok(), ok(), ok(), ok(),
+        ok("/app\n"), ok("/app\n"), ok(), ok(),
+        # The scratch mkdir: the sealed environment names TMPDIR, HOME and the XDG roots, so
+        # they have to exist before anything the install runs writes to them.
+        ok(),
+        ok(), ok(), ok(),
         ok(f"{BUNDLE_ROOT}\n"), ok(), ok(f"{BACKEND_CLI_PATH}\n"),
         ok(f"{BACKEND_CLI_VERSION}\n"),
     ]
@@ -200,6 +210,7 @@ def test_setup_installs_attests_fresh_home_and_never_composes_standalone(
     assert environment.calls == [
         ("pwd", None), ("realpath -- /app", None), ("test -d /app", None),
         ("[ -d /installed-agent ] || mkdir -p /installed-agent", "root"),
+        (f"set -o pipefail; {trial_scratch_command()}", None),
         (INSTALL_COMMAND, "root"),
         *((command, None) for command in VERIFY_COMMANDS),
         *((command, None) for command in DISCOVERY_COMMANDS),
@@ -328,7 +339,7 @@ def test_direct_run_refuses_without_positive_trial_proxy_traffic(
 
 def test_failed_install_does_not_publish_manifest_or_home(tmp_path: Path) -> None:
     failed = ExecResult(stderr="corrupt artifact", return_code=1)
-    results = [ok("/app\n"), ok("/app\n"), ok(), ok(), failed]
+    results = [ok("/app\n"), ok("/app\n"), ok(), ok(), ok(), failed]
 
     with pytest.raises(NonZeroAgentExitCodeError):
         asyncio.run(make_agent(tmp_path, attach_proxy=True).setup(FakeEnvironment(results)))
@@ -342,7 +353,7 @@ def test_failed_verification_does_not_publish_manifest(
     tmp_path: Path, failed_check: int,
 ) -> None:
     failure = ExecResult(stderr=f"verification {failed_check} failed", return_code=1)
-    results = install_results()[: 5 + failed_check]
+    results = install_results()[: FIRST_VERIFY_RESULT + failed_check]
     results.append(failure)
 
     with pytest.raises(NonZeroAgentExitCodeError):

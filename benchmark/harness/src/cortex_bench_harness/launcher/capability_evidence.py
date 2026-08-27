@@ -42,7 +42,7 @@ PI_CODEX_OFFLINE_CONTRACT = {
     "vendor_lifecycle_test_sha256":
         "1961ed2081faff75a5455b1a41d8ba443f73f6320dce221ce8b60ed1f6107b23",
     "runtime_projection_test_sha256":
-        "6c2b2c2b24125dde4f1d4e53fed95e481a91648f52f5cb364687eca445ec7f01",
+        "ca597ec2cdfefe78b9c4f044849955482701cb9a9158ae83955418f4c92ceb2d",
     "proxy_scan_test_sha256":
         "9f6411fa2a77f65f3a6e7b58b6c51acfc5295ad8f8b626383b4813bfba717171",
 }

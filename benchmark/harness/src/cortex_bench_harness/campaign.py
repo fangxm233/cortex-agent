@@ -65,9 +65,9 @@ from .result_summary import (
 )
 from .outcome import (
     HARNESS_INCOMPLETE,
+    SCORE_AVAILABLE,
     SCORE_UNAVAILABLE,
     SECURITY_FAILED,
-    TERMINAL_SUCCESS,
     TrialOutcomeReader,
 )
 
@@ -697,8 +697,14 @@ def _read_outcome(
     ).read()
     requests = read.requests
     metered = requests if requests is not None else _metered_requests(trial_root)
+    # A trial that produced a canonical reward RAN, whatever that reward was. Keying this off
+    # TERMINAL_SUCCESS instead called every zero-scoring trial a failure -- including the graded
+    # refusals, which publish an outer envelope and a reward of 0 exactly as designed -- and so a
+    # campaign measuring a hard benchmark reported `ok: false` for doing its job. TRIAL_FAILED is
+    # for a trial that yields no measurement: a verifier that never scored, a harness that never
+    # finished, an arm that never armed.
     return TrialOutcome(
-        plan=plan, state=state if read.outcome_state == TERMINAL_SUCCESS else TRIAL_FAILED,
+        plan=plan, state=state if read.score_status == SCORE_AVAILABLE else TRIAL_FAILED,
         requests=requests, metered_requests=metered, armed=True,
         envelope=read.envelope, envelope_path=read.envelope_path,
         envelope_sha256=read.envelope_sha256, outcome_state=read.outcome_state,

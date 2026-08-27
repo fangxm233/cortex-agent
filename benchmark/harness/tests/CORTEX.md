@@ -36,3 +36,19 @@ timeout and passes.
 `package/test_vendor_model_freeze.py` (4) needs the pinned Claude CLI. The Claude runtime on this
 host does not match its pin and has no mount target, which is also why `--stage-runtimes` stages
 only `pi` and `codex`.
+
+`launcher/test_paid_campaign_launch.py` (6) is not a code failure at all: it preflights the
+committed paid config, which verifies both pinned artifacts against the checkout. The npm scope
+covers `agent-server/`, and an npm bundle build leaves ~14k untracked files under
+`agent-server/bundled-dependencies/` which nothing gitignores. The provenance fingerprint reads
+untracked files, so while that directory exists the tgz cannot match its record and preflight
+refuses before printing anything — the tests then fail decoding empty stdout. Rebuild the npm
+artifact with the directory in whatever state it will be in at launch, or expect these six.
+
+## Proof pins that have to be refreshed when their proof moves
+`capability_evidence.py` pins the sha256 of the test files that prove each capability's offline
+contract, and `test_capability_evidence.py` separately pins the sha256 of the committed evidence
+JSON. `7e8484d39` changed `tests/launcher/test_vendor_agents.py` — the file behind
+`runtime_projection_test_sha256` — without refreshing either, so the pin was stale for a day.
+Refreshing means: recompute the proof file's digest into `PI_CODEX_OFFLINE_CONTRACT` and the
+evidence JSON, then recompute the evidence JSON's own digest into the test. Both, in that order.

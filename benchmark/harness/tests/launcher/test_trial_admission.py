@@ -11,7 +11,7 @@ import os
 import socket
 import subprocess
 import threading
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from urllib.parse import urlsplit
@@ -30,11 +30,14 @@ from cortex_bench_harness.launcher.network_policy import NetworkAccess
 from cortex_bench_harness.launcher.trial_admission import (
     ADMISSION_EVIDENCE_FILENAME,
     ADMISSION_ENVIRONMENT_IMPORT_PATH,
+    TRIAL_SCRATCH_CENSUS_SCHEMA,
+    TRIAL_SCRATCH_DIRECTORIES,
     AdmittedDockerEnvironment,
     HarborTrialAdmissionError,
     VendorRuntimeProjection,
     build_harbor_trial_config,
     create_harbor_trial,
+    trial_scratch_discard_command,
 )
 
 DIGEST = f"sha256:{'a' * 64}"
@@ -1481,3 +1484,88 @@ def test_the_egress_sidecar_exists_only_when_something_is_being_filtered(
     assert environment._enable_egress_control is sidecar
     assert environment._network_namespace_service() == (
         "harbor-docker-egress-control-sidecar" if sidecar else "main")
+
+
+def test_the_scratch_trees_are_censused_and_then_actually_gone(tmp_path: Path) -> None:
+    """The discard command is shell that runs in a task image, so run it and look.
+
+    It has to survive three things a mocked assertion would not catch: a scratch directory that
+    was never created, a `du` that prints a leading pad, and a sibling under the same root that
+    is real trial state. `pi-agent` surviving is the whole reason this is four fixed names and
+    not a wildcard.
+    """
+    root = tmp_path / "trial-home"
+    census = tmp_path / "trial-scratch-discarded.json"
+    for name in ("home", "tmp", "xdg-cache"):
+        (root / name).mkdir(parents=True)
+    (root / "xdg-cache" / "pip" / "http-v2").mkdir(parents=True)
+    (root / "xdg-cache" / "pip" / "http-v2" / "cached.body").write_bytes(b"/home/trentm" * 4096)
+    (root / "tmp" / "spill").write_text("agent output past the buffer")
+    (root / "pi-agent").mkdir()
+    (root / "pi-agent" / "session.json").write_text("{}")
+
+    command = trial_scratch_discard_command(PurePosixPath(root), PurePosixPath(census))
+    result = subprocess.run(["/bin/sh", "-c", command], capture_output=True, text=True)
+
+    assert result.returncode == 0, result.stderr
+    document = json.loads(census.read_text(encoding="utf-8"))
+    assert document["schema"] == TRIAL_SCRATCH_CENSUS_SCHEMA
+    assert set(document["directories"]) == set(TRIAL_SCRATCH_DIRECTORIES)
+    assert document["directories"]["xdg-cache"]["present"] is True
+    assert document["directories"]["xdg-cache"]["files"] == 1
+    assert document["directories"]["xdg-cache"]["kib"] > 0
+    assert document["directories"]["tmp"] == {"present": True, "files": 1, "kib": 8}
+    # Never created by this trial, and saying so is more useful than omitting it.
+    assert document["directories"]["xdg-config"] == {
+        "present": False, "files": 0, "kib": 0,
+    }
+    assert sorted(path.name for path in root.iterdir()) == ["pi-agent"]
+
+
+def test_the_scratch_is_discarded_as_root_before_the_container_stops(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ordering is the safety property: after stop there is no container to delete anything in.
+
+    Chromium's root-owned directories are also why this runs as root -- the agent cannot remove
+    what it did not create, and one unreadable entry marks the whole agent root unavailable.
+    """
+    controller = VendorProxyController("pi")
+    controller.post_stop_finalization_pending = True
+    controller.finalize_after_container_stop = (
+        lambda observation: controller.calls.append("post-stop")
+    )
+    trial = create_vendor_trial(tmp_path, "pi", controller)
+    environment = trial.agent_environment
+    ordered: list[str] = []
+
+    async def compose_exec(command: str, **kwargs: object) -> ExecResult:
+        assert kwargs["user"] == environment._resolve_user("root")
+        ordered.append(command)
+        return ExecResult(return_code=0)
+
+    async def compose_command(arguments: list[str], **_kwargs: object) -> SimpleNamespace:
+        ordered.append(f"docker compose {' '.join(arguments)}")
+        return SimpleNamespace(stdout="", stderr="")
+
+    monkeypatch.setattr(environment, "_compose_exec", compose_exec)
+    monkeypatch.setattr(environment, "_run_docker_compose_command", compose_command)
+    asyncio.run(environment._finalize_after_container_stop())
+
+    discard = ordered.index(trial_scratch_discard_command())
+    assert ordered.index("docker compose stop") > discard
+    assert "post-stop" in controller.calls
+
+
+def test_a_failed_discard_refuses_the_trial_rather_than_collecting_the_scratch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Silently collecting 157 MB of third-party cache is how the false positive happened."""
+    trial = create_vendor_trial(tmp_path, "pi", VendorProxyController("pi"))
+    environment = trial.agent_environment
+    monkeypatch.setattr(
+        environment, "_compose_exec", AsyncMock(return_value=ExecResult(return_code=1)),
+    )
+
+    with pytest.raises(HarborTrialAdmissionError, match="trial scratch discard failed"):
+        asyncio.run(environment._discard_trial_scratch())

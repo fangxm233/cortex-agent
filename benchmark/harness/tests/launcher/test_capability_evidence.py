@@ -218,7 +218,7 @@ def test_validates_shipped_pi_codex_live_and_offline_evidence() -> None:
     offline_path = registry._evidence_path(row.id, "offline-contract-passed")
     offline = validate_capability_evidence(
         offline_path,
-        "a72024944505c3c3f89655320558ef2d11bbfc35dfa2af4705f56867eef94568",
+        "3d9de579ebc71d9393ada278de78a00510428f4f698d7fcdf50c879908a55864",
         capability_id=row.id,
         key=PI_CODEX_KEY,
         state="offline-contract-passed",

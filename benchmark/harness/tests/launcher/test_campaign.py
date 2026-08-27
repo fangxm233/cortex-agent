@@ -1729,12 +1729,19 @@ def test_a_harbor_agent_exception_keeps_its_finite_verifier_rewards(
 
     status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
 
-    assert status == 1
-    failed = result["trials"][0]
-    assert failed["state"] == "failed"
-    assert failed["outcome_state"] == "terminal-agent-failure"
-    assert failed["verifier_rewards"] == {"reward": 0.0, "auxiliary": 1.0}
-    assert failed["score_status"] == "available"
+    # The agent raised and the verifier still scored it, so this trial is a measurement, and a
+    # campaign full of measurements is a campaign that worked. This used to assert `failed` and
+    # exit 1: the graded safety refusals -- which publish an envelope and a reward of 0 exactly
+    # as designed -- were counted as broken trials, and a run of a benchmark nobody scores 100%
+    # on reported `ok: false` for doing its job.
+    assert status == 0
+    scored = result["trials"][0]
+    assert scored["state"] == "ran"
+    assert scored["outcome_state"] == "terminal-agent-failure"
+    assert scored["verifier_rewards"] == {"reward": 0.0, "auxiliary": 1.0}
+    assert scored["score_status"] == "available"
+    assert result["trials_failed"] == 0
+    assert result["ok"] is True
 
 
 def test_an_agent_timeout_without_rewards_is_not_mislabeled_as_a_verifier_failure(

@@ -34,7 +34,17 @@ APPROVED_DEEPSEEK_CEILINGS = {
     "request_body_limit_bytes": 64 * 1024 * 1024,
     "response_body_limit_bytes": 64 * 1024 * 1024,
 }
-APPROVED_VENDOR_CEILINGS = {
+# Raised 2026-08-27 for Terminal-Bench 2.1 at gpt-5.6-sol/xhigh. The Claude route was not part of
+# that run and keeps the original figures, which is why there are two vendor shapes here now.
+APPROVED_CODEX_CEILINGS = {
+    "max_provider_requests": 1000,
+    "max_cost_usd": Decimal("10.00"),
+    "deadline_seconds": 3600,
+    "max_output_tokens": 131072,
+    "request_body_limit_bytes": 64 * 1024 * 1024,
+    "response_body_limit_bytes": 64 * 1024 * 1024,
+}
+APPROVED_CLAUDE_CEILINGS = {
     "max_provider_requests": 500,
     "max_cost_usd": Decimal("2.00"),
     "deadline_seconds": 1800,
@@ -73,13 +83,20 @@ def test_the_committed_policy_declares_the_approved_deepseek_and_openai_codex_ce
     ceilings = load_capability_ceilings()
 
     assert ceilings["pi-deepseek-api-key"] == APPROVED_DEEPSEEK_CEILINGS
-    assert ceilings["codex-subscription"] == APPROVED_VENDOR_CEILINGS
-    assert ceilings["pi-openai-codex-oauth"] == APPROVED_VENDOR_CEILINGS
+    assert ceilings["codex-subscription"] == APPROVED_CODEX_CEILINGS
+    assert ceilings["pi-openai-codex-oauth"] == APPROVED_CODEX_CEILINGS
+    assert ceilings["claude-subscription"] == APPROVED_CLAUDE_CEILINGS
     assert set(APPROVED_DEEPSEEK_CEILINGS) == set(CEILING_FIELDS)
 
 
 @pytest.mark.parametrize("campaign_path", VENDOR_CAMPAIGNS)
 def test_committed_vendor_envelopes_are_accepted(campaign_path: Path) -> None:
+    """A committed campaign may sit at its ceiling or under it; both are accepted.
+
+    These two used to be asserted equal to the ceiling, which quietly made the ceiling a
+    restatement of the campaign rather than a bound on it. Raising the Codex ceiling for the
+    Terminal-Bench run separated them, and the property that matters is the inequality.
+    """
     config = load_campaign_config(campaign_path)
     (arm,) = config.arms
     capability_id = str(arm["credential_capability"])
@@ -87,7 +104,9 @@ def test_committed_vendor_envelopes_are_accepted(campaign_path: Path) -> None:
         arm, parse_trial_proxy_spec(config.slot_proxy(config.slot(0))), capability_id,
     )
 
-    assert declared == APPROVED_VENDOR_CEILINGS
+    ceilings = load_capability_ceilings()[capability_id]
+    assert set(declared) == set(CEILING_FIELDS)
+    assert all(declared[field] <= ceilings[field] for field in CEILING_FIELDS)
 
 
 @pytest.mark.parametrize("campaign_path", VENDOR_CAMPAIGNS)
@@ -98,13 +117,17 @@ def test_vendor_envelope_one_unit_over_any_ceiling_is_refused(
     config = load_campaign_config(campaign_path)
     arm = deepcopy(config.arms[0])
     proxy = dict(config.slot_proxy(config.slot(0)))
+    # One unit over the CEILING, not over whatever the campaign happens to declare. Deriving the
+    # over-value from the campaign only refused while the two were equal, so the moment a ceiling
+    # was raised above a campaign this stopped testing the ceiling at all.
+    ceiling = load_capability_ceilings()[str(arm["credential_capability"])][field]
+    over = str(Decimal(str(ceiling)) + 1) if field == "max_cost_usd" else int(ceiling) + 1
     if field in proxy:
-        proxy[field] = int(proxy[field]) + 1
+        proxy[field] = over
     else:
         limits = dict(arm["limits"])
         arm["limits"] = limits
-        value = limits[field]
-        limits[field] = str(Decimal(str(value)) + 1) if field == "max_cost_usd" else int(value) + 1
+        limits[field] = over
 
     with pytest.raises(PaidEnvelopeRefused, match=f"paid envelope {field}=.* exceeds"):
         validate_paid_envelope(

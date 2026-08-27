@@ -23,8 +23,8 @@ cli_version: "2026.8.6"
 concurrency: 1
 
 timeouts:
-  agent_seconds: 2100
-  verifier_seconds: 1800
+  agent_seconds: 4200
+  verifier_seconds: 3600
 
 manifest:
   wheel_path: ../harness/dist/cortex_bench_harness-0.1.0-py3-none-any.whl
@@ -83,10 +83,10 @@ arms:
     thinking: xhigh
     runtime_mounts: [node, pi, verifier]
     limits:
-      max_provider_requests: 500
-      max_cost_usd: "2.00"
-      deadline_seconds: 1800
-      max_output_tokens: 65536
+      max_provider_requests: 1000
+      max_cost_usd: "10.00"
+      deadline_seconds: 3600
+      max_output_tokens: 131072
 
 
 # `open`, matching every campaign whose scores these are compared against. See campaigns/CORTEX.md

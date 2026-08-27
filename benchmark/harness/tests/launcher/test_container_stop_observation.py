@@ -293,6 +293,7 @@ def test_admitted_environment_finalizes_between_stop_wait_and_container_removal(
 
     environment._run_docker_compose_command = compose
     environment._remove_verifier_uvx_alias = AsyncMock()
+    environment._discard_trial_scratch = AsyncMock()
     environment._container_boundary_probe = lambda: Probe()
     monkeypatch.setattr(PullDisabledDockerEnvironment, "stop", base_stop)
 
@@ -338,6 +339,7 @@ def test_unobservable_stop_census_is_recorded_after_stop_and_container_is_remove
 
     environment._run_docker_compose_command = compose
     environment._remove_verifier_uvx_alias = AsyncMock()
+    environment._discard_trial_scratch = AsyncMock()
     environment._container_boundary_probe = lambda: Probe()
     monkeypatch.setattr(PullDisabledDockerEnvironment, "stop", base_stop)
 
@@ -379,6 +381,7 @@ def test_capture_failure_still_stops_before_recording_unavailable(
 
     environment._run_docker_compose_command = compose
     environment._remove_verifier_uvx_alias = AsyncMock()
+    environment._discard_trial_scratch = AsyncMock()
     environment._container_boundary_probe = lambda: Probe()
     monkeypatch.setattr(PullDisabledDockerEnvironment, "stop", base_stop)
 

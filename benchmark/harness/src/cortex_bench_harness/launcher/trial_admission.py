@@ -200,6 +200,41 @@ def trial_scratch_command() -> str:
     return f"mkdir -p {targets}"
 
 
+# The same four directories are scratch on the way out. They are named by the sealed environment,
+# so third parties fill them: pip's HTTP cache under XDG_CACHE_HOME was 157.84 MB of the 173.7 MB
+# one campaign collected across 29 trials -- 91% of all evidence -- and one cached PyPI response
+# body in it carried a package author's `/home/<name>` path, which the leak scanner matched and
+# which discarded a trial that had solved its task. Chromium leaves root-owned directories under
+# XDG_CONFIG_HOME and TMPDIR that the collector cannot traverse, and one unreadable entry marks
+# the whole agent root unavailable. None of this is trial evidence. Discarding the four trees in
+# the live container -- after the agent and the verifier have both finished, before anything is
+# collected -- fixes all three without loosening the scanner or the collector by one byte. The
+# census is written first so the evidence still records that TMPDIR existed and how much it held.
+TRIAL_SCRATCH_CENSUS_SCHEMA = "cortex-trial-scratch-discard/1"
+TRIAL_SCRATCH_CENSUS_PATH = TRIAL_ROOT.parent / "trial-scratch-discarded.json"
+
+
+def trial_scratch_discard_command(
+    root: PurePosixPath = TRIAL_ROOT,
+    census: PurePosixPath = TRIAL_SCRATCH_CENSUS_PATH,
+) -> str:
+    """Census the scratch trees, then discard them. Only the discard has to succeed."""
+    targets = " ".join(str(root / name) for name in TRIAL_SCRATCH_DIRECTORIES)
+    survey = "".join((
+        '{ printf \'{"schema":"', TRIAL_SCRATCH_CENSUS_SCHEMA, '","directories":{\'; ',
+        "sep=''; for name in ", " ".join(TRIAL_SCRATCH_DIRECTORIES), "; do ",
+        'dir="', str(root), '/$name"; ',
+        'if [ -d "$dir" ]; then ',
+        'files=$(find "$dir" -type f 2>/dev/null | wc -l | tr -d " "); ',
+        'kib=$(du -sk "$dir" 2>/dev/null | cut -f1 | tr -d " "); ',
+        "present=true; else files=0; kib=0; present=false; fi; ",
+        'printf \'%s"%s":{"present":%s,"files":%s,"kib":%s}\' ',
+        '"$sep" "$name" "$present" "${files:-0}" "${kib:-0}"; ',
+        "sep=','; done; printf '}}\\n'; } > ", str(census), " 2>/dev/null || :",
+    ))
+    return f"set -u; {survey}; rm -rf -- {targets}"
+
+
 def _common_trial_environment(seed: TrialSeed) -> dict[str, str]:
     root = TRIAL_ROOT
     return {
@@ -1220,11 +1255,22 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
         if result.return_code != 0:
             raise HarborTrialAdmissionError("verifier uvx alias removal failed")
 
+    async def _discard_trial_scratch(self) -> None:
+        """Discard the scratch trees as root while the container is still alive."""
+        # Absolute paths throughout, so this needs no working directory of its own.
+        result = await self._compose_exec(
+            trial_scratch_discard_command(), service="main",
+            cwd=None, env=None, timeout_sec=None, user=self._resolve_user("root"),
+        )
+        if result.return_code != 0:
+            raise HarborTrialAdmissionError("trial scratch discard failed")
+
     async def _finalize_after_container_stop(self) -> None:
         controller = self._proxy_controller
         if controller is None or not getattr(controller, "post_stop_finalization_pending", False):
             return
         await self._remove_verifier_uvx_alias()
+        await self._discard_trial_scratch()
         probe = self._container_boundary_probe()
         census = None
         try:
