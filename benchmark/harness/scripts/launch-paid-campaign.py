@@ -207,6 +207,7 @@ def resolve_launch_environment(
         config, gateway_path=gateway_path, codex_auth_path=codex_auth_path)
     references = _reference_values(
         config, credential_env, credential_origin, credential, environ, checkout)
+    references.extend(_refresh_reference(config, codex_auth_path, environ))
     _validate(references, credential_env)
     return LaunchEnvironment(
         credential_env=credential_env, credential_origin=credential_origin,
@@ -233,6 +234,44 @@ def _reference_values(
         value = inherited or _generated(field, name, derived)
         references.append(ReferenceValue(name, value, origin, False))
     return references
+
+
+def _refresh_reference(
+    config: CampaignConfig, codex_auth_path: Path, environ: Mapping[str, str],
+) -> list[ReferenceValue]:
+    """The OAuth refresh token, when the campaign declares one, from the same file as the access
+    token and under the same discipline.
+
+    A campaign that declares refresh material can outlive one access token, which is what makes a
+    623-trial run expressible at all. The token itself is the one thing this launcher will not let
+    the operator hand it: like the access token, it is read from the auth file at execution time,
+    lives only in this process's environment, and is removed when the campaign returns.
+    """
+    name = config.proxy.get("refresh_credential_env")
+    if name is None:
+        return []
+    name = str(name)
+    if environ.get(name):
+        raise LaunchError(
+            f"{name} is already set in this environment. The refresh token is loaded from the "
+            "Codex auth file at execution time and must not be inherited")
+    return [ReferenceValue(name, _codex_refresh_token(codex_auth_path), CODEX_AUTH_ORIGIN, True)]
+
+
+def _codex_refresh_token(auth_path: Path) -> str:
+    try:
+        document = json.loads(auth_path.expanduser().read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise LaunchError(
+            "cannot load the OAuth refresh token from codex-auth: auth file is unreadable or is "
+            "not valid JSON") from error
+    tokens = document.get("tokens") if isinstance(document, Mapping) else None
+    refresh = tokens.get("refresh_token") if isinstance(tokens, Mapping) else None
+    if not isinstance(refresh, str) or not refresh.strip():
+        raise LaunchError(
+            "cannot load the OAuth refresh token from codex-auth: tokens.refresh_token must be "
+            "non-empty text. Re-run `codex login`, or drop the refresh fields from the campaign")
+    return refresh.strip()
 
 
 def _credential_origin(config: CampaignConfig) -> str:

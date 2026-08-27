@@ -1,0 +1,150 @@
+# input:  three Terminal-Bench 2.1 corpus tasks, three arms, and the pinned runtimes staged for
+#         mounting
+# output: nine paid gpt-5.6-sol xhigh trials on unmodified upstream images
+# pos:    Paid gate for the mounted-runtime external-corpus launch path
+# >>> If I am updated, update my header and folder CORTEX.md <<<
+#
+# The last gate before the 89-task suite. Everything the ZERO-PAID external gate proved, it proved
+# against a synthetic upstream that refuses real work: no agent there could act, so nothing was
+# learned about whether a MOUNTED agent behaves like a BAKED one once it is actually working. This
+# spends real subscription quota to answer exactly that, on the smallest matrix that can:
+#
+#   * three arms, one per delivery shape -- a vendor CLI that is the agent (native Codex), a
+#     vendor CLI driven through its own provider binding (PI on the Codex route), and a Cortex
+#     server that shells out to that CLI (cortex direct);
+#   * three tasks, from the corpus rather than from committed copies, so the task path being
+#     measured is the one the 89-task run will use;
+#   * gpt-5.6-sol at xhigh, matching EXP-092's three-surface results, so a regression against
+#     baked images would show up as a score gap rather than as a launch failure.
+#
+# It also exercises two things only a paid run can: the OAuth refresh binding (the access token is
+# read once and the route mints its own successors, which is what makes a run outlive one token),
+# and provider 502 retries under real load.
+#
+# BEFORE LAUNCH, on the host this runs on:
+#   benchmark/harness/scripts/provision-terminal-bench-images.sh --stage-runtimes \
+#     /var/tmp/cortex-bench/runtimes
+#   benchmark/harness/scripts/bench --config ../campaigns/<this file> --run
+# The absolute paths below are lab2's. The access AND refresh tokens are both read from
+# ~/.codex/auth.json at execution time by launch-paid-campaign.py; neither is exported by hand.
+
+schema_version: cortex-bench-campaign/1
+campaign: tb21-mnt-gate
+paid: true
+trials_dir: /var/tmp/cortex-bench/tb21-codex-xhigh-mounted-gate
+cli_version: "2026.8.6"
+concurrency: 3
+
+timeouts:
+  agent_seconds: 2100
+  verifier_seconds: 1800
+
+manifest:
+  wheel_path: ../harness/dist/cortex_bench_harness-0.1.0-py3-none-any.whl
+  npm_artifact_path: ../harness/dist/cortex-agent-server-2026.8.6.tgz
+  lockfile_path: ../harness/uv.lock
+  lockfile_manifest_path: benchmark/harness/uv.lock
+
+credential:
+  upstream_base_url: https://chatgpt.com/backend-api
+  route_identity_host: chatgpt.com
+  proxy_host_suffix: proxy.invalid
+  dummy_token_ref: paid-codex-dummy-token
+
+host_scan_policy:
+  secret_environment:
+    provider_credential: CORTEX_BENCH_CODEX_CREDENTIAL
+  forbidden_environment:
+    host_forbidden: CORTEX_BENCH_PAID_FORBIDDEN
+  forbidden_argv_environment:
+    host_argv: CORTEX_BENCH_PAID_FORBIDDEN_ARGV
+  repository_checkout_environment: CORTEX_BENCH_PAID_CHECKOUT
+  host_identity_environment:
+    machine: CORTEX_BENCH_PAID_IDENTITY
+
+docker_network:
+  subnet_pool: 172.31.32.0/20
+  subnet_prefix: 24
+
+# The refresh fields are what let this campaign outlive one access token. The token itself is
+# never named here and never exported: `refresh_credential_env` names the variable the launcher
+# fills from ~/.codex/auth.json at execution time. Refreshing happens in the host proxy process
+# only; the container is handed the same dummy token it always was.
+proxy:
+  credential_env: CORTEX_BENCH_CODEX_CREDENTIAL
+  refresh_credential_env: CORTEX_BENCH_CODEX_REFRESH
+  token_endpoint_url: https://auth.openai.com/oauth/token
+  oauth_client_id: app_EMoamEEZ73f0CkXaXp7hrann
+  request_body_limit_bytes: 67108864
+  response_body_limit_bytes: 67108864
+  listen_host: 0.0.0.0
+
+runtimes:
+  node: /var/tmp/cortex-bench/runtimes/node
+  pi: /var/tmp/cortex-bench/runtimes/pi
+  codex: /var/tmp/cortex-bench/runtimes/codex
+  verifier: /var/tmp/cortex-bench/runtimes/verifier
+
+arms:
+  - name: mnt-nat-cdx
+    kind: vendor-baseline
+    vendor_agent: codex
+    vendor_cli_version: "0.148.0"
+    provider: openai-codex
+    model: gpt-5.6-sol
+    credential_capability: codex-subscription
+    thinking: xhigh
+    runtime_mounts: [node, codex, verifier]
+    limits:
+      max_provider_requests: 500
+      max_cost_usd: "2.00"
+      deadline_seconds: 1800
+      max_output_tokens: 65536
+
+  - name: mnt-pi-cdx
+    kind: vendor-baseline
+    vendor_agent: pi
+    vendor_cli_version: "0.82.1"
+    provider: openai-codex
+    model: gpt-5.6-sol
+    credential_capability: pi-openai-codex-oauth
+    thinking: xhigh
+    runtime_mounts: [node, pi, verifier]
+    limits:
+      max_provider_requests: 500
+      max_cost_usd: "2.00"
+      deadline_seconds: 1800
+      max_output_tokens: 65536
+
+  - name: mnt-cx-dir
+    kind: cortex
+    backend: pi
+    provider: openai-codex
+    model: gpt-5.6-sol
+    credential_capability: pi-openai-codex-oauth
+    # No `thinking` here: a Cortex arm's is fixed by the committed bundle its
+    # (orchestration, backend, provider, model) resolves to, and that bundle is xhigh.
+    runtime_mounts: [node, pi, verifier]
+    orchestration:
+      mode: direct
+      ask_manager: false
+    limits:
+      max_provider_requests: 500
+      max_cost_usd: "2.00"
+      deadline_seconds: 1800
+      max_output_tokens: 65536
+
+# `open`, matching the campaigns whose scores this one is compared against. See campaigns/CORTEX.md
+# for what that costs a score.
+network:
+  mode: open
+
+task_source:
+  kind: external
+  root: /home/fangxin/.cache/cortex-bench/terminal-bench-2.1/tasks
+  inventory: ../external-suites/terminal-bench-2.1-7131e437-images.json
+  select:
+    mode: include
+    ids: [chess-best-move, constraints-scheduling, db-wal-recovery]
+
+comparisons: []

@@ -366,6 +366,86 @@ def test_codex_campaigns_load_only_tokens_access_token_and_report_only_codex_aut
         {"name": CODEX_CREDENTIAL_ENV, "origin": "codex-auth", "secret": True}]
 
 
+REFRESH_ENV = "CORTEX_BENCH_CODEX_REFRESH"
+FAKE_REFRESH_TOKEN = "rt-fixture-refresh-never-a-real-token"
+
+
+def refreshing_campaign(tmp_path: Path, source_path: Path, **proxy: object) -> Path:
+    """A committed Codex campaign, plus the OAuth fields that let its route outlive one token."""
+    import yaml
+
+    staged = stage_campaign(tmp_path, source_path)
+    document = yaml.safe_load(staged.read_text(encoding="utf-8"))
+    document["proxy"].update({
+        "refresh_credential_env": REFRESH_ENV,
+        "token_endpoint_url": "https://auth.openai.com/oauth/token",
+        "oauth_client_id": "app_EMoamEEZ73f0CkXaXp7hrann",
+        **proxy,
+    })
+    staged.write_text(yaml.safe_dump(document), encoding="utf-8")
+    return staged
+
+
+def test_a_campaign_that_declares_refresh_material_gets_it_from_the_same_auth_file(
+    gateway: Path, codex_auth: Path, clean_environment: dict[str, str], tmp_path: Path,
+) -> None:
+    """Named in the document, read at execution time, never reported."""
+    path = refreshing_campaign(tmp_path, COMMITTED_CODEX_CONFIGS["cortex"])
+    config = launcher.load_campaign_config(path)
+
+    environment = launcher.resolve_launch_environment(
+        config, gateway_path=gateway, codex_auth_path=codex_auth,
+        environ=clean_environment, checkout=CHECKOUT_ROOT)
+
+    assert environment.values[REFRESH_ENV] == "not-forwarded"
+    document = launcher.report(config, environment, "preflight", gateway, {})
+    assert {entry["name"] for entry in document["references"] if entry["secret"]} == {
+        CODEX_CREDENTIAL_ENV, REFRESH_ENV}
+    assert "not-forwarded" not in json.dumps(document, sort_keys=True)
+
+
+def test_a_campaign_with_no_refresh_material_resolves_no_refresh_reference(
+    gateway: Path, codex_auth: Path, clean_environment: dict[str, str], tmp_path: Path,
+) -> None:
+    config = launcher.load_campaign_config(
+        stage_campaign(tmp_path, COMMITTED_CODEX_CONFIGS["cortex"]))
+
+    environment = launcher.resolve_launch_environment(
+        config, gateway_path=gateway, codex_auth_path=codex_auth,
+        environ=clean_environment, checkout=CHECKOUT_ROOT)
+
+    assert REFRESH_ENV not in environment.values
+
+
+def test_an_inherited_refresh_token_is_refused_like_an_inherited_credential(
+    gateway: Path, codex_auth: Path, clean_environment: dict[str, str], tmp_path: Path,
+) -> None:
+    """Accepting it from the environment is how it ends up persisted in run metadata."""
+    path = refreshing_campaign(tmp_path, COMMITTED_CODEX_CONFIGS["cortex"])
+
+    with pytest.raises(launcher.LaunchError, match="must not be inherited"):
+        launcher.resolve_launch_environment(
+            launcher.load_campaign_config(path), gateway_path=gateway,
+            codex_auth_path=codex_auth,
+            environ={**clean_environment, REFRESH_ENV: FAKE_REFRESH_TOKEN},
+            checkout=CHECKOUT_ROOT)
+
+
+def test_an_auth_file_with_no_refresh_token_refuses_a_refreshing_campaign(
+    gateway: Path, clean_environment: dict[str, str], tmp_path: Path,
+) -> None:
+    """Refusing here costs nothing; discovering it costs the hours a run spent before expiry."""
+    auth_path = tmp_path / "no-refresh.json"
+    auth_path.write_text(
+        json.dumps({"tokens": {"access_token": FAKE_CODEX_TOKEN}}), encoding="utf-8")
+    path = refreshing_campaign(tmp_path, COMMITTED_CODEX_CONFIGS["cortex"])
+
+    with pytest.raises(launcher.LaunchError, match="tokens.refresh_token"):
+        launcher.resolve_launch_environment(
+            launcher.load_campaign_config(path), gateway_path=gateway,
+            codex_auth_path=auth_path, environ=clean_environment, checkout=CHECKOUT_ROOT)
+
+
 @pytest.mark.parametrize("access_token", [
     "not-a-jwt",
     codex_token(account_id=""),
