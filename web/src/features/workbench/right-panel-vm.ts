@@ -1,4 +1,4 @@
-// input:  ui-contract DTOs, nested-thread helpers
+// input:  ui-contract DTOs, nested-thread helpers, and shared USD formatting
 // output: budget, task-linked, and status view models
 // pos:    Pure view models for the workbench right panel
 // >>> If I am updated, update my header comment and CORTEX.md <<<
@@ -11,6 +11,7 @@ import type {
   MachineInfo,
 } from '@cortex-agent/ui-contract';
 import { treeMaxLevel, MAX_LEVEL } from '@/features/thread/nested-threads';
+import { formatUsd } from '@/lib/format';
 
 type ThreadSubtaskInfo = ThreadDetail['subtasks'][number];
 
@@ -51,7 +52,7 @@ export function stepDotKind(step: ThreadStepDetail): StepDotKind {
 
 /** 2-decimal dollar amount, e.g. "$2.10" (prototype money()). */
 export function formatCost(v: number): string {
-  return '$' + v.toFixed(2);
+  return formatUsd(v);
 }
 
 export interface RightPanelBudget {

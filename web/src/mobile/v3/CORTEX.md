@@ -11,19 +11,19 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 | MChatScreen.optimistic.test.tsx | test | Tests status priority, Todo wiring, optimistic sends and shortcuts |
 | MChatView.tsx | view | Facades chat contracts and renders lazy subagents, decisions, turn-copy and screen frame |
 | MChatView.types.ts | types | Shares public chat, action, composer and sheet contracts |
-| MChatMessageActions.tsx | view | Renders copy, long-press and edit action presentation |
+| MChatMessageActions.tsx | view | Renders success-only shared copy, long-press and edit actions |
 | MChatAttachments.tsx | view | Renders transcript and composer attachment presentation |
-| MChatSheets.tsx | view | Renders session, profile, browser and context sheets |
+| MChatSheets.tsx | view | Renders session-id shared copy feedback plus profile/browser/context sheets |
 | MChatComposerPresentation.tsx | view | Renders composer modes, tools, slash and plus menus |
 | MChatView.test.tsx | test | Tests lazy detail, prompts, counts, Todo, ＋ menu and copy |
-| m-chat-vm.ts | vm | Maps shared run facts and builds chat rows, profile labels and menu placement |
+| m-chat-vm.ts | vm | Maps run facts with canonical USD labels and builds chat rows/profile/menu placement |
 | m-chat-vm.test.ts | test | Tests localized run status, profile labels and row state |
 | MInteractionCards.tsx | view | Ask-user bottom-input and plan-approval cards |
 | MDecisionCards.tsx | view | Decision cards with bottom-sheet detail and responses |
 | MSessionListScreen.tsx | screen | Binds sessions and the sentinel-safe editor-capable Scheduled sheet |
 | MSessionListView.tsx | view | Day-grouped session rows with clock entry |
 | MScheduleSheet.tsx | view | One compact list/runs/editor bottom-sheet state machine with level-aware back |
-| MScheduleSheetLevels.tsx | view | Presents the Scheduled list and run levels as small DOM-stable components |
+| MScheduleSheetLevels.tsx | view | Presents canonical-USD Scheduled list/run levels as DOM-stable components |
 | MScheduleSheet.test.tsx | test | Tests real-DTO edits, one-sheet levels, Escape and hardware-back retreat |
 | MScheduleEditor.tsx | view | Composes shared-controller fields and honest once-edit limitations in-sheet |
 | MScheduleEditorFields.tsx | view | Presents mobile schedule field groups as small DOM-stable components |
@@ -31,12 +31,12 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 | m-session-list-vm.test.ts | test | Unit tests for the session list view model |
 | MThreadsScreen.tsx | screen | Loads active and historical thread sections |
 | MThreadsView.tsx | view | Grouped thread sections and wrapped pipelines |
-| m-threads-vm.ts | vm | Derives budget, steps and task-linked card meta |
+| m-threads-vm.ts | vm | Derives canonical-USD budget, steps and task-linked card meta |
 | m-threads-vm.test.ts | test | Tests mobile task-linked thread metadata |
 | MThreadDetailScreen.tsx | screen | Binds routed mobile detail and cancellation |
 | MThreadDetailView.tsx | view | Thread pipeline steps, artifacts and actions |
 | MThreadDetailView.test.tsx | test | Unit tests for the cancel affordance |
-| m-thread-detail-vm.ts | vm | Maps thread detail to steps, crumbs, artifacts |
+| m-thread-detail-vm.ts | vm | Maps thread detail to steps, crumbs, artifacts and canonical USD labels |
 | m-thread-detail-vm.test.ts | test | Unit tests for the thread detail view model |
 | MTasksScreen.tsx | screen | Loads the project queue through canonical task grouping/order |
 | MTasksView.tsx | view | Renders canonical task groups with mobile-specific blocker cards |
@@ -73,7 +73,7 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 | m-memory-vm.test.ts | test | Tests shared-fact accordion, time and count projection |
 | MMemoryFileScreen.tsx | screen | Binds one memory file by canonical path parameter |
 | MMemoryFileView.tsx | view | Clean read-only markdown file with header metaline |
-| m-memory-file-vm.ts | vm | Derives basename, byte size and metaline |
+| m-memory-file-vm.ts | vm | Derives basename and missing-aware canonical byte metadata |
 | MMachinesScreen.tsx | screen | Binds machine probes and registration approval requests |
 | MMachinesView.tsx | view | Expandable machine cards with telemetry and Add action |
 | MMachinesView.test.tsx | test | Tests collapsed and expanded panel gating |

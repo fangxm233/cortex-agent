@@ -1,11 +1,11 @@
-// input:  ScheduleInfo/SessionInfo DTOs, scheduled-chat + cost helpers
+// input:  ScheduleInfo/SessionInfo DTOs, scheduled-chat helpers, and shared USD formatting
 // output: schedule rows, run ordinals, DTO-carrying row actions, and sublines
 // pos:    SCHEDULED rail-section view model (desktop 30a + mobile 8b)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { ScheduleInfo, SessionInfo } from '@cortex-agent/ui-contract';
 import { cadenceLabel, nextRunDelta } from './scheduled-chat';
 import { sessionStamp } from './session-groups';
-import { formatCost } from './right-panel-vm';
+import { formatUsd } from '@/lib/format';
 
 // Design 30a/8b: the SCHEDULED section shows ONE row per schedule (not per run). Rows union two
 // sources: live schedule records (schedules.list) and orphan run groups — sessions whose scheduleId
@@ -126,7 +126,7 @@ export function scheduleSubline(row: ScheduleRow, now: number): ScheduleSubline 
     return {
       kind: 'run',
       stamp: sessionStamp(row.latest, now),
-      cost: row.latest.costUsd != null ? formatCost(row.latest.costUsd) : null,
+      cost: row.latest.costUsd != null ? formatUsd(row.latest.costUsd) : null,
     };
   }
   const sched = row.schedule;

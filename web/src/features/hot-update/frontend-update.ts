@@ -1,15 +1,12 @@
-// Frontend hot-update (OTA) bridge — the single seam the hot-update prompt talks to the native shell.
-//
-// The Tauri shell (desktop + Android) downloads a newer SPA bundle in the background and stages it for
-// the next launch (see desktop/src-tauri/src/ota.rs). When a bundle is staged it emits the
-// `frontend-update-staged` event to the webview; applying the update relaunches (desktop) or exits
-// (Android) the app so startup `promote_staged()` swaps the new version in.
-//
-// This module is off-shell-safe: in a plain browser / ui-http (no Tauri shell) every function is a
-// no-op, so the SPA still builds + runs there and the hot-update prompt simply never appears (design:
-// the prompt is APP-only). Accessed via the global `window.__TAURI__` (the shell is built with
-// `withGlobalTauri: true`, same as the init_script), so no extra `@tauri-apps/api` dependency is added.
+// input:  native-shell update events, staged metadata, and shared byte formatting
+// output: parsed update state, display labels, subscriptions, and shell commands
+// pos:    Off-shell-safe bridge between the hot-update prompt and native shells
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
+// Desktop and Android stage a bundle, emit `frontend-update-staged`, then relaunch/exit to promote it.
+// Plain browsers remain safe no-ops through the guarded global Tauri seam.
 import { isNativeShell } from '@/lib/desktop-config';
+import { formatBytes } from '@/lib/format';
 
 /** A frontend update downloaded + staged for the next launch (payload of `frontend-update-staged`). */
 export interface StagedUpdate {
@@ -40,9 +37,8 @@ export function versionTransitionLabel(update: StagedUpdate): string {
 /** Human-readable byte size ("8.4 MB" / "512 KB" / "900 B"). Returns null for 0 / missing (→ omit). */
 export function formatUpdateSize(bytes: number | undefined): string | null {
   if (!bytes || bytes <= 0) return null;
-  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${bytes} B`;
+  const fractionDigits = bytes >= 1024 * 1024 ? 1 : 0;
+  return formatBytes(bytes, { fractionDigits, maxUnit: 'MB' });
 }
 
 /** The full mono meta line under the title: `<versions> · <size> · 已下载` (size segment omitted when

@@ -1,4 +1,4 @@
-// input:  ScheduleRow, schedule-rail ordinals, i18n vocab
+// input:  ScheduleRow, schedule ordinals, i18n vocab, and shared USD formatting
 // output: 30b run-list modal (RUN · FIRED · COST)
 // pos:    Repeating schedule's run history → open a run in chat
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -7,7 +7,7 @@ import { useVocab } from '@/i18n';
 import { runOrdinals, type ScheduleRow } from './schedule-rail';
 import { cadenceLabel, nextRunDelta } from './scheduled-chat';
 import { sessionStamp } from './session-groups';
-import { formatCost } from './right-panel-vm';
+import { formatUsd } from '@/lib/format';
 
 const mono = "'IBM Plex Mono',monospace";
 
@@ -134,7 +134,7 @@ export function RunListModal({
                 </span>
                 <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted-2)' }}>{sessionStamp(r, now)}</span>
                 <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted-3)', textAlign: 'right' }}>
-                  {r.costUsd != null ? formatCost(r.costUsd) : '—'}
+                  {r.costUsd != null ? formatUsd(r.costUsd) : '—'}
                 </span>
               </div>
             );

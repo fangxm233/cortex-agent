@@ -1,10 +1,11 @@
-// input:  thread details, transcript timestamps, and tool calls
+// input:  thread details, transcript timestamps, tool calls, and shared USD formatting
 // output: mobile stepper, divider, and tool-chip models
 // pos:    Active pure helpers retained from the legacy mobile session screen
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { ThreadDetail } from '@cortex-agent/ui-contract';
 import type { ToolCallOverflowLayout } from '@/features/workbench/tool-call-overflow';
+import { formatUsd } from '@/lib/format';
 
 function hhmm(d: Date): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -83,7 +84,7 @@ export function buildMobileStepper(detail: ThreadDetail): MobileStepper {
     nodes,
     footer: {
       elapsed: formatElapsed(elapsedMs),
-      cost: `$${detail.totalCostUsd.toFixed(2)}`,
+      cost: formatUsd(detail.totalCostUsd),
       subCount: detail.children.length,
     },
   };

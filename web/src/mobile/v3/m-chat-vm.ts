@@ -1,4 +1,4 @@
-// input:  Session DTOs, shared run-status facts, and transcript/interaction view models
+// input:  Session DTOs, run-status facts, transcript models, and shared USD formatting
 // output: Chat rows, localized status, profile labels, and attachment/menu placement
 // pos:    Pure presentation logic for the mobile session chat
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -11,6 +11,7 @@ import {
 } from '@/features/workbench/transcript-vm';
 import { zhDivider } from '@/mobile/screens/mobile-session-vm';
 import type { SessionRunStatus } from '@/features/workbench/session-run-status';
+import { formatUsd } from '@/lib/format';
 
 /** What the mobile chat's rows are built from beyond the fetched transcript + live tail. */
 export interface MobileChatRowOpts {
@@ -76,11 +77,6 @@ export interface ChatHeaderStatus {
 
 const DASH = '—';
 
-/** `$0.42` — matches the web `formatCost` (right-panel-vm.ts). */
-function fmtCost(v: number): string {
-  return '$' + v.toFixed(2);
-}
-
 export interface ChatRunStatusCopy {
   foreground: string;
   background: string;
@@ -106,7 +102,7 @@ export function chatHeaderStatus(
       ? copy.foreground
       : copy.idle;
   const text = status.showMetrics
-    ? [label, elapsed, turnsText, ...(status.showCost ? [cost == null ? DASH : fmtCost(cost)] : [])].join(' · ')
+    ? [label, elapsed, turnsText, ...(status.showCost ? [cost == null ? DASH : formatUsd(cost)] : [])].join(' · ')
     : label;
   return { running: status.active, tone: status.active ? 'running' : 'idle', text };
 }

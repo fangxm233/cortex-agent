@@ -20,9 +20,9 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | NewProjectModal.tsx | view | Presents desktop creation through the shared projects controller |
 | session-groups.ts | vm | Day-groups sessions with meta and stamp helpers |
 | session-groups.test.ts | test | Unit tests for session day grouping |
-| schedule-rail.ts | vm | Builds SCHEDULED rows, run ordinals and click routing with real ScheduleInfo edit actions |
+| schedule-rail.ts | vm | Builds SCHEDULED rows, shared-USD costs, run ordinals and real ScheduleInfo edit actions |
 | schedule-rail.test.ts | test | Tests SCHEDULED grouping, ordinals and DTO-carrying edit routing |
-| RunListModal.tsx | view | Run-list modal opening a run in the chat pane |
+| RunListModal.tsx | view | Run-list modal with canonical USD costs opening a run in the chat pane |
 | ProfileMenu.tsx | view | Lists compact profiles above or below its anchor |
 | profile-menu.ts | vm | Filters live profile options and switch gates |
 | profile-menu.test.ts | test | Tests live profile filtering and switch gates |
@@ -33,12 +33,12 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | ChatHeader.tsx | view | Session title, command, browser, notes and session menu |
 | MessageStream.tsx | view | Orchestrates lazy subagent rows, decisions, editing, turn-tail copy and scroll pinning |
 | MessageAttachmentCards.tsx | view | Renders user and agent attachment, media, file and HTML-view cards |
-| attachment-presentation.ts | util | Shares attachment extension, size and semantic color presentation helpers |
+| attachment-presentation.ts | util | Adapts canonical byte labels plus attachment extension and semantic colors |
 | ChatMarkdown.tsx | view | Renders Markdown with width-bounded KaTeX formulas |
 | ChatMarkdown.test.tsx | test | Tests formula parsing, opt-in behavior and untrusted-input safety |
 | ChatNotice.tsx | view | Localized semantic notices with optional actions |
 | ChatNotice.test.tsx | test | Tests semantic roles, action gating and safe auth activation |
-| MessageEdit.tsx | view | Bare message actions, edit box and rewind |
+| MessageEdit.tsx | view | Bare message actions with success-only clipboard feedback, edit box and rewind |
 | chat-content.ts | types | Defines chat types and local shortcut catalog |
 | transcript-vm.ts | vm | Builds compact chat rows, decision cards and turn tails |
 | transcript-vm.test.ts | test | Tests compact rows, turn tails, auth actions and decisions |
@@ -59,7 +59,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | plan-read-vm.ts | vm | Derives plan reading progress, status and meta |
 | plan-read-vm.test.ts | test | Tests read-progress arithmetic and clamping |
 | InlineThreadCardProto.tsx | view | Live thread card opening modal detail |
-| thread-card-proto.ts | vm | Maps thread detail to inline card rows and pill |
+| thread-card-proto.ts | vm | Maps thread detail to inline card rows, canonical USD labels and pill |
 | thread-card-proto.test.ts | test | Unit tests for the inline thread card model |
 | Composer.tsx | view | Orchestrates the unified input card, drafts, uploads and shared run status |
 | session-run-status.ts | vm | Derives locale-free foreground, background, idle and fresh session facts |
@@ -99,11 +99,11 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | useSessionMessageLiveSync.test.tsx | test | Tests message authority, compact child suppression and Todo isolation |
 | useSessionsLiveSync.test.tsx | test | Tests rail-wide session snapshot refresh |
 | useMarkSessionRead.ts | hook | Marks the visible session read |
-| SessionIdModal.tsx | view | Shows session identifiers with copy actions |
+| SessionIdModal.tsx | view | Shows session identifiers with success-only shared copy feedback |
 | session-id.ts | vm | Builds identifier rows with a dash fallback |
 | PaneToggle.tsx | view | Chevron button collapsing either side pane, mirrored per side |
 | RightPanel.tsx | view | Animates scoped work tabs or notes into an icon rail |
-| right-panel-vm.ts | vm | Formats budget, thread and machine metadata |
+| right-panel-vm.ts | vm | Formats canonical USD budget plus thread and machine metadata |
 | right-panel-vm.test.ts | test | Tests budget, thread and machine view models |
 | RightThreadCard.tsx | view | Opens run, task and thread details from activity rows |
 | RightThreadCard.test.tsx | test | Tests waiting-task click delegation |

@@ -1,4 +1,4 @@
-// input:  schedule rows, localized sheet copy, timestamps, and level callbacks
+// input:  schedule rows, localized copy, timestamps, callbacks, and shared USD formatting
 // output: small DOM-preserving list and runs level presentations
 // pos:    Presentational helpers for the mobile Scheduled sheet state machine
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -7,7 +7,7 @@ import { MC, MONO } from '@/mobile/ui/kit';
 import { runOrdinals, scheduleSubline, type ScheduleRow } from '@/features/workbench/schedule-rail';
 import { cadenceLabel, nextRunDelta } from '@/features/workbench/scheduled-chat';
 import { sessionStamp } from '@/features/workbench/session-groups';
-import { formatCost } from '@/features/workbench/right-panel-vm';
+import { formatUsd } from '@/lib/format';
 
 export interface MScheduleSheetCopy {
   title: string;
@@ -195,7 +195,7 @@ function RunOrdinal({ run, ordinal }: {
 
 function RunCost({ cost }: { cost: number | null }) {
   return <span style={{ font: `400 12px ${MONO}`, color: MC.muted, textAlign: 'right' }}>
-    {cost != null ? formatCost(cost) : '—'}
+    {cost != null ? formatUsd(cost) : '—'}
   </span>;
 }
 

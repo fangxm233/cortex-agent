@@ -1,3 +1,8 @@
+// input:  task verification fixtures with evidence, dispatches, duration, and cost
+// output: regression coverage for honest evidence and canonical dispatch formatting
+// pos:    Unit tests for task-verification-vm
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import { describe, it, expect } from 'vitest';
 import type { TaskVerificationInfo } from '@cortex-agent/ui-contract';
 import { buildTaskVerificationVm } from './task-verification-vm';
@@ -36,6 +41,7 @@ describe('buildTaskVerificationVm — real evidence', () => {
     expect(vm.dispatches.map((d) => d.executionId)).toEqual(['exec_c', 'exec_b']);
     expect(vm.dispatches[0].isCompleting).toBe(true);
     expect(vm.dispatches[0].machine).toBe('server-nvidia');
+    expect(vm.dispatches[0].cost).toBe('$0.05');
     expect(vm.dispatches[1].isCompleting).toBe(false);
   });
 });

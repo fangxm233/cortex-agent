@@ -1,9 +1,10 @@
-// input:  message text, edit callbacks, optional message actions
+// input:  message text, edit callbacks, actions, and shared clipboard feedback
 // output: Bare message actions and rewind presentation
 // pos:    Desktop message edit and action chrome
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { useEffect, useRef, useState } from 'react';
+import { useClipboardFeedback } from '@/design/useClipboardFeedback';
 
 // Message edit + rewind — desktop chrome, 1:1 from scheme.dc.html sec-23 (23a). Pieces used by
 // MessageStream: bare hover actions, the in-place bubble edit box (Esc 取消 · ⌘↩ 发送并回退),
@@ -92,17 +93,10 @@ export function MessageActions({ text, copy, onEdit, editDisabled, showCopy = tr
   showCopy?: boolean;
   extraAction?: React.ReactNode;
 }): JSX.Element {
-  const [copied, setCopied] = useState(false);
+  const { copiedKey, copy: writeCopy } = useClipboardFeedback<true>(1500);
   const [editHover, setEditHover] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
-
-  const doCopy = (): void => {
-    void navigator.clipboard?.writeText(text).catch(() => {});
-    setCopied(true);
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setCopied(false), 1500);
-  };
+  const copied = copiedKey === true;
+  const doCopy = (): void => { void writeCopy(text, true); };
 
   return (
     <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 2, height: 26, flex: 'none' }}>

@@ -4,7 +4,8 @@
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 import type { ThreadInfo, ThreadDetail } from '@cortex-agent/ui-contract';
 import { fmtMoney } from '@/mobile/ui/format';
-import { formatAge, formatCost } from '@/features/workbench/right-panel-vm';
+import { formatAge } from '@/features/workbench/right-panel-vm';
+import { formatUsd } from '@/lib/format';
 
 // ── 今日 budget band (scheme L188–192) ────────────────────────────────────────
 // numerator = real scoped `cost.summary.today`; denominator = real `dailyBudget`, resolved against
@@ -79,7 +80,7 @@ export function runningMeta(
   if (info.taskId) parts.push(`task ${info.taskId}`);
   parts.push(formatAge(info.createdAt, now));
   if (detail) {
-    parts.push(formatCost(detail.totalCostUsd));
+    parts.push(formatUsd(detail.totalCostUsd));
     const n = detail.children.length;
     if (n > 0) parts.push(`${n} ${subthreadWord}`);
   }

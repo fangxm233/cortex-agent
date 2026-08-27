@@ -1,4 +1,4 @@
-// input:  ProviderUsage snapshots, optional per-window policy config, language, and current epoch
+// input:  ProviderUsage snapshots, policy config, language, epoch, and shared USD formatting
 // output: known-bucket quota, spend, freshness, severity, timing, row policy, and legacy fallback views
 // pos:    Shared desktop/mobile usage presentation model
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -12,6 +12,7 @@ import type {
   UsageWindow,
 } from '@cortex-agent/ui-contract';
 import type { Lang } from '@/i18n';
+import { formatUsd } from '@/lib/format';
 
 export type UsageQuotaState = 'available' | 'never' | 'unsupported';
 export type UsageSeverity = 'normal' | 'warning' | 'danger';
@@ -241,10 +242,6 @@ function quotaState(freshness: UsageFreshness): UsageQuotaState {
   if (freshness === 'unsupported') return 'unsupported';
   if (freshness === 'never') return 'never';
   return 'available';
-}
-
-function formatUsd(value: number): string {
-  return `$${value.toFixed(2)}`;
 }
 
 function noteTone(note: string): UsageNoteTone {

@@ -1,14 +1,13 @@
-// input:  Shared chat attachment names, sizes, and semantic types
+// input:  Shared chat attachment names, sizes, semantic types, and byte formatting
 // output: Stable file labels, byte labels, and type token colors
 // pos:    Reusable attachment presentation helpers for workbench surfaces
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { AttachmentMeta } from './chat-content';
+import { formatBytes } from '@/lib/format';
 
 export function formatAttachmentSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return formatBytes(bytes, { fractionDigits: 1, maxUnit: 'MB' });
 }
 
 export function attachmentFileExt(name: string): string {

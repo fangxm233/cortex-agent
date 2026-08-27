@@ -1,4 +1,4 @@
-// input:  ThreadDetail DTO, ancestor trail, and wall-clock time
+// input:  ThreadDetail DTO, ancestor trail, wall-clock time, and shared USD formatting
 // output: desktop thread modal view model
 // pos:    Derives pipeline, metadata, and artifact display slots
 // >>> If I am updated, update my header comment and CORTEX.md <<<
@@ -19,6 +19,7 @@ import type {
 } from '@cortex-agent/ui-contract';
 import { dispatchesForStep } from './thread-steps';
 import { nodeLevel, treeMaxLevel, MAX_LEVEL } from './nested-threads';
+import { formatUsd } from '@/lib/format';
 
 const RUNNING = new Set<ThreadInfo['status']>(['running', 'waiting']);
 
@@ -72,7 +73,7 @@ function formatDuration(durationS: number): string {
 function stepMeta(step: ThreadStepDetail): string {
   const parts: string[] = [];
   if (step.durationS != null) parts.push(formatDuration(step.durationS));
-  if (step.costUsd != null) parts.push('$' + step.costUsd.toFixed(2));
+  if (step.costUsd != null) parts.push(formatUsd(step.costUsd));
   return parts.join(' · ');
 }
 
@@ -251,7 +252,7 @@ export function buildThreadDetailVm(detail: ThreadDetail, now: number): ThreadDe
   return {
     name: detail.templateName, tid: detail.id, pill: threadPill(detail.status),
     template: detail.templateName, started: fmtHM(detail.createdAt), elapsed: fmtClock(elapsedS),
-    cost: 'Σ $' + detail.totalCostUsd.toFixed(2), task: detail.artifacts.taskId ?? '—',
+    cost: `Σ ${formatUsd(detail.totalCostUsd)}`, task: detail.artifacts.taskId ?? '—',
     depthDots, depthText: `${filledLevels}/${MAX_LEVEL}`, live,
     steps: detail.steps.map((step, index) => mapStep(detail, step, index, live)),
     artifact: buildArtifact(detail, live, now),

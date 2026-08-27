@@ -1,4 +1,4 @@
-// input:  task verification and dispatch records
+// input:  task verification records and shared USD formatting
 // output: evidence, dispatch rows, and themed status colors
 // pos:    Pure view model for task completion verification
 // >>> If I am updated, update my header comment and CORTEX.md <<<
@@ -11,6 +11,7 @@
 // the component renders an honest placeholder — never fabricated evidence.
 
 import type { TaskVerificationInfo, TaskDispatchRecord } from '@cortex-agent/ui-contract';
+import { formatUsd } from '@/lib/format';
 
 // dispatch/execution status → dot color (mirrors the modal's palette in task-modal-vm.ts).
 function statusColor(status: TaskDispatchRecord['status']): string {
@@ -39,7 +40,7 @@ export function formatDuration(ms: number | null): string {
 
 export function formatCost(cost: number | null): string {
   if (cost == null || !Number.isFinite(cost)) return '—';
-  return `$${cost.toFixed(4)}`;
+  return formatUsd(cost);
 }
 
 export function formatWhen(iso: string | null): string {

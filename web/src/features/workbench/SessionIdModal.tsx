@@ -1,10 +1,11 @@
-// input:  session identifiers, clipboard access, and localized labels
+// input:  session identifiers, shared clipboard feedback, and localized labels
 // output: themed session identifier modal with copy actions
 // pos:    Desktop session metadata overlay
 // >>> If I am updated, update my header comment and CORTEX.md <<<
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useVocab } from '@/i18n';
 import { buildSessionIdRows } from './session-id';
+import { useClipboardFeedback } from '@/design/useClipboardFeedback';
 
 // SESSION ID MODAL — opened from the ChatHeader ⋯ menu (会话ID). Shows the two identifiers a session
 // carries: the human-facing Cortex ID (cortex-XXXX, SessionInfo.name) and the backend UUID — the
@@ -31,7 +32,7 @@ export function SessionIdModal({
     cortexIdLabel: L.wbCortexId,
     backendUuidLabel: L.wbBackendUuid,
   });
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const { copiedKey, copy } = useClipboardFeedback<string>();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -41,11 +42,8 @@ export function SessionIdModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const copy = (key: string, value: string) => {
-    if (value === '—') return;
-    void navigator.clipboard?.writeText(value).catch(() => {});
-    setCopiedKey(key);
-    window.setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 1400);
+  const copyRow = (key: string, value: string): void => {
+    if (value !== '—') void copy(value, key);
   };
 
   return (
@@ -131,7 +129,7 @@ export function SessionIdModal({
                   {row.value}
                 </span>
                 <span
-                  onClick={() => copy(row.key, row.value)}
+                  onClick={() => copyRow(row.key, row.value)}
                   style={{
                     flex: 'none',
                     font: `500 9.5px ${mono}`,

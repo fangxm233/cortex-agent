@@ -1,15 +1,15 @@
-// input:  Session identifiers, profile/browser choices, context usage, and menu copy
+// input:  Session ids, choices, context usage, copy, and shared clipboard feedback
 // output: Mobile chat overflow menu and bottom-sheet presentations
 // pos:    Mobile chat sheet presentation seam
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { useState } from 'react';
 import type { SessionContextUsage } from '@cortex-agent/ui-contract';
 import { ContextCompactFooter, ContextUsageDetails, contextUsageTitle, type ContextCompactAction } from '@/features/workbench/ContextUsageControl';
 import { buildSessionIdRows } from '@/features/workbench/session-id';
 import { MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
 import type { ProfileSheetItem } from './m-chat-vm';
 import type { BrowserSheetItem, MChatCopy } from './MChatView.types';
+import { useClipboardFeedback } from '@/design/useClipboardFeedback';
 
 export function MoreMenu({ copy, onClose, onSessionId }: {
   copy: MChatCopy;
@@ -55,12 +55,9 @@ export function SessionIdSheet({ copy, cortexId, backendUuid, onClose }: {
   onClose: () => void;
 }): JSX.Element {
   const rows = buildSessionIdRows({ cortexId, backendUuid, cortexIdLabel: copy.cortexIdLabel, backendUuidLabel: copy.backendUuidLabel });
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const { copiedKey, copy: writeCopy } = useClipboardFeedback<string>();
   const doCopy = (key: string, value: string): void => {
-    if (value === '—') return;
-    void navigator.clipboard?.writeText(value).catch(() => {});
-    setCopiedKey(key);
-    window.setTimeout(() => setCopiedKey((current) => current === key ? null : current), 1400);
+    if (value !== '—') void writeCopy(value, key);
   };
   return (
     <MBottomSheet onClose={onClose}>

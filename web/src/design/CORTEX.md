@@ -12,7 +12,7 @@ Interactive parts wrap Radix for accessibility; pure modules hold the tested sta
 | StatusPill.tsx | core | Status badge colored by resolved tone |
 | MonoText.tsx | core | Text in the monospace data style |
 | PlusGlyph.tsx | core | The plus mark as centered line art |
-| ID.tsx | core | Identifier with click-to-copy |
+| ID.tsx | core | Identifier with shared success-only click-to-copy feedback |
 | Tabs.tsx | core | Tab set as data-driven form and styled parts |
 | Tooltip.tsx | core | Hover tooltip plus its provider export |
 | Modal.tsx | core | Accessible dialog with hidden descriptions and layers |
@@ -29,3 +29,5 @@ Interactive parts wrap Radix for accessibility; pure modules hold the tested sta
 | degraded.ts | util | Maps degraded severities to pill tones |
 | toast-store.ts | util | Toast queue add and remove with a max cap |
 | toast-store.test.ts | test | Unit tests for the toast queue |
+| useClipboardFeedback.ts | hook | Owns clipboard writes, success feedback timers and unmount cleanup |
+| useClipboardFeedback.test.tsx | test | Tests clipboard success, failure, timer replacement and cleanup |

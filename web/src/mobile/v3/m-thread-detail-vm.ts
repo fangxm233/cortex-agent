@@ -1,8 +1,9 @@
-// Pure view-model for the 1g 线程详情 screen (scheme-mobile.dc.html 1g L387-438). Maps the real
-// `threads.get` DTO (ThreadDetail, B1) into the mobile drill-page model: breadcrumb + self depth,
-// meta line, the vertical PIPELINE step list (collapsed done / expanded running agent-flow / faint
-// pending), the 产物 refs, and the footer cost. Framework-free so the mapping is unit-tested in
-// isolation (TDD), mirroring m-session-list-vm.
+// input:  ThreadDetail DTO, breadcrumb trail, wall-clock time, and shared USD formatting
+// output: mobile thread pipeline, agent, artifact, depth, and cost models
+// pos:    Pure view model for the mobile thread-detail drill page
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
+// Maps the real ThreadDetail into the mobile breadcrumb, pipeline, artifact, and footer model.
 //
 // REUSES the desktop thread logic (no new scope): `treeMaxLevel`/`MAX_LEVEL` (nested-threads) for the
 // honest subtree depth, `dispatchesForStep` (thread-steps) to join a step to its machine dispatch.
@@ -18,6 +19,7 @@ import type { ThreadDetail, ThreadStepDetail, ThreadInfo } from '@cortex-agent/u
 import { dispatchesForStep } from '@/features/thread/thread-steps';
 import { treeMaxLevel, MAX_LEVEL } from '@/features/thread/nested-threads';
 import { relTimeZh } from '@/mobile/ui/format';
+import { formatUsd } from '@/lib/format';
 
 const RUNNING = new Set<ThreadInfo['status']>(['running', 'waiting']);
 
@@ -165,7 +167,7 @@ export function buildMThreadDetailVm(
       const output = detail.agentFlow?.lastOutput ?? s.outputSummary ?? '';
       agent = {
         turnLabel: s.numTurns != null ? `turn ${s.numTurns} · ${profile}` : profile,
-        cost: s.costUsd != null ? `$${s.costUsd.toFixed(2)}` : '',
+        cost: s.costUsd != null ? formatUsd(s.costUsd) : '',
         lines: output.split('\n').map((l) => l.trim()).filter(Boolean),
         text: output,
         live,
@@ -203,7 +205,7 @@ export function buildMThreadDetailVm(
     depthText,
     metaParts,
     elapsed,
-    cost: `$${detail.totalCostUsd.toFixed(2)}`,
+    cost: formatUsd(detail.totalCostUsd),
     steps,
     artifacts,
     artifactCount: artifacts.length,

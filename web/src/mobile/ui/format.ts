@@ -1,5 +1,9 @@
-// Shared pure formatters for the mobile v3 screens. Kept tiny + dependency-free so any screen/VM can
-// import them without pulling in a sibling screen's module.
+// input:  timestamps, optional money values, language, and shared USD formatting
+// output: mobile relative-time, missing-aware money, and copy selection helpers
+// pos:    Thin mobile formatting adapters over canonical lib primitives
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
+import { formatUsd } from '@/lib/format';
 
 /** Relative Chinese time label from an ISO ts (scheme uses 现在 / N 分钟 / N 小时 / 昨天 / 周一…). */
 export function relTimeZh(iso: string | null | undefined, now: number = Date.now()): string {
@@ -22,7 +26,7 @@ export function relTimeZh(iso: string | null | undefined, now: number = Date.now
 /** `$0.31` money label; null/undefined → em dash. */
 export function fmtMoney(n: number | null | undefined): string {
   if (n === null || n === undefined || Number.isNaN(n)) return '—';
-  return `$${n.toFixed(2)}`;
+  return formatUsd(n);
 }
 
 /** en/zh copy picker for self-contained screen copy tables (avoids the shared vocab bottleneck). */

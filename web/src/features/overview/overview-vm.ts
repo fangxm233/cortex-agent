@@ -1,4 +1,4 @@
-// input:  schedule, execution, and cost DTOs
+// input:  schedule, execution, cost DTOs, and shared USD formatting
 // output: overview money, schedule, and execution presentation models
 // pos:    Pure view model for the project overview
 // >>> If I am updated, update my header comment and CORTEX.md <<<
@@ -7,6 +7,7 @@ import type {
   ExecutionInfo,
   CostSummary,
 } from '@cortex-agent/ui-contract';
+import { formatUsd } from '@/lib/format';
 
 // Pure view-model helpers for the project Overview 6a center view (prototype.dc.html L525–655,
 // task df67). No JSX, no hex outside the verbatim-prototype status-pill map. Precedent:
@@ -14,7 +15,7 @@ import type {
 
 /** `$4.21` — two decimals, null/undefined → `$0.00`. */
 export function formatMoney(n: number | null | undefined): string {
-  return '$' + (n ?? 0).toFixed(2);
+  return formatUsd(n ?? 0);
 }
 
 // ── Real cost fields (task 302b) — backed by the CostSummary c489 additions:
@@ -193,7 +194,7 @@ export function execMachine(e: ExecutionInfo): string {
 }
 
 export function execCost(cost: number | null): string {
-  return cost == null ? '—' : '$' + cost.toFixed(2);
+  return cost == null ? '—' : formatUsd(cost);
 }
 
 export interface ExecPill {

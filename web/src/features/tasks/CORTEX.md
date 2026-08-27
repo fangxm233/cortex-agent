@@ -18,6 +18,6 @@ Its canonical grouping/order model also feeds the workbench tab; details retain 
 | task-claim.ts | util | Selects the safe UI claim identifier |
 | task-dependencies.ts | util | Resolves unmet dependency ids for task views |
 | task-time.ts | util | Formats completion timestamps in local time |
-| task-verification-vm.ts | vm | Builds completion evidence and dispatch rows |
+| task-verification-vm.ts | vm | Builds completion evidence and fixed-two-decimal USD dispatch rows |
 | task-verification-vm.test.ts | test | Tests verification evidence and completing-dispatch mapping |
 | useTasksLiveSync.ts | hook | Refetches tasks on lifecycle and thread links |

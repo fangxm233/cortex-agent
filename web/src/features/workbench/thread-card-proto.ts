@@ -1,4 +1,4 @@
-// input:  thread detail, step, child, and status DTOs
+// input:  thread detail, step, child, status DTOs, and shared USD formatting
 // output: themed inline thread-card presentation model
 // pos:    Pure mapper for workbench thread cards
 // >>> If I am updated, update my header comment and CORTEX.md <<<
@@ -13,6 +13,7 @@ import type {
   ThreadChildNode,
   ThreadInfo,
 } from '@cortex-agent/ui-contract';
+import { formatUsd } from '@/lib/format';
 
 export interface ProtoPill {
   bg: string;
@@ -102,7 +103,7 @@ function childLevel(depth: number): string {
 function stepMeta(step: ThreadStepDetail): string {
   const parts: string[] = [];
   if (step.durationS != null) parts.push(formatDuration(step.durationS));
-  if (step.costUsd != null) parts.push('$' + step.costUsd.toFixed(2));
+  if (step.costUsd != null) parts.push(formatUsd(step.costUsd));
   return parts.join(' · ');
 }
 
@@ -134,7 +135,7 @@ function mapSub(node: ThreadChildNode): ProtoSub {
     pillText: running ? 'Running' : pill.text,
     hasLine: nested != null,
     line: node.activeAgent ?? '',
-    meta: node.costUsd ? '$' + node.costUsd.toFixed(2) : '',
+    meta: node.costUsd ? formatUsd(node.costUsd) : '',
     nested,
   };
 }
@@ -181,7 +182,7 @@ export function buildThreadCard(detail: ThreadDetail): ProtoCard {
     name: detail.templateName,
     pill,
     pillText,
-    meta: '$' + detail.totalCostUsd.toFixed(2),
+    meta: formatUsd(detail.totalCostUsd),
     rows,
   };
 }

@@ -1,8 +1,10 @@
-import { useCallback, useState } from 'react';
-import { MonoText } from './MonoText';
+// input:  identifier value, copyability, class names, and shared clipboard feedback
+// output: monospace identifier text or a success-aware copy button
+// pos:    Design-system identifier primitive
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-// Identifier primitive: renders an id in monospace. When `copyable`, clicking
-// copies the value to the clipboard with a transient ✓ affordance (no toast dep).
+import { MonoText } from './MonoText';
+import { useClipboardFeedback } from './useClipboardFeedback';
 
 export interface IDProps {
   value: string;
@@ -11,21 +13,8 @@ export interface IDProps {
 }
 
 export function ID({ value, copyable, className }: IDProps) {
-  const [copied, setCopied] = useState(false);
-
-  const copy = useCallback(() => {
-    const written = navigator.clipboard?.writeText(value);
-    if (written) {
-      written
-        .then(() => {
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1200);
-        })
-        .catch(() => {
-          // clipboard unavailable / permission denied — fail silently, no feedback flip
-        });
-    }
-  }, [value]);
+  const { copiedKey, copy } = useClipboardFeedback<true>(1200);
+  const copied = copiedKey === true;
 
   if (!copyable) {
     return (
@@ -38,7 +27,7 @@ export function ID({ value, copyable, className }: IDProps) {
   return (
     <button
       type="button"
-      onClick={copy}
+      onClick={() => { void copy(value, true); }}
       title={copied ? 'Copied' : 'Copy'}
       className={[
         'group inline-flex items-center gap-0.5g rounded-card px-0.5g font-mono text-ui',

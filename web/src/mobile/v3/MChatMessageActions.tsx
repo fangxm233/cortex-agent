@@ -1,4 +1,4 @@
-// input:  Held mobile chat row, edit state, copy labels, and bubble anchor
+// input:  Held chat row, edit state, labels, anchor, and shared clipboard feedback
 // output: Long-press message action overlay, copy action, and edit context bar
 // pos:    Mobile chat message-action presentation seam
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -8,6 +8,7 @@ import { messageTimeLabel, type ChatRow } from '@/features/workbench/transcript-
 import { MC, MONO } from '@/mobile/ui/kit';
 import { msgMenuGroupTop, MSG_MENU_SAFE_BOTTOM, MSG_MENU_SAFE_TOP } from './m-chat-vm';
 import type { MChatEditCopy, MMsgMenu } from './MChatView.types';
+import { useClipboardFeedback } from '@/design/useClipboardFeedback';
 
 export function longPressHandlers(fire: (anchorTop: number) => void): {
   onTouchStart: (event: React.TouchEvent<HTMLDivElement>) => void;
@@ -31,12 +32,9 @@ export function AssistantCopyButton({ text, label, copiedLabel }: {
   label: string;
   copiedLabel: string;
 }): JSX.Element {
-  const [copied, setCopied] = useState(false);
-  const copy = (): void => {
-    void navigator.clipboard?.writeText(text).catch(() => {});
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1400);
-  };
+  const { copiedKey, copy: writeCopy } = useClipboardFeedback<true>();
+  const copied = copiedKey === true;
+  const copy = (): void => { void writeCopy(text, true); };
   return (
     <button type="button" data-assistant-turn-copy="true" aria-label={copied ? copiedLabel : label} title={copied ? copiedLabel : label} onClick={copy} style={{ width: 28, height: 26, padding: 0, border: 0, background: 'transparent', color: copied ? 'var(--proto-success)' : MC.muted, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
       {copied ? '✓' : <svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="4.5" y="4.5" width="8" height="8" rx="1.5" /><path d="M2.5 9.5V3.5a1 1 0 0 1 1-1h6" /></svg>}

@@ -10,4 +10,4 @@ Status pills reuse the canonical design Tone/status mapping while keeping their 
 | composer.tsx | view | Renders inline/fullscreen composer presentation and text metrics |
 | mobile-theme.ts | tokens | Exposes the shared mobile palette and monospace stack |
 | kit.test.ts | test | Tests sheet viewport, dismissal and Unicode-safe counts |
-| format.ts | util | Formats relative time, money and copy |
+| format.ts | util | Formats relative time/copy and adapts missing-aware canonical USD labels |

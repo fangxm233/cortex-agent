@@ -1,7 +1,7 @@
 Please update me when files in this folder change
 
 Non-visual client infrastructure shared by every screen.
-Builds the tRPC client, reads native-shell credentials and moves workspace files.
+Builds the tRPC client, reads native-shell credentials, moves workspace files and owns canonical formatting.
 
 | filename | role | function |
 |---|---|---|
@@ -16,3 +16,5 @@ Builds the tRPC client, reads native-shell credentials and moves workspace files
 | files.ts | util | Downloads, previews and reveals workspace files |
 | files.test.ts | test | Unit tests for download URL building |
 | build-info.ts | util | Exposes the injected build stamp with a fallback |
+| format.ts | util | Canonically formats fixed-precision USD and strategy-driven binary byte labels |
+| format.test.ts | test | Tests USD precision plus byte unit, fraction and trimming strategies |

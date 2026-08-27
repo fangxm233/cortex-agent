@@ -7,6 +7,6 @@ Framework-free record to view-model mappings for machines and chat sessions, plu
 |---|---|---|
 | mobile-machines-vm.ts | vm | Maps machine records to card fields and time |
 | mobile-machines-vm.test.ts | test | Tests machine DTO projection and field omission |
-| mobile-session-vm.ts | vm | Builds day dividers, stepper and tool chips |
+| mobile-session-vm.ts | vm | Builds day dividers, canonical-USD stepper and tool chips |
 | mobile-session-vm.test.ts | test | Tests mobile thread-stepper state and child counts |
 | MobileThreadStepper.tsx | view | Inline thread progress stepper card |

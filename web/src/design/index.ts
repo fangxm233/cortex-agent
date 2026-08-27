@@ -1,4 +1,4 @@
-// input:  shared design primitives and their public types
+// input:  shared design primitives, hooks, and their public types
 // output: design-system barrel exports
 // pos:    Public import surface for Web UI primitives
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -8,6 +8,7 @@ export { StatusPill, type StatusPillProps } from './StatusPill';
 export { MonoText, type MonoTextProps } from './MonoText';
 export { PlusGlyph, type PlusGlyphProps } from './PlusGlyph';
 export { ID, type IDProps } from './ID';
+export { useClipboardFeedback, type ClipboardFeedback } from './useClipboardFeedback';
 export { Card, CardHeader, CardBody, type CardProps } from './Card';
 export { SectionHeader, type SectionHeaderProps } from './SectionHeader';
 export { Button, type ButtonProps, type ButtonVariant, type ButtonSize } from './Button';
