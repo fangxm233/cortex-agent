@@ -14,8 +14,9 @@ const mono = "'IBM Plex Mono',monospace";
 // The three section-header glyphs share one optical box: 14px rendered, one 16 viewBox, content
 // bounded to y ∈ [3.4, 12.9], stroke 1.6. The sort glyph is a pair of opposed arrows rather than
 // stepped lines because stepped lines put their mass in the top half and read as sitting high next
-// to two vertically symmetric neighbours.
-function SearchIcon(): JSX.Element {
+// to two vertically symmetric neighbours. Search and new-project are exported because the collapsed
+// rail carries the same two actions and must draw them with the same glyph.
+export function SearchIcon(): JSX.Element {
   return (
     <svg width={14} height={14} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" aria-hidden="true">
       <circle cx="7.2" cy="7.2" r="3.9" />
@@ -33,7 +34,7 @@ function SortIcon(): JSX.Element {
   );
 }
 
-function NewProjectIcon(): JSX.Element {
+export function NewProjectIcon(): JSX.Element {
   return (
     <svg width={14} height={14} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" aria-hidden="true">
       <path d="M2.2 4.6A1.25 1.25 0 0 1 3.45 3.35h2.4l1.25 1.45h5.45A1.25 1.25 0 0 1 13.8 6.05v5.6a1.25 1.25 0 0 1-1.25 1.25H3.45A1.25 1.25 0 0 1 2.2 11.65z" />

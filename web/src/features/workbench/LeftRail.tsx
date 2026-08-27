@@ -24,8 +24,7 @@ import {
   saveSortMode,
   type RailSortMode,
 } from './rail-order';
-import { RailTree } from './RailTree';
-import { ProjectFolderIcon } from './ProjectFolderIcon';
+import { NewProjectIcon, RailTree, SearchIcon } from './RailTree';
 import { NewProjectModal } from './NewProjectModal';
 import { PaneToggle } from './PaneToggle';
 import { useApprovals } from '@/features/approvals/ApprovalsProvider';
@@ -412,6 +411,13 @@ export function LeftRail(): JSX.Element {
     setDragged(true);
   };
 
+  // From the collapsed rail: expand first, then open the field — the caller is 42px wide and has
+  // nowhere to show what the search finds.
+  const openSearchExpanded = () => {
+    setCollapsed(false);
+    setSearchOpen(true);
+  };
+
   const onToggleSearch = () => {
     setSearchOpen((open) => {
       if (open) setFilter('');
@@ -450,20 +456,20 @@ export function LeftRail(): JSX.Element {
   });
   const isHover = (key: string) => hover === key;
 
-  // Keep the current folder visible inside the tree's scroller. Two scrollers, because the expanded
-  // tree stays mounted (display:none) while collapsed so its scroll position survives the round trip.
+  // Keep the current folder visible inside the tree's scroller. The tree stays mounted while the
+  // rail is collapsed (display:none), so re-expanding runs this again and lands on the right folder.
   const treeScrollRef = useRef<HTMLDivElement | null>(null);
-  const collapsedProjectsRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
-    if (!tree.currentProjectId) return;
+    if (collapsed || !tree.currentProjectId) return;
     const selector = `[data-project-row="${CSS.escape(tree.currentProjectId)}"]`;
-    const host = collapsed ? collapsedProjectsRef.current : treeScrollRef.current;
-    host?.querySelector(selector)?.scrollIntoView({ block: 'nearest' });
+    treeScrollRef.current?.querySelector(selector)?.scrollIntoView({ block: 'nearest' });
   }, [tree.currentProjectId, tree.projects.length, collapsed]);
 
-  // COLLAPSED RAIL — the pane folded to an icon column: brand badge (identity + link), the expand
-  // toggle, the project folders (⌘1–9 still drive them), then the bottom cluster. Sessions have no
-  // honest icon form, so they simply wait for the expand.
+  // COLLAPSED RAIL — 42px cannot hold a tree, and the icon-per-project column it used to hold was a
+  // second, worse navigator: no session titles, no ages, everything past the ninth project scrolled
+  // out of reach. So the fold keeps only what stays true at this width — the daemon badge, the way
+  // back out, and the three things you start rather than browse. Navigation waits for the expand;
+  // search and new-project take you there themselves.
   const railDivider = <div aria-hidden="true" style={{ width: 20, height: 1, background: 'var(--proto-line)', margin: '3px 0', flex: 'none' }} />;
   const renderCollapsedRail = () => (
     <nav
@@ -473,70 +479,49 @@ export function LeftRail(): JSX.Element {
       <BrandBadge dot={connDot} label={`${L.dmDaemon} · ${connLabel}`} onClick={() => setDaemonOpen(true)} />
       <PaneToggle side="left" expanded={false} label={L.lrExpandRail} onClick={() => setCollapsed(false)} />
       {railDivider}
-      <div
-        ref={collapsedProjectsRef}
-        style={{ flex: 1, minHeight: 0, width: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}
-      >
-        {tree.projects.map((node) => (
-          <button
-            key={node.id}
-            type="button"
-            data-project-row={node.id}
-            aria-label={node.id}
-            aria-pressed={node.current}
-            title={node.id}
-            onClick={() => {
-              const first = node.sessions[0];
-              if (first) openSession(first.projectId, first.sessionId);
-              else newSessionIn(node.id);
-            }}
-            style={{
-              position: 'relative',
-              width: 26,
-              height: 26,
-              border: 0,
-              borderRadius: 7,
-              padding: 0,
-              cursor: 'pointer',
-              flex: 'none',
-              display: 'grid',
-              placeItems: 'center',
-              background: node.current ? 'var(--proto-line-2)' : 'transparent',
-            }}
-          >
-            <ProjectFolderIcon open={false} current={node.current} dim={node.empty} size={16} />
-            {(node.attention > 0 || node.running > 0) && (
-              <span
-                aria-hidden="true"
-                style={{
-                  position: 'absolute',
-                  right: -2,
-                  top: -2,
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
-                  background: node.attention > 0 ? 'var(--proto-amber)' : 'var(--proto-accent)',
-                  border: '2px solid var(--proto-rail)',
-                }}
-              />
-            )}
-          </button>
-        ))}
-      </div>
-      {railDivider}
-      <RailIconButton
-        label={L.wbNewSession}
-        color={isHover('crail:new') ? 'var(--proto-accent-strong)' : 'var(--proto-accent)'}
+      {/* The one filled square in the column, echoing the expanded rail's accent button: at this
+          width the only way to say "primary" is with the fill. */}
+      <button
+        type="button"
+        aria-label={L.wbNewSession}
+        title={`${L.wbNewSession} · ⌘N`}
         onClick={onNewSession}
         {...hp('crail:new')}
+        style={{
+          width: 26,
+          height: 26,
+          border: 0,
+          borderRadius: 7,
+          padding: 0,
+          cursor: 'pointer',
+          flex: 'none',
+          display: 'grid',
+          placeItems: 'center',
+          color: 'var(--ink-solid-fg)',
+          background: isHover('crail:new') ? 'var(--proto-accent-strong)' : 'var(--proto-accent)',
+        }}
       >
         <PlusGlyph size={14} />
+      </button>
+      <RailIconButton
+        label={L.newProject}
+        color={isHover('crail:newproj') ? 'var(--proto-ink)' : 'var(--proto-muted-2)'}
+        onClick={() => setNewProjOpen(true)}
+        {...hp('crail:newproj')}
+      >
+        <NewProjectIcon />
       </RailIconButton>
-      {rateLimitStatus && (
-        <RailIconButton label={rateLimitStatus.label} color="var(--pill-waiting-fg)" onClick={() => setCollapsed(false)}>
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--pill-waiting-fg)', animation: 'cxpulse 2s ease-in-out infinite' }} />
-        </RailIconButton>
-      )}
+      {/* Searching means reading results, and results need the full width — so this opens the rail
+          with the field already focused rather than searching inside 42px. */}
+      <RailIconButton
+        label={L.wbFilterSessions}
+        color={isHover('crail:search') ? 'var(--proto-ink)' : 'var(--proto-muted-2)'}
+        onClick={openSearchExpanded}
+        {...hp('crail:search')}
+      >
+        <SearchIcon />
+      </RailIconButton>
+      <div style={{ flex: 1, minHeight: 8 }} />
       {hasPendingApprovals && (
         <RailIconButton label={pendingLabel} color="var(--proto-amber-fg)" onClick={() => approvals.open()}>
           <span style={{ minWidth: 16, height: 16, padding: '0 4px', borderRadius: 8, background: 'var(--proto-amber)', color: 'var(--ink-solid-fg)', font: `600 9px ${mono}`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
