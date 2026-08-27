@@ -5,6 +5,7 @@
 import type {
   AuthNoticeAction,
   ChatNoticeLevel,
+  DecisionItem,
   NoticeAction,
   SessionTranscript,
   TranscriptInteractionDetail,
@@ -42,6 +43,8 @@ export interface LiveSessionMessage {
   ts: string;
   /** Optional file attachments on user messages (15a). */
   attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' | 'view' }[];
+  /** Agent-announced decisions (`send_decision`) carried by an assistant message. */
+  decisions?: DecisionItem[];
   /** Set on an assistant message whose text streamed as `session.message.delta` events first. It
    *  identifies the preview this message supersedes (see endStreamingBlock). */
   blockId?: string;
@@ -261,7 +264,9 @@ export type ChatRow =
   // this: the idle heuristic also flags the last COMPLETE assistant row for a couple of seconds
   // after the final event. Only a preview row is paced by the smooth reveal — pacing a settled
   // message would re-type text the reader has already seen and leave it animating past turn end.
-  | { kind: 'assistant'; text: string; streaming: boolean; attachments?: Attachment[]; preview?: true }
+  // `decisions` carries agent-announced decision cards (send_decision) — rendered as compact
+  // expandable cards under the text, one per decision.
+  | { kind: 'assistant'; text: string; streaming: boolean; attachments?: Attachment[]; decisions?: DecisionItem[]; preview?: true }
   | { kind: 'notice'; level: ChatNoticeLevel; text: string; noticeAction?: NoticeAction; authAction?: AuthNoticeAction }
   // `detail` carries the structured interaction entity (pending cards render actionable);
   // absent on legacy rows, which render the old subtype-driven summary.
@@ -345,6 +350,7 @@ export function liveToMessage(m: LiveSessionMessage): TranscriptMessageWithSpawn
     ts: m.ts,
     elapsedMs: null,
     attachments: m.attachments,
+    ...(m.decisions?.length ? { decisions: m.decisions } : {}),
     ...(m.noticeLevel ? { noticeLevel: m.noticeLevel } : {}),
     ...(m.noticeAction ? { noticeAction: m.noticeAction } : {}),
     ...(m.authAction ? { authAction: m.authAction } : {}),
@@ -509,7 +515,10 @@ function msgKey(m: TranscriptMessageWithSpawns): string {
   if (m.type === 'interaction' && m.interaction?.id) return `interaction|${m.interaction.id}`;
   const noticeId = m.authAction?.noticeId ?? '';
   const spawnIds = m.subagentSpawns?.map((spawn) => spawn.id).join(',') ?? '';
-  return `${m.type}|${m.ts}|${m.text ?? ''}|${m.toolName ?? ''}|${m.toolInput ?? ''}|${spawnIds}|${m.noticeLevel ?? ''}|${noticeId}`;
+  // Decision ids only — NOT the action logs: a refetched row with new actions must dedupe against
+  // the live-tail original (the transcript version is pushed first and wins).
+  const decisionIds = m.decisions?.map((d) => d.id).join(',') ?? '';
+  return `${m.type}|${m.ts}|${m.text ?? ''}|${m.toolName ?? ''}|${m.toolInput ?? ''}|${spawnIds}|${m.noticeLevel ?? ''}|${noticeId}|${decisionIds}`;
 }
 
 // Relative-day label matching the prototype divider vocabulary (TODAY / YESTERDAY / "MON D"),
@@ -729,7 +738,10 @@ export function buildTranscriptRows(
         ...(m.authAction ? { authAction: m.authAction } : {}),
       });
     } else {
-      sink.rows.push({ kind: 'assistant', text: m.text ?? '', streaming: false, attachments: (m as any).attachments });
+      sink.rows.push({
+        kind: 'assistant', text: m.text ?? '', streaming: false, attachments: (m as any).attachments,
+        ...(m.decisions?.length ? { decisions: m.decisions } : {}),
+      });
     }
   }
   flushAll();

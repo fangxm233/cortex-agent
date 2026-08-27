@@ -22,6 +22,8 @@ import { usePinnedPreview } from '@/features/media/PinnedPreviewProvider';
 import { interactionView, emptyDeskAsk, type DeskAskState } from './interaction-vm';
 import type { InteractionActions } from './useInteractionActions';
 import { DeskAskCard, DeskPlanCard, D_INT_COPY } from './InteractionCards';
+import { DecisionCardGroup } from './DecisionCards';
+import type { DecisionItem } from '@cortex-agent/ui-contract';
 import { PlanReadOverlay } from './PlanReadOverlay';
 import { rewindStats, regenNoteIndexes, messageTimeLabel, assistantTurnCopyTargets } from './transcript-vm';
 import { useRevealedText } from './useRevealedText';
@@ -542,9 +544,11 @@ function TurnCopyAction({ text, copy }: { text?: string; copy?: MEditCopy }): JS
   );
 }
 
-function AssistantBlock({ text, attachments, editCopy, copyText, regen, preview, streamKey }: {
+function AssistantBlock({ text, attachments, decisions, editCopy, copyText, regen, preview, streamKey }: {
   text: string;
   attachments?: Attachment[];
+  /** Decisions announced with this row (send_decision) — cards hang under the text. */
+  decisions?: DecisionItem[];
   /** Shared copy labels for regenerated notes and the optional whole-turn copy action. */
   editCopy?: MEditCopy;
   /** Present only on the final assistant row in a turn. */
@@ -569,6 +573,7 @@ function AssistantBlock({ text, attachments, editCopy, copyText, regen, preview,
           mobile stream keeps its own caret (smaller viewport, no persistent status line). */}
       {shown.trim() && <ChatMarkdown text={shown} renderMath />}
       {hasAttachments && <AgentFileGroup attachments={attachments!} />}
+      {!!decisions && decisions.length > 0 && <DecisionCardGroup decisions={decisions} sessionId={streamKey} />}
       <TurnCopyAction text={copyText} copy={editCopy} />
     </div>
   );
@@ -680,7 +685,7 @@ function Row({ row, interactionActions, editCopy, assistantCopyText, onStartEdit
         </div>
       );
     case 'assistant':
-      return <AssistantBlock text={row.text} attachments={row.attachments} editCopy={editCopy} copyText={assistantCopyText} regen={regen} preview={row.preview} streamKey={streamKey} />;
+      return <AssistantBlock text={row.text} attachments={row.attachments} decisions={row.decisions} editCopy={editCopy} copyText={assistantCopyText} regen={regen} preview={row.preview} streamKey={streamKey} />;
     case 'notice':
       return (
         <div className="group">

@@ -41,7 +41,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | MessageEdit.tsx | view | Bare message actions, edit box and rewind |
 | chat-content.ts | types | Defines chat types and local shortcut catalog |
 | transcript-vm.ts | vm | Builds chat rows and finds substantive turn tails |
-| transcript-vm.test.ts | test | Tests transcript rows, turn tails and auth actions |
+| transcript-vm.test.ts | test | Tests transcript rows, turn tails, auth actions and decisions |
 | ToolCallsRow.tsx | view | Expands tool chips and lazy-loads DEBUG details |
 | SubagentBlock.tsx | view | Shows prompt rows with a right-aligned tool count |
 | SubagentBlock.test.tsx | test | Tests prompt disclosure and nested copy isolation |
@@ -52,6 +52,10 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | interaction-vm.ts | vm | Maps interactions to card models and answer state |
 | interaction-vm.test.ts | test | Unit tests for the interaction view model |
 | useInteractionActions.ts | hook | Answers questions and responds to plan approvals |
+| DecisionCards.tsx | view | Decision cards with detail modal and responses |
+| DecisionCards.test.tsx | test | Tests card actions and composed decision messages |
+| decision-vm.ts | vm | Derives decision status and composes messages |
+| decision-vm.test.ts | test | Unit tests for the decision card rules |
 | useInteractionTtl.ts | hook | Ticks remaining time until an interaction expires |
 | PlanReadOverlay.tsx | view | Full plan text with progress and actions |
 | plan-read-vm.ts | vm | Derives plan reading progress, status and meta |

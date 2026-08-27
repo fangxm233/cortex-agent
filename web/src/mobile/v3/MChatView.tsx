@@ -57,6 +57,7 @@ import { VideoThumb } from '@/features/media/VideoThumb';
 import { docKindOfAttachment } from '@/features/media/doc-kind';
 import { HtmlBody } from '@/features/media/HtmlBody';
 import { MAskCard, MPlanCard, M_INT_COPY, type MIntCopy } from './MInteractionCards';
+import { MDecisionCardGroup } from './MDecisionCards';
 import {
   msgMenuGroupTop,
   MSG_MENU_SAFE_TOP,
@@ -1015,6 +1016,7 @@ export function MChatStream({ rows, toolCallsUnit, copyLabel, copiedLabel, inter
                   <AttachmentGroup attachments={row.attachments} side="left" />
                 </div>
               )}
+              {row.decisions && row.decisions.length > 0 && <MDecisionCardGroup decisions={row.decisions} sessionId={streamKey} />}
               <AssistantTurnCopyAction text={assistantCopies.get(i)} label={copyLabel} copiedLabel={copiedLabel} />
             </div>
           )}

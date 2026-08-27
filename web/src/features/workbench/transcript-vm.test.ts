@@ -431,6 +431,49 @@ describe('agent-sent file attachments (20a)', () => {
   });
 });
 
+// ── Decision cards (send_decision) ──────────────────────────────────────────
+
+describe('agent-announced decisions (send_decision)', () => {
+  const decision = (actions: { action: 'approve' | 'explain' | 'revise'; message?: string; ts: string }[]) => ({
+    id: 'ab12cd34', title: 'Use SQLite', decision: 'd', context: 'c', reasoning: 'r', actions,
+  });
+
+  it('carries decisions onto an assistant row (text may be empty)', () => {
+    const rows = buildTranscriptRows(
+      tx([{ turnIndex: 0, messages: [
+        { type: 'user', text: 'go', toolName: null, toolInput: null, ts: T, elapsedMs: null },
+        { type: 'assistant', text: '', toolName: null, toolInput: null, ts: T, elapsedMs: 0, decisions: [decision([])] } as any,
+      ] }]),
+      [],
+      { now: new Date(T) },
+    );
+    const assistant = rows.find((r) => r.kind === 'assistant') as { decisions?: unknown };
+    expect(assistant.decisions).toEqual([decision([])]);
+  });
+
+  it('liveToMessage passes decisions through the live tail', () => {
+    const m = liveToMessage({ sessionId: 's1', role: 'assistant', text: '', ts: T, decisions: [decision([])] } as LiveSessionMessage);
+    expect(m.type).toBe('assistant');
+    expect((m as { decisions?: unknown }).decisions).toEqual([decision([])]);
+  });
+
+  it('a refetched row with new actions dedupes against the live-tail original and wins', () => {
+    // The transcript version (folded actions) is pushed FIRST; the stale live-tail copy (empty
+    // actions) must collapse into it — msgKey keys on decision IDs, not the action logs.
+    const acted = decision([{ action: 'approve', ts: T }]);
+    const rows = buildTranscriptRows(
+      tx([{ turnIndex: 0, messages: [
+        { type: 'assistant', text: '', toolName: null, toolInput: null, ts: T, elapsedMs: 0, decisions: [acted] } as any,
+      ] }]),
+      [{ sessionId: 's1', role: 'assistant', text: '', ts: T, decisions: [decision([])] } as LiveSessionMessage],
+      { now: new Date(T) },
+    );
+    const assistants = rows.filter((r) => r.kind === 'assistant');
+    expect(assistants).toHaveLength(1);
+    expect((assistants[0] as { decisions?: unknown }).decisions).toEqual([acted]);
+  });
+});
+
 // ── Interaction entity rows (web-interactions-redesign) ─────────────────────
 
 describe('interaction entity rows', () => {

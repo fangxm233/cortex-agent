@@ -281,6 +281,13 @@ export function useSessionMessageLiveSync(
         queryClient.invalidateQueries(trpc.sessions.pendingInteraction.queryFilter());
         return;
       }
+      // A user responded to a decision card (approve/explain/revise), possibly on another device.
+      // Events are hints, queries are truth — the refetched transcript carries the folded action
+      // log, and its row replaces the live-tail original via msgKey dedup.
+      if (raw.type === 'session.decision') {
+        queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
+        return;
+      }
       // A message that was only QUEUED inside the backend has now been read by the model (or its
       // injection window closed). It enters the stream HERE, after everything already emitted, and
       // under the ts it was recorded with — which is what a transcript refetch returns, so the live
@@ -309,7 +316,7 @@ export function useSessionMessageLiveSync(
         return;
       }
       const p = raw.payload as
-        | { sessionId?: string; role?: string; text?: string; toolName?: string; toolInput?: string; noticeLevel?: LiveSessionMessage['noticeLevel']; noticeAction?: LiveSessionMessage['noticeAction']; authAction?: LiveSessionMessage['authAction']; ts?: string; blockId?: string; pending?: boolean; pendingId?: string; subagentId?: string; subagentSpawns?: LiveSessionMessage['subagentSpawns']; subagentType?: string; subagentDescription?: string; subagentModel?: string; attachments?: LiveSessionMessage['attachments'] }
+        | { sessionId?: string; role?: string; text?: string; toolName?: string; toolInput?: string; noticeLevel?: LiveSessionMessage['noticeLevel']; noticeAction?: LiveSessionMessage['noticeAction']; authAction?: LiveSessionMessage['authAction']; ts?: string; blockId?: string; pending?: boolean; pendingId?: string; subagentId?: string; subagentSpawns?: LiveSessionMessage['subagentSpawns']; subagentType?: string; subagentDescription?: string; subagentModel?: string; attachments?: LiveSessionMessage['attachments']; decisions?: LiveSessionMessage['decisions'] }
         | undefined;
       if (!p || (p.role !== 'user' && p.role !== 'assistant' && p.role !== 'tool')) return;
       // A message written into a running turn's backend, which the model has not read yet. It holds
@@ -354,6 +361,7 @@ export function useSessionMessageLiveSync(
         subagentDescription: p.subagentDescription,
         subagentModel: p.subagentModel,
         attachments: p.attachments,
+        decisions: p.decisions,
       };
       // The authoritative text for a previewed block: retire the preview in the SAME state update
       // that appends the message, so the row is replaced rather than briefly doubled.

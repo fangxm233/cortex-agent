@@ -154,8 +154,9 @@ or Feishu-originated session never sees these tools.
 |---|---|---|
 | `send_file` | `file_path`, `file_name?`, `caption?` | Send a file into the chat as a downloadable card (images and video preview inline) |
 | `send_view` | `title`, `html?`, `file_path?`, `caption?`, `height?` | Render an HTML view inline in the chat as a live, interactive card |
+| `send_decision` | `decisions[]` — each `title`, `decision`, `context`, `reasoning` | Record decisions the agent just made and show them as cards in the chat |
 
-Both tools proxy their payload to the daemon over the loopback webhook rather
+All three tools proxy their payload to the daemon over the loopback webhook rather
 than returning it as tool output: the normalized event stream carries tool
 results as flat strings, and the PI backend flattens rich MCP content to text,
 so anything richer than a string has to travel out of band. The daemon copies
@@ -174,9 +175,20 @@ attachment bucket the server mints and never by a file extension — an `.html`
 file that a user uploads or that an agent sends with `send_file` opens as source
 text, not as a running document.
 
+`send_decision` is non-blocking: the agent announces choices it made on the
+user's behalf and keeps working, unlike `cortex_ask_user`, which waits for an
+answer. Each decision (up to 10 per call, title ≤120 chars, other fields ≤1000)
+renders as a collapsed card in the chat; opening it shows context, decision, and
+reasoning. The user can approve (recorded only — nothing is sent to the agent),
+request an explanation, or propose a revision; the latter two compose a
+templated message that is both recorded on the decision and delivered to the
+agent as an ordinary user message. Decisions and their action log persist in the
+conversation history, so cards keep their state across reloads and devices.
+
 The server implementation is at `agent-server/src/domain/mcp/web-server.ts`.
-The tools are in `agent-server/src/domain/mcp/tools/ui-file.ts` and
-`agent-server/src/domain/mcp/tools/ui-view.ts`.
+The tools are in `agent-server/src/domain/mcp/tools/ui-file.ts`,
+`agent-server/src/domain/mcp/tools/ui-view.ts`, and
+`agent-server/src/domain/mcp/tools/ui-decision.ts`.
 
 ### cortex-interaction-bridge
 

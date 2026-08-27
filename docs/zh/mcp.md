@@ -113,14 +113,15 @@ skill 指南，见 `feishu-doc` skill。
 ### cortex-web
 
 Web 工作台专属的 MCP 服务器。仅当会话源自 Web UI（频道带 `web:` 前缀）时加载，
-源自 Slack 或飞书的会话看不到这两个工具。
+源自 Slack 或飞书的会话看不到这些工具。
 
 | 工具 | 参数 | 描述 |
 |---|---|---|
 | `send_file` | `file_path`、`file_name?`、`caption?` | 把文件发进聊天，显示为可下载卡片（图片与视频内联预览） |
 | `send_view` | `title`、`html?`、`file_path?`、`caption?`、`height?` | 在聊天里内联渲染一块 HTML 视图，作为可交互卡片显示 |
+| `send_decision` | `decisions[]`——每条含 `title`、`decision`、`context`、`reasoning` | 记录 agent 刚做出的决策，并在聊天里以卡片展示 |
 
-两个工具都不把载荷作为工具返回值回流，而是经 loopback webhook 代理给 daemon：
+这些工具都不把载荷作为工具返回值回流，而是经 loopback webhook 代理给 daemon：
 归一化事件流里的工具结果是扁平字符串，PI 后端又会把富 MCP 内容压成文本，
 比字符串更复杂的东西只能走带外通道。daemon 把字节复制到
 `workspace/outputs/<sessionId>/`（视图再深一层，落在 `views/`），记录一条带附件的
@@ -133,9 +134,17 @@ assistant 消息，并发布实时事件。跨线的只有路径——大文档�
 "要不要渲染"由服务端铸造的附件类型决定，绝不由扩展名决定——用户上传的 `.html`、
 或 agent 用 `send_file` 发出的 `.html`，打开的都是源码而不是运行中的文档。
 
+`send_decision` 不阻塞：agent 宣告替用户做出的选择后继续干活，这与需要等待回答的
+`cortex_ask_user` 相反。每条决策（单次最多 10 条，title ≤120 字符，其余字段 ≤1000）
+在聊天里显示为一张收起卡片，展开可见背景、决策与理由。用户可以同意（仅记录——
+不向 agent 发送任何内容）、要求解释或提议修改；后两者按模板拼出完整消息，既记录
+在该决策的动作日志上，也作为普通用户消息发给 agent。决策及其动作日志持久化在
+会话历史里，刷新或换设备后卡片状态不丢。
+
 服务器实现在 `agent-server/src/domain/mcp/web-server.ts`。工具在
-`agent-server/src/domain/mcp/tools/ui-file.ts` 与
-`agent-server/src/domain/mcp/tools/ui-view.ts`。
+`agent-server/src/domain/mcp/tools/ui-file.ts`、
+`agent-server/src/domain/mcp/tools/ui-view.ts` 与
+`agent-server/src/domain/mcp/tools/ui-decision.ts`。
 
 ### cortex-interaction-bridge
 

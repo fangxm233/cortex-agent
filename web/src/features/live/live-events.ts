@@ -46,6 +46,9 @@ export const SESSION_LIVE_EVENTS = [
   'session.todos',
   'session.context-compacted',
   'session.interaction',
+  // A user responded to an agent-announced decision card (approve/explain/revise) — possibly on
+  // ANOTHER device. Content-free hint for this surface: refetch the transcript to converge.
+  'session.decision',
   'session.rewound',
   'session.debug.updated',
 ] as const;
