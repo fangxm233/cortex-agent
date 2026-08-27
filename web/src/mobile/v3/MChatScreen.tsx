@@ -1,6 +1,6 @@
-// input:  mobile session queries, browser/live state and mutations
-// output: mobile chat with name-only profile chip, Todo and actions
-// pos:    Mobile session detail state and data orchestration
+// input:  Mobile session queries, live state, controller modules, and mutations
+// output: Mobile chat with profile, Todo, attachments, interactions, and actions
+// pos:    Mobile session detail data orchestration and presentation composition
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -32,12 +32,7 @@ import {
   resolveTransitionProfile,
   type PendingCreatedSession,
 } from '@/features/workbench/selected-session';
-import { useThreadGetLiveSync } from '@/features/thread/useThreadGetLiveSync';
-import { threadPill } from '@/features/workbench/thread-card-proto';
-import { buildMobileStepper } from '@/mobile/screens/mobile-session-vm';
-import { MobileThreadStepper } from '@/mobile/screens/MobileThreadStepper';
-import type { AttachmentMeta } from '@/features/workbench/chat-content';
-import { fetchFileObjectUrl } from '@/lib/files';
+
 import {
   draftStorageKey,
   loadDraft,
@@ -46,7 +41,6 @@ import {
   mergeRestoredDraft,
   type ComposerDraft,
 } from '@/features/workbench/composer-draft';
-import { apiBase, authHeaders } from '@/lib/desktop-config';
 import {
   askCardModel,
   planCardModel,
@@ -62,6 +56,7 @@ import {
   type PlanCardModel,
 } from '@/features/workbench/interaction-vm';
 import { MChatView, type MChatCopy, type MChatInteractions, type MRejectBar, type MChatEditCopy, type MMsgMenu, type MEditMode } from './MChatView';
+import { MChatInlineThreadCard } from './MChatInlineThreadCard';
 import { DEFAULT_BROWSER_DEVICE } from '@/features/workbench/BrowserOptIn';
 import { listForwardDevices, type ForwardDevice } from '@/features/browser/forward';
 import { M_INT_COPY } from './MInteractionCards';
@@ -76,9 +71,16 @@ import {
   buildProfileSheetItems,
   type PendingAttachmentVM,
 } from './m-chat-vm';
-
+import {
+  addMobileChatFiles,
+  mobileAttachmentChipType,
+  nextMobileAttachmentId,
+  revokeUploadPreviews,
+  usePersistedMobileChatDraft,
+  useRestoredMobileAttachmentPreviews,
+  type PendingUpload,
+} from './m-chat-attachments';
 const EMPTY_TRANSCRIPT = { sessionId: '', turns: [] };
-const UPLOAD_PATH = '/api/attachments/upload';
 
 const COPY: { en: MChatCopy; zh: MChatCopy } = {
   zh: {
@@ -159,90 +161,6 @@ const EDIT_COPY: { en: MChatEditCopy; zh: MChatEditCopy } = {
   },
 };
 
-// Inline experiment-pipeline thread card (scheme 1b L148-158), bound to REAL threads.get. Scoped to
-// THIS conversation: threads.list({sessionId}) resolves the session's channel server-side and returns
-// only the thread(s) running on it, so the card shows the thread this chat spawned — never a random
-// global one. Empty when the session owns no active thread (the query returns []). `打开 →` drills to 1g.
-function InlineThreadCard({ sessionId, subthreadsLabel, openLabel }: { sessionId: string; subthreadsLabel: string; openLabel: string }): JSX.Element | null {
-  const navigate = useNavigate();
-  const trpc = useTRPC();
-  const listQuery = useQuery({
-    ...trpc.threads.list.queryOptions({ status: ['running', 'waiting'], sessionId }),
-    enabled: !!sessionId,
-  });
-  const threads = listQuery.data ?? [];
-  const target = threads.find((t) => t.status === 'running') ?? threads[0] ?? null;
-  const threadId = target?.id ?? '';
-  useThreadGetLiveSync(threadId);
-  const getQuery = useQuery({ ...trpc.threads.get.queryOptions({ threadId }), enabled: !!threadId });
-  if (!threadId || getQuery.isPending || getQuery.isError || !getQuery.data) return null;
-  const detail = getQuery.data;
-  return (
-    <MobileThreadStepper
-      card={buildMobileStepper(detail)}
-      pill={threadPill(detail.status)}
-      subthreadsLabel={subthreadsLabel}
-      openLabel={openLabel}
-      onOpen={() => navigate(`/m/thread/${threadId}`)}
-    />
-  );
-}
-
-interface PendingUpload {
-  id: string;
-  /** Absent for attachments restored from a persisted draft (already on the server via `meta.path`). */
-  file?: File;
-  status: 'uploading' | 'done' | 'error';
-  progress: number;
-  meta?: AttachmentMeta;
-  /** 'image' | 'video' | 'file' for the composer chip preview. */
-  type: 'image' | 'video' | 'file';
-  /** Local object URL for image/video previews (revoked on remove / send). */
-  previewUrl?: string;
-}
-
-/** Project an attachment's bucket onto the composer's three chip kinds. The composer only ever
- *  holds user uploads, so the wider `view` bucket cannot appear here — this is the narrowing at the
- *  boundary, not a fallback. */
-function chipTypeOf(type: AttachmentMeta['type']): 'image' | 'video' | 'file' {
-  return type === 'image' || type === 'video' ? type : 'file';
-}
-
-function classifyFileType(file: File): 'image' | 'video' | 'file' {
-  if (file.type.startsWith('image/')) return 'image';
-  if (file.type.startsWith('video/')) return 'video';
-  return 'file';
-}
-
-let _uid = 0;
-const nextId = (): string => `att_${++_uid}_${Date.now()}`;
-
-// Raw XHR upload (ported from the desktop Composer — module-private there). Plain HTTP + File API,
-// works on mobile browsers. Returns the AttachmentMeta the send path references.
-function uploadFile(file: File, sessionId: string, onProgress: (pct: number) => void): Promise<AttachmentMeta> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    // Absolute server URL in native-shell/remote mode; relative (same-origin) in browser mode.
-    xhr.open('POST', `${apiBase()}${UPLOAD_PATH}`);
-    xhr.setRequestHeader('X-Session-Id', sessionId);
-    xhr.setRequestHeader('X-File-Name', encodeURIComponent(file.name));
-    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-    // Native-shell auth token (no-op in browser/ui-http mode — proxy/Access supplies it).
-    Object.entries(authHeaders()).forEach(([k, v]) => xhr.setRequestHeader(k, v));
-    xhr.responseType = 'json';
-    xhr.upload.addEventListener('progress', (e) => {
-      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
-    });
-    xhr.addEventListener('load', () => {
-      const body = xhr.response as { ok?: boolean; data?: AttachmentMeta; message?: string } | null;
-      if (xhr.status >= 200 && xhr.status < 300 && body?.ok && body.data) resolve(body.data);
-      else reject(new Error(body?.message || `Upload failed (${xhr.status})`));
-    });
-    xhr.addEventListener('error', () => reject(new Error('Network error')));
-    xhr.send(file);
-  });
-}
-
 export function MChatScreen(): JSX.Element {
   const trpc = useTRPC();
   const navigate = useNavigate();
@@ -281,11 +199,7 @@ export function MChatScreen(): JSX.Element {
     ...trpc.sessions.transcript.queryOptions({ sessionId, compactSubagents: true }),
     enabled: !!sessionId,
   });
-  // `deltas: true` — this is the surface that shows a live preview, so it (and only it) opens the
-  // session-scoped delta subscription; the reply then grows token by token instead of landing whole
-  // seconds later. The opt-in costs one SSE connection, so no other consumer of this hook asks for
-  // it — notably the plan reading page (MPlanReadScreen), which renders no chat. `transcript` is
-  // passed back in only so a pending row self-heals if its delivered event is lost to a dropped frame.
+  // This visible transcript alone opts into deltas; transcript snapshots self-heal missed delivery.
   const {
     liveTail, getMessageSnapshot, streaming, running, backgroundRunning, liveTurns, contextUsage, todos,
     streamingText, pendingUser,
@@ -471,70 +385,16 @@ export function MChatScreen(): JSX.Element {
   if (isDraft && !draftUploadId.current) draftUploadId.current = crypto.randomUUID();
   const uploadSessionId = isDraft ? (draftUploadId.current ?? '') : sessionId;
 
-  // ── Per-session draft persistence (localStorage) ──
-  // The composer text + successfully-uploaded attachments are persisted per scope so a draft survives
-  // an app restart (stable webview origin) and a server restart (the referenced upload files live on
-  // the server and are not wiped on boot). One effect LOADS on scope change and SAVES on content
-  // change, distinguished by comparing the live key to a ref (shared logic with the desktop Composer).
+  // Attachment persistence, restored previews and upload transport retain the screen's state owner
+  // while moving the attachment/session seam out of this controller.
   const draftKey = draftStorageKey({ isDraft, sessionId, projectId: currentProjectId });
   const draftKeyRef = useRef<string | null | undefined>(undefined);
-  useEffect(() => {
-    if (draftKeyRef.current !== draftKey) {
-      draftKeyRef.current = draftKey;
-      if (!draftKey) return; // no stable scope (transient empty sessionId) → leave content untouched
-      const d = loadDraft(draftKey);
-      if (isDraft && d?.draftUploadId) draftUploadId.current = d.draftUploadId;
-      setText(d?.text ?? '');
-      const restored: PendingUpload[] = (d?.attachments ?? []).map((m) => ({
-        id: nextId(),
-        status: 'done' as const,
-        progress: 100,
-        meta: m,
-        type: chipTypeOf(m.type),
-      }));
-      setUploads((prev) => {
-        prev.forEach((u) => { if (u.previewUrl) URL.revokeObjectURL(u.previewUrl); });
-        return restored;
-      });
-      return;
-    }
-    saveDraft(draftKey, {
-      text,
-      attachments: uploads.filter((u) => u.status === 'done' && u.meta).map((u) => u.meta!),
-      ...(isDraft && draftUploadId.current ? { draftUploadId: draftUploadId.current } : {}),
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draftKey, text, uploads, isDraft]);
-
-  // Restored media attachments have no local File → fetch an authenticated object URL for the preview.
-  useEffect(() => {
-    let cancelled = false;
-    uploads
-      .filter((u) => !u.file && !u.previewUrl && u.status === 'done' && u.meta && (u.type === 'image' || u.type === 'video'))
-      .forEach((u) => {
-        fetchFileObjectUrl(u.meta!.path, 'inline')
-          .then((url) => {
-            if (cancelled) { URL.revokeObjectURL(url); return; }
-            setUploads((prev) => prev.map((x) => (x.id === u.id ? { ...x, previewUrl: url } : x)));
-          })
-          .catch(() => { /* preview is best-effort */ });
-      });
-    return () => { cancelled = true; };
-  }, [uploads]);
-
+  usePersistedMobileChatDraft({
+    draftKey, isDraft, text, uploads, setText, setUploads, draftUploadId, draftKeyRef,
+  });
+  useRestoredMobileAttachmentPreviews(uploads, setUploads);
   const addFiles = (files: FileList | File[]): void => {
-    const list = Array.from(files);
-    for (const file of list) {
-      const id = nextId();
-      const type = classifyFileType(file);
-      const previewUrl = type === 'image' || type === 'video' ? URL.createObjectURL(file) : undefined;
-      setUploads((prev) => [...prev, { id, file, status: 'uploading', progress: 0, type, previewUrl }]);
-      uploadFile(file, uploadSessionId, (pct) =>
-        setUploads((prev) => prev.map((u) => (u.id === id ? { ...u, progress: pct } : u))),
-      )
-        .then((meta) => setUploads((prev) => prev.map((u) => (u.id === id ? { ...u, status: 'done', progress: 100, meta } : u))))
-        .catch(() => setUploads((prev) => prev.map((u) => (u.id === id ? { ...u, status: 'error' } : u))));
-    }
+    addMobileChatFiles(files, uploadSessionId, setUploads);
   };
 
   const pickFiles = (accept: string, capture?: string): void => {
@@ -617,7 +477,7 @@ export function MChatScreen(): JSX.Element {
     setUploads((prev) => [
       ...sent.attachments
         .filter((m) => !prev.some((u) => u.meta?.path === m.path))
-        .map((m) => ({ id: nextId(), status: 'done' as const, progress: 100, meta: m, type: chipTypeOf(m.type) })),
+        .map((m) => ({ id: nextMobileAttachmentId(), status: 'done' as const, progress: 100, meta: m, type: mobileAttachmentChipType(m.type) })),
       ...prev,
     ]);
     setSystemLines((prev) => [...prev, lang === 'zh'
@@ -740,7 +600,7 @@ export function MChatScreen(): JSX.Element {
     if (isDraft) draftUploadId.current = null;
     setText('');
     setUploads((prev) => {
-      prev.forEach((u) => { if (u.previewUrl) URL.revokeObjectURL(u.previewUrl); });
+      revokeUploadPreviews(prev);
       return [];
     });
     void mutation.then((result) => {
@@ -865,7 +725,7 @@ export function MChatScreen(): JSX.Element {
         backendUuid={active?.backendSessionId ?? null}
         inlineThreadCard={
           sessionId ? (
-            <InlineThreadCard
+            <MChatInlineThreadCard
               sessionId={sessionId}
               subthreadsLabel={lang === 'zh' ? '子线程' : 'sub-threads'}
               openLabel={lang === 'zh' ? '打开' : 'Open'}

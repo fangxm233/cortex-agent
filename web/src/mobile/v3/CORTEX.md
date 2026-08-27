@@ -5,10 +5,17 @@ Framework-free view models map records to slots and have colocated unit tests.
 
 | filename | role | function |
 |---|---|---|
-| MChatScreen.tsx | screen | Routes compact chat, name-only profile chip, sends and actions |
+| MChatScreen.tsx | screen | Composes compact chat, interaction, send and attachment controllers |
+| m-chat-attachments.ts | hook | Owns mobile upload transport, draft effects and restored previews |
+| MChatInlineThreadCard.tsx | view | Binds the selected session's live inline thread stepper |
 | MChatScreen.optimistic.test.tsx | test | Tests Todo wiring, optimistic sends and shortcuts |
-| MChatView.tsx | view | Renders chat, lazy subagent detail, turn-tail copy and profile composer |
-| MChatView.test.tsx | test | Tests turn-tail copy, lazy subagent detail, Todo and composer layout |
+| MChatView.tsx | view | Facades chat contracts and renders lazy subagents, decisions, turn-copy and screen frame |
+| MChatView.types.ts | types | Shares public chat, action, composer and sheet contracts |
+| MChatMessageActions.tsx | view | Renders copy, long-press and edit action presentation |
+| MChatAttachments.tsx | view | Renders transcript and composer attachment presentation |
+| MChatSheets.tsx | view | Renders session, profile, browser and context sheets |
+| MChatComposerPresentation.tsx | view | Renders composer modes, tools, slash and plus menus |
+| MChatView.test.tsx | test | Tests lazy detail, prompts, counts, Todo, ＋ menu and copy |
 | m-chat-vm.ts | vm | Builds chat rows, profile labels and menu placement |
 | m-chat-vm.test.ts | test | Tests chat status, profile labels and row state |
 | MInteractionCards.tsx | view | Ask-user bottom-input and plan-approval cards |

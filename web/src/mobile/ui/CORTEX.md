@@ -5,6 +5,8 @@ Provides the palette, screen frame, headers, cards, pills, segmented control, bo
 
 | filename | role | function |
 |---|---|---|
-| kit.tsx | core | Supplies mobile primitives and the unified composer card |
+| kit.tsx | facade | Supplies non-composer primitives and preserves shared public exports |
+| composer.tsx | view | Renders inline/fullscreen composer presentation and text metrics |
+| mobile-theme.ts | tokens | Exposes the shared mobile palette and monospace stack |
 | kit.test.ts | test | Tests sheet viewport, dismissal and Unicode-safe counts |
 | format.ts | util | Formats relative time, money and copy |

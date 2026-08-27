@@ -1,6 +1,6 @@
-// input:  Mobile chat rows, lazy subagent detail, Todo snapshots, interactions, composer state
-// output: Mobile chat with turn-tail actions and composer controls
-// pos:    Mobile chat presentation
+// input:  Mobile chat rows, lazy subagent detail, decisions, Todo, and presentation modules
+// output: Mobile chat stream with lazy details, decision cards, turn-tail actions, and stable exports
+// pos:    Mobile chat presentation facade and message-stream renderer
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 // @ds-adherence-ignore -- mobile v3 chat surface, chrome extracted 1:1 from scheme-mobile.dc.html
@@ -9,8 +9,7 @@
 // every field is a prop, no tRPC. The container (MChatScreen) owns data + mutations + live sync.
 // Interaction cards (6a plan / 5b ask / 4a-c sealed) live in MInteractionCards. The composer is a
 // unified card: full-width input on top, one toolbar row below (＋ menu left; profile chip, context
-// ring and Send/Stop right). Browser opt-in and local slash commands fold into the ＋ menu; a
-// chosen browser then stands beside ＋ as a capsule that reopens the device sheet.
+// ring and Send/Stop right). Browser opt-in and local slash commands fold into the ＋ menu.
 // Collapsed tool calls share Desktop width measurement and end hidden items with numeric +N.
 //
 // Live rows and semantic notices are drawn the same way as their desktop counterparts. Two rows
@@ -20,337 +19,33 @@
 // reveal-pacing + useRevealedText) — see MAssistantBlock. A message written into a running turn that
 // the model has not read yet (`pending`) is pinned below everything, the preview included, and says
 // so with dimmed text alone: the same ink bubble, full opacity, no icon, badge or spinner.
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import type { SessionContextUsage, TodoSnapshot } from '@cortex-agent/ui-contract';
-import { PlusGlyph } from '@/design';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
-import type { SlashSuggestion } from '@/features/workbench/composer-slash';
-import {
-  ContextCompactFooter,
-  ContextUsageRing,
-  ContextUsageDetails,
-  contextUsageTitle,
-  type ContextCompactAction,
-} from '@/features/workbench/ContextUsageControl';
 import { useRevealedText } from '@/features/workbench/useRevealedText';
-import { TodoRail, type TodoRailLanguage } from '@/features/workbench/TodoRail';
 import { useToolCallOverflow } from '@/features/workbench/useToolCallOverflow';
 import { ChatNotice } from '@/features/workbench/ChatNotice';
-import { useVocab } from '@/i18n';
-import { assistantTurnCopyTargets, regenNoteIndexes, messageTimeLabel, subagentModelLabel, type ChatRow, type Attachment } from '@/features/workbench/transcript-vm';
 import { SubagentTranscriptDetail } from '@/features/workbench/SubagentTranscriptDetail';
-import { buildSessionIdRows } from '@/features/workbench/session-id';
-import {
-  interactionView,
-  emptyAskAnswers,
-  type AskCardModel,
-  type PlanCardModel,
-  type AskAnswerState,
-} from '@/features/workbench/interaction-vm';
+import { useVocab } from '@/i18n';
+import { assistantTurnCopyTargets, regenNoteIndexes, subagentModelLabel, type ChatRow } from '@/features/workbench/transcript-vm';
+import { interactionView, emptyAskAnswers } from '@/features/workbench/interaction-vm';
 import { toolChips } from '@/mobile/screens/mobile-session-vm';
 import { MDrillHeader, MMoreButton, MComposer, MBottomSheet, MDot, MC, MONO } from '@/mobile/ui/kit';
-import { downloadFile } from '@/lib/files';
-import { useMediaViewer } from '@/features/media/MediaViewer';
-import { useDocViewer } from '@/features/media/DocViewer';
-import { useWorkspaceObjectUrl } from '@/features/media/useWorkspaceObjectUrl';
-import { mediaKindOf } from '@/features/media/media-kind';
-import { VideoThumb } from '@/features/media/VideoThumb';
-import { docKindOfAttachment } from '@/features/media/doc-kind';
-import { HtmlBody } from '@/features/media/HtmlBody';
-import { MAskCard, MPlanCard, M_INT_COPY, type MIntCopy } from './MInteractionCards';
+import { MAskCard, MPlanCard, M_INT_COPY } from './MInteractionCards';
 import { MDecisionCardGroup } from './MDecisionCards';
-import {
-  msgMenuGroupTop,
-  MSG_MENU_SAFE_TOP,
-  MSG_MENU_SAFE_BOTTOM,
-  type ChatHeaderStatus,
-  type ProfileSheetItem,
-  type PendingAttachmentVM,
-} from './m-chat-vm';
+import { AttachmentGroup } from './MChatAttachments';
+import { AssistantTurnCopyAction, longPressHandlers, MsgActionMenu } from './MChatMessageActions';
+import { AttachMenu, ComposerAbove, ComposerLeading, ComposerTools, MobileSlashMenu } from './MChatComposerPresentation';
+import { BrowserSheet, ContextUsageSheet, MoreMenu, ProfileSheet, SessionIdSheet } from './MChatSheets';
+import type { ChatHeaderStatus } from './m-chat-vm';
+import type { MChatEditCopy, MChatInteractions, MChatViewProps, MEditMode } from './MChatView.types';
 
-export interface MChatCopy {
-  composerPh: string;
-  toolCallsUnit: string;
-  menuRename: string;
-  menuExport: string;
-  menuArchive: string;
-  menuSessionId: string;
-  // Session ID sheet (⋯ → 会话ID)
-  sessionIdTitle: string;
-  cortexIdLabel: string;
-  backendUuidLabel: string;
-  copy: string;
-  copied: string;
-  attachCamera: string;
-  attachLibrary: string;
-  attachFile: string;
-  /** ＋ menu rows folded in beside the file pickers: browser opt-in and local slash commands. */
-  attachBrowser: string;
-  attachCommands: string;
-
-  attachPlaceholder: string;
-  profileTitle: string;
-  profileSubtitle: string;
-  profileCurrent: string;
-  profileFooter: string;
-  // Full-screen editor (2b) footer counter units.
-  lineUnit: string;
-  charUnit: string;
-}
-
-/** Interaction handlers + per-card local state threaded from the screen into the stream cards.
- *  All optional — a stream without handlers renders the cards inert (e.g. static tests). */
-export interface MChatInteractions {
-  copy: MIntCopy;
-  askState: (requestId: string) => AskAnswerState;
-  onAskPick: (model: AskCardModel, label: string) => void;
-  onAskToggle: (model: AskCardModel, label: string) => void;
-  onAskConfirmMulti: (model: AskCardModel) => void;
-  onAskCustom: (model: AskCardModel) => void;
-  /** The plan card currently in 5a reject mode (dimmed) — null when none. */
-  rejectingId: string | null;
-  onApprove: (model: PlanCardModel) => void;
-  onRejectStart: (model: PlanCardModel) => void;
-  onOpenRead: (model: PlanCardModel) => void;
-  /** Decline the auto-resume a rate-limit notice promised; absent when the action is unavailable. */
-  onCancelResume?: () => void;
-  resumeCancelled?: boolean;
-}
-
-/** 5a reject composer chrome — amber context bar + reason chips above the composer. */
-export interface MRejectBar {
-  title: string;
-  chips: string[];
-  onChipTap: (chip: string) => void;
-  onCancel: () => void;
-}
-
-// ── sec-7 message edit + rewind chrome ────────────────────────────────────────
-
-export interface MChatEditCopy {
-  menuCopy: string;
-  menuEdit: string;
-  /** 编辑中 badge on the bubble being edited (7b). */
-  editingBadge: string;
-  /** 将被回退 · N 条回复 · M 次工具调用 (7b). */
-  willRewind: (replies: number, toolCalls: number) => string;
-  /** 编辑消息 — 发送将回退后续回复 (7b context bar). */
-  editBarTitle: string;
-  /** 已编辑 under-bubble note; tap opens the original sheet. */
-  edited: string;
-  /** 原消息 sheet header. */
-  original: string;
-  /** 由编辑重新生成 footnote. */
-  regenNote: string;
-}
-
-/** 7a long-press menu state: which row is held + what actions apply. */
-export interface MMsgMenu {
-  rowIndex: number;
-  /** Viewport top of the held bubble — the overlay floats its copy there (msgMenuGroupTop). */
-  anchorTop?: number | null;
-  onCopy: () => void;
-  /** The long-press menu is user-messages-only; onEdit is always present in practice. */
-  onEdit?: () => void;
-  /** True while running — the 编辑 row greys out (7a footnote). */
-  editDisabled?: boolean;
-  onClose: () => void;
-}
-
-/** 7b edit mode: the row being edited + the discard stats for the 将被回退 badge. */
-export interface MEditMode {
-  rowIndex: number;
-  replies: number;
-  toolCalls: number;
-  onCancel: () => void;
-}
-
-/** Long-press (~450ms) handlers for a stream bubble; also fires on contextmenu (desktop testing).
- *  `fire` receives the bubble's viewport top: the 7a overlay floats its copy of the bubble there,
- *  so the press has to report where the bubble was. Reading the box at fire time rather than at
- *  touch start costs nothing — a scroll under the finger cancels the timer before it fires. */
-function longPressHandlers(fire: (anchorTop: number) => void): {
-  onTouchStart: (e: React.TouchEvent<HTMLDivElement>) => void;
-  onTouchEnd: () => void;
-  onTouchMove: () => void;
-  onContextMenu: (e: React.MouseEvent<HTMLDivElement>) => void;
-} {
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  const topOf = (el: { getBoundingClientRect: () => { top: number } }): number => el.getBoundingClientRect().top;
-  return {
-    onTouchStart: (e) => { const el = e.currentTarget; timer = setTimeout(() => fire(topOf(el)), 450); },
-    onTouchEnd: () => { if (timer) clearTimeout(timer); },
-    onTouchMove: () => { if (timer) clearTimeout(timer); },
-    onContextMenu: (e) => { e.preventDefault(); fire(topOf(e.currentTarget)); },
-  };
-}
-
-function AssistantCopyButton({ text, label, copiedLabel }: { text: string; label: string; copiedLabel: string }): JSX.Element {
-  const [copied, setCopied] = useState(false);
-  const copy = (): void => {
-    void navigator.clipboard?.writeText(text).catch(() => {});
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1400);
-  };
-  return (
-    <button
-      type="button"
-      data-assistant-turn-copy="true"
-      aria-label={copied ? copiedLabel : label}
-      title={copied ? copiedLabel : label}
-      onClick={copy}
-      style={{ width: 28, height: 26, padding: 0, border: 0, background: 'transparent', color: copied ? 'var(--proto-success)' : MC.muted, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-    >
-      {copied ? '✓' : <svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="4.5" y="4.5" width="8" height="8" rx="1.5" /><path d="M2.5 9.5V3.5a1 1 0 0 1 1-1h6" /></svg>}
-    </button>
-  );
-}
-
-function AssistantTurnCopyAction({ text, label, copiedLabel }: { text?: string; label: string; copiedLabel: string }): JSX.Element | null {
-  if (!text) return null;
-  return (
-    <div style={{ height: 26, marginTop: 4, display: 'flex', alignItems: 'center' }}>
-      <AssistantCopyButton text={text} label={label} copiedLabel={copiedLabel} />
-    </div>
-  );
-}
-
-/** Trailing glyph on a 7a menu row. */
-function MsgMenuIcon({ kind }: { kind: 'copy' | 'edit' }): JSX.Element {
-  return (
-    <svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke={MC.muted} strokeWidth="1.4" style={{ marginLeft: 'auto' }}>
-      {kind === 'copy' ? (
-        <><rect x="4.5" y="4.5" width="8" height="8" rx="1.5" /><path d="M2.5 9.5V3.5a1 1 0 0 1 1-1h6" /></>
-      ) : (
-        <><path d="M2.5 11.5l.6-2.6 6.4-6.4a1.3 1.3 0 0 1 1.8 0l.2.2a1.3 1.3 0 0 1 0 1.8L5.1 10.9z" /><path d="M8.6 3.4l2 2" /></>
-      )}
-    </svg>
-  );
-}
-
-/** One 7a menu row (46px), dimmed and inert while disabled; tapping it also closes the overlay. */
-function MsgMenuItem({ label, icon, onTap, onClose, disabled, divided }: {
-  label: string; icon: 'copy' | 'edit'; onTap?: () => void; onClose: () => void;
-  disabled?: boolean; divided?: boolean;
-}): JSX.Element {
-  return (
-    <div
-      role="button"
-      onClick={disabled ? undefined : () => { onTap?.(); onClose(); }}
-      style={{
-        display: 'flex', alignItems: 'center', height: 46, padding: '0 15px', fontSize: 14.5,
-        color: MC.ink, opacity: disabled ? 0.35 : 1, cursor: disabled ? 'default' : 'pointer',
-        borderTop: divided ? `1px solid ${MC.divider}` : undefined,
-      }}
-    >
-      {label}
-      <MsgMenuIcon kind={icon} />
-    </div>
-  );
-}
-
-/** The floated copy of the held bubble: the stream bubble's styling plus a lift shadow. It shrinks
- *  inside the group's height cap (flex 0 1 auto) so a long message never pushes the menu off. */
-function HeldBubbleCopy({ isUser, text }: { isUser: boolean; text: string }): JSX.Element {
-  const shared = { flex: '0 1 auto', minHeight: 0, overflow: 'hidden', padding: '9px 13px', fontSize: 13.5, boxShadow: 'var(--shadow-context-menu)', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' } as const;
-  return isUser ? (
-    <div style={{ ...shared, maxWidth: '82%', background: MC.ink, color: 'var(--ink-solid-fg)', borderRadius: '16px 16px 4px 16px', lineHeight: 1.55 }}>{text}</div>
-  ) : (
-    <div style={{ ...shared, maxWidth: '88%', background: 'var(--proto-card)', color: MC.body, borderRadius: 14, lineHeight: 1.6 }}>{text}</div>
-  );
-}
-
-/** Measures the overlay and the floated group, then places the group on the held bubble
- *  (`msgMenuGroupTop`). Layout effect, so the anchored position is the first one painted. */
-function useMsgMenuTop(anchorTop: number | null | undefined): {
-  overlayRef: React.RefObject<HTMLDivElement>;
-  groupRef: React.RefObject<HTMLDivElement>;
-  top: number | null;
-} {
-  const overlayRef = useRef<HTMLDivElement>(null);
-  const groupRef = useRef<HTMLDivElement>(null);
-  const [top, setTop] = useState<number | null>(null);
-  useLayoutEffect(() => {
-    const overlay = overlayRef.current;
-    const group = groupRef.current;
-    if (!overlay || !group) return;
-    const box = overlay.getBoundingClientRect();
-    setTop(msgMenuGroupTop({
-      anchorTop: anchorTop ?? null,
-      overlayTop: box.top,
-      overlayHeight: box.height,
-      groupHeight: group.getBoundingClientRect().height,
-    }));
-  }, [anchorTop]);
-  return { overlayRef, groupRef, top };
-}
-
-/** 7a — the long-press action overlay: conversation dims + blurs, the held bubble floats where it
- *  already sits, the 复制 / 编辑消息 menu hangs under it (user messages only; running: edit greyed). */
-export function MsgActionMenu({ row, menu, copy }: { row: ChatRow; menu: MMsgMenu; copy: MChatEditCopy }): JSX.Element {
-  const isUser = row.kind === 'user';
-  const text = row.kind === 'user' || row.kind === 'assistant' ? row.text : '';
-  // Send time — the long press is the mobile counterpart of the desktop hover, so the stamp shows
-  // up here rather than in the stream, where a per-bubble line would eat the narrow column.
-  const timeLabel = messageTimeLabel(row.kind === 'user' ? row.ts : undefined);
-  const { overlayRef, groupRef, top } = useMsgMenuTop(menu.anchorTop);
-  return (
-    <div
-      ref={overlayRef}
-      onClick={menu.onClose}
-      style={{ position: 'absolute', inset: 0, zIndex: 8, background: 'var(--overlay-scrim-interaction)', backdropFilter: 'blur(1.5px)', WebkitBackdropFilter: 'blur(1.5px)', overflow: 'hidden' }}
-    >
-      {/* The floated group is anchored to the held bubble, not to a fixed offset — the copy under
-          your finger has to be the message you are acting on. Hidden for the one commit before the
-          layout effect measures it, so the anchored position is the only one ever painted. The
-          whole group opts out of text selection: the press that opened it must not run on into
-          selecting the menu's own labels. */}
-      <div
-        ref={groupRef}
-        data-msg-menu-group="true"
-        style={{
-          position: 'absolute', left: 14, right: 14, top: top ?? MSG_MENU_SAFE_TOP,
-          maxHeight: `calc(100% - ${MSG_MENU_SAFE_TOP + MSG_MENU_SAFE_BOTTOM}px)`,
-          visibility: top == null ? 'hidden' : 'visible',
-          display: 'flex', flexDirection: 'column', alignItems: isUser ? 'flex-end' : 'flex-start', gap: 9,
-          WebkitUserSelect: 'none', userSelect: 'none', WebkitTouchCallout: 'none',
-        } as React.CSSProperties}
-      >
-        <HeldBubbleCopy isUser={isUser} text={text} />
-        {/* Send time, under the floated bubble — carries its own scrim so it stays legible over
-            whatever the blurred conversation happens to be behind it. */}
-        {timeLabel && (
-          <div style={{ flex: 'none', font: `500 10.5px ${MONO}`, color: 'var(--media-overlay-fg)', background: 'var(--media-timestamp-bg)', padding: '3px 8px', borderRadius: 6, letterSpacing: '.02em' }}>
-            {timeLabel}
-          </div>
-        )}
-        {/* Menu — 复制 / 编辑消息 (46px rows, scheme 7a) */}
-        <div onClick={(e) => e.stopPropagation()} style={{ flex: 'none', width: 196, background: MC.card, border: `1px solid ${MC.cardBorder}`, borderRadius: 13, boxShadow: 'var(--shadow-menu-floating)', overflow: 'hidden' }}>
-          <MsgMenuItem label={copy.menuCopy} icon="copy" onTap={menu.onCopy} onClose={menu.onClose} />
-          {menu.onEdit && <MsgMenuItem label={copy.menuEdit} icon="edit" onTap={menu.onEdit} onClose={menu.onClose} disabled={menu.editDisabled} divided />}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** 7b — the accent context bar above the composer while editing (mirror of the 5a amber bar). */
-export function EditBar({ title, onCancel }: { title: string; onCancel: () => void }): JSX.Element {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--proto-alt)', border: '1px solid var(--proto-accent-border)', borderRadius: 11, padding: '8px 8px 8px 12px', marginBottom: 7 }}>
-      <span style={{ width: 6, height: 6, borderRadius: '50%', background: MC.run, flex: 'none' }} />
-      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--proto-accent-strong)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</span>
-      <div
-        role="button"
-        aria-label="Cancel edit"
-        onClick={onCancel}
-        style={{ marginLeft: 'auto', width: 26, height: 26, borderRadius: 8, background: 'var(--proto-card)', border: '1px solid var(--proto-accent-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: MC.run, fontSize: 12, flex: 'none', cursor: 'pointer' }}
-      >
-        ×
-      </div>
-    </div>
-  );
-}
+export { BrowserSheet, ContextUsageSheet, MoreMenu, ProfileSheet, SessionIdSheet } from './MChatSheets';
+export { AttachMenu } from './MChatComposerPresentation';
+export { EditBar, MsgActionMenu } from './MChatMessageActions';
+export type {
+  BrowserSheetItem, MChatCopy, MChatEditCopy, MChatInteractions, MChatViewProps,
+  MEditMode, MMsgMenu, MRejectBar,
+} from './MChatView.types';
 
 // ── 1b header — ‹ back · title + status line · ⋯ menu ─────────────────────────
 interface MChatHeaderProps {
@@ -386,289 +81,6 @@ function MChatStatusLine({ status }: MChatHeaderProps): JSX.Element {
 
 // The ⋯ menu: 会话ID (real → opens the Session ID sheet) + 重命名/导出/归档 (no backend op; honest
 // affordance, inert).
-export function MoreMenu({ copy, onClose, onSessionId }: { copy: MChatCopy; onClose: () => void; onSessionId: () => void }): JSX.Element {
-  const items: { label: string; onTap: () => void }[] = [
-    { label: copy.menuSessionId, onTap: onSessionId },
-    { label: copy.menuRename, onTap: onClose },
-    { label: copy.menuExport, onTap: onClose },
-    { label: copy.menuArchive, onTap: onClose },
-  ];
-  return (
-    <>
-      <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 5 }} />
-      <div
-        style={{
-          position: 'absolute',
-          top: 'calc(52px + env(safe-area-inset-top))',
-          right: 14,
-          width: 148,
-          background: 'var(--panel-translucent-bg)',
-          border: '1px solid var(--panel-translucent-border)',
-          borderRadius: 13,
-          boxShadow: 'var(--shadow-menu-strong)',
-          overflow: 'hidden',
-          zIndex: 6,
-        }}
-      >
-        {items.map((it, i) => (
-          <div
-            key={it.label}
-            onClick={it.onTap}
-            style={{
-              padding: '11px 14px',
-              fontSize: 13,
-              color: MC.ink,
-              borderBottom: i < items.length - 1 ? '1px solid var(--proto-line-2)' : undefined,
-              cursor: 'pointer',
-            }}
-          >
-            {it.label}
-          </div>
-        ))}
-      </div>
-    </>
-  );
-}
-
-// Session ID sheet (⋯ → 会话ID) — a bottom sheet showing the two identifiers a session carries: the
-// human-facing Cortex ID (cortex-XXXX) and the backend UUID. Each row is copy-to-clipboard.
-export function SessionIdSheet({
-  copy,
-  cortexId,
-  backendUuid,
-  onClose,
-}: {
-  copy: MChatCopy;
-  cortexId: string | null | undefined;
-  backendUuid: string | null | undefined;
-  onClose: () => void;
-}): JSX.Element {
-  const rows = buildSessionIdRows({
-    cortexId,
-    backendUuid,
-    cortexIdLabel: copy.cortexIdLabel,
-    backendUuidLabel: copy.backendUuidLabel,
-  });
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const doCopy = (key: string, value: string): void => {
-    if (value === '—') return;
-    void navigator.clipboard?.writeText(value).catch(() => {});
-    setCopiedKey(key);
-    window.setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 1400);
-  };
-  return (
-    <MBottomSheet onClose={onClose}>
-      <div style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em', padding: '0 2px 12px' }}>
-        {copy.sessionIdTitle}
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
-        {rows.map((row) => (
-          <div key={row.key}>
-            <div style={{ font: `600 9.5px ${MONO}`, letterSpacing: '.05em', color: MC.muted, padding: '0 2px 5px' }}>
-              {row.label}
-            </div>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                background: 'var(--proto-card)',
-                border: `1px solid ${MC.hairline}`,
-                borderRadius: 11,
-                padding: '10px 12px',
-              }}
-            >
-              <span style={{ flex: 1, font: `500 12px ${MONO}`, color: MC.ink, wordBreak: 'break-all', userSelect: 'all' }}>
-                {row.value}
-              </span>
-              <span
-                role="button"
-                onClick={() => doCopy(row.key, row.value)}
-                style={{
-                  flex: 'none',
-                  font: `600 9.5px ${MONO}`,
-                  color: copiedKey === row.key ? MC.run : MC.muted,
-                  border: `1px solid ${copiedKey === row.key ? MC.runBorder : 'var(--proto-line-3)'}`,
-                  borderRadius: 7,
-                  padding: '4px 9px',
-                  cursor: row.value === '—' ? 'default' : 'pointer',
-                  opacity: row.value === '—' ? 0.4 : 1,
-                }}
-              >
-                {copiedKey === row.key ? copy.copied : copy.copy}
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </MBottomSheet>
-  );
-}
-
-// ── attachment tiles (scheme 1o L762-766) ─────────────────────────────────────
-const STRIPES = 'repeating-linear-gradient(45deg,var(--proto-line) 0 6px,var(--proto-rail) 6px 12px)';
-
-
-/** Agent-rendered HTML view on mobile: the same sandboxed frame as the desktop card, sized to the
- *  chat column, with a header that opens it full-screen. There is no docked pane on this shell
- *  (`canPin` is false there), so expand is the only escalation. */
-function ViewTile({ a }: { a: Attachment }): JSX.Element {
-  const { openDoc } = useDocViewer();
-  const item = { kind: 'html' as const, name: a.name, path: a.path, mimeType: a.mimeType };
-  return (
-    <div
-      style={{
-        width: '100%', border: `1px solid ${MC.hairline}`, background: 'var(--proto-card)',
-        borderRadius: 12, overflow: 'hidden', boxSizing: 'border-box',
-      }}
-    >
-      <div
-        role="button"
-        onClick={() => openDoc(item)}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 7, padding: '7px 10px',
-          borderBottom: `1px solid ${MC.hairline}`, background: 'var(--proto-rail)', cursor: 'pointer',
-        }}
-      >
-        <span style={{ font: `700 7.5px ${MONO}`, letterSpacing: '.06em', color: 'var(--proto-accent)', background: 'var(--proto-accent-bg)', border: '1px solid var(--proto-accent-border)', borderRadius: 4, padding: '2px 5px', flex: 'none' }}>
-          VIEW
-        </span>
-        <span style={{ font: `500 10.5px ${MONO}`, color: MC.body, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-          {a.name}
-        </span>
-        <span style={{ font: `500 10.5px ${MONO}`, color: 'var(--proto-accent)', flex: 'none' }}>↗</span>
-      </div>
-      <HtmlBody item={item} mode="inline" />
-    </div>
-  );
-}
-
-function AttachmentTile({ a }: { a: Attachment }): JSX.Element {
-  const kind = mediaKindOf(a.type);
-  const { openMedia } = useMediaViewer();
-  const { openDoc } = useDocViewer();
-  const docKind = docKindOfAttachment(a);
-  // Real thumbnail (auth-fetched) for image/video; tap opens the media lightbox (no new tab).
-  const url = useWorkspaceObjectUrl(a.path, kind !== null);
-  if (kind !== null) {
-    return (
-      <div
-        role="button"
-        onClick={() => openMedia({ kind, name: a.name, path: a.path })}
-        style={{
-          width: a.type === 'video' ? 104 : 74,
-          height: 74,
-          borderRadius: 12,
-          background: url ? 'var(--media-stage-bg)' : STRIPES,
-          position: 'relative',
-          overflow: 'hidden',
-          flex: 'none',
-          cursor: 'pointer',
-        }}
-      >
-        {url && kind === 'image' && (
-          <img src={url} alt={a.name} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
-        )}
-        {url && kind === 'video' && (
-          <VideoThumb src={url} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
-        )}
-        {kind === 'video' && (
-          <span
-            style={{
-              position: 'absolute',
-              left: '50%',
-              top: '50%',
-              transform: 'translate(-50%,-50%)',
-              width: 26,
-              height: 26,
-              borderRadius: '50%',
-              background: 'var(--media-control-bg-dark)',
-              color: 'var(--ink-solid-fg)',
-              fontSize: 9,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              paddingLeft: 2,
-              boxSizing: 'border-box',
-            }}
-          >
-            ▶
-          </span>
-        )}
-        <span
-          style={{
-            position: 'absolute',
-            left: 7,
-            bottom: 6,
-            maxWidth: (a.type === 'video' ? 104 : 74) - 14,
-            font: `500 8px ${MONO}`,
-            color: MC.muted,
-            background: 'var(--media-label-bg)',
-            padding: '1px 5px',
-            borderRadius: 4,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            boxSizing: 'border-box',
-          }}
-        >
-          {a.name}
-        </span>
-      </div>
-    );
-  }
-  // PDF/text tap → in-app DocViewer; other files tap → native download (save to disk).
-  const onTap = docKind
-    ? () => openDoc({ kind: docKind, name: a.name, path: a.path, mimeType: a.mimeType })
-    : () => void downloadFile(a.path, a.name);
-  return (
-    <div
-      role="button"
-      onClick={onTap}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 6,
-        background: 'var(--proto-card)',
-        border: `1px solid ${MC.hairline}`,
-        borderRadius: 9,
-        padding: '6px 10px',
-        flex: 'none',
-        cursor: 'pointer',
-      }}
-    >
-      <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke={MC.muted} strokeWidth="1.5">
-        <path d="M3 1.5h5.5L11.5 4v8.5h-8.5z" />
-        <path d="M8.5 1.5V4H11" />
-      </svg>
-      <span style={{ font: `500 10.5px ${MONO}`, color: MC.body }}>{a.name}</span>
-    </div>
-  );
-}
-
-// `side` follows the message it belongs to: user attachments hug the right (with the dark user
-// bubble), agent attachments hug the left (with the agent message body).
-function AttachmentGroup({ attachments, side = 'right' }: { attachments: Attachment[]; side?: 'left' | 'right' }): JSX.Element {
-  const edge = side === 'left' ? 'flex-start' : 'flex-end';
-  // Views are full-width surfaces and break out of the wrapping tile row.
-  const views = attachments.filter((a) => a.type === 'view');
-  const tiles = attachments.filter((a) => a.type !== 'view');
-  return (
-    <div style={{ alignSelf: views.length > 0 ? 'stretch' : edge, display: 'flex', flexDirection: 'column', gap: 6, alignItems: views.length > 0 ? 'stretch' : edge }}>
-      {views.map((a, i) => (
-        <ViewTile key={`view-${i}`} a={a} />
-      ))}
-      {tiles.length > 0 && (
-        <div style={{ alignSelf: edge, display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: edge }}>
-          {tiles.map((a, i) => (
-            <AttachmentTile key={i} a={a} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── collapsed/expandable tool-call row (scheme 1b L146; tap to expand) ─────────
 const MOBILE_TOOL_GAP = 6;
 const mobileToolChipStyle = {
@@ -744,6 +156,27 @@ function ExpandedToolCalls({ count, calls, unit, onCollapse }: {
  * is a single inline JSX map with no recursive entry point, and a flattened block carries the same
  * information at this width.
  */
+function MSubagentRows({ rows, unit }: { rows: ChatRow[]; unit: string }): JSX.Element {
+  const calls = rows.flatMap((row) => row.kind === 'tools' ? row.calls : []);
+  const texts = rows.flatMap((row) => row.kind === 'assistant' && row.text ? [row.text] : []);
+  return <>{calls.length > 0 && <ToolCallsRow count={calls.length} calls={calls} unit={unit} />}
+    {texts.map((text, index) => <div key={index} style={{ fontSize: 12.5, lineHeight: 1.6,
+      color: MC.body, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
+      <ChatMarkdown text={text} />
+    </div>)}</>;
+}
+
+function MSubagentDetail({ row, unit, sessionId }: {
+  row: Extract<ChatRow, { kind: 'subagent' }>; unit: string; sessionId?: string;
+}): JSX.Element {
+  if (row.detailMode !== 'lazy' || !row.hasDetails || !sessionId) {
+    return <MSubagentRows rows={row.children} unit={unit} />;
+  }
+  return <SubagentTranscriptDetail sessionId={sessionId} subagentId={row.id}
+    fallbackRows={row.children}
+    render={(rows) => <MSubagentRows rows={rows} unit={unit} />} />;
+}
+
 function MSubagentBlock({ row, unit, sessionId }: {
   row: Extract<ChatRow, { kind: 'subagent' }>;
   unit: string;
@@ -751,8 +184,6 @@ function MSubagentBlock({ row, unit, sessionId }: {
 }): JSX.Element {
   const L = useVocab();
   const [expanded, setExpanded] = useState(false);
-  const calls = row.children.flatMap((c) => (c.kind === 'tools' ? c.calls : []));
-  const texts = row.children.flatMap((c) => (c.kind === 'assistant' && c.text ? [c.text] : []));
   const label = row.description || row.agentType || L.subagentFallbackLabel;
   return (
     <div style={{ background: 'var(--proto-rail)', border: '1px solid var(--proto-line-2)', borderRadius: 8 }}>
@@ -789,36 +220,7 @@ function MSubagentBlock({ row, unit, sessionId }: {
               </pre>
             </div>
           ) : null}
-          {row.detailMode === 'lazy' && row.hasDetails && sessionId ? (
-            <SubagentTranscriptDetail
-              sessionId={sessionId}
-              subagentId={row.id}
-              fallbackRows={row.children}
-              render={(detailRows) => {
-                const detailCalls = detailRows.flatMap((detailRow) => (detailRow.kind === 'tools' ? detailRow.calls : []));
-                const detailTexts = detailRows.flatMap((detailRow) => (detailRow.kind === 'assistant' && detailRow.text ? [detailRow.text] : []));
-                return (
-                  <>
-                    {detailCalls.length > 0 && <ToolCallsRow count={detailCalls.length} calls={detailCalls} unit={unit} />}
-                    {detailTexts.map((text, index) => (
-                      <div key={index} style={{ fontSize: 12.5, lineHeight: 1.6, color: MC.body, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
-                        <ChatMarkdown text={text} />
-                      </div>
-                    ))}
-                  </>
-                );
-              }}
-            />
-          ) : (
-            <>
-              {calls.length > 0 && <ToolCallsRow count={calls.length} calls={calls} unit={unit} />}
-              {texts.map((t, index) => (
-                <div key={index} style={{ fontSize: 12.5, lineHeight: 1.6, color: MC.body, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
-                  <ChatMarkdown text={t} />
-                </div>
-              ))}
-            </>
-          )}
+          <MSubagentDetail row={row} unit={unit} sessionId={sessionId} />
         </div>
       )}
     </div>
@@ -1042,7 +444,9 @@ export function MChatStream({ rows, toolCallsUnit, copyLabel, copiedLabel, inter
                   <AttachmentGroup attachments={row.attachments} side="left" />
                 </div>
               )}
-              {row.decisions && row.decisions.length > 0 && <MDecisionCardGroup decisions={row.decisions} sessionId={streamKey} />}
+              {row.decisions && row.decisions.length > 0 && (
+                <MDecisionCardGroup decisions={row.decisions} sessionId={streamKey} />
+              )}
               <AssistantTurnCopyAction text={assistantCopies.get(i)} label={copyLabel} copiedLabel={copiedLabel} />
             </div>
           )}
@@ -1080,404 +484,6 @@ export function SystemLine({ text }: { text: string }): JSX.Element {
       {text}
     </div>
   );
-}
-
-// ── 1o ＋ attach menu (scheme L783-787) ───────────────────────────────────────
-export function AttachMenu({ copy, onClose, onCamera, onLibrary, onFile, browser, onCommands }: {
-  copy: MChatCopy;
-  onClose: () => void;
-  onCamera: () => void;
-  onLibrary: () => void;
-  onFile: () => void;
-  /** Browser opt-in row — absent when the session has no browser and none can be chosen. `onOpen`
-   *  (draft only) opens the device sheet; without it the row just reports the fixed device. */
-  browser?: { device: string | null; onOpen?: () => void };
-  /** Inserts a leading `/` into the composer, surfacing the local slash commands. */
-  onCommands: () => void;
-}): JSX.Element {
-  const row = (label: string, on: (() => void) | undefined, icon: ReactNode, opts?: { last?: boolean; value?: string; itemKey?: string }): JSX.Element => (
-    <div
-      data-plus-item={opts?.itemKey}
-      data-editable={opts?.itemKey === 'browser' ? (on ? 'true' : 'false') : undefined}
-      onClick={on ? () => { on(); onClose(); } : undefined}
-      style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '11px 14px', borderBottom: opts?.last ? undefined : '1px solid var(--proto-line-2)', cursor: on ? 'pointer' : 'default', opacity: on ? 1 : 0.6 }}
-    >
-      {icon}
-      <span style={{ fontSize: 13, color: MC.ink }}>{label}</span>
-      {opts?.value != null && (
-        <span style={{ marginLeft: 'auto', font: `500 10px ${MONO}`, color: MC.run }}>{opts.value}</span>
-      )}
-    </div>
-  );
-  return (
-    <>
-      <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 5 }} />
-      <div
-        style={{
-          position: 'absolute',
-          left: 14,
-          bottom: 90,
-          width: 208,
-          background: 'var(--panel-translucent-bg)',
-          border: '1px solid var(--panel-translucent-border)',
-          borderRadius: 13,
-          boxShadow: 'var(--shadow-menu-strong)',
-          overflow: 'hidden',
-          zIndex: 6,
-        }}
-      >
-        {row(
-          copy.attachCamera,
-          onCamera,
-          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke={MC.ink} strokeWidth="1.5"><rect x="1.5" y="4" width="13" height="9.5" rx="2" /><circle cx="8" cy="8.7" r="2.6" /><path d="M5.5 4l1-1.7h3l1 1.7" /></svg>,
-        )}
-        {row(
-          copy.attachLibrary,
-          onLibrary,
-          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke={MC.ink} strokeWidth="1.5"><rect x="2" y="2" width="12" height="12" rx="2.5" /><circle cx="6" cy="6" r="1.3" /><path d="M2.5 11.5 6 8.5l2.5 2 3-3 2 2" /></svg>,
-        )}
-        {row(
-          copy.attachFile,
-          onFile,
-          <svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke={MC.ink} strokeWidth="1.4"><path d="M3 1.5h5.5L11.5 4v8.5h-8.5z" /><path d="M8.5 1.5V4H11" /></svg>,
-        )}
-        {browser && row(
-          copy.attachBrowser,
-          browser.onOpen,
-          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke={MC.ink} strokeWidth="1.5"><circle cx="8" cy="8" r="6.5" /><path d="M1.5 8h13M8 1.5c-1.8 1.8-2.7 4-2.7 6.5S6.2 13.2 8 14.5c1.8-1.3 2.7-4 2.7-6.5S9.8 3.3 8 1.5z" /></svg>,
-          { itemKey: 'browser', value: browser.device ?? undefined },
-        )}
-        {row(
-          copy.attachCommands,
-          onCommands,
-          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke={MC.ink} strokeWidth="1.6"><path d="M10.5 2.5 5.5 13.5" /></svg>,
-          { last: true, itemKey: 'commands' },
-        )}
-      </div>
-    </>
-  );
-}
-
-// Composer attachment chip (scheme 1o L773-774) — filename + upload progress / done ✓. Image/video
-// chips show a real thumbnail and open the media lightbox on tap (no new tab).
-function ComposerChip({ a, onRemove }: { a: PendingAttachmentVM; onRemove: () => void }): JSX.Element {
-  const uploading = a.status === 'uploading';
-  const { openMedia } = useMediaViewer();
-  const kind = a.type ? mediaKindOf(a.type) : null;
-  const canPreview = !!a.previewUrl && kind !== null;
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: uploading ? 7 : 6, background: 'var(--proto-card)', border: `1px solid ${uploading ? MC.runBorder : MC.hairline}`, borderRadius: 9, padding: '5px 9px', flex: 'none' }}>
-      {canPreview && (
-        <span
-          role="button"
-          onClick={() => openMedia({ kind: kind!, name: a.name, url: a.previewUrl! })}
-          style={{ position: 'relative', width: 26, height: 26, borderRadius: 6, overflow: 'hidden', background: 'var(--media-stage-bg)', flex: 'none', cursor: 'pointer' }}
-        >
-          {kind === 'image' ? (
-            <img src={a.previewUrl} alt={a.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-          ) : (
-            <VideoThumb src={a.previewUrl!} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-          )}
-          {kind === 'video' && (
-            <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink-solid-fg)', fontSize: 8, textShadow: 'var(--media-glyph-shadow)' }}>▶</span>
-          )}
-        </span>
-      )}
-      <span style={{ font: `500 10px ${MONO}`, color: MC.body }}>{a.name}</span>
-      {uploading ? (
-        <>
-          <div style={{ width: 34, height: 4, borderRadius: 999, background: 'var(--proto-line-2)', overflow: 'hidden' }}>
-            <div style={{ width: `${a.progress}%`, height: '100%', background: MC.run }} />
-          </div>
-          <span style={{ font: `400 9px ${MONO}`, color: MC.run }}>{a.progress}%</span>
-        </>
-      ) : a.status === 'done' ? (
-        <span style={{ fontSize: 10, color: MC.done, fontWeight: 700 }}>✓</span>
-      ) : a.status === 'error' ? (
-        <span style={{ fontSize: 10, color: MC.fail, fontWeight: 700 }}>!</span>
-      ) : null}
-      <span onClick={onRemove} style={{ color: MC.faint, fontSize: 11, cursor: 'pointer' }}>✕</span>
-    </div>
-  );
-}
-
-// ── Context usage bottom sheet ────────────────────────────────────────────────
-export function ContextUsageSheet({
-  usage,
-  lang,
-  compactAction,
-  onClose,
-}: {
-  usage: SessionContextUsage | null;
-  lang: 'en' | 'zh';
-  compactAction?: ContextCompactAction;
-  onClose: () => void;
-}): JSX.Element {
-  return (
-    <MBottomSheet onClose={onClose}>
-      <div data-mobile-context-usage-sheet="true">
-        <div style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em', padding: '0 2px 10px' }}>
-          {contextUsageTitle(lang)}
-        </div>
-        <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 13, padding: '12px 13px' }}>
-          <ContextUsageDetails usage={usage} lang={lang} />
-        </div>
-        {compactAction ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 2px 0' }}>
-            <ContextCompactFooter action={compactAction} lang={lang} />
-          </div>
-        ) : null}
-      </div>
-    </MBottomSheet>
-  );
-}
-
-// ── 1p Profile bottom sheet (scheme L821-845) ─────────────────────────────────
-export function ProfileSheet({ items, copy, onClose, onPick }: { items: ProfileSheetItem[]; copy: MChatCopy; onClose: () => void; onPick: (name: string) => void }): JSX.Element {
-  return (
-    <MBottomSheet onClose={onClose}>
-      <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 10px' }}>
-        <span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>{copy.profileTitle}</span>
-        <span style={{ marginLeft: 'auto', font: `400 9.5px ${MONO}`, color: MC.faint }}>{copy.profileSubtitle}</span>
-      </div>
-      <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 13, overflow: 'hidden' }}>
-        {items.map((it, i) => (
-          <div
-            key={it.name}
-            onClick={() => onPick(it.name)}
-            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 13px', borderBottom: i < items.length - 1 ? '1px solid var(--proto-line-soft)' : undefined, cursor: 'pointer' }}
-          >
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                <span style={{ font: `600 13px ${MONO}`, color: MC.ink }}>{it.name}</span>
-                {it.current && <span style={{ fontSize: 9.5, fontWeight: 600, padding: '1.5px 7px', borderRadius: 999, background: MC.runBg, color: MC.run }}>{copy.profileCurrent}</span>}
-              </div>
-              <div style={{ font: `400 10px ${MONO}`, color: MC.muted, marginTop: 3 }}>{it.sub}</div>
-            </div>
-            {it.current && <span style={{ fontSize: 15, fontWeight: 700, color: MC.run, flex: 'none' }}>✓</span>}
-          </div>
-        ))}
-      </div>
-      <div style={{ font: `400 9.5px ${MONO}`, color: MC.faint, padding: '9px 4px 0' }}>{copy.profileFooter}</div>
-    </MBottomSheet>
-  );
-}
-
-export interface BrowserSheetItem {
-  /** null is the "off" row. */
-  device: string | null;
-  label: string;
-  sub: string;
-}
-
-/**
- * Which machine's browser this session will drive. The device matters as much as the switch: a
- * browser on the server draws on the server's display, while one on your own laptop opens a window
- * in front of you and inherits the logins already in that profile.
- */
-export function BrowserSheet({ items, title, current, onClose, onPick }: {
-  items: BrowserSheetItem[];
-  title: string;
-  current: string | null;
-  onClose: () => void;
-  onPick: (device: string | null) => void;
-}): JSX.Element {
-  return (
-    <MBottomSheet onClose={onClose}>
-      <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 10px' }}>
-        <span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>{title}</span>
-      </div>
-      <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 13, overflow: 'hidden' }}>
-        {items.map((it, i) => (
-          <div
-            key={it.device ?? '__off__'}
-            data-device={it.device ?? '__off__'}
-            onClick={() => onPick(it.device)}
-            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 13px', borderBottom: i < items.length - 1 ? '1px solid var(--proto-line-soft)' : undefined, cursor: 'pointer' }}
-          >
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <span style={{ font: `600 13px ${MONO}`, color: MC.ink }}>{it.label}</span>
-              {it.sub && <div style={{ font: `400 10px ${MONO}`, color: MC.muted, marginTop: 3 }}>{it.sub}</div>}
-            </div>
-            {it.device === current && <span style={{ fontSize: 15, fontWeight: 700, color: MC.run, flex: 'none' }}>✓</span>}
-          </div>
-        ))}
-      </div>
-    </MBottomSheet>
-  );
-}
-
-// ── the ＋ toolbar button + profile chip (composer toolbar chrome) ─────────────
-// Shape family shared with the desktop toolbar: icon keys are circles (＋ / send / stop / ring),
-// labelled chips are pills. Only the popover menus stay rounded rects.
-function PlusButton({ onClick }: { onClick: () => void }): JSX.Element {
-  return (
-    <button
-      type="button"
-      aria-label="Attach"
-      onClick={onClick}
-      style={{ flex: 'none', width: 34, height: 34, borderRadius: '50%', border: `1.5px solid var(--proto-line-3)`, background: MC.card, display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', color: MC.sub, lineHeight: 0, cursor: 'pointer', padding: 0 }}
-    >
-      <PlusGlyph size={15} />
-    </button>
-  );
-}
-
-/**
- * The chosen browser, standing beside ＋ as a capsule.
- *
- * Opting in is otherwise invisible the moment the ＋ menu closes, and the choice is not a detail —
- * it decides which machine's screen the agent drives. So the selection keeps a marker on the
- * toolbar, and the marker IS the control: tapping it reopens the device sheet, where another
- * machine is a switch and the off row ends browsing.
- *
- * Nothing renders while browsing is off. A live session's capsule only reports — the agent's tool
- * set is fixed when its process spawns, so `onClick` is absent there.
- */
-function BrowserChip({ device, label, onClick }: {
-  device: string;
-  label: string;
-  onClick?: () => void;
-}): JSX.Element {
-  return (
-    <button
-      type="button"
-      data-chip="browser"
-      data-browser-device={device}
-      data-editable={onClick ? 'true' : 'false'}
-      aria-label={`${label} · ${device}`}
-      onClick={onClick}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 5, flex: '0 1 auto', minWidth: 0, maxWidth: 132,
-        height: 34, padding: '0 11px', boxSizing: 'border-box', borderRadius: 999,
-        border: `1.5px solid ${MC.runBorder}`, background: MC.runBg, color: MC.run,
-        font: `500 11px ${MONO}`, overflow: 'hidden', cursor: onClick ? 'pointer' : 'default',
-      }}
-    >
-      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ flex: 'none' }}>
-        <circle cx="8" cy="8" r="6.5" />
-        <path d="M1.5 8h13M8 1.5c-1.8 1.8-2.7 4-2.7 6.5S6.2 13.2 8 14.5c1.8-1.3 2.7-4 2.7-6.5S9.8 3.3 8 1.5z" />
-      </svg>
-      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{device}</span>
-    </button>
-  );
-}
-
-function ProfileChip({ label, onClick }: { label: string; onClick: () => void }): JSX.Element {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{ display: 'flex', alignItems: 'center', gap: 6, border: `1.5px solid ${MC.runBorder}`, background: MC.card, borderRadius: 999, height: 34, padding: '0 13px', boxSizing: 'border-box', flex: '0 1 auto', minWidth: 0, overflow: 'hidden', cursor: 'pointer' }}
-    >
-      <span style={{ width: 5, height: 5, borderRadius: '50%', background: MC.run, flex: 'none' }} />
-      <span style={{ minWidth: 0, font: `600 11.5px ${MONO}`, color: MC.run, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
-    </button>
-  );
-}
-
-function MobileSlashMenu({ suggestions, onPick }: {
-  suggestions: SlashSuggestion[];
-  onPick: (suggestion: SlashSuggestion) => void;
-}): JSX.Element {
-  return (
-    <div data-mobile-slash-menu style={{ margin: '0 0 7px', border: `1px solid ${MC.hairline}`, borderRadius: 12, background: MC.card, overflow: 'hidden', boxShadow: 'var(--shadow-menu-soft)' }}>
-      {suggestions.map((suggestion) => (
-        <div
-          key={suggestion.command}
-          data-mobile-slash-command={suggestion.command}
-          onClick={() => { if (!suggestion.disabled) onPick(suggestion); }}
-          style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 38, padding: '0 12px', borderBottom: `1px solid ${MC.divider}`, opacity: suggestion.disabled ? 0.45 : 1, cursor: suggestion.disabled ? 'default' : 'pointer' }}
-        >
-          <span style={{ font: `600 11.5px ${MONO}`, color: MC.run }}>{suggestion.command}</span>
-          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10.5, color: MC.muted }}>{suggestion.description}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ── the whole 1b screen composition ───────────────────────────────────────────
-export interface MChatViewProps {
-  title: string;
-  status: ChatHeaderStatus;
-  rows: ChatRow[];
-  copy: MChatCopy;
-  onBack: () => void;
-  // header ⋯ menu
-  moreOpen: boolean;
-  onMoreToggle: () => void;
-  onMoreClose: () => void;
-  // ⋯ → 会话ID sheet
-  sessionIdOpen: boolean;
-  onSessionIdOpen: () => void;
-  onSessionIdClose: () => void;
-  cortexId: string | null;
-  backendUuid: string | null;
-  // stream slots
-  inlineThreadCard?: ReactNode;
-  systemLines?: string[];
-  // Interaction cards live inline in `rows` (transcript entities); this supplies the per-card
-  // handlers + session-local answer state (scheme 6a/5b/4a-c).
-  interactions?: MChatInteractions;
-  // 5a reject mode — amber context bar + reason chips above the composer; composer ring amber.
-  rejectBar?: MRejectBar;
-  // sec-7 message edit + rewind
-  editCopy?: MChatEditCopy;
-  /** 7a long-press action menu (held row + actions). */
-  msgMenu?: MMsgMenu | null;
-  onLongPress?: (rowIndex: number, anchorTop: number) => void;
-  /** 7b edit mode — marks the stream + swaps the composer chrome to the accent edit bar. */
-  editing?: MEditMode | null;
-  /** 已编辑 tap → original-message sheet. */
-  onShowOriginal?: (edited: { originalText: string; originalTs: string }) => void;
-  originalSheet?: { text: string; onClose: () => void } | null;
-  /** Identity of the live stream the rows belong to (the session) — see MChatStream. */
-  streamKey?: string;
-  /** Selected-session Todo snapshot shown immediately above the composer. */
-  sessionId?: string;
-  todos?: TodoSnapshot | null;
-  todoLang?: TodoRailLanguage;
-  // composer
-  composerValue: string;
-  onComposerChange: (v: string) => void;
-  onSend: () => void;
-  slashSuggestions?: SlashSuggestion[];
-  onSlashPick?: (suggestion: SlashSuggestion) => void;
-  sendEnabled: boolean;
-  /** Overrides the composer placeholder (5a 说明原因 / 5b 直接输入回答 Q{k}). */
-  composerPlaceholder?: string;
-  // Stop: while the session is running the composer shows a Stop button instead of Send.
-  onStop?: () => void;
-  stopEnabled?: boolean;
-  profileChipLabel: string;
-  onOpenProfile: () => void;
-  /** Browser control for this session: null when it has none and none can be chosen. */
-  browserDevice?: string | null;
-  /** Present only on a draft — the tool set is fixed when the agent process spawns. */
-  onOpenBrowser?: () => void;
-  browserSheet?: {
-    items: BrowserSheetItem[];
-    title: string;
-    onClose: () => void;
-    onPick: (device: string | null) => void;
-  };
-  contextUsage?: SessionContextUsage | null;
-  contextUsageSupported?: boolean;
-  contextUsageLang?: 'en' | 'zh';
-  contextCompactAction?: ContextCompactAction;
-  contextUsageOpen: boolean;
-  onContextUsageOpen: () => void;
-  onContextUsageClose: () => void;
-  attachments: PendingAttachmentVM[];
-  onRemoveAttachment: (id: string) => void;
-  onPlus: () => void;
-  attachMenuOpen: boolean;
-  onAttachClose: () => void;
-  onCamera: () => void;
-  onLibrary: () => void;
-  onFile: () => void;
-  profileSheet?: { items: ProfileSheetItem[]; onClose: () => void; onPick: (name: string) => void };
 }
 
 export function MChatView(props: MChatViewProps): JSX.Element {
@@ -1525,76 +531,7 @@ export function MChatView(props: MChatViewProps): JSX.Element {
     return () => ro.disconnect();
   }, []);
 
-  // 7b edit mode replaces the composer chrome with the accent edit bar; 5a reject mode replaces it
-  // with the amber feedback bar (+ ✕ cancel) + reason chips. Default mode keeps profile + context.
-  const composerMode = props.editing && props.editCopy ? (
-    <EditBar title={props.editCopy.editBarTitle} onCancel={props.editing.onCancel} />
-  ) : props.rejectBar ? (
-    <>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: MC.amberCard, border: `1px solid ${MC.amberBorder}`, borderRadius: 11, padding: '8px 8px 8px 12px', marginBottom: 7 }}>
-        <span style={{ width: 6, height: 6, borderRadius: '50%', background: MC.amber, flex: 'none' }} />
-        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--proto-amber-fg)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{props.rejectBar.title}</span>
-        <div
-          role="button"
-          aria-label="Cancel reject"
-          onClick={props.rejectBar.onCancel}
-          style={{ marginLeft: 'auto', width: 26, height: 26, borderRadius: 8, background: 'var(--proto-card)', border: `1px solid ${MC.amberBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: MC.amberText, fontSize: 11, flex: 'none', cursor: 'pointer' }}
-        >
-          ✕
-        </div>
-      </div>
-      <div style={{ display: 'flex', gap: 6, padding: '0 2px 8px', overflowX: 'auto' }}>
-        {props.rejectBar.chips.map((chip) => (
-          <span
-            key={chip}
-            role="button"
-            onClick={() => props.rejectBar!.onChipTap(chip)}
-            style={{ flex: 'none', fontSize: 11, fontWeight: 600, color: MC.sub, border: '1px solid var(--proto-line-3)', background: 'var(--proto-card)', borderRadius: 999, padding: '5px 11px', cursor: 'pointer' }}
-          >
-            {chip}
-          </span>
-        ))}
-      </div>
-    </>
-  ) : (
-    <>
-      {props.attachments.length > 0 && (
-        <div style={{ display: 'flex', gap: 6, padding: '0 2px 7px', overflowX: 'auto' }}>
-          {props.attachments.map((a) => (
-            <ComposerChip key={a.id} a={a} onRemove={() => props.onRemoveAttachment(a.id)} />
-          ))}
-        </div>
-      )}
-    </>
-  );
-  // Composer toolbar right cluster: profile chip, then the context ring at its right, beside Send.
-  // Hidden in edit/reject modes — those replace the composer chrome entirely.
-  const composerTools = props.editing || props.rejectBar ? undefined : (
-    <>
-      <ProfileChip label={props.profileChipLabel} onClick={props.onOpenProfile} />
-      {(props.contextUsageSupported || props.contextUsage != null) ? (
-        <span data-context-usage-position="composer-toolbar" style={{ display: 'inline-flex', flex: 'none' }}>
-          <ContextUsageRing
-            usage={props.contextUsage ?? null}
-            variant="mobile"
-            lang={props.contextUsageLang ?? 'en'}
-            onClick={props.onContextUsageOpen}
-            data-context-compact-enabled={props.contextCompactAction ? 'true' : undefined}
-          />
-        </span>
-      ) : null}
-    </>
-  );
-  const above = (
-    <>
-      {props.sessionId && props.todos ? (
-        <TodoRail sessionId={props.sessionId} todos={props.todos} lang={props.todoLang ?? 'en'} />
-      ) : null}
-      {composerMode}
-    </>
-  );
-  const commandMenu = !props.editing && !props.rejectBar
-    && props.slashSuggestions?.length && props.onSlashPick
+  const commandMenu = !props.editing && !props.rejectBar && props.slashSuggestions?.length && props.onSlashPick
     ? <MobileSlashMenu suggestions={props.slashSuggestions} onPick={props.onSlashPick} />
     : undefined;
 
@@ -1645,16 +582,9 @@ export function MChatView(props: MChatViewProps): JSX.Element {
           running={props.status.running}
           onStop={props.onStop}
           stopEnabled={props.stopEnabled}
-          leading={props.editing || props.rejectBar ? undefined : (
-            <>
-              <PlusButton onClick={props.onPlus} />
-              {props.browserDevice && (
-                <BrowserChip device={props.browserDevice} label={copy.attachBrowser} onClick={props.onOpenBrowser} />
-              )}
-            </>
-          )}
-          tools={composerTools}
-          above={above}
+          leading={props.editing || props.rejectBar ? undefined : <ComposerLeading onClick={props.onPlus} />}
+          tools={<ComposerTools props={props} />}
+          above={<ComposerAbove props={props} />}
           commandMenu={commandMenu}
           onPlus={props.onPlus}
           lineUnit={copy.lineUnit}
