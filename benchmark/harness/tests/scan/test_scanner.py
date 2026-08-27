@@ -59,6 +59,9 @@ def policy() -> ScanPolicy:
         },
         repository_checkout=CHECKOUT_PATH,
         hostname=HOSTNAME,
+        # alice has a home on this synthetic host, which is what makes `/home/alice` a host
+        # disclosure rather than a string of that shape.
+        host_home_names=("alice",),
     )
 
 
@@ -125,6 +128,28 @@ def test_distinguishes_nested_container_home_dotfile_from_host_home(tmp_path: Pa
 
     assert [(finding.source, finding.rule_id) for finding in report.findings] == [
         ("leaked", "host:home_path"),
+    ]
+
+
+def test_ignores_a_home_path_that_names_no_account_on_this_host(tmp_path: Path) -> None:
+    """A third-party package quoting its author's home is not a disclosure of ours.
+
+    `pyknotid` hardcodes `/home/asandy/knotcatalogue/...` in its own source, so every trial that
+    installs it carries that string into the workspace diff. Matching the shape refused fifteen
+    trials that had solved their task on 2026-08-27. The account that really exists here still
+    fires, on the same line, so the rule loses no reach.
+    """
+    source = tmp_path / "workspace.diff"
+    source.write_text(
+        "+    catalogue = open('/home/asandy/knotcatalogue/raw_data/knotinfo.csv', 'r')\n"
+        "+    fallback = '/home/alice/private/file.txt'\n",
+    )
+    inventory = ArtifactInventory({"diff": source}, frozenset({"diff"}), (tmp_path,))
+
+    report = scan_trial_artifacts(inventory, policy())
+
+    assert [(finding.rule_id, finding.line) for finding in report.findings] == [
+        ("host:home_path", 2),
     ]
 
 

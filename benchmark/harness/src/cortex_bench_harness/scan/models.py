@@ -31,6 +31,9 @@ class ScanPolicy:
     forbidden_argv: Mapping[str, str] = field(default_factory=dict)
     home_path: str | None = None
     host_identities: Mapping[str, str] = field(default_factory=dict)
+    # The account names that actually have a home directory on this host. The broad `/home/<name>`
+    # rule is checked against these instead of against any name at all; see scanner.HOME_PATH.
+    host_home_names: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         _validate_literals("secrets", self.secrets, required=True)

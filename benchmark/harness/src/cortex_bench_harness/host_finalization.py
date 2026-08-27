@@ -104,7 +104,25 @@ def parse_host_scan_policy(
         forbidden_argv=_environment_mapping(source, "forbidden_argv_environment", values),
         home_path=str(Path.home()),
         host_identities=_environment_mapping(source, "host_identity_environment", values),
+        host_home_names=_host_home_names(),
     )
+
+
+def _host_home_names() -> tuple[str, ...]:
+    """The account names that really have a home directory beside this user's.
+
+    This is what the broad `/home/<name>` rule is checked against. Reading the directory rather
+    than trusting a shape is the whole point: `/home/asandy` inside a Python package is not a host
+    disclosure, and treating it as one cost fifteen solved trials on 2026-08-27.
+    """
+    home = Path.home()
+    names = {home.name}
+    try:
+        names.update(entry.name for entry in home.parent.iterdir() if entry.is_dir())
+    except OSError:
+        # An unreadable /home leaves the exact home literal, which is the rule that matters most.
+        pass
+    return tuple(sorted(name for name in names if name and not name.startswith(".")))
 
 
 def _environment_literal(

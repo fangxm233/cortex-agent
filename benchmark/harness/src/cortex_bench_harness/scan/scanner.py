@@ -23,7 +23,29 @@ from .models import (
 
 # A login component cannot start with a dot. This avoids treating a nested container HOME's
 # `/home/.local` launcher path as a host identity while the exact host-home literal still applies.
-HOME_PATH = re.compile(rb"/home/(?!\.)[^/\x00\s]+")
+HOME_PATH = re.compile(rb"/home/(?!\.)([^/\x00\s]+)")
+
+
+def _host_home_match(line: bytes, policy: ScanPolicy) -> Iterator[re.Match[bytes]]:
+    """Every `/home/<name>` in this line that names an account on THIS host.
+
+    The rule protects against the host's own directory layout reaching collected output. It used
+    to fire on any `/home/<name>` at all, which is a shape, not a fact -- and third-party content
+    is full of that shape. `pyknotid` hardcodes its author's `/home/asandy/knotcatalogue/...`, and
+    pip's cached copy of the `appdirs` README quotes `/home/trentm`. Neither is a host disclosure,
+    and both destroyed trials: fifteen trials that had SOLVED their task were refused at
+    publication on 2026-08-27 and lost their scores, because a Python package quotes a path.
+    Checking the matched name against the accounts that really exist here keeps every true
+    positive -- the host's own home, and any other real account's -- and drops the shape match.
+    """
+    names = frozenset(name.encode() for name in policy.host_home_names)
+    if not names:
+        return
+    for match in HOME_PATH.finditer(line):
+        if match.group(1) in names:
+            yield match
+
+
 Rule = tuple[str, str, bytes]
 
 
@@ -114,7 +136,7 @@ def _normalized_path(path: Path) -> Path:
 def _validate_source_names(inventory: ArtifactInventory, policy: ScanPolicy) -> None:
     names = set(inventory.sources) | inventory.expected_sources
     literals = _policy_literals(policy)
-    if any(_contains_sensitive(name, literals) for name in names):
+    if any(_contains_sensitive(name, literals, policy) for name in names):
         raise ValueError("artifact source names must not contain sensitive literals")
 
 
@@ -127,10 +149,10 @@ def _policy_literals(policy: ScanPolicy) -> tuple[str, ...]:
     )
 
 
-def _contains_sensitive(value: str, literals: tuple[str, ...]) -> bool:
+def _contains_sensitive(value: str, literals: tuple[str, ...], policy: ScanPolicy) -> bool:
     return (
         any(literal in value for literal in literals)
-        or HOME_PATH.search(value.encode()) is not None
+        or next(_host_home_match(value.encode(), policy), None) is not None
     )
 
 
@@ -261,7 +283,7 @@ def _unclassified_files(
         missing_source = _missing_source_for_root(inventory, missing_sources, root)
         _append_unclassified(
             root, root_index, classified, discovered, unclassified, redactions,
-            missing_source, scanned,
+            missing_source, scanned, policy,
         )
     return tuple(unclassified)
 
@@ -288,6 +310,7 @@ def _append_unclassified(
     redactions: tuple[str, ...],
     missing_source: str | None,
     scanned: _ScannedSources,
+    policy: ScanPolicy,
 ) -> None:
     for path in _root_candidates(root, root_index, missing_source):
         absolute = _normalized_path(path)
@@ -298,7 +321,8 @@ def _append_unclassified(
             continue
         relative_path = path.relative_to(root).as_posix()
         reported_path = (
-            None if _contains_sensitive(relative_path, redactions) else relative_path
+            None if _contains_sensitive(relative_path, redactions, policy)
+            else relative_path
         )
         unclassified.append(UnclassifiedFile(root_index, reported_path))
 
@@ -334,7 +358,7 @@ def _scan_present_sources(
     for source, path in inventory.sources.items():
         if source not in inventory.expected_sources or source in missing_sources:
             continue
-        source_findings, bytes_scanned = _scan_source(source, path, rules)
+        source_findings, bytes_scanned = _scan_source(source, path, rules, policy)
         findings.extend(source_findings)
         sources.append(SourceScan(source, bytes_scanned))
     return tuple(findings), tuple(sources)
@@ -363,20 +387,25 @@ def _named_rules(
     )
 
 
-def _scan_source(source: str, path: Path, rules: tuple[Rule, ...]) -> tuple[list[Finding], int]:
+def _scan_source(
+    source: str, path: Path, rules: tuple[Rule, ...], policy: ScanPolicy,
+) -> tuple[list[Finding], int]:
     findings: list[Finding] = []
     bytes_scanned = 0
     try:
         with path.open("rb") as artifact:
             for line_number, line in enumerate(artifact, start=1):
                 bytes_scanned += len(line)
-                findings.extend(_scan_line(source, line_number, line, rules))
+                findings.extend(_scan_line(source, line_number, line, rules, policy))
     except OSError as error:
         raise ArtifactReadError(source) from error
     return findings, bytes_scanned
 
 
-def _scan_line(source: str, line_number: int, line: bytes, rules: tuple[Rule, ...]) -> list[Finding]:
+def _scan_line(
+    source: str, line_number: int, line: bytes, rules: tuple[Rule, ...],
+    policy: ScanPolicy,
+) -> list[Finding]:
     findings: list[Finding] = []
     for rule_id, category, literal in rules:
         findings.extend(
@@ -385,7 +414,7 @@ def _scan_line(source: str, line_number: int, line: bytes, rules: tuple[Rule, ..
         )
     findings.extend(
         Finding(source, "host:home_path", "host", line_number, match.start() + 1)
-        for match in HOME_PATH.finditer(line)
+        for match in _host_home_match(line, policy)
     )
     return findings
 
