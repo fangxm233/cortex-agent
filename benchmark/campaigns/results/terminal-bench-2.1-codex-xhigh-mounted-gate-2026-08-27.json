@@ -1,0 +1,335 @@
+{
+  "arms": [
+    {
+      "arm": "mnt-nat-cdx",
+      "model": "gpt-5.6-sol",
+      "reward_total": 3.0,
+      "score_status": {
+        "available": 3
+      },
+      "tasks": 3,
+      "thinking": "xhigh"
+    },
+    {
+      "arm": "mnt-pi-cdx",
+      "model": "gpt-5.6-sol",
+      "reward_total": 2.0,
+      "score_status": {
+        "available": 3
+      },
+      "tasks": 3,
+      "thinking": "xhigh"
+    },
+    {
+      "arm": "mnt-cx-dir",
+      "model": "gpt-5.6-sol",
+      "reward_total": 3.0,
+      "score_status": {
+        "available": 3
+      },
+      "tasks": 3,
+      "thinking": "xhigh"
+    }
+  ],
+  "campaign": "tb21-mnt-gate",
+  "schema_version": "cortex-bench-campaign-result-summary/4",
+  "trials": [
+    {
+      "cli": {
+        "name": "codex",
+        "version": "0.148.0"
+      },
+      "counters": {
+        "cached_tokens": 247680,
+        "input_tokens": 321899,
+        "output_tokens": 4528,
+        "requests": 17
+      },
+      "image_digest": "sha256:bb447f94d9e2a8ed879f85c85a514b213b7418f9fe11fd7b2428a0b0e436e647",
+      "leak_scan": {
+        "clean": true,
+        "ok": true
+      },
+      "model": "gpt-5.6-sol",
+      "revocation": {
+        "active_handlers": 0,
+        "body_handlers": 0,
+        "listener_present": false,
+        "route_active": false,
+        "serving_thread_alive": false
+      },
+      "score_status": "available",
+      "task_id": "chess-best-move",
+      "terminal_state": "terminal-success",
+      "thinking": "xhigh",
+      "trial_id": "tb21-mnt-gate-chess-best-move-mnt-nat-cdx",
+      "verifier_rewards": {
+        "reward": 1.0
+      }
+    },
+    {
+      "cli": {
+        "name": "pi",
+        "version": "0.82.1"
+      },
+      "counters": {
+        "cached_tokens": 16768,
+        "input_tokens": 34604,
+        "output_tokens": 5653,
+        "requests": 10
+      },
+      "image_digest": "sha256:bb447f94d9e2a8ed879f85c85a514b213b7418f9fe11fd7b2428a0b0e436e647",
+      "leak_scan": {
+        "clean": true,
+        "ok": true
+      },
+      "model": "gpt-5.6-sol",
+      "revocation": {
+        "active_handlers": 0,
+        "body_handlers": 0,
+        "listener_present": false,
+        "route_active": false,
+        "serving_thread_alive": false
+      },
+      "score_status": "available",
+      "task_id": "chess-best-move",
+      "terminal_state": "terminal-success",
+      "thinking": "xhigh",
+      "trial_id": "tb21-mnt-gate-chess-best-move-mnt-pi-cdx",
+      "verifier_rewards": {
+        "reward": 1.0
+      }
+    },
+    {
+      "cli": {
+        "name": "pi",
+        "version": "2026.8.6"
+      },
+      "counters": {
+        "cached_tokens": 168832,
+        "input_tokens": 211266,
+        "output_tokens": 6802,
+        "requests": 24
+      },
+      "image_digest": "sha256:bb447f94d9e2a8ed879f85c85a514b213b7418f9fe11fd7b2428a0b0e436e647",
+      "leak_scan": {
+        "clean": true,
+        "ok": true
+      },
+      "model": "gpt-5.6-sol",
+      "revocation": {
+        "active_handlers": 0,
+        "body_handlers": 0,
+        "listener_present": false,
+        "route_active": false,
+        "serving_thread_alive": false
+      },
+      "score_status": "available",
+      "task_id": "chess-best-move",
+      "terminal_state": "terminal-success",
+      "thinking": "xhigh",
+      "trial_id": "tb21-mnt-gate-chess-best-move-mnt-cx-dir",
+      "verifier_rewards": {
+        "reward": 1.0
+      }
+    },
+    {
+      "cli": {
+        "name": "codex",
+        "version": "0.148.0"
+      },
+      "counters": {
+        "cached_tokens": 35072,
+        "input_tokens": 62410,
+        "output_tokens": 2438,
+        "requests": 5
+      },
+      "image_digest": "sha256:567ce5a189f8d11ac461790876e934cc7af38391baf89a78f95f4dafc1fec3b0",
+      "leak_scan": {
+        "clean": true,
+        "ok": true
+      },
+      "model": "gpt-5.6-sol",
+      "revocation": {
+        "active_handlers": 0,
+        "body_handlers": 0,
+        "listener_present": false,
+        "route_active": false,
+        "serving_thread_alive": false
+      },
+      "score_status": "available",
+      "task_id": "constraints-scheduling",
+      "terminal_state": "terminal-success",
+      "thinking": "xhigh",
+      "trial_id": "tb21-mnt-gate-constraints-scheduling-mnt-nat-cdx",
+      "verifier_rewards": {
+        "reward": 1.0
+      }
+    },
+    {
+      "cli": {
+        "name": "pi",
+        "version": "0.82.1"
+      },
+      "counters": {
+        "cached_tokens": 2560,
+        "input_tokens": 13004,
+        "output_tokens": 1050,
+        "requests": 4
+      },
+      "image_digest": "sha256:567ce5a189f8d11ac461790876e934cc7af38391baf89a78f95f4dafc1fec3b0",
+      "leak_scan": {
+        "clean": true,
+        "ok": true
+      },
+      "model": "gpt-5.6-sol",
+      "revocation": {
+        "active_handlers": 0,
+        "body_handlers": 0,
+        "listener_present": false,
+        "route_active": false,
+        "serving_thread_alive": false
+      },
+      "score_status": "available",
+      "task_id": "constraints-scheduling",
+      "terminal_state": "terminal-success",
+      "thinking": "xhigh",
+      "trial_id": "tb21-mnt-gate-constraints-scheduling-mnt-pi-cdx",
+      "verifier_rewards": {
+        "reward": 1.0
+      }
+    },
+    {
+      "cli": {
+        "name": "pi",
+        "version": "2026.8.6"
+      },
+      "counters": {
+        "cached_tokens": 29184,
+        "input_tokens": 52197,
+        "output_tokens": 6736,
+        "requests": 7
+      },
+      "image_digest": "sha256:567ce5a189f8d11ac461790876e934cc7af38391baf89a78f95f4dafc1fec3b0",
+      "leak_scan": {
+        "clean": true,
+        "ok": true
+      },
+      "model": "gpt-5.6-sol",
+      "revocation": {
+        "active_handlers": 0,
+        "body_handlers": 0,
+        "listener_present": false,
+        "route_active": false,
+        "serving_thread_alive": false
+      },
+      "score_status": "available",
+      "task_id": "constraints-scheduling",
+      "terminal_state": "terminal-success",
+      "thinking": "xhigh",
+      "trial_id": "tb21-mnt-gate-constraints-scheduling-mnt-cx-dir",
+      "verifier_rewards": {
+        "reward": 1.0
+      }
+    },
+    {
+      "cli": {
+        "name": "codex",
+        "version": "0.148.0"
+      },
+      "counters": {
+        "cached_tokens": 80128,
+        "input_tokens": 99324,
+        "output_tokens": 3549,
+        "requests": 8
+      },
+      "image_digest": "sha256:0e33ea5ec823975d1bd6c3778395c9f94251dd88f571146057bff6adb7e4594e",
+      "leak_scan": {
+        "clean": true,
+        "ok": true
+      },
+      "model": "gpt-5.6-sol",
+      "revocation": {
+        "active_handlers": 0,
+        "body_handlers": 0,
+        "listener_present": false,
+        "route_active": false,
+        "serving_thread_alive": false
+      },
+      "score_status": "available",
+      "task_id": "db-wal-recovery",
+      "terminal_state": "terminal-success",
+      "thinking": "xhigh",
+      "trial_id": "tb21-mnt-gate-db-wal-recovery-mnt-nat-cdx",
+      "verifier_rewards": {
+        "reward": 1.0
+      }
+    },
+    {
+      "cli": {
+        "name": "pi",
+        "version": "0.82.1"
+      },
+      "counters": {
+        "cached_tokens": 35328,
+        "input_tokens": 58551,
+        "output_tokens": 1758,
+        "requests": 8
+      },
+      "image_digest": "sha256:0e33ea5ec823975d1bd6c3778395c9f94251dd88f571146057bff6adb7e4594e",
+      "leak_scan": {
+        "clean": true,
+        "ok": true
+      },
+      "model": "gpt-5.6-sol",
+      "revocation": {
+        "active_handlers": 0,
+        "body_handlers": 0,
+        "listener_present": false,
+        "route_active": false,
+        "serving_thread_alive": false
+      },
+      "score_status": "available",
+      "task_id": "db-wal-recovery",
+      "terminal_state": "terminal-agent-failure",
+      "thinking": "xhigh",
+      "trial_id": "tb21-mnt-gate-db-wal-recovery-mnt-pi-cdx",
+      "verifier_rewards": {
+        "reward": 0.0
+      }
+    },
+    {
+      "cli": {
+        "name": "pi",
+        "version": "2026.8.6"
+      },
+      "counters": {
+        "cached_tokens": 45568,
+        "input_tokens": 62694,
+        "output_tokens": 2177,
+        "requests": 7
+      },
+      "image_digest": "sha256:0e33ea5ec823975d1bd6c3778395c9f94251dd88f571146057bff6adb7e4594e",
+      "leak_scan": {
+        "clean": true,
+        "ok": true
+      },
+      "model": "gpt-5.6-sol",
+      "revocation": {
+        "active_handlers": 0,
+        "body_handlers": 0,
+        "listener_present": false,
+        "route_active": false,
+        "serving_thread_alive": false
+      },
+      "score_status": "available",
+      "task_id": "db-wal-recovery",
+      "terminal_state": "terminal-success",
+      "thinking": "xhigh",
+      "trial_id": "tb21-mnt-gate-db-wal-recovery-mnt-cx-dir",
+      "verifier_rewards": {
+        "reward": 1.0
+      }
+    }
+  ]
+}
