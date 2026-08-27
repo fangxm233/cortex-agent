@@ -1,5 +1,10 @@
+// input:  config/cost/project queries, scope/form state, and shared budget writer
+// output: desktop global and project budget settings panel
+// pos:    Desktop Budget settings view
+// >>> If I am updated, update my header comment and CORTEX.md <<<
+
 import { useEffect, useState, type CSSProperties } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import type { ConfigSnapshot, CostSummary } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { useToast } from '@/design';
@@ -13,15 +18,14 @@ import {
   hasOverride,
   pickScopeBudget,
   buildBudgetValue,
-  budgetSetArgs,
-  budgetClearArgs,
   parseAmountInput,
   isChipActive,
   formatBudgetUsd,
   budgetBarPct,
 } from './budget-vm';
+import { useBudgetWriter } from './useBudgetWriter';
 
-// Budget panel — the ONE live-write surface in settings. A scope selector switches between the
+// Desktop Budget panel — a live-write settings surface. A scope selector switches between the
 // GLOBAL limits and a per-project override; both the daily and the monthly limit are editable in
 // either scope, by quick chip or by typed amount. Every write is a complete pair because overrides
 // are pair-only, so a project that has never been overridden is seeded from the globals it is
@@ -66,8 +70,8 @@ export function BudgetPanel({
 }) {
   const L = useVocab();
   const trpc = useTRPC();
-  const queryClient = useQueryClient();
   const { toast } = useToast();
+  const writer = useBudgetWriter();
 
   const budget = snapshot.budget;
   const [scope, setScope] = useState<BudgetScopeId>(null);
@@ -90,14 +94,9 @@ export function BudgetPanel({
   // Leaving a scope must not carry its typed amount into the next one.
   useEffect(() => setDraft(''), [scope]);
 
-  const setBudget = useMutation(
-    trpc.config.set.mutationOptions({
-      onSuccess: () => {
-        queryClient.invalidateQueries(trpc.config.get.queryFilter({}));
-        queryClient.invalidateQueries(trpc.cost.summary.queryFilter());
-      },
-    }),
-  );
+  const writeFailed = (error: Error) => {
+    toast({ title: `${L.stToastWriteFailed}: ${error.message}`, tone: 'failed' });
+  };
 
   const write = (patch: { daily?: number; monthly?: number }, label: string) => {
     const value = buildBudgetValue(resolved, patch);
@@ -105,10 +104,9 @@ export function BudgetPanel({
       toast({ title: L.stBudgetWriteError, tone: 'waiting' });
       return;
     }
-    setBudget.mutate(budgetSetArgs(scope, value), {
-      onSuccess: () => toast({ title: `${label} · ${L.stToastBudgetWritten}`, tone: 'done' }),
-      onError: (e) => toast({ title: `${L.stToastWriteFailed}: ${e.message}`, tone: 'failed' }),
-    });
+    void writer.write(scope, value)
+      .then(() => toast({ title: `${label} · ${L.stToastBudgetWritten}`, tone: 'done' }))
+      .catch(writeFailed);
   };
 
   const onApplyTyped = (field: 'daily' | 'monthly') => {
@@ -123,10 +121,9 @@ export function BudgetPanel({
 
   const onClearOverride = () => {
     if (!scope) return;
-    setBudget.mutate(budgetClearArgs(scope), {
-      onSuccess: () => toast({ title: `${scope} · ${L.stToastBudgetCleared}`, tone: 'done' }),
-      onError: (e) => toast({ title: `${L.stToastWriteFailed}: ${e.message}`, tone: 'failed' }),
-    });
+    void writer.clear(scope)
+      .then(() => toast({ title: `${scope} · ${L.stToastBudgetCleared}`, tone: 'done' }))
+      .catch(writeFailed);
   };
 
   const limitRow = (
@@ -169,7 +166,7 @@ export function BudgetPanel({
             data-budget-chip={`${field}-${v}`}
             style={{
               ...chipStyle(!resolved.inherited && isChipActive(current, v)),
-              opacity: setBudget.isPending ? 0.6 : 1,
+              opacity: writer.isPending ? 0.6 : 1,
             }}
           >
             {'$' + v}

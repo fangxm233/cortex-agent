@@ -1,3 +1,8 @@
+// input:  budget snapshots, scope selections, and typed daily/monthly drafts
+// output: shared scope, payload, draft, formatting, chip, and spend-bar derivations
+// pos:    Framework-free budget view model for desktop and mobile settings
+// >>> If I am updated, update my header comment and CORTEX.md <<<
+
 import type { ConfigBudget, BudgetValue } from '@cortex-agent/ui-contract';
 
 // Pure derivations for the Budget panel. This module governs the only real write in the settings
@@ -91,6 +96,14 @@ export function parseAmountInput(raw: string): number | null {
   if (cleaned === '' || !/^\d*\.?\d+$/.test(cleaned)) return null;
   const n = Number(cleaned);
   return isWritable(n) ? n : null;
+}
+
+/** Build the complete pair required by either budget editor from its two text fields. */
+export function buildBudgetDraft(daily: string, monthly: string): BudgetValue | null {
+  return buildBudgetValue({ daily: null, monthly: null, inherited: false }, {
+    daily: parseAmountInput(daily) ?? undefined,
+    monthly: parseAmountInput(monthly) ?? undefined,
+  });
 }
 
 export function isChipActive(current: number | null, chip: number): boolean {

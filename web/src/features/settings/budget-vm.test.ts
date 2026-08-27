@@ -1,3 +1,8 @@
+// input:  budget snapshots, scopes, limit patches, and amount drafts
+// output: shared budget scope, payload, parsing, formatting, and bar regressions
+// pos:    Unit specification for the desktop/mobile budget view model
+// >>> If I am updated, update my header comment and CORTEX.md <<<
+
 import { describe, it, expect } from 'vitest';
 import type { ConfigBudget } from '@cortex-agent/ui-contract';
 import {
@@ -7,6 +12,7 @@ import {
   budgetSetArgs,
   budgetClearArgs,
   parseAmountInput,
+  buildBudgetDraft,
   isChipActive,
   budgetBarPct,
 } from './budget-vm';
@@ -96,6 +102,15 @@ describe('config.set arg builders', () => {
 
   it('clears an override by omitting value', () => {
     expect(budgetClearArgs('alpha')).toEqual({ section: 'budget', project: 'alpha' });
+  });
+});
+
+describe('buildBudgetDraft', () => {
+  it('requires and parses the complete daily/monthly pair', () => {
+    expect(buildBudgetDraft('$12.50', '1,000')).toEqual({ daily_usd: 12.5, monthly_usd: 1000 });
+    expect(buildBudgetDraft('10', '')).toBeNull();
+    expect(buildBudgetDraft('', '200')).toBeNull();
+    expect(buildBudgetDraft('0', '100')).toBeNull();
   });
 });
 

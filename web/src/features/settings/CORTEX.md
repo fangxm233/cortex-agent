@@ -19,9 +19,11 @@ Panels read snapshots; Usage independently queries the shared web usage feature.
 | RuntimeSettingsPanels.test.tsx | test | Tests runtime state, validation, failures and production writes |
 | AppearancePanel.tsx | view | Edits language, theme, palette, accent and motion |
 | AppearancePanel.test.tsx | test | Tests theme, palette, accent and motion wiring |
-| BudgetPanel.tsx | view | Writes global and per-project daily/monthly spend limits |
-| budget-vm.ts | vm | Resolves budget scope and builds chips, payload and spend bar |
-| budget-vm.test.ts | test | Tests budget scope, parsing, payloads and percentage arithmetic |
+| BudgetPanel.tsx | view | Keeps desktop budget scope/form/query presentation over the shared writer |
+| budget-vm.ts | vm | Shares budget scope, draft, payload, chip, formatting and spend-bar derivations |
+| budget-vm.test.ts | test | Tests budget scope, drafts, parsing, payloads and percentage arithmetic |
+| useBudgetWriter.ts | hook | Shares budget config.set and config/cost invalidation while preserving write/clear operations |
+| useBudgetWriter.test.tsx | test | Tests writer payloads, operation results, invalidation and failures |
 | ProfilesPanel.tsx | view | Profile table and editor using shared backend transitions and error copy |
 | ProfilesPanel.test.tsx | test | Tests profile permissions, secret safety, errors and delete guard |
 | profiles-panel-vm.ts | vm | Shares profile transitions, validation copy and mutation args across desktop/mobile |

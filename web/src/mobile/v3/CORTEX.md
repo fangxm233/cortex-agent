@@ -88,8 +88,8 @@ Framework-free view models map records to slots and have colocated unit tests.
 | MPlatformScreen.tsx | screen | Shows redacted platform state and queues reconnect approval |
 | MProfilesScreen.tsx | screen | Selects defaults and edits profiles with shared transitions and field errors |
 | MProfilesScreen.test.tsx | test | Tests mobile profile field errors and backend transitions |
-| MBudgetScreen.tsx | screen | Edits global and project daily or monthly budgets |
-| MBudgetScreen.test.ts | test | Tests complete-pair mobile budget initialization |
+| MBudgetScreen.tsx | screen | Keeps mobile budget scope/form/query view over the shared writer and operation toasts |
+| MBudgetScreen.test.ts | test | Tests complete-pair initialization plus clear, write and failure feedback |
 | MMcpScreen.tsx | screen | Lists configured MCP servers read-only |
 | MRuntimeSettingsScreen.tsx | screen | Edits Notifications and Advanced runtime settings |
 | MAppearanceScreen.tsx | screen | Binds device-local appearance state and back route |
