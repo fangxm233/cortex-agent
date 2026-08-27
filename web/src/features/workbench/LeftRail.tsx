@@ -255,8 +255,22 @@ export function LeftRail(): JSX.Element {
       return next;
     });
   };
-  const toggleProject = toggleId(setExpanded, EXPANDED_KEY);
+  const showFewer = (id: string) => {
+    setShowAll((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  };
+  // Closing a folder also forgets that it was uncapped, so re-opening it starts at the cap again
+  // rather than dumping every session back into the rail.
   const toggleSchedules = toggleId(setSchedExpanded, SCHED_EXPANDED_KEY);
+  const toggleProjectExpansion = toggleId(setExpanded, EXPANDED_KEY);
+  const toggleProject = (id: string) => {
+    if (expanded.has(id)) showFewer(id);
+    toggleProjectExpansion(id);
+  };
   const openProject = (id: string) => {
     setExpanded((prev) => {
       if (prev.has(id)) return prev;
@@ -278,6 +292,7 @@ export function LeftRail(): JSX.Element {
         schedules: schedulesQuery.data ?? [],
         threads: threadsQuery.data ?? [],
         selectedSessionId,
+        fallbackProjectId: currentProjectId,
         expanded,
         schedulesExpanded: schedExpanded,
         showAll,
@@ -290,7 +305,8 @@ export function LeftRail(): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       projects, directSessions, scheduledSessions, schedulesQuery.data, threadsQuery.data,
-      selectedSessionId, expanded, schedExpanded, showAll, filter, sort, manualOrder, dragged,
+      selectedSessionId, currentProjectId, expanded, schedExpanded, showAll, filter, sort,
+      manualOrder, dragged,
     ],
   );
 
@@ -612,6 +628,7 @@ export function LeftRail(): JSX.Element {
           onToggleProject={toggleProject}
           onToggleSchedules={toggleSchedules}
           onShowAll={(id) => setShowAll((prev) => new Set(prev).add(id))}
+          onShowFewer={showFewer}
           onOpenSession={onOpenSession}
           onNewSessionIn={newSessionIn}
           onOverview={onOverview}

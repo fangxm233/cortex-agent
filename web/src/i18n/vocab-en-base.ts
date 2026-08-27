@@ -253,6 +253,7 @@ export const enBase = {
   wbFilterSessions: 'Filter sessions in all projects…',
   wbFilterNoMatch: 'No matching session',
   wbShowAllSessions: 'Show all {n}',
+  wbShowFewerSessions: 'Show fewer',
   wbSchedGroup: 'Scheduled',
   wbSortMode: 'Sort',
   wbSortActivity: 'Recent activity',

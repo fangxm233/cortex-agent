@@ -50,6 +50,8 @@ export interface RailProjectNode {
   sessions: RailSessionRow[];
   /** Sessions this project has beyond the ones in `sessions`. */
   hiddenSessions: number;
+  /** Uncapped by an explicit "show all" that is still holding back rows — offer the way out. */
+  showingAll: boolean;
   totalSessions: number;
   schedules: ScheduleRow[];
   schedulesExpanded: boolean;
@@ -65,6 +67,8 @@ export interface RailTreeInput {
   schedules: ScheduleInfo[];
   threads: ThreadInfo[];
   selectedSessionId: string | null;
+  /** Project to call current while the selection owns none — a draft session, or none at all. */
+  fallbackProjectId: string | null;
   expanded: ReadonlySet<string>;
   schedulesExpanded: ReadonlySet<string>;
   showAll: ReadonlySet<string>;
@@ -152,7 +156,7 @@ export function projectOfSession(
 export function buildRailTree(input: RailTreeInput): RailTree {
   const {
     projects, directSessions, scheduledSessions, schedules, threads,
-    selectedSessionId, expanded, schedulesExpanded, showAll,
+    selectedSessionId, fallbackProjectId, expanded, schedulesExpanded, showAll,
     sort, manualOrder, dragged, now,
   } = input;
   const cap = input.cap ?? FOLDER_SESSION_CAP;
@@ -180,7 +184,11 @@ export function buildRailTree(input: RailTreeInput): RailTree {
   const byId = new Map(projects.map((p) => [p.id, p]));
   const orderedProjects = order.map((id) => byId.get(id)).filter((p): p is ProjectConduitInfo => !!p);
 
-  const currentProjectId = projectOfSession(selectedSessionId, directSessions, scheduledSessions);
+  // A draft session belongs to no project yet, and an empty workbench has no selection at all. In
+  // both cases the folder the user last acted in stays lit, because that is where the next message
+  // will land — "New session" with nothing highlighted would hide which project it targets.
+  const currentProjectId =
+    projectOfSession(selectedSessionId, directSessions, scheduledSessions) ?? fallbackProjectId;
 
   let hotkeyIndex = 0;
   let totalMatches = 0;
@@ -201,7 +209,8 @@ export function buildRailTree(input: RailTreeInput): RailTree {
     // A filter expands every folder that has a hit and shows all of them — capping a search result
     // would hide the very row the user is looking for.
     const rows = orderSessions(matching);
-    const visible = filtering || showAll.has(project.id) ? rows : rows.slice(0, cap);
+    const uncapped = showAll.has(project.id);
+    const visible = filtering || uncapped ? rows : rows.slice(0, cap);
 
     const activityMs = lastActivity[project.id];
     const hasSignal = running > 0 || attention > 0;
@@ -229,6 +238,9 @@ export function buildRailTree(input: RailTreeInput): RailTree {
         selected: s.sessionId === selectedSessionId,
       })),
       hiddenSessions: Math.max(0, rows.length - visible.length),
+      // A filter uncaps the folder on its own, so it offers no "show fewer" — closing the search is
+      // the way back from that one.
+      showingAll: uncapped && !filtering && rows.length > cap,
       totalSessions: own.length,
       schedules: scheduleRows,
       schedulesExpanded: schedulesExpanded.has(project.id),

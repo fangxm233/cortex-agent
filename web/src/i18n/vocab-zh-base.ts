@@ -253,6 +253,7 @@ export const zhBase = {
   wbFilterSessions: '在所有项目里过滤会话…',
   wbFilterNoMatch: '没有匹配的会话',
   wbShowAllSessions: '展开全部 {n}',
+  wbShowFewerSessions: '收起',
   wbSchedGroup: '定时',
   wbSortMode: '排序方式',
   wbSortActivity: '最近活动',

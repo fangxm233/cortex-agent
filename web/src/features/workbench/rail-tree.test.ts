@@ -80,6 +80,7 @@ const input = (over: Partial<RailTreeInput> = {}): RailTreeInput => ({
   schedules: [],
   threads: [],
   selectedSessionId: null,
+  fallbackProjectId: null,
   expanded: new Set<string>(),
   schedulesExpanded: new Set<string>(),
   showAll: new Set<string>(),
@@ -252,6 +253,38 @@ describe('buildRailTree session rows', () => {
     expect(byId.nimbus.sessions).toHaveLength(12);
     expect(byId.nimbus.hiddenSessions).toBe(0);
     expect(byId.orchard.sessions).toHaveLength(8);
+    // the uncapped folder offers the way back; the capped one still offers the way in
+    expect(byId.nimbus.showingAll).toBe(true);
+    expect(byId.orchard.showingAll).toBe(false);
+  });
+
+  it('does not offer show-fewer when the folder fits under the cap anyway', () => {
+    const tree = buildRailTree(
+      input({
+        projects: [project('nimbus')],
+        directSessions: [session('nimbus'), session('nimbus')],
+        expanded: new Set(['nimbus']),
+        showAll: new Set(['nimbus']),
+        cap: 8,
+      }),
+    );
+    expect(tree.projects[0].showingAll).toBe(false);
+    expect(tree.projects[0].hiddenSessions).toBe(0);
+  });
+
+  it('a filter uncaps without claiming show-all — closing the search is the way back', () => {
+    const tree = buildRailTree(
+      input({
+        projects: [project('nimbus')],
+        directSessions: Array.from({ length: 12 }, (_, i) =>
+          session('nimbus', { label: 'run ' + i, lastUsedAt: ago((i + 1) * MIN) }),
+        ),
+        filter: 'run',
+        cap: 8,
+      }),
+    );
+    expect(tree.projects[0].sessions).toHaveLength(12);
+    expect(tree.projects[0].showingAll).toBe(false);
   });
 
   it('carries the relative age and the exact stamp for the tooltip', () => {
@@ -384,6 +417,33 @@ describe('buildRailTree current project', () => {
     expect(tree.currentProjectId).toBe('orchard');
     expect(tree.projects.filter((p) => p.current).map((p) => p.id)).toEqual(['orchard']);
     expect(tree.projects.find((p) => p.id === 'orchard')!.sessions[0].selected).toBe(true);
+  });
+
+  it('keeps the fallback project current while the selection owns none (draft session)', () => {
+    const tree = buildRailTree(
+      input({
+        projects: [project('nimbus'), project('orchard')],
+        directSessions: [session('nimbus'), session('orchard')],
+        selectedSessionId: '__draft__',
+        fallbackProjectId: 'orchard',
+      }),
+    );
+    expect(tree.currentProjectId).toBe('orchard');
+    expect(tree.projects.filter((p) => p.current).map((p) => p.id)).toEqual(['orchard']);
+    expect(tree.projects.flatMap((p) => p.sessions).some((r) => r.selected)).toBe(false);
+  });
+
+  it('a resolvable selection outranks the fallback', () => {
+    const picked = session('nimbus', { label: 'picked' });
+    const tree = buildRailTree(
+      input({
+        projects: [project('nimbus'), project('orchard')],
+        directSessions: [picked],
+        selectedSessionId: picked.sessionId,
+        fallbackProjectId: 'orchard',
+      }),
+    );
+    expect(tree.currentProjectId).toBe('nimbus');
   });
 });
 

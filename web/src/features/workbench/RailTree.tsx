@@ -118,6 +118,7 @@ export interface RailTreeProps {
   onToggleProject: (id: string) => void;
   onToggleSchedules: (id: string) => void;
   onShowAll: (id: string) => void;
+  onShowFewer: (id: string) => void;
   onOpenSession: (row: RailSessionRow) => void;
   onNewSessionIn: (projectId: string) => void;
   onOverview: (projectId: string) => void;
@@ -274,8 +275,8 @@ export function RailTree(props: RailTreeProps): JSX.Element {
           display: 'flex',
           alignItems: 'center',
           gap: 6,
-          minHeight: 25,
-          padding: '4px 8px 4px 28px',
+          minHeight: 28,
+          padding: '5px 8px 5px 28px',
           borderRadius: 7,
           cursor: 'pointer',
           background: row.selected
@@ -307,7 +308,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
           style={{
             flex: 1,
             minWidth: 0,
-            fontSize: 12.5,
+            fontSize: 13,
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -344,11 +345,11 @@ export function RailTree(props: RailTreeProps): JSX.Element {
           display: 'flex',
           alignItems: 'center',
           gap: 6,
-          minHeight: 24,
+          minHeight: 26,
           padding: '4px 8px 4px 42px',
           borderRadius: 7,
           cursor: 'pointer',
-          fontSize: 12,
+          fontSize: 12.5,
           color: row.unread ? 'var(--proto-ink)' : 'var(--proto-muted)',
           fontWeight: row.unread ? 600 : 400,
           background: isHover(key) ? 'var(--proto-gray)' : 'transparent',
@@ -412,7 +413,12 @@ export function RailTree(props: RailTreeProps): JSX.Element {
             display: 'flex',
             alignItems: 'center',
             gap: 8,
-            padding: '5px 8px 5px 4px',
+            // Fixed, not padding-derived: hovering swaps the trailing age/hotkey for two 22px icon
+            // buttons, and a height that follows its content would make every row jump under the
+            // cursor. 30px clears the tallest thing the slot can hold.
+            height: 30,
+            boxSizing: 'border-box',
+            padding: '0 8px 0 4px',
             borderRadius: 8,
             cursor: 'pointer',
             opacity: dragId === node.id ? 0.45 : 1,
@@ -446,7 +452,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
             style={{
               flex: 1,
               minWidth: 0,
-              fontSize: 12.5,
+              fontSize: 13,
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -544,21 +550,26 @@ export function RailTree(props: RailTreeProps): JSX.Element {
               style={{ position: 'absolute', left: 16.5, top: -2, bottom: 5, width: 1, background: 'var(--proto-line)' }}
             />
             {node.sessions.map(renderSession)}
-            {node.hiddenSessions > 0 && (
+            {/* The cap has two directions and only ever one link: open the rest, or take it back.
+                Without the second the folder would stay uncapped for the rest of the visit. */}
+            {(node.hiddenSessions > 0 || node.showingAll) && (
               <div
                 {...hp('more:' + node.id)}
                 onClick={(e) => {
                   e.stopPropagation();
-                  props.onShowAll(node.id);
+                  if (node.showingAll) props.onShowFewer(node.id);
+                  else props.onShowAll(node.id);
                 }}
                 style={{
                   padding: '3px 8px 6px 28px',
-                  fontSize: 11,
+                  fontSize: 11.5,
                   cursor: 'pointer',
                   color: isHover('more:' + node.id) ? 'var(--proto-accent)' : 'var(--proto-muted-2)',
                 }}
               >
-                {L.wbShowAllSessions.replace('{n}', String(node.totalSessions))}
+                {node.showingAll
+                  ? L.wbShowFewerSessions
+                  : L.wbShowAllSessions.replace('{n}', String(node.totalSessions))}
               </div>
             )}
             {node.schedules.length > 0 && (
@@ -574,7 +585,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
                     alignItems: 'center',
                     gap: 6,
                     padding: '4px 8px 5px 28px',
-                    fontSize: 11,
+                    fontSize: 11.5,
                     cursor: 'pointer',
                     color: isHover('schedhead:' + node.id) ? 'var(--proto-ink-2)' : 'var(--proto-muted-2)',
                   }}
