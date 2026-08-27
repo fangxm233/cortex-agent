@@ -16,8 +16,6 @@ gateway and wire protocol, and the Web UI HTTP transport.
 | tui-protocol.test.ts | test | Covers TUI frame parsing and encoding |
 | tui-transcript.test.ts | test | Covers TUI transcript replay building |
 | ui-http-app-router.test.ts | test | Covers tRPC mapping, draft ids and errors |
-| ui-http-lazy-driver.mjs | util | Drives the transport lazy-load check |
-| ui-http-lazy-hooks.mjs | util | Records resolved module specifiers |
 | ui-http-server.test.ts | test | Covers HTTP transport, auth, file routes, SPA and OTA |
 | ui-ota.test.ts | test | Covers desktop UI OTA manifest and bundle |
 | zip-writer.test.ts | test | Covers deterministic ZIP encoding |

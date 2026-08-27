@@ -36,8 +36,6 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | auto-compound.test.ts | test | compound trigger gating and output merge |
 | builtin-job-migration.test.ts | test | migrates legacy schedules into built-in settings |
 | builtin-jobs.test.ts | test | covers job registration, timers and shutdown |
-| benchmark-cli-artifact-stub | fixture | Frozen CLI golden fixture |
-| benchmark-policy-system-prompt.txt | fixture | Pins representative compiled policy prompt bytes |
 | claim-recovery.test.ts | test | Generation-fenced orphan claim recovery |
 | cli-utils.test.ts | test | shared CLI error rendering |
 | cli.test.ts | test | cortex CLI routing, auth JSON framing and daemon control |
@@ -152,7 +150,6 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | task-origin-wake.test.ts | test | origin wake precedence and notice framing |
 | task-parent-split.test.ts | test | Task parent fields, split facts and owned outcomes |
 | task-parser.test.ts | test | Task schema round trips, query, lint and health |
-| task-store.test.ts | test | task store exclusive mutex serialization |
 | task-verdict-cli.test.ts | test | task verdict subcommand recording |
 | template-resolver.test.ts | test | prompt template vars, blocks, conditionals |
 | thread-abort.test.ts | test | thread abort control plane state |

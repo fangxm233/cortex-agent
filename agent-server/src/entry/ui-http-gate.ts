@@ -1,17 +1,14 @@
-// input:  a composed UiService + env (CORTEX_UI_HTTP gate)
-// output: startUiHttpIfEnabled(uiService, env?) -> { close } | null — starts the in-core Web UI
-//         transport-host when CORTEX_UI_HTTP is truthy, else returns null WITHOUT importing it.
-// pos:    The CORTEX_UI_HTTP seam between the composition root (entry/app.ts) and the Web UI
-//         wiring (entry/start-ui-http.ts). This module statically imports ONLY node builtins + an
-//         erased `import type`; the dynamic `import('./start-ui-http.js')` is the SOLE runtime edge
-//         from the core boot graph to @trpc/server + jose (both pulled transitively by start-ui-http
-//         → domain/ui-service/app-router + platform/ui-http). When the flag is off it is never taken,
-//         so neither dependency enters the runtime module graph (proven by
-//         tests/platform/ui-http-lazy-load.test.ts). Keep this file free of any static runtime import
-//         of the transport modules — that is the whole point.
-// >>> If I am updated, update CORTEX.md <<<
+// input:  UiService, CORTEX_UI_HTTP environment flag
+// output: optional Web UI HTTP server handle
+// pos:    Lazily gates the Web UI HTTP transport startup
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { UiService } from '@domain/ui-service/types.js';
+
+/**
+ * Keep this module free of static runtime transport imports. The dynamic import below is the sole
+ * edge from the core boot graph to @trpc/server and jose, so a disabled UI keeps them unloaded.
+ */
 
 /** Handle app.ts holds for shutdown — structural, so this module needs no transport types at runtime. */
 export interface UiHttpHandle {

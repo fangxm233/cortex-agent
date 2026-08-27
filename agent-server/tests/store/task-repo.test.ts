@@ -112,6 +112,16 @@ test('runExclusive — overlapping async ops stay serialized', async () => {
   assert.deepEqual(operations, ['start-claim', 'end-claim', 'start-complete', 'end-complete']);
 });
 
+test('runExclusive — errors propagate without leaving the mutex locked', async () => {
+  const repo = new TaskRepo({ skipGit: true });
+
+  await assert.rejects(
+    () => repo.runExclusive(() => { throw new Error('boom'); }),
+    { message: 'boom' },
+  );
+  assert.equal(await repo.runExclusive(() => 42), 42);
+});
+
 // ── Test 3: Mid-mutate flush() resolves cleanly ──────────────────
 
 test('flush() resolves after all enqueued mutations complete', async () => {

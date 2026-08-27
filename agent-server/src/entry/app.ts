@@ -604,8 +604,7 @@ process.on('SIGTERM', async () => {
   // platform/ui-http and pulls @trpc/server + jose. Core (Slack/TUI-only) must not load it: the
   // gate module does the CORTEX_UI_HTTP check and, only in the enabled branch, dynamic-imports the
   // transport — so an unset flag means @trpc/server + jose never enter the runtime graph. app.ts
-  // statically imports only the gate (node builtins + an erased type), keeping its static graph
-  // @trpc-free (guarded by tests/platform/ui-http-lazy-load.test.ts).
+  // statically imports only the import-free gate, keeping its static graph @trpc-free.
   try {
     _uiHttpServer = await startUiHttpIfEnabled(uiService);
   } catch (e) {
