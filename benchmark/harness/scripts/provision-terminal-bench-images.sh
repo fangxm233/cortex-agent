@@ -237,30 +237,103 @@ stage_verifier() {
   find "$tree" -type d -name __pycache__ -prune -exec rm -r {} +
   expected="${VERIFIER_TREE_SHA256:-$(json_text 'verifier.tree_sha256')}"
   verify 'verifier tree sha256' "$(tree_sha256 "$tree")" "$expected"
+  stage_verifier_python
   write_verifier_wrappers
+}
+
+# Stage a relocatable interpreter for the 25 task images that ship none.
+stage_verifier_python() {
+  local python_version source root dest
+  python_version="$(json_text 'verifier.python_version')"
+  # It has to be a uv-MANAGED build. The host's system python is linked against this host's
+  # library paths and is not relocatable into a task image; uv's are python-build-standalone
+  # builds, which are relocatable and target glibc 2.17, older than any image in this corpus.
+  source="$(uv python find --managed-python "$python_version" 2>/dev/null || true)"
+  if [[ -z "$source" && "$ACQUIRE" == 1 ]]; then
+    uv python install "$python_version" >/dev/null
+    source="$(uv python find --managed-python "$python_version")"
+  fi
+  test -n "$source" || {
+    printf 'no uv-managed CPython %s to stage; re-run with --acquire\n' "$python_version" >&2
+    exit 1
+  }
+  root="$(cd "$(dirname "$source")/.." && pwd)"
+  test -x "$root/bin/python3" || {
+    printf 'staged interpreter root has no bin/python3: %s\n' "$root" >&2; exit 1
+  }
+  dest="$BUILD_ROOT/runtime/verifier/python"
+  rm -rf "$dest"
+  mkdir -p "$dest"
+  cp -a "$root/." "$dest/"
+  find "$dest" -type d -name __pycache__ -prune -exec rm -r {} +
+  "$dest/bin/python3" -c 'import sys; sys.exit(0)' || {
+    printf 'staged interpreter does not run: %s\n' "$dest/bin/python3" >&2; exit 1
+  }
 }
 
 write_verifier_wrappers() {
   local bin="$BUILD_ROOT/runtime/verifier/bin"
   mkdir -p "$bin"
+  # The image's own python3 comes first, and the bundled interpreter is only a fallback. That
+  # order is the whole point: a task whose tests `import numpy` or build a C extension against
+  # `/usr/local/include/python3.13` needs the interpreter those packages were installed for, and
+  # substituting ours would break tests that work today. But 25 of the 89 task images ship no
+  # python at all, and there this shim died with `exec: python3: not found` -- 116 trials across
+  # the two 2026-08-27 segments scored 0 because the VERIFIER could not start, not because the
+  # agent failed. An image with no python also has no image-installed python packages to import,
+  # so the fallback is safe exactly where it is needed.
   cat > "$bin/uvx" <<'EOF'
 #!/bin/sh
 set -eu
 while [ "$#" -gt 0 ]; do
   case "$1" in
     -p|-w) shift 2 ;;
-    pytest) shift; PYTHONPATH=/opt/terminal-bench-verifier/site-packages exec python3 -m pytest "$@" ;;
+    pytest)
+      shift
+      if command -v python3 >/dev/null 2>&1; then
+        interpreter=python3
+      else
+        interpreter=/opt/terminal-bench-verifier/python/bin/python3
+      fi
+      PYTHONPATH=/opt/terminal-bench-verifier/site-packages exec "$interpreter" -m pytest "$@"
+      ;;
     *) printf 'unsupported offline uvx argument: %s\n' "$1" >&2; exit 2 ;;
   esac
 done
 EOF
+  # An install request for a package the image already carries is a no-op for real apt-get, and
+  # refusing it was simply wrong: `sam-cell-seg` asks for git and ships git, `extract-elf` asks for
+  # gcc and ships gcc. Those trials scored 0 on a verifier that stopped before running a single
+  # test. This asks dpkg what is actually installed and only refuses what is genuinely absent --
+  # naming it, so the log says which package the offline trial could not supply instead of
+  # repeating a fixed sentence about curl.
   cat > "$bin/apt-get" <<'EOF'
 #!/bin/sh
 case "${1:-}" in
   update) exit 0 ;;
-  install) shift; [ "${1:-}" = -y ] && shift; [ "$#" -eq 1 ] && [ "$1" = curl ] && exit 0 ;;
+  install)
+    shift
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        -y|-q|-qq|--yes|--quiet|--no-install-recommends) shift ;;
+        *) break ;;
+      esac
+    done
+    missing=''
+    for package in "$@"; do
+      # curl is served by the shim beside this one, whatever the image holds.
+      [ "$package" = curl ] && continue
+      if command -v dpkg >/dev/null 2>&1 && dpkg -s "$package" >/dev/null 2>&1; then
+        continue
+      fi
+      missing="$missing $package"
+    done
+    [ -z "$missing" ] && exit 0
+    printf 'offline apt-get cannot install:%s\n' "$missing" >&2
+    exit 2
+    ;;
 esac
-printf 'offline apt-get supports only update and install -y curl\n' >&2
+printf 'offline apt-get supports only update and install\n' >&2
 exit 2
 EOF
   cat > "$bin/curl" <<'EOF'
