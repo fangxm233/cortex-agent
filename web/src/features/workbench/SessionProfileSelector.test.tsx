@@ -1,9 +1,9 @@
 // input:  Mocked profile config, shared selector and mutations
-// output: Profile routing, interaction and mobile-aligned chrome regressions
+// output: Shared draft/live profile routing and interaction regressions
 // pos:    Composer profile selector behavior specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { LangProvider } from '@/i18n';
 
 const harness = vi.hoisted(() => ({
@@ -80,21 +80,6 @@ afterEach(() => {
 });
 
 describe('SessionProfileSelector', () => {
-  it('keeps the desktop profile label while matching mobile color and icon chrome', () => {
-    const renderer = mount({ isDraft: false, currentProfile: 'plan', hasHistory: false });
-    const chip = renderer.root.findByProps({ 'data-chip': 'profile' });
-
-    expect(JSON.stringify(renderer.toJSON())).toContain('profile · plan');
-    expect(JSON.stringify(renderer.toJSON())).not.toContain('▾');
-    expect(chip.props.style).toMatchObject({
-      border: '1.5px solid var(--m-run-border)',
-      background: 'var(--m-card)',
-      color: 'var(--m-run)',
-    });
-    expect(chip.children).toHaveLength(2);
-    expect((chip.children[0] as ReactTestInstance).props.style.background).toBe('var(--m-run)');
-  });
-
   it('lets another composer action reuse the same selection controller', () => {
     const pickProfile = vi.fn();
     const renderer = create(

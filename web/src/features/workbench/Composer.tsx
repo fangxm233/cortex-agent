@@ -1,5 +1,5 @@
 // input:  session/browser state, UI shortcuts, media and drafts
-// output: mobile-aligned composer card with browser startup and run status
+// output: guarded composer with browser startup and run status
 // pos:    Workbench message input and turn-control surface
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useRef, useState, useCallback, useEffect, useLayoutEffect, type ReactNode } from 'react';
@@ -245,7 +245,6 @@ export function Composer({
   const cancelMut = useMutation(trpc.sessions.cancel.mutationOptions());
   const createAndSendMut = useMutation(trpc.sessions.createAndSend.mutationOptions());
   const [composer, setComposer] = useState('');
-  const [composerFocused, setComposerFocused] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -363,7 +362,7 @@ export function Composer({
   const hasPendingUploads = attachments.some((a) => a.status === 'pending' || a.status === 'uploading');
   const hasText = !!composer.trim();
   const canSend = (hasText || doneAttachments.length > 0) && (!!sessionId || isDraft) && !sendMut.isPending && !createAndSendMut.isPending;
-  const composerBorder = slashOpen || dragOver || composerFocused ? 'var(--m-run)' : 'var(--proto-line-3)';
+  const composerBorder = slashOpen ? 'var(--proto-accent)' : dragOver ? 'var(--proto-accent)' : 'var(--proto-line-3)';
   const sendBg = canSend ? 'var(--proto-ink)' : 'var(--proto-line-3)';
   // Real agent-turn count; render — when unknown (no run yet / running turn before first progress).
   const turnsText = turns == null ? DASH : `${turns} ${L.wbTurnsUnit}`;
@@ -907,13 +906,12 @@ export function Composer({
 
         {/* Composer card — doubles as drop zone (15a) */}
         <div
-          data-composer-card
           style={{
             position: 'relative',
-            border: dragOver ? '1.5px dashed var(--m-run)' : '1.5px solid ' + composerBorder,
-            borderRadius: 18,
-            background: dragOver ? 'var(--proto-rail)' : 'var(--m-card)',
-            boxShadow: dragOver ? 'none' : composerFocused ? 'var(--focus-ring-accent)' : 'var(--shadow-card-soft)',
+            border: dragOver ? '1.5px dashed var(--proto-accent)' : '1.5px solid ' + composerBorder,
+            borderRadius: 12,
+            background: dragOver ? 'var(--proto-rail)' : 'var(--proto-card)',
+            boxShadow: dragOver ? 'none' : 'var(--shadow-card-soft)',
             padding: '10px 12px 10px 14px',
           }}
         >
@@ -976,8 +974,6 @@ export function Composer({
                   }}
                   onKeyDown={onKey}
                   onPaste={onPaste}
-                  onFocus={() => setComposerFocused(true)}
-                  onBlur={() => setComposerFocused(false)}
                   placeholder={hasAttachments ? L.wbAttachPlaceholder : L.composerPh}
                   style={{
                     width: '100%',
