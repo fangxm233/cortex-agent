@@ -1,7 +1,7 @@
 Please update me when files in this folder change
 
 Non-blocking issue queue read from each project's issue file.
-Entries can be deleted or handed to a new direct session seeded with the issue text.
+Entries use neutral project scope and can be deleted or handed to a new direct session seeded with the issue text.
 
 | filename | role | function |
 |---|---|---|

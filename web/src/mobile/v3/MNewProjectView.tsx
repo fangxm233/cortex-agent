@@ -1,10 +1,18 @@
+// input:  controlled project name, shared create state, localized copy, and sheet actions
+// output: mobile new-project bottom-sheet content with real backend errors
+// pos:    Presentational project creation sheet
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1i L509-518)
-// 1i 新建项目 — presentational bottom-sheet content. Pure: no data, no tRPC. The MBottomSheet kit
-// renders the dimmed overlay + rounded sheet + drag handle; this View fills the sheet body: title
-// row + faint projects/ tag · 48px controlled name input · hint · 48px ink create button.
 import type { ReactNode } from 'react';
 import { MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
-import { canCreate, type MNewProjectCopy } from './m-new-project-vm';
+import { canCreateProject } from '@/features/projects/new-project';
+
+export interface MNewProjectCopy {
+  title: string;
+  tag: string;
+  placeholder: string;
+  create: string;
+}
 
 export function MNewProjectView({
   name,
@@ -12,6 +20,8 @@ export function MNewProjectView({
   onCreate,
   onClose,
   copy,
+  error,
+  pending,
   behind,
 }: {
   name: string;
@@ -19,9 +29,12 @@ export function MNewProjectView({
   onCreate: () => void;
   onClose: () => void;
   copy: MNewProjectCopy;
+  error: string | null;
+  pending: boolean;
   behind?: ReactNode;
 }) {
-  const creatable = canCreate(name);
+  const creatable = canCreateProject(name);
+  const submittable = creatable && !pending;
   return (
     <MBottomSheet onClose={onClose} behind={behind}>
       {/* title row (L511) */}
@@ -39,7 +52,7 @@ export function MNewProjectView({
         value={name}
         onChange={(e) => onNameChange(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && creatable) onCreate();
+          if (e.key === 'Enter' && submittable) onCreate();
         }}
         placeholder={copy.placeholder}
         autoFocus
@@ -57,11 +70,21 @@ export function MNewProjectView({
         }}
       />
 
+      {error && (
+        <div
+          data-project-create-error={true}
+          style={{ marginTop: 8, fontSize: 11, lineHeight: 1.5, color: 'var(--proto-danger)' }}
+        >
+          {error}
+        </div>
+      )}
+
       {/* create-and-chat button (L517) */}
       <button
         type="button"
         onClick={onCreate}
-        disabled={!creatable}
+        disabled={!submittable}
+        aria-busy={pending}
         style={{
           width: '100%',
           height: 48,
@@ -75,8 +98,8 @@ export function MNewProjectView({
           fontSize: 14,
           fontWeight: 600,
           marginTop: 12,
-          opacity: creatable ? 1 : 0.45,
-          cursor: creatable ? 'pointer' : 'default',
+          opacity: submittable ? 1 : 0.45,
+          cursor: submittable ? 'pointer' : 'default',
         }}
       >
         {copy.create}

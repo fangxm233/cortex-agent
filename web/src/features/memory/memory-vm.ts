@@ -5,8 +5,7 @@
 import type { MemoryTree, MemoryLineDiff, MemoryBlameLine } from '@cortex-agent/ui-contract';
 
 // Pure view-model helpers for the memory viewer 7b center view (prototype.dc.html L658–719). No JSX,
-// no fabricated data. Precedent: features/overview/overview-vm.ts. `deriveActiveProjectId` is reused
-// from overview-vm (single source of the active-project rule).
+// no fabricated data. Project selection is owned separately by features/projects.
 
 export interface TreeRow {
   /** Display name — dirs carry a trailing slash. */

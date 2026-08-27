@@ -1,22 +1,15 @@
-// input:  project registry and shared unscoped session queries
-// output: selected desktop project context
-// pos:    Derives and owns the workbench project selection
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+// input:  project registry, shared unscoped session queries, and explicit selections
+// output: shared current-project context for desktop and mobile consumers
+// pos:    Cross-surface project selection state owner
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { resolveCurrentProjectId } from './current-project';
-import { useAllSessions } from './useProjectSessions';
+import { useAllSessions } from '@/features/workbench/useProjectSessions';
 
-// Cross-pane "current project" state (task 569c). A single source of truth for which project the
-// workbench is scoped to, shared by the LeftRail project switcher (writer) and the panes that read it
-// (RightPanel cost bar). The provider owns the derivation — it queries projects + direct sessions
-// (react-query dedupes with LeftRail's identical queries, so no extra network) and holds an explicit
-// user override set via the switcher. Effective currentProjectId = override ?? derived default; an
-// explicit switch is sticky (wins over the most-recent-session default). Scoped to WorkbenchPage.
-
-interface CurrentProjectContextValue {
+export interface CurrentProjectContextValue {
   currentProjectId: string | null;
   setCurrentProject: (id: string) => void;
 }
@@ -35,7 +28,6 @@ export function CurrentProjectProvider({ children }: { children: ReactNode }) {
     sessionsQuery.data ?? [],
     projectsQuery.data ?? [],
   );
-
   const setCurrentProject = useCallback((id: string) => setOverride(id), []);
   const value = useMemo(
     () => ({ currentProjectId, setCurrentProject }),
@@ -48,9 +40,9 @@ export function CurrentProjectProvider({ children }: { children: ReactNode }) {
 }
 
 export function useCurrentProject(): CurrentProjectContextValue {
-  const ctx = useContext(CurrentProjectContext);
-  if (!ctx) {
+  const context = useContext(CurrentProjectContext);
+  if (!context) {
     throw new Error('useCurrentProject must be used within a CurrentProjectProvider');
   }
-  return ctx;
+  return context;
 }

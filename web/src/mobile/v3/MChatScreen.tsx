@@ -8,7 +8,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLang, useVocab } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
-import { useMobileProject } from '@/mobile/current-project';
+import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import {
   resolveTurns,
   currentTurnElapsedMs,
@@ -168,7 +168,7 @@ export function MChatScreen(): JSX.Element {
   const lang = useLang();
   const vocab = useVocab();
   const copy = pickCopy(lang, COPY);
-  const { currentProjectId } = useMobileProject();
+  const { currentProjectId } = useCurrentProject();
   const { sessionId: routeParam } = useParams<{ sessionId: string }>();
   const isDraft = routeParam === 'new';
 

@@ -16,7 +16,7 @@ import { invalidateActiveSubagentTranscriptQueries, useSessionMessageLiveSync } 
 import { useInteractionActions } from './useInteractionActions';
 import { useMarkSessionRead } from './useMarkSessionRead';
 import { buildTranscriptRows, turnCount, resolveTurns, currentTurnElapsedMs, formatElapsed, formatDividerFromVocab } from './transcript-vm';
-import { useCurrentProject } from './CurrentProjectProvider';
+import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useSelectedSession } from './SelectedSessionProvider';
 import { useOptimisticUserMessages } from './useOptimisticUserMessages';
 import { scheduledRunTitle } from './schedule-rail';

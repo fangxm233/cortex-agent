@@ -12,7 +12,7 @@ import { useVocab } from '@/i18n';
 import { useExecutionLogDrawer } from '@/features/execution/ExecutionLogDrawerProvider';
 import { useScheduleModal } from '@/features/schedule/ScheduleModalProvider';
 import { useIssues } from '@/features/issues/IssuesProvider';
-import { useCurrentProject } from '@/features/workbench/CurrentProjectProvider';
+import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { NotesButton } from '@/features/notes/NotesButton';
 import { NotesOverviewCard } from '@/features/notes/NotesOverviewCard';
 import { useNotes } from '@/features/notes/NotesProvider';

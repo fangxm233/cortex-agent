@@ -11,7 +11,7 @@ import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
 import { projectInitials } from '@/features/workbench/session-groups';
 import { useTasksLiveSync } from '@/features/tasks/useTasksLiveSync';
-import { useMobileProject } from '@/mobile/current-project';
+import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { groupMobileTasks } from '@/mobile/mobile-tasks';
 import { MScreen, MC } from '@/mobile/ui/kit';
 import { MTasksView, type MTasksCopy } from './MTasksView';
@@ -57,7 +57,7 @@ function useMobileTaskGroups(projectId: string | null) {
 export function MTasksScreen() {
   const navigate = useNavigate();
   const copy = pickCopy(useLang(), COPY);
-  const { currentProjectId } = useMobileProject();
+  const { currentProjectId } = useCurrentProject();
   const { query, groups } = useMobileTaskGroups(currentProjectId);
   const expanded = useExpandedTasks();
   const scope = currentProjectId ? projectInitials(currentProjectId) : undefined;

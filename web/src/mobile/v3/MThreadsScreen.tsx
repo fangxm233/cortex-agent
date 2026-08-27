@@ -10,7 +10,7 @@ import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
 import { projectInitials } from '@/features/workbench/session-groups';
-import { useMobileProject } from '@/mobile/current-project';
+import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { groupThreads } from '@/features/workbench/scope';
 import { useRecentNow } from '@/features/workbench/useRecentNow';
 import { useThreadsLiveSync } from '@/features/workbench/useThreadsLiveSync';
@@ -57,7 +57,7 @@ export function MThreadsScreen() {
   const navigate = useNavigate();
   const lang = useLang();
   const copy = pickCopy(lang, COPY);
-  const { currentProjectId } = useMobileProject();
+  const { currentProjectId } = useCurrentProject();
   const now = useRecentNow(true);
   useThreadsLiveSync();
 

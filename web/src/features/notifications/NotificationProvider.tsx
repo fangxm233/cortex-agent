@@ -1,9 +1,14 @@
+// input:  direct-session events, selected session, project scope, and router state
+// output: desktop assistant and system notification toasts
+// pos:    Global desktop notification stream controller
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useSelectedSession } from '@/features/workbench/SelectedSessionProvider';
-import { useCurrentProject } from '@/features/workbench/CurrentProjectProvider';
+import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { NotificationToaster } from './NotificationToaster';
 import { useDmNotifications, type DmAssistantMessage } from './useDmNotifications';
 import { useSystemNotices, type SystemNoticeMessage } from './useSystemNotices';

@@ -1,4 +1,4 @@
-// input:  Router outlet and global UI/modal/note providers
+// input:  Router outlet, neutral project scope, and global UI/modal/note providers
 // output: Persistent desktop application shell
 // pos:    Keeps shared state and task/thread overlays across routes
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -10,7 +10,7 @@ import { ScheduleModalProvider } from '@/features/schedule/ScheduleModalProvider
 import { ApprovalsProvider } from '@/features/approvals/ApprovalsProvider';
 import { SettingsProvider } from '@/features/settings/SettingsProvider';
 import { IssuesProvider } from '@/features/issues/IssuesProvider';
-import { CurrentProjectProvider } from '@/features/workbench/CurrentProjectProvider';
+import { CurrentProjectProvider } from '@/features/projects/CurrentProjectProvider';
 import { SelectedSessionProvider } from '@/features/workbench/SelectedSessionProvider';
 import { NotificationProvider } from '@/features/notifications/NotificationProvider';
 import { HotUpdateProvider } from '@/features/hot-update/HotUpdateProvider';

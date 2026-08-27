@@ -1,3 +1,8 @@
+// input:  shared project scope, routed task id, task queries, and navigation
+// output: read-only mobile task detail with verification history
+// pos:    Mobile task-detail data controller
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 // 1h 任务详情 — a single task's read-only detail, drilled from 1d (scheme-mobile.dc.html 1h L440-484).
 // NON-Tab drill page (route :taskId). Editing / dispatch / cancel live on desktop or in chat — this
 // page only READS. Real tRPC: `tasks.list` (find the task by id, scoped to the current project, + the
@@ -10,7 +15,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
 import { useTasksLiveSync } from '@/features/tasks/useTasksLiveSync';
-import { useMobileProject } from '@/mobile/current-project';
+import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { MScreen, MC } from '@/mobile/ui/kit';
 import { MTaskDetailView, ZH_COPY, EN_COPY } from './MTaskDetailView';
 import { buildTaskDetailVm } from './m-task-detail-vm';
@@ -21,7 +26,7 @@ export function MTaskDetailScreen() {
   const lang = useLang();
   const copy = lang === 'zh' ? ZH_COPY : EN_COPY;
   const { taskId } = useParams<{ taskId: string }>();
-  const { currentProjectId } = useMobileProject();
+  const { currentProjectId } = useCurrentProject();
 
   useTasksLiveSync();
   const tasksQuery = useQuery(

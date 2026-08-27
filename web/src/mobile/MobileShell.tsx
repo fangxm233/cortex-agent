@@ -1,4 +1,4 @@
-// input:  Router state, mobile providers, Tauri bridge
+// input:  Router state, neutral project provider, mobile providers, and Tauri bridge
 // output: mobile shell with four bottom tabs
 // pos:    Dedicated mobile app root frame
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -12,7 +12,7 @@ import { AnimatedOutlet } from './MobileAnimatedOutlet';
 import { BottomTabBar } from './BottomTabBar';
 import { activeTabId, isTabRoute } from './mobile-tabs';
 import { switchMobileTab, useMobileBackNavigation } from './mobile-navigation';
-import { MobileProjectProvider } from './current-project';
+import { CurrentProjectProvider } from '@/features/projects/CurrentProjectProvider';
 import { MNotificationProvider } from './v3/MNotificationProvider';
 import { MHotUpdateProvider } from './v3/MHotUpdateProvider';
 import { MAppUpdateProvider } from './v3/MAppUpdateProvider';
@@ -64,7 +64,7 @@ function MobileProviders({ children }: { children: ReactNode }) {
   return (
     <LiveEventsProvider>
       <ConnectionStatusProvider>
-        <MobileProjectProvider>
+        <CurrentProjectProvider>
           <MediaViewerProvider>
             <DocViewerProvider>
               {children}
@@ -73,7 +73,7 @@ function MobileProviders({ children }: { children: ReactNode }) {
               <MAppUpdateProvider />
             </DocViewerProvider>
           </MediaViewerProvider>
-        </MobileProjectProvider>
+        </CurrentProjectProvider>
       </ConnectionStatusProvider>
     </LiveEventsProvider>
   );

@@ -75,7 +75,7 @@ vi.mock('@/features/issues/IssuesProvider', () => ({
   useIssues: () => ({ open: vi.fn() }),
 }));
 
-vi.mock('@/features/workbench/CurrentProjectProvider', () => ({
+vi.mock('@/features/projects/CurrentProjectProvider', () => ({
   useCurrentProject: () => ({ currentProjectId: 'nimbus' }),
 }));
 

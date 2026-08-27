@@ -10,7 +10,7 @@ import type { IssueInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { useToast } from '@/design';
 import { useVocab } from '@/i18n';
-import { useCurrentProject } from '@/features/workbench/CurrentProjectProvider';
+import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useSelectedSession } from '@/features/workbench/SelectedSessionProvider';
 import { DRAFT_SENTINEL } from '@/features/workbench/selected-session';
 import { draftStorageKey, saveDraft } from '@/features/workbench/composer-draft';

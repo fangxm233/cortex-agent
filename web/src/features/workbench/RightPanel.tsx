@@ -15,7 +15,7 @@ import { onlineMachineCount, rightPanelBudget } from './right-panel-vm';
 import { groupThreads, type ThreadGroup } from './scope';
 import { useRecentNow } from './useRecentNow';
 import { useThreadsLiveSync } from './useThreadsLiveSync';
-import { useCurrentProject } from './CurrentProjectProvider';
+import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useVocab } from '@/i18n';
 import { NotesPane } from '@/features/notes/NotesPane';
 import { useNotes } from '@/features/notes/NotesProvider';

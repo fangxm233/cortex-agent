@@ -1,12 +1,10 @@
-// input:  project, schedule, execution, session, and cost DTOs
+// input:  schedule, execution, and cost DTOs
 // output: overview money, schedule, and execution presentation models
 // pos:    Pure view model for the project overview
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 import type {
   ScheduleInfo,
   ExecutionInfo,
-  SessionInfo,
-  ProjectConduitInfo,
   CostSummary,
 } from '@cortex-agent/ui-contract';
 
@@ -117,20 +115,6 @@ export function whereItGoesRows(
     cost: e.cost,
     pct: total > 0 ? (e.cost / total) * 100 : 0,
   }));
-}
-
-/** Active project = project of the most-recently-used session, else the first listed project. */
-export function deriveActiveProjectId(
-  sessions: SessionInfo[],
-  projects: ProjectConduitInfo[],
-): string | null {
-  if (sessions.length) {
-    const latest = [...sessions].sort(
-      (a, b) => Date.parse(b.lastUsedAt || b.createdAt) - Date.parse(a.lastUsedAt || a.createdAt),
-    )[0];
-    if (latest?.projectId) return latest.projectId;
-  }
-  return projects[0]?.id ?? null;
 }
 
 function hhmm(iso: string): string {

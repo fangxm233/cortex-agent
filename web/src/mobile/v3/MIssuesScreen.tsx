@@ -1,3 +1,8 @@
+// input:  shared project scope, issue queries/mutations, and mobile navigation
+// output: mobile project issue list and handling flow
+// pos:    Mobile issues data and routing controller
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 // 24c 移动端 Issues — the project issue list, drilled from the 项目 page's Issues card (24a → 24c).
 // A non-Tab drill page (the shell hides the Tab bar); back returns to the project page. Wired to the
 // REAL `issues.*` ui-service scope: `issues.list({projectId})` feeds the list; `issues.delete`
@@ -12,7 +17,7 @@ import type { IssueInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
-import { useMobileProject } from '@/mobile/current-project';
+import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { draftStorageKey, saveDraft } from '@/features/workbench/composer-draft';
 import { buildIssuePrompt } from '@/features/issues/issues-vm';
 import { MIssuesView, type MIssuesCopy } from './MIssuesView';
@@ -41,7 +46,7 @@ export function MIssuesScreen() {
   const queryClient = useQueryClient();
   const lang = useLang();
   const copy = pickCopy(lang, COPY);
-  const { currentProjectId } = useMobileProject();
+  const { currentProjectId } = useCurrentProject();
 
   const listQuery = useQuery({
     ...trpc.issues.list.queryOptions({ projectId: currentProjectId ?? '' }),

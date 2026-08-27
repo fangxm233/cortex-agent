@@ -5,8 +5,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
+import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useProjectSessions } from './useProjectSessions';
-import { useCurrentProject } from './CurrentProjectProvider';
 import {
   resolveSelectedSessionId,
   DRAFT_SENTINEL,

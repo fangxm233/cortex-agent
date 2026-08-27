@@ -17,10 +17,8 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | left-rail-projects.test.ts | test | Tests project activity ordering, ages and hotkeys |
 | project-menu.ts | vm | Counts per-project running and attention badges |
 | project-menu.test.ts | test | Unit tests for project menu counts |
-| NewProjectModal.tsx | view | Creates a project from a validated name |
-| new-project.ts | vm | Validates project names and maps create errors |
-| new-project.test.ts | test | Unit tests for project name validation |
-| session-groups.ts | vm | Day-groups sessions with local stamp helpers |
+| NewProjectModal.tsx | view | Presents desktop creation through the shared projects controller |
+| session-groups.ts | vm | Day-groups sessions with meta and stamp helpers |
 | session-groups.test.ts | test | Unit tests for session day grouping |
 | schedule-rail.ts | vm | Builds SCHEDULED rows, run ordinals and click routing |
 | schedule-rail.test.ts | test | Unit tests for the SCHEDULED section view model |
@@ -118,9 +116,6 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | useSessionsLiveSync.ts | hook | Refreshes the session list on lifecycle events |
 | useProjectSessions.ts | hook | Selects project sessions from shared origin caches |
 | useProjectSessions.test.ts | test | Tests shared session project projection |
-| CurrentProjectProvider.tsx | provider | Shares the selected project across panes |
-| current-project.ts | vm | Derives the effective current project id |
-| current-project.test.ts | test | Unit tests for current project derivation |
 | SelectedSessionProvider.tsx | provider | Shares sessions and external draft prefill |
 | selected-session.ts | vm | Resolves selected session and transition profile |
 | selected-session.test.ts | test | Unit tests for session selection |

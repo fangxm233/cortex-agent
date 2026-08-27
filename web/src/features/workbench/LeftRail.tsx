@@ -29,7 +29,7 @@ import { NewProjectModal } from './NewProjectModal';
 import { PaneToggle } from './PaneToggle';
 import { useApprovals } from '@/features/approvals/ApprovalsProvider';
 import { useSettings } from '@/features/settings/SettingsProvider';
-import { useCurrentProject } from './CurrentProjectProvider';
+import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useSelectedSession } from './SelectedSessionProvider';
 import { isNewSessionShortcut } from './selected-session';
 import { useVocab } from '@/i18n';

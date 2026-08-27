@@ -97,7 +97,7 @@ vi.mock('@/lib/trpc', () => ({
   },
 }));
 
-vi.mock('./CurrentProjectProvider', () => ({
+vi.mock('@/features/projects/CurrentProjectProvider', () => ({
   useCurrentProject: () => ({ currentProjectId: harness.projectId }),
 }));
 

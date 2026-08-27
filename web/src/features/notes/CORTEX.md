@@ -1,6 +1,6 @@
 Please update me when files in this folder change
 
-Desktop project notes: shared provider plus header, Overview and non-modal pane views.
+Desktop project notes: neutral project scope plus a shared notes provider, header, Overview and pane views.
 Pure view models group persisted notes and local copy serves English and Chinese surfaces.
 
 | filename | role | function |

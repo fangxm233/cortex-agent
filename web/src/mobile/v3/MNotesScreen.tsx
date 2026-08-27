@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
-import { useMobileProject } from '@/mobile/current-project';
+import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { NOTES_COPY } from '@/features/notes/notes-copy';
 import { prefillProjectDraft } from '@/features/workbench/composer-draft';
 import { MNotesView } from './MNotesView';
@@ -37,7 +37,7 @@ export function MNotesScreen() {
   const trpc = useTRPC();
   const navigate = useNavigate();
   const lang = useLang();
-  const { currentProjectId } = useMobileProject();
+  const { currentProjectId } = useCurrentProject();
   const projectId = currentProjectId ?? '';
   const list = useQuery({ ...trpc.notes.list.queryOptions({ projectId }), enabled: !!projectId });
   const mutations = useMobileNoteMutations(projectId);

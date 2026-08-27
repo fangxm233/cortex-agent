@@ -1,18 +1,12 @@
-// input:  modal visibility, project mutation, and localized copy
+// input:  modal visibility, shared project-creation controller, and localized copy
 // output: desktop new-project creation modal
 // pos:    Workbench project-creation surface
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { useEffect, useRef, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
-import {
-  canCreate,
-  createErrorMessage,
-  NP_BREADCRUMB,
-  NP_PLACEHOLDER,
-} from './new-project';
+import { canCreateProject, NP_BREADCRUMB, NP_PLACEHOLDER } from '@/features/projects/new-project';
+import { useCreateProject } from '@/features/projects/useCreateProject';
 
 // NEW PROJECT MODAL — 1:1 from prototype.dc.html L1407-1429 (+ backdrop L1291), task c551. Raw inline
 // styles / px / hex / font / weight / EN copy reproduced verbatim per §8.3; submits through the REAL
@@ -28,28 +22,14 @@ import {
 const mono = "'IBM Plex Mono',monospace";
 
 export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Element {
-  const trpc = useTRPC();
   const L = useVocab();
-  const queryClient = useQueryClient();
   const [name, setName] = useState('');
-  const [error, setError] = useState<string | null>(null);
   const [cancelHover, setCancelHover] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  const create = useMutation(
-    trpc.projects.create.mutationOptions({
-      onSuccess: () => {
-        queryClient.invalidateQueries(trpc.projects.list.queryFilter());
-        onClose();
-      },
-      onError: (err) => setError(createErrorMessage(err)),
-    }),
-  );
+  const { createProject, clearError, error, isPending } = useCreateProject({ onCreated: onClose });
 
   const submit = () => {
-    if (!canCreate(name) || create.isPending) return;
-    setError(null);
-    create.mutate({ name: name.trim() });
+    void createProject(name);
   };
 
   // Esc closes the modal (matches the esc chip / prototype closeModal).
@@ -61,7 +41,7 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const creatable = canCreate(name);
+  const creatable = canCreateProject(name);
 
   return (
     <>
@@ -143,7 +123,7 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
               value={name}
               onChange={(e) => {
                 setName(e.target.value);
-                if (error) setError(null);
+                if (error) clearError();
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') submit();
@@ -201,7 +181,7 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
               padding: '7px 15px',
               color: 'var(--ink-solid-fg)',
               background: creatable ? 'var(--proto-accent)' : 'var(--proto-accent-border)',
-              cursor: creatable && !create.isPending ? 'pointer' : 'default',
+              cursor: creatable && !isPending ? 'pointer' : 'default',
             }}
           >
             {L.npCreate}

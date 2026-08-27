@@ -1,7 +1,7 @@
 Please update me when files in this folder change
 
 Project memory browser rendered as the center column of the workbench frame.
-Shows the memory file tree, rendered Markdown, line diff counts and per-line blame.
+Shows the neutral current project's memory tree, rendered Markdown, line diff counts and per-line blame.
 
 | filename | role | function |
 |---|---|---|

@@ -1,8 +1,8 @@
-// input:  project, notes, approvals and rate-limit queries
+// input:  project, notes, approvals, rate-limit, and shared project creation state
 // output: mobile Projects screen with scoped approvals and a settings gear
 // pos:    Data owner for the Projects tab
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
@@ -16,11 +16,12 @@ import {
 import { lastActivityByProject } from '@/features/workbench/left-rail-projects';
 import { useSessionsLiveSync } from '@/features/workbench/useSessionsLiveSync';
 import { useThreadsLiveSync } from '@/features/workbench/useThreadsLiveSync';
-import { useMobileProject } from '@/mobile/current-project';
+import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { MProjectView, type MProjectCopy, type MProjectViewProps } from './MProjectView';
 import { threadCountsForProject, buildProjectSwitchRows, pendingApprovalCounts } from './m-project-vm';
-import { MNewProjectView } from './MNewProjectView';
-import { canCreate, type MNewProjectCopy } from './m-new-project-vm';
+import { MNewProjectView, type MNewProjectCopy } from './MNewProjectView';
+import { useCreateProject } from '@/features/projects/useCreateProject';
+import { finishMobileProjectCreation } from './m-new-project-flow';
 import { MobileRateLimitSheet, useRateLimitStatus } from '@/features/rate-limit';
 import { NOTES_COPY } from '@/features/notes/notes-copy';
 import { buildMNotesVm } from './m-notes-vm';
@@ -150,28 +151,48 @@ function useProjectSwitchRows(
   ), [queries.projects, projectId, queries.threads, queries.globalCost, unread, activity, actions, approvalsByProject]);
 }
 
-function useNewProjectSheet(lang: 'en' | 'zh', navigate: ReturnType<typeof useNavigate>) {
-  const trpc = useTRPC();
-  const queryClient = useQueryClient();
+function useNewProjectSheet(
+  lang: 'en' | 'zh',
+  navigate: ReturnType<typeof useNavigate>,
+  setCurrentProject: (id: string) => void,
+) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
-  const create = useMutation(trpc.projects.create.mutationOptions({ onSuccess: () => {
-    queryClient.invalidateQueries(trpc.projects.list.queryFilter());
-    setOpen(false);
-    navigate('/m/session/new');
-  } }));
-  const submit = () => {
-    if (!canCreate(name) || create.isPending) return;
-    create.mutate({ name: name.trim() });
+  const close = useCallback(() => setOpen(false), []);
+  const onCreated = useCallback((id: string) => {
+    finishMobileProjectCreation(id, { setCurrentProject, close, navigate });
+  }, [close, navigate, setCurrentProject]);
+  const create = useCreateProject({ onCreated });
+  const setProjectName = useCallback((value: string) => {
+    setName(value);
+    create.clearError();
+  }, [create.clearError]);
+  const submit = useCallback(() => {
+    void create.createProject(name);
+  }, [create.createProject, name]);
+  const show = useCallback(() => {
+    setName('');
+    create.clearError();
+    setOpen(true);
+  }, [create.clearError]);
+  return {
+    open,
+    name,
+    setName: setProjectName,
+    submit,
+    close,
+    show,
+    copy: pickCopy(lang, NEW_PROJECT_COPY),
+    error: create.error,
+    pending: create.isPending,
   };
-  return { open, name, setName, submit, close: () => setOpen(false), show: () => { setName(''); setOpen(true); }, copy: pickCopy(lang, NEW_PROJECT_COPY) };
 }
 
 function ProjectOverlays({ rate, rateOpen, closeRate, project }: { rate: ReturnType<typeof useRateLimitStatus>; rateOpen: boolean; closeRate: () => void; project: ReturnType<typeof useNewProjectSheet> }) {
   return (
     <>
       {rateOpen && rate && <MobileRateLimitSheet status={rate} onClose={closeRate} />}
-      {project.open && <MNewProjectView name={project.name} onNameChange={project.setName} onCreate={project.submit} onClose={project.close} copy={project.copy} />}
+      {project.open && <MNewProjectView name={project.name} onNameChange={project.setName} onCreate={project.submit} onClose={project.close} copy={project.copy} error={project.error} pending={project.pending} />}
     </>
   );
 }
@@ -179,7 +200,7 @@ function ProjectOverlays({ rate, rateOpen, closeRate, project }: { rate: ReturnT
 export function MProjectScreen() {
   const navigate = useNavigate();
   const lang = useLang();
-  const { currentProjectId, setCurrentProject } = useMobileProject();
+  const { currentProjectId, setCurrentProject } = useCurrentProject();
   const projectId = currentProjectId ?? '';
   useSessionsLiveSync(); useThreadsLiveSync();
   const queries = useProjectQueries(projectId);
@@ -193,7 +214,7 @@ export function MProjectScreen() {
   const rate = useRateLimitStatus();
   const [rateOpen, setRateOpen] = useState(false);
   useEffect(() => { if (!rate) setRateOpen(false); }, [rate]);
-  const project = useNewProjectSheet(lang, navigate);
+  const project = useNewProjectSheet(lang, navigate, setCurrentProject);
   const issues = useMemo(() => ({ count: queries.issues.length, previews: queries.issues.slice(0, 2).map((issue) => issue.title) }), [queries.issues]);
   const onSwitch = (id: string) => { setCurrentProject(id); navigate('/m/sessions'); };
   const viewProps: MProjectViewProps = {

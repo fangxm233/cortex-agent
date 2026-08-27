@@ -1,3 +1,8 @@
+// input:  pending approvals, shared project scope, and approval mutations
+// output: mobile project-scoped approval queue
+// pos:    Mobile approvals data and routing controller
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 // 1f 审批 — the approval queue, drilled from the project page's amber bar (scheme 1e→1f). A non-Tab
 // drill page (the shell hides the Tab bar for /m/approvals); back returns to the project page. Wired to
 // the REAL `approvals.*` ui-service scope: `approvals.list({status:'pending'})` feeds the queue, and
@@ -11,7 +16,7 @@ import type { ApprovalInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
-import { useMobileProject } from '@/mobile/current-project';
+import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { MApprovalsView, type MApprovalsCopy } from './MApprovalsView';
 import { buildMApprovalsVm } from './m-approvals-vm';
 
@@ -49,7 +54,7 @@ export function MApprovalsScreen() {
   const lang = useLang();
   const copy = pickCopy(lang, COPY);
 
-  const { currentProjectId } = useMobileProject();
+  const { currentProjectId } = useCurrentProject();
   const listQuery = useQuery(trpc.approvals.list.queryOptions({ status: 'pending' }));
   const entries = useMemo<ApprovalInfo[]>(() => listQuery.data ?? [], [listQuery.data]);
   // Grouped by project attribution: current project first, then 全局 (null), then other projects.

@@ -1,3 +1,8 @@
+// input:  shared project scope, memory tree query, and mobile navigation
+// output: mobile project-memory tree and accordion state
+// pos:    Mobile memory browser data controller
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 // 1j 项目记忆 — the current project's memory tree, drilled from the project page (scheme 1e→1j). NON-Tab
 // drill page (the shell hides the Tab bar for /m/memory). READ-ONLY. Real tRPC: `memory.tree({ projectId })`
 // scoped to the mobile current project. Back → the project page (1e). Files tap through to the read-only
@@ -9,7 +14,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
-import { useMobileProject } from '@/mobile/current-project';
+import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { MScreen, MC } from '@/mobile/ui/kit';
 import { MMemoryView, type MMemoryCopy } from './MMemoryView';
 import { buildMMemoryVm } from './m-memory-vm';
@@ -39,7 +44,7 @@ export function MMemoryScreen() {
   const lang = useLang();
   const copy = pickCopy(lang, COPY);
   const now = Date.now();
-  const { currentProjectId } = useMobileProject();
+  const { currentProjectId } = useCurrentProject();
 
   const treeQuery = useQuery({
     ...trpc.memory.tree.queryOptions({ projectId: currentProjectId ?? '' }),

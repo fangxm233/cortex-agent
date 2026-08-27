@@ -1,12 +1,17 @@
+// input:  mobile session events, shared project scope, router state, and native notifications
+// output: in-app and operating-system mobile notification banners
+// pos:    Mobile notification stream controller
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 // Mobile 1q notification wiring — surfaces the real assistant `session.message` stream + server
 // `system.notice` broadcasts as scheme-1q top banners. Reuses the desktop pure notification layer
 // (store / vm / turn-buffer / useDmNotifications / useSystemNotices); only the navigation + open-session
-// suppression are mobile-specific. Mounted in MobileShell (inside MobileProjectProvider + the router).
+// suppression are mobile-specific. Mounted in MobileShell (inside CurrentProjectProvider + the router).
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
-import { useMobileProject } from '@/mobile/current-project';
+import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useDmNotifications, type DmAssistantMessage } from '@/features/notifications/useDmNotifications';
 import { useSystemNotices, type SystemNoticeMessage } from '@/features/notifications/useSystemNotices';
 import { addNotification, removeNotification, splitVisible } from '@/features/notifications/notification-store';
@@ -29,7 +34,7 @@ export function MNotificationProvider() {
   const trpc = useTRPC();
   const navigate = useNavigate();
   const location = useLocation();
-  const { setCurrentProject } = useMobileProject();
+  const { setCurrentProject } = useCurrentProject();
 
   const [items, setItems] = useState<NotificationItem[]>([]);
   const counter = useRef(0);

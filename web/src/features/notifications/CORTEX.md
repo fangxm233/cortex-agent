@@ -1,7 +1,7 @@
 Please update me when files in this folder change
 
 Surfaces direct-chat assistant replies and server system notices as in-app toasts on the desktop shell.
-Direct-chat toasts are turn-scoped so one toast fires per turn; the mobile shell reuses the same model.
+Direct-chat toasts are turn-scoped; desktop and mobile navigation both write neutral project scope.
 
 | filename | role | function |
 |---|---|---|

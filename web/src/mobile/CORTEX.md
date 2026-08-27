@@ -2,13 +2,14 @@ Please update me when files in this folder change
 
 The mobile surface: its own router, four-tab shell and route-transition chrome, separate from desktop.
 This level holds the shell frame, the tab and route model, and the pure cross-screen logic.
+The shell mounts the neutral features/projects selection provider used by every mobile screen.
 
 | filename | role | function |
 |---|---|---|
 | mobile-router.tsx | entry | Builds the browser or hash router instance |
 | mobile-routes.tsx | entry | Declares tab and canonical settings drill-in routes |
 | mobile-routes.test.tsx | test | Verifies supported and desktop-only settings routes |
-| MobileShell.tsx | core | Frames providers, outlet, native back and tabs |
+| MobileShell.tsx | core | Frames the shared project provider, outlet, native back and tabs |
 | MobileAnimatedOutlet.tsx | core | Animates routes and retains the source tab frame |
 | MobileAnimatedOutlet.test.tsx | test | Tests transitions and retained tab frames |
 | BottomTabBar.tsx | view | Four-tab bottom bar with icons and badges |
@@ -18,7 +19,6 @@ This level holds the shell frame, the tab and route model, and the pure cross-sc
 | mobile-tabs.test.ts | test | Unit tests for path to tab mapping |
 | mobile-tasks.ts | core | Groups tasks into six sections, done newest-first |
 | mobile-tasks.test.ts | test | Tests mobile classification and done order |
-| current-project.tsx | provider | Shares the mobile-wide project selection |
 | use-back-dismiss.ts | hook | Guards overlay history without undoing route navigation |
 | use-back-dismiss.test.ts | test | Tests back dismissal and replaced-sentinel cleanup |
 | use-viewport-height.ts | hook | Publishes keyboard-aware viewport size |

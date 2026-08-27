@@ -94,8 +94,8 @@ vi.mock('react-router-dom', () => ({
   useLocation: () => ({ pathname: `/m/session/${harness.routeParam}`, state: null }),
 }));
 
-vi.mock('@/mobile/current-project', () => ({
-  useMobileProject: () => ({ currentProjectId: harness.projectId }),
+vi.mock('@/features/projects/CurrentProjectProvider', () => ({
+  useCurrentProject: () => ({ currentProjectId: harness.projectId }),
 }));
 
 vi.mock('@/features/workbench/useSessionMessageLiveSync', () => ({

@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useVocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
-import { deriveActiveProjectId } from '@/features/overview/overview-vm';
+import { deriveActiveProjectId } from '@/features/projects/current-project';
 import {
   buildTreeRows,
   pickDefaultPath,

@@ -1,3 +1,8 @@
+// input:  shared project scope, memory file query, and route path
+// output: read-only mobile project-memory file screen
+// pos:    Mobile memory-file data and routing controller
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 // Mobile 项目记忆 file viewer — /m/memory/file?path=<rel>. Read-only. Drilled from the 1j memory tree
 // (MMemoryScreen). NON-Tab drill page (the shell hides the Tab bar for /m/memory*). Real tRPC:
 // `memory.file({ projectId, path })` scoped to the mobile current project; `path` comes from the
@@ -8,7 +13,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
-import { useMobileProject } from '@/mobile/current-project';
+import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { MMemoryFileView, type MMemoryFileCopy, type MMemoryFileStatus } from './MMemoryFileView';
 import { fileBasename, fileMetaLine } from './m-memory-file-vm';
 
@@ -33,7 +38,7 @@ export function MMemoryFileScreen() {
   const now = Date.now();
   const [params] = useSearchParams();
   const path = params.get('path') ?? '';
-  const { currentProjectId } = useMobileProject();
+  const { currentProjectId } = useCurrentProject();
 
   const fileQuery = useQuery({
     ...trpc.memory.file.queryOptions({ projectId: currentProjectId ?? '', path }),

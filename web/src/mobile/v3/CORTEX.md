@@ -42,13 +42,14 @@ Framework-free view models map records to slots and have colocated unit tests.
 | MTaskDetailView.tsx | view | Task detail with blocker, fields, deps and history |
 | m-task-detail-vm.ts | vm | Maps task blocker, claim and verification state |
 | m-task-detail-vm.test.ts | test | Tests blocker, approval, claim and detail state |
-| MProjectScreen.tsx | screen | Binds project, notes, cost and scoped approvals |
+| MProjectScreen.tsx | screen | Binds project data and shared creation with scope-first routing |
 | MProjectView.tsx | view | Project-scoped tab with settings gear and switcher |
 | m-project-vm.ts | vm | Derives thread counts, approval buckets, switch rows |
 | m-project-vm.test.ts | test | Unit tests for the project view model |
-| MNewProjectView.tsx | view | New-project sheet with name input and create |
-| m-new-project-vm.ts | vm | Create-gate predicate and copy for the sheet |
-| m-new-project-vm.test.ts | test | Unit tests for the new project view model |
+| MNewProjectView.tsx | view | New-project sheet with shared validation and real errors |
+| MNewProjectView.test.tsx | test | Tests mobile creation errors and pending gating |
+| m-new-project-flow.ts | controller | Scopes a returned project id before close and navigation |
+| m-new-project-flow.test.ts | test | Tests scope-before-navigation ordering |
 | MApprovalsScreen.tsx | screen | Binds approvals list, approve and reject |
 | MApprovalsView.tsx | view | Project-grouped queue with expandable decision card |
 | m-approvals-vm.ts | vm | Groups pending approvals by project into card slots |

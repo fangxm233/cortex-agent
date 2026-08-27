@@ -15,7 +15,7 @@ import { pickCopy } from '@/mobile/ui/format';
 import { projectInitials } from '@/features/workbench/session-groups';
 import { buildScheduleRows, unreadScheduleCount } from '@/features/workbench/schedule-rail';
 import { useSessionsLiveSync } from '@/features/workbench/useSessionsLiveSync';
-import { useMobileProject } from '@/mobile/current-project';
+import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { MScreen, MC } from '@/mobile/ui/kit';
 import { MSessionListView, type MSessionListCopy } from './MSessionListView';
 import { MScheduleSheet, type MScheduleSheetCopy } from './MScheduleSheet';
@@ -54,7 +54,7 @@ export function MSessionListScreen() {
   const lang = useLang();
   const copy = pickCopy(lang, COPY);
   const sheetCopy = pickCopy(lang, SHEET_COPY);
-  const { currentProjectId } = useMobileProject();
+  const { currentProjectId } = useCurrentProject();
 
   useSessionsLiveSync();
   const sessionsQuery = useProjectSessions(currentProjectId, 'direct');

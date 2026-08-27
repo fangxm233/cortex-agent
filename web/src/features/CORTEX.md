@@ -5,6 +5,7 @@ Cross-cutting concerns that any surface can pull in (live stream, media preview,
 
 | filename | role | function |
 |---|---|---|
+| projects/ | subdir | Neutral project selection and creation infrastructure |
 | workbench/ | subdir | Three-pane workbench frame, chat and panels |
 | tasks/ | subdir | Lifecycle-grouped task list and detail modal |
 | thread/ | subdir | Thread detail modal, pipeline, and artifact view |
