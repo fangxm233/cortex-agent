@@ -101,12 +101,34 @@ function collectToolUses(
   events: SourceJournalEvent[], start: number,
 ): { records: SourceJournalEvent[]; next: number } {
   const records: SourceJournalEvent[] = [];
+  // The call phase used to end at the first event that was not a call, which is ADJACENCY again --
+  // the same rule `collectToolResults` below stopped trusting, left standing in its sibling. A
+  // `context_usage` heartbeat every couple of seconds lands between two calls of one batch as
+  // readily as it lands between a call and its result, and when it did, only the calls before it
+  // were registered. The rest were absorbed as ordinary records, so their results answered a batch
+  // that had never opened them and the journal was condemned `unpaired_tool_result`. On 2026-08-27
+  // that discarded three terminal-bench trials outright: the export refused, the harness turned the
+  // refusal into a trial abort, and the verifier never ran, so the runs lost even their score.
+  //
+  // A batch is bounded by its first RESULT, not by its first interruption. Events seen after a call
+  // are held back until another call proves they were interior; if a result comes first, or the
+  // journal ends, they are left for the result walk exactly as before, so a truncated batch still
+  // groups the way the comment below describes.
+  let pending: SourceJournalEvent[] = [];
   let index = start;
-  while (index < events.length && eventType(events[index]) === 'tool_use') {
-    records.push(events[index]);
+  let next = start;
+  while (index < events.length && eventType(events[index]) !== 'tool_result') {
+    if (eventType(events[index]) === 'tool_use') {
+      records.push(...pending, events[index]);
+      pending = [];
+      index += 1;
+      next = index;
+      continue;
+    }
+    pending.push(events[index]);
     index += 1;
   }
-  return { records, next: index };
+  return { records, next };
 }
 
 function collectToolResults(
@@ -166,11 +188,13 @@ function toolBatch(
   events: SourceJournalEvent[], start: number, attested: ReadonlySet<string>,
 ): { group: EventGroup; next: number } {
   const uses = collectToolUses(events, start);
-  const callIds = new Set(uses.records.map(record => {
-    const event = record.event;
-    return event.type === 'tool_use' ? event.toolUseId : '';
-  }));
-  if (callIds.size !== uses.records.length) malformed('duplicate_tool_call_id');
+  // Read the calls out rather than counting the phase: the phase may now carry the events that
+  // interleaved them, and every one of those would otherwise census as the empty call id.
+  const callIdList = uses.records.flatMap(record => (
+    record.event.type === 'tool_use' ? [record.event.toolUseId] : []
+  ));
+  const callIds = new Set(callIdList);
+  if (callIds.size !== callIdList.length) malformed('duplicate_tool_call_id');
   const results = collectToolResults(events, uses.next, callIds, attested);
   const resultIds = results.records.flatMap(record => (
     record.event.type === 'tool_result' ? [record.event.toolUseId] : []

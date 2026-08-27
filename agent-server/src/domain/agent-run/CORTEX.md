@@ -11,3 +11,10 @@ Production benchmark identity, journal and evidence-format primitives.
 | production-attempt-identity.ts | identity | Persists production spawn identities |
 | production-attempt-journal.ts | journal | Persists normalized attempt journals |
 | role-surface.ts | identity | Resolves production role capability surfaces |
+
+`atif.ts` bounds a tool-call batch by its first RESULT, never by adjacency. A `context_usage`
+heartbeat fires every couple of seconds and lands between two calls of one batch as readily as
+between a call and its result; when the call phase ended at the first non-call event, only the
+calls before the heartbeat were registered and the rest of the batch's results were condemned as
+`unpaired_tool_result`. That discarded whole journals — and, through the export path, whole
+benchmark trials.

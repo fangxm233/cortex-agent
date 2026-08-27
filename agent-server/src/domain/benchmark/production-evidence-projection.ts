@@ -382,6 +382,9 @@ function terminalOutcome(
   return outcomes[source.execution.status] ?? fail(`terminal outcome missing for ${source.identity.attempt_id}`);
 }
 
+/** Terminal thread statuses that mean the pipeline stopped rather than finished its roles. */
+const THREAD_STOPPED_EARLY: ReadonlySet<string> = new Set(['failed', 'cancelled', 'aborted']);
+
 function assertExpectedRoles(
   input: ProductionEvidenceExportInput, attempts: readonly AttemptSource[],
 ): void {
@@ -390,7 +393,20 @@ function assertExpectedRoles(
   if (input.mode === 'direct' && attempts.length !== 1) {
     fail(`direct host mirror requires one attempt, got ${attempts.length}`);
   }
-  if (expected.join('\0') !== observed.join('\0')) {
+  const unexpected = observed.filter(role => !expected.includes(role));
+  if (unexpected.length > 0) {
+    fail(`attempt role ${unexpected.join(',')} is outside ${expected.join(',')}`);
+  }
+  const missing = expected.filter(role => !observed.includes(role));
+  if (missing.length === 0) return;
+  // A role with no attempt is a defect only when the run had the chance to reach it. A coder-review
+  // thread whose coder was cut off -- its budget revoked at the wall clock, or the vendor refusing
+  // the request outright -- genuinely has no reviewer attempt, because there was never a reviewer.
+  // Demanding the full set turned "this arm was stopped" into "this arm was not measured", and
+  // worse: the export refusal aborts the trial before the verifier runs, so eight terminal-bench
+  // trials lost even the score they had earned on 2026-08-27. A role missing from a thread that ran
+  // to completion is still a defect, and still refused, which is the discrimination that matters.
+  if (attempts.every(item => !THREAD_STOPPED_EARLY.has(item.thread.status))) {
     fail(`attempt roles mismatch: expected ${expected.join(',')}, got ${observed.join(',')}`);
   }
 }

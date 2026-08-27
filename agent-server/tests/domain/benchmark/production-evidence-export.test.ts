@@ -54,7 +54,7 @@ function topology(kind: ProductionTopologyFact['kind'], payload: object, index: 
 
 function journalBytes(input: {
   rootRunId: string; threadId: string; role: string; reportedModel?: string | null;
-  rateLimited?: boolean;
+  rateLimited?: boolean; events?: readonly object[];
 }): Buffer {
   const header = {
     schema_version: 'cortex-bench-journal/1', type: 'run_header',
@@ -65,9 +65,9 @@ function journalBytes(input: {
     model_execution_identity_hash: SHA, role_tool_surface_hash: SHA,
     bundle_manifest_hash: BUNDLE,
   };
-  const events = input.rateLimited
+  const events = input.events ?? (input.rateLimited
     ? [{ type: 'rate_limit', raw: { status: 429 } }]
-    : [{ type: 'assistant_text', text: 'done', model: input.reportedModel ?? 'model-native' }];
+    : [{ type: 'assistant_text', text: 'done', model: input.reportedModel ?? 'model-native' }]);
   const rows = [header, ...events.map((event, index) => ({
     schema_version: 'cortex-bench-journal/1', type: 'event',
     root_run_id: input.rootRunId, thread_id: input.threadId, step: null,
@@ -87,12 +87,12 @@ function attemptFixture(root: string, input: {
   parentAttemptId?: string | null; rootAttemptId?: string;
   status?: 'completed' | 'failed' | 'cancelled'; threadStatus?: ThreadRecord['status'];
   abortReason?: string | null; rateLimited?: boolean; frozenAt?: string;
-  cacheCreationTokens?: number | null;
+  cacheCreationTokens?: number | null; events?: readonly object[];
 }): AttemptFixture {
   const attemptId = `execution-${input.executionId}`;
   const bytes = journalBytes({
     rootRunId: input.rootRunId, threadId: input.threadId, role: input.role,
-    rateLimited: input.rateLimited,
+    rateLimited: input.rateLimited, events: input.events,
   });
   const journalPath = path.join(root, `${attemptId}.source.ndjson`);
   fs.writeFileSync(journalPath, bytes);
@@ -115,7 +115,7 @@ function attemptFixture(root: string, input: {
   const journal = {
     schema_version: 'cortex-production-attempt-journal/1', attempt_id: attemptId,
     execution_id: input.executionId, journal_path: journalPath,
-    journal_sha256: hash(bytes), event_count: 1, closed_at: END,
+    journal_sha256: hash(bytes), event_count: input.events?.length ?? 1, closed_at: END,
   } satisfies ProductionAttemptJournalRecord;
   const status = input.status ?? 'completed';
   const execution = {
@@ -332,6 +332,42 @@ describe('production evidence export', () => {
     }
   });
 
+  it('exports a call batch a heartbeat interrupted, instead of condemning the journal', async () => {
+    // `context_usage` is emitted every couple of seconds, so it lands between two calls of one
+    // batch whenever the model issues them a moment apart. The call phase used to end at the first
+    // event that was not a call, which registered only `call-a`; `call-b`'s result then answered a
+    // batch that had never opened it and the whole journal was refused `unpaired_tool_result`. On
+    // 2026-08-27 that cost three terminal-bench trials their score outright, because the export
+    // refusal aborts the trial before the verifier runs.
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-heartbeat-batch-'));
+    try {
+      const attempt = attemptFixture(root, {
+        rootRunId: 'root-1', executionId: 'root', threadId: 'thr-root', role: 'direct',
+        taskId: 'trial-1',
+        events: [
+          { type: 'tool_use', toolUseId: 'call-a', name: 'bash', input: {} },
+          { type: 'context_usage', usedTokens: 1024 },
+          { type: 'tool_use', toolUseId: 'call-b', name: 'bash', input: {} },
+          { type: 'tool_result', toolUseId: 'call-a', content: 'a' },
+          { type: 'tool_result', toolUseId: 'call-b', content: 'b' },
+          { type: 'assistant_text', text: 'done', model: 'model-native' },
+        ],
+      });
+      const output = path.join(root, 'trajectory');
+      const result = await exportProductionBenchmarkEvidence(
+        exportInput(output, 'direct', ['direct']), sources([attempt]),
+      );
+
+      expect(result.terminalPaths).toHaveLength(1);
+      const atif = JSON.parse(
+        fs.readFileSync(path.join(output, 'trajectory.json'), 'utf8'),
+      ) as Record<string, unknown>;
+      expect(atifIds(atif)).toEqual([attempt.identity.attempt_id]);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it.each([null, 0, 7] as const)(
     'preserves cache-creation attribution %s through terminal, composite, and host validation',
     async (cacheCreationTokens) => {
@@ -451,6 +487,73 @@ describe('production evidence export', () => {
         .rejects.toThrow(/journal/i);
       expect(fs.existsSync(output)).toBe(false);
       expect(fs.readdirSync(root).some(name => name.includes('.staging-'))).toBe(false);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('exports a pipeline the vendor or the clock stopped before its later roles ran', async () => {
+    // A coder-review thread whose coder is cut off -- budget revoked at the wall clock, or the
+    // vendor refusing the request -- has no reviewer attempt because there was never a reviewer.
+    // Refusing the export there aborts the trial before the verifier runs, so on 2026-08-27 eight
+    // terminal-bench trials lost the score they had already earned.
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-stopped-early-'));
+    try {
+      const coder = attemptFixture(root, {
+        rootRunId: 'root-1', executionId: 'root', threadId: 'thr-root', role: 'coder',
+        taskId: 'trial-1', status: 'failed', threadStatus: 'failed',
+      });
+      const output = path.join(root, 'trajectory');
+      const result = await exportProductionBenchmarkEvidence(
+        exportInput(output, 'coder-review', ['coder', 'reviewer']), sources([coder]),
+      );
+
+      expect(result.terminalPaths).toHaveLength(1);
+      const composite = readComposite(output);
+      // The incompleteness is on the record: one node, in the role that ran, terminally failed.
+      expect(composite.nodes.map(node => node.role)).toEqual(['coder']);
+      expect(composite.nodes[0].terminal_state).toBe('failed');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a role the launcher never declared, however the thread ended', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-role-outside-'));
+    try {
+      const coder = attemptFixture(root, {
+        rootRunId: 'root-1', executionId: 'root', threadId: 'thr-root', role: 'coder',
+        taskId: 'trial-1', status: 'failed', threadStatus: 'failed',
+      });
+      await expect(exportProductionBenchmarkEvidence(
+        exportInput(path.join(root, 'trajectory'), 'coder-review', ['reviewer']), sources([coder]),
+      )).rejects.toThrow(/attempt role coder is outside reviewer/i);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('exports a re-dispatch whose thread never froze an attempt', async () => {
+    // A task cut off mid-flight goes out again, and the trial can end before the replacement thread
+    // freezes anything. The edge is `task -> attempt`, so there is no endpoint and no edge -- an
+    // absent projection, not a broken graph. Refusing cost five manager trials their score on
+    // 2026-08-27, the verifier never having run.
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-redispatch-'));
+    try {
+      const scenario = managerScenario(root, false);
+      const facts = [...scenario.facts, topology('dispatch', {
+        task_id: 'task-child', dispatch_generation: 'gen-replacement', thread_id: 'thr-replacement',
+      }, 7)];
+      const output = path.join(root, 'trajectory');
+      const result = await exportProductionBenchmarkEvidence(
+        exportInput(output, 'manager', ['manager', 'coder', 'reviewer'], 'off'),
+        sources(scenario.attempts, facts, scenario.tasks),
+      );
+
+      expect(result.terminalPaths).toHaveLength(scenario.attempts.length);
+      const composite = readComposite(output);
+      expect(composite.edges.some(edge => edge.to.ref === 'attempt'
+        && edge.to.id.includes('replacement'))).toBe(false);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }

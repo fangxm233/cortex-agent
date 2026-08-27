@@ -57,6 +57,13 @@ function dispatchAttempts(
   return matches;
 }
 
+function dispatchWasAttempted(
+  attempts: readonly ProductionTopologyAttempt[], threadId: string, generation: string,
+): boolean {
+  return attempts.some(item => item.identity.thread_id === threadId
+    && item.identity.dispatch_generation === generation);
+}
+
 function dispatchBoundary(
   attempts: readonly ProductionTopologyAttempt[], threadId: string, generation: string,
   boundary: 'first' | 'last',
@@ -179,6 +186,16 @@ function qaEdge(
 function projectFact(
   fact: ProductionTopologyFact, attempts: readonly ProductionTopologyAttempt[],
 ): AttemptEdge | null {
+  // A task can be dispatched more than once -- the first thread is cut off and the task goes out
+  // again -- and the last dispatch of a trial that ends mid-flight may have no attempt at all,
+  // because the thread never got as far as freezing one. The edge is `task -> attempt`, so there is
+  // no edge to draw: an absent endpoint, not a broken graph. Refusing cost five terminal-bench
+  // manager trials their score on 2026-08-27, the export refusal aborting each trial before the
+  // verifier ran. The fact stays in the collected topology ledger, so the dispatch is still on the
+  // record; only its projection is missing, as it must be. Guarded here rather than inside
+  // `simpleEdge`, whose `null` already means "not one of my kinds".
+  if (fact.kind === 'dispatch'
+    && !dispatchWasAttempted(attempts, fact.thread_id, fact.dispatch_generation)) return null;
   const simple = simpleEdge(fact, attempts);
   if (simple) return simple;
   if (fact.kind === 'delivery') return deliveryEdge(fact, attempts);
