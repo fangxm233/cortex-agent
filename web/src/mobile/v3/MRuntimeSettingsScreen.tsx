@@ -1,6 +1,6 @@
-// input:  config snapshot, runtime descriptors and config.set writer
+// input:  config snapshot, keyed runtime descriptors and shared runtime writer
 // output: writable mobile Notifications and Advanced settings screens
-// pos:    Mobile runtime settings query and view container
+// pos:    Mobile runtime settings view independent of desktop view modules
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { useEffect, useState } from 'react';
@@ -13,10 +13,14 @@ import { MC } from '@/mobile/ui/kit';
 import {
   ADVANCED_FLAGS, ADVANCED_NUMBER_SETTINGS, BUILTIN_JOB_SETTINGS, NOTIFY_SETTINGS,
   MAX_SESSION_RETENTION_DAYS, durationDraftFromMs, durationDraftToMs, getSetting,
-  hasAnyKey, indexEnv, indexSettings, type BuiltinJobSettingDescriptor,
+  hasAnyKey, indexEnv, indexSettings, parseWholeNumber, type AdvancedFlag,
+  type BuiltinJobSettingDescriptor, type NumberSettingDescriptor,
   type SettingToggleDescriptor, type SettingsIndex,
 } from '@/features/settings/platform-env';
-import { useRuntimeSettingWrite } from '@/features/settings/RuntimeSettingsPanels';
+import {
+  useRuntimeSettingWrite,
+  type RuntimeSettingWriter,
+} from '@/features/settings/runtime-settings-writer';
 import {
   MSET_KEY, MSettingsButton, MSettingsCard, MSettingsField, MSettingsPage,
   MSettingsRow, MSettingsSelect, MSettingsToggle,
@@ -24,7 +28,7 @@ import {
 
 function ToggleRow(props: {
   descriptor: SettingToggleDescriptor; settings: SettingsIndex; pending: boolean;
-  onToggle: ReturnType<typeof useRuntimeSettingWrite>['onToggle'];
+  onToggle: RuntimeSettingWriter['onToggle'];
 }) {
   const L = useVocab();
   const entry = getSetting(props.settings, props.descriptor.setting);
@@ -35,7 +39,7 @@ function ToggleRow(props: {
       disabled={!entry || props.pending} onChange={(next) => props.onToggle(props.descriptor.setting, next)} />} />;
 }
 
-function NotificationsContent(props: { snapshot: ConfigSnapshot; write: ReturnType<typeof useRuntimeSettingWrite> }) {
+function NotificationsContent(props: { snapshot: ConfigSnapshot; write: RuntimeSettingWriter }) {
   const L = useVocab();
   const settings = indexSettings(props.snapshot.settings);
   const slack = getSetting(settings, 'adminChannel')?.value;
@@ -50,29 +54,36 @@ function NotificationsContent(props: { snapshot: ConfigSnapshot; write: ReturnTy
   </>;
 }
 
-function EnvFlagRow({ snapshot }: { snapshot: ConfigSnapshot }) {
+function EnvFlagRow(props: {
+  descriptor: Extract<AdvancedFlag, { kind: 'env' }>;
+  snapshot: ConfigSnapshot;
+}) {
   const L = useVocab();
-  const flag = ADVANCED_FLAGS[0];
-  const value = indexEnv(snapshot.env).DEBUG?.present === true;
-  return <MSettingsRow title={L[flag.titleKey]} sub={`${L[flag.descKey]} · DEBUG`}
-    trailing={<MSettingsToggle value={value} label={L[flag.titleKey]} disabled />} />;
+  const value = indexEnv(props.snapshot.env)[props.descriptor.env]?.present === true;
+  return <MSettingsRow dataKey={props.descriptor.env} title={L[props.descriptor.titleKey]}
+    sub={`${L[props.descriptor.descKey]} · ${props.descriptor.env}`}
+    trailing={<MSettingsToggle value={value} label={L[props.descriptor.titleKey]} disabled />} />;
 }
 
-function NumberSettingRow(props: { settings: SettingsIndex; write: ReturnType<typeof useRuntimeSettingWrite> }) {
+function NumberSettingRow(props: {
+  descriptor: NumberSettingDescriptor;
+  settings: SettingsIndex;
+  write: RuntimeSettingWriter;
+}) {
   const L = useVocab();
-  const descriptor = ADVANCED_NUMBER_SETTINGS[0];
-  const entry = getSetting(props.settings, descriptor.setting);
+  const entry = getSetting(props.settings, props.descriptor.setting);
   const current = typeof entry?.value === 'number' ? entry.value : null;
   const [draft, setDraft] = useState(current === null ? '' : String(current));
   useEffect(() => setDraft(current === null ? '' : String(current)), [current]);
-  const value = /^\d+$/.test(draft) ? Number(draft) : null;
+  const value = parseWholeNumber(draft);
   const valid = value !== null && value >= 1 && value <= MAX_SESSION_RETENTION_DAYS;
-  return <MSettingsRow title={L[descriptor.titleKey]} sub={L[descriptor.descKey]} trailing={
+  return <MSettingsRow dataKey={props.descriptor.setting} title={L[props.descriptor.titleKey]}
+    sub={L[props.descriptor.descKey]} trailing={
     <div style={{ display: 'flex', gap: 6, alignItems: 'center', width: 132 }}>
       <input type="number" value={draft} onChange={(event) => setDraft(event.target.value)}
         style={{ width: 56, minWidth: 0 }} />
       <MSettingsButton disabled={current === null || !valid || value === current || props.write.pending}
-        onClick={() => { if (valid) props.write.onSet(descriptor.setting, value); }}>{L.stBuiltinSave}</MSettingsButton>
+        onClick={() => { if (valid) props.write.onSet(props.descriptor.setting, value); }}>{L.stBuiltinSave}</MSettingsButton>
     </div>} />;
 }
 
@@ -90,20 +101,22 @@ function AdvancedReadOnly(props: { snapshot: ConfigSnapshot; settings: SettingsI
   </>;
 }
 
-function AdvancedFlags(props: { snapshot: ConfigSnapshot; write: ReturnType<typeof useRuntimeSettingWrite> }) {
+function AdvancedFlags(props: { snapshot: ConfigSnapshot; write: RuntimeSettingWriter }) {
   const settings = indexSettings(props.snapshot.settings);
   return <MSettingsCard>
-    <EnvFlagRow snapshot={props.snapshot} />
-    {ADVANCED_FLAGS.slice(1).map((flag) => flag.kind === 'setting' && <ToggleRow key={flag.setting}
-      descriptor={flag} settings={settings} pending={props.write.pending} onToggle={props.write.onToggle} />)}
-    <NumberSettingRow settings={settings} write={props.write} />
+    {ADVANCED_FLAGS.map((flag) => flag.kind === 'env'
+      ? <EnvFlagRow key={`env:${flag.env}`} descriptor={flag} snapshot={props.snapshot} />
+      : <ToggleRow key={flag.setting} descriptor={flag} settings={settings}
+          pending={props.write.pending} onToggle={props.write.onToggle} />)}
+    {ADVANCED_NUMBER_SETTINGS.map((descriptor) => <NumberSettingRow key={descriptor.setting}
+      descriptor={descriptor} settings={settings} write={props.write} />)}
     <AdvancedReadOnly snapshot={props.snapshot} settings={settings} />
   </MSettingsCard>;
 }
 
 function JobInterval(props: {
   descriptor: BuiltinJobSettingDescriptor; entry: ConfigSettingEntry | undefined;
-  write: ReturnType<typeof useRuntimeSettingWrite>;
+  write: RuntimeSettingWriter;
 }) {
   const L = useVocab();
   const current = typeof props.entry?.value === 'number' ? props.entry.value : null;
@@ -126,7 +139,7 @@ function JobInterval(props: {
   </div>;
 }
 
-function JobRow(props: { descriptor: BuiltinJobSettingDescriptor; settings: SettingsIndex; write: ReturnType<typeof useRuntimeSettingWrite> }) {
+function JobRow(props: { descriptor: BuiltinJobSettingDescriptor; settings: SettingsIndex; write: RuntimeSettingWriter }) {
   const L = useVocab();
   const enabled = getSetting(props.settings, props.descriptor.enabled);
   const interval = getSetting(props.settings, props.descriptor.interval);
@@ -140,7 +153,7 @@ function JobRow(props: { descriptor: BuiltinJobSettingDescriptor; settings: Sett
   </div>;
 }
 
-function AdvancedContent(props: { snapshot: ConfigSnapshot; write: ReturnType<typeof useRuntimeSettingWrite> }) {
+function AdvancedContent(props: { snapshot: ConfigSnapshot; write: RuntimeSettingWriter }) {
   const L = useVocab();
   const settings = indexSettings(props.snapshot.settings);
   return <>

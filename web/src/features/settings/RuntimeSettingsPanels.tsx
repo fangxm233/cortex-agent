@@ -1,14 +1,12 @@
-// input:  config snapshot/mutation, localized copy and Select
+// input:  config snapshot, runtime descriptors, shared writer and localized controls
 // output: writable Notifications and Advanced desktop panels
-// pos:    Runtime settings read/write surface for desktop settings
+// pos:    Desktop runtime settings presentation independent of writer ownership
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { ConfigSetArgs, ConfigSnapshot, ConfigSettingEntry } from '@cortex-agent/ui-contract';
-import { CONTROL_HEIGHT, Select, useToast } from '@/design';
+import { useEffect, useState, type CSSProperties } from 'react';
+import type { ConfigSnapshot, ConfigSettingEntry } from '@cortex-agent/ui-contract';
+import { CONTROL_HEIGHT, Select } from '@/design';
 import { useVocab } from '@/i18n';
-import { useTRPC } from '@/lib/trpc';
 import { PlatformAvatar, PresencePill } from './SettingsPanels';
 import { SCard, SCardHeader, Toggle } from './settings-ui';
 import {
@@ -22,6 +20,7 @@ import {
   hasAnyKey,
   indexEnv,
   indexSettings,
+  parseWholeNumber,
   type BuiltinJobSettingDescriptor,
   type DurationDraft,
   type DurationUnit,
@@ -31,45 +30,12 @@ import {
   type WritableSettingKey,
   MAX_SESSION_RETENTION_DAYS,
 } from './platform-env';
+import {
+  useRuntimeSettingWrite,
+  type RuntimeSettingWriter,
+} from './runtime-settings-writer';
 
-export type { WritableBooleanSettingKey, WritableNumberSettingKey, WritableSettingKey } from './platform-env';
-
-type SettingsSetArgs = Extract<ConfigSetArgs, { section: 'settings' }>;
-type WritableSettingValue = boolean | number;
 type SettingSource = ConfigSettingEntry['source'];
-
-export interface CommitSettingDeps {
-  set: (args: SettingsSetArgs) => Promise<unknown>;
-  refresh: () => Promise<unknown>;
-  onError: (message: string) => void;
-  onPending?: (pending: boolean) => void;
-}
-
-export async function commitSettingValue(
-  deps: CommitSettingDeps,
-  key: WritableSettingKey,
-  nextValue: WritableSettingValue,
-): Promise<void> {
-  deps.onPending?.(true);
-  try {
-    await deps.set({
-      section: 'settings', value: { [key]: nextValue } as SettingsSetArgs['value'],
-    });
-    await deps.refresh();
-  } catch (error) {
-    deps.onError(error instanceof Error ? error.message : String(error));
-  } finally {
-    deps.onPending?.(false);
-  }
-}
-
-export function commitSettingToggle(
-  deps: CommitSettingDeps,
-  key: WritableBooleanSettingKey,
-  nextValue: boolean,
-): Promise<void> {
-  return commitSettingValue(deps, key, nextValue);
-}
 
 const MONO = "'IBM Plex Mono',monospace";
 const ROW: CSSProperties = {
@@ -106,40 +72,6 @@ const DURATION_BUTTON: CSSProperties = {
 const NUMBER_INPUT: CSSProperties = {
   ...DURATION_CONTROL, width: 70, color: 'var(--proto-ink)',
 };
-
-export interface RuntimeSettingWriter {
-  pending: boolean;
-  onToggle: (key: WritableBooleanSettingKey, nextValue: boolean) => void;
-  onSet: (key: WritableSettingKey, nextValue: WritableSettingValue) => void;
-}
-
-export function useRuntimeSettingWrite(): RuntimeSettingWriter {
-  const L = useVocab();
-  const trpc = useTRPC();
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-  const [committing, setCommitting] = useState(false);
-  const committingRef = useRef(false);
-  const mutation = useMutation(trpc.config.set.mutationOptions());
-  const pending = committing || mutation.isPending;
-  const setPending = (value: boolean) => {
-    committingRef.current = value;
-    setCommitting(value);
-  };
-  const onSet = (key: WritableSettingKey, nextValue: WritableSettingValue) => {
-    if (committingRef.current || mutation.isPending) return;
-    void commitSettingValue({
-      set: (args) => mutation.mutateAsync(
-        args as unknown as Parameters<typeof mutation.mutateAsync>[0],
-      ),
-      refresh: () => queryClient.invalidateQueries(trpc.config.get.queryFilter({})),
-      onError: (message) => toast({ title: `${L.stToastWriteFailed}: ${message}`, tone: 'failed' }),
-      onPending: setPending,
-    }, key, nextValue);
-  };
-  const onToggle = (key: WritableBooleanSettingKey, nextValue: boolean) => onSet(key, nextValue);
-  return { pending, onToggle, onSet };
-}
 
 export interface RuntimeSettingToggleRowProps {
   settingKey: WritableBooleanSettingKey;
@@ -365,12 +297,6 @@ function ConcurrencyRow({ settings }: { settings: SettingsIndex }) {
       <span style={KEY}>{`settings.taskDispatchMaxConcurrent · ${entry?.source ?? '—'}`}</span>
     </div>
   );
-}
-
-function parseWholeNumber(input: string): number | null {
-  if (!/^[0-9]+$/.test(input)) return null;
-  const value = Number(input);
-  return Number.isSafeInteger(value) ? value : null;
 }
 
 function NumberSettingRow(props: {

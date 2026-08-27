@@ -15,8 +15,10 @@ Panels read snapshots; Usage independently queries the shared web usage feature.
 | custom-provider-vm.ts | vm | Validates custom provider drafts and builds mutation args |
 | custom-provider-vm.test.ts | test | Unit tests for the custom provider view model |
 | AuthLoginEntry.test.tsx | test | Tests non-stacked settings-to-login handoff |
-| RuntimeSettingsPanels.tsx | view | Edits runtime switches, retention days, and job cadence selections |
-| RuntimeSettingsPanels.test.tsx | test | Tests runtime state, validation, failures and production writes |
+| RuntimeSettingsPanels.tsx | view | Presents desktop runtime switches, retention days, and job cadence selections over the shared writer |
+| RuntimeSettingsPanels.test.tsx | test | Tests desktop runtime rows, snapshot state, validation and toggle interaction |
+| runtime-settings-writer.ts | hook | Owns typed config.set commits, refresh serialization and the desktop/mobile runtime writer |
+| runtime-settings-writer.test.tsx | test | Tests runtime commit lifecycle, failures, refresh gating and production mutation wiring |
 | AppearancePanel.tsx | view | Edits language, theme, palette, accent and motion |
 | AppearancePanel.test.tsx | test | Tests theme, palette, accent and motion wiring |
 | BudgetPanel.tsx | view | Keeps desktop budget scope/form/query presentation over the shared writer |
@@ -42,8 +44,8 @@ Panels read snapshots; Usage independently queries the shared web usage feature.
 | PluginsPanel.container.test.tsx | test | Covers query failures, dirty guards, refresh and conflict handling |
 | plugins-panel-vm.ts | vm | Syncs drafts and detects conflicts |
 | plugins-panel-vm.test.ts | test | Covers plugin VM conflict rules |
-| platform-env.ts | vm | Defines env indexes, writable settings, and durations |
-| platform-env.test.ts | test | Tests env redaction, setting lookup, duration bounds and retention limits |
+| platform-env.ts | vm | Defines env indexes, writable descriptors, safe whole numbers and durations |
+| platform-env.test.ts | test | Tests env redaction, setting lookup, whole-number parsing, duration bounds and retention limits |
 | settings-nav.ts | vm | Lists settings sections and descriptions |
 | settings-ui.tsx | view | Shared cards and style-overridable native controls |
 | settings-ui.test.tsx | test | Covers control semantics and style overrides |

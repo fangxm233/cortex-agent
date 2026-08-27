@@ -1,6 +1,6 @@
-// input:  env and runtime-setting snapshot fixtures
-// output: env redaction, settings indexing, and duration-bound regressions
-// pos:    Verifies desktop runtime-setting source helpers
+// input:  env/runtime-setting fixtures, numeric drafts and duration values
+// output: redaction, indexing, whole-number parsing and duration-bound regressions
+// pos:    Verifies shared desktop/mobile runtime-setting model helpers
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { describe, it, expect } from 'vitest';
@@ -13,6 +13,7 @@ import {
   getSetting,
   ENV_MASK,
   MAX_SESSION_RETENTION_DAYS,
+  parseWholeNumber,
   durationDraftFromMs,
   durationDraftToMs,
 } from './platform-env';
@@ -72,6 +73,15 @@ describe('platform-env', () => {
     expect(getSetting(idx, 'adminChannel')).toEqual(settings[3]);
     expect(getSetting(idx, 'taskDispatchMaxConcurrent')).toEqual(settings[4]);
     expect(getSetting(idx, 'notifyCompaction')).toBeUndefined();
+  });
+
+  it('parses only safe whole-number drafts', () => {
+    expect(parseWholeNumber('0')).toBe(0);
+    expect(parseWholeNumber('45')).toBe(45);
+    expect(parseWholeNumber('1.5')).toBeNull();
+    expect(parseWholeNumber('-1')).toBeNull();
+    expect(parseWholeNumber('')).toBeNull();
+    expect(parseWholeNumber(String(Number.MAX_SAFE_INTEGER + 1))).toBeNull();
   });
 
   it('converts built-in job intervals using exact safe units and timer bounds', () => {

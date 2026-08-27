@@ -1,6 +1,6 @@
-// input:  redacted env entries, runtime settings, vocabulary keys
-// output: indexed config rows, setting descriptors, duration conversion
-// pos:    Pure view model for environment and runtime settings panels
+// input:  redacted env entries, runtime settings, vocabulary keys and numeric drafts
+// output: indexed config rows, setting descriptors, whole numbers and durations
+// pos:    Pure shared model for desktop/mobile environment and runtime settings views
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { ConfigEnvEntry, ConfigSettingEntry } from '@cortex-agent/ui-contract';
@@ -53,6 +53,12 @@ export function indexSettings(settings: ConfigSettingEntry[] | undefined): Setti
 
 export function getSetting(index: SettingsIndex, key: SettingKey): ConfigSettingEntry | undefined {
   return index[key];
+}
+
+export function parseWholeNumber(input: string): number | null {
+  if (!/^[0-9]+$/.test(input)) return null;
+  const value = Number(input);
+  return Number.isSafeInteger(value) ? value : null;
 }
 
 // ── Prototype key groups (Platform panel cards, L756–807) — used to render the design's exact

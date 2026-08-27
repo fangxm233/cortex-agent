@@ -93,7 +93,8 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 | MBudgetScreen.tsx | screen | Keeps mobile budget scope/form/query view over the shared writer and operation toasts |
 | MBudgetScreen.test.ts | test | Tests complete-pair initialization plus clear, write and failure feedback |
 | MMcpScreen.tsx | screen | Lists configured MCP servers read-only |
-| MRuntimeSettingsScreen.tsx | screen | Edits Notifications and Advanced runtime settings |
+| MRuntimeSettingsScreen.tsx | screen | Edits Notifications and keyed Advanced descriptors through the shared runtime writer |
+| MRuntimeSettingsScreen.test.tsx | test | Tests descriptor-keyed Advanced rows, safe integer gating and writes |
 | MAppearanceScreen.tsx | screen | Binds device-local appearance state and back route |
 | MAppearanceView.tsx | view | Language, theme, palette, accent and motion controls |
 | MAppearanceView.test.tsx | test | Tests mobile appearance control wiring |

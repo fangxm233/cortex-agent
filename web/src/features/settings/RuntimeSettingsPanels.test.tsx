@@ -1,35 +1,14 @@
-// input:  runtime settings panels, settings/env fixtures, mutation fakes
-// output: settings-backed toggle and write-path regressions
-// pos:    Verifies writable desktop Notifications and Advanced panels
+// input:  desktop runtime panel views and settings/env fixtures
+// output: settings-backed rows, validation and toggle interaction regressions
+// pos:    Verifies desktop Notifications and Advanced presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { Children, isValidElement, type ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, create } from 'react-test-renderer';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { ConfigSnapshot, ConfigSettingEntry } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
-
-const adapter = vi.hoisted(() => ({
-  set: vi.fn(),
-  mutationOptions: vi.fn(),
-  queryFilter: vi.fn(),
-  toast: vi.fn(),
-}));
-
-vi.mock('@/lib/trpc', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/trpc')>();
-  return {
-    ...actual,
-    useTRPC: () => ({
-      config: {
-        set: { mutationOptions: adapter.mutationOptions },
-        get: { queryFilter: adapter.queryFilter },
-      },
-    }),
-  };
-});
 
 vi.mock('@/design', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/design')>();
@@ -40,7 +19,6 @@ vi.mock('@/design', async (importOriginal) => {
         {options.map((option: any) => <span key={String(option.value)}>{option.label}</span>)}
       </div>
     ),
-    useToast: () => ({ toast: adapter.toast }),
   };
 });
 
@@ -48,11 +26,6 @@ import {
   AdvancedPanelView,
   NotificationsPanelView,
   RuntimeSettingToggleRow,
-  commitSettingToggle,
-  commitSettingValue,
-  useRuntimeSettingWrite,
-  type RuntimeSettingWriter,
-  type WritableBooleanSettingKey,
 } from './RuntimeSettingsPanels';
 import { MAX_SESSION_RETENTION_DAYS } from './platform-env';
 
@@ -109,26 +82,6 @@ function renderAdvanced(value = snapshot): string {
       <AdvancedPanelView snapshot={value} pending={false} onToggle={() => {}} onSet={() => {}} />
     </LangProvider>,
   );
-}
-
-function captureWriter(queryClient: QueryClient): RuntimeSettingWriter {
-  let writer: RuntimeSettingWriter | undefined;
-  function Harness() {
-    writer = useRuntimeSettingWrite();
-    return null;
-  }
-  renderToStaticMarkup(
-    <QueryClientProvider client={queryClient}>
-      <LangProvider><Harness /></LangProvider>
-    </QueryClientProvider>,
-  );
-  return writer!;
-}
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((done) => { resolve = done; });
-  return { promise, resolve };
 }
 
 describe('runtime settings panel reads', () => {
@@ -235,7 +188,7 @@ describe('runtime settings panel reads', () => {
   });
 });
 
-describe('runtime setting writes', () => {
+describe('runtime setting row interaction', () => {
   it('a writable row requests the inverse snapshot value', () => {
     const onToggle = vi.fn();
     const row = RuntimeSettingToggleRow({
@@ -253,163 +206,5 @@ describe('runtime setting writes', () => {
 
     toggle.props.onClick?.();
     expect(onToggle).toHaveBeenCalledWith('turnNotify', true);
-  });
-
-  it.each<[WritableBooleanSettingKey, boolean]>([
-    ['turnNotify', true],
-    ['autoResume', false],
-    ['notifyCompaction', true],
-    ['eventLog', false],
-    ['diskMonitor', false],
-    ['showToolCalls', true],
-    ['disableUserContext', false],
-    ['serverUpdateDisable', true],
-    ['taskDispatchEnabled', true],
-    ['taskArchiveEnabled', false],
-    ['memoryIndexRegenEnabled', false],
-  ])('writes %s through config.set settings and refreshes the snapshot', async (key, nextValue) => {
-    const set = vi.fn().mockResolvedValue({ written: true, section: 'settings' });
-    const refresh = vi.fn().mockResolvedValue(undefined);
-    const onError = vi.fn();
-
-    await commitSettingToggle({ set, refresh, onError }, key, nextValue);
-
-    expect(set).toHaveBeenCalledWith({ section: 'settings', value: { [key]: nextValue } });
-    expect(refresh).toHaveBeenCalledOnce();
-    expect(onError).not.toHaveBeenCalled();
-  });
-
-  it('writes a validated interval value through the generic settings path', async () => {
-    const set = vi.fn().mockResolvedValue({ written: true, section: 'settings' });
-    const refresh = vi.fn().mockResolvedValue(undefined);
-
-    await commitSettingValue({ set, refresh, onError: vi.fn() }, 'taskArchiveIntervalMs', 3_600_000);
-
-    expect(set).toHaveBeenCalledWith({
-      section: 'settings', value: { taskArchiveIntervalMs: 3_600_000 },
-    });
-    expect(refresh).toHaveBeenCalledOnce();
-  });
-
-  it('writes a validated integer day value through the generic settings path', async () => {
-    const set = vi.fn().mockResolvedValue({ written: true, section: 'settings' });
-    const refresh = vi.fn().mockResolvedValue(undefined);
-
-    await commitSettingValue({ set, refresh, onError: vi.fn() }, 'sessionRetentionDays', 45);
-
-    expect(set).toHaveBeenCalledWith({
-      section: 'settings', value: { sessionRetentionDays: 45 },
-    });
-    expect(refresh).toHaveBeenCalledOnce();
-  });
-
-  it('reports a failed write, skips refresh, and leaves snapshot-driven state unchanged', async () => {
-    const before = structuredClone(snapshot.settings);
-    const refresh = vi.fn().mockResolvedValue(undefined);
-    const onError = vi.fn();
-
-    await commitSettingToggle(
-      { set: vi.fn().mockRejectedValue(new Error('denied')), refresh, onError },
-      'eventLog',
-      false,
-    );
-
-    expect(refresh).not.toHaveBeenCalled();
-    expect(onError).toHaveBeenCalledWith('denied');
-    expect(snapshot.settings).toEqual(before);
-    expect(renderAdvanced()).toContain('data-setting-key="eventLog" data-setting-value="true"');
-  });
-
-  it('reports a failed snapshot refresh instead of leaving an unhandled rejection', async () => {
-    const onError = vi.fn();
-
-    await commitSettingToggle({
-      set: vi.fn().mockResolvedValue({ written: true, section: 'settings' }),
-      refresh: vi.fn().mockRejectedValue(new Error('refresh denied')),
-      onError,
-    }, 'turnNotify', true);
-
-    expect(onError).toHaveBeenCalledWith('refresh denied');
-  });
-
-  it('keeps the write pending until the refreshed snapshot arrives', async () => {
-    const onPending = vi.fn();
-    let releaseRefresh = () => {};
-    const deps = {
-      set: vi.fn().mockResolvedValue({ written: true, section: 'settings' }),
-      refresh: vi.fn(() => new Promise<void>((resolve) => { releaseRefresh = resolve; })),
-      onError: vi.fn(),
-      onPending,
-    };
-
-    const commit = commitSettingToggle(deps, 'autoResume', false);
-    await Promise.resolve();
-    expect(onPending.mock.calls).toEqual([[true]]);
-
-    releaseRefresh();
-    await commit;
-    expect(onPending.mock.calls).toEqual([[true], [false]]);
-  });
-});
-
-describe('runtime setting production adapter', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    adapter.mutationOptions.mockReturnValue({ mutationFn: adapter.set });
-    adapter.queryFilter.mockImplementation((input) => ({ queryKey: ['config.get', input] }));
-  });
-
-  it('binds config.set, suppresses repeat clicks through refresh, and renders the refreshed snapshot', async () => {
-    const setGate = deferred<unknown>();
-    const refreshGate = deferred<void>();
-    adapter.set.mockReturnValue(setGate.promise);
-    const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
-    const invalidate = vi.spyOn(queryClient, 'invalidateQueries').mockReturnValue(refreshGate.promise);
-    const writer = captureWriter(queryClient);
-
-    writer.onToggle('turnNotify', true);
-    writer.onToggle('turnNotify', true);
-    await vi.waitFor(() => expect(adapter.set).toHaveBeenCalled());
-    const callsBeforeWriteSettles = adapter.set.mock.calls.length;
-    setGate.resolve({ written: true, section: 'settings' });
-    await vi.waitFor(() => expect(invalidate).toHaveBeenCalled());
-    writer.onToggle('turnNotify', true);
-    await Promise.resolve();
-    const callsDuringRefresh = adapter.set.mock.calls.length;
-    refreshGate.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    writer.onToggle('autoResume', false);
-    await vi.waitFor(() => expect(adapter.set).toHaveBeenCalledTimes(2));
-
-    expect(adapter.mutationOptions).toHaveBeenCalledOnce();
-    expect(adapter.set).toHaveBeenNthCalledWith(1, { section: 'settings', value: { turnNotify: true } }, expect.anything());
-    expect(adapter.queryFilter).toHaveBeenNthCalledWith(1, {});
-    expect(invalidate).toHaveBeenNthCalledWith(1, { queryKey: ['config.get', {}] });
-    expect([callsBeforeWriteSettles, callsDuringRefresh, adapter.set.mock.calls.length]).toEqual([1, 1, 2]);
-    const refreshed = { ...snapshot, settings: settings.map((entry) => (
-      entry.key === 'turnNotify' ? { ...entry, value: true } : entry
-    )) };
-    expect(renderNotifications(refreshed)).toContain('data-setting-key="turnNotify" data-setting-value="true"');
-    queryClient.clear();
-  });
-
-  it('surfaces the localized production toast and skips refresh when config.set rejects', async () => {
-    adapter.set.mockRejectedValue(new Error('denied'));
-    const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
-    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
-    const writer = captureWriter(queryClient);
-
-    writer.onToggle('eventLog', false);
-    await vi.waitFor(() => expect(adapter.toast).toHaveBeenCalled());
-
-    expect(adapter.set).toHaveBeenCalledWith(
-      { section: 'settings', value: { eventLog: false } },
-      expect.anything(),
-    );
-    expect(adapter.queryFilter).not.toHaveBeenCalled();
-    expect(invalidate).not.toHaveBeenCalled();
-    expect(adapter.toast).toHaveBeenCalledWith({ title: 'Write failed: denied', tone: 'failed' });
-    queryClient.clear();
   });
 });
