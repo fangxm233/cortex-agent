@@ -54,6 +54,9 @@ class SyntheticServer(ThreadingHTTPServer):
         self.response_delay_seconds = 0.0
         self.response_chunk_delay_seconds = 0.0
         self.status = 200
+        # Statuses handed out one per request before `status` takes over again, so a test can
+        # stage a provider that fails a few times and then answers.
+        self.status_sequence: list[int] = []
         self.content_type = "application/json"
         self.extra_headers: dict[str, str] = {}
         self.raw_body: bytes | None = None
@@ -81,7 +84,8 @@ class SyntheticHandler(BaseHTTPRequestHandler):
             dict(self.headers.items()), body, self.command, self.path))
         time.sleep(server.response_delay_seconds)
         payload = server.payload()
-        self.send_response(server.status)
+        status = server.status_sequence.pop(0) if server.status_sequence else server.status
+        self.send_response(status)
         self.send_header("content-type", server.content_type)
         for key, value in server.extra_headers.items():
             self.send_header(key, value)
@@ -151,6 +155,7 @@ class StreamedResponse:
     complete: bool
     first_byte_seconds: float
     total_seconds: float
+    headers: tuple[tuple[str, str], ...] = ()
 
 
 def proxy_request(
@@ -233,4 +238,5 @@ def _drain(response: object, started: float) -> StreamedResponse:
     return StreamedResponse(
         response.status, b"".join(chunks), complete,  # type: ignore[attr-defined]
         first_byte if first_byte is not None else total, total,
+        tuple(response.getheaders()),
     )

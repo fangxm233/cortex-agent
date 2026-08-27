@@ -433,14 +433,17 @@ def test_failed_provider_attempt_is_not_retried_or_promoted(
     inventories = capture_scan_inventories(monkeypatch)
     with handshake_upstream(status=500) as upstream:
         url = f"http://127.0.0.1:{upstream.server_port}"
+        # The proxy now refuses a provider error status instead of relaying it, so the
+        # handshake sees a clean 502 rather than a 500 whose body failed accounting. The
+        # claim under test is unchanged: one provider request, and no promotion.
         with pytest.raises(
             LiveHandshakePermitRefused,
-            match="proxy ended HTTP 500 response.*usage_accounting_unavailable",
+            match="provider request failed with HTTP 502",
         ):
             run_handshake(tmp_path, upstream=url)
     diagnostic = response_diagnostic(tmp_path)
-    assert diagnostic["status"] == 500
-    assert b"refused" in diagnostic_body(diagnostic)
+    assert diagnostic["status"] == 502
+    assert b"upstream_error_status" in diagnostic_body(diagnostic)
     assert "response_diagnostic" in inventories[0].expected_sources
     assert len(upstream.requests) == 1  # type: ignore[attr-defined]
     assert not (tmp_path / "evidence").exists()

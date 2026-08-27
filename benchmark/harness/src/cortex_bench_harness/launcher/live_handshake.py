@@ -359,6 +359,9 @@ def _start_handshake_proxy(
         request_body_limit_bytes=spec.request_body_limit_bytes,
         response_body_limit_bytes=spec.response_body_limit_bytes,
         allow_retry=False,
+        # A handshake's whole claim is that it cost exactly one provider request, so it opts
+        # out of the bounded upstream retry a trial route uses to survive a provider outage.
+        max_upstream_attempts=1,
     )
     session = TrialProxySession(handle, upstream, _epoch(deadline_ms), deadline_ms, proxy_dir)
     try:

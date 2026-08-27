@@ -22,6 +22,8 @@ from .models import ProxyLimits, ProxyMetadata, ProxyUsage, utc_text
 from .network_trace import RequestTrace, append_json_line
 from .request_limit import SharedRequestLimit
 from .upstream import (
+    DEFAULT_MAX_UPSTREAM_ATTEMPTS,
+    DEFAULT_UPSTREAM_RETRY_BACKOFF_SECONDS,
     HOP_HEADERS,
     FixedUpstream,
     UpstreamAttemptError,
@@ -148,8 +150,10 @@ class ProxyState:
     def record_attempt(
         self, outcome: str, retain_reservation: bool,
         upstream_model: str | None = None, diagnostic_code: str | None = None,
+        upstream_status: int | None = None,
     ) -> str | None:
-        error = self._record_outcome(outcome, upstream_model, diagnostic_code)
+        error = self._record_outcome(
+            outcome, upstream_model, diagnostic_code, upstream_status)
         if error is not None:
             return error
         if not retain_reservation:
@@ -165,9 +169,10 @@ class ProxyState:
 
     def _record_outcome(
         self, outcome: str, upstream_model: str | None,
-        diagnostic_code: str | None = None,
+        diagnostic_code: str | None = None, upstream_status: int | None = None,
     ) -> str | None:
-        record = self._attempt_record(outcome, upstream_model, diagnostic_code)
+        record = self._attempt_record(
+            outcome, upstream_model, diagnostic_code, upstream_status)
         if not self._persist(record):
             return "audit_log_unavailable"
         self.request_count += 1
@@ -183,7 +188,7 @@ class ProxyState:
 
     def _attempt_record(
         self, outcome: str, upstream_model: str | None,
-        diagnostic_code: str | None = None,
+        diagnostic_code: str | None = None, upstream_status: int | None = None,
     ) -> dict[str, object]:
         record = self._record(
             self.request_count + 1, self.input_tokens, self.output_tokens,
@@ -192,6 +197,10 @@ class ProxyState:
         record["outcome"] = outcome
         if diagnostic_code is not None:
             record["diagnostic_code"] = diagnostic_code
+        # Which status ended the attempt, so an audit can tell a provider outage from a
+        # trial that simply stopped asking.
+        if upstream_status is not None:
+            record["upstream_status"] = upstream_status
         return record
 
     def _record(
@@ -473,10 +482,18 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
     def _handle_upstream_failure(
         self, state: ProxyState, failure: UpstreamAttemptError, sink: RelaySink,
     ) -> None:
+        """A failed attempt. The route survives it unless the failure was about containment.
+
+        A provider error status is the provider's fact, already retried a bounded number of
+        times upstream of here. It is audited, the client is told it may retry, and the route
+        stays live -- one 502 used to end a trial outright, which is how 19 of 49 tasks in
+        the 2026-08-23 run scored zero without ever failing at their task.
+        """
         lifecycle_error = state.lifecycle_error()
         outcome = lifecycle_error[1] if lifecycle_error else failure.reason
         audit_error = state.record_attempt(
-            outcome, failure.may_have_reached_upstream)
+            outcome, failure.may_have_reached_upstream,
+            upstream_status=failure.status)
         if sink.trace is not None:
             sink.trace.terminal(audit_error or outcome)
         if failure.reason == "upstream_response_too_large":
@@ -484,7 +501,12 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
         if audit_error is not None:
             self._refuse_response(sink, 500, audit_error)
             return
-        self._refuse_response(sink, *(lifecycle_error or (502, "upstream_unavailable")))
+        if lifecycle_error is not None:
+            self._refuse_response(sink, *lifecycle_error)
+            return
+        self._refuse_response(
+            sink, 502, failure.reason if failure.status else "upstream_unavailable",
+            retryable=failure.status is not None or not failure.may_have_reached_upstream)
 
     def _finish_response(
         self, server: TrialHttpServer, response: UpstreamResult, sink: RelaySink,
@@ -523,7 +545,9 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
         if sink.client_failed:
             state.record_delivery("client_gone_after_accounting")
 
-    def _refuse_response(self, sink: RelaySink, status: int, reason: str) -> None:
+    def _refuse_response(
+        self, sink: RelaySink, status: int, reason: str, *, retryable: bool | None = None,
+    ) -> None:
         """Refuse a request whose response may already be on the wire.
 
         A refusal that arrives before the first byte keeps its exact status and reason. One
@@ -533,7 +557,7 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
         if sink.started:
             self.close_connection = True
             return
-        self._send_error(status, reason)
+        self._send_error(status, reason, retryable=retryable)
 
     def _read_body(self, server: TrialHttpServer) -> bytes | None:
         length = self._content_length()
@@ -711,6 +735,8 @@ def start_trial_proxy(
     network_trace_path: Path | None = None,
     network_trace_progress_interval_seconds: float = 10,
     shared_request_limit: SharedRequestLimit | None = None,
+    max_upstream_attempts: int = DEFAULT_MAX_UPSTREAM_ATTEMPTS,
+    upstream_retry_backoff_seconds: float = DEFAULT_UPSTREAM_RETRY_BACKOFF_SECONDS,
 ) -> TrialProxyHandle:
     """Start one per-trial proxy under its provisional deadline bound."""
     _validate_inputs(trial_id, upstream_base_url, adapter, absolute_deadline)
@@ -720,7 +746,7 @@ def start_trial_proxy(
         limits, log_path, listen_host, advertised_host, now_ms,
         request_body_limit_bytes, response_body_limit_bytes, allow_retry,
         network_trace_path, network_trace_progress_interval_seconds,
-        shared_request_limit,
+        shared_request_limit, max_upstream_attempts, upstream_retry_backoff_seconds,
     )
     lease = TrialLease(
         trial_id=trial_id, state=server.state, server=server,
@@ -740,6 +766,8 @@ def _proxy_runtime(
     now_ms: Callable[[], int], request_body_limit_bytes: int | None,
     response_body_limit_bytes: int | None, allow_retry: bool, network_trace_path: Path | None,
     trace_progress_seconds: float, shared_request_limit: SharedRequestLimit | None,
+    max_upstream_attempts: int = DEFAULT_MAX_UPSTREAM_ATTEMPTS,
+    upstream_retry_backoff_seconds: float = DEFAULT_UPSTREAM_RETRY_BACKOFF_SECONDS,
 ) -> tuple[str, str, int, TrialHttpServer, ProxyMetadata]:
     dummy_token = _dummy_token(adapter)
     provisional_bound_ms = int(absolute_deadline.timestamp() * 1000)
@@ -751,6 +779,8 @@ def _proxy_runtime(
         upstream_base_url, adapter, response_body_limit_bytes=response_body_limit_bytes,
         network_trace_path=network_trace_path, trial_id=trial_id,
         trace_progress_seconds=trace_progress_seconds,
+        max_attempts=max_upstream_attempts,
+        retry_backoff_seconds=upstream_retry_backoff_seconds,
     )
     server = TrialHttpServer(
         (listen_host, 0), state, upstream, adapter, request_body_limit_bytes,

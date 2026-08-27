@@ -21,4 +21,5 @@ Proxy tests prove host credential isolation, policy enforcement, and Docker egre
 | test_lease_echo.py | test | Proves skew-invariant lease arming and revocation per adapter |
 | test_row_four_trial_scan.py | test | Proves the codex row's flows scan clean and closed |
 | test_export.py | test | Verifies the accounting export and its seam bytes |
+| test_upstream_retry.py | test | Proves a provider error status costs attempts, not the route |
 | golden/ | fixture | Holds the export bytes the other side of the seam parses |

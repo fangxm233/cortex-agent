@@ -8,7 +8,7 @@ import time
 from dataclasses import dataclass
 from http.client import HTTPConnection, HTTPException, HTTPSConnection, HTTPResponse
 from pathlib import Path
-from typing import Mapping, Protocol
+from typing import Callable, Mapping, Protocol
 from urllib.parse import SplitResult, urlsplit
 
 from .adapters.base import ProviderAdapter
@@ -49,10 +49,25 @@ class UpstreamResult:
 class UpstreamAttemptError(OSError):
     def __init__(
         self, may_have_reached_upstream: bool, reason: str = "upstream_unavailable",
+        status: int | None = None,
     ) -> None:
         super().__init__("fixed upstream request failed")
         self.may_have_reached_upstream = may_have_reached_upstream
         self.reason = reason
+        #: The upstream HTTP status, when the failure IS one. Carried so the audit row can
+        #: say which status ended the attempt and the retry rule can read it without
+        #: re-deriving it from a reason string.
+        self.status = status
+
+
+# A provider error status is a fact about the provider, not about this trial. Retrying it is
+# safe because the upstream refused before generating anything: there is no half-answer on the
+# wire and nothing was billed. Everything else — a truncated 2xx stream, an oversize response,
+# a deadline — is either unsafe or pointless to repeat.
+RETRYABLE_UPSTREAM_STATUSES = frozenset({408, 409, 425, 429, 500, 502, 503, 504})
+DEFAULT_MAX_UPSTREAM_ATTEMPTS = 3
+DEFAULT_UPSTREAM_RETRY_BACKOFF_SECONDS = 0.5
+UPSTREAM_ERROR_STATUS = "upstream_error_status"
 
 
 class FixedUpstream:
@@ -61,6 +76,9 @@ class FixedUpstream:
         response_body_limit_bytes: int | None = None,
         network_trace_path: Path | None = None, trial_id: str | None = None,
         trace_progress_seconds: float = 10,
+        max_attempts: int = DEFAULT_MAX_UPSTREAM_ATTEMPTS,
+        retry_backoff_seconds: float = DEFAULT_UPSTREAM_RETRY_BACKOFF_SECONDS,
+        sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self._target = validate_upstream(base_url)
         self._adapter = adapter
@@ -70,6 +88,9 @@ class FixedUpstream:
         self._lock = threading.Lock()
         self._active: HTTPConnection | None = None
         self._revoked = False
+        self._max_attempts = max(1, max_attempts)
+        self._retry_backoff_seconds = max(0.0, retry_backoff_seconds)
+        self._sleep = sleep
 
     @property
     def network_trace_complete(self) -> bool:
@@ -87,21 +108,66 @@ class FixedUpstream:
         timeout_seconds: float, route_id: str, sink: "ResponseSink | None" = None,
         trace: RequestTrace | None = None,
     ) -> UpstreamResult:
-        outbound = self._headers(headers, body, route_id)
+        """One admitted request, retried a bounded number of times when the failure is safe.
+
+        The whole call is one reservation: a retry costs wall clock, never budget. Auth is
+        injected per attempt, so an adapter that refreshed its token between attempts sends
+        the refreshed one.
+        """
         expires_at = time.monotonic() + timeout_seconds
-        connection = self._connection(timeout_seconds)
+        for attempt in range(1, self._max_attempts + 1):
+            try:
+                return self._attempt(path, headers, body, expires_at, route_id, sink, trace)
+            except UpstreamAttemptError as error:
+                backoff = self._retry_delay(error, attempt, expires_at, sink)
+                if backoff is None:
+                    _trace_failure(trace, error.reason, status=error.status)
+                    raise
+                _trace_event(
+                    trace, "upstream_attempt_retried", durable=True,
+                    outcome=error.reason, attempt=attempt, status=error.status)
+                self._sleep(backoff)
+        raise AssertionError("unreachable: the loop returns or raises on its last attempt")
+
+    def _attempt(
+        self, path: str, headers: Mapping[str, str], body: bytes, expires_at: float,
+        route_id: str, sink: "ResponseSink | None", trace: RequestTrace | None,
+    ) -> UpstreamResult:
+        outbound = self._headers(headers, body, route_id)
+        connection = self._connection(max(expires_at - time.monotonic(), 0.001))
         self._activate(connection)
         try:
             return self._request_once(
                 connection, path, outbound, body, expires_at, sink, trace)
-        except UpstreamAttemptError as error:
-            _trace_failure(trace, error.reason)
+        except UpstreamAttemptError:
             raise
         except (HTTPException, OSError) as error:
-            _trace_failure(trace, "upstream_unavailable")
             raise UpstreamAttemptError(True) from error
         finally:
             self._release(connection)
+
+    def _retry_delay(
+        self, error: UpstreamAttemptError, attempt: int, expires_at: float,
+        sink: "ResponseSink | None",
+    ) -> float | None:
+        """How long to wait before repeating this attempt, or None if it must not be repeated."""
+        if attempt >= self._max_attempts or self._revoked:
+            return None
+        # Once a status line reached the client, the answer is already partly theirs: a second
+        # attempt would relay a second response into the same stream.
+        if getattr(sink, "started", False):
+            return None
+        retryable = (
+            error.status in RETRYABLE_UPSTREAM_STATUSES
+            or not error.may_have_reached_upstream
+        )
+        if not retryable:
+            return None
+        delay = self._retry_backoff_seconds * (2 ** (attempt - 1))
+        # A retry that cannot finish before the deadline only burns the deadline.
+        if expires_at - time.monotonic() <= delay:
+            return None
+        return delay
 
     def _request_once(
         self, connection: HTTPConnection, path: str, headers: Mapping[str, str],
@@ -204,6 +270,15 @@ def read_response(
 ) -> UpstreamResult:
     headers = tuple(response.getheaders())
     content_type = response.getheader("content-type", "")
+    # An error status is refused before anything is relayed. Relaying it first was how a single
+    # provider 502 killed a trial: the status line reached the container, the error body then
+    # failed usage extraction, and an unmeterable response revoked the route for good. A status
+    # the upstream itself calls a failure is not a response to meter -- it is a failed attempt.
+    # 3xx is deliberately NOT in this branch: a redirect is relayed unfollowed, which is the
+    # observable that proves this proxy never chases one (tests/proxy/test_offline_containment.py
+    # r7, tests/proxy/test_openai_codex_second_host.py cp1).
+    if response.status >= 400:
+        raise UpstreamAttemptError(True, UPSTREAM_ERROR_STATUS, status=response.status)
     # The status line and headers are relayed before the first chunk is read, so the caller
     # learns the response has started at the upstream's time-to-first-byte rather than at
     # its completion.
@@ -254,8 +329,11 @@ def _trace_event(
         trace.event(phase, durable=durable, **metrics)
 
 
-def _trace_failure(trace: RequestTrace | None, outcome: str) -> None:
-    _trace_event(trace, "upstream_attempt_failed", durable=True, outcome=outcome)
+def _trace_failure(
+    trace: RequestTrace | None, outcome: str, status: int | None = None,
+) -> None:
+    _trace_event(
+        trace, "upstream_attempt_failed", durable=True, outcome=outcome, status=status)
 
 
 def _set_response_timeout(response: HTTPResponse, timeout: float) -> None:
