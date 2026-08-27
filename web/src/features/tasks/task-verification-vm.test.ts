@@ -1,6 +1,6 @@
-// input:  task verification fixtures with evidence, dispatches, duration, and cost
-// output: regression coverage for honest evidence and canonical dispatch formatting
-// pos:    Unit tests for task-verification-vm
+// input:  task verification fixtures with evidence, unordered dispatches, duration, and cost
+// output: regression coverage for honest evidence and newest-first desktop dispatch formatting
+// pos:    Desktop task-verification projection regression tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { describe, it, expect } from 'vitest';
@@ -35,8 +35,8 @@ describe('buildTaskVerificationVm — real evidence', () => {
     expect(vm.completingOutput).toBe('final merged output');
   });
 
-  it('maps dispatch rows and flags the completing one', () => {
-    const vm = buildTaskVerificationVm(base);
+  it('maps dispatch rows newest-first and flags the completing one', () => {
+    const vm = buildTaskVerificationVm({ ...base, dispatches: [...base.dispatches].reverse() });
     expect(vm.hasDispatches).toBe(true);
     expect(vm.dispatches.map((d) => d.executionId)).toEqual(['exec_c', 'exec_b']);
     expect(vm.dispatches[0].isCompleting).toBe(true);

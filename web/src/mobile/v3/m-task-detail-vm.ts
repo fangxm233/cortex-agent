@@ -1,15 +1,23 @@
-// input:  TaskInfo list and task verification evidence
-// output: Task blocker, approval, claim, deps, and history model
-// pos:    Pure view model for the mobile task detail screen
+// input:  task/list DTOs, verification DTO, and canonical task detail facts
+// output: Mobile read-only blocker, claim, dependency, field, and history projection
+// pos:    Mobile-only projection over shared task detail semantics
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 // Maps tasks.list plus tasks.verification into a language-neutral detail model. Only fields backed
 // by the DTO are surfaced; missing evidence remains null or empty for an honest view placeholder.
 import type { TaskInfo, TaskVerificationInfo, TaskDispatchRecord } from '@cortex-agent/ui-contract';
-import { displayClaimId } from '@/features/tasks/task-claim';
+import {
+  buildTaskDetailFacts,
+  taskDetailStatusKind,
+  type TaskClaimFacts,
+  type TaskDependencyFacts,
+  type TaskDetailStatusKind,
+  type TaskVerificationFacts,
+} from '@/features/tasks/task-detail-facts';
 import { fmtMoney } from '@/mobile/ui/format';
 
-export type MTaskStatusKind = 'in-progress' | 'approval-needed' | 'actionable' | 'blocked' | 'done' | 'waiting';
+export type MTaskStatusKind = TaskDetailStatusKind;
+export { taskDetailStatusKind as taskStatusKind };
 
 /** Elapsed label from a real durationMs (language-neutral s/m/h units); null when no source. */
 export function formatElapsed(ms: number | null): string | null {
@@ -20,18 +28,6 @@ export function formatElapsed(ms: number | null): string | null {
   if (m < 60) return `${m}m`;
   const h = Math.floor(m / 60);
   return `${h}h ${m % 60}m`;
-}
-
-const STATUS_RULES: ReadonlyArray<{ kind: MTaskStatusKind; matches: (task: TaskInfo) => boolean }> = [
-  { kind: 'done', matches: (task) => task.status === 'done' },
-  { kind: 'blocked', matches: (task) => task.blockedBy != null },
-  { kind: 'in-progress', matches: (task) => task.claimedBy != null },
-  { kind: 'approval-needed', matches: (task) => task.approvalNeeded === true },
-  { kind: 'actionable', matches: (task) => task.actionable },
-];
-
-export function taskStatusKind(task: TaskInfo): MTaskStatusKind {
-  return STATUS_RULES.find((rule) => rule.matches(task))?.kind ?? 'waiting';
 }
 
 export interface MTaskDepVm {
@@ -57,7 +53,7 @@ export interface MTaskHistoryRowVm {
 export interface MTaskClaimVm {
   /** Real TaskInfo.template. */
   template: string;
-  /** Owning task thread id; falls back to dispatch history for an older server. */
+  /** Owning task thread id, including the legacy thread-shaped claim-id fallback. */
   threadId: string | null;
   /** Safe non-dispatcher claim owner fallback when no owning thread is available. */
   claimedBy: string | null;
@@ -113,40 +109,36 @@ const NOT_FOUND: MTaskDetailVm = {
   history: [],
 };
 
-function buildClaim(task: TaskInfo, dispatches: TaskDispatchRecord[]): MTaskClaimVm | null {
-  if (task.claimedBy == null) return null;
-  const newest = dispatches[0] ?? null;
+function buildClaim(
+  task: TaskInfo,
+  claim: TaskClaimFacts,
+  verification: TaskVerificationFacts | null,
+): MTaskClaimVm | null {
+  if (!claim.claimed) return null;
+  const newest = verification?.newestDispatch?.dispatch ?? null;
   const parts: string[] = [];
   const elapsed = formatElapsed(newest?.durationMs ?? null);
   if (elapsed) parts.push(elapsed);
   if (newest?.cost != null) parts.push(fmtMoney(newest.cost));
   return {
-    template: task.template,
-    threadId: displayClaimId(task),
-    claimedBy: null,
+    template: task.template, threadId: claim.threadId, claimedBy: claim.id,
     meta: parts.length > 0 ? parts.join(' · ') : null,
   };
 }
 
-function buildDependencies(task: TaskInfo, byId: ReadonlyMap<string, TaskInfo>): MTaskDepVm[] {
-  return task.dependsOn.map((id) => {
-    const dependency = byId.get(id);
-    return {
-      id,
-      displayId: `T-${id}`,
-      statusKind: dependency ? taskStatusKind(dependency) : 'waiting',
-      known: dependency != null,
-    };
-  });
+function buildDependencies(dependencies: TaskDependencyFacts[]): MTaskDepVm[] {
+  return dependencies.map((dependency) => ({
+    id: dependency.id,
+    displayId: `T-${dependency.id}`,
+    statusKind: dependency.statusKind ?? 'waiting',
+    known: dependency.known,
+  }));
 }
 
-function buildHistory(dispatches: TaskDispatchRecord[], completingId: string | null): MTaskHistoryRowVm[] {
-  return dispatches.map((dispatch) => ({
-    startedAt: dispatch.startedAt,
-    type: dispatch.type,
-    status: dispatch.status,
-    isCompleting: completingId != null && dispatch.executionId === completingId,
-  }));
+function buildHistory(verification: TaskVerificationFacts | null): MTaskHistoryRowVm[] {
+  return verification?.dispatches.map(({ dispatch, isCompleting }) => ({
+    startedAt: dispatch.startedAt, type: dispatch.type, status: dispatch.status, isCompleting,
+  })) ?? [];
 }
 
 export function buildTaskDetailVm(
@@ -155,28 +147,24 @@ export function buildTaskDetailVm(
   verification: TaskVerificationInfo | null,
   _now: number = Date.now(),
 ): MTaskDetailVm {
-  const byId = new Map(tasks.map((task) => [task.id, task]));
-  const task = byId.get(taskId);
+  const task = tasks.find((item) => item.id === taskId);
   if (!task) return NOT_FOUND;
-  const dispatches = verification?.dispatches ?? [];
-  const completingId = verification?.evidence.completingExecutionId ?? null;
+  const facts = buildTaskDetailFacts(task, tasks, verification);
   return {
     found: true,
     displayId: `T-${task.id}`,
     text: task.text,
     status: task.status,
     template: task.template,
-    statusKind: taskStatusKind(task),
+    statusKind: facts.statusKind,
     priority: task.priority,
     approvalNeeded: task.approvalNeeded ?? null,
     approvedAt: task.approvedAt ?? null,
-    // tasks.list is the primary source; the already-loaded evidence covers an older server that
-    // omits `completedAt` from the list DTO.
-    completedAt: task.completedAt ?? verification?.evidence.completedAt ?? null,
+    completedAt: facts.completedAt,
     doneWhen: task.doneWhen,
     blockedBy: task.blockedBy ?? null,
-    claim: buildClaim(task, dispatches),
-    deps: buildDependencies(task, byId),
-    history: buildHistory(dispatches, completingId),
+    claim: buildClaim(task, facts.claim, facts.verification),
+    deps: buildDependencies(facts.upstream),
+    history: buildHistory(facts.verification),
   };
 }

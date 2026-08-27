@@ -1,6 +1,6 @@
-// input:  TaskInfo and task verification fixtures
-// output: Task blocker, approval, claim, dependency and history tests
-// pos:    Mobile task-detail view-model regression tests
+// input:  task/list and verification fixtures with canonical shared detail semantics
+// output: Mobile read-only blocker, approval, claim, dependency, completion, and history tests
+// pos:    Mobile task-detail projection regression tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { describe, it, expect } from 'vitest';
@@ -103,23 +103,23 @@ describe('buildTaskDetailVm', () => {
     expect(buildTaskDetailVm('001', [task({})], null, NOW).approvalNeeded).toBeNull();
   });
 
-  it('maps the recorded completion time, falling back to verification evidence', () => {
-    const completedAt = '2026-08-03T20:22:33.000Z';
-    const done = task({ status: 'done', completedAt });
-    expect(buildTaskDetailVm('001', [done], null, NOW).completedAt).toBe(completedAt);
+  it('uses verification completion time before the list and falls back to list data', () => {
+    const listAt = '2026-08-03T20:22:33.000Z';
+    const evidenceAt = '2026-08-04T20:22:33.000Z';
+    const done = task({ status: 'done', completedAt: listAt });
+    expect(buildTaskDetailVm('001', [done], null, NOW).completedAt).toBe(listAt);
 
     const evidence = verification({
       evidence: {
         doneWhen: null,
         completed: true,
-        completedAt,
+        completedAt: evidenceAt,
         completedNote: null,
         completingExecutionId: null,
         completingOutput: null,
       },
     });
-    expect(buildTaskDetailVm('001', [task({ status: 'done' })], evidence, NOW).completedAt).toBe(completedAt);
-
+    expect(buildTaskDetailVm('001', [done], evidence, NOW).completedAt).toBe(evidenceAt);
     expect(buildTaskDetailVm('001', [task({})], null, NOW).completedAt).toBeNull();
   });
 
@@ -144,7 +144,10 @@ describe('buildTaskDetailVm', () => {
     expect(vm.claim!.meta).toBe('42m · $2.31');
   });
 
-  it('does not present an arbitrary history thread as the current owner', () => {
+  it('uses a safe direct claim id but never an arbitrary history thread as the current owner', () => {
+    const direct = buildTaskDetailVm('001', [task({ claimedBy: 'agent-a' })], null, NOW);
+    expect(direct.claim).toMatchObject({ threadId: null, claimedBy: 'agent-a' });
+
     const claimed = task({ claimedBy: 'task-dispatcher' });
     const vm = buildTaskDetailVm('001', [claimed], verification({ dispatches: [dispatch({})] }), NOW);
     expect(vm.claim!.threadId).toBeNull();
@@ -182,8 +185,8 @@ describe('buildTaskDetailVm', () => {
     const v = verification({
       evidence: { doneWhen: null, completed: true, completedAt: null, completedNote: null, completingExecutionId: 'exec_2', completingOutput: null },
       dispatches: [
-        dispatch({ executionId: 'exec_2', status: 'completed', startedAt: '2026-07-15T11:50:00Z' }),
         dispatch({ executionId: 'exec_1', status: 'running', startedAt: '2026-07-14T09:00:00Z' }),
+        dispatch({ executionId: 'exec_2', status: 'completed', startedAt: '2026-07-15T11:50:00Z' }),
       ],
     });
     const vm = buildTaskDetailVm('001', [claimed], v, NOW);

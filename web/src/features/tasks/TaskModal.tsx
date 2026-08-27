@@ -1,6 +1,6 @@
-// input:  TaskInfo, task verification query, task mutations
-// output: Task detail modal with blocker, fields, deps, and actions
-// pos:    Desktop task detail overlay
+// input:  task/list DTOs, verification query, canonical detail projections, and mutations
+// output: Desktop task detail overlay with copy, evidence, dependencies, and actions
+// pos:    Desktop task detail view and query adapter
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { useEffect } from 'react';
@@ -116,14 +116,15 @@ export interface TaskModalProps {
 
 export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnblock }: TaskModalProps) {
   const L = useVocab();
-  const tm = buildTaskModalVm(task, allTasks);
   const trpc = useTRPC();
   // The modal mounts only when a task is opened, so this per-task query fires on open only.
   const verifyQuery = useQuery(
     trpc.tasks.verification.queryOptions({ projectId: task.project, taskId: task.id }),
   );
-  const vv: TaskVerificationVm | null = verifyQuery.data
-    ? buildTaskVerificationVm(verifyQuery.data)
+  const verification = verifyQuery.data ?? null;
+  const tm = buildTaskModalVm(task, allTasks, verification);
+  const vv: TaskVerificationVm | null = verification
+    ? buildTaskVerificationVm(verification)
     : null;
 
   useEffect(() => {

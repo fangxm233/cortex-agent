@@ -1,7 +1,8 @@
-// input:  task verification records and shared USD formatting
-// output: evidence, dispatch rows, and themed status colors
-// pos:    Pure view model for task completion verification
-// >>> If I am updated, update my header comment and CORTEX.md <<<
+// input:  task verification DTO, canonical facts, and shared desktop formatters
+// output: Desktop evidence copy slots and themed dispatch rows
+// pos:    Desktop-only verification projection over shared task detail semantics
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 // Pure view-model for the task modal's "Done-when verification" (Card B) + "Dispatch history"
 // (Card C), consuming the real `tasks.verification` scope. Framework-free so the DTO→render mapping
 // — including every honest-placeholder branch — is unit-tested in isolation. Consumed by TaskModal.tsx.
@@ -12,6 +13,7 @@
 
 import type { TaskVerificationInfo, TaskDispatchRecord } from '@cortex-agent/ui-contract';
 import { formatUsd } from '@/lib/format';
+import { buildTaskVerificationFacts } from './task-detail-facts';
 
 // dispatch/execution status → dot color (mirrors the modal's palette in task-modal-vm.ts).
 function statusColor(status: TaskDispatchRecord['status']): string {
@@ -80,8 +82,9 @@ export interface TaskVerificationVm {
 }
 
 export function buildTaskVerificationVm(info: TaskVerificationInfo): TaskVerificationVm {
-  const e = info.evidence;
-  const dispatches: DispatchRowVm[] = info.dispatches.map((d) => ({
+  const facts = buildTaskVerificationFacts(info);
+  const e = facts.evidence;
+  const dispatches: DispatchRowVm[] = facts.dispatches.map(({ dispatch: d, isCompleting }) => ({
     executionId: d.executionId,
     type: d.type,
     status: d.status,
@@ -91,12 +94,8 @@ export function buildTaskVerificationVm(info: TaskVerificationInfo): TaskVerific
     when: formatWhen(d.startedAt),
     duration: formatDuration(d.durationMs),
     cost: formatCost(d.cost),
-    isCompleting: d.executionId === e.completingExecutionId,
+    isCompleting,
   }));
-
-  const hasEvidence =
-    e.completed && (e.completedNote != null || e.completingOutput != null || e.completedAt != null);
-
   return {
     completed: e.completed,
     doneWhen: e.doneWhen,
@@ -104,7 +103,7 @@ export function buildTaskVerificationVm(info: TaskVerificationInfo): TaskVerific
     completedNote: e.completedNote,
     completingExecutionId: e.completingExecutionId,
     completingOutput: e.completingOutput,
-    hasEvidence,
+    hasEvidence: facts.hasEvidence,
     dispatches,
     hasDispatches: dispatches.length > 0,
   };

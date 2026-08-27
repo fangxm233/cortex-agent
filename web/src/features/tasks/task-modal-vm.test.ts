@@ -1,10 +1,10 @@
-// input:  task lifecycle, dependency graph, and claim state
-// output: Approval, stored-field, dependency, and action tests
-// pos:    Pure task-modal behavior regression tests
+// input:  task lifecycle, dependency graph, claim state, and completion evidence
+// output: Desktop approval, stored-field, shared-fact, dependency, and action tests
+// pos:    Desktop task-modal projection regression tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { describe, expect, it } from 'vitest';
-import type { TaskInfo } from '@cortex-agent/ui-contract';
+import type { TaskInfo, TaskVerificationInfo } from '@cortex-agent/ui-contract';
 import { buildTaskModalVm } from './task-modal-vm';
 
 function task(partial: Partial<TaskInfo>): TaskInfo {
@@ -57,11 +57,28 @@ describe('buildTaskModalVm persisted fields', () => {
     expect(vm.pill.text).toBe('approval-needed');
   });
 
-  it('prefers the owning thread id over the persisted claim owner', () => {
+  it('prefers the owning thread id and safely falls back to a direct claim owner', () => {
     const claimed = task({ claimedBy: 'task-dispatcher', claimThreadId: 'thr_nimbus' });
     const vm = buildTaskModalVm(claimed, []);
     expect(fieldValue(claimed, 'claimed-by')).toBe('thr_nimbus');
     expect(vm.pill.text).toBe('● in-progress · thr_nimbus');
+
+    const direct = task({ claimedBy: 'agent-a' });
+    expect(fieldValue(direct, 'claimed-by')).toBe('agent-a');
+  });
+
+  it('uses verification completion evidence before stale list data', () => {
+    const evidenceAt = '2030-01-02T12:00:00.000Z';
+    const verification: TaskVerificationInfo = {
+      taskId: 'T-100', project: 'proj',
+      evidence: {
+        doneWhen: null, completed: true, completedAt: evidenceAt, completedNote: null,
+        completingExecutionId: null, completingOutput: null,
+      },
+      dispatches: [],
+    };
+    const vm = buildTaskModalVm(task({ completedAt: '2030-01-01T12:00:00.000Z' }), [], verification);
+    expect(vm.fields.find((field) => field.k === 'completed-at')?.v).toContain('2030-01-02');
   });
 
   it('reports when the task has no dependencies', () => {

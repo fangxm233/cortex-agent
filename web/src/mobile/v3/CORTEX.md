@@ -42,8 +42,8 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 | MTasksView.tsx | view | Renders canonical task groups with mobile-specific blocker cards |
 | MTaskDetailScreen.tsx | screen | Loads one task plus its verification evidence |
 | MTaskDetailView.tsx | view | Task detail with blocker, fields, deps and history |
-| m-task-detail-vm.ts | vm | Maps task blocker, claim and verification state |
-| m-task-detail-vm.test.ts | test | Tests blocker, approval, claim and detail state |
+| m-task-detail-vm.ts | vm | Projects canonical task facts into the mobile read-only detail model |
+| m-task-detail-vm.test.ts | test | Tests mobile blocker, approval, claim, completion and history projection |
 | MProjectScreen.tsx | screen | Binds project data, shared note previews/add and scope-first creation |
 | MProjectView.tsx | view | Project-scoped tab with settings gear and switcher |
 | m-project-vm.ts | vm | Derives thread counts, approval buckets, switch rows |

@@ -1,24 +1,21 @@
-// input:  task DTO and project task list
-// output: Approval-aware fields, claim-thread pill, deps, guards
-// pos:    Pure view model for the desktop task modal
+// input:  task DTO, project task list, optional verification, and canonical detail facts
+// output: Desktop approval fields, themed lifecycle/dependencies, and action guards
+// pos:    Desktop-only projection over shared task detail semantics
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-// Pure view-model for the task detail modal (screen 10a), rebuilt 1:1 from prototype.dc.html
-// L1462-1540 + its VM builder (`let tm = …`, L2569-2624). Framework-free so the mapping from the
-// real `TaskInfo` DTO → the prototype's exact values is unit-tested in isolation (TDD). Consumed by
-// TaskModal.tsx.
-//
-// why / doneWhen are now real (`TaskInfo.why` / `TaskInfo.doneWhen`) and rendered directly by
-// TaskModal (raw passthrough, not derived here); null → honest placeholder in TaskModal.
-// DATA GAPS (the DTO exposes less than the mock — rendered structurally, flagged):
-//   • done-when verification card — no evidence tRPC scope → placeholder card
-//   • dispatch history card       — no per-task execution join → placeholder card
-//   • gpu field                   — not on TaskInfo → "—" (matches the T-046 proto-shot)
-// Real: id · title · status/approval pill · priority · template · claimed-by · approval fields ·
-// completed-at · why · doneWhen · dependencies join.
+// Framework-free desktop projection for the task detail modal. Shared facts own lifecycle,
+// safe claim fallback, completion source precedence, dependency joins and verification ordering;
+// this module retains only desktop labels, theme values and complete/unblock guards.
+// `why` / `doneWhen` remain raw TaskInfo fields rendered by TaskModal. The sole prototype data gap
+// here is gpu, which is absent from TaskInfo and therefore remains an honest "—".
 
-import type { TaskInfo } from '@cortex-agent/ui-contract';
-import { displayClaimId } from './task-claim';
+import type { TaskInfo, TaskVerificationInfo } from '@cortex-agent/ui-contract';
+import {
+  buildTaskDetailFacts,
+  type TaskDependencyFacts,
+  type TaskDetailFacts,
+  type TaskDetailStatusKind,
+} from './task-detail-facts';
 import { formatTaskTime } from './task-time';
 
 export interface TaskModalPill {
@@ -57,21 +54,7 @@ export interface TaskModalVm {
   completeLabel: string;
 }
 
-type StatusKind = 'done' | 'blocked' | 'in-progress' | 'approval-needed' | 'actionable' | 'waiting';
-
-const STATUS_RULES: ReadonlyArray<{ kind: StatusKind; matches: (task: TaskInfo) => boolean }> = [
-  { kind: 'done', matches: (task) => task.status === 'done' },
-  { kind: 'blocked', matches: (task) => task.blockedBy != null },
-  { kind: 'in-progress', matches: (task) => task.claimedBy != null },
-  { kind: 'approval-needed', matches: (task) => task.approvalNeeded === true },
-  { kind: 'actionable', matches: (task) => task.actionable },
-];
-
-function statusKind(task: TaskInfo): StatusKind {
-  return STATUS_RULES.find((rule) => rule.matches(task))?.kind ?? 'waiting';
-}
-
-const STATIC_PILLS: Record<Exclude<StatusKind, 'in-progress'>, TaskModalPill> = {
+const STATIC_PILLS: Record<Exclude<TaskDetailStatusKind, 'in-progress'>, TaskModalPill> = {
   done: { bg: 'var(--pill-done-bg)', fg: 'var(--pill-done-fg)', text: '✓ done' },
   blocked: { bg: 'var(--pill-failed-bg)', fg: 'var(--pill-failed-fg)', text: 'blocked' },
   'approval-needed': { bg: 'var(--pill-waiting-bg)', fg: 'var(--pill-waiting-fg)', text: 'approval-needed' },
@@ -79,11 +62,9 @@ const STATIC_PILLS: Record<Exclude<StatusKind, 'in-progress'>, TaskModalPill> = 
   waiting: { bg: 'var(--pill-cancelled-bg)', fg: 'var(--pill-cancelled-fg)', text: 'waiting on deps' },
 };
 
-function statusPill(task: TaskInfo): TaskModalPill {
-  const kind = statusKind(task);
-  if (kind !== 'in-progress') return STATIC_PILLS[kind];
-  const claimId = displayClaimId(task);
-  const suffix = claimId ? ` · ${claimId}` : '';
+function statusPill(facts: TaskDetailFacts): TaskModalPill {
+  if (facts.statusKind !== 'in-progress') return STATIC_PILLS[facts.statusKind];
+  const suffix = facts.claim.displayId ? ` · ${facts.claim.displayId}` : '';
   return { bg: 'var(--pill-running-bg)', fg: 'var(--pill-running-fg)', text: `● in-progress${suffix}` };
 }
 
@@ -118,10 +99,10 @@ function approvalFields(task: TaskInfo): TaskModalField[] {
   ];
 }
 
-function taskFields(task: TaskInfo): TaskModalField[] {
-  const claimId = displayClaimId(task);
-  // Real `completed-at` from the task store, in the viewer's local wall clock; '—' when never done.
-  const completedAt = formatTaskTime(task.completedAt);
+function taskFields(task: TaskInfo, facts: TaskDetailFacts): TaskModalField[] {
+  const claimId = facts.claim.displayId;
+  // Verification evidence is authoritative; list data is the rolling-upgrade fallback.
+  const completedAt = formatTaskTime(facts.completedAt);
   return [
     { k: 'priority', v: task.priority, vColor: task.priority === 'high' ? 'var(--state-fail)' : 'var(--proto-ink)' },
     { k: 'status', v: task.status, vColor: 'var(--proto-ink)' },
@@ -133,38 +114,33 @@ function taskFields(task: TaskInfo): TaskModalField[] {
   ];
 }
 
-function taskDependencies(task: TaskInfo, all: TaskInfo[]): TaskModalDep[] {
-  const byId = new Map(all.map((item) => [item.id, item]));
-  const upstream = task.dependsOn.map((id): TaskModalDep => {
-    const dependency = byId.get(id);
-    return {
-      id,
-      name: dependency?.text ?? '—',
-      dotColor: depDot(dependency),
-      idColor: 'var(--state-run)',
-      label: dependency?.status === 'done' ? 'upstream · done' : 'upstream',
-      bg: 'var(--proto-rail)',
-      border: 'var(--proto-line-2)',
-    };
-  });
-  const downstream = all
-    .filter((item) => item.id !== task.id && item.dependsOn.includes(task.id))
-    .map((item): TaskModalDep => ({
-      id: item.id, name: item.text, dotColor: depDot(item), idColor: 'var(--state-run)',
-      label: 'downstream', bg: 'var(--proto-rail)', border: 'var(--proto-line-2)',
-    }));
-  return [...upstream, ...downstream];
+function taskDependency(dependency: TaskDependencyFacts): TaskModalDep {
+  const done = dependency.statusKind === 'done';
+  return {
+    id: dependency.id,
+    name: dependency.task?.text ?? '—',
+    dotColor: depDot(dependency.task ?? undefined),
+    idColor: 'var(--state-run)',
+    label: dependency.relation === 'upstream' && done ? 'upstream · done' : dependency.relation,
+    bg: 'var(--proto-rail)',
+    border: 'var(--proto-line-2)',
+  };
 }
 
-export function buildTaskModalVm(task: TaskInfo, all: TaskInfo[]): TaskModalVm {
-  const dependencies = taskDependencies(task, all);
+export function buildTaskModalVm(
+  task: TaskInfo,
+  all: TaskInfo[],
+  verification: TaskVerificationInfo | null = null,
+): TaskModalVm {
+  const facts = buildTaskDetailFacts(task, all, verification);
+  const dependencies = [...facts.upstream, ...facts.downstream].map(taskDependency);
   const completable = task.status !== 'done' && task.blockedBy == null;
   return {
     id: task.id,
     title: task.text,
-    pill: statusPill(task),
+    pill: statusPill(facts),
     priColor: priorityColor(task.priority),
-    fields: taskFields(task),
+    fields: taskFields(task, facts),
     deps: dependencies,
     hasDependencies: dependencies.length > 0,
     canUnblock: task.blockedBy != null,
