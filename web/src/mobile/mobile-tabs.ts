@@ -1,73 +1,59 @@
-// input:  mobile paths, vocab types, badge counts
-// output: tab definitions and drill mapping including notes
-// pos:    Four-tab mobile navigation model
+// input:  canonical mobile route manifest, vocab types, and badge counts
+// output: derived tab definitions, active-tab attribution, and tab-route checks
+// pos:    Four-tab mobile navigation model without duplicate route path sets
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-import { type Vocab } from '@/i18n';
 
-export type MobileTabId = 'sessions' | 'threads' | 'tasks' | 'project';
+import { type Vocab } from '@/i18n';
+import {
+  MOBILE_ROUTE_MANIFEST,
+  matchMobileRoute,
+  normalizeMobilePath,
+  type MobileTabId,
+} from './mobile-route-manifest';
+
+export { normalizeMobilePath } from './mobile-route-manifest';
+export type { MobileTabId } from './mobile-route-manifest';
 
 export interface MobileTab {
   id: MobileTabId;
   path: string;
-  // Label comes from useVocab() — 会话/线程/任务/项目 on the mobile (zh) viewport.
   labelKey: keyof Vocab;
 }
 
-// Design order (scheme bottom bar 1a L121-126): 会话 / 线程 / 任务 / 项目.
-export const MOBILE_TABS: readonly MobileTab[] = [
-  { id: 'sessions', path: '/m/sessions', labelKey: 'sessions' },
-  { id: 'threads', path: '/m/threads', labelKey: 'threads' },
-  { id: 'tasks', path: '/m/tasks', labelKey: 'tasks' },
-  { id: 'project', path: '/m/project', labelKey: 'project' },
-];
+const TAB_LABELS: Readonly<Record<MobileTabId, keyof Vocab>> = {
+  sessions: 'sessions',
+  threads: 'threads',
+  tasks: 'tasks',
+  project: 'project',
+};
 
-export function normalizeMobilePath(pathname: string): string {
-  return pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
+// Manifest order is the design order: 会话 / 线程 / 任务 / 项目.
+export const MOBILE_TABS: readonly MobileTab[] = MOBILE_ROUTE_MANIFEST
+  .filter((route) => route.tabRoot)
+  .map((route) => ({
+    id: route.tab,
+    path: route.path,
+    labelKey: TAB_LABELS[route.tab],
+  }));
+
+function pathStartsAt(path: string, root: string): boolean {
+  return path === root || path.startsWith(`${root}/`);
 }
 
-// Non-tab drill-in sub-screens → which tab stays highlighted while they are open. The scheme hides
-// the Tab bar on these pages (`隐藏 tab bar` / `非 Tab 页`), but the parent tab is the origin. chat
-// (1b) drills from 会话; 线程详情 (1g) from 线程; 任务详情 (1h) from 任务; everything under 项目
-// (审批 1f · 项目记忆 1j · 机器 1k · 设置 1l · 钩子 1l-h · 新建项目 1i · Daemon 1r) from 项目.
-const SUBROUTE_TAB: ReadonlyArray<{ prefix: string; tab: MobileTabId }> = [
-  { prefix: '/m/session/', tab: 'sessions' },
-  { prefix: '/m/thread/', tab: 'threads' },
-  { prefix: '/m/task/', tab: 'tasks' },
-  { prefix: '/m/approvals', tab: 'project' },
-  { prefix: '/m/issues', tab: 'project' },
-  { prefix: '/m/notes', tab: 'project' },
-  { prefix: '/m/memory', tab: 'project' },
-  { prefix: '/m/machines', tab: 'project' },
-  { prefix: '/m/settings', tab: 'project' },
-  { prefix: '/m/daemon', tab: 'project' },
-];
-
-/**
- * Which tab is highlighted for a pathname. Exact tab paths and their sub-paths highlight that tab;
- * the non-tab drill-in sub-screens map to their origin tab (SUBROUTE_TAB). Anything else (incl. a
- * stale desktop path) defaults to sessions — the same target the mobile router's catch-all redirects to.
- */
 export function activeTabId(pathname: string): MobileTabId {
   const path = normalizeMobilePath(pathname);
-  const tab = MOBILE_TABS.find((t) => path === t.path || path.startsWith(t.path + '/'));
-  if (tab) return tab.id;
-  const sub = SUBROUTE_TAB.find((s) => path === s.prefix || path.startsWith(s.prefix));
-  return sub ? sub.tab : 'sessions';
+  const match = matchMobileRoute(path);
+  if (match) return match.route.tab;
+  return MOBILE_TABS.find((tab) => pathStartsAt(path, tab.path))?.id ?? 'sessions';
 }
 
-/**
- * Whether a pathname is one of the 4 bottom-Tab routes (or a sub-path of one). The shell shows the
- * bottom Tab bar ONLY on Tab routes; the drill-in sub-screens (1b/1f/1g/1h/1i/1j/1k/1l/1r) hide it —
- * the scheme draws no Tab bar there (`隐藏 tab bar` / `非 Tab 页`).
- */
 export function isTabRootRoute(pathname: string): boolean {
-  const path = normalizeMobilePath(pathname);
-  return MOBILE_TABS.some((tab) => path === tab.path);
+  return matchMobileRoute(pathname)?.route.tabRoot === true;
 }
 
 export function isTabRoute(pathname: string): boolean {
   const path = normalizeMobilePath(pathname);
-  return MOBILE_TABS.some((t) => path === t.path || path.startsWith(t.path + '/'));
+  return MOBILE_TABS.some((tab) => pathStartsAt(path, tab.path));
 }
 
 export interface TabBadge {
@@ -75,11 +61,6 @@ export interface TabBadge {
   count?: number;
 }
 
-/**
- * Per-tab decoration. v3: only the 项目 tab carries an amber `需要你` count badge (scheme 1a L125,
- * `#C99A2E` pill). The count is pending approvals. Everything else is undecorated — the active-thread
- * count lives in the 线程 header segment, not the bottom bar.
- */
 export function tabBadge(id: MobileTabId, data: { needsYouCount: number }): TabBadge {
   if (id === 'project' && data.needsYouCount > 0) return { count: data.needsYouCount };
   return {};

@@ -1,6 +1,6 @@
-// input:  mobile route paths and badge counts
-// output: tab mapping including settings account drill routes
-// pos:    Tests the mobile tab navigation model
+// input:  manifest-backed mobile route paths and badge counts
+// output: dynamic drill-route tab attribution and tab visibility regressions
+// pos:    Tests the derived mobile tab navigation model
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { describe, it, expect } from 'vitest';
@@ -16,6 +16,7 @@ describe('activeTabId (v3)', () => {
 
   it('maps drill-in sub-screens to their origin tab', () => {
     expect(activeTabId('/m/session/s_abcd')).toBe('sessions');
+    expect(activeTabId('/m/session/s_abcd/plan/request-1')).toBe('sessions');
     expect(activeTabId('/m/thread/thr_abcd')).toBe('threads');
     expect(activeTabId('/m/task/T-041')).toBe('tasks');
     expect(activeTabId('/m/approvals')).toBe('project');

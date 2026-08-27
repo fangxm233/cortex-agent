@@ -1,11 +1,12 @@
-// input:  React lifecycle, Router state, and canonical native back capability
-// output: mobile back policy, semantic navigation, and idempotent Android listener cleanup
-// pos:    Android navigation control without local native-global declarations
+// input:  React lifecycle, Router state, route manifest, and canonical native back capability
+// output: manifest-derived semantic back and idempotent Android listener cleanup
+// pos:    Android navigation control without duplicate route regex rules
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { useEffect, useRef } from 'react';
 import { listenNativeBack, safeInvoke } from '@/lib/native-bridge';
-import { isTabRootRoute, normalizeMobilePath } from './mobile-tabs';
+import { mobileRouteParentPath, mobileRoutePath } from './mobile-route-manifest';
+import { isTabRootRoute } from './mobile-tabs';
 
 export type MobileNavigate = (to: string, options?: { replace: boolean }) => void;
 export type MobileBackAction =
@@ -13,29 +14,8 @@ export type MobileBackAction =
   | { kind: 'exit' }
   | { kind: 'navigate'; to: string };
 
-interface ParentRule {
-  pattern: RegExp;
-  parent: string | ((match: RegExpMatchArray) => string);
-}
-
-const PARENT_RULES: readonly ParentRule[] = [
-  { pattern: /^\/m\/session\/([^/]+)\/plan\/[^/]+$/, parent: (m) => `/m/session/${m[1]}` },
-  { pattern: /^\/m\/session\/[^/]+$/, parent: '/m/sessions' },
-  { pattern: /^\/m\/thread\/[^/]+$/, parent: '/m/threads' },
-  { pattern: /^\/m\/task\/[^/]+$/, parent: '/m/tasks' },
-  { pattern: /^\/m\/memory\/file$/, parent: '/m/memory' },
-  { pattern: /^\/m\/settings\/[^/]+$/, parent: '/m/settings' },
-  { pattern: /^\/m\/daemon$/, parent: '/m/settings' },
-  { pattern: /^\/m\/(approvals|issues|notes|memory|machines|settings)$/, parent: '/m/project' },
-];
-
 function parentPath(pathname: string): string {
-  const path = normalizeMobilePath(pathname);
-  for (const rule of PARENT_RULES) {
-    const match = path.match(rule.pattern);
-    if (match) return typeof rule.parent === 'string' ? rule.parent : rule.parent(match);
-  }
-  return '/m/sessions';
+  return mobileRouteParentPath(pathname) ?? mobileRoutePath('sessions');
 }
 
 export function resolveMobileBack(

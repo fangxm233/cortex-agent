@@ -2,22 +2,24 @@ Please update me when files in this folder change
 
 The mobile surface: its own router, four-tab shell and route-transition chrome, separate from desktop.
 This level holds the shell frame, tab/route model and mobile-only cross-screen logic.
-Tasks, issues, attachments, hook namespaces and status tones consume canonical feature/design models instead of local copies.
-Android back handling consumes the canonical typed native bridge, including race-safe idempotent teardown.
+An element-free declarative manifest now owns route paths, tab attribution and semantic parents; screen elements remain explicit in the route table.
+Android back handling consumes the manifest and canonical typed native bridge, including race-safe idempotent teardown.
 
 | filename | role | function |
 |---|---|---|
-| mobile-router.tsx | entry | Builds the browser or hash router instance |
-| mobile-routes.tsx | entry | Declares tab and canonical settings drill-in routes |
-| mobile-routes.test.tsx | test | Verifies supported and desktop-only settings routes |
+| mobile-router.tsx | entry | Builds the mobile-only router through the shared shell-router factory |
+| mobile-route-manifest.ts | core | Owns element-free paths, tab attribution, matching and semantic parents |
+| mobile-route-manifest.test.ts | test | Tests registry integrity, dynamic matching and parameterized parents |
+| mobile-routes.tsx | entry | Explicitly maps manifest route ids to React screen elements |
+| mobile-routes.test.tsx | test | Verifies manifest registration plus supported settings routes |
 | MobileShell.tsx | core | Frames the shared project provider, outlet, native back and tabs |
 | MobileAnimatedOutlet.tsx | core | Animates routes and retains the source tab frame |
 | MobileAnimatedOutlet.test.tsx | test | Tests transitions and retained tab frames |
 | BottomTabBar.tsx | view | Four-tab bottom bar with icons and badges |
-| mobile-navigation.ts | core | Applies semantic back and delegates unknown native back payloads to the canonical bridge |
-| mobile-navigation.test.ts | test | Tests settings parents, Router-history policy and tab switching |
-| mobile-tabs.ts | core | Maps paths to active tab and badge counts |
-| mobile-tabs.test.ts | test | Unit tests for path to tab mapping |
+| mobile-navigation.ts | core | Applies manifest-derived semantic back and delegates native payloads to the bridge |
+| mobile-navigation.test.ts | test | Tests parameterized parents, fallback, Router history and tab switching |
+| mobile-tabs.ts | core | Derives tab paths and path attribution from the route manifest |
+| mobile-tabs.test.ts | test | Unit tests for derived path-to-tab mapping |
 | use-back-dismiss.ts | hook | Guards overlay history and re-arms after consumed nested-level back |
 | use-back-dismiss.test.ts | test | Tests back dismissal and replaced-sentinel cleanup |
 | use-viewport-height.ts | hook | Publishes keyboard-aware viewport size |

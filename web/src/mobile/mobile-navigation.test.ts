@@ -1,5 +1,5 @@
-// input:  mobile paths, Router history state, and injected navigation effects
-// output: semantic Android back, settings-parent, and tab-switch policy regressions
+// input:  manifest-backed mobile paths, Router state, and injected navigation effects
+// output: parameterized semantic parents, unknown fallback, and tab-switch regressions
 // pos:    Pure mobile navigation tests; native listener lifecycle is covered by lib/native-bridge
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -50,10 +50,17 @@ describe('resolveMobileBack nested routes', () => {
     });
     expect(resolveMobileBack('/m/memory/file', false)).toEqual({ kind: 'navigate', to: '/m/memory' });
     expect(resolveMobileBack('/m/daemon', false)).toEqual({ kind: 'navigate', to: '/m/settings' });
-    for (const section of ['accounts', 'platform', 'profiles', 'budget', 'mcp', 'notifications', 'advanced', 'hooks', 'usage']) {
+    for (const section of ['accounts', 'appearance', 'platform', 'profiles', 'budget', 'mcp', 'notifications', 'advanced', 'hooks', 'usage']) {
       expect(resolveMobileBack(`/m/settings/${section}`, false)).toEqual({ kind: 'navigate', to: '/m/settings' });
     }
     expect(resolveMobileBack('/m/settings/usage/', false)).toEqual({ kind: 'navigate', to: '/m/settings' });
+  });
+
+  it('keeps the sessions fallback for unknown deep links', () => {
+    expect(resolveMobileBack('/workbench', false)).toEqual({
+      kind: 'navigate',
+      to: '/m/sessions',
+    });
   });
 });
 

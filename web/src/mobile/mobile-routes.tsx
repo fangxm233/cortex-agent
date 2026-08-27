@@ -1,10 +1,16 @@
-// input:  mobile shell, tab screens and complete settings drill-ins
-// output: mobile route table with canonical settings detail routes
-// pos:    Mobile router route declarations
+// input:  element-free mobile route manifest plus explicit screen element mapping
+// output: inspectable mobile route table with index and unknown-path fallbacks
+// pos:    Mobile route declarations; React elements stay outside declarative metadata
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
+import { type ReactNode } from 'react';
 import { Navigate, type RouteObject } from 'react-router-dom';
 import { MobileShell } from './MobileShell';
+import {
+  MOBILE_ROUTE_MANIFEST,
+  mobileRoutePath,
+  type MobileRouteId,
+} from './mobile-route-manifest';
 import { MSessionListScreen } from './v3/MSessionListScreen';
 import { MChatScreen } from './v3/MChatScreen';
 import { MPlanReadScreen } from './v3/MPlanReadScreen';
@@ -31,47 +37,50 @@ import { MBudgetScreen } from './v3/MBudgetScreen';
 import { MMcpScreen } from './v3/MMcpScreen';
 import { MAdvancedScreen, MNotificationsScreen } from './v3/MRuntimeSettingsScreen';
 
-// Mobile v3 route table (scheme-mobile.dc.html §1). Four bottom-Tab routes (会话/线程/任务/项目) +
-// drill-in sub-screens (1b/1f/1g/1h/1i/1j/1j-file/1k/1l/1l-h/1r) which hide the Tab bar (see
-// mobile-tabs isTabRoute; `/m/memory/file` and `/m/settings/*` map to the 项目 tab via their
-// `/m/memory` and `/m/settings` prefixes).
-// Kept separate from the router instance so it is inspectable/testable without a browser history, and
-// separate from the desktop `router` (RootRouter picks by shell mode). Index + catch-all → /m/sessions.
+const MOBILE_ROUTE_ELEMENTS: Readonly<Record<MobileRouteId, ReactNode>> = {
+  sessions: <MSessionListScreen />,
+  threads: <MThreadsScreen />,
+  tasks: <MTasksScreen />,
+  project: <MProjectScreen />,
+  session: <MChatScreen />,
+  plan: <MPlanReadScreen />,
+  thread: <MThreadDetailScreen />,
+  task: <MTaskDetailScreen />,
+  approvals: <MApprovalsScreen />,
+  issues: <MIssuesScreen />,
+  notes: <MNotesScreen />,
+  memory: <MMemoryScreen />,
+  memoryFile: <MMemoryFileScreen />,
+  machines: <MMachinesScreen />,
+  settings: <MSettingsScreen />,
+  settingsAccounts: <MAccountsScreen />,
+  settingsAppearance: <MAppearanceScreen />,
+  settingsPlatform: <MPlatformScreen />,
+  settingsProfiles: <MProfilesScreen />,
+  settingsBudget: <MBudgetScreen />,
+  settingsMcp: <MMcpScreen />,
+  settingsNotifications: <MNotificationsScreen />,
+  settingsAdvanced: <MAdvancedScreen />,
+  settingsHooks: <MHooksScreen />,
+  settingsUsage: <MUsageScreen />,
+  daemon: <MDaemonScreen />,
+};
+
+const mobileRouteChildren: RouteObject[] = MOBILE_ROUTE_MANIFEST.map((route) => ({
+  path: route.path,
+  element: MOBILE_ROUTE_ELEMENTS[route.id],
+}));
+
+const fallback = <Navigate to={mobileRoutePath('sessions')} replace />;
+
 export const mobileRoutes: RouteObject[] = [
   {
     path: '/',
     element: <MobileShell />,
     children: [
-      { index: true, element: <Navigate to="/m/sessions" replace /> },
-      // Tab routes
-      { path: '/m/sessions', element: <MSessionListScreen /> },
-      { path: '/m/threads', element: <MThreadsScreen /> },
-      { path: '/m/tasks', element: <MTasksScreen /> },
-      { path: '/m/project', element: <MProjectScreen /> },
-      // Drill-in sub-screens (Tab bar hidden)
-      { path: '/m/session/:sessionId', element: <MChatScreen /> },
-      { path: '/m/session/:sessionId/plan/:requestId', element: <MPlanReadScreen /> },
-      { path: '/m/thread/:threadId', element: <MThreadDetailScreen /> },
-      { path: '/m/task/:taskId', element: <MTaskDetailScreen /> },
-      { path: '/m/approvals', element: <MApprovalsScreen /> },
-      { path: '/m/issues', element: <MIssuesScreen /> },
-      { path: '/m/notes', element: <MNotesScreen /> },
-      { path: '/m/memory', element: <MMemoryScreen /> },
-      { path: '/m/memory/file', element: <MMemoryFileScreen /> },
-      { path: '/m/machines', element: <MMachinesScreen /> },
-      { path: '/m/settings', element: <MSettingsScreen /> },
-      { path: '/m/settings/accounts', element: <MAccountsScreen /> },
-      { path: '/m/settings/appearance', element: <MAppearanceScreen /> },
-      { path: '/m/settings/platform', element: <MPlatformScreen /> },
-      { path: '/m/settings/profiles', element: <MProfilesScreen /> },
-      { path: '/m/settings/budget', element: <MBudgetScreen /> },
-      { path: '/m/settings/mcp', element: <MMcpScreen /> },
-      { path: '/m/settings/notifications', element: <MNotificationsScreen /> },
-      { path: '/m/settings/advanced', element: <MAdvancedScreen /> },
-      { path: '/m/settings/hooks', element: <MHooksScreen /> },
-      { path: '/m/settings/usage', element: <MUsageScreen /> },
-      { path: '/m/daemon', element: <MDaemonScreen /> },
-      { path: '*', element: <Navigate to="/m/sessions" replace /> },
+      { index: true, element: fallback },
+      ...mobileRouteChildren,
+      { path: '*', element: fallback },
     ],
   },
 ];
