@@ -23,7 +23,7 @@ export const MCP_TOOLS_BY_SERVER: Readonly<Record<string, readonly string[]>> = 
   'cortex-interaction-bridge': ['cortex_plan_enter', 'cortex_plan_exit', 'cortex_ask_user'],
   'cortex-slack': ['slack_send_file'],
   'cortex-feishu': ['feishu_send_file'],
-  'cortex-web': ['send_file', 'send_view'],
+  'cortex-web': ['send_file', 'send_view', 'send_decision'],
   'cortex-benchmark-thread': ['thread_run'],
 };
 

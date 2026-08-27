@@ -143,6 +143,7 @@ export type MutateOp =
   | 'sessions.markRead'
   | 'sessions.answerQuestion'
   | 'sessions.respondPlan'
+  | 'sessions.respondDecision'
   | 'sessions.cancelResume'
   | 'sessions.rewind'
   | 'threads.cancel'
@@ -473,6 +474,24 @@ export interface SessionsRespondPlanArgs {
  *  refetches the transcript to show the final state. */
 export interface SessionsInteractionMutateReturn {
   outcome: 'resolved' | 'already-resolved';
+}
+
+/** Args for `sessions.respondDecision`: the user's response to an agent-announced decision card
+ *  (`send_decision`). `approve` records only — nothing is ever sent to the agent. `explain` /
+ *  `revise` record the action AND forward `message` (composed by the client from its template +
+ *  the user's free text) to the agent as an ordinary user chat message. */
+export interface SessionsRespondDecisionArgs {
+  sessionId: string;
+  decisionId: string;
+  action: DecisionActionKind;
+  /** Required for explain/revise; ignored for approve. */
+  message?: string;
+}
+
+/** `already-approved` = a repeated approve (another device or a double-click) — idempotent,
+ *  not an error; the card simply shows the recorded state. */
+export interface SessionsRespondDecisionReturn {
+  outcome: 'recorded' | 'already-approved';
 }
 
 /** Args for `sessions.cancelResume`: decline the auto-resume promised when a rate limit
@@ -818,6 +837,29 @@ export interface InteractionQuestion {
   multiSelect: boolean;
 }
 
+// ── Decision entity DTO (send_decision) ───────────────────────────────────
+// An agent-announced decision is a non-blocking record carried by an assistant transcript row.
+// The user may respond (approve / explain / revise) — each response is an append-only action
+// folded into `actions[]`; there is no pending state and nothing ever blocks the agent.
+
+export type DecisionActionKind = 'approve' | 'explain' | 'revise';
+
+export interface DecisionAction {
+  action: DecisionActionKind;
+  /** The chat message sent for explain/revise; absent for approve (nothing goes to the agent). */
+  message?: string;
+  ts: string;
+}
+
+export interface DecisionItem {
+  id: string;
+  title: string;
+  decision: string;
+  context: string;
+  reasoning: string;
+  actions: DecisionAction[];
+}
+
 export interface TranscriptInteractionDetail {
   id: string;
   kind: InteractionKind;
@@ -870,6 +912,8 @@ export interface TranscriptMessage {
   /** File attachments: user uploads via the web composer (15a, user messages) OR agent-sent
    *  files via the `send_file` MCP tool (20a, assistant messages). */
   attachments?: AttachmentMeta[];
+  /** Agent-announced decisions via the `send_decision` MCP tool (assistant messages). */
+  decisions?: DecisionItem[];
   /** Present on a user message that replaced an earlier one via edit+rewind (sessions.rewind):
    *  the original text/ts backing the「已编辑」badge + hover/tap original-message card. */
   edited?: { originalText: string; originalTs: string };
@@ -2078,6 +2122,7 @@ export interface MutateArgsMap {
   'sessions.markRead': SessionsMarkReadArgs;
   'sessions.answerQuestion': SessionsAnswerQuestionArgs;
   'sessions.respondPlan': SessionsRespondPlanArgs;
+  'sessions.respondDecision': SessionsRespondDecisionArgs;
   'sessions.cancelResume': SessionsCancelResumeArgs;
   'sessions.rewind': SessionsRewindArgs;
   'threads.cancel': ThreadsCancelArgs;
@@ -2139,6 +2184,7 @@ export interface MutateReturnMap {
   'sessions.markRead': void;
   'sessions.answerQuestion': SessionsInteractionMutateReturn;
   'sessions.respondPlan': SessionsInteractionMutateReturn;
+  'sessions.respondDecision': SessionsRespondDecisionReturn;
   'sessions.cancelResume': SessionsCancelResumeReturn;
   'sessions.rewind': SessionsRewindReturn;
   'threads.cancel': ThreadsCancelReturn;
@@ -2261,6 +2307,9 @@ export interface UiServiceDeps {
     /** First user message text — used to title a label-less session in `sessions.list`. Optional so
      *  facade/test fixtures need not provide it (the handler skips titling when absent). */
     getFirstUserText?(sessionId: string): Promise<string | null>;
+    /** Append-only decision-action line (`sessions.respondDecision`). Optional so read-only
+     *  fixtures need not provide it — the handler reports not-available when absent. */
+    appendDecisionAction?(sessionId: string, opts: { decisionId: string; action: DecisionActionKind; message?: string; ts?: string }): Promise<void>;
   };
   /** Durable active pending-injection snapshot joined into `sessions.transcript`. */
   pendingInjections?: {

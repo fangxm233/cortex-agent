@@ -4,7 +4,7 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
-import type { AttachmentMeta } from '@domain/ui-service/types.js';
+import type { AttachmentMeta, DecisionItem } from '@domain/ui-service/types.js';
 import type { ChatNoticeLevel, NoticeAction, SessionContextUsage, TodoSnapshot } from '@core/types/agent-types.js';
 import type { SubagentSpawnRef } from '../agent-adapter/normalize/event-types.js';
 
@@ -16,6 +16,8 @@ export interface SessionMessagePayload {
   toolName?: string;
   toolInput?: string;
   attachments?: AttachmentMeta[];
+  /** Agent-announced decisions (`send_decision`) carried by this assistant message. */
+  decisions?: DecisionItem[];
   /** Optional shared timestamp — when provided, the EventBus event carries the same
    *  `ts` as the conversation-history entry so the web UI's content-based de-dup
    *  (transcript query vs live-tail) produces identical keys for the same message. */
@@ -86,6 +88,7 @@ export function publishSessionMessage(p: SessionMessagePayload): void {
     ...(p.toolName !== undefined ? { toolName: p.toolName } : {}),
     ...(p.toolInput !== undefined ? { toolInput: p.toolInput } : {}),
     ...(p.attachments !== undefined ? { attachments: p.attachments } : {}),
+    ...(p.decisions !== undefined ? { decisions: p.decisions } : {}),
     ...(p.ts !== undefined ? { ts: p.ts } : {}),
     ...(p.blockId !== undefined ? { blockId: p.blockId } : {}),
     ...(p.noticeLevel !== undefined ? { noticeLevel: p.noticeLevel } : {}),

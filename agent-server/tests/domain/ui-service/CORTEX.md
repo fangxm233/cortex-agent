@@ -20,6 +20,7 @@ Scopes cover approvals, config, executions, issues, memory, plugins, projects, s
 | mutate-sessions-create.test.ts | test | Covers session creation and default project |
 | mutate-sessions-create-pi.test.ts | test | Covers fresh PI response and event ordering |
 | mutate-sessions-interactions.test.ts | test | Covers question answer and plan response |
+| mutate-sessions-respond-decision.test.ts | test | Covers decision approve/explain/revise responses |
 | mutate-sessions-markread.test.ts | test | Covers session mark-read outcomes |
 | mutate-sessions-rewind.test.ts | test | Covers session rewind guards and outcomes |
 | mutate-sessions-send.test.ts | test | Covers session message send routing |

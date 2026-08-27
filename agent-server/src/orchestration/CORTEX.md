@@ -7,6 +7,7 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 |---|---|---|
 | agent-file-send.ts | chat | stores and delivers agent files with safe display names |
 | agent-view-send.ts | chat | delivers agent-rendered HTML views with size and height limits |
+| agent-decision-send.ts | chat | records agent-announced decisions on Web chat transcripts |
 | outputs-store.ts | core | shared workspace outputs placement and filename discipline |
 | agent-runner.ts | core | routes turns, tool traces and generic dialogs |
 | bg-continuation.ts | helper | forwards background continuation output |

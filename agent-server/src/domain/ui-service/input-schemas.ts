@@ -244,6 +244,15 @@ export const sessionsRespondPlanInput = z.object({
   feedback: z.string().optional(),
 });
 
+// sessions.respondDecision (send_decision cards): `message` is required for explain/revise and
+// absent/ignored for approve — the pairing is re-checked in the handler.
+export const sessionsRespondDecisionInput = z.object({
+  sessionId: z.string().min(1),
+  decisionId: z.string().min(1),
+  action: z.enum(['approve', 'explain', 'revise']),
+  message: z.string().optional(),
+});
+
 export const sessionsCancelResumeInput = z.object({
   sessionId: z.string(),
 });
@@ -786,6 +795,7 @@ export const mutateInputSchemas = {
   'sessions.markRead': sessionsMarkReadInput,
   'sessions.answerQuestion': sessionsAnswerQuestionInput,
   'sessions.respondPlan': sessionsRespondPlanInput,
+  'sessions.respondDecision': sessionsRespondDecisionInput,
   'sessions.cancelResume': sessionsCancelResumeInput,
   'sessions.rewind': sessionsRewindInput,
   'threads.cancel': threadsCancelInput,

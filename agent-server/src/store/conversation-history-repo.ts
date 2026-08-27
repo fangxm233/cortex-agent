@@ -63,6 +63,35 @@ export interface InteractionResult {
   feedback?: string;
 }
 
+// ── Decision entity types (send_decision) ────────────────────────────────────
+// A decision is a non-blocking record the agent announces via the web-only `send_decision`
+// MCP tool. The assistant line carries the decision bodies; later user responses are
+// append-only `decision-action` lines folded into each decision's `actions[]` at read time
+// (same append-only discipline as edit-marker — no line is ever rewritten).
+
+export type DecisionActionKind = 'approve' | 'explain' | 'revise';
+
+export interface HistoryDecisionAction {
+  action: DecisionActionKind;
+  /** The chat message sent for explain/revise; absent for approve (nothing goes to the agent). */
+  message?: string;
+  ts: string;
+}
+
+/** Decision body as persisted on the assistant line (no actions — those are separate lines). */
+export interface RawDecisionItem {
+  id: string;
+  title: string;
+  decision: string;
+  context: string;
+  reasoning: string;
+}
+
+/** Read-time decision: the persisted body plus the folded action log. */
+export interface HistoryDecisionItem extends RawDecisionItem {
+  actions: HistoryDecisionAction[];
+}
+
 /** A resolved history event (turnIndex derived at read time). */
 export interface HistoryEvent {
   type: HistoryEventType;
@@ -108,6 +137,8 @@ export interface HistoryEvent {
   turnIndex: number;
   /** Optional file attachments (user events from web composer). */
   attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' | 'view' }[];
+  /** Agent-announced decisions (assistant events from `send_decision`), with folded action logs. */
+  decisions?: HistoryDecisionItem[];
   /** Present on a user event that replaced an earlier message via edit+rewind. Derived on read
    *  from the preceding `edit-marker` raw line (the marker itself is never emitted). */
   edited?: { originalText: string; originalTs: string };
@@ -116,9 +147,11 @@ export interface HistoryEvent {
 /** Raw line as persisted (no turnIndex — derived on read).
  *  `edit-marker` is a persistence-only line (message edit + rewind): appended right before the
  *  edited user event's re-send; on read it attaches to the NEXT user event as `edited` and is
- *  never emitted as an event itself. */
+ *  never emitted as an event itself.
+ *  `decision-action` is a persistence-only line too: it folds into the matching decision's
+ *  `actions[]` at read time and is never emitted as an event. */
 interface RawEvent {
-  type: HistoryEventType | 'edit-marker' | 'debug-user-prompt' | 'debug-tool-result';
+  type: HistoryEventType | 'edit-marker' | 'debug-user-prompt' | 'debug-tool-result' | 'decision-action';
   /** edit-marker lines only. */
   originalText?: string;
   /** edit-marker lines only. */
@@ -150,6 +183,14 @@ interface RawEvent {
   ts: string;
   /** Optional file attachments (user events from web composer). */
   attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' | 'view' }[];
+  /** Decision bodies (assistant lines from `send_decision`). */
+  decisions?: RawDecisionItem[];
+  /** decision-action lines only: the target decision's id. */
+  decisionId?: string;
+  /** decision-action lines only. */
+  action?: DecisionActionKind;
+  /** decision-action lines only: the chat message sent for explain/revise. */
+  message?: string;
   /** Internal idempotency key for a recovered pending injection. Never emitted by getHistory. */
   sourceId?: string;
 }
@@ -291,12 +332,24 @@ export class ConversationHistoryRepo {
    *  An optional `ts` override lets the caller share a single timestamp with the EventBus event.
    *  Optional `attachments` carry agent-sent files (20a) — the assistant-side mirror of the user
    *  composer's uploads. Present only for the file-send path; ordinary assistant text omits it. */
-  appendAssistant(sessionId: string, opts: { text: string; ts?: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' | 'view' }[]; noticeLevel?: ChatNoticeLevel; noticeAction?: NoticeAction; subagent?: SubagentRowRef; subagentSpawns?: SubagentSpawnRef[] }): Promise<void> {
+  appendAssistant(sessionId: string, opts: { text: string; ts?: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' | 'view' }[]; decisions?: RawDecisionItem[]; noticeLevel?: ChatNoticeLevel; noticeAction?: NoticeAction; subagent?: SubagentRowRef; subagentSpawns?: SubagentSpawnRef[] }): Promise<void> {
     return this.append(sessionId, {
       type: 'assistant', text: opts.text, ts: opts.ts ?? nowIso(),
       attachments: opts.attachments, noticeLevel: opts.noticeLevel, noticeAction: opts.noticeAction,
+      ...(opts.decisions?.length ? { decisions: opts.decisions } : {}),
       ...(opts.subagentSpawns?.length ? { subagentSpawns: opts.subagentSpawns } : {}),
       ...subagentRowFields(opts.subagent),
+    });
+  }
+
+  /** Append a DECISION ACTION line (user response to a `send_decision` card): folds into the
+   *  matching decision's `actions[]` at read time. Append-only — the decision line itself is
+   *  never rewritten. */
+  appendDecisionAction(sessionId: string, opts: { decisionId: string; action: DecisionActionKind; message?: string; ts?: string }): Promise<void> {
+    return this.append(sessionId, {
+      type: 'decision-action', decisionId: opts.decisionId, action: opts.action,
+      ...(opts.message !== undefined ? { message: opts.message } : {}),
+      ts: opts.ts ?? nowIso(),
     });
   }
 
@@ -418,6 +471,9 @@ export class ConversationHistoryRepo {
     const interactionById = new Map<string, HistoryEvent>();
     // DEBUG sidecars merge into visible rows and never affect transcript ordering or turn indexes.
     const toolByUseId = new Map<string, HistoryEvent>();
+    // Decision fold: id → the read-time decision item already attached to its assistant row.
+    // Later decision-action lines append into that item's `actions[]` (position kept).
+    const decisionById = new Map<string, HistoryDecisionItem>();
     let lastUser: HistoryEvent | null = null;
     let turnIndex = -1;
     // Pending edit-marker: attaches to the NEXT user event as `edited` (never emitted itself).
@@ -438,6 +494,15 @@ export class ConversationHistoryRepo {
 
       if (ev.type === 'edit-marker') {
         pendingEdit = { originalText: ev.originalText ?? '', originalTs: ev.originalTs ?? '' };
+      } else if (ev.type === 'decision-action') {
+        const target = ev.decisionId ? decisionById.get(ev.decisionId) : undefined;
+        if (target && ev.action) {
+          target.actions.push({
+            action: ev.action,
+            ...(ev.message !== undefined ? { message: ev.message } : {}),
+            ts: ev.ts,
+          });
+        }
       } else if (ev.type === 'debug-user-prompt') {
         if (lastUser && ev.agentMessage !== undefined) {
           lastUser.debug = { ...(lastUser.debug ?? {}), agentMessage: ev.agentMessage };
@@ -465,18 +530,22 @@ export class ConversationHistoryRepo {
         const tIdx = Math.max(0, turnIndex);
         const last = events[events.length - 1];
         const text = ev.text ?? '';
-        // An assistant event carrying file attachments (agent-sent file, 20a) is a distinct card —
-        // never fold it into a preceding streamed text block, and never fold a later text block into
-        // it (the empty-caption case is prefix-related to any text and would otherwise swallow it).
+        // An assistant event carrying file attachments (agent-sent file, 20a) or decisions
+        // (send_decision) is a distinct card — never fold it into a preceding streamed text block,
+        // and never fold a later text block into it (the empty-caption case is prefix-related to
+        // any text and would otherwise swallow it).
         const hasAttachments = ev.attachments !== undefined;
+        const hasDecisions = ev.decisions !== undefined && ev.decisions.length > 0;
         const canCollapse =
           !hasAttachments &&
+          !hasDecisions &&
           ev.noticeLevel === undefined &&
           !!last &&
           last.type === 'assistant' &&
           last.noticeLevel === undefined &&
           last.turnIndex === tIdx &&
           last.attachments === undefined &&
+          last.decisions === undefined &&
           // Never merge across the main/subagent boundary, nor between two subagents: streaming
           // partials only ever collapse within one author.
           last.subagentId === ev.subagentId &&
@@ -485,14 +554,19 @@ export class ConversationHistoryRepo {
         if (canCollapse) {
           if (text.length >= last!.text!.length) { last!.text = text; last!.ts = ev.ts; }
         } else {
+          const decisions = hasDecisions
+            ? ev.decisions!.map((d): HistoryDecisionItem => ({ ...d, actions: [] }))
+            : undefined;
           events.push({
             type: 'assistant', text, ts: ev.ts, turnIndex: tIdx,
             ...(hasAttachments ? { attachments: ev.attachments } : {}),
+            ...(decisions ? { decisions } : {}),
             ...(ev.noticeLevel ? { noticeLevel: ev.noticeLevel } : {}),
             ...(ev.noticeAction ? { noticeAction: ev.noticeAction } : {}),
             ...(ev.subagentSpawns?.length ? { subagentSpawns: ev.subagentSpawns } : {}),
             ...subagentReadFields(ev),
           });
+          if (decisions) for (const d of decisions) decisionById.set(d.id, d);
         }
       } else if (ev.type === 'tool') {
         const toolRef = ev.toolUseId;

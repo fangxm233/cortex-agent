@@ -158,10 +158,10 @@ test('built cortex-manager-qa answers without a thread context', async () => {
   });
 });
 
-test('built cortex-web exposes file and view delivery to a web session', async () => {
+test('built cortex-web exposes file, view and decision delivery to a web session', async () => {
   await withQaWebhook(async (port, received) => {
     await withServer('web-server.js', async (client) => {
-      assert.deepEqual(await toolNames(client), ['send_file', 'send_view']);
+      assert.deepEqual(await toolNames(client), ['send_decision', 'send_file', 'send_view']);
 
       const result = await client.callTool({
         name: 'send_view',
@@ -172,6 +172,31 @@ test('built cortex-web exposes file and view delivery to a web session', async (
         sessionId: 'stdio-web-session', title: 'Sweep results',
         html: '<h1>hi</h1>', caption: 'by seed', height: 420,
       }]);
+    }, {
+      WEBHOOK_PORT: String(port),
+      CORTEX_WEBHOOK_TOKEN: 'stdio-token',
+      CORTEX_SESSION_ID: 'stdio-web-session',
+    });
+  });
+});
+
+test('send_decision proxies the decision batch to the daemon webhook', async () => {
+  await withQaWebhook(async (port, received) => {
+    await withServer('web-server.js', async (client) => {
+      const decision = {
+        title: 'Store results in SQLite',
+        decision: 'Run outputs go into results.db instead of JSONL files.',
+        context: 'Both stores were possible; queries were getting slow.',
+        reasoning: 'Indexed queries stay fast as runs accumulate.',
+      };
+      const result = await client.callTool({ name: 'send_decision', arguments: { decisions: [decision] } });
+      assert.equal(result.isError ?? false, false);
+      assert.match((result.content as any[])[0].text, /Recorded 1 decision/);
+      assert.deepEqual(received, [{ sessionId: 'stdio-web-session', decisions: [decision] }]);
+
+      const empty = await client.callTool({ name: 'send_decision', arguments: { decisions: [] } });
+      assert.equal(empty.isError, true, 'an empty batch is refused before it reaches the daemon');
+      assert.equal(received.length, 1);
     }, {
       WEBHOOK_PORT: String(port),
       CORTEX_WEBHOOK_TOKEN: 'stdio-token',

@@ -28,6 +28,7 @@ import { fireThreadCallback } from '../thread-callback.js';
 import { askManager, getAnswer, submitAnswer } from '../manager-qa.js';
 import { sendAgentFile } from '../agent-file-send.js';
 import { sendAgentView } from '../agent-view-send.js';
+import { sendAgentDecisions } from '../agent-decision-send.js';
 import type { Destination, MessageRef } from '@platform/index.js';
 import type { RunThreadOptions } from '@core/types/thread-types.js';
 
@@ -282,6 +283,31 @@ function createWebhookHandler(_options: {
           const meta = await sendAgentView({ sessionId, title, html, filePath, caption, height });
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ success: true, data: meta }));
+        } catch (e) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, error: (e as Error).message }));
+        }
+      });
+      return;
+    }
+
+    // --- Agent-announced decisions (from the web-only cortex-web MCP `send_decision` tool) ---
+    // Same subprocess→daemon proxy as /webhook/ui-view. Decision bodies are short text, so the
+    // daemon records them INLINE on one assistant transcript row (no file is landed) and
+    // publishes the live event; user responses arrive later via `sessions.respondDecision`.
+    if (req.method === 'POST' && req.url === '/webhook/ui-decision') {
+      readJsonBody(req, async (error, _body, data) => {
+        if (error) { res.writeHead(400); res.end('Bad JSON'); return; }
+        const { sessionId, decisions } = data || {};
+        if (!sessionId || !Array.isArray(decisions) || decisions.length === 0) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, error: 'sessionId and a non-empty decisions array required' }));
+          return;
+        }
+        try {
+          const items = await sendAgentDecisions({ sessionId, decisions });
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, data: { ids: items.map(d => d.id), titles: items.map(d => d.title) } }));
         } catch (e) {
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ success: false, error: (e as Error).message }));

@@ -21,6 +21,7 @@ import {
   sessionsMarkReadInput,
   sessionsAnswerQuestionInput,
   sessionsRespondPlanInput,
+  sessionsRespondDecisionInput,
   sessionsCancelResumeInput,
   sessionsRewindInput,
   sessionsPendingInteractionInput,
@@ -198,6 +199,7 @@ function sessionsRouter(service: UiService) {
     markRead: makeMutation(service, 'sessions.markRead', sessionsMarkReadInput),
     answerQuestion: makeMutation(service, 'sessions.answerQuestion', sessionsAnswerQuestionInput),
     respondPlan: makeMutation(service, 'sessions.respondPlan', sessionsRespondPlanInput),
+    respondDecision: makeMutation(service, 'sessions.respondDecision', sessionsRespondDecisionInput),
     cancelResume: makeMutation(service, 'sessions.cancelResume', sessionsCancelResumeInput),
     rewind: makeMutation(service, 'sessions.rewind', sessionsRewindInput),
   });

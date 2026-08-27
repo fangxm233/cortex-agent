@@ -25,6 +25,8 @@ import type {
   SessionsCreateAndSendReturn,
   SessionsAnswerQuestionArgs,
   SessionsRespondPlanArgs,
+  SessionsRespondDecisionArgs,
+  SessionsRespondDecisionReturn,
   SessionsInteractionMutateReturn,
   SessionsRewindArgs,
   SessionsRewindReturn,
@@ -278,6 +280,65 @@ export async function handleCancelResume(
     return { ok: false, code: 'invalid-args', message: 'sessionId required' };
   }
   return { ok: true, data: { cancelled: removeDirectResume(`web:${args.sessionId}`) } };
+}
+
+// Web UI: respond to an agent-announced decision card (send_decision). Non-blocking by design —
+// there is no pending interaction to resolve. Every response lands as an append-only
+// decision-action line on the transcript; `approve` records ONLY (nothing ever reaches the
+// agent), while `explain`/`revise` also forward the client-composed message as an ordinary
+// user chat message (fire-and-forget, same seam as sessions.send).
+export async function handleRespondDecision(
+  deps: UiServiceDeps,
+  args: SessionsRespondDecisionArgs,
+): Promise<Result<SessionsRespondDecisionReturn>> {
+  if (!args.sessionId || !args.decisionId) {
+    return { ok: false, code: 'invalid-args', message: 'sessionId and decisionId required' };
+  }
+  if (args.action !== 'approve' && args.action !== 'explain' && args.action !== 'revise') {
+    return { ok: false, code: 'invalid-args', message: `Unknown decision action: ${String(args.action)}` };
+  }
+  const message = (args.message ?? '').trim();
+  if (args.action !== 'approve' && !message) {
+    return { ok: false, code: 'invalid-args', message: `message required for action "${args.action}"` };
+  }
+  if (!deps.conversationHistory.appendDecisionAction) {
+    return { ok: false, code: 'not-available', message: 'appendDecisionAction not wired' };
+  }
+  const session = await deps.sessionStore.getById(args.sessionId);
+  if (!session) {
+    return { ok: false, code: 'not-found', message: `Session not found: ${args.sessionId}` };
+  }
+  const history = await deps.conversationHistory.getHistory(args.sessionId, { includeToolDebug: false });
+  const decision = history?.events
+    .flatMap(ev => ev.decisions ?? [])
+    .find(d => d.id === args.decisionId);
+  if (!decision) {
+    return { ok: false, code: 'not-found', message: `No decision ${args.decisionId} in session ${args.sessionId}` };
+  }
+  // Idempotent approve: a double-click or a second device is a success, not an error.
+  if (args.action === 'approve' && decision.actions.some(a => a.action === 'approve')) {
+    return { ok: true, data: { outcome: 'already-approved' } };
+  }
+  const ts = new Date().toISOString();
+  await deps.conversationHistory.appendDecisionAction(args.sessionId, {
+    decisionId: args.decisionId,
+    action: args.action,
+    ...(args.action !== 'approve' ? { message } : {}),
+    ts,
+  });
+  deps.bus.publish({
+    type: 'session.decision',
+    sessionId: args.sessionId,
+    channel: session.channel,
+    decisionId: args.decisionId,
+    action: args.action,
+    ...(args.action !== 'approve' ? { message } : {}),
+    ts,
+  });
+  if (args.action !== 'approve') {
+    deps.sendSessionMessage({ sessionId: args.sessionId, channel: session.channel, text: message });
+  }
+  return { ok: true, data: { outcome: 'recorded' } };
 }
 
 // Web UI: resolve a pending plan-approval interaction. Same three-way outcome as

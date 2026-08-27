@@ -84,6 +84,7 @@ export {
   systemRefreshUsageInput,
   sessionsAnswerQuestionInput,
   sessionsRespondPlanInput,
+  sessionsRespondDecisionInput,
   sessionsPendingInteractionInput,
   queryInputSchemas,
   mutateInputSchemas,

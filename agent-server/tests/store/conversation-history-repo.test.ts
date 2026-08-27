@@ -98,6 +98,50 @@ test('assistant message can carry file attachments (agent-sent files, 20a)', asy
   assert.deepEqual(assistant!.attachments, attachments, 'assistant attachments survive round-trip');
 });
 
+const DECISION_ROW = {
+  id: 'd-1', title: 'Use SQLite',
+  decision: 'Results go into results.db.',
+  context: 'JSONL scans were slow.',
+  reasoning: 'Indexed queries stay fast.',
+};
+
+test('decision rows round-trip with empty action logs and never fold into streamed text', async () => {
+  const repo = new ConversationHistoryRepo();
+  const sid = 'sess-dec';
+  await repo.appendUser(sid, { text: 'go' });
+  // Streaming partials before and after — an empty-text decision row is prefix-related to
+  // anything, so only the explicit decisions guard keeps it a distinct card.
+  await repo.appendAssistant(sid, { text: 'working' });
+  await repo.appendAssistant(sid, { text: '', decisions: [DECISION_ROW] });
+  await repo.appendAssistant(sid, { text: 'working on it' });
+
+  const h = await repo.getHistory(sid);
+  const assistants = h!.events.filter(e => e.type === 'assistant');
+  assert.equal(assistants.length, 3, 'the decision row neither swallows nor joins its neighbors');
+  assert.deepEqual(assistants[1].decisions, [{ ...DECISION_ROW, actions: [] }]);
+  assert.equal(assistants[2].text, 'working on it');
+});
+
+test('decision-action lines fold into the matching decision in order; orphans are ignored', async () => {
+  const repo = new ConversationHistoryRepo();
+  const sid = 'sess-dec-act';
+  await repo.appendUser(sid, { text: 'go' });
+  await repo.appendAssistant(sid, { text: '', decisions: [DECISION_ROW, { ...DECISION_ROW, id: 'd-2', title: 'Second' }] });
+  await repo.appendDecisionAction(sid, { decisionId: 'd-1', action: 'explain', message: 'Why not JSONL?', ts: '2026-08-27T01:00:00.000Z' });
+  await repo.appendDecisionAction(sid, { decisionId: 'd-1', action: 'approve', ts: '2026-08-27T02:00:00.000Z' });
+  await repo.appendDecisionAction(sid, { decisionId: 'missing', action: 'approve' });
+
+  const h = await repo.getHistory(sid);
+  const assistant = h!.events.find(e => e.type === 'assistant')!;
+  assert.deepEqual(assistant.decisions![0].actions, [
+    { action: 'explain', message: 'Why not JSONL?', ts: '2026-08-27T01:00:00.000Z' },
+    { action: 'approve', ts: '2026-08-27T02:00:00.000Z' },
+  ], 'actions fold in append order onto the right decision');
+  assert.deepEqual(assistant.decisions![1].actions, [], 'sibling decisions are untouched');
+  assert.equal(h!.events.filter(e => e.type !== 'user' && e.type !== 'assistant').length, 0,
+    'action lines are persistence-only, never rows');
+});
+
 test('assistant notice level round-trips and prevents prefix collapse with prose', async () => {
   const repo = new ConversationHistoryRepo();
   const sid = 'sess-notice';

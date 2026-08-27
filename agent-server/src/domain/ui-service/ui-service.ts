@@ -59,7 +59,7 @@ import {
 } from './mutate/thread-templates.js';
 import { handlePluginsAssign } from './mutate/plugins.js';
 import { handleCreateProject } from './mutate/projects.js';
-import { handleCreateSession, handleSendSession, handleCancelSession, handleCompactSession, handleSetProfile, handleCreateAndSend, handleMarkReadSession, handleAnswerQuestion, handleRespondPlan, handleCancelResume, handleRewindSession } from './mutate/sessions.js';
+import { handleCreateSession, handleSendSession, handleCancelSession, handleCompactSession, handleSetProfile, handleCreateAndSend, handleMarkReadSession, handleAnswerQuestion, handleRespondPlan, handleRespondDecision, handleCancelResume, handleRewindSession } from './mutate/sessions.js';
 import { handleCancelThread } from './mutate/threads.js';
 import { handleCancelExecution } from './mutate/executions.js';
 import {
@@ -153,6 +153,7 @@ const mutateHandlers: Record<string, MutateHandler> = {
   'sessions.markRead': (deps, args) => handleMarkReadSession(deps, args),
   'sessions.answerQuestion': (deps, args) => handleAnswerQuestion(deps, args),
   'sessions.respondPlan': (deps, args) => handleRespondPlan(deps, args),
+  'sessions.respondDecision': (deps, args) => handleRespondDecision(deps, args),
   'sessions.cancelResume': (_deps, args) => handleCancelResume(args),
   'sessions.rewind': (deps, args) => handleRewindSession(deps, args),
   'threads.cancel': (deps, args) => handleCancelThread(deps, args),
