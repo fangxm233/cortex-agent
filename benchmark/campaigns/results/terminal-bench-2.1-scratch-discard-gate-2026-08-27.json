@@ -1,0 +1,66 @@
+{
+  "schema_version": "cortex-bench-result-record/1",
+  "record": "terminal-bench-2.1-scratch-discard-gate-2026-08-27",
+  "what_this_gates": "That discarding the four trial scratch directories as root inside the live container, before evidence collection, leaves a correct and cleanly scanned trial. Gated on one real paid trial before the 178-trial baselines segment was launched.",
+  "implementation_commit": "9ac3d8880b129ab84e01c4190db79d737943b400",
+  "host": "indexlab-Precision-7960-Tower",
+  "checkout": "/home/xinmin/Cortex",
+  "artifacts_verified": {
+    "cortex_agent_server_npm": {
+      "commit": "9ac3d8880b129ab84e01c4190db79d737943b400",
+      "dirty": false,
+      "sha256": "65f01bccd68242ad62e9471a5f6b326e0b30f5e151805c6346164094f6da991c"
+    },
+    "cortex_bench_harness_wheel": {
+      "commit": "9ac3d8880b129ab84e01c4190db79d737943b400",
+      "dirty": false,
+      "sha256": "2a08ae49c54fbafdeb32d6d74b8c5fb421af68a827d49b05591fbc764945b103"
+    }
+  },
+  "campaign": "tb21-tmpdir-gate",
+  "state": "completed",
+  "ok": true,
+  "trials_failed": 0,
+  "provider_requests": 8,
+  "started_at": "2026-08-27T09:30:57.321Z",
+  "ended_at": "2026-08-27T09:33:26.614Z",
+  "trial": {
+    "trial_id": "tb21-tmpdir-gate-db-wal-recovery-pi-cdx",
+    "task_id": "db-wal-recovery",
+    "arm": "pi-cdx",
+    "state": "ran",
+    "outcome_state": "terminal-success",
+    "score_status": "available",
+    "verifier_rewards": {"reward": 1.0},
+    "requests": 8
+  },
+  "leak_scan": {
+    "clean": true,
+    "matches": []
+  },
+  "route_active_after_run": false,
+  "scratch_census": {
+    "schema": "cortex-trial-scratch-discard/1",
+    "directories": {
+      "home": {"present": true, "files": 2, "kib": 20},
+      "tmp": {"present": true, "files": 0, "kib": 4},
+      "xdg-cache": {"present": true, "files": 0, "kib": 4},
+      "xdg-config": {"present": true, "files": 0, "kib": 4}
+    }
+  },
+  "collected_after_discard": {
+    "trial_home_children": ["pi-agent"],
+    "files": 25,
+    "size": "232K"
+  },
+  "collected_before_discard": {
+    "note": "Same task and arm, run at 2026-08-27T02:10Z from the same trials_dir before this change, retained at runs/tb21-tmpdir-gate.prediscard.",
+    "files": 26,
+    "size": "244K"
+  },
+  "honest_caveats": [
+    "This task installs nothing, so its pip cache was empty and the size drop here is 12K rather than the 91% measured on the campaign that motivated the change. What this gate proves is the mechanism: the census records all four directories as present, only pi-agent survives under trial-home, the reward is still 1.0, and the leak scan is clean.",
+    "The false positive this change removes (a package author's home path inside a cached PyPI response body) cannot be reproduced by a task that never reaches PyPI. It is recorded against the campaign where it happened, not here.",
+    "provider_requests of 8 is the whole trial; this gate says nothing about cost at the raised $10.00 ceiling."
+  ]
+}

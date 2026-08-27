@@ -40,3 +40,4 @@ Committed campaign result summaries preserve path-sanitized reproducibility evid
 | zero-paid-parallel-2026-08-13.json | evidence | Records the ZERO-PAID run proving concurrent trials hold distinct subnets, container addresses and live routes, that a slot is exclusive and reusable, and that every per-trial gate still holds |
 | zero-paid-production-direct-leakfix-2026-08-18.json | evidence | Records the clean production-direct envelope after safe container-root alias classification |
 | terminal-bench-2.1-codex-xhigh-mounted-gate-2026-08-27.json | evidence | Records the mounted-runtime external-corpus paid gate: 9/9 graded, 8/9 solved across the two vendor baselines and Cortex direct, and the one PI trial whose loss traced to an unmade TMPDIR |
+| terminal-bench-2.1-scratch-discard-gate-2026-08-27.json | evidence | Gates discarding the four trial scratch directories before collection: reward 1.0, leak scan clean, route revoked, only pi-agent left under trial-home |
