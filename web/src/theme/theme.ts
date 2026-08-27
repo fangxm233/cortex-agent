@@ -22,6 +22,8 @@ export const DEFAULT_MOTION_MODE: MotionMode = 'system';
 
 const ACCENT_INTENSITIES: readonly AccentIntensity[] = ['soft', 'normal', 'vivid'];
 const MOTION_MODES: readonly MotionMode[] = ['system', 'full', 'reduced'];
+const THEME_TRANSITION_CLEANUP_MS = 200;
+let themeTransitionTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** The persisted theme choice, else the OS `prefers-color-scheme`, else the default. Pure over its
  *  inputs so it is testable without a DOM. */
@@ -180,11 +182,22 @@ export function refreshBrowserThemeColor(): void {
   syncBrowserThemeColor();
 }
 
+function beginThemeTransition(root: HTMLElement): void {
+  root.setAttribute('data-theme-transition', '');
+  if (themeTransitionTimer !== null) clearTimeout(themeTransitionTimer);
+  themeTransitionTimer = setTimeout(() => {
+    root.removeAttribute('data-theme-transition');
+    themeTransitionTimer = null;
+  }, THEME_TRANSITION_CLEANUP_MS);
+}
+
 /** Applies the preference through the existing light/dark CSS-variable cascade. */
 export function applyTheme(theme: Theme, prefersDark = prefersDarkNow()): void {
   if (typeof document === 'undefined') return;
   const effectiveTheme = resolveEffectiveTheme(theme, prefersDark);
   const root = document.documentElement;
+  const currentTheme = root.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+  if (currentTheme !== effectiveTheme) beginThemeTransition(root);
   if (effectiveTheme === 'dark') root.setAttribute('data-theme', 'dark');
   else root.removeAttribute('data-theme');
   root.style.colorScheme = effectiveTheme;

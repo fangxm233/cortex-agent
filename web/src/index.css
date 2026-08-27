@@ -16,6 +16,17 @@
  * the DOM depends on these exact global names. Do not rename.
  */
 @layer base {
+  :root[data-theme-transition],
+  :root[data-theme-transition] *,
+  :root[data-theme-transition] *::before,
+  :root[data-theme-transition] *::after {
+    transition-property: color, background-color, border-color, outline-color,
+      text-decoration-color, fill, stroke, box-shadow !important;
+    transition-duration: 0.16s !important;
+    transition-timing-function: ease !important;
+    transition-delay: 0s !important;
+  }
+
   html,
   body {
     margin: 0;

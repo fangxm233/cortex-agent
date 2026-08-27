@@ -40,7 +40,10 @@ function stubRoot() {
   return { setAttribute, removeAttribute, setProperty, removeProperty };
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
 describe('resolveInitialTheme', () => {
   it('honors a valid stored choice over the OS preference', () => {
@@ -70,13 +73,19 @@ describe('resolveEffectiveTheme', () => {
 });
 
 describe('applyTheme', () => {
-  it('syncs the document theme and browser chrome token', () => {
+  it('animates a changed theme and syncs the browser chrome token', () => {
+    vi.useFakeTimers();
     const setRootAttribute = vi.fn();
+    const removeRootAttribute = vi.fn();
     const setMetaAttribute = vi.fn();
     const remove = vi.fn();
     vi.stubGlobal('document', {
       documentElement: {
-        setAttribute: setRootAttribute, removeAttribute: vi.fn(), style: {}, appendChild: vi.fn(),
+        getAttribute: vi.fn(() => null),
+        setAttribute: setRootAttribute,
+        removeAttribute: removeRootAttribute,
+        style: {},
+        appendChild: vi.fn(),
       },
       querySelector: vi.fn(() => ({ setAttribute: setMetaAttribute })),
       createElement: vi.fn(() => ({ style: {}, remove })),
@@ -85,9 +94,31 @@ describe('applyTheme', () => {
 
     applyTheme('dark', false);
 
+    expect(setRootAttribute).toHaveBeenCalledWith('data-theme-transition', '');
     expect(setRootAttribute).toHaveBeenCalledWith('data-theme', 'dark');
     expect(setMetaAttribute).toHaveBeenCalledWith('content', '#12151a');
     expect(remove).toHaveBeenCalledOnce();
+
+    vi.advanceTimersByTime(200);
+    expect(removeRootAttribute).toHaveBeenCalledWith('data-theme-transition');
+  });
+
+  it('does not animate when the effective theme is unchanged', () => {
+    const setRootAttribute = vi.fn();
+    vi.stubGlobal('document', {
+      documentElement: {
+        getAttribute: vi.fn(() => 'dark'),
+        setAttribute: setRootAttribute,
+        removeAttribute: vi.fn(),
+        style: {},
+        appendChild: vi.fn(),
+      },
+      querySelector: vi.fn(() => null),
+    });
+
+    applyTheme('dark', false);
+
+    expect(setRootAttribute).not.toHaveBeenCalledWith('data-theme-transition', '');
   });
 });
 
