@@ -79,10 +79,10 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 | MMachinesView.test.tsx | test | Tests collapsed and expanded panel gating |
 | m-machines-vm.ts | vm | Maps machine records to cards and online counts |
 | m-machines-vm.test.ts | test | Unit tests for the machines view model |
-| MDaemonScreen.tsx | screen | Binds daemon status, counts and restart |
-| MDaemonView.tsx | view | Shows daemon processes, restart and disconnect controls |
-| m-daemon-vm.ts | vm | Builds daemon process, summary and event models |
-| m-daemon-vm.test.ts | test | Unit tests for the daemon view model |
+| MDaemonScreen.tsx | screen | Adapts the shared daemon resource while independently loading mobile execution and schedule summaries |
+| MDaemonView.tsx | view | Shows canonical daemon tones with mobile long-press restart and disconnect controls |
+| m-daemon-vm.ts | vm | Projects shared daemon facts into mobile fallback, summary and recent-event models |
+| m-daemon-vm.test.ts | test | Tests shared process tones plus mobile fallback, summaries and recent events |
 | MSettingsScreen.tsx | screen | Renders settings immediately from config, account summaries and the shared machine roster |
 | MSettingsView.tsx | view | Keeps Daemon and Profile cards above rows with canonical account facts |
 | MSettingsView.test.tsx | test | Tests canonical order, routing and live connection copy |

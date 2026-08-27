@@ -1,16 +1,15 @@
-// 1r Daemon 状态 — Daemon liveness + restart controls, drilled from 1l 设置 「Daemon ›」 (scheme-mobile
-// .dc.html 1r L888-932). NON-Tab drill page. Real tRPC: system.daemonStatus (per-process name/label/
-// status/pid/port/uptime/extras + lastRestart — same query as the desktop 17a modal), threads.list
-// (active count), schedules.list (count), executions.list (recent activity), system.restart mutation
-// (soft / hard). Only the daemon.log event stream lacks a query scope → the 最近事件 card surfaces the
-// REAL lastRestart plus recent executions (see m-daemon-vm 守则11 note); nothing is fabricated.
+// input:  shared daemon resource, independent mobile summaries, connection and shell helpers
+// output: mobile daemon drill screen with long-press restart control
+// pos:    Mobile adapter for canonical daemon lifecycle and mobile-only activity
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
 import { threadScopeFilter } from '@/features/workbench/scope';
+import { useDaemonResource } from '@/features/daemon/useDaemonResource';
 import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvider';
 import { isNativeShell } from '@/lib/desktop-config';
 import { disconnectShell } from '@/lib/shell-connection';
@@ -71,64 +70,40 @@ const COPY: { en: MDaemonCopy; zh: MDaemonCopy } = {
   },
 };
 
-export function MDaemonScreen() {
+const ACTIVE_THREAD_PARAMS = { status: threadScopeFilter('active') };
+
+function useMobileDaemonVm() {
   const trpc = useTRPC();
+  const threads = useQuery(trpc.threads.list.queryOptions(ACTIVE_THREAD_PARAMS));
+  const schedules = useQuery(trpc.schedules.list.queryOptions({}));
+  const executions = useQuery(trpc.executions.list.queryOptions({ limit: 5 }));
+  const daemon = useDaemonResource();
+  const ok = !threads.isError && !schedules.isError;
+  const vm = useMemo(() => buildDaemonVm({
+    threads: threads.data ?? [],
+    schedules: schedules.data ?? [],
+    executions: executions.data ?? [],
+    daemon: daemon.daemon,
+    ok,
+  }), [threads.data, schedules.data, executions.data, daemon.daemon, ok]);
+  return { daemon, vm };
+}
+
+export function MDaemonScreen() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const lang = useLang();
-  const copy = pickCopy(lang, COPY);
-
-  const threadsQuery = useQuery(trpc.threads.list.queryOptions({ status: threadScopeFilter('active') }));
-  const schedulesQuery = useQuery(trpc.schedules.list.queryOptions({}));
-  const executionsQuery = useQuery(trpc.executions.list.queryOptions({ limit: 5 }));
-  // Real per-process status (pid/port/uptime/liveness) + lastRestart — same query as the desktop 17a modal.
-  const daemonQuery = useQuery(trpc.system.daemonStatus.queryOptions({}));
-
-  // Daemon reachability — implied by the queries succeeding (drives the process-row fallback status).
-  const ok = !threadsQuery.isError && !schedulesQuery.isError;
-  // Real UI<->server connectivity (SSE link) — drives the header pill (connected / (re)connecting / down).
+  const copy = pickCopy(useLang(), COPY);
   const connStatus = useConnectionStatus();
-
-  const vm = useMemo(
-    () =>
-      buildDaemonVm({
-        threads: threadsQuery.data ?? [],
-        schedules: schedulesQuery.data ?? [],
-        executions: executionsQuery.data ?? [],
-        daemon: daemonQuery.data ?? null,
-        ok,
-      }),
-    [threadsQuery.data, schedulesQuery.data, executionsQuery.data, daemonQuery.data, ok],
-  );
-
-  const restartMut = useMutation(
-    trpc.system.restart.mutationOptions({
-      onSuccess: () => {
-        queryClient.invalidateQueries(trpc.threads.list.queryFilter());
-        queryClient.invalidateQueries(trpc.system.daemonStatus.queryFilter());
-      },
-    }),
-  );
-
-  const restartState: RestartState = restartMut.isPending
-    ? 'pending'
-    : restartMut.isSuccess
-      ? 'success'
-      : restartMut.isError
-        ? 'error'
-        : 'idle';
-
-  return (
-    <MDaemonView
-      vm={vm}
-      copy={copy}
-      connStatus={connStatus}
-      restartState={restartState}
-      showDisconnect={isNativeShell()}
-      onBack={() => navigate('/m/settings')}
-      onSoftRestart={() => restartMut.mutate({ kind: 'soft' })}
-      onHardRestart={() => restartMut.mutate({ kind: 'hard' })}
-      onDisconnect={() => void disconnectShell()}
-    />
-  );
+  const { daemon, vm } = useMobileDaemonVm();
+  const restartState: RestartState = daemon.restartState;
+  return <MDaemonView
+    vm={vm}
+    copy={copy}
+    connStatus={connStatus}
+    restartState={restartState}
+    showDisconnect={isNativeShell()}
+    onBack={() => navigate('/m/settings')}
+    onSoftRestart={() => daemon.restart('soft')}
+    onHardRestart={() => daemon.restart('hard')}
+    onDisconnect={() => void disconnectShell()}
+  />;
 }

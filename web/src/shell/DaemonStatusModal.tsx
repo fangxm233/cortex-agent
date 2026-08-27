@@ -1,10 +1,10 @@
-// input:  daemon queries, restart mutations, and shell connection helpers
-// output: themed daemon process status and restart modal
-// pos:    Desktop daemon diagnostics and control overlay
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useTRPC } from '@/lib/trpc';
+// input:  shared daemon resource, desktop confirmation state and shell connection helpers
+// output: themed desktop daemon diagnostics, restart and disconnect modal
+// pos:    Desktop shell adapter for canonical daemon lifecycle
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+import { useEffect, useState } from 'react';
+import type { Tone } from '@/design/tone';
+import { useDaemonResource } from '@/features/daemon/useDaemonResource';
 import { useVocab } from '@/i18n';
 import { isNativeShell } from '@/lib/desktop-config';
 import { disconnectShell } from '@/lib/shell-connection';
@@ -21,48 +21,30 @@ export interface DaemonStatusModalProps {
   onClose: () => void;
 }
 
-function statusColor(status: string): string {
-  if (status === 'running') return 'var(--proto-success)';
-  if (status === 'unknown') return 'var(--proto-amber)';
-  return 'var(--proto-danger)';
+function toneColor(tone: Tone): string {
+  if (tone === 'done') return 'var(--proto-success)';
+  if (tone === 'failed') return 'var(--proto-danger)';
+  return 'var(--pill-cancelled-fg)';
 }
 
-function statusBg(status: string): string {
-  if (status === 'running') return 'var(--proto-success-bg)';
-  if (status === 'unknown') return 'var(--pill-waiting-bg)';
-  return 'var(--proto-danger-bg)';
+function toneBg(tone: Tone): string {
+  if (tone === 'done') return 'var(--proto-success-bg)';
+  if (tone === 'failed') return 'var(--proto-danger-bg)';
+  return 'var(--pill-cancelled-bg)';
 }
 
 export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
-  const trpc = useTRPC();
-  const queryClient = useQueryClient();
   const L = useVocab();
   const [confirmHard, setConfirmHard] = useState(false);
+  const daemon = useDaemonResource({ enabled: open });
+  const { processes, lastRestart } = daemon.facts;
 
-  const statusQuery = useQuery({
-    ...trpc.system.daemonStatus.queryOptions({}),
-    enabled: open,
-    refetchInterval: open ? 5000 : false,
-  });
+  useEffect(() => {
+    if (daemon.restartState === 'success' || daemon.restartState === 'error') setConfirmHard(false);
+  }, [daemon.restartState]);
 
-  const restartMut = useMutation({
-    ...trpc.system.restart.mutationOptions({
-      onSuccess: () => {
-        setConfirmHard(false);
-        queryClient.invalidateQueries(trpc.system.daemonStatus.queryFilter());
-      },
-      onError: () => {
-        setConfirmHard(false);
-      },
-    }),
-  });
-
-  const data = statusQuery.data;
-  const processes = data?.processes ?? [];
-  const lastRestart = data?.lastRestart;
-
-  const onSoftRestart = () => restartMut.mutate({ kind: 'soft' as const });
-  const onHardRestart = () => restartMut.mutate({ kind: 'hard' as const });
+  const onSoftRestart = () => daemon.restart('soft');
+  const onHardRestart = () => daemon.restart('hard');
 
   if (!open) return null;
 
@@ -177,12 +159,12 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
             gap: 10,
           }}
         >
-          {statusQuery.isLoading && (
+          {daemon.loading && (
             <div style={{ fontSize: 12, color: 'var(--proto-muted-3)', textAlign: 'center', padding: 20 }}>
               Loading…
             </div>
           )}
-          {statusQuery.isError && (
+          {daemon.error && (
             <div style={{ fontSize: 12, color: 'var(--proto-danger)', textAlign: 'center', padding: 20 }}>
               Failed to load daemon status
             </div>
@@ -205,9 +187,8 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
                       width: 7,
                       height: 7,
                       borderRadius: '50%',
-                      background: statusColor(st),
+                      background: toneColor(proc.tone),
                       flex: 'none',
-                      ...(st === 'unknown' ? { animation: 'cxpulse 2s ease-in-out infinite' } : {}),
                     }}
                   />
                   <span
@@ -233,8 +214,8 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
                       fontWeight: 600,
                       padding: '2px 8px',
                       borderRadius: 999,
-                      background: statusBg(st),
-                      color: statusColor(st),
+                      background: toneBg(proc.tone),
+                      color: toneColor(proc.tone),
                     }}
                   >
                     {st}
@@ -268,13 +249,12 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
                       :{proc.port}
                     </span>
                   )}
-                  {proc.extras &&
-                    Object.entries(proc.extras).map(([k, v]) => (
-                      <span key={k}>
-                        <span style={{ color: 'var(--proto-muted-3)' }}>{k} </span>
-                        {v}
-                      </span>
-                    ))}
+                  {proc.extras.map((extra) => (
+                    <span key={extra.key}>
+                      <span style={{ color: 'var(--proto-muted-3)' }}>{extra.key} </span>
+                      {extra.value}
+                    </span>
+                  ))}
                 </div>
               </div>
             );
@@ -328,8 +308,8 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
                   background: 'var(--proto-card)',
                   borderRadius: 8,
                   padding: '6px 14px',
-                  cursor: restartMut.isPending ? 'default' : 'pointer',
-                  opacity: restartMut.isPending ? 0.5 : 1,
+                  cursor: daemon.restartState === 'pending' ? 'default' : 'pointer',
+                  opacity: daemon.restartState === 'pending' ? 0.5 : 1,
                 }}
               >
                 {L.dmSoftRestart}
@@ -424,18 +404,18 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
                   background: 'var(--proto-danger)',
                   borderRadius: 8,
                   padding: '6px 14px',
-                  cursor: restartMut.isPending ? 'default' : 'pointer',
-                  opacity: restartMut.isPending ? 0.5 : 1,
+                  cursor: daemon.restartState === 'pending' ? 'default' : 'pointer',
+                  opacity: daemon.restartState === 'pending' ? 0.5 : 1,
                 }}
               >
-                {restartMut.isPending ? '...' : L.dmConfirmProceed}
+                {daemon.restartState === 'pending' ? '...' : L.dmConfirmProceed}
               </span>
             </div>
           </div>
         )}
 
         {/* Feedback: restart result */}
-        {restartMut.isSuccess && (
+        {daemon.restartState === 'success' && (
           <div
             style={{
               borderTop: '1px solid var(--proto-line-2)',
@@ -448,7 +428,7 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
             {L.dmRestartSent}
           </div>
         )}
-        {restartMut.isError && (
+        {daemon.restartState === 'error' && (
           <div
             style={{
               borderTop: '1px solid var(--proto-line-2)',

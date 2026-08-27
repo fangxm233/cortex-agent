@@ -1,11 +1,11 @@
-// input:  React, mobile UI kit, daemon view model and copy
-// output: MDaemonView and restart controls
+// input:  React, mobile UI kit, canonical daemon tones, mobile view model and copy
+// output: mobile daemon process, summary, long-press restart and disconnect controls
 // pos:    Mobile daemon status presentational view
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3
 import { useRef, useState, type CSSProperties } from 'react';
 import { MScreen, MDrillHeader, MScrollBody, MCard, MPill, MDot, MC, MONO } from '@/mobile/ui/kit';
-import type { MDaemonVm, MDaemonEvent, MDaemonProcess, MProcStatus } from './m-daemon-vm';
+import type { MDaemonVm, MDaemonEvent, MDaemonProcess } from './m-daemon-vm';
 import type { ExecutionInfo } from '@cortex-agent/ui-contract';
 import type { ConnectionStatus } from '@/features/connection/connection-status';
 import { mConnTone, mConnPulse } from './m-connection';
@@ -44,11 +44,11 @@ export interface MDaemonCopy {
 
 export type RestartState = 'idle' | 'pending' | 'success' | 'error';
 
-// Dot color from the DTO status — matches the desktop 17a modal (running=green, unknown=amber, stopped=red).
-function dotColor(status: MProcStatus): string {
-  if (status === 'running') return MC.done;
-  if (status === 'unknown') return MC.amber;
-  return MC.fail;
+// Dot color stays mobile-specific while status semantics come from the canonical daemon tone.
+function dotColor(tone: MDaemonProcess['tone']): string {
+  if (tone === 'done') return MC.done;
+  if (tone === 'failed') return MC.fail;
+  return MC.grayInk;
 }
 
 // ── Process row: dot (real DTO status) + mono name + label + real pid/port + uptime/extras sub-line ──
@@ -63,7 +63,7 @@ function ProcRow({ proc, copy, border }: { proc: MDaemonProcess; copy: MDaemonCo
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span
-          style={{ width: 7, height: 7, borderRadius: '50%', background: dotColor(proc.status), flex: 'none' }}
+          style={{ width: 7, height: 7, borderRadius: '50%', background: dotColor(proc.tone), flex: 'none' }}
         />
         <span style={{ font: `600 12.5px ${MONO}`, color: MC.ink }}>{proc.name}</span>
         {proc.label && (
@@ -76,7 +76,7 @@ function ProcRow({ proc, copy, border }: { proc: MDaemonProcess; copy: MDaemonCo
       </div>
       <div style={{ font: `400 9.5px ${MONO}`, color: MC.muted, marginTop: 4, paddingLeft: 15 }}>
         {copy.uptimeLabel} {proc.uptime ?? dash}
-        {proc.extras.map((e) => ` · ${e.k} ${e.v}`).join('')}
+        {proc.extras.map((extra) => ` · ${extra.key} ${extra.value}`).join('')}
       </div>
     </div>
   );

@@ -6,4 +6,5 @@ Keeps global overlays, task/thread detail state, neutral project selection, and 
 | filename | role | function |
 |---|---|---|
 | AppShell.tsx | core | Mounts shared project scope, routes, overlays and notes state |
+| DaemonStatusModal.tsx | view | Adapts the shared daemon resource to desktop confirmation, status, restart and disconnect controls |
 | EmptyPane.tsx | view | Titled placeholder for unbuilt routes |

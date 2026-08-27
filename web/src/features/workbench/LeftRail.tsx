@@ -1,6 +1,6 @@
-// input:  tRPC data, shared project/session/modal contexts, and DTO-carrying schedule actions
-// output: collapsible project-folder rail with real schedule editing
-// pos:    Owns workbench navigation and global-overlay triggers
+// input:  tRPC data, shared contexts, shell daemon overlay and DTO-carrying schedule actions
+// output: collapsible project-folder rail with real schedule editing and global controls
+// pos:    Owns workbench navigation and shell-overlay triggers
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -34,7 +34,7 @@ import { useSelectedSession } from './SelectedSessionProvider';
 import { isNewSessionShortcut } from './selected-session';
 import { useVocab } from '@/i18n';
 import { useTheme, useSetTheme } from '@/theme';
-import { DaemonStatusModal } from './DaemonStatusModal';
+import { DaemonStatusModal } from '@/shell/DaemonStatusModal';
 import { useSessionsLiveSync } from './useSessionsLiveSync';
 import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvider';
 import { connectionDot, connectionLabelKey, type ConnectionDot } from '@/features/connection/connection-status';

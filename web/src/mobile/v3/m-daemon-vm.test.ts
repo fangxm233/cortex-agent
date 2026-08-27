@@ -1,3 +1,8 @@
+// input:  daemon, thread, schedule and recent-execution DTO fixtures
+// output: mobile summary, canonical process, fallback and event projection regressions
+// pos:    Mobile daemon view-model specification
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import { describe, it, expect } from 'vitest';
 import type {
   ThreadInfo,
@@ -132,21 +137,18 @@ describe('buildDaemonVm', () => {
       });
     });
 
-    it('preserves the DTO status verbatim (running / stopped / unknown → dot color source)', () => {
+    it('preserves every legal DTO state and uses the canonical tones', () => {
       const vm = buildDaemonVm({
-        threads: [],
-        schedules: [],
-        executions: [],
-        ok: true,
-        daemon: daemon({
-          processes: [
-            proc({ name: 'cortex-server', status: 'running' }),
-            proc({ name: 'cortex-daemon', status: 'stopped' }),
-          ],
-        }),
+        threads: [], schedules: [], executions: [], ok: true,
+        daemon: daemon({ processes: [
+          proc({ name: 'running', status: 'running' }),
+          proc({ name: 'stopped', status: 'stopped' }),
+          proc({ name: 'unknown', status: 'unknown' }),
+        ] }),
         now: NOW,
       });
-      expect(vm.processes.map((p) => p.status)).toEqual(['running', 'stopped']);
+      expect(vm.processes.map((p) => p.status)).toEqual(['running', 'stopped', 'unknown']);
+      expect(vm.processes.map((p) => p.tone)).toEqual(['done', 'failed', 'cancelled']);
     });
 
     it('keeps null metrics as honest nulls (e.g. uptime null on non-Linux), never fabricated', () => {
@@ -175,8 +177,8 @@ describe('buildDaemonVm', () => {
         now: NOW,
       });
       expect(vm.processes[0].extras).toEqual([
-        { k: 'ws', v: 3 },
-        { k: 'host', v: 'nimbus' },
+        { key: 'ws', value: 3 },
+        { key: 'host', value: 'nimbus' },
       ]);
     });
 

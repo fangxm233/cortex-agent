@@ -1,48 +1,17 @@
-// Pure view-model for the 1r Daemon 状态 screen (scheme-mobile.dc.html 1r L888-932). Drilled from
-// 1l 设置 「Daemon ›」. Maps the REAL data the mobile tRPC surface exposes into the screen model:
-//   • `system.daemonStatus` → per-process name / label / status / pid / port / uptime / extras + the
-//     lastRestart {at, reason}. This is the SAME query the desktop 17a DaemonStatusModal consumes, so
-//     the process card now shows REAL liveness + pid/port/uptime instead of an "在 Web 不可见" note.
-//   • `threads.list` (active count) + `schedules.list` (count) → the real summary line (kept).
-//   • `executions.list` → recent-activity rows (kept, honestly disclosed as NOT the daemon.log).
-//
-// Framework-free so it is unit-tested in isolation (TDD).
-//
-// 守则11 no-fabrication:
-//   • Any DTO field that is null (pid / port / uptime null on a stale PID or non-Linux host) stays null
-//     and is rendered as an honest `—` by the View — never fabricated.
-//   • The daemon event log (scheme `daemon.log`, `watchdog ok`, `backend fallback` lines) has no query
-//     scope → the 最近事件 card surfaces the REAL `lastRestart` (at/reason) plus `executions.list`
-//     recent activity, explicitly disclosed as such — no synthetic log lines.
-//   • When `system.daemonStatus` has not resolved (loading / error / empty payload) the process card
-//     falls back to the two known process names with status derived from reachability (running when the
-//     other queries succeed, otherwise `unknown`) and null metrics — honest, not fabricated.
-import type {
-  ThreadInfo,
-  ScheduleInfo,
-  ExecutionInfo,
-  SystemDaemonStatus,
-} from '@cortex-agent/ui-contract';
+// input:  shared daemon facts plus mobile thread, schedule and recent-execution DTOs
+// output: mobile daemon summary, fallback, restart and recent-activity view model
+// pos:    Mobile projection over canonical daemon status semantics
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+import type { ThreadInfo, ScheduleInfo, ExecutionInfo, SystemDaemonStatus } from '@cortex-agent/ui-contract';
+import {
+  buildDaemonVm as buildSharedDaemonVm,
+  daemonStatusTone,
+  type DaemonProcessVm,
+  type DaemonVm,
+} from '@/features/daemon/daemon-vm';
 import { relTimeZh } from '@/mobile/ui/format';
 
-export type MProcStatus = 'running' | 'stopped' | 'unknown';
-
-export interface MDaemonProcess {
-  /** Fixed process name (mono, not localized), from the DTO. */
-  name: string;
-  /** Short role label from the DTO (e.g. `server`, `daemon`). */
-  label: string;
-  /** Liveness status straight from the DTO — drives the dot color (running/stopped/unknown). */
-  status: MProcStatus;
-  /** Real OS pid, or null (stale / not readable) → honest `—`. */
-  pid: number | null;
-  /** Real listening port, or null (process has none / not readable) → honest `—`. */
-  port: number | null;
-  /** Real uptime string, or null (no /proc on non-Linux) → honest `—`. */
-  uptime: string | null;
-  /** Extra process metrics from the DTO, flattened to ordered pairs (may be empty). */
-  extras: Array<{ k: string; v: string | number }>;
-}
+export type MDaemonProcess = DaemonProcessVm;
 
 /** Real last-restart event surfaced in the 最近事件 card (null when the daemon never recorded one). */
 export interface MDaemonRestart {
@@ -82,52 +51,44 @@ export interface MDaemonVm {
 const MAX_EVENTS = 5;
 const FAIL_STATUS = new Set<ExecutionInfo['status']>(['failed', 'cancelled', 'stale']);
 
-function mapProcesses(daemon: SystemDaemonStatus | null | undefined, ok: boolean): MDaemonProcess[] {
-  if (daemon && daemon.processes.length > 0) {
-    return daemon.processes.map((p) => ({
-      name: p.name,
-      label: p.label,
-      status: p.status,
-      pid: p.pid,
-      port: p.port,
-      uptime: p.uptime,
-      extras: p.extras ? Object.entries(p.extras).map(([k, v]) => ({ k, v })) : [],
-    }));
-  }
-  // Honest fallback: no daemonStatus payload yet → known names, status from reachability, null metrics.
-  const status: MProcStatus = ok ? 'running' : 'unknown';
-  return [
-    { name: 'cortex-server', label: '', status, pid: null, port: null, uptime: null, extras: [] },
-    { name: 'cortex-daemon', label: '', status, pid: null, port: null, uptime: null, extras: [] },
-  ];
+function fallbackProcesses(facts: DaemonVm, ok: boolean): MDaemonProcess[] {
+  if (facts.processes.length > 0) return facts.processes;
+  const status = ok ? 'running' : 'unknown';
+  const process = (name: string): MDaemonProcess => ({
+    name, label: '', status, tone: daemonStatusTone(status),
+    pid: null, port: null, uptime: null, extras: [],
+  });
+  return [process('cortex-server'), process('cortex-daemon')];
+}
+
+function mapEvents(executions: ExecutionInfo[], now: number): MDaemonEvent[] {
+  return executions.slice(0, MAX_EVENTS).map((execution) => ({
+    id: execution.id,
+    time: relTimeZh(execution.startedAt, now),
+    ref: execution.taskId ? `${execution.type} · ${execution.taskId}` : execution.type,
+    status: execution.status,
+    tone: FAIL_STATUS.has(execution.status) ? 'fail' : 'default',
+  }));
+}
+
+function restartEvent(facts: DaemonVm, now: number): MDaemonRestart | null {
+  const at = facts.lastRestart?.at;
+  if (!at) return null;
+  return { time: relTimeZh(at, now), reason: facts.lastRestart?.reason ?? null };
 }
 
 export function buildDaemonVm(input: {
-  threads: ThreadInfo[];
-  schedules: ScheduleInfo[];
-  executions: ExecutionInfo[];
-  ok: boolean;
-  daemon?: SystemDaemonStatus | null;
-  now?: number;
+  threads: ThreadInfo[]; schedules: ScheduleInfo[]; executions: ExecutionInfo[];
+  ok: boolean; daemon?: SystemDaemonStatus | null; now?: number;
 }): MDaemonVm {
   const now = input.now ?? Date.now();
-  const events: MDaemonEvent[] = input.executions.slice(0, MAX_EVENTS).map((e) => ({
-    id: e.id,
-    time: relTimeZh(e.startedAt, now),
-    ref: e.taskId ? `${e.type} · ${e.taskId}` : e.type,
-    status: e.status,
-    tone: FAIL_STATUS.has(e.status) ? 'fail' : 'default',
-  }));
-  const restartAt = input.daemon?.lastRestart?.at ?? null;
-  const lastRestart: MDaemonRestart | null = restartAt
-    ? { time: relTimeZh(restartAt, now), reason: input.daemon?.lastRestart?.reason ?? null }
-    : null;
+  const facts = buildSharedDaemonVm(input.daemon);
   return {
     ok: input.ok,
     threadCount: input.threads.length,
     scheduleCount: input.schedules.length,
-    processes: mapProcesses(input.daemon, input.ok),
-    lastRestart,
-    events,
+    processes: fallbackProcesses(facts, input.ok),
+    lastRestart: restartEvent(facts, now),
+    events: mapEvents(input.executions, now),
   };
 }

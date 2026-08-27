@@ -6,7 +6,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | filename | role | function |
 |---|---|---|
 | WorkbenchPage.tsx | entry | Composes panes and global workbench actions |
-| LeftRail.tsx | view | Frames the collapsible project tree and routes real-DTO schedule actions |
+| LeftRail.tsx | view | Frames the collapsible project tree, real-DTO schedules and shell daemon trigger |
 | RailTree.tsx | view | Renders project folders with their sessions and schedules |
 | rail-tree.ts | vm | Builds project folder nodes with session and schedule rows |
 | rail-tree.test.ts | test | Tests folder ordering, capping, filtering and badges |
@@ -118,6 +118,6 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | SelectedSessionProvider.tsx | provider | Shares sessions and external draft prefill |
 | selected-session.ts | vm | Resolves selected session and transition profile |
 | selected-session.test.ts | test | Unit tests for session selection |
-| DaemonStatusModal.tsx | view | Daemon and server processes, frontend build stamp and restart |
+
 | DebugDetailsModal.tsx | view | Inspector dialog with scoped hover controls |
 | debug-inspector.test.tsx | test | Tests hover scope, counting and debug formatting |
