@@ -277,6 +277,8 @@ export function RailTree(props: RailTreeProps): JSX.Element {
           alignItems: 'center',
           gap: 6,
           minHeight: 28,
+          // 28 = the folder glyph's 4 + its 17 + the row gap: every session title starts exactly
+          // under its project's name.
           padding: '5px 8px 5px 28px',
           borderRadius: 7,
           cursor: 'pointer',
@@ -290,16 +292,19 @@ export function RailTree(props: RailTreeProps): JSX.Element {
         {row.selected && (
           <span
             aria-hidden="true"
-            style={{ position: 'absolute', left: 16, top: 5, bottom: 5, width: 2, borderRadius: 1, background: 'var(--proto-accent)' }}
+            style={{ position: 'absolute', left: 12, top: 5, bottom: 5, width: 2, borderRadius: 1, background: 'var(--proto-accent)' }}
           />
         )}
         {(row.running || row.awaitingInput) && (
+          // Absolute, in the gutter between the spine and the text: in flow it pushed the title of
+          // exactly the rows you are watching out of line with every other one.
           <span
             style={{
+              position: 'absolute',
+              left: 17,
               width: 6,
               height: 6,
               borderRadius: '50%',
-              flex: 'none',
               background: row.awaitingInput ? 'var(--proto-amber)' : 'var(--proto-accent)',
               animation: 'cxpulse 1.6s ease-in-out infinite',
             }}
@@ -347,7 +352,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
           alignItems: 'center',
           gap: 6,
           minHeight: 26,
-          padding: '4px 8px 4px 42px',
+          padding: '4px 8px 4px 40px',
           borderRadius: 7,
           cursor: 'pointer',
           fontSize: 12.5,
@@ -413,12 +418,14 @@ export function RailTree(props: RailTreeProps): JSX.Element {
             zIndex: 2,
             display: 'flex',
             alignItems: 'center',
-            gap: 8,
+            gap: 7,
             // Fixed, not padding-derived: hovering swaps the trailing age/hotkey for two 22px icon
             // buttons, and a height that follows its content would make every row jump under the
             // cursor. 30px clears the tallest thing the slot can hold.
             height: 30,
             boxSizing: 'border-box',
+            // 4 + the scroller's 8 puts the folder glyph on x=12, the same left margin the section
+            // header and the new-session button already use.
             padding: '0 8px 0 4px',
             borderRadius: 8,
             cursor: 'pointer',
@@ -431,25 +438,17 @@ export function RailTree(props: RailTreeProps): JSX.Element {
                 : 'var(--proto-rail)',
           }}
         >
+          {/* The folder glyph IS the drag handle. A separate grip column cost 17px of permanent
+              indent — on every row, forever — to advertise a gesture the whole row already accepts,
+              and it pushed the tree off the rail's 12px text margin. */}
           <span
-            aria-hidden="true"
-            title={L.wbReorderProject}
-            style={{
-              width: 9,
-              flex: 'none',
-              fontSize: 9,
-              lineHeight: 1,
-              letterSpacing: -1,
-              userSelect: 'none',
-              cursor: 'grab',
-              color: 'var(--proto-line-3)',
-              visibility: hovered && !props.filter ? 'visible' : 'hidden',
-            }}
+            title={props.filter ? undefined : L.wbReorderProject}
+            style={{ display: 'flex', flex: 'none', cursor: props.filter ? 'pointer' : 'grab' }}
           >
-            ⋮⋮
+            <ProjectFolderIcon open={node.expanded} current={node.current} dim={node.empty} />
           </span>
-          <ProjectFolderIcon open={node.expanded} current={node.current} dim={node.empty} />
           <span
+            title={node.id}
             style={{
               flex: 1,
               minWidth: 0,
@@ -548,7 +547,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
             {/* the guide line, not a chevron, is what says "these belong to that folder" */}
             <span
               aria-hidden="true"
-              style={{ position: 'absolute', left: 16.5, top: -2, bottom: 5, width: 1, background: 'var(--proto-line)' }}
+              style={{ position: 'absolute', left: 12, top: -2, bottom: 5, width: 1, background: 'var(--proto-line)' }}
             />
             {node.sessions.map(renderSession)}
             {/* The cap has two directions and only ever one link: open the rest, or take it back.
