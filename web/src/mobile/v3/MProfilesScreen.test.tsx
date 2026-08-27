@@ -1,24 +1,31 @@
-// input:  mobile profile editor drafts, shared validation and change callbacks
-// output: field-local validation copy and backend-transition interaction regressions
-// pos:    Verifies the presentational mobile profile editor behavior
+// input:  mobile profile editor drafts, controller validation facts and callbacks
+// output: field-local error copy and backend-change delegation regressions
+// pos:    Verifies the independent presentational mobile profile editor
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { LangProvider } from '@/i18n';
-import { emptyProfileForm, type ProfileFormState } from '@/features/settings/profiles-panel-vm';
+import {
+  emptyProfileForm, validateProfileForm, type ProfileBackend, type ProfileFormState,
+} from '@/features/settings/profiles-panel-vm';
 import { MProfileEditor } from './MProfilesScreen';
 
-function mount(draft: ProfileFormState, onChange = vi.fn()): ReactTestRenderer {
+function mount(
+  draft: ProfileFormState,
+  onChange = vi.fn(),
+  onBackendChange = vi.fn<(backend: ProfileBackend) => void>(),
+): ReactTestRenderer {
   let renderer!: ReactTestRenderer;
   act(() => {
     renderer = create(
       <LangProvider>
         <MProfileEditor
           state={{ mode: 'create', draft }}
-          names={[]}
+          errors={validateProfileForm(draft, { mode: 'create', existingNames: [] })}
           pending={false}
           onChange={onChange}
+          onBackendChange={onBackendChange}
           onCancel={() => {}}
           onSave={() => {}}
         />
@@ -53,15 +60,15 @@ describe('MProfileEditor', () => {
       .toBe('A flag must start with --');
   });
 
-  it('uses the shared backend transition to clear unsupported thinking', () => {
-    const onChange = vi.fn();
+  it('delegates backend changes to the shared controller callback', () => {
+    const onBackendChange = vi.fn<(backend: ProfileBackend) => void>();
     const draft = { ...emptyProfileForm(), name: 'valid', model: 'model', thinking: 'max' };
-    const renderer = mount(draft, onChange);
+    const renderer = mount(draft, vi.fn(), onBackendChange);
 
     act(() => renderer.root.findByProps({ 'data-profile-field': 'backend' }).props.onChange({
       target: { value: 'pi' },
     }));
 
-    expect(onChange).toHaveBeenCalledWith({ ...draft, backend: 'pi', thinking: '' });
+    expect(onBackendChange).toHaveBeenCalledWith('pi');
   });
 });

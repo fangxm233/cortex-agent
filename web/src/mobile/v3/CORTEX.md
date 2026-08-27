@@ -88,8 +88,8 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 | MSettingsView.test.tsx | test | Tests canonical order, routing and live connection copy |
 | MSettingsControls.tsx | view | Supplies compact rows, toggles and field-local validation feedback |
 | MPlatformScreen.tsx | screen | Shows redacted platform state and queues reconnect approval |
-| MProfilesScreen.tsx | screen | Selects defaults and edits profiles with shared transitions and field errors |
-| MProfilesScreen.test.tsx | test | Tests mobile profile field errors and backend transitions |
+| MProfilesScreen.tsx | screen | Adapts the shared profile owner to the mobile list, native confirmation and editor view |
+| MProfilesScreen.test.tsx | test | Tests mobile profile field errors and controller callback delegation |
 | MBudgetScreen.tsx | screen | Keeps mobile budget scope/form/query view over the shared writer and operation toasts |
 | MBudgetScreen.test.ts | test | Tests complete-pair initialization plus clear, write and failure feedback |
 | MMcpScreen.tsx | screen | Lists configured MCP servers read-only |

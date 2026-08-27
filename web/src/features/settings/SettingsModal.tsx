@@ -1,11 +1,11 @@
-// input:  config/usage queries, settings panels, login handoff
-// output: settings shell with bounded panels and Usage-owned header
+// input:  config/usage queries, independently-owned settings panels and login handoff
+// output: settings shell with bounded panels and controller-owned Profiles section
 // pos:    Desktop settings modal and section router
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import * as RadixDialog from '@radix-ui/react-dialog';
 import { useEffect, useState, type CSSProperties } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import type { ConfigSnapshot, CostSummary } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { useToast } from '@/design';
@@ -176,7 +176,6 @@ interface SectionContentProps {
   cost: CostSummary | undefined;
   configLoading: boolean;
   configError: { message: string } | null;
-  onSetDefaultProfile: (name: string) => void;
   onReconnect: (platform: 'slack' | 'feishu') => void;
   onAddMachine: (machineName: string) => void;
   onPluginDirtyChange: (dirty: boolean) => void;
@@ -230,21 +229,12 @@ function SettingsSectionTitle({ section }: { section: SettingsSectionKey }) {
 function useSettingsActions() {
   const L = useVocab();
   const trpc = useTRPC();
-  const queryClient = useQueryClient();
   const { toast } = useToast();
-  const setProfile = useMutation(trpc.config.set.mutationOptions({
-    onSuccess: (_data, vars) => {
-      queryClient.invalidateQueries(trpc.config.get.queryFilter({}));
-      const name = vars.section === 'profiles' ? vars.value.defaultProfile : '';
-      toast({ title: `Default profile → ${name} · ${L.stToastDefaultProfile}`, tone: 'done' });
-    },
-    onError: (error) => toast({ title: `${L.stToastWriteFailed}: ${error.message}`, tone: 'failed' }),
-  }));
   const requestApproval = useMutation(trpc.approvals.request.mutationOptions({
     onSuccess: () => toast({ title: L.stToastQueuedApproval, tone: 'waiting' }),
     onError: (error) => toast({ title: `${L.stToastCouldNotQueue}: ${error.message}`, tone: 'failed' }),
   }));
-  return { setProfile, requestApproval };
+  return { requestApproval };
 }
 
 interface SettingsBodyProps {
@@ -264,7 +254,6 @@ function SettingsBody(props: SettingsBodyProps) {
     configLoading: config.isLoading,
     onPluginDirtyChange: props.onPluginDirtyChange,
     configError: config.isError ? config.error : null,
-    onSetDefaultProfile: (name: string) => actions.setProfile.mutate({ section: 'profiles', value: { defaultProfile: name } }),
     onReconnect: (platform: 'slack' | 'feishu') => actions.requestApproval.mutate({ kind: 'reconnect-platform', platform }),
     onAddMachine: (machineName: string) => actions.requestApproval.mutate({ kind: 'add-machine', machineName }),
   };
@@ -290,7 +279,7 @@ type PanelRenderer = (props: PanelBodyProps) => JSX.Element;
 
 const PANEL_RENDERERS: Partial<Record<SettingsSectionKey, PanelRenderer>> = {
   platform: (props) => <PlatformPanel snapshot={props.snapshot} onReconnect={props.onReconnect} />,
-  profiles: (props) => <ProfilesPanel snapshot={props.snapshot} onSetDefaultProfile={props.onSetDefaultProfile} />,
+  profiles: (props) => <ProfilesPanel snapshot={props.snapshot} />,
   budget: (props) => <BudgetPanel snapshot={props.snapshot} cost={props.cost} />,
   machines: (props) => <MachinesPanel snapshot={props.snapshot} onAddMachine={props.onAddMachine} />,
   templates: () => <TemplatesPanel />,

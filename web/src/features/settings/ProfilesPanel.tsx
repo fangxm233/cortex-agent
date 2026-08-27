@@ -1,13 +1,11 @@
-// input:  config profiles, shared profile transitions/error copy, mutations and Select
-// output: profile table with validated create, edit and delete
-// pos:    Desktop settings view for the profiles map of profiles.json
+// input:  shared profiles controller facts/actions, profile error copy and desktop controls
+// output: profile table with desktop-specific action gates and validated CRUD editor
+// pos:    Desktop Profiles settings view and controller adapter
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
-import { useState, type CSSProperties, type ReactNode } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import type { CSSProperties, ReactNode } from 'react';
 import type { ConfigProfileEntry, ConfigSnapshot } from '@cortex-agent/ui-contract';
-import { useTRPC } from '@/lib/trpc';
-import { Select, useToast } from '@/design';
+import { Select } from '@/design';
 import { useVocab } from '@/i18n';
 import {
   MonoKV,
@@ -21,18 +19,13 @@ import {
 import {
   PROFILE_BACKENDS,
   THINKING_LEVELS,
-  buildProfileCreateArgs,
-  buildProfileUpdateArgs,
-  emptyProfileForm,
-  formStateFromEntry,
-  isProfileFormDirty,
   isProfileFormValid,
   profileFieldErrorCopy,
-  transitionProfileBackend,
-  validateProfileForm,
   type ProfileBackend,
+  type ProfileFormErrors,
   type ProfileFormState,
 } from './profiles-panel-vm';
+import { useProfilesController, type ProfileFact } from './useProfilesController';
 
 // Profiles panel: the read-only table plus the default-profile picker it has always had, now with
 // the three writes the file itself allows — create, edit, delete an entry of the `profiles` map.
@@ -119,12 +112,14 @@ function ProfileEditor({
   entry,
   errors,
   onDraftChange,
+  onBackendChange,
 }: {
   draft: ProfileFormState;
   creating: boolean;
   entry: ConfigProfileEntry | null;
-  errors: ReturnType<typeof validateProfileForm>;
+  errors: ProfileFormErrors;
   onDraftChange: (next: ProfileFormState) => void;
+  onBackendChange: (backend: ProfileBackend) => void;
 }) {
   const L = useVocab();
   const set = (patch: Partial<ProfileFormState>) => onDraftChange({ ...draft, ...patch });
@@ -162,7 +157,7 @@ function ProfileEditor({
           aria-label={L.pfFieldBackend}
           value={draft.backend}
           options={PROFILE_BACKENDS.map((backend) => ({ value: backend, label: backend }))}
-          onValueChange={(backend: ProfileBackend) => onDraftChange(transitionProfileBackend(draft, backend))}
+          onValueChange={onBackendChange}
           style={S_CONTROL_STYLE}
         />
       </SFieldRow>
@@ -283,6 +278,7 @@ function ProfileEditor({
 
 export interface ProfilesPanelViewProps {
   snapshot: ConfigSnapshot;
+  profileFacts: ProfileFact[];
   onSetDefaultProfile?: (name: string) => void;
   /** Non-null while an entry is being created or edited. */
   draft: ProfileFormState | null;
@@ -290,11 +286,15 @@ export interface ProfilesPanelViewProps {
   editingName: string | null;
   /** The row whose delete is armed (deletion takes two clicks, like the hooks panel). */
   armedDelete: string | null;
-  saving: boolean;
+  errors: ProfileFormErrors;
+  dirty: boolean;
+  savePending: boolean;
+  removePendingName: string | null;
   onStartCreate: () => void;
   onStartEdit: (name: string) => void;
   onCancelEdit: () => void;
   onDraftChange: (next: ProfileFormState) => void;
+  onBackendChange: (backend: ProfileBackend) => void;
   onSave: () => void;
   onRevert: () => void;
   onArmDelete: (name: string) => void;
@@ -305,7 +305,7 @@ export interface ProfilesPanelViewProps {
 export function ProfilesPanelView(props: ProfilesPanelViewProps) {
   const L = useVocab();
   const p = props.snapshot.profiles;
-  const rows = p?.profiles ?? [];
+  const rows = props.profileFacts.map(fact => fact.profile);
   // The default-profile picker is a REAL write when wired (config.set 'profiles' → re-points
   // profiles.json defaultProfile, read at each agent start). It can only SELECT an existing profile
   // (the option list is the real profiles.json rows), so it can never break startup. Inert when no
@@ -313,14 +313,7 @@ export function ProfilesPanelView(props: ProfilesPanelViewProps) {
   const canWrite = !!props.onSetDefaultProfile && rows.length > 0;
   const editing = props.draft !== null;
   const entry = props.editingName === null ? null : rows.find((r) => r.name === props.editingName) ?? null;
-  const errors = props.draft
-    ? validateProfileForm(props.draft, {
-        mode: props.creating ? 'create' : 'update',
-        existingNames: rows.map((r) => r.name),
-      })
-    : {};
-  const dirty = props.draft !== null && (props.creating || (entry !== null && isProfileFormDirty(props.draft, entry)));
-  const savable = editing && dirty && isProfileFormValid(errors) && !props.saving;
+  const savable = editing && props.dirty && isProfileFormValid(props.errors) && !props.savePending;
 
   return (
     <div data-settings-panel="profiles">
@@ -390,7 +383,7 @@ export function ProfilesPanelView(props: ProfilesPanelViewProps) {
           <span style={{ textAlign: 'right' }}>
             <RowAction
               data-action="new-profile"
-              onClick={props.saving || editing ? undefined : props.onStartCreate}
+              onClick={editing ? undefined : props.onStartCreate}
             >
               {L.pfNew}
             </RowAction>
@@ -401,10 +394,12 @@ export function ProfilesPanelView(props: ProfilesPanelViewProps) {
             {L.stNoProfiles}
           </div>
         ) : (
-          rows.map((r, i) => {
-            const isDefault = r.name === p?.defaultProfile;
+          props.profileFacts.map((fact, i) => {
+            const r = fact.profile;
+            const isDefault = fact.current;
             const armed = props.armedDelete === r.name;
-            const busy = props.saving || editing;
+            const busy = editing;
+            const removePending = props.removePendingName !== null;
             return (
               <div
                 key={r.name}
@@ -448,7 +443,7 @@ export function ProfilesPanelView(props: ProfilesPanelViewProps) {
                       <RowAction
                         data-action="confirm-delete"
                         tone="danger"
-                        onClick={props.saving ? undefined : () => props.onConfirmDelete(r.name)}
+                        onClick={props.removePendingName === r.name ? undefined : () => props.onConfirmDelete(r.name)}
                       >
                         {L.pfConfirmDelete}
                       </RowAction>
@@ -463,7 +458,7 @@ export function ProfilesPanelView(props: ProfilesPanelViewProps) {
                         data-delete-blocked={isDefault ? '' : undefined}
                         tone="danger"
                         title={isDefault ? L.pfDeleteDefaultBlocked : undefined}
-                        onClick={busy || isDefault ? undefined : () => props.onArmDelete(r.name)}
+                        onClick={busy || removePending || !fact.canDelete ? undefined : () => props.onArmDelete(r.name)}
                       >
                         {L.pfDelete}
                       </RowAction>
@@ -483,16 +478,17 @@ export function ProfilesPanelView(props: ProfilesPanelViewProps) {
             draft={props.draft}
             creating={props.creating}
             entry={entry}
-            errors={errors}
+            errors={props.errors}
             onDraftChange={props.onDraftChange}
+            onBackendChange={props.onBackendChange}
           />
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
-            {dirty ? (
+            {props.dirty ? (
               <span style={{ fontSize: 9.5, fontWeight: 600, color: 'var(--proto-amber)' }}>{L.pfDirty}</span>
             ) : null}
             <span style={{ marginLeft: 'auto' }} />
             {!props.creating ? (
-              <SButton data-action="revert" tone="neutral" disabled={!dirty} onClick={props.onRevert}>
+              <SButton data-action="revert" tone="neutral" disabled={!props.dirty} onClick={props.onRevert}>
                 {L.pfRevert}
               </SButton>
             ) : null}
@@ -509,109 +505,33 @@ export function ProfilesPanelView(props: ProfilesPanelViewProps) {
   );
 }
 
-// ── container: binds the profiles.* mutations ─────────────────────────────────────────────────
+// ── container: adapts shared ownership to the desktop view ─────────────────────────────────────
 
-export function ProfilesPanel({
-  snapshot,
-  onSetDefaultProfile,
-}: {
-  snapshot: ConfigSnapshot;
-  onSetDefaultProfile?: (name: string) => void;
-}) {
-  const L = useVocab();
-  const trpc = useTRPC();
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-
-  const [creating, setCreating] = useState(false);
-  const [editingName, setEditingName] = useState<string | null>(null);
-  /** Non-null only once the user has typed — until then the stored entry is the truth. */
-  const [edits, setEdits] = useState<ProfileFormState | null>(null);
-  const [createDraft, setCreateDraft] = useState<ProfileFormState>(emptyProfileForm);
-  const [armedDelete, setArmedDelete] = useState<string | null>(null);
-
-  const rows = snapshot.profiles?.profiles ?? [];
-  const entry = editingName === null ? null : rows.find((r) => r.name === editingName) ?? null;
-  // An entry deleted or renamed underneath us drops the editor rather than editing a ghost.
-  const draft = creating ? createDraft : entry ? edits ?? formStateFromEntry(entry) : null;
-
-  const invalidate = () => queryClient.invalidateQueries(trpc.config.get.queryFilter({}));
-  const onWriteError = (error: { message: string }) =>
-    toast({ title: `${L.pfToastWriteFailed}: ${error.message}`, tone: 'failed' });
-  const closeEditor = () => {
-    setCreating(false);
-    setEditingName(null);
-    setEdits(null);
-    setCreateDraft(emptyProfileForm());
-  };
-
-  const create = useMutation(
-    trpc.profiles.create.mutationOptions({
-      onSuccess: (data) => {
-        invalidate();
-        toast({ title: `${L.pfToastCreated} · ${data.name}`, tone: 'done' });
-        closeEditor();
-      },
-      onError: onWriteError,
-    }),
-  );
-  const update = useMutation(
-    trpc.profiles.update.mutationOptions({
-      onSuccess: (data) => {
-        invalidate();
-        toast({ title: data.changed ? L.pfToastSaved : L.pfToastUnchanged, tone: 'done' });
-        closeEditor();
-      },
-      onError: onWriteError,
-    }),
-  );
-  const remove = useMutation(
-    trpc.profiles.remove.mutationOptions({
-      onSuccess: () => {
-        invalidate();
-        toast({ title: L.pfToastDeleted, tone: 'done' });
-        setArmedDelete(null);
-      },
-      onError: (error) => {
-        setArmedDelete(null);
-        onWriteError(error);
-      },
-    }),
-  );
-
-  return (
+export function ProfilesPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
+  const profiles = useProfilesController(snapshot);
+  return profiles.snapshot ? (
     <ProfilesPanelView
-      snapshot={snapshot}
-      onSetDefaultProfile={onSetDefaultProfile}
-      draft={draft}
-      creating={creating}
-      editingName={creating ? null : editingName}
-      armedDelete={armedDelete}
-      saving={create.isPending || update.isPending || remove.isPending}
-      onStartCreate={() => {
-        setCreating(true);
-        setEditingName(null);
-        setEdits(null);
-        setCreateDraft(emptyProfileForm());
-        setArmedDelete(null);
-      }}
-      onStartEdit={(name) => {
-        setCreating(false);
-        setEditingName(name);
-        setEdits(null);
-        setArmedDelete(null);
-      }}
-      onCancelEdit={closeEditor}
-      onDraftChange={(next) => (creating ? setCreateDraft(next) : setEdits(next))}
-      onSave={() => {
-        if (draft === null) return;
-        if (creating) create.mutate(buildProfileCreateArgs(draft));
-        else update.mutate(buildProfileUpdateArgs(draft));
-      }}
-      onRevert={() => setEdits(null)}
-      onArmDelete={setArmedDelete}
-      onCancelDelete={() => setArmedDelete(null)}
-      onConfirmDelete={(name) => remove.mutate({ name })}
+      snapshot={profiles.snapshot}
+      profileFacts={profiles.profileFacts}
+      onSetDefaultProfile={profiles.setDefault}
+      draft={profiles.draft}
+      creating={profiles.creating}
+      editingName={profiles.creating ? null : profiles.editingName}
+      armedDelete={profiles.confirmingDelete}
+      errors={profiles.errors}
+      dirty={profiles.dirty}
+      savePending={profiles.savePending}
+      removePendingName={profiles.removePendingName}
+      onStartCreate={profiles.openCreate}
+      onStartEdit={profiles.openEdit}
+      onCancelEdit={profiles.closeDraft}
+      onDraftChange={profiles.changeDraft}
+      onBackendChange={profiles.changeBackend}
+      onSave={profiles.save}
+      onRevert={profiles.revertDraft}
+      onArmDelete={profiles.requestDelete}
+      onCancelDelete={profiles.cancelDelete}
+      onConfirmDelete={profiles.confirmDelete}
     />
-  );
+  ) : null;
 }

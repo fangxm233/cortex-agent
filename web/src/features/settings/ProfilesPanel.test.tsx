@@ -1,6 +1,6 @@
-// input:  ProfilesPanelView, language provider, config snapshot fixtures
-// output: table, editor gating and delete-guard regressions
-// pos:    Verifies the profile CRUD surface renders its refusals
+// input:  ProfilesPanelView, controller-derived profile facts/errors and config fixtures
+// output: desktop table, editor gating and delete-guard regressions
+// pos:    Verifies the independent desktop Profiles view renders its refusals
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -18,7 +18,7 @@ vi.mock('@/design', async importOriginal => ({
 }));
 
 import { ProfilesPanelView, type ProfilesPanelViewProps } from './ProfilesPanel';
-import { emptyProfileForm, formStateFromEntry } from './profiles-panel-vm';
+import { emptyProfileForm, formStateFromEntry, validateProfileForm } from './profiles-panel-vm';
 
 function entry(over: Partial<ConfigProfileEntry> = {}): ConfigProfileEntry {
   return {
@@ -52,18 +52,28 @@ function snapshot(profiles: ConfigProfileEntry[], defaultProfile: string | null 
 }
 
 function render(over: Partial<ProfilesPanelViewProps> = {}): string {
+  const currentSnapshot = over.snapshot ?? snapshot([entry(), SOL]);
+  const current = currentSnapshot.profiles?.defaultProfile ?? null;
   const props: ProfilesPanelViewProps = {
-    snapshot: snapshot([entry(), SOL]),
+    snapshot: currentSnapshot,
+    profileFacts: (currentSnapshot.profiles?.profiles ?? []).map(profile => ({
+      profile, current: profile.name === current, canSetDefault: profile.name !== current,
+      canEdit: true, canDelete: profile.name !== current,
+    })),
     onSetDefaultProfile: () => {},
     draft: null,
     creating: false,
     editingName: null,
     armedDelete: null,
-    saving: false,
+    errors: {},
+    dirty: false,
+    savePending: false,
+    removePendingName: null,
     onStartCreate: () => {},
     onStartEdit: () => {},
     onCancelEdit: () => {},
     onDraftChange: () => {},
+    onBackendChange: () => {},
     onSave: () => {},
     onRevert: () => {},
     onArmDelete: () => {},
@@ -116,9 +126,11 @@ describe('ProfilesPanelView / editor', () => {
   });
 
   it('reports a field error instead of the hint when the draft is invalid', () => {
+    const draft = { ...emptyProfileForm(), name: 'new', model: 'gpt-5', backend: 'pi' as const };
     const html = render({
-      draft: { ...emptyProfileForm(), name: 'new', model: 'gpt-5', backend: 'pi' },
+      draft,
       creating: true,
+      errors: validateProfileForm(draft, { mode: 'create', existingNames: [] }),
     });
     expect(html).toContain('A pi profile must declare a provider');
   });

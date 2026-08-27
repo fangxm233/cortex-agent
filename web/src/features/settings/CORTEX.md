@@ -32,10 +32,12 @@ Panels keep their presentation while canonical controllers and VMs in this folde
 | budget-vm.test.ts | test | Tests budget scope, drafts, parsing, payloads and percentage arithmetic |
 | useBudgetWriter.ts | hook | Shares budget config.set and config/cost invalidation while preserving write/clear operations |
 | useBudgetWriter.test.tsx | test | Tests writer payloads, operation results, invalidation and failures |
-| ProfilesPanel.tsx | view | Profile table and editor using shared backend transitions and error copy |
-| ProfilesPanel.test.tsx | test | Tests profile permissions, secret safety, errors and delete guard |
+| ProfilesPanel.tsx | view | Adapts the shared profile owner to the desktop table, editor and action gates |
+| ProfilesPanel.test.tsx | test | Tests desktop profile permissions, secret safety, controller errors and delete guard |
 | profiles-panel-vm.ts | vm | Shares profile transitions, validation copy and mutation args across desktop/mobile |
 | profiles-panel-vm.test.ts | test | Tests profile transitions, error copy, validation and mutation args |
+| useProfilesController.ts | controller | Owns config profile facts, drafts, validation, writes, confirmation, refresh and feedback |
+| useProfilesController.test.tsx | test | Tests shared profile lifecycle, permissions, independent pending, refreshes and toasts |
 | HooksPanel.tsx | view | Hook editor with result selection and test runner |
 | HooksPanel.test.tsx | test | Tests hook permissions, validation, delete state and runner errors |
 | hooks-panel-vm.ts | vm | Canonically detects/groups hook namespaces for desktop/mobile, then validates editor mutations |
