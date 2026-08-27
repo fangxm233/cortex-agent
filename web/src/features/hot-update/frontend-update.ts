@@ -1,11 +1,12 @@
-// input:  native-shell update events, staged metadata, and shared byte formatting
-// output: parsed update state, display labels, subscriptions, and shell commands
-// pos:    Off-shell-safe bridge between the hot-update prompt and native shells
+// input:  unknown native update payloads, typed bridge capabilities, and shared byte formatting
+// output: parsed update state, display labels, subscriptions, and safe shell commands
+// pos:    Off-shell-safe hot-update adapter using the canonical native bridge
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 // Desktop and Android stage a bundle, emit `frontend-update-staged`, then relaunch/exit to promote it.
 // Plain browsers remain safe no-ops through the guarded global Tauri seam.
 import { isNativeShell } from '@/lib/desktop-config';
+import { listenNativeEvent, safeInvoke } from '@/lib/native-bridge';
 import { formatBytes } from '@/lib/format';
 
 /** A frontend update downloaded + staged for the next launch (payload of `frontend-update-staged`). */
@@ -53,20 +54,6 @@ export function updateSummaryLine(update: StagedUpdate): string {
 
 // ─── Native-shell seam (off-shell no-op) ────────────────────────────────────
 
-interface TauriGlobal {
-  event?: {
-    listen: (
-      event: string,
-      handler: (e: { payload: unknown }) => void,
-    ) => Promise<() => void>;
-  };
-  core?: { invoke: <T = unknown>(cmd: string) => Promise<T> };
-}
-
-function tauri(): TauriGlobal | undefined {
-  return (globalThis as unknown as { __TAURI__?: TauriGlobal }).__TAURI__;
-}
-
 /** Coerce an unknown event payload into a StagedUpdate, or null if it is not shaped like one. */
 export function parseStagedUpdate(payload: unknown): StagedUpdate | null {
   if (!payload || typeof payload !== 'object') return null;
@@ -84,46 +71,21 @@ export async function onFrontendUpdateStaged(
   cb: (update: StagedUpdate) => void,
 ): Promise<() => void> {
   if (!isNativeShell()) return () => {};
-  const ev = tauri()?.event;
-  if (!ev) return () => {};
-  try {
-    const unlisten = await ev.listen(FRONTEND_UPDATE_STAGED_EVENT, (e) => {
-      const update = parseStagedUpdate(e.payload);
-      if (update) cb(update);
-    });
-    return () => {
-      try {
-        unlisten();
-      } catch {
-        /* already torn down */
-      }
-    };
-  } catch {
-    return () => {};
-  }
+  return listenNativeEvent(FRONTEND_UPDATE_STAGED_EVENT, (payload) => {
+    const update = parseStagedUpdate(payload);
+    if (update) cb(update);
+  });
 }
 
 /** Backstop for a missed event: query the shell for a currently-staged update. Null off-shell / none. */
 export async function getStagedUpdate(): Promise<StagedUpdate | null> {
   if (!isNativeShell()) return null;
-  const core = tauri()?.core;
-  if (!core) return null;
-  try {
-    const res = await core.invoke<unknown>('get_staged_update');
-    return parseStagedUpdate(res);
-  } catch {
-    return null;
-  }
+  const result = await safeInvoke('get_staged_update');
+  return result.ok ? parseStagedUpdate(result.value) : null;
 }
 
 /** Apply the staged update — relaunches (desktop) or exits (Android) the app. No-op off-shell. */
 export async function applyFrontendUpdate(): Promise<void> {
   if (!isNativeShell()) return;
-  const core = tauri()?.core;
-  if (!core) return;
-  try {
-    await core.invoke('apply_frontend_update');
-  } catch {
-    /* restart/exit may tear the webview down before the promise resolves — ignore */
-  }
+  await safeInvoke('apply_frontend_update');
 }

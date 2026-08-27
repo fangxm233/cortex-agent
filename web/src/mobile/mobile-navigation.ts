@@ -1,9 +1,10 @@
-// input:  React lifecycle, Router and Tauri bridge
-// output: mobile back policy for all settings drill-ins
-// pos:    Android navigation control
+// input:  React lifecycle, Router state, and canonical native back capability
+// output: mobile back policy, semantic navigation, and idempotent Android listener cleanup
+// pos:    Android navigation control without local native-global declarations
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { useEffect, useRef } from 'react';
+import { listenNativeBack, safeInvoke } from '@/lib/native-bridge';
 import { isTabRootRoute, normalizeMobilePath } from './mobile-tabs';
 
 export type MobileNavigate = (to: string, options?: { replace: boolean }) => void;
@@ -77,33 +78,13 @@ export function switchMobileTab(path: string, navigate: MobileNavigate): void {
   navigate(path, { replace: true });
 }
 
-interface NativeBackListener {
-  unregister: () => Promise<void>;
+function nativeCanGoBack(payload: unknown): boolean {
+  if (!payload || typeof payload !== 'object') return false;
+  return Reflect.get(payload, 'canGoBack') === true;
 }
 
-interface NativeBackPayload {
-  canGoBack: boolean;
-}
-
-interface NativeBridge {
-  listen: (handler: (payload: NativeBackPayload) => void) => Promise<NativeBackListener>;
-  exit: () => Promise<unknown>;
-}
-
-function readNativeBridge(): NativeBridge | null {
-  const tauri = (globalThis as unknown as {
-    __TAURI__?: {
-      app?: {
-        onBackButtonPress: (handler: (payload: NativeBackPayload) => void) => Promise<NativeBackListener>;
-      };
-      core?: { invoke: (command: string) => Promise<unknown> };
-    };
-  }).__TAURI__;
-  if (!tauri?.app || !tauri.core) return null;
-  return {
-    listen: (handler) => tauri.app!.onBackButtonPress(handler),
-    exit: () => tauri.core!.invoke('plugin:app|exit'),
-  };
+async function exitNativeApp(): Promise<void> {
+  await safeInvoke('plugin:app|exit');
 }
 
 function overlayActive(): boolean {
@@ -111,37 +92,17 @@ function overlayActive(): boolean {
   return state?.__cortexOverlay === true;
 }
 
-export function registerNativeBack(
-  bridge: NativeBridge,
-  handler: (payload: NativeBackPayload) => void,
-): () => void {
-  let disposed = false;
-  let listener: NativeBackListener | null = null;
-  void bridge.listen(handler).then((next) => {
-    if (disposed) void next.unregister().catch(() => {});
-    else listener = next;
-  }).catch(() => {});
-  return () => {
-    disposed = true;
-    if (listener) void listener.unregister().catch(() => {});
-  };
-}
-
 export function useMobileBackNavigation(pathname: string, navigate: MobileNavigate): void {
   const latest = useRef({ pathname, navigate });
   latest.current = { pathname, navigate };
-  useEffect(() => {
-    const bridge = readNativeBridge();
-    if (!bridge) return;
-    return registerNativeBack(bridge, (payload) => {
-      const current = latest.current;
-      const routerHistory = window.history.state as { idx?: unknown } | null;
-      const canGoBack = hasRouterHistory(payload.canGoBack, routerHistory);
-      void runMobileBack(current.pathname, overlayActive(), canGoBack, {
-        historyBack: () => window.history.back(),
-        exit: bridge.exit,
-        navigate: current.navigate,
-      }).catch(() => {});
-    });
-  }, []);
+  useEffect(() => listenNativeBack((payload) => {
+    const current = latest.current;
+    const routerHistory = window.history.state as { idx?: unknown } | null;
+    const canGoBack = hasRouterHistory(nativeCanGoBack(payload), routerHistory);
+    void runMobileBack(current.pathname, overlayActive(), canGoBack, {
+      historyBack: () => window.history.back(),
+      exit: exitNativeApp,
+      navigate: current.navigate,
+    }).catch(() => {});
+  }), []);
 }

@@ -2,6 +2,7 @@ Please update me when files in this folder change
 
 One folder per product feature, owning its views, pure view models, hooks, provider, or neutral controller.
 Cross-cutting concerns that desktop and mobile both consume (attachments, live stream, media preview, notifications) live here too.
+Native-facing features consume `lib/native-bridge.ts`; they do not redeclare or cast `window.__TAURI__` locally.
 
 | filename | role | function |
 |---|---|---|
@@ -25,12 +26,12 @@ Cross-cutting concerns that desktop and mobile both consume (attachments, live s
 | command-palette/ | subdir | Global search and command overlay |
 | notifications/ | subdir | In-app toasts for replies and notices |
 | media/ | subdir | Image, video and document previewers |
-| browser/ | subdir | Docked web preview pane and its address bar |
+| browser/ | subdir | Docked web preview pane, address bar and typed native port-forward adapter |
 | live/ | subdir | The single live event stream and fan-out |
 | connection/ | subdir | Connectivity status for the daemon badge |
 | rate-limit/ | subdir | Provider throttle times and waiting counts |
 | usage/ | subdir | Provider quota, spend, freshness and refresh state |
-| hot-update/ | subdir | Staged frontend update prompt |
-| app-update/ | subdir | App shell update prompt |
+| hot-update/ | subdir | Staged frontend update prompt fed unknown bridge payloads through its parser |
+| app-update/ | subdir | App shell update prompt with safe event and command fallback for older shells |
 | kit/ | subdir | Design-system gallery page |
 | base-demo/ | subdir | Visual base specimen page |

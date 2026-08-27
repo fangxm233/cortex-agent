@@ -7,7 +7,7 @@ The docked browser previews local or forwarded HTTP services with single-row tit
 | WebBody.tsx | view | Renders titled tabs, port chips and browser controls |
 | WebBody.test.tsx | test | Tests tab order, frame lifetime and port provenance |
 | BrowserButton.tsx | view | Opens or hides the browser pane |
-| forward.ts | core | Lists ports and starts forwards |
+| forward.ts | core | Lists ports and runs forwards through typed canonical native capabilities |
 | frame-title.ts | core | Validates title messages from preview frames |
 | frame-title.test.ts | test | Tests title message validation and frame routing |
 | browser-target.ts | vm | Models URLs, titles, forwards, port chips and ordered tabs |

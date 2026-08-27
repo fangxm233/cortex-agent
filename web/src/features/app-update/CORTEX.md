@@ -8,5 +8,5 @@ Supersedes the hot-update prompt while pending; installing hands off per platfor
 | AppUpdateProvider.tsx | provider | Mounts the prompt when a shell update is ready |
 | AppUpdateDialog.tsx | view | Per-kind update prompt with install, skip, later |
 | useAppUpdate.ts | hook | Surfaces the update with install and skip actions |
-| app-update.ts | core | Shell bridge, pure copy helpers and the store |
+| app-update.ts | core | Unknown-payload parsing, copy helpers, store, and safe canonical-bridge event/command adapter |
 | app-update.test.ts | test | Unit tests for shell payload parsing and store publication |

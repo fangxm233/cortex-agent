@@ -1,6 +1,8 @@
-// App shell update bridge — the seam the app-update prompt talks to the native shell over, plus a
-// tiny module-level store so OTHER surfaces (the hot-update prompt) can observe availability.
-//
+// input:  native update payloads, typed bridge events/commands, and shared byte formatting
+// output: parsed update state, install labels, observable store, and safe shell actions
+// pos:    App-update domain and off-shell-safe adapter for desktop and Android prompts
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 // The Tauri shell checks the server's /api/app-update/manifest.json in the background, downloads +
 // sha256-verifies the platform asset from the GitHub release, then emits `app-update-available`
 // (see desktop/src-tauri/src/app_update.rs). Installing is platform-branched shell-side: AppImage
@@ -12,6 +14,7 @@
 // SPA seed and OTA converges the rest), so the hot-update providers read this store and stand down
 // while an app update is available.
 import { isNativeShell } from '@/lib/desktop-config';
+import { listenNativeEvent, safeInvoke } from '@/lib/native-bridge';
 import { formatUpdateSize } from '@/features/hot-update/frontend-update';
 
 /** A downloaded, verified app shell update (payload of `app-update-available` / `get_app_update`). */
@@ -108,43 +111,20 @@ export function getAppUpdateSnapshot(): AppUpdateInfo | null {
 
 // ─── Native-shell seam (off-shell no-op) ────────────────────────────────────
 
-interface TauriGlobal {
-  event?: {
-    listen: (
-      event: string,
-      handler: (e: { payload: unknown }) => void,
-    ) => Promise<() => void>;
-  };
-  core?: { invoke: <T = unknown>(cmd: string) => Promise<T> };
-}
-
-function tauri(): TauriGlobal | undefined {
-  return (globalThis as unknown as { __TAURI__?: TauriGlobal }).__TAURI__;
-}
-
 /**
  * Start the bridge: subscribe to `app-update-available` and run the `get_app_update` backstop for a
  * missed event, publishing into the store. Returns an unsubscribe fn; a no-op off-shell (browser).
  */
 export async function startAppUpdateBridge(): Promise<() => void> {
   if (!isNativeShell()) return () => {};
-  const t = tauri();
-  if (!t) return () => {};
-  let unlisten = () => {};
-  try {
-    if (t.event) {
-      const fn = await t.event.listen(APP_UPDATE_AVAILABLE_EVENT, (e) => {
-        const u = parseAppUpdate(e.payload);
-        if (u) publishAppUpdate(u);
-      });
-      unlisten = () => {
-        try { fn(); } catch { /* already torn down */ }
-      };
-    }
-    const existing = parseAppUpdate(await t.core?.invoke<unknown>('get_app_update'));
-    if (existing) publishAppUpdate(existing);
-  } catch {
-    /* shell without the commands (older build) — stay silent */
+  const unlisten = await listenNativeEvent(APP_UPDATE_AVAILABLE_EVENT, (payload) => {
+    const update = parseAppUpdate(payload);
+    if (update) publishAppUpdate(update);
+  });
+  const existing = await safeInvoke('get_app_update');
+  if (existing.ok) {
+    const update = parseAppUpdate(existing.value);
+    if (update) publishAppUpdate(update);
   }
   return unlisten;
 }
@@ -156,25 +136,18 @@ export async function startAppUpdateBridge(): Promise<() => void> {
  */
 export async function installAppUpdate(): Promise<string | null> {
   if (!isNativeShell()) return null;
-  const core = tauri()?.core;
-  if (!core) return null;
-  try {
-    return (await core.invoke<string | null>('install_app_update')) ?? null;
-  } catch (e) {
-    // The handoff flows (installer spawn / AppImage relaunch) tear the webview down — a torn IPC
-    // is not an error. String rejections from the shell are real failures worth surfacing.
-    if (typeof e === 'string' && e) throw new Error(e);
-    return null;
+  const result = await safeInvoke('install_app_update');
+  if (result.ok) return typeof result.value === 'string' ? result.value : null;
+  // The handoff flows tear the webview down. String rejections are real shell failures to surface.
+  if (result.reason === 'failed' && typeof result.error === 'string' && result.error) {
+    throw new Error(result.error);
   }
+  return null;
 }
 
 /** Persist "skip this version" shell-side and clear the pending update locally. */
 export async function skipAppUpdate(): Promise<void> {
   publishAppUpdate(null);
   if (!isNativeShell()) return;
-  try {
-    await tauri()?.core?.invoke('skip_app_update');
-  } catch {
-    /* worst case: offered again next launch */
-  }
+  await safeInvoke('skip_app_update');
 }

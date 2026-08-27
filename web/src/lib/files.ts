@@ -1,25 +1,15 @@
-// input:  a UI-relative `workspace/…` file path + optional desktop RemoteConfig
-// output: URL builder + authenticated blob fetch + download/open helpers for workspace files
-// pos:    file transport for the chat file cards (15a user uploads + 20a agent-sent files). The
-//         ui-http server serves files at /api/files/download behind the same dual-path auth as tRPC.
-//         A plain <img src>/<a href> cannot set x-cortex-token, so previews/downloads fetch the bytes
-//         with the right auth (desktop: token header; browser/ui-http: same-origin proxy/Access) and
-//         wrap them in an object URL — correct in every mode.
+// input:  workspace paths, authenticated HTTP config, and typed native download capabilities
+// output: URL builder, blob fetch, download, clipboard, open, and reveal helpers
+// pos:    Cross-runtime file transport for chat cards and native download-complete actions
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { apiBase, authHeaders, isNativeShell, isMobileShell } from './desktop-config';
+import { hasNativeCapability, safeInvoke, type NativeInvokeResult } from './native-bridge';
 
 const DOWNLOAD_PATH = '/api/files/download';
 
-// Native-shell (Tauri desktop/Android) IPC seam. A plain browser `<a download>` / window.open(blob)
-// is a NO-OP inside the WebView, so in the native shell downloads go through the `save_download`
-// command instead. Accessed via the global `window.__TAURI__` (the shell is built with
-// `withGlobalTauri: true`), so no `@tauri-apps/api` dependency is added.
-interface TauriGlobal {
-  core?: { invoke: <T = unknown>(cmd: string, args?: Record<string, unknown>) => Promise<T> };
-}
-function tauriCore(): TauriGlobal['core'] | undefined {
-  return (globalThis as unknown as { __TAURI__?: TauriGlobal }).__TAURI__?.core;
-}
+// A plain browser download is a no-op inside native WebViews, so shell modes use native commands.
+// The canonical bridge keeps missing/older shell capabilities observable without touching globals.
 
 /** Build the download URL for a UI-relative `workspace/…` path. `disposition=inline` for preview. */
 export function fileDownloadUrl(relPath: string, disposition: 'inline' | 'attachment' = 'attachment'): string {
@@ -53,35 +43,46 @@ export interface DownloadResult {
  *     download dir and returns the saved absolute path.
  *   - Browser / ui-http: the normal `<a download>`.
  */
+function throwNativeFailure(result: NativeInvokeResult<unknown>): void {
+  if (!result.ok && result.reason === 'failed') throw result.error;
+}
+
+async function nativeDownload(relPath: string, name: string): Promise<DownloadResult | null> {
+  if (isMobileShell()) {
+    const result = await safeInvoke('plugin:cortex-download|download', {
+      url: fileDownloadUrl(relPath, 'attachment'),
+      fileName: name,
+      token: authHeaders()['x-cortex-token'],
+    });
+    throwNativeFailure(result);
+    return result.ok ? {} : null;
+  }
+  const res = await fetch(fileDownloadUrl(relPath, 'attachment'), { headers: authHeaders() });
+  if (!res.ok) throw new Error(`download failed: ${res.status}`);
+  const bytes = Array.from(new Uint8Array(await res.arrayBuffer()));
+  const result = await safeInvoke('save_download', { name, bytes });
+  throwNativeFailure(result);
+  return result.ok ? { savedPath: result.value } : null;
+}
+
+function browserDownload(objUrl: string, name: string): void {
+  const anchor = document.createElement('a');
+  anchor.href = objUrl;
+  anchor.download = name;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(objUrl), 10_000);
+}
+
 export async function downloadFile(relPath: string, fileName?: string): Promise<DownloadResult> {
   const name = fileName ?? relPath.split('/').pop() ?? 'download';
-
-  const core = isNativeShell() ? tauriCore() : undefined;
-  if (core) {
-    if (isMobileShell()) {
-      // Android → system DownloadManager: fetches the URL straight into public Downloads + notifies.
-      await core.invoke('plugin:cortex-download|download', {
-        url: fileDownloadUrl(relPath, 'attachment'),
-        fileName: name,
-        token: authHeaders()['x-cortex-token'],
-      });
-      return {};
-    }
-    const res = await fetch(fileDownloadUrl(relPath, 'attachment'), { headers: authHeaders() });
-    if (!res.ok) throw new Error(`download failed: ${res.status}`);
-    const bytes = Array.from(new Uint8Array(await res.arrayBuffer()));
-    const savedPath = await core.invoke<string>('save_download', { name, bytes });
-    return { savedPath };
+  if (isNativeShell() && hasNativeCapability('invoke')) {
+    const downloaded = await nativeDownload(relPath, name);
+    if (downloaded) return downloaded;
   }
-
   const objUrl = await fetchFileObjectUrl(relPath, 'attachment');
-  const a = document.createElement('a');
-  a.href = objUrl;
-  a.download = name;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(objUrl), 10_000);
+  browserDownload(objUrl, name);
   return {};
 }
 
@@ -95,9 +96,9 @@ export async function copyFilePath(relPath: string): Promise<void> {
  * action). Native shell only — invokes the `open_path` Tauri command with the absolute path that
  * `save_download` returned. A no-op off-shell (a plain browser cannot open a local file path). */
 export async function openPath(absPath: string): Promise<void> {
-  const core = isNativeShell() ? tauriCore() : undefined;
-  if (!core) return;
-  await core.invoke('open_path', { path: absPath });
+  if (!isNativeShell()) return;
+  const result = await safeInvoke('open_path', { path: absPath });
+  throwNativeFailure(result);
 }
 
 /**
@@ -105,7 +106,7 @@ export async function openPath(absPath: string): Promise<void> {
  * the platform supports it (desktop toast "Open folder" action). Native shell only — invokes the
  * `reveal_path` Tauri command. A no-op off-shell. */
 export async function revealPath(absPath: string): Promise<void> {
-  const core = isNativeShell() ? tauriCore() : undefined;
-  if (!core) return;
-  await core.invoke('reveal_path', { path: absPath });
+  if (!isNativeShell()) return;
+  const result = await safeInvoke('reveal_path', { path: absPath });
+  throwNativeFailure(result);
 }

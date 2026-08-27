@@ -12,9 +12,9 @@ Splits into shared layers (design, i18n, theme, lib) and screen layers (features
 | index.css | style | Global base layer, palette chrome and animations |
 | vite-env.d.ts | types | Vite client ambient type declarations |
 | design/ | subdir | Token-driven shared UI primitives |
-| features/ | subdir | One folder per product feature or overlay |
+| features/ | subdir | Product features consuming shared transports and typed native capabilities |
 | i18n/ | subdir | Language state, vocabulary and viewport hook |
-| lib/ | subdir | Transport, shell, file and external-link helpers |
-| mobile/ | subdir | Mobile shell, routes and phone screens |
-| shell/ | subdir | Persistent desktop layout frame |
+| lib/ | subdir | Transport, typed native bridge, shell, file and external-link helpers |
+| mobile/ | subdir | Mobile shell, routes, phone screens and native back policy |
+| shell/ | subdir | Persistent desktop layout frame with bridge-backed native actions |
 | theme/ | subdir | Theme and device-local accent state and controls |

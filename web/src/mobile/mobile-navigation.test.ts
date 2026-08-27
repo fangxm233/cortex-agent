@@ -1,12 +1,11 @@
-// input:  mobile paths, history state and effects
-// output: Android back, settings-parent and tab-switch tests
-// pos:    Mobile navigation policy tests
+// input:  mobile paths, Router history state, and injected navigation effects
+// output: semantic Android back, settings-parent, and tab-switch policy regressions
+// pos:    Pure mobile navigation tests; native listener lifecycle is covered by lib/native-bridge
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { describe, expect, it, vi } from 'vitest';
 import {
   hasRouterHistory,
-  registerNativeBack,
   resolveMobileBack,
   runMobileBack,
   switchMobileTab,
@@ -41,6 +40,9 @@ describe('resolveMobileBack', () => {
     expect(resolveMobileBack(pathname, false, false)).toEqual({ kind: 'navigate', to: parent });
   });
 
+});
+
+describe('resolveMobileBack nested routes', () => {
   it('walks nested deep links one semantic level at a time', () => {
     expect(resolveMobileBack('/m/session/chat-1/plan/plan-1/', false)).toEqual({
       kind: 'navigate',
@@ -90,21 +92,5 @@ describe('mobile navigation side effects', () => {
     expect(historyBack).toHaveBeenCalledTimes(1);
     expect(exit).toHaveBeenCalledTimes(1);
     expect(navigate).not.toHaveBeenCalled();
-  });
-
-  it('unregisters a listener that resolves after the shell has already unmounted', async () => {
-    let resolveListener: ((listener: { unregister: () => Promise<void> }) => void) | undefined;
-    const unregister = vi.fn(async () => {});
-    const bridge = {
-      listen: vi.fn(() => new Promise<{ unregister: () => Promise<void> }>((resolve) => {
-        resolveListener = resolve;
-      })),
-      exit: vi.fn(async () => {}),
-    };
-
-    const dispose = registerNativeBack(bridge, () => {});
-    dispose();
-    resolveListener?.({ unregister });
-    await vi.waitFor(() => expect(unregister).toHaveBeenCalledTimes(1));
   });
 });

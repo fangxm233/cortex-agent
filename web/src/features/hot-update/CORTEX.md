@@ -9,5 +9,5 @@ Applying relaunches the app so the staged bundle is promoted; in a plain browser
 | HotUpdateDialog.tsx | view | New-version prompt with apply and ignore |
 | useHotUpdate.ts | hook | Exposes the staged update with apply and dismiss |
 | useHotUpdate.test.ts | test | Unit tests for the hot update hook |
-| frontend-update.ts | core | Bridges staged events/apply to shell and adapts canonical byte labels |
+| frontend-update.ts | core | Parses unknown staged payloads, uses safe canonical bridge events/commands and adapts byte labels |
 | frontend-update.test.ts | test | Tests staged shell payload parsing and malformed fields |

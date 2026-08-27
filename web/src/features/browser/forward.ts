@@ -1,23 +1,18 @@
-// input:  the Tauri shell bridge and the server's listening-port route
-// output: port-forward lifecycle calls and the remote listening-port list
-// pos:    browser pane transport layer; the only module that knows the forward exists
+// input:  typed native capabilities and the server's authenticated listening-port routes
+// output: port-forward lifecycle calls and remote/device listening-port lists
+// pos:    Browser pane transport; native IPC is delegated to the canonical bridge
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { apiBase, authHeaders, isDesktopShell } from '@/lib/desktop-config';
+import {
+  hasNativeCapability,
+  safeInvoke,
+  type NativeInvokeResult,
+} from '@/lib/native-bridge';
 
 // The forward lives in the native shell (desktop/src-tauri/src/forward.rs): it binds a REAL local
 // port and relays each connection to the server's `/forward` WebSocket, which connects to its own
 // loopback. That is what makes a remote dev server previewable — see plan/embedded-browser.md §4.
-// Accessed through the `window.__TAURI__` global (the shell sets `withGlobalTauri: true`), matching
-// lib/files.ts; no `@tauri-apps/api` dependency is added.
-
-interface TauriCore {
-  invoke: <T = unknown>(cmd: string, args?: Record<string, unknown>) => Promise<T>;
-}
-
-function tauriCore(): TauriCore | undefined {
-  return (globalThis as unknown as { __TAURI__?: { core?: TauriCore } }).__TAURI__?.core;
-}
 
 export interface ForwardInfo {
   remotePort: number;
@@ -34,24 +29,30 @@ export interface ListeningPort {
 
 /** True when a forward can be established at all (native shell with the command available). */
 export function canForward(): boolean {
-  return isDesktopShell() && !!tauriCore();
+  return isDesktopShell() && hasNativeCapability('invoke');
+}
+
+function nativeValue<T>(result: NativeInvokeResult<T>, unavailable: Error): T {
+  if (result.ok) return result.value;
+  if (result.reason === 'failed') throw result.error;
+  throw unavailable;
 }
 
 /** Start (or reuse) the forward for a server-side port. Idempotent on the Rust side. */
 export async function startForward(port: number): Promise<ForwardInfo> {
-  const core = tauriCore();
-  if (!core) throw new Error('Port forwarding needs the desktop app.');
-  return core.invoke<ForwardInfo>('forward_start', { port });
+  const result = await safeInvoke('forward_start', { port });
+  return nativeValue(result, new Error('Port forwarding needs the desktop app.'));
 }
 
 export async function stopForward(port: number): Promise<void> {
-  await tauriCore()?.invoke('forward_stop', { port });
+  const result = await safeInvoke('forward_stop', { port });
+  if (!result.ok && result.reason === 'failed') throw result.error;
 }
 
 export async function listForwards(): Promise<ForwardInfo[]> {
-  const core = tauriCore();
-  if (!core) return [];
-  return core.invoke<ForwardInfo[]>('forward_list');
+  const result = await safeInvoke('forward_list');
+  if (!result.ok && result.reason === 'unavailable') return [];
+  return nativeValue(result, new Error('Port forwarding needs the desktop app.'));
 }
 
 /**

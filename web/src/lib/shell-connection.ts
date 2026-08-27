@@ -1,16 +1,18 @@
-// Native-shell connection lifecycle seam — "disconnect from the current server".
-//
+// input:  native-shell detection, typed disconnect capability, and connect-screen navigation
+// output: recoverable credential clearing followed by unconditional connect-screen handoff
+// pos:    Shared shell connection lifecycle used by desktop and mobile daemon surfaces
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 // The daemon interfaces (desktop DaemonStatusModal, mobile MDaemonView) offer a "断开连接"/Disconnect
 // action that clears the saved credentials (key/token) and returns to the connect (login) screen.
 // This is the SPA-side counterpart of the shell's `disconnect` Tauri command (clears the OS keychain /
 // app-private store + AppState — see desktop/src-tauri/src/lib.rs) plus the navigation the injected
 // "Switch" button used to own.
 //
-// Accessed via the global `window.__TAURI__` (the shell is built with `withGlobalTauri: true`), so no
-// `@tauri-apps/api` dependency is added — mirrors `lib/files.ts` and `features/hot-update`. Off-shell
-// (plain browser / ui-http) there is no native store to clear and no connect screen to return to, so
-// `disconnectShell` is a no-op.
+// Off-shell (plain browser / ui-http) there is no native store to clear and no connect screen to
+// return to, so `disconnectShell` is a no-op.
 import { isNativeShell } from './desktop-config';
+import { safeInvoke } from './native-bridge';
 
 /**
  * The connect (login) screen the native shell serves. A RELATIVE path so it resolves against the live
@@ -18,13 +20,6 @@ import { isNativeShell } from './desktop-config';
  * `connect.html` there, alongside the OTA-updated SPA versions.
  */
 export const CONNECT_SCREEN_PATH = 'connect.html';
-
-interface TauriCore {
-  invoke: <T = unknown>(cmd: string, args?: Record<string, unknown>) => Promise<T>;
-}
-function tauriCore(): TauriCore | undefined {
-  return (globalThis as unknown as { __TAURI__?: { core?: TauriCore } }).__TAURI__?.core;
-}
 
 /**
  * Pure orchestration of a disconnect: clear the stored credentials via `invoke('disconnect')`, then
@@ -52,11 +47,15 @@ export async function runDisconnect(deps: {
  * connect (login) screen. Off-shell (plain browser / ui-http) it is a no-op — auth there is
  * same-origin / Cloudflare Access, with no local credentials to clear and no connect screen.
  */
+async function invokeDisconnect(): Promise<void> {
+  const result = await safeInvoke('disconnect');
+  if (!result.ok && result.reason === 'failed') throw result.error;
+}
+
 export async function disconnectShell(): Promise<void> {
   if (!isNativeShell()) return;
-  const core = tauriCore();
   await runDisconnect({
-    invoke: core ? (cmd) => core.invoke(cmd) : undefined,
+    invoke: invokeDisconnect,
     navigate: (url) => {
       window.location.href = url;
     },
