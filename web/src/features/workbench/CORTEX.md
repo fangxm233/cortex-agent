@@ -36,11 +36,12 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | chat-content.ts | types | Defines chat types and local shortcut catalog |
 | transcript-vm.ts | vm | Builds day-grouped chat rows and turn-copy targets |
 | transcript-vm.test.ts | test | Tests transcript rows, turn copy and auth actions |
-| ToolCallsRow.tsx | view | Expands tool chips with row-scoped debug actions |
+| ToolCallsRow.tsx | view | Expands tool chips and lazy-loads DEBUG details |
 | SubagentBlock.tsx | view | Shows prompt rows with a right-aligned tool count |
 | SubagentBlock.test.tsx | test | Tests prompt disclosure and count alignment |
-| tool-call-overflow.ts | util | Computes visible tool chips and hidden count |
-| useToolCallOverflow.ts | hook | Measures chip widths and recomputes on resize |
+| tool-call-overflow.ts | util | Computes bounded visible and hidden tool counts |
+| tool-call-overflow.test.ts | test | Tests counts beyond the measured chip prefix |
+| useToolCallOverflow.ts | hook | Measures a bounded chip prefix on resize |
 | InteractionCards.tsx | view | Ask-user and plan-approval cards in the stream |
 | interaction-vm.ts | vm | Maps interactions to card models and answer state |
 | interaction-vm.test.ts | test | Unit tests for the interaction view model |
@@ -102,6 +103,8 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | useRecentNow.test.ts | test | Tests recent-list timer and cleanup |
 | useThreadsLiveSync.ts | hook | Refreshes the thread list on thread events |
 | useSessionsLiveSync.ts | hook | Refreshes the session list on lifecycle events |
+| useProjectSessions.ts | hook | Selects project sessions from shared origin caches |
+| useProjectSessions.test.ts | test | Tests shared session project projection |
 | CurrentProjectProvider.tsx | provider | Shares the selected project across panes |
 | current-project.ts | vm | Derives the effective current project id |
 | current-project.test.ts | test | Unit tests for current project derivation |

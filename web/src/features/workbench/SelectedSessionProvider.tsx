@@ -5,6 +5,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
+import { useProjectSessions } from './useProjectSessions';
 import { useCurrentProject } from './CurrentProjectProvider';
 import {
   resolveSelectedSessionId,
@@ -45,14 +46,10 @@ const SelectedSessionContext = createContext<SelectedSessionContextValue | null>
 export function SelectedSessionProvider({ children }: { children: ReactNode }) {
   const trpc = useTRPC();
   const { currentProjectId } = useCurrentProject();
-  const sessionsQuery = useQuery(
-    trpc.sessions.list.queryOptions({ origin: 'direct', projectId: currentProjectId ?? undefined }),
-  );
+  const sessionsQuery = useProjectSessions(currentProjectId, 'direct');
   // Scheduled runs are selectable rail rows too (design 27a-B) — without them in the membership
   // list, clicking a run would bounce the selection back to the most recent direct session.
-  const scheduledSessionsQuery = useQuery(
-    trpc.sessions.list.queryOptions({ origin: 'scheduled', projectId: currentProjectId ?? undefined }),
-  );
+  const scheduledSessionsQuery = useProjectSessions(currentProjectId, 'scheduled');
   const configQuery = useQuery(trpc.config.get.queryOptions({}));
   const [override, setOverride] = useState<string | null>(null);
   const [draftProfile, setDraftProfile] = useState<string | null>(null);

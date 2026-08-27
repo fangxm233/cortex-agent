@@ -24,6 +24,7 @@ import { canCreate, type MNewProjectCopy } from './m-new-project-vm';
 import { MobileRateLimitSheet, useRateLimitStatus } from '@/features/rate-limit';
 import { NOTES_COPY } from '@/features/notes/notes-copy';
 import { buildMNotesVm } from './m-notes-vm';
+import { useAllSessions } from '@/features/workbench/useProjectSessions';
 
 const COPY: { en: MProjectCopy; zh: MProjectCopy } = {
   en: {
@@ -107,8 +108,8 @@ const NEW_PROJECT_COPY: { en: MNewProjectCopy; zh: MNewProjectCopy } = {
 function useProjectQueries(projectId: string) {
   const trpc = useTRPC();
   return {
-    projects: useQuery(trpc.projects.list.queryOptions({})).data ?? [],
-    sessions: useQuery(trpc.sessions.list.queryOptions({ origin: 'direct' })).data ?? [],
+    projects: useQuery({ ...trpc.projects.list.queryOptions({}), refetchOnMount: false }).data ?? [],
+    sessions: useAllSessions('direct').data ?? [],
     scopedCost: useQuery({ ...trpc.cost.summary.queryOptions({ projectId: projectId || undefined }), enabled: !!projectId }).data ?? null,
     globalCost: useQuery(trpc.cost.summary.queryOptions({})).data,
     threads: useQuery(trpc.threads.list.queryOptions({})).data ?? [],

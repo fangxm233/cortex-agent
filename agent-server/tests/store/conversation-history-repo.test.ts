@@ -30,6 +30,14 @@ test('DEBUG prompt and tool metadata round-trip without replacing the compact tr
   assert.equal(h!.events[1].toolInput, 'printf "secret\\n"', 'compact summary remains available');
   assert.deepEqual(h!.events[1].debug?.toolInput, fullInput);
   assert.deepEqual(h!.events[1].debug?.toolResult, { content: 'line 1\nline 2\nfull result', isError: false });
+
+  const lightweight = await repo.getHistory(sid, { includeToolDebug: false });
+  assert.deepEqual(lightweight!.events[1].debug, { toolRef: 'toolu-debug-1' });
+  assert.deepEqual(await repo.getToolDebugDetails(sid, 'toolu-debug-1'), {
+    toolRef: 'toolu-debug-1',
+    toolInput: fullInput,
+    toolResult: { content: 'line 1\nline 2\nfull result', isError: false },
+  });
 });
 
 test('subagent spawn metadata round-trips complete multiline prompts once on the anchor', async () => {

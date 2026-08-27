@@ -1,14 +1,15 @@
-// input:  tool calls with DEBUG details and server size warnings
-// output: collapsed row and expanded calls with row-scoped actions
-// pos:    desktop workbench tool-call presentation
+// input:  tool calls, session id and lazy DEBUG query
+// output: bounded collapsed row and inspectable expanded calls
+// pos:    Desktop workbench tool-call presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { useState, type CSSProperties, type MouseEvent } from 'react';
 import { useVocab } from '@/i18n';
+import { useTRPCClient } from '@/lib/trpc';
 import type { ToolCall } from './chat-content';
 import { DebugDetailsModal, DebugInspectButton, type DebugDetail } from './DebugDetailsModal';
 import { toolCallOverflowText } from './tool-call-overflow';
-import { useToolCallOverflow } from './useToolCallOverflow';
+import { TOOL_CALL_MEASURE_CAP, useToolCallOverflow } from './useToolCallOverflow';
 
 const mono = "'IBM Plex Mono',monospace";
 const COLLAPSED_GAP = 7;
@@ -68,7 +69,8 @@ function detailFor(call: ToolCall): DebugDetail | null {
   return {
     kind: 'tool',
     toolName: call.kind,
-    toolInput: call.debug.toolInput,
+    ...(call.debug.toolRef ? { toolRef: call.debug.toolRef } : {}),
+    ...(call.debug.toolInput !== undefined ? { toolInput: call.debug.toolInput } : {}),
     ...(call.debug.toolResult !== undefined ? { toolResult: call.debug.toolResult } : {}),
   };
 }
@@ -116,7 +118,7 @@ function CollapsedToolCalls({ calls, text, hover, onExpand, onHover }: {
           {calls.slice(0, layout.visibleCount).map((call, index) => <ToolChip key={index} call={call} />)}
           {overflowText ? <span style={overflowStyle}>{overflowText}</span> : null}
           <span ref={measureRef} aria-hidden="true" style={measureStyle}>
-            {calls.map((call, index) => <ToolChip key={index} call={call} />)}
+            {calls.slice(0, TOOL_CALL_MEASURE_CAP).map((call, index) => <ToolChip key={index} call={call} />)}
             <span style={overflowStyle}>+{calls.length}</span>
           </span>
         </span>
@@ -159,15 +161,28 @@ function ExpandedToolCalls({ calls, text, hover, selected, onCollapse, onHover, 
   );
 }
 
-export function ToolCallsRow({ calls }: { calls: ToolCall[] }): JSX.Element {
+export function ToolCallsRow({ calls, sessionId }: {
+  calls: ToolCall[];
+  sessionId?: string;
+}): JSX.Element {
   const L = useVocab();
+  const client = useTRPCClient();
   const [expanded, setExpanded] = useState(false);
   const [hover, setHover] = useState(false);
   const [selected, setSelected] = useState<DebugDetail | null>(null);
   const text = calls.length > 1 ? `${calls.length} ${L.toolCallsUnit}` : `1 ${L.toolCallUnit}`;
   const inspect: Inspect = (event, call) => {
     event.stopPropagation();
-    setSelected(detailFor(call));
+    const detail = detailFor(call);
+    setSelected(detail);
+    const ref = call.debug?.toolRef;
+    if (!detail || !sessionId || !ref || call.debug?.toolResult) return;
+    void client.sessions.debugDetails.query({ sessionId, ref }).then((loaded) => {
+      if (!loaded) return;
+      setSelected((current) => current?.kind === 'tool' && current.toolRef === ref
+        ? { ...current, toolInput: loaded.toolInput, toolResult: loaded.toolResult }
+        : current);
+    }).catch(() => {});
   };
   if (!expanded) {
     return <CollapsedToolCalls calls={calls} text={text} hover={hover} onExpand={() => setExpanded(true)} onHover={setHover} />;

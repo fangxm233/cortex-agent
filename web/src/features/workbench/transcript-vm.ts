@@ -241,7 +241,8 @@ export function reconcilePendingUserMessages(
 }
 
 export interface DebugToolDetail {
-  toolInput: unknown;
+  toolRef?: string;
+  toolInput?: unknown;
   toolResult?: { content: string; isError: boolean };
   overCharacterThreshold?: true;
 }
@@ -695,9 +696,10 @@ export function buildTranscriptRows(
       sink.toolBuf.push({
         kind: m.toolName ?? '',
         input: m.toolInput ?? '',
-        ...(debug && (debug.toolInput !== undefined || debug.toolResult !== undefined)
+        ...(debug && (debug.toolRef || debug.toolInput !== undefined || debug.toolResult !== undefined)
           ? { debug: {
-              toolInput: debug.toolInput,
+              ...(debug.toolRef ? { toolRef: debug.toolRef } : {}),
+              ...(debug.toolInput !== undefined ? { toolInput: debug.toolInput } : {}),
               ...(debug.toolResult !== undefined ? { toolResult: debug.toolResult } : {}),
               ...(debug.overCharacterThreshold === true ? { overCharacterThreshold: true as const } : {}),
             } }

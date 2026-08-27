@@ -102,6 +102,8 @@ test('project-scoped query schemas accept valid input', () => {
   assert.deepEqual(queryInputSchemas['memory.file'].parse(memoryFile), memoryFile);
   const transcript = { sessionId: 'sess-1' };
   assert.deepEqual(queryInputSchemas['sessions.transcript'].parse(transcript), transcript);
+  const debugDetails = { sessionId: 'sess-1', ref: 'toolu_01:abc' };
+  assert.deepEqual(queryInputSchemas['sessions.debugDetails'].parse(debugDetails), debugDetails);
   assert.deepEqual(queryInputSchemas['issues.list'].parse({ projectId: 'p' }), { projectId: 'p' });
   assert.deepEqual(queryInputSchemas['notes.list'].parse({ projectId: 'p' }), { projectId: 'p' });
   assert.deepEqual(queryInputSchemas['approvals.list'].parse({}), {});
@@ -117,6 +119,7 @@ test('query schemas reject invalid input', () => {
   assert.throws(() => queryInputSchemas['memory.tree'].parse({}));
   assert.throws(() => queryInputSchemas['memory.file'].parse({ projectId: 'p' }));
   assert.throws(() => queryInputSchemas['sessions.transcript'].parse({}));
+  assert.throws(() => queryInputSchemas['sessions.debugDetails'].parse({ sessionId: 's', ref: '' }));
   assert.throws(() => queryInputSchemas['approvals.list'].parse({ status: 'nope' }));
   assert.throws(() => queryInputSchemas['issues.list'].parse({}));
   assert.throws(() => queryInputSchemas['notes.list'].parse({}));

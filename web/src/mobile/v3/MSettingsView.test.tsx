@@ -27,8 +27,8 @@ vi.mock('@/i18n', async (importOriginal) => {
 
 const copy: MSettingsCopy = {
   title: 'Settings', daemon: 'Daemon', machinesOk: 'online',
-  desktopOnly: 'Edit on desktop', inspectOnly: 'View only', enabled: 'enabled',
-  footerBrand: 'cortex mobile',
+  desktopOnly: 'Edit on desktop', inspectOnly: 'View only',
+  footerBrand: 'cortex mobile', switchProfile: 'Switch',
 };
 
 const vm: MSettingsVm = {
@@ -43,21 +43,34 @@ function renderSettings(overrides: Partial<Parameters<typeof MSettingsView>[0]> 
     <MSettingsView
       vm={vm} copy={copy} onBack={() => {}} onOpenDaemon={() => {}}
       onlineMachines={2} connectionStatus="connected"
-      accountsSummary={{ claudeLoggedIn: true, piLoggedInCount: 1 }}
       onOpenSection={() => {}} {...overrides}
     />,
   );
 }
 
 describe('MSettingsView parity', () => {
-  it('renders the thirteen desktop settings sections in canonical order', () => {
+  it('keeps Daemon first and restores the dedicated Profiles card second', () => {
     const renderer = renderSettings();
     const entries = renderer.root.findAll((node) => node.props['data-settings-entry']);
 
     expect(entries.map((node) => node.props['data-settings-entry'])).toEqual([
-      'appearance', 'platform', 'accounts', 'profiles', 'budget', 'usage', 'machines',
+      'profiles', 'appearance', 'platform', 'accounts', 'budget', 'usage', 'machines',
       'templates', 'plugins', 'mcp', 'notifications', 'hooks', 'advanced',
     ]);
+    const buttons = renderer.root.findAllByType('button');
+    const daemonIndex = buttons.findIndex((button) => button.props['data-settings-daemon']);
+    const profileIndex = buttons.findIndex((button) => button.props['data-settings-entry'] === 'profiles');
+    expect(profileIndex).toBe(daemonIndex + 1);
+  });
+
+  it('keeps nonessential rows title-only', () => {
+    const renderer = renderSettings();
+    const titleOnly = ['accounts', 'budget', 'platform', 'templates', 'mcp', 'notifications', 'hooks'];
+    for (const section of titleOnly) {
+      const row = renderer.root.findByProps({ 'data-settings-entry': section });
+      const text = row.findAllByType('span').flatMap((node) => node.children).join(' ');
+      expect(text).not.toMatch(/connected|\$0|slack|2|filesystem|1\/3/);
+    }
   });
 
   it('routes real entries and leaves desktop-only authoring non-interactive', () => {

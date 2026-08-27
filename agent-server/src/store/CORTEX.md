@@ -12,7 +12,7 @@ Also runs startup file migrations and keeps deployed hooks and plugins in sync w
 | session-registry-journal.ts | store | Session registry JSONL journal I/O and compaction |
 | session-registry-repo.ts | store | Session identity, delete intents and admission |
 | conversation-ledger-repo.ts | store | Turn to message mapping per conduit |
-| conversation-history-repo.ts | store | Stores transcripts and one-time subagent prompts |
+| conversation-history-repo.ts | store | Stores transcripts and lazy DEBUG details |
 | retention-candidate-repo.ts | store | Persists two-sweep orphan cleanup candidates |
 | pending-injection-repo.ts | store | Injected messages not yet consumed |
 | execution-repo.ts | store | Execution record persistence |

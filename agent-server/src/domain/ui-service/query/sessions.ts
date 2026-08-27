@@ -1,5 +1,5 @@
 // input:  session/history stores plus process DEBUG size policy
-// output: session snapshots and transcripts with spawn metadata
+// output: session snapshots, lightweight transcripts and lazy DEBUG
 // pos:    Authoritative query boundary for session transcripts
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -8,9 +8,11 @@ import type {
   SessionInfo,
   SessionsListParams,
   SessionsTranscriptParams,
+  SessionsDebugDetailsParams,
   SessionTranscript,
   TranscriptTurn,
   TranscriptMessage,
+  TranscriptDebugDetails,
   SessionsPendingInteractionParams,
   SessionsPendingInteraction,
 } from '../types.js';
@@ -165,8 +167,14 @@ const INTERACTION_TTL_MS = 30 * 60 * 1000;
 
 function transcriptDebugDetails(ev: HistoryEvent): TranscriptMessage['debug'] {
   if (!isDebugMode() || ev.debug === undefined) return undefined;
-  if (ev.type !== 'tool' || !isDebugToolOverWarningThreshold(ev.debug)) return ev.debug;
-  return { ...ev.debug, overCharacterThreshold: true };
+  if (ev.type !== 'tool') return ev.debug;
+  const warned = ev.debug.overCharacterThreshold === true
+    || isDebugToolOverWarningThreshold(ev.debug);
+  if (!ev.debug.toolRef && !warned) return undefined;
+  return {
+    ...(ev.debug.toolRef ? { toolRef: ev.debug.toolRef } : {}),
+    ...(warned ? { overCharacterThreshold: true } : {}),
+  };
 }
 
 /** Legacy-compatible subtype derived from kind+status (old clients render InteractionRow off it). */
@@ -195,7 +203,10 @@ export async function handleSessionsTranscript(
   // Read active state first, then committed history. Commit order is history → active remove, so
   // this sequence must observe the message on at least one side of that cross-store handoff.
   const pendingSnapshot = await pendingUserSnapshot(deps, params.sessionId);
-  const history = await deps.conversationHistory.getHistory(params.sessionId);
+  const history = await deps.conversationHistory.getHistory(
+    params.sessionId,
+    { includeToolDebug: false },
+  );
   if (!history) return { sessionId: params.sessionId, turns: [], pendingUserMessages: pendingSnapshot };
   const committedIds = new Set(history.committedSourceIds ?? []);
   const pendingUserMessages = pendingSnapshot.filter((message) => !committedIds.has(message.id));
@@ -276,6 +287,17 @@ export async function handleSessionsTranscript(
     turns: order.map((i) => byTurn.get(i)!),
     pendingUserMessages,
   };
+}
+
+export async function handleSessionsDebugDetails(
+  deps: UiServiceDeps,
+  params: SessionsDebugDetailsParams,
+): Promise<TranscriptDebugDetails | null> {
+  if (!isDebugMode() || !deps.conversationHistory.getToolDebugDetails) return null;
+  const details = await deps.conversationHistory.getToolDebugDetails(params.sessionId, params.ref);
+  if (!details) return null;
+  if (!isDebugToolOverWarningThreshold(details)) return details;
+  return { ...details, overCharacterThreshold: true };
 }
 
 // ── sessions.pendingInteraction ───────────────────────────────────

@@ -1,7 +1,13 @@
+// input:  project registry and shared unscoped session queries
+// output: selected desktop project context
+// pos:    Derives and owns the workbench project selection
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { resolveCurrentProjectId } from './current-project';
+import { useAllSessions } from './useProjectSessions';
 
 // Cross-pane "current project" state (task 569c). A single source of truth for which project the
 // workbench is scoped to, shared by the LeftRail project switcher (writer) and the panes that read it
@@ -19,8 +25,9 @@ const CurrentProjectContext = createContext<CurrentProjectContextValue | null>(n
 
 export function CurrentProjectProvider({ children }: { children: ReactNode }) {
   const trpc = useTRPC();
-  const projectsQuery = useQuery(trpc.projects.list.queryOptions({}));
-  const sessionsQuery = useQuery(trpc.sessions.list.queryOptions({ origin: 'direct' }));
+  const projectsQuery = useQuery({ ...trpc.projects.list.queryOptions({}), refetchOnMount: false });
+  const sessionsQuery = useAllSessions('direct');
+  useAllSessions('scheduled');
   const [override, setOverride] = useState<string | null>(null);
 
   const currentProjectId = resolveCurrentProjectId(

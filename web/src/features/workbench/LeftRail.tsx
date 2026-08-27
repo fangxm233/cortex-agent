@@ -47,6 +47,7 @@ import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvi
 import { connectionDot, connectionLabelKey, type ConnectionDot } from '@/features/connection/connection-status';
 import { RailRateLimitStatus, useRateLimitStatus } from '@/features/rate-limit';
 import { PlusGlyph } from '@/design';
+import { filterProjectSessions, useAllSessions, useProjectSessions } from './useProjectSessions';
 const mono = "'IBM Plex Mono',monospace";
 const RAIL_WIDTH = 340;
 // Mirrors the right panel's icon rail (RightPanel PANEL_RAIL_WIDTH) so both collapsed edges read
@@ -220,13 +221,9 @@ export function LeftRail(): JSX.Element {
   const { currentProjectId: activeProjectId, setCurrentProject } = useCurrentProject();
 
   // The timeline shows DIRECT conversations only (design 30a): scheduled runs moved out of the
-  // day buckets into the SCHEDULED section below. Both lists stay scoped to the current project.
-  const sessionsQuery = useQuery(
-    trpc.sessions.list.queryOptions({ origin: 'direct', projectId: activeProjectId ?? undefined }),
-  );
-  const scheduledSessionsQuery = useQuery(
-    trpc.sessions.list.queryOptions({ origin: 'scheduled', projectId: activeProjectId ?? undefined }),
-  );
+  // day buckets into the SCHEDULED section below. Both views select from shared unscoped caches.
+  const allSessionsQuery = useAllSessions('direct');
+  const scheduledSessionsQuery = useProjectSessions(activeProjectId, 'scheduled');
   // Live schedule records: row identity (message) + cadence + the edit-modal prefill.
   const schedulesQuery = useQuery(
     trpc.schedules.list.queryOptions({ projectId: activeProjectId ?? undefined }),
@@ -245,7 +242,10 @@ export function LeftRail(): JSX.Element {
   const todayCostLabel = typeof todayCost === 'number' ? formatCost(todayCost) : '—';
 
   const projects = projectsQuery.data ?? [];
-  const sessions = sessionsQuery.data ?? [];
+  const sessions = useMemo(
+    () => filterProjectSessions(allSessionsQuery.data ?? [], activeProjectId),
+    [allSessionsQuery.data, activeProjectId],
+  );
 
   // Real per-project running counts for the PROJECTS-zone badges (ThreadInfo has projectId+status).
   const threadsQuery = useQuery(trpc.threads.list.queryOptions({}));
@@ -254,7 +254,6 @@ export function LeftRail(): JSX.Element {
 
   // UNSCOPED direct-session list (all projects) → per-project unread badges + idle-age labels.
   // Kept fresh by the same useSessionsLiveSync invalidation.
-  const allSessionsQuery = useQuery(trpc.sessions.list.queryOptions({ origin: 'direct' }));
   const unreadCounts = useMemo(
     () => unreadCountByProject(allSessionsQuery.data ?? []),
     [allSessionsQuery.data],

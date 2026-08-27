@@ -10,7 +10,6 @@ import { getSettingsNav, type SettingsSectionKey } from '@/features/settings/set
 import { useVocab } from '@/i18n';
 import { BUILD_STAMP } from '@/lib/build-info';
 import { MCard, MDrillHeader, MScreen, MScrollBody, MC, MONO } from '@/mobile/ui/kit';
-import type { AccountsSummaryVm } from './m-accounts-vm';
 import type { MSettingsVm } from './m-settings-vm';
 
 export interface MSettingsCopy {
@@ -19,8 +18,8 @@ export interface MSettingsCopy {
   machinesOk: string;
   desktopOnly: string;
   inspectOnly: string;
-  enabled: string;
   footerBrand: string;
+  switchProfile: string;
 }
 
 interface MSettingsViewProps {
@@ -30,7 +29,6 @@ interface MSettingsViewProps {
   onOpenDaemon: () => void;
   onlineMachines: number;
   connectionStatus: ConnectionStatus;
-  accountsSummary: AccountsSummaryVm;
   onOpenSection: (section: SettingsSectionKey) => void;
 }
 
@@ -66,31 +64,37 @@ function DaemonRow(props: Pick<MSettingsViewProps, 'copy' | 'connectionStatus' |
   );
 }
 
-function accountsSummary(summary: AccountsSummaryVm, L: ReturnType<typeof useVocab>): string {
-  const claude = summary.claudeLoggedIn ? L.accountsConnectedMark : L.accountsDisconnected;
-  return `CC ${claude} · ${L.accountsPiSummary.replace('{count}', String(summary.piLoggedInCount))}`;
-}
-
 function profileSummary(vm: MSettingsVm): string | undefined {
   const value = [vm.profileName, vm.profileModel, vm.profileThinking].filter(Boolean).join(' · ');
   return value || undefined;
 }
 
-function summaries(props: MSettingsViewProps): Partial<Record<SettingsSectionKey, string>> {
+function ProfileCard(props: MSettingsViewProps) {
   const L = useVocab();
-  return {
-    platform: props.vm.platforms.join(', ') || '—',
-    accounts: accountsSummary(props.accountsSummary, L),
-    profiles: profileSummary(props.vm),
-    budget: props.vm.budgetSpendLabel,
-    machines: `${props.onlineMachines} ${props.copy.machinesOk}`,
-    templates: String(props.vm.templatesCount),
-    plugins: props.vm.pluginsCount === null ? undefined : String(props.vm.pluginsCount),
-    mcp: String(props.vm.mcpServers.length),
-    notifications: props.vm.notifyEnabledCount === null ? '—'
-      : `${props.vm.notifyEnabledCount}/3 ${props.copy.enabled}`,
-    hooks: String(props.vm.hooks.length),
-  };
+  const summary = profileSummary(props.vm);
+  return (
+    <MCard padding={0}>
+      <button type="button" data-settings-entry="profiles"
+        onClick={() => props.onOpenSection('profiles')}
+        style={{ width: '100%', border: 0, background: 'transparent', padding: '12px 13px',
+          display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left' }}>
+        <span style={{ width: 34, height: 34, borderRadius: 9, background: MC.runBg, color: MC.run,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          font: `600 11px ${MONO}`, flex: 'none' }}>P</span>
+        <span style={{ minWidth: 0, flex: 1 }}>
+          <span style={{ ...TITLE, display: 'block' }}>{L.stNavProfiles}</span>
+          {summary && <span style={{ ...SUB, display: 'block' }}>{summary}</span>}
+        </span>
+        <span style={{ font: `500 10px ${MONO}`, color: MC.run, flex: 'none' }}>
+          {props.copy.switchProfile}
+        </span>
+      </button>
+    </MCard>
+  );
+}
+
+function summaries(props: MSettingsViewProps): Partial<Record<SettingsSectionKey, string>> {
+  return { machines: `${props.onlineMachines} ${props.copy.machinesOk}` };
 }
 
 function SettingsRow(props: {
@@ -122,7 +126,7 @@ function SettingsRow(props: {
 
 function SettingsList(props: MSettingsViewProps) {
   const L = useVocab();
-  const nav = getSettingsNav(L);
+  const nav = getSettingsNav(L).filter((entry) => entry.key !== 'profiles');
   const sub = summaries(props);
   return (
     <MCard padding={0} style={{ overflow: 'hidden' }}>
@@ -153,6 +157,7 @@ export function MSettingsView(props: MSettingsViewProps) {
       <MScrollBody gap={10}>
         <MCard padding={0}><DaemonRow copy={props.copy} connectionStatus={props.connectionStatus}
           onOpenDaemon={props.onOpenDaemon} /></MCard>
+        <ProfileCard {...props} />
         <SettingsList {...props} />
         <Footer copy={props.copy} />
       </MScrollBody>

@@ -1,14 +1,19 @@
-// input:  session JSONL, notice metadata, interactions, DEBUG sidecars
-// output: history store with grouped rows and one-time spawn prompts
+// input:  session JSONL, interactions and DEBUG sidecars
+// output: full/lightweight history reads and lazy tool details
 // pos:    Canonical per-session transcript file store
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as path from 'path';
-import { promises as fs } from 'fs';
+import { createReadStream, promises as fs } from 'fs';
+import { createInterface } from 'node:readline';
 import { STORE_DIR } from '@core/paths.js';
 import type { ChatNoticeLevel, NoticeAction } from '@core/types/agent-types.js';
 import { parseTodoSnapshot, renderTodoProgress } from '../agent-adapter/normalize/todo.js';
 import type { SubagentSpawnRef } from '../agent-adapter/normalize/event-types.js';
+import {
+  debugToolWarningChars,
+  isDebugToolOverWarningThreshold,
+} from '@core/debug-mode.js';
 
 const HISTORY_DIR = path.join(STORE_DIR, 'conversation-history');
 
@@ -19,10 +24,14 @@ export type HistoryEventType = 'user' | 'assistant' | 'tool' | 'interaction';
 export interface HistoryDebugDetails {
   /** Exact text handed to the adapter for this user turn. */
   agentMessage?: string;
+  /** Opaque reference used to fetch one tool's full DEBUG details on demand. */
+  toolRef?: string;
   /** Unabridged structured input for a tool call. */
   toolInput?: unknown;
   /** Full normalized result correlated to the tool call by backend tool-use id. */
   toolResult?: { content: string; isError: boolean };
+  /** Lightweight warning derived without materializing a large tool result. */
+  overCharacterThreshold?: true;
 }
 
 // ── Interaction entity types (web-interactions-redesign) ─────────────────────
@@ -152,6 +161,11 @@ export interface SessionHistory {
   committedSourceIds?: string[];
 }
 
+export interface HistoryReadOptions {
+  /** False for chat-list reads: retain refs but skip full tool DEBUG inputs/results. */
+  includeToolDebug?: boolean;
+}
+
 function nowIso(): string {
   return new Date().toISOString();
 }
@@ -219,6 +233,12 @@ function isPrefixRelated(a: string, b: string): boolean {
 function sessionFilePath(historyDir: string, sessionId: string): string {
   const safe = sessionId.replace(/[^A-Za-z0-9._-]/g, '_');
   return path.join(historyDir, `${safe}.jsonl`);
+}
+
+function debugResultToolRef(line: string): string | null {
+  const encoded = /"toolUseId":"((?:\\.|[^"\\])*)"/.exec(line)?.[1];
+  if (encoded === undefined) return null;
+  try { return JSON.parse(`"${encoded}"`) as string; } catch { return null; }
 }
 
 // --- Repo ---
@@ -380,7 +400,10 @@ export class ConversationHistoryRepo {
    * collapses consecutive same-turn assistant events whose texts are prefix-related (a
    * streaming backend that emitted the message as it grew). Returns null when absent/empty.
    */
-  async getHistory(sessionId: string): Promise<SessionHistory | null> {
+  async getHistory(
+    sessionId: string,
+    options: HistoryReadOptions = {},
+  ): Promise<SessionHistory | null> {
     let raw: string;
     try {
       raw = await fs.readFile(sessionFilePath(this.historyDir, sessionId), 'utf8');
@@ -399,8 +422,17 @@ export class ConversationHistoryRepo {
     let turnIndex = -1;
     // Pending edit-marker: attaches to the NEXT user event as `edited` (never emitted itself).
     let pendingEdit: { originalText: string; originalTs: string } | null = null;
+    const includeToolDebug = options.includeToolDebug !== false;
     for (const line of raw.split('\n')) {
       if (!line.trim()) continue;
+      if (!includeToolDebug && line.startsWith('{"type":"debug-tool-result"')) {
+        const ref = debugResultToolRef(line);
+        const tool = ref ? toolByUseId.get(ref) : undefined;
+        if (tool && line.length > debugToolWarningChars()) {
+          tool.debug = { ...(tool.debug ?? {}), overCharacterThreshold: true };
+        }
+        continue;
+      }
       let ev: RawEvent;
       try { ev = JSON.parse(line) as RawEvent; } catch { continue; }
 
@@ -463,13 +495,23 @@ export class ConversationHistoryRepo {
           });
         }
       } else if (ev.type === 'tool') {
+        const toolRef = ev.toolUseId;
+        const inputWarned = !includeToolDebug && ev.fullInput !== undefined
+          && isDebugToolOverWarningThreshold({ toolInput: ev.fullInput });
+        const toolDebug = toolRef || inputWarned || (includeToolDebug && ev.fullInput !== undefined)
+          ? {
+              ...(toolRef ? { toolRef } : {}),
+              ...(includeToolDebug && ev.fullInput !== undefined ? { toolInput: ev.fullInput } : {}),
+              ...(inputWarned ? { overCharacterThreshold: true as const } : {}),
+            }
+          : undefined;
         const tool: HistoryEvent = {
           type: 'tool',
           toolName: ev.toolName ?? '',
           toolInput: ev.toolInput ?? '',
           ts: ev.ts,
           turnIndex: Math.max(0, turnIndex),
-          ...(ev.fullInput !== undefined ? { debug: { toolInput: ev.fullInput } } : {}),
+          ...(toolDebug ? { debug: toolDebug } : {}),
           ...(ev.subagentSpawns?.length ? { subagentSpawns: ev.subagentSpawns } : {}),
           ...subagentReadFields(ev),
         };
@@ -510,6 +552,38 @@ export class ConversationHistoryRepo {
 
     if (events.length === 0) return null;
     return { sessionId, events, committedSourceIds: [...committedSourceIds] };
+  }
+
+  /** Load one tool's lossless DEBUG payload without attaching every result to the transcript. */
+  async getToolDebugDetails(
+    sessionId: string,
+    toolRef: string,
+  ): Promise<HistoryDebugDetails | null> {
+    const stream = createReadStream(sessionFilePath(this.historyDir, sessionId), { encoding: 'utf8' });
+    const lines = createInterface({ input: stream, crlfDelay: Infinity });
+    let details: HistoryDebugDetails | null = null;
+    try {
+      for await (const line of lines) {
+        if (!line.includes(toolRef)) continue;
+        let event: RawEvent;
+        try { event = JSON.parse(line) as RawEvent; } catch { continue; }
+        if (event.toolUseId !== toolRef) continue;
+        if (event.type === 'tool') {
+          details = { ...(details ?? {}), toolRef, toolInput: event.fullInput };
+        } else if (event.type === 'debug-tool-result') {
+          return {
+            ...(details ?? {}), toolRef,
+            toolResult: { content: event.text ?? '', isError: event.isError === true },
+          };
+        }
+      }
+      return details;
+    } catch {
+      return null;
+    } finally {
+      lines.close();
+      stream.destroy();
+    }
   }
 
   /** True when a recovered pending injection has already appended its committed user row. */

@@ -66,6 +66,7 @@ import { DEFAULT_BROWSER_DEVICE } from '@/features/workbench/BrowserOptIn';
 import { listForwardDevices, type ForwardDevice } from '@/features/browser/forward';
 import { M_INT_COPY } from './MInteractionCards';
 import type { RejectPlanNavState } from './MPlanReadScreen';
+import { useProjectSessions } from '@/features/workbench/useProjectSessions';
 import {
   buildMobileChatRows,
   chatHeaderStatus,
@@ -253,14 +254,10 @@ export function MChatScreen(): JSX.Element {
   const { sessionId: routeParam } = useParams<{ sessionId: string }>();
   const isDraft = routeParam === 'new';
 
-  const sessionsQuery = useQuery(
-    trpc.sessions.list.queryOptions({ origin: 'direct', projectId: currentProjectId ?? undefined }),
-  );
+  const sessionsQuery = useProjectSessions(currentProjectId, 'direct');
   // Scheduled runs open on the same page (scheme-mobile 8d) — the Scheduled sheet navigates here,
   // so the active-session membership must include them.
-  const scheduledSessionsQuery = useQuery(
-    trpc.sessions.list.queryOptions({ origin: 'scheduled', projectId: currentProjectId ?? undefined }),
-  );
+  const scheduledSessionsQuery = useProjectSessions(currentProjectId, 'scheduled');
   const active = useMemo(() => {
     const list = [...(sessionsQuery.data ?? []), ...(scheduledSessionsQuery.data ?? [])];
     return list.find((s) => s.sessionId === routeParam) ?? null;

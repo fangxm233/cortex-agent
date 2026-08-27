@@ -5,7 +5,7 @@ Handlers return DTOs only and never change state.
 
 | filename | role | function |
 |---|---|---|
-| sessions.ts | query | lists sessions and builds transcripts |
+| sessions.ts | query | lists sessions and serves lightweight transcripts |
 | threads.ts | query | Normalizes thread lists and builds detail |
 | tasks.ts | query | Maps readiness, dependencies and claim threads |
 | task-verification.ts | query | gathers done-when evidence for one task |

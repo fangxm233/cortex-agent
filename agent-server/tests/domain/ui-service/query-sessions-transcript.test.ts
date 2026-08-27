@@ -5,7 +5,10 @@
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { handleSessionsTranscript } from '../../../src/domain/ui-service/query/sessions.js';
+import {
+  handleSessionsDebugDetails,
+  handleSessionsTranscript,
+} from '../../../src/domain/ui-service/query/sessions.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 import type { SessionHistory } from '../../../src/store/conversation-history-repo.js';
 
@@ -28,7 +31,7 @@ test('sessions.transcript exposes debug metadata and derives large-tool warnings
     sessionId: 'sess-debug',
     events: [
       { type: 'user', text: 'visible', ts: '2026-07-07T00:00:00.000Z', turnIndex: 0, debug: { agentMessage: 'system context\nvisible' } },
-      { type: 'tool', toolName: 'Bash', toolInput: 'echo …', ts: '2026-07-07T00:00:01.000Z', turnIndex: 0, debug: { toolInput: { command: 'echo full' }, toolResult: { content: 'full\noutput', isError: false } } },
+      { type: 'tool', toolName: 'Bash', toolInput: 'echo …', ts: '2026-07-07T00:00:01.000Z', turnIndex: 0, debug: { toolRef: 'toolu_1', toolInput: { command: 'echo full' }, toolResult: { content: 'full\noutput', isError: false } } },
     ],
   } as SessionHistory;
 
@@ -40,19 +43,40 @@ test('sessions.transcript exposes debug metadata and derives large-tool warnings
   process.env.CORTEX_DEBUG_TOOL_WARNING_CHARS = '1000';
   const visible = await handleSessionsTranscript(makeDeps(history), { sessionId: 'sess-debug' });
   assert.deepEqual(visible.turns[0].messages[0].debug, { agentMessage: 'system context\nvisible' });
-  assert.deepEqual(visible.turns[0].messages[1].debug, {
-    toolInput: { command: 'echo full' },
-    toolResult: { content: 'full\noutput', isError: false },
-  });
+  assert.deepEqual(visible.turns[0].messages[1].debug, { toolRef: 'toolu_1' });
 
   process.env.CORTEX_DEBUG_TOOL_WARNING_CHARS = '10';
   const warned = await handleSessionsTranscript(makeDeps(history), { sessionId: 'sess-debug' });
   assert.deepEqual(warned.turns[0].messages[1].debug, {
-    toolInput: { command: 'echo full' },
-    toolResult: { content: 'full\noutput', isError: false },
-    overCharacterThreshold: true,
+    toolRef: 'toolu_1', overCharacterThreshold: true,
   });
   assert.ok(!('overCharacterThreshold' in history.events[1].debug!), 'derived warning is not persisted');
+});
+
+test('sessions.debugDetails fetches one full tool payload only while DEBUG is enabled', async (t) => {
+  const previous = process.env.DEBUG;
+  t.onTestFinished(() => {
+    if (previous === undefined) delete process.env.DEBUG;
+    else process.env.DEBUG = previous;
+  });
+  const details = {
+    toolRef: 'toolu_1', toolInput: { command: 'echo full' },
+    toolResult: { content: 'full output', isError: false },
+  };
+  const deps = {
+    conversationHistory: {
+      getHistory: async () => null,
+      getToolDebugDetails: async () => details,
+    },
+  } as unknown as UiServiceDeps;
+
+  delete process.env.DEBUG;
+  assert.equal(await handleSessionsDebugDetails(deps, { sessionId: 's', ref: 'toolu_1' }), null);
+  process.env.DEBUG = '1';
+  assert.deepEqual(
+    await handleSessionsDebugDetails(deps, { sessionId: 's', ref: 'toolu_1' }),
+    details,
+  );
 });
 
 test('sessions.transcript groups user/assistant/tool events by turn', async () => {

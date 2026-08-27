@@ -8,7 +8,8 @@ export interface ToolCall {
   kind: string;
   input: string;
   debug?: {
-    toolInput: unknown;
+    toolRef?: string;
+    toolInput?: unknown;
     toolResult?: { content: string; isError: boolean };
     overCharacterThreshold?: true;
   };

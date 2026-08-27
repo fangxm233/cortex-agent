@@ -72,8 +72,8 @@ Framework-free view models map records to slots and have colocated unit tests.
 | MDaemonView.tsx | view | Shows daemon processes, restart and disconnect controls |
 | m-daemon-vm.ts | vm | Builds daemon process, summary and event models |
 | m-daemon-vm.test.ts | test | Unit tests for the daemon view model |
-| MSettingsScreen.tsx | screen | Loads canonical settings summaries and live connection state |
-| MSettingsView.tsx | view | Lists all desktop sections with honest mobile capabilities |
+| MSettingsScreen.tsx | screen | Renders settings immediately and hydrates config summaries |
+| MSettingsView.tsx | view | Keeps Daemon and Profile cards above title-only rows |
 | MSettingsView.test.tsx | test | Tests canonical order, routing and live connection copy |
 | MSettingsControls.tsx | view | Supplies compact rows, fields and toggles for settings |
 | MPlatformScreen.tsx | screen | Shows redacted platform state and queues reconnect approval |

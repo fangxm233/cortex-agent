@@ -1,7 +1,13 @@
+// input:  project registry and shared unscoped session queries
+// output: selected mobile project context
+// pos:    Derives and owns the mobile-wide project selection
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { resolveCurrentProjectId } from '@/features/workbench/current-project';
+import { useAllSessions } from '@/features/workbench/useProjectSessions';
 
 // Mobile-wide "current project" state (scheme v3: 项目 is the global scope — 会话/线程/任务 only show the
 // current project; the 项目 tab switches it). A single source of truth shared by every tab and the
@@ -18,8 +24,9 @@ const MobileProjectContext = createContext<MobileProjectContextValue | null>(nul
 
 export function MobileProjectProvider({ children }: { children: ReactNode }) {
   const trpc = useTRPC();
-  const projectsQuery = useQuery(trpc.projects.list.queryOptions({}));
-  const sessionsQuery = useQuery(trpc.sessions.list.queryOptions({ origin: 'direct' }));
+  const projectsQuery = useQuery({ ...trpc.projects.list.queryOptions({}), refetchOnMount: false });
+  const sessionsQuery = useAllSessions('direct');
+  useAllSessions('scheduled');
   const [override, setOverride] = useState<string | null>(null);
 
   const currentProjectId = resolveCurrentProjectId(

@@ -12,7 +12,8 @@ export type DebugDetail =
   | {
       kind: 'tool';
       toolName: string;
-      toolInput: unknown;
+      toolRef?: string;
+      toolInput?: unknown;
       toolResult?: { content: string; isError: boolean };
     };
 
@@ -56,13 +57,13 @@ function DebugDetailsContent({ detail }: { detail: DebugDetail }): JSX.Element {
   if (detail.kind === 'user') {
     return <DebugBlock label={L.wbDebugAgentMessage} count={characterCount(detail.agentMessage)}>{detail.agentMessage}</DebugBlock>;
   }
-  const input = formatDebugValue(detail.toolInput);
+  const input = detail.toolInput === undefined ? L.wbDebugPending : formatDebugValue(detail.toolInput);
   const resultStatus = detail.toolResult
     ? (detail.toolResult.isError ? L.wbDebugError : L.wbDebugSuccess)
     : L.wbDebugPending;
   return (
     <div className="flex flex-col gap-2g">
-      <DebugBlock label={L.wbDebugParameters} count={characterCount(input)}>{input}</DebugBlock>
+      <DebugBlock label={L.wbDebugParameters} count={detail.toolInput === undefined ? undefined : characterCount(input)}>{input}</DebugBlock>
       <DebugBlock label={L.wbDebugResult} status={resultStatus} count={detail.toolResult ? characterCount(detail.toolResult.content) : undefined}>
         {detail.toolResult?.content ?? L.wbDebugPending}
       </DebugBlock>

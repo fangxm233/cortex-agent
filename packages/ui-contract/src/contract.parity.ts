@@ -10,6 +10,7 @@ import type {
   projectsCreateInput,
   sessionsListInput,
   sessionsTranscriptInput,
+  sessionsDebugDetailsInput,
   sessionsCreateInput,
   sessionsSendInput,
   sessionsCompactInput,
@@ -100,6 +101,7 @@ type MutateParity<O extends keyof MutateArgsMap, Schema extends z.ZodType> = Exa
 const _projectsList: QueryParity<'projects.list', typeof projectsListInput> = true;
 const _sessionsList: QueryParity<'sessions.list', typeof sessionsListInput> = true;
 const _sessionsTranscript: QueryParity<'sessions.transcript', typeof sessionsTranscriptInput> = true;
+const _sessionsDebugDetails: QueryParity<'sessions.debugDetails', typeof sessionsDebugDetailsInput> = true;
 const _threadsList: QueryParity<'threads.list', typeof threadsListInput> = true;
 const _threadsGet: QueryParity<'threads.get', typeof threadsGetInput> = true;
 const _tasksList: QueryParity<'tasks.list', typeof tasksListInput> = true;

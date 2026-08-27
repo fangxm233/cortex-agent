@@ -8,6 +8,8 @@ export interface ToolCallOverflowInput {
   chipWidths: number[];
   overflowWidth: number;
   gap: number;
+  /** Total calls represented when chipWidths is a bounded measurement prefix. */
+  totalCount?: number;
 }
 
 export interface ToolCallOverflowLayout {
@@ -22,7 +24,8 @@ function widthWithGaps(widths: number[], gap: number): number {
 
 export function toolCallOverflowLayout(input: ToolCallOverflowInput): ToolCallOverflowLayout {
   const { availableWidth, chipWidths, overflowWidth, gap } = input;
-  if (widthWithGaps(chipWidths, gap) <= availableWidth) {
+  const totalCount = Math.max(input.totalCount ?? chipWidths.length, chipWidths.length);
+  if (totalCount === chipWidths.length && widthWithGaps(chipWidths, gap) <= availableWidth) {
     return { visibleCount: chipWidths.length, hiddenCount: 0 };
   }
   let usedWidth = 0;
@@ -33,7 +36,7 @@ export function toolCallOverflowLayout(input: ToolCallOverflowInput): ToolCallOv
     usedWidth = nextWidth;
     visibleCount += 1;
   }
-  return { visibleCount, hiddenCount: chipWidths.length - visibleCount };
+  return { visibleCount, hiddenCount: totalCount - visibleCount };
 }
 
 export function toolCallOverflowText(hiddenCount: number): string | null {

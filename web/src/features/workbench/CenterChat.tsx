@@ -20,6 +20,7 @@ import { useCurrentProject } from './CurrentProjectProvider';
 import { useSelectedSession } from './SelectedSessionProvider';
 import { useOptimisticUserMessages } from './useOptimisticUserMessages';
 import { scheduledRunTitle } from './schedule-rail';
+import { useProjectSessions } from './useProjectSessions';
 
 // CENTER CHAT pane — 1:1 rebuild from prototype.dc.html L103–395 (workspace-chat view). Task aba0
 // (S4 chat) makes the transcript body + composer send REAL, replacing 89e7's GAP-A (static transcript)
@@ -53,12 +54,8 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
   // Scoped to the current project (dedupes with the LeftRail / provider query) so the active session
   // is resolved from the same lists the rail shows — direct conversations AND scheduled runs
   // (design 27a-B puts both in the rail, so both must open here).
-  const sessionsQuery = useQuery(
-    trpc.sessions.list.queryOptions({ origin: 'direct', projectId: currentProjectId ?? undefined }),
-  );
-  const scheduledSessionsQuery = useQuery(
-    trpc.sessions.list.queryOptions({ origin: 'scheduled', projectId: currentProjectId ?? undefined }),
-  );
+  const sessionsQuery = useProjectSessions(currentProjectId, 'direct');
+  const scheduledSessionsQuery = useProjectSessions(currentProjectId, 'scheduled');
 
   // The active session is the shared cross-pane selection (a LeftRail click), resolved against the
   // scoped lists. No local most-recent computation — selection is the single source of truth.

@@ -27,6 +27,11 @@ export const sessionsTranscriptInput = z.object({
   sessionId: z.string(),
 });
 
+export const sessionsDebugDetailsInput = z.object({
+  sessionId: z.string(),
+  ref: z.string().min(1).max(512),
+});
+
 export const threadsListInput = z.object({
   projectId: z.string().optional(),
   status: z.array(z.string()).optional(),
@@ -739,6 +744,7 @@ export const queryInputSchemas = {
   'projects.list': projectsListInput,
   'sessions.list': sessionsListInput,
   'sessions.transcript': sessionsTranscriptInput,
+  'sessions.debugDetails': sessionsDebugDetailsInput,
   'sessions.pendingInteraction': sessionsPendingInteractionInput,
   'threads.list': threadsListInput,
   'threads.get': threadsGetInput,

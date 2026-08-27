@@ -20,6 +20,7 @@ import { MScreen, MC } from '@/mobile/ui/kit';
 import { MSessionListView, type MSessionListCopy } from './MSessionListView';
 import { MScheduleSheet, type MScheduleSheetCopy } from './MScheduleSheet';
 import { buildSessionGroups } from './m-session-list-vm';
+import { useProjectSessions } from '@/features/workbench/useProjectSessions';
 
 const COPY: { en: MSessionListCopy; zh: MSessionListCopy } = {
   en: { title: 'Sessions', today: 'Today', yesterday: 'Yesterday', earlier: 'Earlier', empty: 'No sessions yet' },
@@ -56,12 +57,8 @@ export function MSessionListScreen() {
   const { currentProjectId } = useMobileProject();
 
   useSessionsLiveSync();
-  const sessionsQuery = useQuery(
-    trpc.sessions.list.queryOptions({ origin: 'direct', projectId: currentProjectId ?? undefined }),
-  );
-  const scheduledQuery = useQuery(
-    trpc.sessions.list.queryOptions({ origin: 'scheduled', projectId: currentProjectId ?? undefined }),
-  );
+  const sessionsQuery = useProjectSessions(currentProjectId, 'direct');
+  const scheduledQuery = useProjectSessions(currentProjectId, 'scheduled');
   const schedulesQuery = useQuery(
     trpc.schedules.list.queryOptions({ projectId: currentProjectId ?? undefined }),
   );

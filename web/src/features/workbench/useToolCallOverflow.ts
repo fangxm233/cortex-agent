@@ -6,6 +6,8 @@
 import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { toolCallOverflowLayout, type ToolCallOverflowLayout } from './tool-call-overflow';
 
+export const TOOL_CALL_MEASURE_CAP = 32;
+
 export interface ToolCallOverflowRefs {
   containerRef: RefObject<HTMLSpanElement>;
   measureRef: RefObject<HTMLSpanElement>;
@@ -37,17 +39,27 @@ function observeWidth(container: HTMLSpanElement, recalculate: () => void): () =
 export function useToolCallOverflow(labels: string[], gap: number): ToolCallOverflowRefs {
   const containerRef = useRef<HTMLSpanElement>(null);
   const measureRef = useRef<HTMLSpanElement>(null);
-  const [layout, setLayout] = useState<ToolCallOverflowLayout>({ visibleCount: labels.length, hiddenCount: 0 });
-  const labelsKey = labels.join('\0');
+  const initialVisible = Math.min(labels.length, TOOL_CALL_MEASURE_CAP);
+  const [layout, setLayout] = useState<ToolCallOverflowLayout>({
+    visibleCount: initialVisible,
+    hiddenCount: labels.length - initialVisible,
+  });
+  const measuredLabels = labels.slice(0, TOOL_CALL_MEASURE_CAP);
+  const labelsKey = measuredLabels.join('\0');
   useLayoutEffect(() => {
     const container = containerRef.current;
     const measure = measureRef.current;
     if (!container || !measure) return;
     return observeWidth(container, () => {
-      const widths = measuredWidths(measure, labels.length);
-      const next = toolCallOverflowLayout({ availableWidth: container.clientWidth, ...widths, gap });
+      const widths = measuredWidths(measure, measuredLabels.length);
+      const next = toolCallOverflowLayout({
+        availableWidth: container.clientWidth,
+        ...widths,
+        gap,
+        totalCount: labels.length,
+      });
       setLayout((current) => sameLayout(current, next) ? current : next);
     });
-  }, [gap, labels.length, labelsKey]);
+  }, [gap, labels.length, labelsKey, measuredLabels.length]);
   return { containerRef, measureRef, layout };
 }

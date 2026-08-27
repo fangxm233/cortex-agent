@@ -100,6 +100,7 @@ export type QueryScope =
   | 'projects.list'
   | 'sessions.list'
   | 'sessions.transcript'
+  | 'sessions.debugDetails'
   | 'sessions.pendingInteraction'
   | 'threads.list'
   | 'threads.get'
@@ -227,6 +228,11 @@ export interface SessionsListParams {
 
 export interface SessionsTranscriptParams {
   sessionId: string;
+}
+
+export interface SessionsDebugDetailsParams {
+  sessionId: string;
+  ref: string;
 }
 
 export interface SessionsPendingInteractionParams {
@@ -830,6 +836,8 @@ export interface TranscriptInteractionDetail {
 export interface TranscriptDebugDetails {
   /** Exact message sent to the agent for a user turn. */
   agentMessage?: string;
+  /** Opaque reference for fetching one tool's full DEBUG payload. */
+  toolRef?: string;
   /** Unabridged structured tool-call input. */
   toolInput?: unknown;
   /** Full correlated normalized tool result. */
@@ -1993,6 +2001,7 @@ export interface QueryParamMap {
   'projects.list': Record<string, never>;
   'sessions.list': SessionsListParams;
   'sessions.transcript': SessionsTranscriptParams;
+  'sessions.debugDetails': SessionsDebugDetailsParams;
   'sessions.pendingInteraction': SessionsPendingInteractionParams;
   'threads.list': ThreadsListParams;
   'threads.get': ThreadsGetParams;
@@ -2027,6 +2036,7 @@ export interface QueryReturnMap {
   'projects.list': ProjectConduitInfo[];
   'sessions.list': SessionInfo[];
   'sessions.transcript': SessionTranscript;
+  'sessions.debugDetails': TranscriptDebugDetails | null;
   'sessions.pendingInteraction': SessionsPendingInteraction;
   'threads.list': ThreadInfo[];
   'threads.get': ThreadDetail;
@@ -2240,7 +2250,14 @@ export interface UiServiceDeps {
   >;
   /** Backend-independent conversation history — read source for `sessions.transcript` (S4 chat). */
   conversationHistory: {
-    getHistory(sessionId: string): Promise<SessionHistory | null>;
+    getHistory(
+      sessionId: string,
+      options?: { includeToolDebug?: boolean },
+    ): Promise<SessionHistory | null>;
+    getToolDebugDetails?(
+      sessionId: string,
+      toolRef: string,
+    ): Promise<TranscriptDebugDetails | null>;
     /** First user message text — used to title a label-less session in `sessions.list`. Optional so
      *  facade/test fixtures need not provide it (the handler skips titling when absent). */
     getFirstUserText?(sessionId: string): Promise<string | null>;
