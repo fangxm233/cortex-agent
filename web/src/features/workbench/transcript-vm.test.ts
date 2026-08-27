@@ -965,6 +965,27 @@ describe('buildTranscriptRows — native subagent grouping', () => {
     expect(block.children).toMatchObject([{ kind: 'assistant', text: 'chain child notes' }]);
   });
 
+  it('keeps a subagent tool run merged across a calendar-day boundary', () => {
+    const rows = buildTranscriptRows(
+      tx([{ turnIndex: 0, messages: [
+        msg({
+          type: 'tool', toolName: 'agent', toolInput: 'survey', ts: '2026-07-06T09:00:00.000Z',
+          subagentSpawns: [{ id: 'tu_day', type: 'explore', description: 'survey', prompt: 'survey' }],
+        } as any),
+        msg({ type: 'tool', toolName: 'Read', toolInput: 'a.ts', subagentId: 'tu_day', ts: '2026-07-06T10:00:00.000Z' }),
+        msg({ type: 'tool', toolName: 'Bash', toolInput: 'test', subagentId: 'tu_day', ts: '2026-07-07T10:00:00.000Z' }),
+      ] }]),
+      [],
+    );
+    const block = rows.find((row) => row.kind === 'subagent') as Extract<ChatRow, { kind: 'subagent' }>;
+    expect(block.children).toHaveLength(1);
+    expect(block.children[0]).toMatchObject({
+      kind: 'tools',
+      count: 2,
+      calls: [{ kind: 'Read', input: 'a.ts' }, { kind: 'Bash', input: 'test' }],
+    });
+  });
+
   it('takes the model from the first subagent row that reports one, not from the anchor', () => {
     // The CLI ships no `subagent_model`; the model is `message.model` off the subagent's own
     // messages, so the spawning call — which happens before the subagent has answered — cannot

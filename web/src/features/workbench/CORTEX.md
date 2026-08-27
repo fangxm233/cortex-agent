@@ -34,7 +34,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | ChatNotice.test.tsx | test | Tests semantic roles, action gating and safe auth activation |
 | MessageEdit.tsx | view | Bare message actions, edit box and rewind |
 | chat-content.ts | types | Defines chat types and local shortcut catalog |
-| transcript-vm.ts | vm | Builds chat rows and assistant turn-copy targets |
+| transcript-vm.ts | vm | Builds day-grouped chat rows and turn-copy targets |
 | transcript-vm.test.ts | test | Tests transcript rows, turn copy and auth actions |
 | ToolCallsRow.tsx | view | Expands tool chips with row-scoped debug actions |
 | SubagentBlock.tsx | view | Shows prompt rows with a right-aligned tool count |

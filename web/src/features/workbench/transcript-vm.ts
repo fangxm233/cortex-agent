@@ -1,5 +1,5 @@
 // input:  transcript DTOs with DEBUG warnings, notices, pending data
-// output: ChatRows with spawn prompts, previews, and reconciliation
+// output: ChatRows with grouped tools, dividers, and reconciliation
 // pos:    Shared desktop/mobile transcript view-model
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type {
@@ -665,7 +665,9 @@ export function buildTranscriptRows(
   for (const m of flat) {
     const day = dayStamp(m.ts);
     if (day !== curDay) {
-      flushAll();
+      // Dividers live only in the top-level stream. Flushing nested sinks here would split one
+      // subagent tool run into multiple rows even though no divider appears inside its card.
+      flushTools(top);
       const label = opts.formatDivider ? opts.formatDivider(m.ts, now) : dividerLabel(m.ts, now);
       rows.push({ kind: 'divider', text: label });
       curDay = day;
