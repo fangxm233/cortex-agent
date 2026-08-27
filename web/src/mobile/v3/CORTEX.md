@@ -44,7 +44,7 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 | MTaskDetailView.tsx | view | Task detail with blocker, fields, deps and history |
 | m-task-detail-vm.ts | vm | Maps task blocker, claim and verification state |
 | m-task-detail-vm.test.ts | test | Tests blocker, approval, claim and detail state |
-| MProjectScreen.tsx | screen | Binds project data and shared creation with scope-first routing |
+| MProjectScreen.tsx | screen | Binds project data, shared note previews/add and scope-first creation |
 | MProjectView.tsx | view | Project-scoped tab with settings gear and switcher |
 | m-project-vm.ts | vm | Derives thread counts, approval buckets, switch rows |
 | m-project-vm.test.ts | test | Unit tests for the project view model |
@@ -60,7 +60,7 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 | m-approvals-vm.test.ts | test | Unit tests for the approvals view model |
 | MIssuesScreen.tsx | screen | Binds canonical issue details/selection plus delete and handle flow |
 | MIssuesView.tsx | view | Renders shared issue details with mobile inline delete and handle |
-| MNotesScreen.tsx | screen | Binds private note queries and mutations |
+| MNotesScreen.tsx | screen | Adapts the shared project-scoped notes resource into the mobile view |
 | MNotesView.tsx | view | Lists tappable notes with swipe delete and input |
 | MNotesProjectCard.tsx | view | Adds and previews notes on Projects |
 | m-notes-vm.ts | vm | Groups notes and limits card previews |

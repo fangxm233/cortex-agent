@@ -1,11 +1,13 @@
 Please update me when files in this folder change
 
-Desktop project notes: neutral project scope plus a shared notes provider, header, Overview and pane views.
-Pure view models group persisted notes and local copy serves English and Chinese surfaces.
+Project notes: one project-scoped server resource shared by desktop and mobile, plus desktop drawer surfaces.
+Every mutation refreshes its scoped list; pure view models and local copy remain presentation-specific.
 
 | filename | role | function |
 |---|---|---|
-| NotesProvider.tsx | provider | Owns note queries, mutations and drawer state |
+| useNotesResource.ts | resource | Owns the shared scoped list, CRUD, invalidation and async state |
+| useNotesResource.test.tsx | test | Covers scope changes, disabled queries, CRUD, invalidation and status |
+| NotesProvider.tsx | provider | Adapts the shared resource into the desktop drawer context |
 | NotesButton.tsx | view | Renders the persistent header entry |
 | NotesOverviewCard.tsx | view | Adds and previews notes on Overview |
 | NotesPane.tsx | view | Reveals selected-note CRUD in the right pane |

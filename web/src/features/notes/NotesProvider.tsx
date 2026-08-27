@@ -1,6 +1,6 @@
-// input:  current project, notes tRPC contract, language and draft context
-// output: shared desktop notes data, mutations and drawer controller
-// pos:    State owner for desktop project notes surfaces
+// input:  current project, shared notes resource, language and draft context
+// output: desktop notes view model, actions and drawer controller
+// pos:    Desktop composition owner for project notes surfaces
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import {
@@ -12,14 +12,13 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { NoteInfo } from '@cortex-agent/ui-contract';
-import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useSelectedSession } from '@/features/workbench/SelectedSessionProvider';
 import { NOTES_COPY, type NotesCopy } from './notes-copy';
 import { buildNotesVm, isNotesShortcut, type NotesVm } from './notes-vm';
+import { useNotesResource } from './useNotesResource';
 
 interface NotesContextValue {
   copy: NotesCopy;
@@ -58,42 +57,24 @@ function useNotesDrawer(projectId: string) {
   return { isOpen, targetId, open, close };
 }
 
-function useNotesMutations(projectId: string) {
-  const trpc = useTRPC();
-  const queryClient = useQueryClient();
-  const invalidate = () => queryClient.invalidateQueries(trpc.notes.list.queryFilter({ projectId }));
-  const add = useMutation(trpc.notes.add.mutationOptions({ onSettled: invalidate }));
-  const update = useMutation(trpc.notes.update.mutationOptions({ onSettled: invalidate }));
-  const complete = useMutation(trpc.notes.setCompleted.mutationOptions({ onSettled: invalidate }));
-  const remove = useMutation(trpc.notes.delete.mutationOptions({ onSettled: invalidate }));
-  const clear = useMutation(trpc.notes.clearCompleted.mutationOptions({ onSettled: invalidate }));
-  return {
-    busy: add.isPending || update.isPending || complete.isPending || remove.isPending || clear.isPending,
-    add: (text: string) => add.mutateAsync({ projectId, text }),
-    update: (id: string, text: string) => update.mutateAsync({ projectId, id, text }),
-    setCompleted: (id: string, completed: boolean) => complete.mutateAsync({ projectId, id, completed }),
-    remove: async (id: string) => { await remove.mutateAsync({ projectId, id }); },
-    clearCompleted: async () => { await clear.mutateAsync({ projectId }); },
-  };
-}
-
 export function NotesProvider({ children }: { children: ReactNode }) {
-  const trpc = useTRPC();
   const lang = useLang();
   const { currentProjectId } = useCurrentProject();
   const { prefillDraft } = useSelectedSession();
   const projectId = currentProjectId ?? '';
   const drawer = useNotesDrawer(projectId);
-  const actions = useNotesMutations(projectId);
-  const list = useQuery({ ...trpc.notes.list.queryOptions({ projectId }), enabled: !!projectId });
-  const vm = useMemo(() => buildNotesVm(list.data ?? [], Date.now(), lang), [list.data, lang]);
+  const resource = useNotesResource(projectId);
+  const vm = useMemo(() => buildNotesVm(resource.notes, Date.now(), lang), [resource.notes, lang]);
   const value = useMemo<NotesContextValue>(() => ({
-    copy: NOTES_COPY[lang],
-    vm,
-    ...drawer,
-    ...actions,
+    copy: NOTES_COPY[lang], vm, ...drawer,
+    busy: resource.busy,
+    add: resource.add,
+    update: resource.update,
+    setCompleted: resource.setCompleted,
+    remove: resource.delete,
+    clearCompleted: resource.clearCompleted,
     handoff: (text) => { prefillDraft(text); drawer.close(); },
-  }), [lang, vm, drawer, actions, prefillDraft]);
+  }), [lang, vm, drawer, resource, prefillDraft]);
   return <NotesContext.Provider value={value}>{children}</NotesContext.Provider>;
 }
 

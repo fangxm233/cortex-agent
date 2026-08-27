@@ -1,10 +1,10 @@
-// input:  project, notes, approvals, rate-limit, and shared project creation state
-// output: mobile Projects screen with scoped approvals and a settings gear
-// pos:    Data owner for the Projects tab
+// input:  project queries, shared notes resource, approvals, rate-limit and creation state
+// output: mobile Projects screen with scoped note previews, approvals and settings
+// pos:    Composition owner for the Projects tab
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
@@ -24,6 +24,7 @@ import { useCreateProject } from '@/features/projects/useCreateProject';
 import { finishMobileProjectCreation } from './m-new-project-flow';
 import { MobileRateLimitSheet, useRateLimitStatus } from '@/features/rate-limit';
 import { NOTES_COPY } from '@/features/notes/notes-copy';
+import { useNotesResource } from '@/features/notes/useNotesResource';
 import { buildMNotesVm } from './m-notes-vm';
 import { useAllSessions } from '@/features/workbench/useProjectSessions';
 
@@ -75,21 +76,6 @@ const COPY: { en: MProjectCopy; zh: MProjectCopy } = {
     issuesTitle: 'Issues',
   },
 };
-
-function useProjectNotes(projectId: string, lang: 'en' | 'zh') {
-  const trpc = useTRPC();
-  const queryClient = useQueryClient();
-  const query = useQuery({ ...trpc.notes.list.queryOptions({ projectId }), enabled: !!projectId });
-  const add = useMutation(trpc.notes.add.mutationOptions({
-    onSettled: () => queryClient.invalidateQueries(trpc.notes.list.queryFilter({ projectId })),
-  }));
-  return {
-    vm: buildMNotesVm(query.data ?? [], Date.now(), lang),
-    copy: NOTES_COPY[lang],
-    busy: add.isPending,
-    add: (text: string) => add.mutateAsync({ projectId, text }),
-  };
-}
 
 const NEW_PROJECT_COPY: { en: MNewProjectCopy; zh: MNewProjectCopy } = {
   en: {
@@ -204,7 +190,8 @@ export function MProjectScreen() {
   const projectId = currentProjectId ?? '';
   useSessionsLiveSync(); useThreadsLiveSync();
   const queries = useProjectQueries(projectId);
-  const notes = useProjectNotes(projectId, lang);
+  const { notes, busy: notesBusy, add: addNote } = useNotesResource(projectId);
+  const notesVm = useMemo(() => buildMNotesVm(notes, Date.now(), lang), [notes, lang]);
   // Project-attributed approval buckets: current project + 全局 (null) drive the amber bar and the
   // current card's 需要你; other projects' counts ride their switch-row badges.
   const approvalCounts = useMemo(() => pendingApprovalCounts(queries.approvals), [queries.approvals]);
@@ -219,8 +206,8 @@ export function MProjectScreen() {
   const onSwitch = (id: string) => { setCurrentProject(id); navigate('/m/sessions'); };
   const viewProps: MProjectViewProps = {
     copy: pickCopy(lang, COPY), current, pendingApprovals: scopedApprovals + approvalCounts.global, globalPendingApprovals: approvalCounts.global, issues,
-    notesVm: notes.vm, notesCopy: notes.copy, notesBusy: notes.busy, switchRows, rateLimitStatus: rate,
-    onOpenRateLimit: () => setRateOpen(true), onIssues: () => navigate('/m/issues'), onNotes: () => navigate('/m/notes'), onAddNote: notes.add,
+    notesVm, notesCopy: NOTES_COPY[lang], notesBusy, switchRows, rateLimitStatus: rate,
+    onOpenRateLimit: () => setRateOpen(true), onIssues: () => navigate('/m/issues'), onNotes: () => navigate('/m/notes'), onAddNote: addNote,
     onApprovals: () => navigate('/m/approvals'), onMemory: () => navigate('/m/memory'), onSettings: () => navigate('/m/settings'), onSwitch, onNewProject: project.show,
   };
   return <><MProjectView {...viewProps} /><ProjectOverlays rate={rate} rateOpen={rateOpen} closeRate={() => setRateOpen(false)} project={project} /></>;
