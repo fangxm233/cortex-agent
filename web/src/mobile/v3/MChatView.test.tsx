@@ -392,3 +392,48 @@ describe('MChatView ＋ menu', () => {
     expect(browserRow(html)).toContain('data-editable="false"');
   });
 });
+
+describe('MChatView browser capsule', () => {
+  function render(props: Record<string, unknown>): ReactTestRenderer {
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        <MChatView
+          {...baseProps}
+          {...props}
+          status={{ running: false, tone: 'idle', text: 'status' }}
+          rows={[]}
+        />,
+      );
+    });
+    return renderer;
+  }
+
+  function chip(renderer: ReactTestRenderer) {
+    return renderer.root.findAllByProps({ 'data-chip': 'browser' })[0];
+  }
+
+  it('stays absent while browsing is off', () => {
+    // The ＋ menu already carries the choice; a capsule for "no browser" would mark nothing.
+    expect(chip(render({ browserDevice: null, onOpenBrowser: () => {} }))).toBeUndefined();
+  });
+
+  it('names the chosen device beside ＋, without opening the menu', () => {
+    const renderer = render({ browserDevice: 'my-pc', onOpenBrowser: () => {} });
+    expect(chip(renderer).props['data-browser-device']).toBe('my-pc');
+    expect(JSON.stringify(renderer.toJSON())).toContain('my-pc');
+  });
+
+  it('taps straight into the device sheet, where switching and off both live', () => {
+    const onOpenBrowser = vi.fn();
+    const renderer = render({ browserDevice: 'my-pc', onOpenBrowser });
+    act(() => chip(renderer).props.onClick());
+    expect(onOpenBrowser).toHaveBeenCalledOnce();
+  });
+
+  it('only reports on a live session', () => {
+    const renderer = render({ browserDevice: 'server' });
+    expect(chip(renderer).props['data-editable']).toBe('false');
+    expect(chip(renderer).props.onClick).toBeUndefined();
+  });
+});

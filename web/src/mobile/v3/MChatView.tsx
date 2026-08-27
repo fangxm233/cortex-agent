@@ -9,7 +9,8 @@
 // every field is a prop, no tRPC. The container (MChatScreen) owns data + mutations + live sync.
 // Interaction cards (6a plan / 5b ask / 4a-c sealed) live in MInteractionCards. The composer is a
 // unified card: full-width input on top, one toolbar row below (＋ menu left; profile chip, context
-// ring and Send/Stop right). Browser opt-in and local slash commands fold into the ＋ menu.
+// ring and Send/Stop right). Browser opt-in and local slash commands fold into the ＋ menu; a
+// chosen browser then stands beside ＋ as a capsule that reopens the device sheet.
 // Collapsed tool calls share Desktop width measurement and end hidden items with numeric +N.
 //
 // Live rows and semantic notices are drawn the same way as their desktop counterparts. Two rows
@@ -1291,6 +1292,46 @@ function PlusButton({ onClick }: { onClick: () => void }): JSX.Element {
   );
 }
 
+/**
+ * The chosen browser, standing beside ＋ as a capsule.
+ *
+ * Opting in is otherwise invisible the moment the ＋ menu closes, and the choice is not a detail —
+ * it decides which machine's screen the agent drives. So the selection keeps a marker on the
+ * toolbar, and the marker IS the control: tapping it reopens the device sheet, where another
+ * machine is a switch and the off row ends browsing.
+ *
+ * Nothing renders while browsing is off. A live session's capsule only reports — the agent's tool
+ * set is fixed when its process spawns, so `onClick` is absent there.
+ */
+function BrowserChip({ device, label, onClick }: {
+  device: string;
+  label: string;
+  onClick?: () => void;
+}): JSX.Element {
+  return (
+    <button
+      type="button"
+      data-chip="browser"
+      data-browser-device={device}
+      data-editable={onClick ? 'true' : 'false'}
+      aria-label={`${label} · ${device}`}
+      onClick={onClick}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 5, flex: '0 1 auto', minWidth: 0, maxWidth: 132,
+        height: 34, padding: '0 11px', boxSizing: 'border-box', borderRadius: 999,
+        border: `1.5px solid ${MC.runBorder}`, background: MC.runBg, color: MC.run,
+        font: `500 11px ${MONO}`, overflow: 'hidden', cursor: onClick ? 'pointer' : 'default',
+      }}
+    >
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ flex: 'none' }}>
+        <circle cx="8" cy="8" r="6.5" />
+        <path d="M1.5 8h13M8 1.5c-1.8 1.8-2.7 4-2.7 6.5S6.2 13.2 8 14.5c1.8-1.3 2.7-4 2.7-6.5S9.8 3.3 8 1.5z" />
+      </svg>
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{device}</span>
+    </button>
+  );
+}
+
 function ProfileChip({ label, onClick }: { label: string; onClick: () => void }): JSX.Element {
   return (
     <button
@@ -1573,7 +1614,14 @@ export function MChatView(props: MChatViewProps): JSX.Element {
           running={props.status.running}
           onStop={props.onStop}
           stopEnabled={props.stopEnabled}
-          leading={props.editing || props.rejectBar ? undefined : <PlusButton onClick={props.onPlus} />}
+          leading={props.editing || props.rejectBar ? undefined : (
+            <>
+              <PlusButton onClick={props.onPlus} />
+              {props.browserDevice && (
+                <BrowserChip device={props.browserDevice} label={copy.attachBrowser} onClick={props.onOpenBrowser} />
+              )}
+            </>
+          )}
           tools={composerTools}
           above={above}
           commandMenu={commandMenu}

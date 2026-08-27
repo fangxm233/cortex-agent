@@ -1,12 +1,12 @@
 // input:  ＋ menu actions, browser control, profile/context/send nodes
-// output: Desktop composer toolbar row (＋ menu left, send cluster right) and slash menu
+// output: Desktop composer toolbar row (＋ menu · browser capsule left, send cluster right) and slash menu
 // pos:    Groups composer shortcuts and controls under the input
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { PlusGlyph } from '@/design';
 import { useVocab } from '@/i18n';
 import type { SlashSuggestion } from './composer-slash';
-import { useBrowserDeviceOptions } from './BrowserOptIn';
+import { useBrowserDeviceOptions, type BrowserDeviceOption } from './BrowserOptIn';
 
 const MONO = "'IBM Plex Mono',monospace";
 
@@ -68,8 +68,12 @@ const MENU_ROW_STYLE: CSSProperties = {
 
 /** Row glyphs for the ＋ menu — same 16-unit line-art family the mobile attach menu uses, so the
  *  two surfaces read as one menu. Muted stroke: the label carries the row, the icon only anchors it. */
-function MenuIcon({ kind }: { kind: 'attach' | 'browser' | 'commands' }): JSX.Element {
-  const common = { width: 14, height: 14, viewBox: '0 0 16 16', fill: 'none', stroke: 'var(--proto-muted-2)', style: { flex: 'none' } } as const;
+function MenuIcon({ kind, size = 14, color = 'var(--proto-muted-2)' }: {
+  kind: 'attach' | 'browser' | 'commands';
+  size?: number;
+  color?: string;
+}): JSX.Element {
+  const common = { width: size, height: size, viewBox: '0 0 16 16', fill: 'none', stroke: color, style: { flex: 'none' } } as const;
   if (kind === 'attach') {
     return (
       <svg {...common} strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round">
@@ -89,6 +93,107 @@ function MenuIcon({ kind }: { kind: 'attach' | 'browser' | 'commands' }): JSX.El
     <svg {...common} strokeWidth={1.6} strokeLinecap="round">
       <path d="M10.3 2.6 5.7 13.4" />
     </svg>
+  );
+}
+
+/** The device list, shared by the ＋ menu's browser page and the capsule's own menu so the two
+ *  entry points cannot drift apart. Includes the "off" row, which is how browsing is turned back off. */
+function BrowserDeviceRows({ options, current, onPick }: {
+  options: BrowserDeviceOption[];
+  current: string | null;
+  onPick: (device: string | null) => void;
+}): JSX.Element {
+  return (
+    <>
+      {options.map((o) => (
+        <span
+          key={o.device ?? '__off__'}
+          data-device={o.device ?? '__off__'}
+          onClick={(e) => { e.stopPropagation(); onPick(o.device); }}
+          style={{
+            ...MENU_ROW_STYLE, gap: 5,
+            background: o.device === current ? 'var(--proto-accent-bg)' : 'transparent',
+          }}
+        >
+          <span style={{ font: `600 10.5px ${MONO}`, color: 'var(--proto-ink)' }}>{o.label}</span>
+          <span style={{ font: `400 9px ${MONO}`, color: 'var(--proto-muted-3)' }}>{o.sub}</span>
+          {o.device === current && (
+            <span style={{ marginLeft: 'auto', color: 'var(--proto-accent)', fontSize: 9, fontWeight: 700 }}>✓</span>
+          )}
+        </span>
+      ))}
+    </>
+  );
+}
+
+/**
+ * The chosen browser, standing beside ＋ as a capsule.
+ *
+ * Opting in is otherwise invisible the moment the ＋ menu closes, and the choice is not a detail —
+ * it decides which machine's screen the agent drives. So the selection keeps a marker on the
+ * toolbar, and the marker IS the control: clicking it reopens the same device list, where another
+ * machine is a switch and the off row ends browsing. No walk back through the ＋ menu.
+ *
+ * Nothing renders while browsing is off — an empty toolbar is the honest picture of no browser. A
+ * live session's capsule only reports: the tool set is fixed when the agent process spawns.
+ */
+function ComposerBrowserChip({ browser }: { browser: ComposerBrowserControl }): JSX.Element | null {
+  const L = useVocab();
+  const [open, setOpen] = useState(false);
+  const [hover, setHover] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
+  useDismissMenu(open, close);
+  const options = useBrowserDeviceOptions(open);
+  const device = browser.device;
+  const editable = !!browser.onChange;
+  if (device === null) return null;
+  const lit = open || hover;
+
+  return (
+    <span style={{ position: 'relative', flex: 'none', display: 'inline-flex' }}>
+      <button
+        type="button"
+        data-chip="browser"
+        data-browser-device={device}
+        data-editable={editable ? 'true' : 'false'}
+        aria-label={`${L.wbBrowser} · ${device}`}
+        aria-expanded={editable ? open : undefined}
+        onClick={editable ? (e) => { e.stopPropagation(); setOpen((o) => !o); } : undefined}
+        onMouseEnter={() => { if (editable) setHover(true); }}
+        onMouseLeave={() => setHover(false)}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 5, flex: 'none',
+          height: 30, maxWidth: 160, padding: '0 10px', boxSizing: 'border-box',
+          borderRadius: 999,
+          border: `1.5px solid ${lit ? 'var(--proto-accent)' : 'var(--proto-accent-border)'}`,
+          background: 'var(--proto-accent-bg)',
+          color: 'var(--proto-accent)',
+          font: `500 10.5px ${MONO}`,
+          cursor: editable ? 'pointer' : 'default',
+        }}
+      >
+        <MenuIcon kind="browser" size={12} color="currentColor" />
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{device}</span>
+        {editable && <span style={{ fontSize: 7.5, opacity: 0.75 }}>▾</span>}
+      </button>
+      {open && editable && (
+        <span
+          data-menu="browser"
+          style={{
+            position: 'absolute', left: 0, bottom: 36, minWidth: 170,
+            background: 'var(--proto-card)', border: '1px solid var(--proto-line)',
+            borderRadius: 10, boxShadow: 'var(--shadow-menu)', zIndex: 59,
+            overflow: 'hidden', display: 'block',
+          }}
+        >
+          <BrowserDeviceRows
+            options={options}
+            current={device}
+            onPick={(picked) => { close(); browser.onChange!(picked); }}
+          />
+        </span>
+      )}
+    </span>
   );
 }
 
@@ -187,23 +292,11 @@ function ComposerPlusMenu({ browser, onAttach, onCommands }: {
               >
                 ‹ {L.wbBrowser}
               </span>
-              {options.map((o) => (
-                <span
-                  key={o.device ?? '__off__'}
-                  data-device={o.device ?? '__off__'}
-                  onClick={(e) => { e.stopPropagation(); close(); browser!.onChange!(o.device); }}
-                  style={{
-                    ...MENU_ROW_STYLE, gap: 5,
-                    background: o.device === browser!.device ? 'var(--proto-accent-bg)' : 'transparent',
-                  }}
-                >
-                  <span style={{ font: `600 10.5px ${MONO}`, color: 'var(--proto-ink)' }}>{o.label}</span>
-                  <span style={{ font: `400 9px ${MONO}`, color: 'var(--proto-muted-3)' }}>{o.sub}</span>
-                  {o.device === browser!.device && (
-                    <span style={{ marginLeft: 'auto', color: 'var(--proto-accent)', fontSize: 9, fontWeight: 700 }}>✓</span>
-                  )}
-                </span>
-              ))}
+              <BrowserDeviceRows
+                options={options}
+                current={browser!.device}
+                onPick={(device) => { close(); browser!.onChange!(device); }}
+              />
             </>
           )}
         </span>
@@ -214,8 +307,9 @@ function ComposerPlusMenu({ browser, onAttach, onCommands }: {
 
 /**
  * The composer toolbar: the full-width row under the input. ＋ (attach / browser / commands) sits
- * left; profile, context ring and the send/stop cluster sit right, so every affordance shares one
- * row and the input above keeps the card's full width.
+ * left, with the browser capsule beside it once a browser is on; profile, context ring and the
+ * send/stop cluster sit right, so every affordance shares one row and the input above keeps the
+ * card's full width.
  */
 export function ComposerActionRow({ browser, onAttach, onCommands, profileControl, contextControl, sendControl }: {
   /** null hides the browser row entirely — a live session that never opted in has nothing to show. */
@@ -229,6 +323,7 @@ export function ComposerActionRow({ browser, onAttach, onCommands, profileContro
   return (
     <div data-composer-actions style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
       <ComposerPlusMenu browser={browser} onAttach={onAttach} onCommands={onCommands} />
+      {browser && <ComposerBrowserChip browser={browser} />}
       <span style={{ marginLeft: 'auto' }} />
       {profileControl}
       {contextControl}

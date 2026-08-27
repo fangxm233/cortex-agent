@@ -55,11 +55,11 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | thread-card-proto.test.ts | test | Unit tests for the inline thread card model |
 | Composer.tsx | view | Unified input card with browser startup and run status |
 | Composer.test.tsx | test | Tests shortcuts, startup status and rejected sends |
-| ComposerActionRow.tsx | view | Toolbar row: ＋ menu left, profile/context/send right |
+| ComposerActionRow.tsx | view | Toolbar row: ＋ menu and browser capsule left, profile/context/send right |
 | BrowserOptIn.tsx | model | Browser device options for the composer ＋ menu |
 | browser-status.ts | model | Phrases browser takeover and turn-start hints |
 | browser-status.test.ts | test | Tests takeover and startup hint states |
-| ComposerActionRow.test.tsx | test | Tests ＋-menu actions, browser page and slash menu |
+| ComposerActionRow.test.tsx | test | Tests ＋-menu actions, browser page/capsule and slash menu |
 | ComposerStatusLine.tsx | view | Status line of running/idle meta below the composer |
 | composer-draft.ts | util | Persists, restores and prefills drafts |
 | composer-draft.test.ts | test | Tests draft keys, parsing and send restoration |

@@ -115,3 +115,46 @@ describe('ComposerActionRow ＋ menu', () => {
     expect(JSON.stringify(renderer.toJSON())).toContain('server');
   });
 });
+
+describe('ComposerActionRow browser capsule', () => {
+  function chip(renderer: ReactTestRenderer) {
+    return renderer.root.findAllByProps({ 'data-chip': 'browser' })[0];
+  }
+
+  it('stays absent while browsing is off, on a draft and on a plain session alike', () => {
+    // The ＋ menu already carries the choice; a capsule for "no browser" would mark nothing.
+    expect(chip(renderRow({ device: null, onChange: vi.fn() }).renderer)).toBeUndefined();
+    expect(chip(renderRow(null).renderer)).toBeUndefined();
+  });
+
+  it('names the chosen device once a browser is on, without opening the ＋ menu', () => {
+    // Which machine's screen the agent drives is the whole point of the choice.
+    const { renderer } = renderRow({ device: 'my-pc', onChange: vi.fn() });
+    expect(chip(renderer).props['data-browser-device']).toBe('my-pc');
+    expect(JSON.stringify(renderer.toJSON())).toContain('my-pc');
+  });
+
+  it('switches machines from the capsule itself', () => {
+    const onChange = vi.fn();
+    const { renderer } = renderRow({ device: 'my-pc', onChange });
+    act(() => chip(renderer).props.onClick(click));
+    act(() => renderer.root.findByProps({ 'data-device': DEFAULT_BROWSER_DEVICE }).props.onClick(click));
+    expect(onChange).toHaveBeenCalledWith(DEFAULT_BROWSER_DEVICE);
+  });
+
+  it('turns browsing off from the capsule, and closes its menu after a pick', () => {
+    const onChange = vi.fn();
+    const { renderer } = renderRow({ device: DEFAULT_BROWSER_DEVICE, onChange });
+    act(() => chip(renderer).props.onClick(click));
+    act(() => renderer.root.findByProps({ 'data-device': '__off__' }).props.onClick(click));
+    expect(onChange).toHaveBeenCalledWith(null);
+    expect(renderer.root.findAllByProps({ 'data-menu': 'browser' })).toHaveLength(0);
+  });
+
+  it('only reports on a live session', () => {
+    // Same reason the ＋ row is read-only there: the tool set is fixed at spawn.
+    const { renderer } = renderRow({ device: 'server' });
+    expect(chip(renderer).props['data-editable']).toBe('false');
+    expect(chip(renderer).props.onClick).toBeUndefined();
+  });
+});
