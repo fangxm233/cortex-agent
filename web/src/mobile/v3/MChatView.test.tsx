@@ -1,4 +1,4 @@
-// input:  mobile rows, Todo snapshots, slash and send state
+// input:  mobile rows, Todo snapshots, slash, send and profile state
 // output: Mobile prompt/count, Todo, message, and composer contracts
 // pos:    Mobile chat interaction behavior tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -156,6 +156,29 @@ describe('MChatView send controls', () => {
     const html = renderChat(false, false);
     expect(button(html, 'Send')).not.toBeNull();
     expect(button(html, 'Stop')).toBeNull();
+  });
+
+  it('shrinks and truncates a long profile label without a disclosure triangle', () => {
+    const longLabel = 'profile-with-a-very-long-name';
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        <MChatView
+          {...baseProps}
+          profileChipLabel={longLabel}
+          status={{ running: true, tone: 'running', text: 'running' }}
+          rows={[]}
+          sendEnabled
+          onStop={() => {}}
+        />,
+      );
+    });
+
+    const label = renderer.root.find((node) => node.type === 'span' && node.children[0] === longLabel);
+    expect(label.parent?.props.style.flex).toBe('0 1 auto');
+    expect(label.parent?.props.style.overflow).toBe('hidden');
+    expect(label.props.style).toMatchObject({ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' });
+    expect(label.parent?.children).toHaveLength(2);
   });
 });
 

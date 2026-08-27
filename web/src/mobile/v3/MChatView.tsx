@@ -1,5 +1,5 @@
 // input:  Mobile chat rows, Todo snapshots, interactions, composer state
-// output: Mobile chat with prompts and right-aligned Agent counts
+// output: Mobile chat with prompts, counts and a shrinkable profile chip
 // pos:    Mobile chat presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -1296,11 +1296,10 @@ function ProfileChip({ label, onClick }: { label: string; onClick: () => void })
     <button
       type="button"
       onClick={onClick}
-      style={{ display: 'flex', alignItems: 'center', gap: 6, border: `1.5px solid ${MC.runBorder}`, background: MC.card, borderRadius: 999, height: 34, padding: '0 13px', boxSizing: 'border-box', flex: 'none', minWidth: 0, cursor: 'pointer' }}
+      style={{ display: 'flex', alignItems: 'center', gap: 6, border: `1.5px solid ${MC.runBorder}`, background: MC.card, borderRadius: 999, height: 34, padding: '0 13px', boxSizing: 'border-box', flex: '0 1 auto', minWidth: 0, overflow: 'hidden', cursor: 'pointer' }}
     >
       <span style={{ width: 5, height: 5, borderRadius: '50%', background: MC.run, flex: 'none' }} />
-      <span style={{ font: `600 11.5px ${MONO}`, color: MC.run, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
-      <span style={{ fontSize: 8, color: MC.muted, flex: 'none' }}>▾</span>
+      <span style={{ minWidth: 0, font: `600 11.5px ${MONO}`, color: MC.run, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
     </button>
   );
 }
