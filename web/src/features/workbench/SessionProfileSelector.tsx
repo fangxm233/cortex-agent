@@ -93,11 +93,10 @@ export function SessionProfileSelectorView({ selection }: { selection: ProfileSe
       style={{
         position: 'relative', font: CHIP_FONT, border: `1.5px solid ${hover ? 'var(--proto-accent-border)' : 'var(--proto-line-3)'}`,
         color: hover ? 'var(--proto-accent)' : 'var(--proto-muted)', padding: '0 12px', height: 30, borderRadius: 999,
-        boxSizing: 'border-box', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5, flex: 'none',
+        boxSizing: 'border-box', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', flex: 'none',
       }}
     >
       {L.wbProfile} · {selection.effectiveProfile}
-      <span style={{ fontSize: 8, color: 'var(--proto-faint)' }}>▾</span>
       {open ? <ProfileMenu options={selection.options} placement="above" align="right" onPick={(name) => { close(); selection.pick(name); }} /> : null}
     </span>
   );
