@@ -1,0 +1,172 @@
+# input:  the 89-task Terminal-Bench 2.1 corpus staged on lab-ksu and the pinned runtimes it mounts
+# output: 445 paid gpt-5.6-sol xhigh trials on unmodified upstream images
+# pos:    lab-ksu full-suite segment 2: five Cortex orchestrations
+# >>> If I am updated, update my header and folder CORTEX.md <<<
+#
+# Segment 2 of the 89-task suite: all five Cortex orchestrations, 89 tasks each, against the
+# baselines segment 1 recorded. Each arm's model and thinking come from its committed bundle
+# rather than from this document, which is why no arm here declares `thinking`.
+#
+# SEGMENTED ON PURPOSE. 623 trials is tens of hours, and the ceiling is subscription quota rather
+# than wall clock. Each segment is its own campaign with its own trials_dir, so a segment that
+# stops can be re-run and will resume from the trial roots it already produced; the run-level
+# `progress.json` beside those roots says what is done, running, pending and why anything failed.
+#
+# BEFORE LAUNCH, on lab-ksu:
+#   benchmark/harness/scripts/bench --config ../campaigns/terminal-bench-2.1-full-xhigh-cortex.yaml --run
+# Both the access and refresh tokens are read from ~/.codex/auth.json at execution time. The paths
+# below are lab-ksu's.
+
+schema_version: cortex-bench-campaign/1
+campaign: tb21-full-cx
+paid: true
+trials_dir: /home/xinmin/cortex-benchmark/runs/tb21-full-xhigh-cortex
+cli_version: "2026.8.6"
+concurrency: 8
+
+timeouts:
+  agent_seconds: 2100
+  verifier_seconds: 1800
+
+manifest:
+  wheel_path: ../harness/dist/cortex_bench_harness-0.1.0-py3-none-any.whl
+  npm_artifact_path: ../harness/dist/cortex-agent-server-2026.8.6.tgz
+  lockfile_path: ../harness/uv.lock
+  lockfile_manifest_path: benchmark/harness/uv.lock
+
+credential:
+  upstream_base_url: https://chatgpt.com/backend-api
+  route_identity_host: chatgpt.com
+  proxy_host_suffix: proxy.invalid
+  dummy_token_ref: paid-codex-dummy-token
+
+host_scan_policy:
+  secret_environment:
+    provider_credential: CORTEX_BENCH_CODEX_CREDENTIAL
+  forbidden_environment:
+    host_forbidden: CORTEX_BENCH_PAID_FORBIDDEN
+  forbidden_argv_environment:
+    host_argv: CORTEX_BENCH_PAID_FORBIDDEN_ARGV
+  repository_checkout_environment: CORTEX_BENCH_PAID_CHECKOUT
+  host_identity_environment:
+    machine: CORTEX_BENCH_PAID_IDENTITY
+
+docker_network:
+  subnet_pool: 172.29.0.0/20
+  subnet_prefix: 24
+
+# Without these three fields this campaign would be bounded by one access token's lifetime, which
+# no 89-task segment fits inside. The refresh token is named here and read from the auth file at
+# execution time; refreshing happens in the host proxy process and the container still sees only
+# a dummy.
+proxy:
+  credential_env: CORTEX_BENCH_CODEX_CREDENTIAL
+  refresh_credential_env: CORTEX_BENCH_CODEX_REFRESH
+  token_endpoint_url: https://auth.openai.com/oauth/token
+  oauth_client_id: app_EMoamEEZ73f0CkXaXp7hrann
+  request_body_limit_bytes: 67108864
+  response_body_limit_bytes: 67108864
+  listen_host: 0.0.0.0
+
+runtimes:
+  node: /home/xinmin/cortex-benchmark/runtimes/node
+  pi: /home/xinmin/cortex-benchmark/runtimes/pi
+  verifier: /home/xinmin/cortex-benchmark/runtimes/verifier
+
+arms:
+  - name: cx-dir
+    kind: cortex
+    backend: pi
+    provider: openai-codex
+    model: gpt-5.6-sol
+    credential_capability: pi-openai-codex-oauth
+    runtime_mounts: [node, pi, verifier]
+    orchestration:
+      mode: direct
+      ask_manager: false
+    limits:
+      max_provider_requests: 500
+      max_cost_usd: "2.00"
+      deadline_seconds: 1800
+      max_output_tokens: 65536
+
+  - name: cx-cr-audit
+    kind: cortex
+    backend: pi
+    provider: openai-codex
+    model: gpt-5.6-sol
+    credential_capability: pi-openai-codex-oauth
+    runtime_mounts: [node, pi, verifier]
+    orchestration:
+      mode: coder-review
+      coder_review_variant: audit-retry
+      ask_manager: false
+    limits:
+      max_provider_requests: 500
+      max_cost_usd: "2.00"
+      deadline_seconds: 1800
+      max_output_tokens: 65536
+
+  - name: cx-cr-fix
+    kind: cortex
+    backend: pi
+    provider: openai-codex
+    model: gpt-5.6-sol
+    credential_capability: pi-openai-codex-oauth
+    runtime_mounts: [node, pi, verifier]
+    orchestration:
+      mode: coder-review
+      coder_review_variant: reviewer-fix
+      ask_manager: false
+    limits:
+      max_provider_requests: 500
+      max_cost_usd: "2.00"
+      deadline_seconds: 1800
+      max_output_tokens: 65536
+
+  - name: cx-mgr-off
+    kind: cortex
+    backend: pi
+    provider: openai-codex
+    model: gpt-5.6-sol
+    credential_capability: pi-openai-codex-oauth
+    runtime_mounts: [node, pi, verifier]
+    orchestration:
+      mode: manager
+      ask_manager: false
+    limits:
+      max_provider_requests: 500
+      max_cost_usd: "2.00"
+      deadline_seconds: 1800
+      max_output_tokens: 65536
+
+  - name: cx-mgr-on
+    kind: cortex
+    backend: pi
+    provider: openai-codex
+    model: gpt-5.6-sol
+    credential_capability: pi-openai-codex-oauth
+    runtime_mounts: [node, pi, verifier]
+    orchestration:
+      mode: manager
+      ask_manager: true
+    limits:
+      max_provider_requests: 500
+      max_cost_usd: "2.00"
+      deadline_seconds: 1800
+      max_output_tokens: 65536
+
+
+# `open`, matching every campaign whose scores these are compared against. See campaigns/CORTEX.md
+# for what that costs a score.
+network:
+  mode: open
+
+task_source:
+  kind: external
+  root: /home/xinmin/cortex-benchmark/assets/terminal-bench-2.1-7131e437/tasks
+  inventory: ../external-suites/terminal-bench-2.1-7131e437-images.json
+  select:
+    mode: all
+
+comparisons: []

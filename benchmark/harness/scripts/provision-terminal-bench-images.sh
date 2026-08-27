@@ -110,6 +110,11 @@ verify() {
   }
 }
 
+# WITHIN one host only. The digest covers tar's header bytes as well as the file bytes, and GNU
+# tar changed those between 1.34 and 1.35 -- two hosts holding byte-identical trees print
+# different digests. Every comparison this script makes is host-local (a staged tree against a
+# committed pin captured on the same kind of host), so that is sound here. Do not use a printed
+# `tree_sha256` to decide whether two machines hold the same runtime; compare file content.
 tree_sha256() {
   tar --sort=name --mtime='UTC 1980-01-01' --owner=0 --group=0 --numeric-owner \
     --pax-option=delete=atime,delete=ctime -cf - -C "$1" . | sha256sum | cut -d' ' -f1
