@@ -447,6 +447,28 @@ describe('buildRailTree current project', () => {
   });
 });
 
+describe('buildRailTree attention badge', () => {
+  it('stays accent while the news is only unread, turns amber once something is blocked on you', () => {
+    const tree = buildRailTree(
+      input({
+        projects: [project('nimbus'), project('orchard'), project('atlas')],
+        directSessions: [
+          session('nimbus', { unread: true }),
+          session('nimbus', { unread: true }),
+          session('orchard', { unread: true }),
+          session('orchard', { awaitingInput: true }),
+          session('atlas'),
+        ],
+      }),
+    );
+    const byId = Object.fromEntries(tree.projects.map((p) => [p.id, p]));
+    expect(byId.nimbus).toMatchObject({ attention: 2, attentionTone: 'unread' });
+    // one blocked session is enough to raise the alarm colour for the whole folder
+    expect(byId.orchard).toMatchObject({ attention: 2, attentionTone: 'action' });
+    expect(byId.atlas).toMatchObject({ attention: 0, attentionTone: null });
+  });
+});
+
 describe('buildRailTree ordering modes', () => {
   const base = {
     projects: [project('nimbus'), project('orchard'), project('atlas')],

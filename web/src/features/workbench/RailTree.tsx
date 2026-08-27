@@ -502,7 +502,10 @@ export function RailTree(props: RailTreeProps): JSX.Element {
                   height: 15,
                   padding: '0 4px',
                   borderRadius: '50%',
-                  background: 'var(--proto-amber)',
+                  background:
+                    node.attentionTone === 'action' ? 'var(--proto-amber)' : 'var(--proto-accent)',
+                  // Not a hardcoded white: --ink-solid-fg flips with the theme, so the digit stays
+                  // legible on both fills in light and dark.
                   color: 'var(--ink-solid-fg)',
                   font: `600 9.5px ${mono}`,
                   display: 'inline-flex',

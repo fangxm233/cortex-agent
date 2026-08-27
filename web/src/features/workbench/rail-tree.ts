@@ -6,7 +6,13 @@
 import type { ProjectConduitInfo, ScheduleInfo, SessionInfo, ThreadInfo } from '@cortex-agent/ui-contract';
 import { buildScheduleRows, unreadScheduleCount, type ScheduleRow } from './schedule-rail';
 import { lastActivityByProject, relativeAge, sortProjectsByActivity } from './left-rail-projects';
-import { awaitingInputCountByProject, runningCountByProject, unreadCountByProject } from './project-menu';
+import {
+  awaitingInputCountByProject,
+  projectAttentionBadge,
+  runningCountByProject,
+  unreadCountByProject,
+  type ProjectAttentionBadgeTone,
+} from './project-menu';
 import { resolveRailOrder, type RailSortMode } from './rail-order';
 
 // The rail is ONE flat list of project folders — every project is present, none is folded away
@@ -41,8 +47,10 @@ export interface RailProjectNode {
   empty: boolean;
   /** Active thread count (running + waiting) — the blue pulse. */
   running: number;
-  /** Unread + awaiting-input sessions, merged into the single amber badge. */
+  /** Unread + awaiting-input sessions, in one badge. */
   attention: number;
+  /** 'action' when any session is actually blocked on you (amber), else 'unread' (accent). */
+  attentionTone: ProjectAttentionBadgeTone;
   /** '⌘1'…'⌘9' by visible order, non-empty projects only; null past nine or when an age shows. */
   hotkey: string | null;
   /** Last-activity age, only for quiet rows that show neither badge nor pulse. */
@@ -200,7 +208,11 @@ export function buildRailTree(input: RailTreeInput): RailTree {
       now,
     );
     const running = runningCounts[project.id] ?? 0;
-    const attention = (unreadCounts[project.id] ?? 0) + (actionCounts[project.id] ?? 0);
+    // The badge counts both, but its COLOUR only ever means one thing: amber = something is waiting
+    // on you. Unread replies are news, not a request, so they stay accent — collapsing the two into
+    // one alarm colour makes the real asks stop registering.
+    const badge = projectAttentionBadge(unreadCounts[project.id] ?? 0, actionCounts[project.id] ?? 0);
+    const attention = badge.count;
     const empty = own.length === 0 && scheduleRows.length === 0 && running === 0;
 
     const matching = filtering ? own.filter((s) => sessionMatchesFilter(s, filter)) : own;
@@ -223,6 +235,7 @@ export function buildRailTree(input: RailTreeInput): RailTree {
       empty,
       running,
       attention,
+      attentionTone: badge.tone,
       hotkey,
       idleAge:
         !hasSignal && typeof activityMs === 'number' ? relativeAge(activityMs, now) : null,
