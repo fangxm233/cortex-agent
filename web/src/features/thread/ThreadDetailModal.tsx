@@ -1,16 +1,14 @@
-// input:  Radix Dialog, thread tRPC data, live events, and detail view
+// input:  Radix Dialog, shared detail controller, artifact-bearing mode, and desktop view
 // output: AppShell-level thread detail modal provider and open API
-// pos:    Opens desktop thread details without router navigation
-// >>> If I am updated, update my header comment and CORTEX.md <<<
+// pos:    Desktop modal/router adapter over the canonical thread resource lifecycle
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as Dialog from '@radix-ui/react-dialog';
-import { createContext, useContext, useEffect, useReducer, useState, type ReactNode } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { createContext, useContext, useReducer, type ReactNode } from 'react';
 import type { ThreadDetail } from '@cortex-agent/ui-contract';
 import { useVocab } from '@/i18n';
-import { useTRPC } from '@/lib/trpc';
 import { ThreadDetailView } from './ThreadDetailView';
-import { useThreadGetLiveSync } from './useThreadGetLiveSync';
+import { useThreadDetailController } from './useThreadDetailController';
 
 export type ThreadDetailModalAction =
   | { type: 'open'; threadId: string }
@@ -32,16 +30,6 @@ const ThreadDetailModalContext = createContext<ThreadDetailModalContextValue>({
   openThread: () => {},
   closeThread: () => {},
 });
-
-function useNowTick(active: boolean): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!active) return;
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, [active]);
-  return now;
-}
 
 function ModalMessage({ children, failed }: { children: ReactNode; failed?: boolean }) {
   return (
@@ -96,24 +84,16 @@ function DetailQueryState({ detail, loading, error, now, onClose, onOpenThread, 
 function ThreadDetailModal({ threadId, onClose, onOpenThread }: {
   threadId: string; onClose: () => void; onOpenThread: (threadId: string) => void;
 }) {
-  const trpc = useTRPC();
-  const queryClient = useQueryClient();
-  const query = useQuery(trpc.threads.get.queryOptions({ threadId, includeArtifactContent: true }));
-  useThreadGetLiveSync(threadId, true);
-  const live = query.data ? ['running', 'waiting'].includes(query.data.status) : false;
-  const now = useNowTick(live);
-  const cancel = useMutation(trpc.threads.cancel.mutationOptions({
-    onSettled: () => {
-      queryClient.invalidateQueries(trpc.threads.list.queryFilter());
-      queryClient.invalidateQueries(trpc.threads.get.queryFilter({ threadId, includeArtifactContent: true }));
-    },
-    onSuccess: onClose,
-  }));
+  const controller = useThreadDetailController({
+    threadId, includeArtifactContent: true, onCancelled: onClose,
+  });
   return (
     <ModalFrame threadId={threadId} onClose={onClose}>
-      <DetailQueryState detail={query.data} loading={query.isPending} error={query.error?.message ?? null}
-        now={now} onClose={onClose} onOpenThread={onOpenThread}
-        onCancel={() => cancel.mutate({ threadId })} cancelPending={cancel.isPending} />
+      <DetailQueryState
+        detail={controller.detail} loading={controller.loading} error={controller.error?.message ?? null}
+        now={controller.now} onClose={onClose} onOpenThread={onOpenThread}
+        onCancel={controller.cancel} cancelPending={controller.cancelPending}
+      />
     </ModalFrame>
   );
 }

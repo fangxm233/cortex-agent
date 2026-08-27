@@ -1,27 +1,28 @@
-// input:  ThreadDetail DTO, breadcrumb trail, wall-clock time, and shared USD formatting
-// output: mobile thread pipeline, agent, artifact, depth, and cost models
-// pos:    Pure view model for the mobile thread-detail drill page
+// input:  ThreadDetail DTO, canonical detail facts, breadcrumb trail, and mobile formatters
+// output: mobile copy, crumb, artifact, agent-feed, and pipeline projection
+// pos:    Mobile-only projection over shared thread detail semantics
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 // Maps the real ThreadDetail into the mobile breadcrumb, pipeline, artifact, and footer model.
 //
-// REUSES the desktop thread logic (no new scope): `treeMaxLevel`/`MAX_LEVEL` (nested-threads) for the
-// honest subtree depth, `dispatchesForStep` (thread-steps) to join a step to its machine dispatch.
+// Shared facts own lifecycle, timing, active agent/output precedence, dispatch joins, and tree depth.
+// Mobile keeps its own breadcrumb names, localized artifact age, copy, and final slot shapes.
 //
 // HONEST GAPS (per features/thread/CORTEX.md + the 1g task):
 //   - ancestry crumb NAMES ride the drill trail (ThreadDetail has no parent chain) → real when carried,
 //     omitted (just the template name + real subtree depth) when not — never fabricated;
 //   - `selfLevel` (L{n}) = trail.length + 1 (known ancestry depth), null when no trail is carried;
-//   - per-thread MACHINE has no direct DTO field → joined from the active step's dispatch (else omitted);
+//   - per-thread MACHINE has no direct DTO field → shared facts join the active dispatch (else any);
 //   - artifact SIZE / +diff are scheme mocks (no DTO source) → only basename + rel-time are rendered.
 
-import type { ThreadDetail, ThreadStepDetail, ThreadInfo } from '@cortex-agent/ui-contract';
-import { dispatchesForStep } from '@/features/thread/thread-steps';
-import { treeMaxLevel, MAX_LEVEL } from '@/features/thread/nested-threads';
+import type { ThreadDetail, ThreadInfo } from '@cortex-agent/ui-contract';
+import {
+  buildThreadDetailFacts,
+  type ThreadDetailFacts,
+  type ThreadDetailStepFacts,
+} from '@/features/thread/thread-detail-facts';
 import { relTimeZh } from '@/mobile/ui/format';
 import { formatUsd } from '@/lib/format';
-
-const RUNNING = new Set<ThreadInfo['status']>(['running', 'waiting']);
 
 /** An ancestor breadcrumb entry carried through the drill-down trail (React Router location.state). */
 export interface MThreadTrailCrumb {
@@ -80,7 +81,7 @@ export interface MThreadDetailVm {
   crumbs: MThreadCrumb[];
   /** Self level L{n} = trail.length + 1; null when no ancestry is carried (honest). */
   selfLevel: number | null;
-  /** Real subtree depth `${treeMaxLevel}/${MAX_LEVEL}` rooted at this thread. */
+  /** Real subtree depth `${level}/${limit}` from the canonical detail facts. */
   depthText: string;
   /** Meta line chunks: [tid, `agent X`?, machine?] — nulls dropped. */
   metaParts: string[];
@@ -117,13 +118,58 @@ function basename(path: string): string {
   return parts[parts.length - 1] ?? path;
 }
 
-/** The single machine backing this thread — joined from the active step's dispatch, else any dispatch. */
-function threadMachine(detail: ThreadDetail, activeStep: ThreadStepDetail | undefined): string | null {
-  if (activeStep) {
-    const m = dispatchesForStep(detail, activeStep).map((d) => d.machine).find(Boolean);
-    if (m) return m;
+function mobileStepTime(item: ThreadDetailStepFacts): string {
+  if (item.kind === 'running') {
+    return item.elapsedSeconds == null ? '' : fmtClock(item.elapsedSeconds);
   }
-  return detail.dispatches.map((d) => d.machine).find(Boolean) ?? null;
+  const duration = item.durationSeconds;
+  return item.kind === 'done' && duration != null ? fmtDuration(duration) : '';
+}
+
+function mobileStepAgent(
+  item: ThreadDetailStepFacts,
+  facts: ThreadDetailFacts,
+): MThreadStepAgent | undefined {
+  if (item.kind !== 'running') return undefined;
+  const profile = facts.activeProfile ?? item.step.agentSlotId;
+  const output = facts.activeOutput ?? '';
+  return {
+    turnLabel: item.step.numTurns != null ? `turn ${item.step.numTurns} · ${profile}` : profile,
+    cost: item.step.costUsd != null ? formatUsd(item.step.costUsd) : '',
+    lines: output.split('\n').map((line) => line.trim()).filter(Boolean),
+    text: output, live: facts.live,
+  };
+}
+
+function mobileStep(
+  item: ThreadDetailStepFacts,
+  index: number,
+  lastIndex: number,
+  facts: ThreadDetailFacts,
+): MThreadStepVm {
+  const step = item.step;
+  return {
+    kind: item.kind, name: step.stage ?? `#${step.stepIndex + 1}`,
+    note: item.kind === 'done' ? (step.outputSummary ?? '') : '',
+    time: mobileStepTime(item), hasConnector: index < lastIndex,
+    agent: mobileStepAgent(item, facts), sessionId: step.sessionId ?? null,
+  };
+}
+
+function mobileArtifacts(detail: ThreadDetail, now: number): MThreadArtifactVm[] {
+  const path = detail.artifacts.artifactPath;
+  if (!path) return [];
+  const filename = basename(path);
+  return [{
+    filename, meta: relTimeZh(detail.updatedAt, now),
+    wsRelPath: `workspace/threads/${detail.id}/${filename}`,
+  }];
+}
+
+function mobileMetaParts(detail: ThreadDetail, machine: string | null): string[] {
+  return [
+    detail.id, detail.activeAgent ? `agent ${detail.activeAgent}` : null, machine,
+  ].filter((part): part is string => !!part);
 }
 
 export function buildMThreadDetailVm(
@@ -131,83 +177,16 @@ export function buildMThreadDetailVm(
   trail: MThreadTrailCrumb[],
   now: number,
 ): MThreadDetailVm {
-  const live = RUNNING.has(detail.status);
-
-  const crumbs: MThreadCrumb[] = trail.map((t) => ({ name: t.name, accent: true }));
-  const selfLevel = trail.length > 0 ? trail.length + 1 : null;
-  const depthText = `${treeMaxLevel(detail.children)}/${MAX_LEVEL}`;
-
-  const activeStep = detail.steps.find((s) => s.status === 'running');
-  const machine = threadMachine(detail, activeStep);
-  const metaParts = [
-    detail.id,
-    detail.activeAgent ? `agent ${detail.activeAgent}` : null,
-    machine,
-  ].filter((x): x is string => !!x);
-
-  const endMs = detail.endedAt ? Date.parse(detail.endedAt) : now;
-  const elapsed = fmtClock((endMs - Date.parse(detail.createdAt)) / 1000);
-
-  const lastIndex = detail.steps.length - 1;
-  const steps: MThreadStepVm[] = detail.steps.map((s, i) => {
-    const kind: MThreadStepVm['kind'] =
-      s.status === 'completed' ? 'done' : s.status === 'running' ? 'running' : 'pending';
-    const running = kind === 'running';
-
-    let time = '';
-    if (running) {
-      time = s.startedAt ? fmtClock((now - Date.parse(s.startedAt)) / 1000) : '';
-    } else if (kind === 'done' && s.durationS != null) {
-      time = fmtDuration(s.durationS);
-    }
-
-    let agent: MThreadStepAgent | undefined;
-    if (running) {
-      const profile = detail.agentFlow?.profile ?? detail.activeAgent ?? s.agentSlotId;
-      const output = detail.agentFlow?.lastOutput ?? s.outputSummary ?? '';
-      agent = {
-        turnLabel: s.numTurns != null ? `turn ${s.numTurns} · ${profile}` : profile,
-        cost: s.costUsd != null ? formatUsd(s.costUsd) : '',
-        lines: output.split('\n').map((l) => l.trim()).filter(Boolean),
-        text: output,
-        live,
-      };
-    }
-
-    return {
-      kind,
-      name: s.stage ?? `#${s.stepIndex + 1}`,
-      note: kind === 'done' ? (s.outputSummary ?? '') : '',
-      time,
-      hasConnector: i < lastIndex,
-      agent,
-      sessionId: s.sessionId ?? null,
-    };
-  });
-
-  const artifacts: MThreadArtifactVm[] = [];
-  if (detail.artifacts.artifactPath) {
-    const fname = basename(detail.artifacts.artifactPath);
-    artifacts.push({
-      filename: fname,
-      meta: relTimeZh(detail.updatedAt, now),
-      wsRelPath: `workspace/threads/${detail.id}/${fname}`,
-    });
-  }
-
+  const facts = buildThreadDetailFacts(detail, now);
+  const artifacts = mobileArtifacts(detail, now);
   return {
-    name: detail.templateName,
-    tid: detail.id,
-    status: detail.status,
-    live,
-    crumbs,
-    selfLevel,
-    depthText,
-    metaParts,
-    elapsed,
-    cost: formatUsd(detail.totalCostUsd),
-    steps,
-    artifacts,
-    artifactCount: artifacts.length,
+    name: detail.templateName, tid: detail.id, status: detail.status, live: facts.live,
+    crumbs: trail.map((item) => ({ name: item.name, accent: true })),
+    selfLevel: trail.length > 0 ? trail.length + 1 : null,
+    depthText: `${facts.depth.level}/${facts.depth.limit}`,
+    metaParts: mobileMetaParts(detail, facts.machine),
+    elapsed: fmtClock(facts.elapsedSeconds), cost: formatUsd(detail.totalCostUsd),
+    steps: facts.steps.map((item, index) => mobileStep(item, index, facts.steps.length - 1, facts)),
+    artifacts, artifactCount: artifacts.length,
   };
 }

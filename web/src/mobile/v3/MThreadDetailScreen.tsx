@@ -1,16 +1,14 @@
-// input:  mobile route params, threads.get query, and cancel mutation
-// output: bound mobile thread detail screen
-// pos:    Mobile drill-in controller for one thread
-// >>> If I am updated, update my header comment and CORTEX.md <<<
+// input:  mobile route state, shared lightweight detail controller, document viewer, and copy
+// output: routed mobile thread detail screen adapter
+// pos:    Mobile route/artifact composition over the canonical thread resource lifecycle
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 // Non-Tab page; ancestor breadcrumbs ride in React Router location state.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
-import { useThreadGetLiveSync } from '@/features/thread/useThreadGetLiveSync';
+import { useThreadDetailController } from '@/features/thread/useThreadDetailController';
 import { useDocViewer } from '@/features/media/DocViewer';
 import { docKindOf } from '@/features/media/doc-kind';
 import { MScreen, MC } from '@/mobile/ui/kit';
@@ -38,17 +36,6 @@ const COPY: { en: MThreadDetailCopy; zh: MThreadDetailCopy } = {
   },
 };
 
-// 1s tick so the running-thread elapsed clock advances (matches the desktop detail modal).
-function useNowTick(active: boolean): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!active) return;
-    const id = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, [active]);
-  return now;
-}
-
 export function MThreadDetailScreen() {
   const { threadId = '' } = useParams();
   const navigate = useNavigate();
@@ -59,22 +46,10 @@ export function MThreadDetailScreen() {
     (t) => t.id !== threadId,
   );
 
-  const trpc = useTRPC();
-  const queryClient = useQueryClient();
-  const threadQuery = useQuery(trpc.threads.get.queryOptions({ threadId }));
-  useThreadGetLiveSync(threadId);
-  const live = threadQuery.data ? ['running', 'waiting'].includes(threadQuery.data.status) : false;
-  const now = useNowTick(live);
-
-  const cancel = useMutation(
-    trpc.threads.cancel.mutationOptions({
-      onSettled: () => {
-        queryClient.invalidateQueries(trpc.threads.get.queryFilter({ threadId }));
-        queryClient.invalidateQueries(trpc.threads.list.queryFilter());
-      },
-      onSuccess: () => navigate('/m/threads'),
-    }),
-  );
+  const onCancelled = useCallback(() => navigate('/m/threads'), [navigate]);
+  const controller = useThreadDetailController({
+    threadId, includeArtifactContent: false, onCancelled,
+  });
 
   const { openDoc } = useDocViewer();
   const handleArtifactClick = useCallback((artifact: MThreadArtifactVm) => {
@@ -84,14 +59,14 @@ export function MThreadDetailScreen() {
     }
   }, [openDoc]);
 
-  if (threadQuery.isPending) {
+  if (controller.loading) {
     return (
       <MScreen label="1g 线程详情">
         <div style={{ padding: 16, color: MC.muted, fontSize: 13 }}>…</div>
       </MScreen>
     );
   }
-  if (threadQuery.isError) {
+  if (controller.error) {
     return (
       <MScreen label="1g 线程详情">
         <div
@@ -105,20 +80,21 @@ export function MThreadDetailScreen() {
             color: MC.fail,
           }}
         >
-          {threadId}: {threadQuery.error.message}
+          {threadId}: {controller.error.message}
         </div>
       </MScreen>
     );
   }
 
-  const vm = buildMThreadDetailVm(threadQuery.data, trail, now);
+  if (!controller.detail) return null;
+  const vm = buildMThreadDetailVm(controller.detail, trail, controller.now);
   return (
     <MThreadDetailView
       vm={vm}
       copy={copy}
       onBack={() => navigate(-1)}
       onMore={() => { /* rename/export/archive menu — out of 1g scope */ }}
-      onCancel={() => cancel.mutate({ threadId })}
+      onCancel={controller.cancel}
       onArtifactClick={handleArtifactClick}
     />
   );

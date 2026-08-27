@@ -1,7 +1,7 @@
-// input:  ThreadDetail DTO, ancestor trail, wall-clock time, and shared USD formatting
-// output: desktop thread modal view model
-// pos:    Derives pipeline, metadata, and artifact display slots
-// >>> If I am updated, update my header comment and CORTEX.md <<<
+// input:  ThreadDetail DTO, canonical detail facts, wall-clock time, and shared USD formatting
+// output: desktop copy, artifact, written-by, metadata, and pipeline projection
+// pos:    Desktop-only projection over shared thread detail semantics
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 // Framework-free mapping from the real threads.get DTO into presentation slots.
 
@@ -17,11 +17,13 @@ import type {
   ThreadChildNode,
   ThreadInfo,
 } from '@cortex-agent/ui-contract';
-import { dispatchesForStep } from './thread-steps';
-import { nodeLevel, treeMaxLevel, MAX_LEVEL } from './nested-threads';
+import { nodeLevel, MAX_LEVEL } from './nested-threads';
+import {
+  buildThreadDetailFacts,
+  type ThreadDetailFacts,
+  type ThreadDetailStepFacts,
+} from './thread-detail-facts';
 import { formatUsd } from '@/lib/format';
-
-const RUNNING = new Set<ThreadInfo['status']>(['running', 'waiting']);
 
 export interface DetailPill {
   bg: string;
@@ -70,10 +72,10 @@ function formatDuration(durationS: number): string {
 }
 
 /** Collapsed step meta "39m · $2.10" (duration then cost); the stage is in the title. */
-function stepMeta(step: ThreadStepDetail): string {
+function stepMeta(item: ThreadDetailStepFacts): string {
   const parts: string[] = [];
-  if (step.durationS != null) parts.push(formatDuration(step.durationS));
-  if (step.costUsd != null) parts.push(formatUsd(step.costUsd));
+  if (item.durationSeconds != null) parts.push(formatDuration(item.durationSeconds));
+  if (item.step.costUsd != null) parts.push(formatUsd(item.step.costUsd));
   return parts.join(' · ');
 }
 
@@ -197,40 +199,36 @@ function buildWrittenBy(steps: ThreadStepDetail[]): WrittenByChip[] {
   });
 }
 
-function detailStepKind(step: ThreadStepDetail): DetailStep['kind'] {
-  if (step.status === 'completed') return 'done';
-  if (step.status === 'running') return 'running';
-  return 'pending';
-}
-
-function buildRunningAgent(detail: ThreadDetail, step: ThreadStepDetail, live: boolean): DetailStepAgent {
-  const dispatch = dispatchesForStep(detail, step)[0];
-  const execInfo = [step.executionId ?? dispatch?.executionId, dispatch?.machine ?? 'local']
+function buildRunningAgent(
+  item: ThreadDetailStepFacts,
+  facts: ThreadDetailFacts,
+): DetailStepAgent {
+  const step = item.step;
+  const execInfo = [step.executionId ?? item.dispatch?.executionId, item.machine ?? 'local']
     .filter(Boolean)
     .join(' · ');
   return {
-    profile: detail.agentFlow?.profile ?? detail.activeAgent ?? 'agent',
-    execInfo,
-    lastOutput: detail.agentFlow?.lastOutput ?? step.outputSummary,
-    streaming: true,
-    live,
+    profile: facts.activeProfile ?? 'agent', execInfo,
+    lastOutput: facts.activeOutput, streaming: true, live: facts.live,
   };
 }
 
-function mapStep(detail: ThreadDetail, step: ThreadStepDetail, index: number, live: boolean): DetailStep {
-  const kind = detailStepKind(step);
-  const running = kind === 'running';
+function mapStep(
+  detail: ThreadDetail,
+  item: ThreadDetailStepFacts,
+  index: number,
+  facts: ThreadDetailFacts,
+): DetailStep {
+  const step = item.step;
+  const running = item.kind === 'running';
   const subs = running ? detail.children.map(mapSub) : [];
   return {
-    kind, title: stepTitle(step), note: step.outputSummary ?? '',
-    meta: running ? stepMeta(step) || 'running' : kind === 'done' ? stepMeta(step) : 'gated',
-    hasConnector: index > 0,
-    agent: running ? buildRunningAgent(detail, step, live) : undefined,
+    kind: item.kind, title: stepTitle(step), note: step.outputSummary ?? '',
+    meta: running ? stepMeta(item) || 'running' : item.kind === 'done' ? stepMeta(item) : 'gated',
+    hasConnector: index > 0, agent: running ? buildRunningAgent(item, facts) : undefined,
     subs, subCount: subs.length, stepIndex: step.stepIndex,
     sessionId: step.sessionId, sessionName: step.sessionName,
-    profile: running
-      ? (detail.agentFlow?.profile ?? detail.activeAgent ?? step.agentSlotId)
-      : step.agentSlotId,
+    profile: running ? (facts.activeProfile ?? step.agentSlotId) : step.agentSlotId,
   };
 }
 
@@ -244,17 +242,17 @@ function buildArtifact(detail: ThreadDetail, live: boolean, now: number): Detail
 }
 
 export function buildThreadDetailVm(detail: ThreadDetail, now: number): ThreadDetailVm {
-  const live = RUNNING.has(detail.status);
-  const endMs = detail.endedAt ? Date.parse(detail.endedAt) : now;
-  const elapsedS = Math.max(0, (endMs - Date.parse(detail.createdAt)) / 1000);
-  const filledLevels = treeMaxLevel(detail.children);
-  const depthDots = Array.from({ length: MAX_LEVEL }, (_, i) => ({ filled: i < filledLevels }));
+  const facts = buildThreadDetailFacts(detail, now);
+  const depthDots = Array.from(
+    { length: facts.depth.limit }, (_, index) => ({ filled: index < facts.depth.level }),
+  );
   return {
     name: detail.templateName, tid: detail.id, pill: threadPill(detail.status),
-    template: detail.templateName, started: fmtHM(detail.createdAt), elapsed: fmtClock(elapsedS),
-    cost: `Σ ${formatUsd(detail.totalCostUsd)}`, task: detail.artifacts.taskId ?? '—',
-    depthDots, depthText: `${filledLevels}/${MAX_LEVEL}`, live,
-    steps: detail.steps.map((step, index) => mapStep(detail, step, index, live)),
-    artifact: buildArtifact(detail, live, now),
+    template: detail.templateName, started: fmtHM(detail.createdAt),
+    elapsed: fmtClock(facts.elapsedSeconds), cost: `Σ ${formatUsd(detail.totalCostUsd)}`,
+    task: detail.artifacts.taskId ?? '—', depthDots,
+    depthText: `${facts.depth.level}/${facts.depth.limit}`, live: facts.live,
+    steps: facts.steps.map((item, index) => mapStep(detail, item, index, facts)),
+    artifact: buildArtifact(detail, facts.live, now),
   };
 }

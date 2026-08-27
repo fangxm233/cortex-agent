@@ -33,11 +33,11 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 | MThreadsView.tsx | view | Grouped thread sections and wrapped pipelines |
 | m-threads-vm.ts | vm | Derives canonical-USD budget, steps and task-linked card meta |
 | m-threads-vm.test.ts | test | Tests mobile task-linked thread metadata |
-| MThreadDetailScreen.tsx | screen | Binds routed mobile detail and cancellation |
+| MThreadDetailScreen.tsx | screen | Adapts the shared lightweight detail controller to routing and document viewing |
 | MThreadDetailView.tsx | view | Thread pipeline steps, artifacts and actions |
 | MThreadDetailView.test.tsx | test | Unit tests for the cancel affordance |
-| m-thread-detail-vm.ts | vm | Maps thread detail to steps, crumbs, artifacts and canonical USD labels |
-| m-thread-detail-vm.test.ts | test | Unit tests for the thread detail view model |
+| m-thread-detail-vm.ts | vm | Projects shared facts into mobile crumbs, artifacts, feeds and USD labels |
+| m-thread-detail-vm.test.ts | test | Unit tests for the mobile thread detail projection |
 | MTasksScreen.tsx | screen | Loads the project queue through canonical task grouping/order |
 | MTasksView.tsx | view | Renders canonical task groups with mobile-specific blocker cards |
 | MTaskDetailScreen.tsx | screen | Loads one task plus its verification evidence |
