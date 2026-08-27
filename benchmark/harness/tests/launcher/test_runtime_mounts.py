@@ -11,6 +11,7 @@
 # let trial one change the interpreter trials two through eight are measured on.
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -185,3 +186,26 @@ def test_an_arm_seed_naming_an_unknown_runtime_is_refused_at_the_agent() -> None
     assert arm_runtime_names({}) == ()
     with pytest.raises(RuntimeMountError):
         arm_runtime_names({"runtime_mounts": ["nodejs"]})
+
+
+def test_the_sealed_environment_only_names_directories_the_trial_creates() -> None:
+    """A TMPDIR that does not exist is a trap that springs on output volume.
+
+    PI's bash executor spills to `os.tmpdir()` with a bare `createWriteStream` once a command's
+    output outgrows its buffer. On 2026-08-27 that killed the db-wal-recovery trial outright while
+    the two tasks that produced less output passed -- so the sealed environment had been naming
+    four directories that nothing created, and had been getting away with it.
+    """
+    from cortex_bench_harness.launcher.trial_admission import (
+        TRIAL_ROOT,
+        TRIAL_SCRATCH_DIRECTORIES,
+        _common_trial_environment,
+    )
+
+    seed = SimpleNamespace(trial_id="camp-01-task-one-cortex-a")
+    named = {
+        value for key, value in _common_trial_environment(seed).items()
+        if key in ("HOME", "TEMP", "TMP", "TMPDIR", "XDG_CACHE_HOME", "XDG_CONFIG_HOME")
+    }
+
+    assert named == {str(TRIAL_ROOT / name) for name in TRIAL_SCRATCH_DIRECTORIES}

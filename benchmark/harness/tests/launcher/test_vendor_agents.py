@@ -48,7 +48,9 @@ class RecordingEnvironment:
 
     async def exec(self, command: str, **kwargs: object) -> ExecResult:
         self.calls.append({"command": command, **kwargs})
-        if len(self.calls) == 1:
+        # Setup writes the dummy runtime, then creates the trial's scratch directories, then
+        # probes the version. Only the probe carries the code a test is varying.
+        if len(self.calls) == 1 or "mkdir -p /logs/agent/trial-home" in command:
             return ExecResult(return_code=0)
         return ExecResult(
             stdout=self.version_stdout, return_code=self.version_return_code,
@@ -172,9 +174,14 @@ def test_setup_writes_and_records_dummy_files_before_exact_version_preflight(
 
     asyncio.run(agent.setup(environment))  # type: ignore[attr-defined]
 
-    assert len(environment.calls) == 2
+    assert len(environment.calls) == 3
     setup_command = str(environment.calls[0]["command"])
-    version_command = str(environment.calls[1]["command"])
+    scratch_command = str(environment.calls[1]["command"])
+    version_command = str(environment.calls[2]["command"])
+    # The sealed environment names TMPDIR; the trial has to have one before the agent writes.
+    assert scratch_command.endswith(
+        "mkdir -p /logs/agent/trial-home/home /logs/agent/trial-home/tmp "
+        "/logs/agent/trial-home/xdg-cache /logs/agent/trial-home/xdg-config")
     assert "vendor-runtime-files.json" in setup_command
     assert vendor.split("-")[0] in version_command
     assert not any(
@@ -207,7 +214,7 @@ def test_version_preflight_fails_closed_without_entering_install_path(
 
     assert installs == []
     assert len(revocations) == 1
-    assert len(environment.calls) == 2
+    assert len(environment.calls) == 3
     assert all(
         forbidden not in str(call["command"])
         for call in environment.calls

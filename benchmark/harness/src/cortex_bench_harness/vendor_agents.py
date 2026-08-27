@@ -461,6 +461,7 @@ class VendorLifecycleMixin:
             result = await environment.exec(command=self._setup_command(files))
             if result.return_code != 0:
                 raise VendorPreflightError("vendor dummy runtime setup failed")
+            await self._prepare_trial_scratch(environment)
             await self._link_staged_runtimes(environment)
             await self._preflight_version(environment)
             self._write_vendor_manifest()
@@ -493,6 +494,16 @@ class VendorLifecycleMixin:
             return arm_runtime_names(self._trial_seed.arm)
         except RuntimeMountError as error:
             raise VendorPreflightError(str(error)) from error
+
+    async def _prepare_trial_scratch(self, environment: BaseEnvironment) -> None:
+        """Create the directories the sealed environment names before anything writes to them."""
+        # Imported here because trial_admission imports this module's fixed environment.
+        from .launcher.trial_admission import trial_scratch_command
+
+        result = await self.exec_as_agent(environment, command=trial_scratch_command())
+        if result.return_code != 0:
+            raise VendorPreflightError(
+                "cannot create the trial scratch directories the sealed environment names")
 
     async def _link_staged_runtimes(self, environment: BaseEnvironment) -> None:
         """Put whatever the campaign mounted on PATH, before anything asks for its version.

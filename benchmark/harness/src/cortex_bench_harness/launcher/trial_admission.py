@@ -165,6 +165,21 @@ def _forbidden_network_hosts(seed: TrialSeed) -> set[str]:
     }
 
 
+# The scratch directories the sealed environment NAMES, which therefore have to EXIST. Nothing
+# created them: an agent that runs `mkdir -p` before writing never noticed, and PI -- whose bash
+# executor spills to `os.tmpdir()` with a bare `createWriteStream` once a command's output grows
+# past its buffer -- died on the first task that produced enough output. It solved the two tasks
+# that did not. A trial whose TMPDIR does not exist is a trap that springs on output volume, so
+# these are created as the agent before the agent runs.
+TRIAL_SCRATCH_DIRECTORIES = ("home", "tmp", "xdg-cache", "xdg-config")
+
+
+def trial_scratch_command() -> str:
+    """The agent-side command that makes the sealed environment's promise true."""
+    targets = " ".join(str(TRIAL_ROOT / name) for name in TRIAL_SCRATCH_DIRECTORIES)
+    return f"mkdir -p {targets}"
+
+
 def _common_trial_environment(seed: TrialSeed) -> dict[str, str]:
     root = TRIAL_ROOT
     return {

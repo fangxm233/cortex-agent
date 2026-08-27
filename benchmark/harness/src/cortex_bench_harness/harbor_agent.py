@@ -36,6 +36,7 @@ from .launcher.production_session import (
 from .launcher.trial_admission import (
     HarborTrialAdmissionError,
     environment_digest,
+    trial_scratch_command,
 )
 from .launcher.trial_admission_io import atomic_write_json
 from .launcher.runtime_mounts import (
@@ -428,6 +429,7 @@ class CortexBenchAgent(BaseInstalledAgent):
             raise
 
     async def _install(self, environment: BaseEnvironment) -> None:
+        await self._prepare_trial_scratch(environment)
         await self._link_staged_runtimes(environment)
         artifact_path, artifact = self._npm_artifact_upload()
         await environment.upload_file(artifact_path, str(artifact))
@@ -439,6 +441,10 @@ class CortexBenchAgent(BaseInstalledAgent):
             environment, VERSION_COMMAND,
             "Installed Cortex CLI version probe returned no version",
         )
+
+    async def _prepare_trial_scratch(self, environment: BaseEnvironment) -> None:
+        """Create the directories the sealed environment names before anything writes to them."""
+        await self.exec_as_agent(environment, command=trial_scratch_command())
 
     async def _link_staged_runtimes(self, environment: BaseEnvironment) -> None:
         """Put the staged runtimes on PATH before the bundle that drives them is unpacked.
