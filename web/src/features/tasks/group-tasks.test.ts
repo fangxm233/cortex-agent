@@ -1,6 +1,6 @@
-// input:  task DTO fixtures and task lifecycle model
-// output: six-group lifecycle and open-count regressions
-// pos:    Task list model unit tests
+// input:  shared desktop/mobile task DTO fixtures and lifecycle model
+// output: canonical classification, six-group order, sorting and open-count regressions
+// pos:    Single-source task list model unit tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { describe, it, expect } from 'vitest';
@@ -42,14 +42,20 @@ describe('groupTasks — design 4a lifecycle grouping', () => {
     expect(g[0].kind).toBe('actionable');
   });
 
-  it('classifies a pending approval before the legacy actionable flag', () => {
-    const g = groupTasks([t({ id: 'a', actionable: true, approvalNeeded: true })]);
-    expect(g[0].kind).toBe('approval-needed');
+  it('classifies a pending approval before actionable and dependency waiting', () => {
+    const g = groupTasks([
+      t({ id: 'dependency' }),
+      t({ id: 'a', actionable: true, approvalNeeded: true, dependsOn: ['dependency'] }),
+    ]);
+    expect(g.find((group) => group.kind === 'approval-needed')?.tasks.map((task) => task.id)).toEqual(['a']);
   });
 
-  it('classifies a blocked task as blocked', () => {
-    const g = groupTasks([t({ id: 'a', blockedBy: 'external' })]);
-    expect(g[0].kind).toBe('blocked');
+  it('classifies a blocked task before claimed and dependency states', () => {
+    const g = groupTasks([
+      t({ id: 'dependency' }),
+      t({ id: 'a', blockedBy: 'external', claimedBy: 'agent', dependsOn: ['dependency'] }),
+    ]);
+    expect(g.find((group) => group.kind === 'blocked')?.tasks.map((task) => task.id)).toEqual(['a']);
   });
 
   it('classifies a task with an open dependency as waiting even when the DTO says actionable', () => {
@@ -68,6 +74,11 @@ describe('groupTasks — design 4a lifecycle grouping', () => {
       t({ id: 'a', actionable: true, dependsOn: ['cross-project'], unmetDependencyIds: ['cross-project'] }),
     ]);
     expect(g[0].kind).toBe('waiting-deps');
+  });
+
+  it('does not invent an unmet dependency for an absent scoped record without a server resolution', () => {
+    const g = groupTasks([t({ id: 'a', actionable: true, dependsOn: ['outside-scope'] })]);
+    expect(g[0].kind).toBe('actionable');
   });
 
   it('classifies a task with only completed dependencies as actionable', () => {

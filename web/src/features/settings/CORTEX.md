@@ -30,8 +30,8 @@ Panels read snapshots; Usage independently queries the shared web usage feature.
 | profiles-panel-vm.test.ts | test | Tests profile transitions, error copy, validation and mutation args |
 | HooksPanel.tsx | view | Hook editor with result selection and test runner |
 | HooksPanel.test.tsx | test | Tests hook permissions, validation, delete state and runner errors |
-| hooks-panel-vm.ts | vm | Filters, groups, validates and builds hook mutation args |
-| hooks-panel-vm.test.ts | test | Tests hook filtering, validation, capabilities and mutation payloads |
+| hooks-panel-vm.ts | vm | Canonically detects/groups hook namespaces for desktop/mobile, then validates editor mutations |
+| hooks-panel-vm.test.ts | test | Tests known/other grouping, filtering, validation, capabilities and mutation payloads |
 | TemplatesPanel.tsx | view | Bounds template scrolling and fixes action bar |
 | TemplatesPanel.test.tsx | test | Tests parse errors, mutation guards, validation and path safety |
 | templates-panel-vm.ts | vm | Filters, parses editor JSON and builds template mutation args |

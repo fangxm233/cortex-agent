@@ -24,7 +24,8 @@ Interactive parts wrap Radix for accessibility; pure modules hold the tested sta
 | Toast.tsx | provider | Toast context, viewport and imperative hook |
 | EmptyState.tsx | core | Centered empty placeholder with optional action |
 | DegradedState.tsx | core | Degraded or exception status card |
-| tone.ts | util | Maps contract status strings to five tones |
+| tone.ts | util | Canonically maps desktop/mobile contract statuses to five tones |
+| tone.test.ts | test | Locks every supported status, rate limiting and unknown fallback |
 | degraded.ts | util | Maps degraded severities to pill tones |
 | toast-store.ts | util | Toast queue add and remove with a max cap |
 | toast-store.test.ts | test | Unit tests for the toast queue |

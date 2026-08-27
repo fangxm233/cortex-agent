@@ -1,6 +1,6 @@
-// input:  React nodes, level-aware mobile dismissal, and shared presentation tokens
-// output: themed mobile screens, cards, back-aware sheets, pills, and composer facade exports
-// pos:    Shared mobile primitive facade and non-composer presentation kit
+// input:  React nodes, shared Tone semantics, mobile dismissal, and presentation tokens
+// output: themed mobile screens, distinct mobile pills, sheets, and composer facade exports
+// pos:    Shared mobile primitives over the canonical design status-tone model
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 // @ds-adherence-ignore -- mobile v3 UI kit, chrome extracted 1:1 from scheme-mobile.dc.html
 // (raw px/hex/font by design §8.3; the mobile palette is not in the light `proto.*` token set).
@@ -10,6 +10,7 @@
 // (MobileShell) owns the viewport + bottom Tab bar; a screen renders <MScreen> with its own header,
 // scroll body, and optional footer. Composer variants share an optional local-command menu slot.
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { statusTone, type Tone } from '@/design/tone';
 import { useBackDismiss } from '@/mobile/use-back-dismiss';
 import { MC, MONO } from './mobile-theme';
 
@@ -257,7 +258,7 @@ export function MCard({
 }
 
 // ── MPill — status pill (tone → bg/fg) ────────────────────────────────────────
-export type PillTone = 'running' | 'waiting' | 'done' | 'failed' | 'cancelled';
+export type PillTone = Tone;
 const PILL: Record<PillTone, { bg: string; fg: string }> = {
   running: { bg: MC.runBg, fg: MC.run },
   waiting: { bg: MC.amberBg, fg: MC.amberInk },
@@ -285,25 +286,9 @@ export function MPill({ tone, children }: { tone: PillTone; children: ReactNode 
   );
 }
 
-// Map a thread/execution status vocabulary → a pill tone.
+// Keep the mobile facade while delegating all status semantics to the canonical design model.
 export function statusPillTone(status: string): PillTone {
-  switch (status) {
-    case 'running':
-      return 'running';
-    case 'waiting':
-    case 'rate_limited':
-      return 'waiting';
-    case 'completed':
-    case 'done':
-      return 'done';
-    case 'failed':
-    case 'aborted':
-      return 'failed';
-    case 'cancelled':
-      return 'cancelled';
-    default:
-      return 'running';
-  }
+  return statusTone(status);
 }
 
 // ── MDot — small status dot, optional pulse (uses the cxpulse keyframes in index.css) ──

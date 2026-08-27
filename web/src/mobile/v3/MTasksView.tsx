@@ -1,6 +1,6 @@
-// input:  Complete task groups, lifecycle copy, and navigation callbacks
+// input:  Canonical task groups, lifecycle copy, and navigation callbacks
 // output: Mobile task list with one-line blocker metadata
-// pos:    Presentational mobile task-list screen
+// pos:    Presentational mobile task-list screen over shared grouping semantics
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design
 
@@ -8,9 +8,9 @@ import type { ComponentType, CSSProperties, MouseEvent } from 'react';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
 import { displayClaimId } from '@/features/tasks/task-claim';
 import { unresolvedDependencyIds } from '@/features/tasks/task-dependencies';
+import type { TaskGroup, TaskGroupKind } from '@/features/tasks/group-tasks';
 import { formatTaskTime } from '@/features/tasks/task-time';
 import { MScreen, MTabHeader, MScrollBody, MCard, MGroupLabel, MC, MONO } from '@/mobile/ui/kit';
-import type { MTaskGroupKey, MTaskGroupView } from './m-tasks-vm';
 
 export interface MTasksCopy {
   title: string;
@@ -28,7 +28,7 @@ export interface MTasksCopy {
   empty: string;
 }
 
-const GROUP_COPY_KEYS: Record<MTaskGroupKey, keyof MTasksCopy> = {
+const GROUP_COPY_KEYS: Record<TaskGroupKind, keyof MTasksCopy> = {
   'in-progress': 'inProgress',
   actionable: 'actionable',
   'approval-needed': 'approvalNeeded',
@@ -169,7 +169,7 @@ function DoneCard({ task, onOpenTask }: CardProps) {
   );
 }
 
-const CARD_COMPONENTS: Record<MTaskGroupKey, ComponentType<CardProps>> = {
+const CARD_COMPONENTS: Record<TaskGroupKind, ComponentType<CardProps>> = {
   'in-progress': InProgressCard,
   actionable: ActionableCard,
   'approval-needed': ApprovalNeededCard,
@@ -179,7 +179,7 @@ const CARD_COMPONENTS: Record<MTaskGroupKey, ComponentType<CardProps>> = {
 };
 
 export function MTasksView({ groups, scope, copy, expandedIds, onToggleExpand, onOpenTask, onOpenThread, onOpenApprovals }: {
-  groups: MTaskGroupView[];
+  groups: TaskGroup[];
   scope?: string;
   copy: MTasksCopy;
   expandedIds: ReadonlySet<string>;
@@ -193,9 +193,9 @@ export function MTasksView({ groups, scope, copy, expandedIds, onToggleExpand, o
       <MScrollBody gap={6}>
         {groups.length === 0 && <div style={{ padding: '40px 0', textAlign: 'center', color: MC.faint, fontSize: 13 }}>{copy.empty}</div>}
         {groups.map((group, index) => {
-          const Card = CARD_COMPONENTS[group.key];
-          return <div key={group.key} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <MGroupLabel style={{ padding: index === 0 ? '0 2px 2px' : '6px 2px 2px' }}>{copy[GROUP_COPY_KEYS[group.key]]} · {group.tasks.length}</MGroupLabel>
+          const Card = CARD_COMPONENTS[group.kind];
+          return <div key={group.kind} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <MGroupLabel style={{ padding: index === 0 ? '0 2px 2px' : '6px 2px 2px' }}>{copy[GROUP_COPY_KEYS[group.kind]]} · {group.tasks.length}</MGroupLabel>
             {group.tasks.map((task) => <Card key={task.id} task={task} copy={copy} expanded={expandedIds.has(task.id)} onToggle={onToggleExpand} onOpenTask={onOpenTask} onOpenThread={onOpenThread} onOpenApprovals={onOpenApprovals} />)}
           </div>;
         })}

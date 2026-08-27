@@ -1,11 +1,11 @@
-// input:  hooks.list overview fixtures
-// output: grouping, ordering and declaration-slot regressions
-// pos:    Unit tests for the mobile hooks view model
+// input:  hooks.list fixtures and canonical namespace grouping
+// output: mobile projection, ordering and declaration-slot regressions
+// pos:    Unit tests for the mobile hook projection model
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { describe, expect, it } from 'vitest';
 import type { HookDetail, HooksOverview } from '@cortex-agent/ui-contract';
-import { buildMHooksVm, HOOK_GROUP_ORDER } from './m-hooks-vm';
+import { buildMHooksVm } from './m-hooks-vm';
 
 // Neutral fixtures (守则11): no real hook ids, scripts or project names.
 function mk(p: Partial<HookDetail> & { id: string; event: HookDetail['event'] }): HookDetail {
@@ -55,7 +55,6 @@ describe('buildMHooksVm grouping', () => {
       ]),
     );
     expect(vm.groups.map((g) => g.key)).toEqual(['agent', 'pi', 'cortex']);
-    expect(HOOK_GROUP_ORDER).toContain('cc');
   });
 
   it('puts template-scoped hooks in their own group regardless of event namespace', () => {

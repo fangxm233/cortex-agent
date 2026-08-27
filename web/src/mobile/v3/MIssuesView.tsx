@@ -1,6 +1,6 @@
-// input:  mobile issue view model, actions, and shared UI kit
+// input:  canonical issue details, mobile actions, and shared UI kit
 // output: themed expandable issue cards and decisions
-// pos:    Presentational mobile Issues screen
+// pos:    Presentational mobile Issues screen over the shared issue model
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme.dc.html sec-24 24c)
 // Pure presentational view for the 24c 移动端 Issues screen (render-testable without tRPC/router).
@@ -10,8 +10,8 @@
 // thread (design sec-24). Field labels are VERBATIM from the markdown; the design mock's source
 // slot / 相关文件 chips have no DTO source → omitted, never fabricated.
 import { type ReactNode } from 'react';
+import type { IssueDetailVm } from '@/features/issues/issues-vm';
 import { MScreen, MDrillHeader, MScrollBody, MCard, MC, MONO } from '@/mobile/ui/kit';
-import type { MIssuesVm, MIssueCard } from './m-issues-vm';
 
 export interface MIssuesCopy {
   title: string;
@@ -22,7 +22,7 @@ export interface MIssuesCopy {
 }
 
 export interface MIssuesViewProps {
-  vm: MIssuesVm;
+  cards: IssueDetailVm[];
   copy: MIssuesCopy;
   /** Which card is expanded (defaults to the first upstream); null when the list is empty. */
   expandedId: string | null;
@@ -34,7 +34,7 @@ export interface MIssuesViewProps {
 }
 
 export function MIssuesView({
-  vm,
+  cards,
   copy,
   expandedId,
   busy,
@@ -56,7 +56,7 @@ export function MIssuesView({
           >
             {copy.title}
           </div>
-          {vm.count > 0 && (
+          {cards.length > 0 && (
             <span
               style={{
                 font: `600 10px ${MONO}`,
@@ -67,19 +67,19 @@ export function MIssuesView({
                 flex: 'none',
               }}
             >
-              {vm.count}
+              {cards.length}
             </span>
           )}
         </MDrillHeader>
       }
     >
       <MScrollBody gap={10}>
-        {vm.cards.length === 0 && (
+        {cards.length === 0 && (
           <div style={{ padding: '40px 0', textAlign: 'center', color: MC.faint, fontSize: 13 }}>
             {copy.empty}
           </div>
         )}
-        {vm.cards.map((card) =>
+        {cards.map((card) =>
           card.id === expandedId ? (
             <ExpandedCard
               key={card.id}
@@ -93,7 +93,7 @@ export function MIssuesView({
             <CollapsedCard key={card.id} card={card} onExpand={onExpand} />
           ),
         )}
-        {vm.cards.length > 0 && (
+        {cards.length > 0 && (
           <div
             style={{
               marginTop: 'auto',
@@ -119,7 +119,7 @@ function ExpandedCard({
   onDelete,
   onHandle,
 }: {
-  card: MIssueCard;
+  card: IssueDetailVm;
   copy: MIssuesCopy;
   busy: boolean;
   onDelete: (id: string) => void;
@@ -210,7 +210,7 @@ function DecisionButton({
 }
 
 // ── collapsed card — tap to expand (24c) ─────────────────────────────────────────────────────────
-function CollapsedCard({ card, onExpand }: { card: MIssueCard; onExpand: (id: string) => void }) {
+function CollapsedCard({ card, onExpand }: { card: IssueDetailVm; onExpand: (id: string) => void }) {
   return (
     <MCard radius={14} padding="11px 14px" onClick={() => onExpand(card.id)}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>

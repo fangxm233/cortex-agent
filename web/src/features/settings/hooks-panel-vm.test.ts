@@ -1,6 +1,6 @@
-// input:  hooks-panel-vm exports and HookDetail fixtures
-// output: filtering, capability, validation and mutation-arg regressions
-// pos:    Unit tests for the hooks settings view model
+// input:  canonical hooks-panel-vm exports and HookDetail fixtures
+// output: namespace fallback, grouping, capability, validation and mutation regressions
+// pos:    Single-source desktop/mobile hook model unit tests
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { describe, it, expect } from 'vitest';
@@ -127,8 +127,8 @@ describe('hooks-panel-vm / filters + grouping', () => {
     expect(hookNamespace(hooks[5])).toBe('template');
   });
 
-  it('groups by namespace in a fixed order, dropping empty groups, ordered by load order', () => {
-    expect(HOOK_NAMESPACE_ORDER).toEqual(['agent', 'cc', 'pi', 'cortex', 'template']);
+  it('groups valid server namespaces in a fixed order, dropping empty groups, ordered by load order', () => {
+    expect(HOOK_NAMESPACE_ORDER).toEqual(['agent', 'cc', 'pi', 'cortex', 'template', 'other']);
     const groups = groupHooks(hooks);
     expect(groups.map((g) => g.key)).toEqual(['agent', 'cc', 'pi', 'cortex', 'template']);
     expect(groups[0].hooks.map((h) => h.id)).toEqual(['a-pre', 'a-turn']);
@@ -139,6 +139,12 @@ describe('hooks-panel-vm / filters + grouping', () => {
   it('sorts each group by load order even when the input is shuffled', () => {
     const shuffled = [hooks[1], hooks[0]];
     expect(groupHooks(shuffled)[0].hooks.map((h) => h.id)).toEqual(['a-pre', 'a-turn']);
+  });
+
+  it('keeps an unknown future namespace visible in the final other group', () => {
+    const future = hook({ id: 'future', event: 'future:thing' as HookDetail['event'] });
+    expect(hookNamespace(future)).toBe('other');
+    expect(groupHooks([future]).map((group) => group.key)).toEqual(['other']);
   });
 
   it('resolveSelectedHookId keeps a live selection and otherwise falls back to the first visible row', () => {

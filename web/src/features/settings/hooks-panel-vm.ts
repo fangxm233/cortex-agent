@@ -1,6 +1,6 @@
 // input:  HookDetail records, chip/search state, and editor form fields
-// output: filtered groups, capability flags, validation and hooks.* mutation args
-// pos:    Pure view model for the desktop hooks settings panel
+// output: shared namespace groups plus capability, validation and hooks.* mutation args
+// pos:    Canonical desktop/mobile hook model and desktop editor view model
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import type {
@@ -94,20 +94,29 @@ export function countHooksByFilter(
 
 // ── grouping ──────────────────────────────────────────────────────────────────────────────────
 
-export type HookNamespace = 'agent' | 'cc' | 'pi' | 'cortex' | 'template';
+export type HookNamespace = 'agent' | 'cc' | 'pi' | 'cortex' | 'template' | 'other';
 
-export const HOOK_NAMESPACE_ORDER: readonly HookNamespace[] = ['agent', 'cc', 'pi', 'cortex', 'template'];
+export const HOOK_NAMESPACE_ORDER: readonly HookNamespace[] = [
+  'agent',
+  'cc',
+  'pi',
+  'cortex',
+  'template',
+  'other',
+];
 
 /**
  * Template-scoped entries carry a `cortex:thread.*` event but are owned by a template file, so they
- * get their own group rather than being mixed into the registry's `cortex:` block.
+ * get their own group rather than being mixed into the registry's `cortex:` block. `other` is a
+ * forward-compatible inventory fallback; the current server still validates the four known prefixes.
  */
 export function hookNamespace(hook: HookDetail): HookNamespace {
   if (hook.source === 'template-scoped') return 'template';
   if (hook.event.startsWith('agent:')) return 'agent';
   if (hook.event.startsWith('cc:')) return 'cc';
   if (hook.event.startsWith('pi:')) return 'pi';
-  return 'cortex';
+  if (hook.event.startsWith('cortex:')) return 'cortex';
+  return 'other';
 }
 
 export interface HookGroup {

@@ -1,34 +1,16 @@
-// input:  hooks.list overview DTO (HookDetail records)
-// output: namespace-grouped hook rows and read-only declaration slots
-// pos:    Pure data mapping for the mobile hooks screen
+// input:  hooks.list overview DTO and canonical hook namespace groups
+// output: shared-namespace-grouped mobile rows and read-only declaration slots
+// pos:    Mobile projection over the canonical hooks settings grouping model
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 // Read-only mirror of the hook registry (plan §6). Every field below has a real `hooks.list` source —
 // nothing is derived from copy or invented. The mobile surface renders the declaration exactly as the
 // server reports it; editing lives on desktop, so there is no draft/patch shape here.
 import type { HookDetail, HooksOverview } from '@cortex-agent/ui-contract';
+import { groupHooks, type HookNamespace } from '@/features/settings/hooks-panel-vm';
 
-/** `template` is a source, not an event namespace — template-scoped hooks carry a `cortex:` event but
- *  are owned by a thread-template file, so they are listed apart (mirrors the desktop separator). */
-export type MHookGroupKey = 'agent' | 'cc' | 'pi' | 'cortex' | 'template' | 'other';
-
-/** Render order of the groups. `other` is the safety net for an event namespace this build does not
- *  know yet — an inventory that silently drops entries would be worse than an unlabelled group. */
-export const HOOK_GROUP_ORDER: readonly MHookGroupKey[] = [
-  'agent',
-  'cc',
-  'pi',
-  'cortex',
-  'template',
-  'other',
-];
-
-const NAMESPACE_PREFIX: ReadonlyArray<{ prefix: string; key: MHookGroupKey }> = [
-  { prefix: 'agent:', key: 'agent' },
-  { prefix: 'cc:', key: 'cc' },
-  { prefix: 'pi:', key: 'pi' },
-  { prefix: 'cortex:', key: 'cortex' },
-];
+/** Mobile copy and presentation cover every canonical namespace, including its future-event fallback. */
+export type MHookGroupKey = HookNamespace;
 
 /** The matcher as the loader accepts it: a regex string, or equality filters for `cortex:*` events. */
 export type MHookMatcher =
@@ -93,11 +75,6 @@ export interface MHooksVm {
   missingScriptCount: number;
 }
 
-function groupKey(hook: HookDetail): MHookGroupKey {
-  if (hook.source === 'template-scoped') return 'template';
-  return NAMESPACE_PREFIX.find((n) => hook.event.startsWith(n.prefix))?.key ?? 'other';
-}
-
 function toMatcher(hook: HookDetail): MHookMatcher | null {
   if (hook.matcher !== null) return { kind: 'regex', value: hook.matcher };
   if (hook.matcherFilters === null) return null;
@@ -157,21 +134,10 @@ function toRow(hook: HookDetail): MHookRow {
 
 /** Map the real `hooks.list` overview into the mobile hooks screen view-model. */
 export function buildMHooksVm(overview: HooksOverview): MHooksVm {
-  const buckets = new Map<MHookGroupKey, MHookRow[]>();
-  for (const hook of overview.hooks) {
-    const key = groupKey(hook);
-    const bucket = buckets.get(key);
-    if (bucket) bucket.push(toRow(hook));
-    else buckets.set(key, [toRow(hook)]);
-  }
-
-  const groups: MHookGroup[] = [];
-  for (const key of HOOK_GROUP_ORDER) {
-    const rows = buckets.get(key);
-    // Load order is execution order within an event; the server emits it as a global index, so
-    // sorting on it restores the on-disk sequence regardless of how the list arrives.
-    if (rows) groups.push({ key, rows: rows.sort((a, b) => a.detail.order - b.detail.order) });
-  }
+  const groups = groupHooks(overview.hooks).map((group) => ({
+    key: group.key,
+    rows: group.hooks.map(toRow),
+  }));
 
   return {
     groups,

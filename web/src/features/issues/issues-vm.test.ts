@@ -1,3 +1,8 @@
+// input:  canonical issue view-model functions and IssueInfo fixtures
+// output: shared desktop/mobile parsing, detail, and selection regressions
+// pos:    Single-source issues view-model unit tests
+// >>> If I am updated, update my header comment and CORTEX.md <<<
+
 import { describe, expect, test } from 'vitest';
 import type { IssueInfo } from '@cortex-agent/ui-contract';
 import {
@@ -61,11 +66,21 @@ describe('toIssueListCard / toIssueDetail', () => {
     expect(toIssueDetail(issue({ date: null })).date).toBeNull();
   });
 
-  test('detail parses the body into fields', () => {
-    const d = toIssueDetail(issue());
-    expect(d.id).toBe('abc12345');
-    expect(d.fields).toHaveLength(2);
-    expect(d.desc).toBeNull();
+  test('detail carries identity and parses verbatim-labelled body fields', () => {
+    expect(toIssueDetail(issue())).toEqual({
+      id: 'abc12345',
+      title: 'EXP-023 验证集 return 回落 9.4%',
+      date: '2026-07-02',
+      fields: [
+        { label: '问题', text: '验证集 return 自 288k 峰值后持续回落。' },
+        { label: '建议', text: '收窄 friction 采样上界重跑。' },
+      ],
+      desc: null,
+    });
+  });
+
+  test('empty issue bodies map to empty display slots', () => {
+    expect(toIssueDetail(issue({ body: '' }))).toMatchObject({ fields: [], desc: null });
   });
 });
 

@@ -1,6 +1,6 @@
-// input:  shared project scope, issue queries/mutations, and mobile navigation
-// output: mobile project issue list and handling flow
-// pos:    Mobile issues data and routing controller
+// input:  shared project scope, canonical issue model, mutations, and mobile navigation
+// output: mobile project issue list with canonical selection and handling flow
+// pos:    Mobile issues data and routing controller over the shared issue model
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 // 24c 移动端 Issues — the project issue list, drilled from the 项目 page's Issues card (24a → 24c).
@@ -19,9 +19,8 @@ import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { draftStorageKey, saveDraft } from '@/features/workbench/composer-draft';
-import { buildIssuePrompt } from '@/features/issues/issues-vm';
+import { buildIssuePrompt, defaultSelectedId, toIssueDetail } from '@/features/issues/issues-vm';
 import { MIssuesView, type MIssuesCopy } from './MIssuesView';
-import { buildMIssuesVm } from './m-issues-vm';
 
 const COPY: { en: MIssuesCopy; zh: MIssuesCopy } = {
   en: {
@@ -53,15 +52,13 @@ export function MIssuesScreen() {
     enabled: !!currentProjectId,
   });
   const entries = useMemo<IssueInfo[]>(() => listQuery.data ?? [], [listQuery.data]);
-  const vm = useMemo(() => buildMIssuesVm(entries), [entries]);
+  const cards = useMemo(() => entries.map(toIssueDetail), [entries]);
 
   // Which card is expanded — default to the first; keep valid as the list re-invalidates.
   const [expandedId, setExpandedId] = useState<string | null>(null);
   useEffect(() => {
-    setExpandedId((cur) =>
-      cur && vm.cards.some((c) => c.id === cur) ? cur : vm.cards[0]?.id ?? null,
-    );
-  }, [vm.cards]);
+    setExpandedId((current) => defaultSelectedId(entries, current));
+  }, [entries]);
 
   const invalidate = () => queryClient.invalidateQueries(trpc.issues.list.queryFilter());
   const del = useMutation(trpc.issues.delete.mutationOptions({ onSettled: invalidate }));
@@ -69,7 +66,7 @@ export function MIssuesScreen() {
 
   return (
     <MIssuesView
-      vm={vm}
+      cards={cards}
       copy={copy}
       expandedId={expandedId}
       busy={busy}

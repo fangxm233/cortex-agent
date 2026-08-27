@@ -1,3 +1,8 @@
+// input:  IssueInfo records from project ISSUES.md files
+// output: parsed issue display slots, canonical detail mapping, selection, and handling prompt
+// pos:    Shared desktop/mobile issues view model
+// >>> If I am updated, update my header comment and CORTEX.md <<<
+
 import type { IssueInfo } from '@cortex-agent/ui-contract';
 
 // Pure view-model for the Issues surfaces (design scheme.dc.html sec-24: 24b desktop modal + 24a

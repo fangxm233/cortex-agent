@@ -1,7 +1,7 @@
 Please update me when files in this folder change
 
-Mobile screens use a data/routing Screen and pure View, plus a local or public feature view model.
-Framework-free view models map records to slots and have colocated unit tests.
+Mobile screens use a data/routing Screen and pure View, plus a local or canonical feature model.
+Shared semantics stay in features/design while mobile retains distinct visual components and interactions.
 
 | filename | role | function |
 |---|---|---|
@@ -38,10 +38,8 @@ Framework-free view models map records to slots and have colocated unit tests.
 | MThreadDetailView.test.tsx | test | Unit tests for the cancel affordance |
 | m-thread-detail-vm.ts | vm | Maps thread detail to steps, crumbs, artifacts |
 | m-thread-detail-vm.test.ts | test | Unit tests for the thread detail view model |
-| MTasksScreen.tsx | screen | Loads the complete project task queue |
-| MTasksView.tsx | view | Renders sections with one-line blocker details |
-| m-tasks-vm.ts | vm | Orders non-empty lifecycle task groups |
-| m-tasks-vm.test.ts | test | Tests complete lifecycle group order |
+| MTasksScreen.tsx | screen | Loads the project queue through canonical task grouping/order |
+| MTasksView.tsx | view | Renders canonical task groups with mobile-specific blocker cards |
 | MTaskDetailScreen.tsx | screen | Loads one task plus its verification evidence |
 | MTaskDetailView.tsx | view | Task detail with blocker, fields, deps and history |
 | m-task-detail-vm.ts | vm | Maps task blocker, claim and verification state |
@@ -60,10 +58,8 @@ Framework-free view models map records to slots and have colocated unit tests.
 | MApprovalsView.test.tsx | test | Tests feedback presentation and reject handoff |
 | m-approvals-vm.ts | vm | Groups pending approvals by project into card slots |
 | m-approvals-vm.test.ts | test | Unit tests for the approvals view model |
-| MIssuesScreen.tsx | screen | Binds issue list, delete and handle flow |
-| MIssuesView.tsx | view | Issue cards with inline delete and handle |
-| m-issues-vm.ts | vm | Maps issue records to cards with body fields |
-| m-issues-vm.test.ts | test | Unit tests for the issues view model |
+| MIssuesScreen.tsx | screen | Binds canonical issue details/selection plus delete and handle flow |
+| MIssuesView.tsx | view | Renders shared issue details with mobile inline delete and handle |
 | MNotesScreen.tsx | screen | Binds private note queries and mutations |
 | MNotesView.tsx | view | Lists tappable notes with swipe delete and input |
 | MNotesProjectCard.tsx | view | Adds and previews notes on Projects |
@@ -115,8 +111,8 @@ Framework-free view models map records to slots and have colocated unit tests.
 | m-accounts-vm.test.ts | test | Tests shared account filtering and action gates |
 | MHooksScreen.tsx | screen | Loads the hook registry and sheet selection |
 | MHooksView.tsx | view | Grouped read-only hooks with declaration sheet |
-| m-hooks-vm.ts | vm | Groups hooks by namespace into read-only slots |
-| m-hooks-vm.test.ts | test | Unit tests for the hooks view model |
+| m-hooks-vm.ts | vm | Projects canonical hook namespace groups into read-only mobile slots |
+| m-hooks-vm.test.ts | test | Tests mobile hook row/detail projection over shared grouping |
 | MPlanReadScreen.tsx | screen | Loads a plan from the compact transcript and handles approve or reject |
 | MPlanReadView.tsx | view | Full plan text with scroll progress and actions |
 | MNotificationProvider.tsx | provider | Streams messages and notices into banners |

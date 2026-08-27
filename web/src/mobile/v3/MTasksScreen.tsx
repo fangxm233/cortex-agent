@@ -1,6 +1,6 @@
-// input:  Task query, complete mobile grouping, and navigation
-// output: Complete grouped mobile Tasks tab or loading screen
-// pos:    Mobile task-list data container
+// input:  Task query, canonical lifecycle grouping, and navigation
+// output: Canonically grouped mobile Tasks tab or loading screen
+// pos:    Mobile task-list data container over the shared task model
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { useMemo, useState } from 'react';
@@ -11,11 +11,10 @@ import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
 import { projectInitials } from '@/features/workbench/session-groups';
 import { useTasksLiveSync } from '@/features/tasks/useTasksLiveSync';
+import { groupTasks } from '@/features/tasks/group-tasks';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
-import { groupMobileTasks } from '@/mobile/mobile-tasks';
 import { MScreen, MC } from '@/mobile/ui/kit';
 import { MTasksView, type MTasksCopy } from './MTasksView';
-import { buildMTaskGroups } from './m-tasks-vm';
 
 const COPY: { en: MTasksCopy; zh: MTasksCopy } = {
   en: {
@@ -50,7 +49,7 @@ function useMobileTaskGroups(projectId: string | null) {
   useTasksLiveSync();
   const query = useQuery(trpc.tasks.list.queryOptions({ projectId: projectId ?? undefined }));
   const tasks = query.data ?? [];
-  const groups = useMemo(() => buildMTaskGroups(groupMobileTasks(tasks)), [tasks]);
+  const groups = useMemo(() => groupTasks(tasks), [tasks]);
   return { query, groups };
 }
 

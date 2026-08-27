@@ -1,6 +1,7 @@
-// Status → visual tone mapping for the token pill palette (design §5).
-// The ui-service contract emits several status vocabularies (thread / task / execution);
-// all collapse onto the five pill tones defined in tailwind.config.ts.
+// input:  Contract status strings from thread, task, and execution surfaces
+// output: One of the five shared visual tones with a cancelled fallback
+// pos:    Canonical desktop/mobile status-to-tone mapping
+// >>> If I am updated, update my header comment and CORTEX.md <<<
 
 export const TONES = ['running', 'waiting', 'done', 'failed', 'cancelled'] as const;
 
@@ -10,6 +11,7 @@ const STATUS_TONE: Record<string, Tone> = {
   running: 'running',
   open: 'running',
   waiting: 'waiting',
+  rate_limited: 'waiting',
   completed: 'done',
   done: 'done',
   failed: 'failed',
