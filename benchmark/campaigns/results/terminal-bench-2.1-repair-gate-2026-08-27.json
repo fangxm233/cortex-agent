@@ -1,0 +1,61 @@
+{
+  "schema_version": "cortex-bench-result-record/1",
+  "record": "terminal-bench-2.1-repair-gate-2026-08-27",
+  "what_this_gates": "That the three repairs to the 2026-08-27 terminal-bench-2.1 cortex segment hold inside a real container, on the exact input that exposed the first of them. Gated on one paid trial before the 254-trial repair re-run was launched.",
+  "implementation_commits": {
+    "host_scoped_home_rule": "6696cbe10",
+    "evidence_export_stops_refusing_stopped_runs": "85b0a8ab2",
+    "gate_document": "e1c46b1a5"
+  },
+  "host": "indexlab-Precision-7960-Tower",
+  "checkout": "/home/xinmin/Cortex",
+  "artifacts_verified": {
+    "cortex_agent_server_npm": {
+      "commit": "e1c46b1a561d56c2ab59d9fea5a16fc1cf13e412",
+      "dirty": false,
+      "fingerprint": "95fb7ebbcb92380e4e9bb2e9c40e7bf270b6d90b8bf0717a511b1a92936f501e",
+      "sha256": "09599742e50f5980afa6e7562f322d5f92d06decf2f7f4c2390e1557f20ec405"
+    },
+    "cortex_bench_harness_wheel": {
+      "commit": "e1c46b1a561d56c2ab59d9fea5a16fc1cf13e412",
+      "dirty": false,
+      "fingerprint": "2e6bbbed88dd97985c15e0153c61de63fb4b7976604b8b3998a8c57264558995",
+      "sha256": "1c8794e2832a3aa065c429c15b9298115b735f9a0145bdf6147d55c1f663e059"
+    },
+    "note": "Both artifacts were built in a throwaway git worktree on the second host, because the primary checkout carried another worker's uncommitted change inside the npm provenance scope. The worktree's scoped fingerprints are byte-identical to the benchmark host's, which is what makes the transfer sound; see benchmark/harness/CORTEX.md on cross-host fingerprints."
+  },
+  "campaign": "tb21-repair-gate",
+  "state": "completed",
+  "ok": true,
+  "trials_failed": 0,
+  "provider_requests": 38,
+  "started_at": "2026-08-27T20:46:50.842Z",
+  "ended_at": "2026-08-27T20:54:37.867Z",
+  "trial": {
+    "trial_id": "tb21-repair-gate-build-cython-ext-cx-dir",
+    "task_id": "build-cython-ext",
+    "arm": "cx-dir",
+    "state": "ran",
+    "outcome_state": "terminal-success",
+    "score_status": "available",
+    "verifier_rewards": {"reward": 1.0},
+    "requests": 38
+  },
+  "what_passed": {
+    "host_scoped_home_rule": "`/home/asandy` occurs four times in the collected `agent/workspace.diff`, from pyknotid's own source, and the trial published with no `output_leak_detected`. This is the same task, the same arm and the same string that refused this trial on the first run after the verifier had already scored it 1.0.",
+    "evidence_export": "A `composite-manifest.json` and `trajectory.json` were published and no `exception.txt` was written. The first gate attempt below is the stronger evidence for this one: its thread FAILED outright and the export still published, recording `role=direct, state=failed, reason=child_failure`, and the verifier still ran and scored it.",
+    "scratch_discard": "The census records all four scratch directories, and only the state directories survive under trial-home."
+  },
+  "first_attempt_refused_by_credential": {
+    "retained_at": "runs/tb21-repair-gate.attempt1-401",
+    "what_happened": "Two provider requests, both upstream 401, agent failure, reward 0.0. The stored Codex access token had not expired -- it was issued 2026-08-19 and valid to 2026-08-29 -- but was being rejected, which is what a subscription lapse leaves behind. Restoring the subscription does not revive the old token.",
+    "why_it_is_kept": "It is the only observation in this campaign of the export path publishing an envelope for a thread that failed, which is one of the three things this gate exists to prove. A trial that scores 1.0 cannot demonstrate that.",
+    "resolution": "The operator re-authenticated through the PI agent rather than the Codex CLI, so the fresh token was in `~/.pi/agent/auth.json` under `openai-codex` while `~/.codex/auth.json` still held the August 19 one. The launcher reads only the latter. The token was carried across in the Codex CLI's own shape, same account and same subject, verified before use."
+  },
+  "honest_caveats": [
+    "The account's plan changed from `pro` to `prolite` between the damaged run and this one. Whether that changes throughput or quota over 254 trials is unmeasured here, and it is a real difference between this re-run and the 191 trials it will be merged with.",
+    "`cx-dir` is `direct` mode, so this gate exercises the export path with ONE role. The `attempt roles mismatch` relaxation, which needs a coder-review thread that stopped before its reviewer, and the unattempted-dispatch relaxation, which needs a manager re-dispatch, are proven only by unit tests that fail without their fix -- not by this trial.",
+    "The call-batch fix is proven here only in the sense that this journal parsed. Its real evidence is the replay of all 435 journals of the damaged segment: zero malformed under the fix, three trials lost without it.",
+    "38 provider requests is one easy task. This gate says nothing about cost at the $10.00 ceiling across 254 trials."
+  ]
+}
