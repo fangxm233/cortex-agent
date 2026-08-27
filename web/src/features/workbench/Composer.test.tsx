@@ -1,5 +1,5 @@
 // input:  Desktop composer, session status facts, UI handlers, and bilingual vocabulary
-// output: Slash routing, run-status priority, and failed-send render regressions
+// output: Slash routing, run-status priority, attachment gate, and failed-send regressions
 // pos:    Desktop composer behavior specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { ComponentProps } from 'react';
@@ -13,6 +13,8 @@ const harness = vi.hoisted(() => ({
   setSelectedSession: vi.fn(),
   pickProfile: vi.fn(),
   openSettings: vi.fn(),
+  attachmentItems: [] as any[],
+  attachmentRetry: vi.fn(),
 }));
 
 vi.mock('@tanstack/react-query', () => ({
@@ -54,6 +56,14 @@ vi.mock('./SessionProfileSelector', async () => {
 
 vi.mock('@/features/media/MediaViewer', () => ({ useMediaViewer: () => ({ openMedia: vi.fn() }) }));
 vi.mock('@/features/media/DocViewer', () => ({ useDocViewer: () => ({ openDoc: vi.fn() }) }));
+vi.mock('@/features/attachments/useAttachmentUploads', () => ({
+  useAttachmentUploads: () => ({
+    items: harness.attachmentItems,
+    completed: harness.attachmentItems.filter((item: any) => item.status === 'done' && item.meta).map((item: any) => item.meta),
+    hasNonDone: harness.attachmentItems.some((item: any) => item.status !== 'done'),
+    addFiles: vi.fn(), remove: vi.fn(), retry: harness.attachmentRetry, replaceRestored: vi.fn(), mergeRestored: vi.fn(), reset: vi.fn(),
+  }),
+}));
 
 import { Composer, ComposerSendFailure } from './Composer';
 
@@ -153,6 +163,25 @@ describe('Composer session run status', () => {
     expect(output).toContain('Background · 1s · 1 turns');
     expect(output).not.toContain('Running · 1s');
     act(() => renderer.unmount());
+  });
+});
+
+describe('Composer attachment send gate', () => {
+  it('blocks text when done metadata is mixed with an upload error', () => {
+    harness.attachmentItems = [
+      { id: 'done', status: 'done', progress: 100, meta: { name: 'ok', path: 'ok', size: 1, mimeType: 'text/plain', type: 'file' } },
+      { id: 'error', status: 'error', progress: 0, file: new File(['x'], 'bad') },
+    ];
+    const renderer = mountComposer(() => {});
+    act(() => renderer.root.findByProps({ 'data-composer-input': true }).props.onChange({ target: { value: 'send me' } }));
+
+    expect(renderer.root.findByProps({ 'data-action': 'send' }).props.disabled).toBe(true);
+    const retry = renderer.root.findAll((node) => node.props.role === 'button' && node.children.join('') === 'Failed')[0];
+    act(() => retry.props.onClick({ stopPropagation: vi.fn() }));
+    expect(harness.attachmentRetry).toHaveBeenCalledWith('error');
+    act(() => renderer.unmount());
+    harness.attachmentItems = [];
+    harness.attachmentRetry.mockReset();
   });
 });
 

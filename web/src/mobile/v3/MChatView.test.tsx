@@ -48,6 +48,7 @@ import { LangProvider } from '@/i18n';
 import type { TodoSnapshot } from '@cortex-agent/ui-contract';
 import type { ChatRow } from '@/features/workbench/transcript-vm';
 import { MChatStream, MChatView, type MChatCopy, type MChatEditCopy } from './MChatView';
+import { ComposerAttachmentStrip } from './MChatAttachments';
 
 const copy: MChatCopy = {
   composerPh: 'composer',
@@ -98,6 +99,7 @@ const baseProps = {
   onContextUsageClose: () => {},
   attachments: [],
   onRemoveAttachment: () => {},
+  onRetryAttachment: () => {},
   onPlus: () => {},
   attachMenuOpen: false,
   onAttachClose: () => {},
@@ -150,6 +152,26 @@ describe('MChatView slash shortcuts', () => {
 
     expect(onSlashPick).toHaveBeenCalledOnce();
     expect(onSlashPick.mock.calls[0][0].command).toBe('/new');
+  });
+});
+
+describe('mobile attachment error actions', () => {
+  it('requires an explicit retry or remove action for an error chip', () => {
+    const retry = vi.fn();
+    const remove = vi.fn();
+    let renderer!: ReactTestRenderer;
+    act(() => { renderer = create(
+      <ComposerAttachmentStrip
+        attachments={[{ id: 'bad', name: 'bad.bin', progress: 0, status: 'error', type: 'file' }]}
+        onRetry={retry}
+        onRemove={remove}
+      />,
+    ); });
+
+    act(() => renderer.root.findByProps({ role: 'button' }).props.onClick());
+    act(() => renderer.root.findAll((node) => node.children.join('') === '✕')[0].props.onClick());
+    expect(retry).toHaveBeenCalledWith('bad');
+    expect(remove).toHaveBeenCalledWith('bad');
   });
 });
 

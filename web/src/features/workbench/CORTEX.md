@@ -39,10 +39,10 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | ChatNotice.tsx | view | Localized semantic notices with optional actions |
 | ChatNotice.test.tsx | test | Tests semantic roles, action gating and safe auth activation |
 | MessageEdit.tsx | view | Bare message actions with success-only clipboard feedback, edit box and rewind |
-| chat-content.ts | types | Defines chat types and local shortcut catalog |
-| transcript-vm.ts | vm | Builds compact chat rows, decision cards and turn tails |
+| chat-content.ts | types | Defines workbench tool-call types and the local shortcut catalog |
+| transcript-vm.ts | vm | Builds compact decision-aware rows over neutral attachments and turn-copy targets |
 | transcript-vm.test.ts | test | Tests compact rows, turn tails, auth actions and decisions |
-| ToolCallsRow.tsx | view | Expands tool chips and lazy-loads DEBUG details |
+| ToolCallsRow.tsx | view | Expands tool chips with row-scoped debug actions |
 | SubagentBlock.tsx | view | Shows prompt rows with a right-aligned tool count |
 | SubagentTranscriptDetail.tsx | view | Lazily loads one subagent transcript with minimal retry UI |
 | SubagentBlock.test.tsx | test | Tests prompt disclosure and nested copy isolation |
@@ -61,12 +61,11 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | InlineThreadCardProto.tsx | view | Live thread card opening modal detail |
 | thread-card-proto.ts | vm | Maps thread detail to inline card rows, canonical USD labels and pill |
 | thread-card-proto.test.ts | test | Unit tests for the inline thread card model |
-| Composer.tsx | view | Orchestrates the unified input card, drafts, uploads and shared run status |
+| Composer.tsx | view | Adapts drafts and desktop inputs to the neutral attachment controller and shared run status |
 | session-run-status.ts | vm | Derives locale-free foreground, background, idle and fresh session facts |
 | session-run-status.test.ts | test | Tests run phases, active tone, metrics and finalized-cost visibility |
-| ComposerAttachmentChip.tsx | view | Renders pending media and document-aware composer attachment chips |
+| ComposerAttachmentChip.tsx | view | Renders queued, uploading, failed, and done neutral attachment items with retry/remove controls |
 | ComposerSendFailure.tsx | view | Presents localized rejected-send draft restoration feedback |
-| composer-attachments.ts | model | Owns pending attachment types, accessors, upload transport and restore helpers |
 | Composer.test.tsx | test | Tests shortcuts, browser/background status and rejected sends |
 | ComposerActionRow.tsx | view | Toolbar row: ＋ menu and browser capsule left, profile/context/send right |
 | BrowserOptIn.tsx | model | Browser device options for the composer ＋ menu |
@@ -76,8 +75,8 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | ComposerStatusLine.tsx | view | Status line of running/idle meta below the composer |
 | composer-draft.ts | util | Persists, restores and prefills drafts |
 | composer-draft.test.ts | test | Tests draft keys, parsing and send restoration |
-| optimistic-message.ts | vm | Reconciles local sends with source-aware message evidence |
-| useOptimisticUserMessages.ts | hook | Holds the shared optimistic-send lifecycle for both chats |
+| optimistic-message.ts | vm | Reconciles neutral attachment-bearing local sends with source-aware message evidence |
+| useOptimisticUserMessages.ts | hook | Holds the neutral attachment-aware optimistic-send lifecycle for both chats |
 | optimistic-message.test.ts | test | Tests stale rows, de-duplication and failure |
 | optimistic-message.integration.test.tsx | test | Tests mounted pending sends, restoration and authority races |
 | composer-slash.ts | util | Resolves shared UI-local slash actions |

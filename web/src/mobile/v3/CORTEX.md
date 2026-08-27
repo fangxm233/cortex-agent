@@ -5,14 +5,14 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 
 | filename | role | function |
 |---|---|---|
-| MChatScreen.tsx | screen | Composes compact chat, shared run status, interactions, sends and attachments |
-| m-chat-attachments.ts | hook | Owns mobile upload transport, draft effects and restored previews |
+| MChatScreen.tsx | screen | Composes compact chat, shared run status, interactions and neutral attachments |
+| m-chat-attachments.ts | hook | Adapts mobile draft persistence to the neutral attachment controller |
 | MChatInlineThreadCard.tsx | view | Binds the selected session's live inline thread stepper |
 | MChatScreen.optimistic.test.tsx | test | Tests status priority, Todo wiring, optimistic sends and shortcuts |
 | MChatView.tsx | view | Facades chat contracts and renders lazy subagents, decisions, turn-copy and screen frame |
 | MChatView.types.ts | types | Shares public chat, action, composer and sheet contracts |
 | MChatMessageActions.tsx | view | Renders success-only shared copy, long-press and edit actions |
-| MChatAttachments.tsx | view | Renders transcript and composer attachment presentation |
+| MChatAttachments.tsx | view | Renders transcript cards and queued/progress/retry/remove composer chips |
 | MChatSheets.tsx | view | Renders session-id shared copy feedback plus profile/browser/context sheets |
 | MChatComposerPresentation.tsx | view | Renders composer modes, tools, slash and plus menus |
 | MChatView.test.tsx | test | Tests lazy detail, prompts, counts, Todo, ＋ menu and copy |

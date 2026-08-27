@@ -1,5 +1,5 @@
 // input:  Mounted mobile chat, live run status, Todo state, mutations, and routes
-// output: Status priority, Todo wiring, optimistic-send, and slash-action specifications
+// output: Status priority, Todo, attachment gate, optimistic-send, and slash specifications
 // pos:    Mounted mobile composer integration specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -23,6 +23,7 @@ const harness = vi.hoisted(() => ({
   invalidateQueries: vi.fn(),
   liveState: {} as any,
   liveSyncArgs: null as any[] | null,
+  attachmentItems: [] as any[],
 }));
 
 vi.mock('@tanstack/react-query', async (importOriginal) => {
@@ -124,6 +125,14 @@ vi.mock('@/features/workbench/useSessionCompact', () => ({
 vi.mock('@/features/workbench/useInteractionActions', () => ({ useInteractionActions: () => ({}) }));
 vi.mock('@/features/workbench/useMarkSessionRead', () => ({ useMarkSessionRead: () => {} }));
 vi.mock('@/features/thread/useThreadGetLiveSync', () => ({ useThreadGetLiveSync: () => {} }));
+vi.mock('@/features/attachments/useAttachmentUploads', () => ({
+  useAttachmentUploads: () => ({
+    items: harness.attachmentItems,
+    completed: harness.attachmentItems.filter((item: any) => item.status === 'done' && item.meta).map((item: any) => item.meta),
+    hasNonDone: harness.attachmentItems.some((item: any) => item.status !== 'done'),
+    addFiles: vi.fn(), remove: vi.fn(), retry: vi.fn(), replaceRestored: vi.fn(), mergeRestored: vi.fn(), reset: vi.fn(),
+  }),
+}));
 vi.mock('./MChatView', async () => {
   const React = await import('react');
   return {
@@ -140,6 +149,7 @@ vi.mock('./MChatView', async () => {
         'data-status-text': props.status.text,
         'data-status-running': props.status.running,
         'data-status-tone': props.status.tone,
+        'data-send-enabled': props.sendEnabled,
       },
       props.rows
         .filter((row: { kind: string }) => row.kind === 'user')
@@ -220,6 +230,7 @@ beforeEach(() => {
   harness.invalidateQueries.mockReset();
   harness.liveState = emptyLiveState();
   harness.liveSyncArgs = null;
+  harness.attachmentItems = [];
 });
 
 afterEach(() => {
@@ -308,6 +319,19 @@ describe('mobile Todo state', () => {
 
     expect(harness.liveSyncArgs?.[3].todos).toBe(todos);
     expect(view(mounted).props['data-todo-count']).toBe(1);
+  });
+});
+
+describe('mobile attachment send gate', () => {
+  it('blocks text while a done attachment is mixed with an error', () => {
+    harness.attachmentItems = [
+      { id: 'done', status: 'done', progress: 100, meta: { name: 'ok', path: 'ok', size: 1, mimeType: 'text/plain', type: 'file' } },
+      { id: 'error', status: 'error', progress: 0, file: new File(['x'], 'bad') },
+    ];
+    mounted = mountChat();
+    act(() => { view(mounted!).props.onComposerChange('send me'); });
+
+    expect(view(mounted).props['data-send-enabled']).toBe(false);
   });
 });
 

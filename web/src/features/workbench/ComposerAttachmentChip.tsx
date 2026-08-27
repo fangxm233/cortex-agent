@@ -1,4 +1,4 @@
-// input:  Pending composer attachment state and retry/remove callbacks
+// input:  Neutral queued/uploading/done/error attachment item and retry/remove callbacks
 // output: Media thumbnail or document-aware file chip with unchanged controls
 // pos:    Desktop composer attachment presentation boundary
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -11,8 +11,8 @@ import { mediaKindOf, type MediaKind } from '@/features/media/media-kind';
 import { VideoThumb } from '@/features/media/VideoThumb';
 import { attachmentFileExt, attachmentTypeColor, formatAttachmentSize } from './attachment-presentation';
 import {
-  attachmentMime, attachmentName, attachmentSize, attachmentType, type PendingAttachment,
-} from './composer-attachments';
+  attachmentMime, attachmentName, attachmentSize, attachmentType, type AttachmentUploadItem,
+} from '@/features/attachments/types';
 
 const mono = "'IBM Plex Mono',monospace";
 
@@ -27,7 +27,7 @@ interface ChipModel {
   colors: { bg: string; fg: string };
 }
 
-function chipModel(a: PendingAttachment): ChipModel {
+function chipModel(a: AttachmentUploadItem): ChipModel {
   const mime = attachmentMime(a);
   const type = attachmentType(a);
   return {
@@ -37,7 +37,7 @@ function chipModel(a: PendingAttachment): ChipModel {
     isImage: mime.startsWith('image/'),
     isVideo: mime.startsWith('video/'),
     kind: mediaKindOf(type),
-    canPreview: !!a.previewUrl && a.status !== 'uploading' && a.status !== 'error',
+    canPreview: !!a.previewUrl && a.status === 'done',
     colors: attachmentTypeColor(type),
   };
 }
@@ -69,7 +69,7 @@ const thumbStyle: CSSProperties = {
   position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover',
 };
 
-function mediaInnerStyle(a: PendingAttachment, canPreview: boolean): CSSProperties {
+function mediaInnerStyle(a: AttachmentUploadItem, canPreview: boolean): CSSProperties {
   return {
     position: 'absolute', inset: 0, borderRadius: 8,
     border: a.status === 'error' ? '1px solid var(--proto-danger)' : '1px solid var(--proto-line)',
@@ -86,7 +86,7 @@ function RemoveButton({ id, onRemove }: { id: string; onRemove: (id: string) => 
   return <span onClick={remove} style={removeStyle}>×</span>;
 }
 
-function MediaContent({ a, model }: { a: PendingAttachment; model: ChipModel }): JSX.Element {
+function MediaContent({ a, model }: { a: AttachmentUploadItem; model: ChipModel }): JSX.Element {
   return (
     <>
       {a.previewUrl && model.isImage && <img src={a.previewUrl} alt={model.name} style={thumbStyle} />}
@@ -97,7 +97,8 @@ function MediaContent({ a, model }: { a: PendingAttachment; model: ChipModel }):
   );
 }
 
-function UploadState({ a, onRetry }: { a: PendingAttachment; onRetry: (id: string) => void }): JSX.Element | null {
+function UploadState({ a, onRetry }: { a: AttachmentUploadItem; onRetry: (id: string) => void }): JSX.Element | null {
+  if (a.status === 'queued') return <span style={uploadOverlayStyle}>queued</span>;
   if (a.status === 'uploading') {
     return (
       <>
@@ -111,7 +112,7 @@ function UploadState({ a, onRetry }: { a: PendingAttachment; onRetry: (id: strin
 }
 
 function MediaAttachmentChip({ a, model, onRetry, onRemove, onOpen }: {
-  a: PendingAttachment;
+  a: AttachmentUploadItem;
   model: ChipModel;
   onRetry: (id: string) => void;
   onRemove: (id: string) => void;
@@ -142,7 +143,7 @@ const fileNameStyle: CSSProperties = {
   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
 };
 
-function fileChipStyle(a: PendingAttachment, preview: boolean): CSSProperties {
+function fileChipStyle(a: AttachmentUploadItem, preview: boolean): CSSProperties {
   return {
     ...fileBaseStyle,
     border: a.status === 'error' ? '1px solid var(--proto-danger)' : '1px solid var(--proto-line)',
@@ -158,15 +159,17 @@ function FileIcon({ model }: { model: ChipModel }): JSX.Element {
   return <span style={style}>{model.ext}</span>;
 }
 
-function fileStatus(a: PendingAttachment): string {
+function fileStatus(a: AttachmentUploadItem): string {
+  if (a.status === 'queued') return 'Queued';
   if (a.status === 'uploading') return `${a.progress}%`;
   if (a.status === 'error') return a.errorMsg || 'Failed';
   return formatAttachmentSize(attachmentSize(a));
 }
 
-function FileAttachmentChip({ a, model, onRemove, onOpen }: {
-  a: PendingAttachment;
+function FileAttachmentChip({ a, model, onRetry, onRemove, onOpen }: {
+  a: AttachmentUploadItem;
   model: ChipModel;
+  onRetry: (id: string) => void;
   onRemove: (id: string) => void;
   onOpen?: () => void;
 }): JSX.Element {
@@ -178,7 +181,11 @@ function FileAttachmentChip({ a, model, onRemove, onOpen }: {
       <FileIcon model={model} />
       <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         <span style={fileNameStyle}>{model.name}</span>
-        <span style={{ font: `400 9px ${mono}`, color: statusColor }}>{fileStatus(a)}</span>
+        <span
+          role={a.status === 'error' ? 'button' : undefined}
+          onClick={a.status === 'error' ? (event) => { event.stopPropagation(); onRetry(a.id); } : undefined}
+          style={{ font: `400 9px ${mono}`, color: statusColor, cursor: a.status === 'error' ? 'pointer' : undefined }}
+        >{fileStatus(a)}</span>
       </span>
       <RemoveButton id={a.id} onRemove={onRemove} />
     </div>
@@ -186,7 +193,7 @@ function FileAttachmentChip({ a, model, onRemove, onOpen }: {
 }
 
 export function ComposerAttachmentChip({ attachment, onRetry, onRemove }: {
-  attachment: PendingAttachment;
+  attachment: AttachmentUploadItem;
   onRetry: (id: string) => void;
   onRemove: (id: string) => void;
 }): JSX.Element {
@@ -203,5 +210,5 @@ export function ComposerAttachmentChip({ attachment, onRetry, onRemove }: {
   const onOpen = docKind && attachment.status === 'done' && attachment.meta?.path
     ? () => openDoc({ kind: docKind, name: model.name, path: attachment.meta!.path, mimeType: model.mime })
     : undefined;
-  return <FileAttachmentChip a={attachment} model={model} onRemove={onRemove} onOpen={onOpen} />;
+  return <FileAttachmentChip a={attachment} model={model} onRetry={onRetry} onRemove={onRemove} onOpen={onOpen} />;
 }

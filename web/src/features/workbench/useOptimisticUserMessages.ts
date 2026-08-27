@@ -1,4 +1,4 @@
-// input:  the surface's send scope plus the live message authority it renders
+// input:  send scope, neutral attachment metadata, and the live message authority rendered
 // output: reconciled pending rows and the enqueue/accept/reject send lifecycle
 // pos:    Shared optimistic-send state for the desktop and mobile chats
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -14,7 +14,8 @@ import {
   type OptimisticUserMessage,
   type UserMessageAuthority,
 } from './optimistic-message';
-import type { Attachment, LiveSessionMessage, PendingUserMessage } from './transcript-vm';
+import type { AttachmentMeta as Attachment } from '@/features/attachments/types';
+import type { LiveSessionMessage, PendingUserMessage } from './transcript-vm';
 
 export interface OptimisticUserMessagesInput {
   /** The open session, or '' while the surface is a new-session draft. */

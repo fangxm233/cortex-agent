@@ -3,7 +3,7 @@
 // pos:    Persistent composer utilities for desktop and mobile
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import type { AttachmentMeta } from './chat-content';
+import type { AttachmentMeta } from '@/features/attachments/types';
 
 /** A persisted composer draft. `draftUploadId` is only set for a new-session (draft-mode) composer,
  *  where uploaded files land under attachments/<draftUploadId>/ before the session exists — it must

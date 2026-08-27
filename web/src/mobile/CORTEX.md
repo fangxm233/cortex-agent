@@ -2,7 +2,7 @@ Please update me when files in this folder change
 
 The mobile surface: its own router, four-tab shell and route-transition chrome, separate from desktop.
 This level holds the shell frame, tab/route model and mobile-only cross-screen logic.
-Tasks, issues, hook namespaces and status tones consume canonical feature/design models instead of local copies.
+Tasks, issues, attachments, hook namespaces and status tones consume canonical feature/design models instead of local copies.
 
 | filename | role | function |
 |---|---|---|

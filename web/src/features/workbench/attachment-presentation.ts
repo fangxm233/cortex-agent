@@ -3,7 +3,7 @@
 // pos:    Reusable attachment presentation helpers for workbench surfaces
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import type { AttachmentMeta } from './chat-content';
+import type { AttachmentMeta } from '@/features/attachments/types';
 import { formatBytes } from '@/lib/format';
 
 export function formatAttachmentSize(bytes: number): string {

@@ -14,7 +14,7 @@ import {
   DRAFT_KEY_PREFIX,
   type ComposerDraft,
 } from './composer-draft';
-import type { AttachmentMeta } from './chat-content';
+import type { AttachmentMeta } from '@/features/attachments/types';
 
 const meta = (name: string): AttachmentMeta => ({
   name,

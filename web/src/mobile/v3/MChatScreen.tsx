@@ -1,4 +1,4 @@
-// input:  Mobile session queries, live/shared run state, controllers, and mutations
+// input:  Mobile session queries, shared run/attachment controllers, drafts, and mutations
 // output: Mobile chat with prioritized status, profile, Todo, attachments, and interactions
 // pos:    Mobile session detail data orchestration and presentation composition
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -72,15 +72,9 @@ import {
   buildProfileSheetItems,
   type PendingAttachmentVM,
 } from './m-chat-vm';
-import {
-  addMobileChatFiles,
-  mobileAttachmentChipType,
-  nextMobileAttachmentId,
-  revokeUploadPreviews,
-  usePersistedMobileChatDraft,
-  useRestoredMobileAttachmentPreviews,
-  type PendingUpload,
-} from './m-chat-attachments';
+import { usePersistedMobileChatDraft } from './m-chat-attachments';
+import { attachmentSendAllowed, attachmentType } from '@/features/attachments/types';
+import { useAttachmentUploads } from '@/features/attachments/useAttachmentUploads';
 const EMPTY_TRANSCRIPT = { sessionId: '', turns: [] };
 
 const COPY: { en: MChatCopy; zh: MChatCopy } = {
@@ -366,7 +360,6 @@ export function MChatScreen(): JSX.Element {
 
   // ── local UI state ──
   const [text, setText] = useState('');
-  const [uploads, setUploads] = useState<PendingUpload[]>([]);
   const [moreOpen, setMoreOpen] = useState(false);
   const [sessionIdOpen, setSessionIdOpen] = useState(false);
   // sec-7: long-press action menu (held row) · 7b edit mode (edited row) · 原消息 sheet.
@@ -382,21 +375,22 @@ export function MChatScreen(): JSX.Element {
   const [contextUsageOpen, setContextUsageOpen] = useState(false);
   const [systemLines, setSystemLines] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const draftUploadId = useRef<string | null>(null);
-  if (isDraft && !draftUploadId.current) draftUploadId.current = crypto.randomUUID();
-  const uploadSessionId = isDraft ? (draftUploadId.current ?? '') : sessionId;
-
-  // Attachment persistence, restored previews and upload transport retain the screen's state owner
-  // while moving the attachment/session seam out of this controller.
   const draftKey = draftStorageKey({ isDraft, sessionId, projectId: currentProjectId });
+  const draftUploadId = useRef<string | null>(null);
+  const uploadIdentityRef = useRef<string | null>(null);
+  if (uploadIdentityRef.current !== draftKey) {
+    uploadIdentityRef.current = draftKey;
+    draftUploadId.current = isDraft ? (loadDraft(draftKey)?.draftUploadId ?? crypto.randomUUID()) : null;
+  }
+  const uploadSessionId = isDraft ? (draftUploadId.current ?? '') : sessionId;
+  const attachmentUploads = useAttachmentUploads({ scope: draftKey, bucket: uploadSessionId });
+  const uploads = attachmentUploads.items;
   const draftKeyRef = useRef<string | null | undefined>(undefined);
   usePersistedMobileChatDraft({
-    draftKey, isDraft, text, uploads, setText, setUploads, draftUploadId, draftKeyRef,
+    draftKey, isDraft, text, uploads, setText,
+    replaceRestored: attachmentUploads.replaceRestored, draftUploadId, draftKeyRef,
   });
-  useRestoredMobileAttachmentPreviews(uploads, setUploads);
-  const addFiles = (files: FileList | File[]): void => {
-    addMobileChatFiles(files, uploadSessionId, setUploads);
-  };
+  const addFiles = attachmentUploads.addFiles;
 
   const pickFiles = (accept: string, capture?: string): void => {
     const el = fileInputRef.current;
@@ -407,8 +401,8 @@ export function MChatScreen(): JSX.Element {
     el.click();
   };
 
-  const doneMetas = uploads.filter((u) => u.status === 'done' && u.meta).map((u) => u.meta!);
-  const uploading = uploads.some((u) => u.status === 'uploading');
+  const doneMetas = attachmentUploads.completed;
+  const attachmentsReady = !attachmentUploads.hasNonDone;
   const hasText = !!text.trim();
 
   // ── sec-7 edit mode (7b) ──
@@ -459,10 +453,11 @@ export function MChatScreen(): JSX.Element {
   const rejectArmed = !editArmed && !!rejectingId && rejectingId === pendingPlanId;
   const interactionMode = rejectArmed || !!pendingAskModel;
   const sendEnabled = editArmed
-    ? hasText && !rewindMut.isPending
+    ? hasText && attachmentsReady && !rewindMut.isPending
     : interactionMode
-      ? hasText && !interactionActions.busy
-      : (hasText || doneMetas.length > 0) && (!!sessionId || isDraft) && !uploading && !sendMut.isPending && !createAndSendMut.isPending;
+      ? hasText && attachmentsReady && !interactionActions.busy
+      : attachmentSendAllowed(text, uploads) && (!!sessionId || isDraft)
+        && !sendMut.isPending && !createAndSendMut.isPending;
 
   // A rejected send clears the composer optimistically too, so its content has to come back rather
   // than disappear with the row. Still on the same scope → merge it into the live composer (text
@@ -475,12 +470,7 @@ export function MChatScreen(): JSX.Element {
     }
     if (sent.draftUploadId) draftUploadId.current = sent.draftUploadId;
     setText((current) => [sent.text, current].filter((v) => v.length > 0).join('\n'));
-    setUploads((prev) => [
-      ...sent.attachments
-        .filter((m) => !prev.some((u) => u.meta?.path === m.path))
-        .map((m) => ({ id: nextMobileAttachmentId(), status: 'done' as const, progress: 100, meta: m, type: mobileAttachmentChipType(m.type) })),
-      ...prev,
-    ]);
+    attachmentUploads.mergeRestored(sent.attachments);
     setSystemLines((prev) => [...prev, lang === 'zh'
       ? `发送失败 · ${error.message} · 内容已退回输入框`
       : `send failed · ${error.message} · text restored to the composer`]);
@@ -492,10 +482,10 @@ export function MChatScreen(): JSX.Element {
     hasHistory: transcript.turns.length > 0 || liveTail.length > 0,
   }).map((profile) => ({ name: profile.name, detail: profile.sub, disabled: profile.disabled }));
   const slashAvailability = {
-    newDisabled: uploading,
+    newDisabled: attachmentUploads.hasNonDone,
     cancelDisabled: !running || cancelMut.isPending,
     compactDisabled: !active?.contextCompactionSupported || compactAction.disabled || compactAction.pending,
-    settingsDisabled: uploading,
+    settingsDisabled: attachmentUploads.hasNonDone,
   };
   const slashSuggestions = editArmed || rejectArmed || pendingAskModel
     ? []
@@ -590,20 +580,17 @@ export function MChatScreen(): JSX.Element {
           return;
         }
         optimistic.accept(entry.clientId, { acceptedAt: data.acceptedAt, createdSessionId: data.sessionId });
+        draftUploadId.current = null;
         setPendingCreatedSession({ sessionId: data.sessionId, profileName: draftProfile });
         queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
         navigate(`/m/session/${data.sessionId}`, { replace: true });
       },
       onRejected: (entry) => optimistic.reject(entry.clientId),
     });
-    // Draft consumed — drop the persisted copy and reset the draft upload dir for the next draft.
+    // Draft consumed optimistically; rejected sends restore against the same upload bucket.
     clearDraft(draftKey);
-    if (isDraft) draftUploadId.current = null;
     setText('');
-    setUploads((prev) => {
-      revokeUploadPreviews(prev);
-      return [];
-    });
+    attachmentUploads.reset();
     void mutation.then((result) => {
       if (!result.ok && result.restore) restoreRejectedSend(sent, sentKey, result.error);
     });
@@ -695,7 +682,17 @@ export function MChatScreen(): JSX.Element {
         ? '发送消息后提取为普通会话 · schedule 下次 run 不受影响'
         : 'Replying converts this run into a normal session · the schedule\'s next run is unaffected')
     : null;
-  const attachmentsVM: PendingAttachmentVM[] = uploads.map((u) => ({ id: u.id, name: u.file?.name ?? u.meta?.name ?? 'file', progress: u.progress, status: u.status, type: u.type, previewUrl: u.previewUrl }));
+  const attachmentsVM: PendingAttachmentVM[] = uploads.map((upload) => {
+    const type = attachmentType(upload);
+    return {
+      id: upload.id,
+      name: upload.file?.name ?? upload.meta?.name ?? 'file',
+      progress: upload.progress,
+      status: upload.status,
+      type: type === 'image' || type === 'video' ? type : 'file',
+      previewUrl: upload.previewUrl,
+    };
+  });
 
   return (
     <>
@@ -776,11 +773,8 @@ export function MChatScreen(): JSX.Element {
         onContextUsageOpen={() => setContextUsageOpen(true)}
         onContextUsageClose={() => setContextUsageOpen(false)}
         attachments={attachmentsVM}
-        onRemoveAttachment={(id) => setUploads((prev) => {
-          const gone = prev.find((u) => u.id === id);
-          if (gone?.previewUrl) URL.revokeObjectURL(gone.previewUrl);
-          return prev.filter((u) => u.id !== id);
-        })}
+        onRemoveAttachment={attachmentUploads.remove}
+        onRetryAttachment={attachmentUploads.retry}
         onPlus={() => setAttachMenuOpen((o) => !o)}
         attachMenuOpen={attachMenuOpen}
         onAttachClose={() => setAttachMenuOpen(false)}

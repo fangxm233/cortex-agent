@@ -1,5 +1,5 @@
-// input:  tool-call details, attachments and UI shortcuts
-// output: chat types and local slash-command catalog
+// input:  tool-call details and UI shortcuts
+// output: workbench tool types and local slash-command catalog
 // pos:    shared static shapes for workbench chat surfaces
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -13,15 +13,6 @@ export interface ToolCall {
     toolResult?: { content: string; isError: boolean };
     overCharacterThreshold?: true;
   };
-}
-
-/** Attachment metadata shared between composer and message display (15a). */
-export interface AttachmentMeta {
-  name: string;
-  path: string;
-  size: number;
-  mimeType: string;
-  type: 'image' | 'video' | 'file' | 'view';
 }
 
 /** UI-local composer shortcuts shared by desktop and mobile surfaces. */

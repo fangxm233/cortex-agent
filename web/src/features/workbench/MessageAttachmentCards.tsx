@@ -14,8 +14,7 @@ import { VideoThumb } from '@/features/media/VideoThumb';
 import { docKindOfAttachment } from '@/features/media/doc-kind';
 import { HtmlBody } from '@/features/media/HtmlBody';
 import { usePinnedPreview } from '@/features/media/PinnedPreviewProvider';
-import type { AttachmentMeta } from './chat-content';
-import type { Attachment } from './transcript-vm';
+import type { AttachmentMeta, AttachmentMeta as Attachment } from '@/features/attachments/types';
 import { attachmentFileExt, attachmentTypeColor, formatAttachmentSize } from './attachment-presentation';
 
 const mono = "'IBM Plex Mono',monospace";

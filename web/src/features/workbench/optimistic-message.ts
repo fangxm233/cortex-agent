@@ -1,9 +1,10 @@
-// input:  local sends plus transcript, live, and server-pending user rows
+// input:  local sends with neutral attachments plus transcript, live, and pending user rows
 // output: source-aware optimistic lifecycle and de-duplicated pending rows
 // pos:    Pure Web sender reconciliation state machine
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { SessionTranscript } from '@cortex-agent/ui-contract';
-import type { Attachment, LiveSessionMessage, PendingUserMessage } from './transcript-vm';
+import type { AttachmentMeta as Attachment } from '@/features/attachments/types';
+import type { LiveSessionMessage, PendingUserMessage } from './transcript-vm';
 
 export type OptimisticTarget =
   | { kind: 'session'; sessionId: string }

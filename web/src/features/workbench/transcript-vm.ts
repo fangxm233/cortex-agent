@@ -1,5 +1,5 @@
-// input:  transcript DTOs with DEBUG warnings, notices, pending data, and compact summaries
-// output: ChatRows, compact-authority subagent cards, turn-tail copy targets, and reconciliation
+// input:  transcript DTOs, neutral attachments, decisions, DEBUG data, pending data, compact summaries
+// output: ChatRows with compact subagents, previews, turn-copy targets, and reconciliation
 // pos:    Shared desktop/mobile transcript view-model
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type {
@@ -13,6 +13,7 @@ import type {
   TranscriptSubagentSummary,
 } from '@cortex-agent/ui-contract';
 import type { Vocab } from '@/i18n';
+import type { AttachmentMeta as Attachment } from '@/features/attachments/types';
 
 // Pure view-model for the workbench center-chat transcript (S4 chat, task aba0). Maps the real
 // `sessions.transcript` DTO (+ a live `session.message` tail) into the prototype's exact message-row
@@ -145,7 +146,6 @@ export function finalizeAssistantPreview(
   return { active, finalizedBlockIds };
 }
 
-export type Attachment = { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' | 'view' };
 
 // ── A user message the model has not read yet (`pending` / `session.message.delivered`) ─────────
 //

@@ -1,4 +1,4 @@
-// input:  Mobile chat composer modes, toolbar actions, suggestions, and attachment menu
+// input:  Mobile composer modes, attachment retry/remove actions, tools, and menus
 // output: Composer chrome, plus menu, profile/context tools, and slash suggestions
 // pos:    Mobile chat composer presentation seam
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -87,7 +87,7 @@ function RejectHeader({ props }: { props: MChatViewProps }): JSX.Element | null 
 }
 
 export function ComposerAbove({ props }: { props: MChatViewProps }): JSX.Element {
-  let mode: ReactNode = <ComposerAttachmentStrip attachments={props.attachments} onRemove={props.onRemoveAttachment} />;
+  let mode: ReactNode = <ComposerAttachmentStrip attachments={props.attachments} onRetry={props.onRetryAttachment} onRemove={props.onRemoveAttachment} />;
   if (props.editing && props.editCopy) mode = <EditBar title={props.editCopy.editBarTitle} onCancel={props.editing.onCancel} />;
   else if (props.rejectBar) mode = <RejectHeader props={props} />;
   return (

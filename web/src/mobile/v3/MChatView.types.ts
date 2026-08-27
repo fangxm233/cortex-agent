@@ -145,6 +145,7 @@ export interface MChatViewProps {
   onContextUsageClose: () => void;
   attachments: PendingAttachmentVM[];
   onRemoveAttachment: (id: string) => void;
+  onRetryAttachment: (id: string) => void;
   onPlus: () => void;
   attachMenuOpen: boolean;
   onAttachClose: () => void;

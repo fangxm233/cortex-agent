@@ -11,6 +11,7 @@ import {
 } from '@/features/workbench/transcript-vm';
 import { zhDivider } from '@/mobile/screens/mobile-session-vm';
 import type { SessionRunStatus } from '@/features/workbench/session-run-status';
+import type { AttachmentUploadStatus } from '@/features/attachments/types';
 import { formatUsd } from '@/lib/format';
 
 /** What the mobile chat's rows are built from beyond the fetched transcript + live tail. */
@@ -195,14 +196,13 @@ export function msgMenuGroupTop(l: MsgMenuLayout): number {
   return Math.max(MSG_MENU_SAFE_TOP, Math.min(l.anchorTop - l.overlayTop, lowest));
 }
 
-// ── 1o attachment chip model (real upload state machine, ported from desktop Composer) ──
-export type AttachmentStatus = 'pending' | 'uploading' | 'done' | 'error';
+// ── 1o attachment chip projection over the shared upload state machine ──
 export interface PendingAttachmentVM {
   id: string;
   name: string;
   /** 0-100 upload progress (scheme L774). */
   progress: number;
-  status: AttachmentStatus;
+  status: AttachmentUploadStatus;
   /** 'image' | 'video' | 'file' — drives the tappable preview thumbnail on the composer chip. */
   type?: 'image' | 'video' | 'file';
   /** Local object URL for an image/video preview (thumbnail + tap-to-open lightbox). */

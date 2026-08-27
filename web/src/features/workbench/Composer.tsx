@@ -1,5 +1,5 @@
 // input:  Session/browser state, shared run-status facts, shortcuts, attachments, and drafts
-// output: Guarded composer orchestration with prioritized browser and session status
+// output: Guarded composer over the neutral upload controller with prioritized run status
 // pos:    Workbench message input and turn-control surface
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useRef, useState, useCallback, useEffect, useLayoutEffect, type ReactNode } from 'react';
@@ -13,18 +13,16 @@ import {
 import { formatCost } from './right-panel-vm';
 import { useSelectedSession } from './SelectedSessionProvider';
 import { DRAFT_SENTINEL } from './selected-session';
-import type { AttachmentMeta } from './chat-content';
-import { fetchFileObjectUrl } from '@/lib/files';
+import {
+  attachmentSendAllowed, completedAttachmentMetas, type AttachmentMeta,
+} from '@/features/attachments/types';
+import { useAttachmentUploads } from '@/features/attachments/useAttachmentUploads';
 import {
   draftStorageKey, loadDraft, saveDraft, clearDraft, mergeRestoredDraft, type ComposerDraft,
 } from './composer-draft';
 import { ComposerStatusLine } from './ComposerStatusLine';
 import { ComposerSendFailure } from './ComposerSendFailure';
 import { ComposerAttachmentChip } from './ComposerAttachmentChip';
-import {
-  completedAttachmentMetas, mergeRestoredAttachments, nextAttachmentId, uploadComposerFile,
-  type PendingAttachment,
-} from './composer-attachments';
 import { browserStartupHint, browserStartupPending } from './browser-status';
 import { TodoRail } from './TodoRail';
 import { ComposerActionRow, ComposerSlashMenu, type ComposerBrowserControl } from './ComposerActionRow';
@@ -127,11 +125,15 @@ export function Composer({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
-  // In draft mode, there's no real sessionId for uploads. Generate a temp UUID once
-  // so files have somewhere to land; handleCreateAndSend moves them to the real session dir.
+  // Resolve a restored draft bucket before the shared controller binds. This keeps a scope change
+  // from briefly binding a random bucket and then clearing the restored metadata on the next render.
+  const draftKey = draftStorageKey({ isDraft, sessionId, projectId });
+  const draftIdentity = `${draftKey ?? ''}:${isDraft ? draftReloadToken : 0}`;
   const draftUploadId = useRef<string | null>(null);
-  if (isDraft && !draftUploadId.current) {
-    draftUploadId.current = crypto.randomUUID();
+  const uploadIdentityRef = useRef<string | null>(null);
+  if (uploadIdentityRef.current !== draftIdentity) {
+    uploadIdentityRef.current = draftIdentity;
+    draftUploadId.current = isDraft ? (loadDraft(draftKey)?.draftUploadId ?? crypto.randomUUID()) : null;
   }
   const uploadSessionId = isDraft ? (draftUploadId.current ?? '') : sessionId;
 
@@ -159,7 +161,8 @@ export function Composer({
   const [btnHover, setBtnHover] = useState(false);
 
   // ── Attachment state ──
-  const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+  const attachmentUploads = useAttachmentUploads({ scope: draftIdentity, bucket: uploadSessionId });
+  const attachments = attachmentUploads.items;
   const composerRef = useRef(composer);
   const attachmentsRef = useRef(attachments);
   composerRef.current = composer;
@@ -167,7 +170,6 @@ export function Composer({
   const [dragOver, setDragOver] = useState(false);
   const dragCount = useRef(0);
   const dragFileCount = useRef(0);
-  const abortControllers = useRef<Map<string, AbortController>>(new Map());
 
   // Re-fit the textarea whenever the chip row appears/disappears: its vertical padding changes with
   // attachments (2px→11px). Pasting an image mutates `attachments` but not `composer`, so the
@@ -184,8 +186,6 @@ export function Composer({
   // live on the server and are not wiped on boot). One effect both LOADS on scope change and SAVES on
   // content change, distinguished by comparing the live key to a ref — so switching sessions swaps the
   // draft cleanly and never writes the outgoing content under the incoming key.
-  const draftKey = draftStorageKey({ isDraft, sessionId, projectId });
-  const draftIdentity = `${draftKey ?? ''}:${isDraft ? draftReloadToken : 0}`;
   const currentDraftIdentityRef = useRef(draftIdentity);
   currentDraftIdentityRef.current = draftIdentity;
   const draftKeyRef = useRef<string | undefined>(undefined);
@@ -197,16 +197,7 @@ export function Composer({
       const d = loadDraft(draftKey);
       if (isDraft && d?.draftUploadId) draftUploadId.current = d.draftUploadId;
       setComposer(d?.text ?? '');
-      const restored: PendingAttachment[] = (d?.attachments ?? []).map((m) => ({
-        id: nextAttachmentId(),
-        status: 'done' as const,
-        progress: 100,
-        meta: m,
-      }));
-      setAttachments((prev) => {
-        prev.forEach((a) => { if (a.previewUrl) URL.revokeObjectURL(a.previewUrl); });
-        return restored;
-      });
+      attachmentUploads.replaceRestored(d?.attachments ?? []);
       return;
     }
     // Same scope, content changed → persist.
@@ -215,31 +206,13 @@ export function Composer({
       attachments: attachments.filter((a) => a.status === 'done' && a.meta).map((a) => a.meta!),
       ...(isDraft && draftUploadId.current ? { draftUploadId: draftUploadId.current } : {}),
     });
-  }, [draftKey, draftIdentity, composer, attachments, isDraft]);
-
-  // Restored media attachments have no local File → fetch an authenticated object URL for the
-  // thumbnail/lightbox preview (mirrors the message-stream file cards). Converges (previewUrl set
-  // excludes the entry on the next pass).
-  useEffect(() => {
-    let cancelled = false;
-    attachments
-      .filter((a) => !a.file && !a.previewUrl && a.status === 'done' && a.meta && (a.meta.type === 'image' || a.meta.type === 'video'))
-      .forEach((a) => {
-        fetchFileObjectUrl(a.meta!.path, 'inline')
-          .then((url) => {
-            if (cancelled) { URL.revokeObjectURL(url); return; }
-            setAttachments((prev) => prev.map((x) => (x.id === a.id ? { ...x, previewUrl: url } : x)));
-          })
-          .catch(() => { /* preview is best-effort */ });
-      });
-    return () => { cancelled = true; };
-  }, [attachments]);
+  }, [draftKey, draftIdentity, composer, attachments, isDraft, attachmentUploads.replaceRestored]);
 
   const hasAttachments = attachments.length > 0;
-  const doneAttachments = attachments.filter((a) => a.status === 'done');
-  const hasPendingUploads = attachments.some((a) => a.status === 'pending' || a.status === 'uploading');
-  const hasText = !!composer.trim();
-  const canSend = (hasText || doneAttachments.length > 0) && (!!sessionId || isDraft) && !sendMut.isPending && !createAndSendMut.isPending;
+  const doneAttachments = attachmentUploads.completed;
+  const hasPendingUploads = attachmentUploads.hasNonDone;
+  const canSend = attachmentSendAllowed(composer, attachments) && (!!sessionId || isDraft)
+    && !sendMut.isPending && !createAndSendMut.isPending;
   const composerBorder = slashOpen ? 'var(--proto-accent)' : dragOver ? 'var(--proto-accent)' : 'var(--proto-line-3)';
   const sendBg = canSend ? 'var(--proto-ink)' : 'var(--proto-line-3)';
   // Real agent-turn count; render — when unknown (no run yet / running turn before first progress).
@@ -276,68 +249,9 @@ export function Composer({
   };
   const slashList = buildSlashSuggestions(composer, slashProfiles, slashAvailability);
 
-  // ── File upload ──
-  const startUpload = useCallback((pending: PendingAttachment): void => {
-    if (!pending.file) return; // restored draft attachment — already on the server, nothing to upload
-    const file = pending.file;
-    const ctrl = new AbortController();
-    abortControllers.current.set(pending.id, ctrl);
-
-    setAttachments((prev) => prev.map((a) => (a.id === pending.id ? { ...a, status: 'uploading' as const, progress: 0 } : a)));
-
-    uploadComposerFile(
-      file,
-      uploadSessionId,
-      (pct) => setAttachments((prev) => prev.map((a) => (a.id === pending.id ? { ...a, progress: pct } : a))),
-      ctrl.signal,
-    )
-      .then((meta) => {
-        setAttachments((prev) => prev.map((a) => (a.id === pending.id ? { ...a, status: 'done' as const, progress: 100, meta } : a)));
-        abortControllers.current.delete(pending.id);
-      })
-      .catch((err) => {
-        if (err.message === 'Upload cancelled') return;
-        setAttachments((prev) => prev.map((a) => (a.id === pending.id ? { ...a, status: 'error' as const, errorMsg: err.message } : a)));
-        abortControllers.current.delete(pending.id);
-      });
-  }, [uploadSessionId]);
-
-  // ── Add files ──
-  const addFiles = useCallback((files: FileList | File[]): void => {
-    const newAttachments: PendingAttachment[] = Array.from(files).map((file) => ({
-      id: nextAttachmentId(),
-      file,
-      status: 'pending' as const,
-      progress: 0,
-      // Local preview for image/video: a client-side object URL powers the chip thumbnail + the
-      // click-to-open lightbox (no server round-trip needed for the sender's own file).
-      previewUrl: (file.type.startsWith('image/') || file.type.startsWith('video/')) ? URL.createObjectURL(file) : undefined,
-    }));
-    setAttachments((prev) => [...prev, ...newAttachments]);
-    // Start upload for each
-    newAttachments.forEach((a) => startUpload(a));
-  }, [startUpload]);
-
-  // ── Remove attachment ──
-  const removeAttachment = useCallback((id: string): void => {
-    const ctrl = abortControllers.current.get(id);
-    if (ctrl) ctrl.abort();
-    abortControllers.current.delete(id);
-    setAttachments((prev) => {
-      const gone = prev.find((a) => a.id === id);
-      if (gone?.previewUrl) URL.revokeObjectURL(gone.previewUrl);
-      return prev.filter((a) => a.id !== id);
-    });
-  }, []);
-
-  // ── Retry failed upload ──
-  const retryAttachment = useCallback((id: string): void => {
-    setAttachments((prev) => {
-      const a = prev.find((x) => x.id === id);
-      if (a) startUpload({ ...a, status: 'pending', progress: 0 });
-      return prev;
-    });
-  }, [startUpload]);
+  const addFiles = attachmentUploads.addFiles;
+  const removeAttachment = attachmentUploads.remove;
+  const retryAttachment = attachmentUploads.retry;
 
   // ── Drag & drop handlers ──
   const onDragEnter = useCallback((e: React.DragEvent): void => {
@@ -415,26 +329,21 @@ export function Composer({
     if (!stillCurrent) return;
     if (restored.draftUploadId) draftUploadId.current = restored.draftUploadId;
     setComposer(restored.text);
-    setAttachments((items) => mergeRestoredAttachments(items, sent.attachments));
+    attachmentUploads.mergeRestored(sent.attachments);
     setSendError(error.message);
   };
 
   const clearConsumedComposer = (): void => {
     clearDraft(draftKey);
     setComposer('');
-    setAttachments((items) => {
-      items.forEach((item) => { if (item.previewUrl) URL.revokeObjectURL(item.previewUrl); });
-      return [];
-    });
+    attachmentUploads.reset();
     setSlashOpen(false);
-    abortControllers.current.forEach((controller) => controller.abort());
-    abortControllers.current.clear();
     if (inputRef.current) inputRef.current.style.height = 'auto';
   };
 
   const doSendText = (raw: string): void => {
     const text = raw.trim();
-    const metas = doneAttachments.map((attachment) => attachment.meta!);
+    const metas = doneAttachments;
     if (!text && metas.length === 0) return;
     if (!isDraft && !sessionId) return;
     const sent: ComposerDraft = {
@@ -496,7 +405,7 @@ export function Composer({
   const consumeSlashText = (): void => {
     saveDraft(draftKey, {
       text: '',
-      attachments: completedAttachmentMetas(attachments),
+      attachments: doneAttachments,
       ...(isDraft && draftUploadId.current ? { draftUploadId: draftUploadId.current } : {}),
     });
     setComposer('');

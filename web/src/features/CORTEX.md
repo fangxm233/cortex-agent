@@ -1,10 +1,11 @@
 Please update me when files in this folder change
 
-One folder per desktop product surface, each owning its views, pure view models, hooks and provider.
-Cross-cutting concerns that any surface can pull in (live stream, media preview, notifications) live here too.
+One folder per product feature, owning its views, pure view models, hooks, provider, or neutral controller.
+Cross-cutting concerns that desktop and mobile both consume (attachments, live stream, media preview, notifications) live here too.
 
 | filename | role | function |
 |---|---|---|
+| attachments/ | subdir | Neutral attachment metadata, transport, bounded upload queue, and send gating |
 | projects/ | subdir | Neutral project selection and creation infrastructure |
 | workbench/ | subdir | Three-pane workbench frame, chat and panels |
 | tasks/ | subdir | Lifecycle-grouped task list and detail modal |

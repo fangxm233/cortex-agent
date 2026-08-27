@@ -1,5 +1,5 @@
-// input:  Transcript attachments, pending uploads, and mobile viewer providers
-// output: Message attachment groups and composer attachment strip
+// input:  Transcript attachments, shared queue items, retry/remove actions, and viewers
+// output: Message groups and queued/progress/error/done composer attachment strip
 // pos:    Mobile chat attachment presentation seam
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -11,7 +11,7 @@ import { docKindOfAttachment } from '@/features/media/doc-kind';
 import { mediaKindOf } from '@/features/media/media-kind';
 import { useWorkspaceObjectUrl } from '@/features/media/useWorkspaceObjectUrl';
 import { VideoThumb } from '@/features/media/VideoThumb';
-import type { Attachment } from '@/features/workbench/transcript-vm';
+import type { AttachmentMeta as Attachment } from '@/features/attachments/types';
 import { MC, MONO } from '@/mobile/ui/kit';
 import type { PendingAttachmentVM } from './m-chat-vm';
 
@@ -112,17 +112,22 @@ function ComposerPreview({ attachment }: { attachment: PendingAttachmentVM }): J
   );
 }
 
-function UploadStatus({ attachment }: { attachment: PendingAttachmentVM }): JSX.Element | null {
+function UploadStatus({ attachment, onRetry }: {
+  attachment: PendingAttachmentVM;
+  onRetry: () => void;
+}): JSX.Element | null {
+  if (attachment.status === 'queued') return <span style={{ font: `500 9px ${MONO}`, color: MC.muted }}>queued</span>;
   if (attachment.status === 'uploading') {
     return <><div style={{ width: 34, height: 4, borderRadius: 999, background: 'var(--proto-line-2)', overflow: 'hidden' }}><div style={{ width: `${attachment.progress}%`, height: '100%', background: MC.run }} /></div><span style={{ font: `400 9px ${MONO}`, color: MC.run }}>{attachment.progress}%</span></>;
   }
   if (attachment.status === 'done') return <span style={{ fontSize: 10, color: MC.done, fontWeight: 700 }}>✓</span>;
-  if (attachment.status === 'error') return <span style={{ fontSize: 10, color: MC.fail, fontWeight: 700 }}>!</span>;
+  if (attachment.status === 'error') return <span role="button" onClick={onRetry} style={{ font: `600 9px ${MONO}`, color: MC.fail, cursor: 'pointer' }}>retry</span>;
   return null;
 }
 
-function ComposerChip({ attachment, onRemove }: {
+function ComposerChip({ attachment, onRetry, onRemove }: {
   attachment: PendingAttachmentVM;
+  onRetry: () => void;
   onRemove: () => void;
 }): JSX.Element {
   const uploading = attachment.status === 'uploading';
@@ -130,20 +135,21 @@ function ComposerChip({ attachment, onRemove }: {
     <div style={{ display: 'flex', alignItems: 'center', gap: uploading ? 7 : 6, background: 'var(--proto-card)', border: `1px solid ${uploading ? MC.runBorder : MC.hairline}`, borderRadius: 9, padding: '5px 9px', flex: 'none' }}>
       <ComposerPreview attachment={attachment} />
       <span style={{ font: `500 10px ${MONO}`, color: MC.body }}>{attachment.name}</span>
-      <UploadStatus attachment={attachment} />
+      <UploadStatus attachment={attachment} onRetry={onRetry} />
       <span onClick={onRemove} style={{ color: MC.faint, fontSize: 11, cursor: 'pointer' }}>✕</span>
     </div>
   );
 }
 
-export function ComposerAttachmentStrip({ attachments, onRemove }: {
+export function ComposerAttachmentStrip({ attachments, onRetry, onRemove }: {
   attachments: PendingAttachmentVM[];
+  onRetry: (id: string) => void;
   onRemove: (id: string) => void;
 }): JSX.Element | null {
   if (attachments.length === 0) return null;
   return (
     <div style={{ display: 'flex', gap: 6, padding: '0 2px 7px', overflowX: 'auto' }}>
-      {attachments.map((attachment) => <ComposerChip key={attachment.id} attachment={attachment} onRemove={() => onRemove(attachment.id)} />)}
+      {attachments.map((attachment) => <ComposerChip key={attachment.id} attachment={attachment} onRetry={() => onRetry(attachment.id)} onRemove={() => onRemove(attachment.id)} />)}
     </div>
   );
 }
