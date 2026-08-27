@@ -15,6 +15,7 @@ Committed campaign documents declare the trials one `cortex-bench run` executes.
 | terminal-bench-2.1-pi-codex-xhigh.yaml | campaign | Declares the paid three-task PI OpenAI Codex xhigh wave over the PI task variants |
 | terminal-bench-2.1-cortex-direct-codex-xhigh.yaml | campaign | Declares the paid three-task Cortex direct PI OpenAI Codex xhigh wave over the standard Cortex task variants |
 | terminal-bench-2.1-codex-xhigh-mounted-gate.yaml | campaign | Declares the paid three-task three-arm gpt-5.6-sol xhigh gate for the mounted-runtime external-corpus launch path |
+| terminal-bench-2.1-tmpdir-gate.yaml | campaign | Declares lab-ksu's one-trial gate re-running the task whose output volume exposed the unmade TMPDIR, before 623 trials depend on the fix |
 | terminal-bench-2.1-full-xhigh-baselines.yaml | campaign | Declares lab-ksu's 89-task gpt-5.6-sol xhigh segment for the two vendor baselines |
 | terminal-bench-2.1-full-xhigh-cortex.yaml | campaign | Declares lab-ksu's 89-task gpt-5.6-sol xhigh segment for the five Cortex orchestrations |
 | terminal-bench-2.1-cortex-direct-codex-xhigh-recovery.yaml | campaign | Recovers the direct xhigh constraints trial that failed before provider execution |

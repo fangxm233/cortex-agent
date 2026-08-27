@@ -1,0 +1,105 @@
+# input:  the one Terminal-Bench 2.1 task whose output volume exposed an unmade TMPDIR
+# output: one paid gpt-5.6-sol xhigh PI trial on lab-ksu, before 623 depend on the fix
+# pos:    lab-ksu TMPDIR fix gate
+# >>> If I am updated, update my header and folder CORTEX.md <<<
+#
+# db-wal-recovery is the trial the mounted-runtime gate lost on 2026-08-27. PI's bash executor
+# spills a command's output to `os.tmpdir()` once it outgrows its buffer, the sealed environment
+# named that directory under the trial home, and nothing created it -- so the arm died on the one
+# task of three that produced enough output to reach the spill. The two quieter tasks passed,
+# which is exactly why this needs its own gate: a fix verified on a quiet task proves nothing.
+#
+# It runs on lab-ksu rather than lab2 because lab2's checkout is shared with another session whose
+# edits to web/ sit inside the npm artifact's provenance scope, so every launch there races a
+# rebuild. This is also the machine the 623 trials run on, so the gate exercises the real path.
+#
+#   benchmark/harness/scripts/bench --config ../campaigns/terminal-bench-2.1-tmpdir-gate.yaml --run
+
+schema_version: cortex-bench-campaign/1
+campaign: tb21-tmpdir-gate
+paid: true
+trials_dir: /home/xinmin/cortex-benchmark/runs/tb21-tmpdir-gate
+cli_version: "2026.8.6"
+concurrency: 1
+
+timeouts:
+  agent_seconds: 2100
+  verifier_seconds: 1800
+
+manifest:
+  wheel_path: ../harness/dist/cortex_bench_harness-0.1.0-py3-none-any.whl
+  npm_artifact_path: ../harness/dist/cortex-agent-server-2026.8.6.tgz
+  lockfile_path: ../harness/uv.lock
+  lockfile_manifest_path: benchmark/harness/uv.lock
+
+credential:
+  upstream_base_url: https://chatgpt.com/backend-api
+  route_identity_host: chatgpt.com
+  proxy_host_suffix: proxy.invalid
+  dummy_token_ref: paid-codex-dummy-token
+
+host_scan_policy:
+  secret_environment:
+    provider_credential: CORTEX_BENCH_CODEX_CREDENTIAL
+  forbidden_environment:
+    host_forbidden: CORTEX_BENCH_PAID_FORBIDDEN
+  forbidden_argv_environment:
+    host_argv: CORTEX_BENCH_PAID_FORBIDDEN_ARGV
+  repository_checkout_environment: CORTEX_BENCH_PAID_CHECKOUT
+  host_identity_environment:
+    machine: CORTEX_BENCH_PAID_IDENTITY
+
+docker_network:
+  subnet_pool: 172.27.16.0/20
+  subnet_prefix: 24
+
+# Without these three fields this campaign would be bounded by one access token's lifetime, which
+# no 89-task segment fits inside. The refresh token is named here and read from the auth file at
+# execution time; refreshing happens in the host proxy process and the container still sees only
+# a dummy.
+proxy:
+  credential_env: CORTEX_BENCH_CODEX_CREDENTIAL
+  refresh_credential_env: CORTEX_BENCH_CODEX_REFRESH
+  token_endpoint_url: https://auth.openai.com/oauth/token
+  oauth_client_id: app_EMoamEEZ73f0CkXaXp7hrann
+  request_body_limit_bytes: 67108864
+  response_body_limit_bytes: 67108864
+  listen_host: 0.0.0.0
+
+runtimes:
+  node: /home/xinmin/cortex-benchmark/runtimes/node
+  pi: /home/xinmin/cortex-benchmark/runtimes/pi
+  codex: /home/xinmin/cortex-benchmark/runtimes/codex
+  verifier: /home/xinmin/cortex-benchmark/runtimes/verifier
+
+arms:
+  - name: pi-cdx
+    kind: vendor-baseline
+    vendor_agent: pi
+    vendor_cli_version: "0.82.1"
+    provider: openai-codex
+    model: gpt-5.6-sol
+    credential_capability: pi-openai-codex-oauth
+    thinking: xhigh
+    runtime_mounts: [node, pi, verifier]
+    limits:
+      max_provider_requests: 500
+      max_cost_usd: "2.00"
+      deadline_seconds: 1800
+      max_output_tokens: 65536
+
+
+# `open`, matching every campaign whose scores these are compared against. See campaigns/CORTEX.md
+# for what that costs a score.
+network:
+  mode: open
+
+task_source:
+  kind: external
+  root: /home/xinmin/cortex-benchmark/assets/terminal-bench-2.1-7131e437/tasks
+  inventory: ../external-suites/terminal-bench-2.1-7131e437-images.json
+  select:
+    mode: include
+    ids: [db-wal-recovery]
+
+comparisons: []
