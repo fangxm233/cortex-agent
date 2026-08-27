@@ -62,8 +62,28 @@ from .trial_admission_io import (
     redact_mount_sources,
 )
 
-ADMISSION_SCHEMA_VERSION = "cortex-harbor-launch-admission/2"
+ADMISSION_SCHEMA_VERSION = "cortex-harbor-launch-admission/3"
 ADMISSION_EVIDENCE_FILENAME = "harbor-launch-admission.json"
+# What a task image may not declare for itself.
+#
+# Until 2026-08-27 the rule was that an image's own environment had to be a subset of the keys
+# this harness injects. That is satisfiable only by an image this harness built. Running the
+# unmodified upstream corpus, 47 of 89 tasks were refused -- 46 of them for carrying
+# `GPG_KEY`, `PYTHON_VERSION` and `PYTHON_SHA256`, which is what `FROM python:3.x` puts in every
+# image built on it.
+#
+# The subset rule was not what kept the image's environment away from the trial. `isolated_command`
+# runs every command as `exec env -i <sealed keys> /bin/bash -c ...`, so the agent and the verifier
+# start from an empty environment holding exactly the sealed values, whatever the image declared.
+# The one process that does inherit the image's environment is the service's own entrypoint, which
+# `docker compose up` starts. These keys are refused because each of them can send that process's
+# traffic somewhere else, or load code into it before its main runs. Everything else is admitted
+# and recorded: the image is pinned by digest, so what it declares cannot change without the pin
+# changing, and the evidence names the full set either way.
+IMAGE_ENVIRONMENT_DENYLIST = frozenset({
+    "ALL_PROXY", "BASH_ENV", "HTTPS_PROXY", "HTTP_PROXY", "LD_AUDIT", "LD_LIBRARY_PATH",
+    "LD_PRELOAD", "NODE_OPTIONS", "NO_PROXY",
+})
 ADMISSION_ENVIRONMENT_IMPORT_PATH = "cortex_bench_harness.launcher.trial_admission:AdmittedDockerEnvironment"
 TRIAL_ROOT = PurePosixPath("/logs/agent/trial-home")
 VERIFIER_UVX_ALIAS = TRIAL_ROOT / "home/.local/bin/uvx"
@@ -859,6 +879,7 @@ def _projection_record(projection: VendorRuntimeProjection) -> dict[str, object]
 def _evidence_document(
     contract: Mapping[str, object], mounts: list[dict[str, object]], network: Mapping[str, object],
     projection: VendorRuntimeProjection | None = None,
+    image_environment: Mapping[str, str] | None = None,
 ) -> dict[str, object]:
     environment: dict[str, object] = {
         "admitted_keys": sorted(_contract_keys(contract, "admitted_environment_keys")),
@@ -867,11 +888,19 @@ def _evidence_document(
     }
     if projection is not None:
         environment["runtime_projection"] = _projection_record(projection)
+    # `inheritance: none` above is a statement about the trial's processes, which `env -i` makes
+    # true. These two say what the image itself carried, so the attestation is complete rather
+    # than only complete about the part the harness controls.
+    declared = dict(image_environment or {})
     return {
         "schema_version": ADMISSION_SCHEMA_VERSION,
         "trial_id": _required_text(contract, "trial_id"),
         "root_run_id": _required_text(contract, "root_run_id"),
-        "image": {"reference": _required_text(contract, "image_ref"), "pinned": True},
+        "image": {
+            "reference": _required_text(contract, "image_ref"), "pinned": True,
+            "declared_environment_keys": sorted(declared),
+            "declared_environment_digest": environment_digest(declared),
+        },
         "environment": environment,
         "mounts": redact_mount_sources(mounts),
         "network": dict(network),
@@ -970,6 +999,9 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
         self._sealed_mounts = [dict(mount) for mount in mounts]
         self._evidence_path = trial_paths.artifacts_dir / ADMISSION_EVIDENCE_FILENAME
         self._proxy_controller: Any | None = None
+        # Filled by `_validate_image_configuration`, which runs before anything is armed. Empty
+        # until then, and empty for an image that declares no environment of its own.
+        self._image_environment: dict[str, str] = {}
 
     def bind_proxy_controller(self, controller: object) -> None:
         if self._proxy_controller is not None:
@@ -995,11 +1027,14 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
             raise HarborTrialAdmissionError(
                 f"image volumes are not admitted: {sorted(volumes)}"
             )
-        unknown = sorted(set(environment) - self._admitted_environment_keys)
-        if unknown:
+        steering = sorted(
+            key for key in environment if key.upper() in IMAGE_ENVIRONMENT_DENYLIST
+        )
+        if steering:
             raise HarborTrialAdmissionError(
-                f"image environment contains unadmitted keys: {unknown}"
+                f"image environment steers the container out of the sealed environment: {steering}"
             )
+        self._image_environment = dict(sorted(environment.items()))
 
     def _arm_proxy_route(
         self, contract: Mapping[str, object],
@@ -1125,7 +1160,8 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
             route, session = self._arm_proxy_route(contract)
             projection, contract, records, network = self._admit_vendor_runtime(session)
             network["proxy_route"] = route
-            document = _evidence_document(contract, records, network, projection)
+            document = _evidence_document(
+                contract, records, network, projection, self._image_environment)
             if projection is not None:
                 atomic_write_json(self._evidence_path, document)
             await super().start(force_build=False)

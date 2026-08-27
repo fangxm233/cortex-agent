@@ -790,10 +790,16 @@ def test_launch_evidence_is_atomic_secret_free_and_complete(tmp_path: Path) -> N
     path = evidence_path(trial)
     document = json.loads(path.read_text())
     serialized = path.read_text()
-    assert document["schema_version"] == "cortex-harbor-launch-admission/2"
+    assert document["schema_version"] == "cortex-harbor-launch-admission/3"
     assert document["trial_id"] == "trial-one"
     assert document["root_run_id"] == "trial-one.cortex-direct"
-    assert document["image"] == {"reference": IMAGE_REF, "pinned": True}
+    # The two fields recording what the image itself carried travel with the reference, so the
+    # attestation covers the whole container rather than only the part this harness supplies.
+    assert document["image"] == {
+        "reference": IMAGE_REF, "pinned": True,
+        "declared_environment_keys": ["LANG", "PATH"],
+        "declared_environment_digest": document["image"]["declared_environment_digest"],
+    }
     assert document["environment"]["configured_keys"] == sorted(
         trial.config.environment.env
     )
@@ -944,29 +950,57 @@ def patch_image_inspect(
     return start
 
 
-def test_container_start_rejects_unknown_image_environment_keys(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(
+    "declared", ["HTTP_PROXY=http://elsewhere:3128", "http_proxy=http://elsewhere:3128",
+                 "LD_PRELOAD=/tmp/first.so", "NODE_OPTIONS=--require /tmp/first.js"],
+)
+def test_container_start_refuses_an_image_that_steers_its_own_entrypoint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, declared: str,
 ) -> None:
+    """`env -i` keeps these away from the agent; the service's entrypoint still inherits them."""
     trial = create_trial(tmp_path)
-    start = patch_image_inspect(
-        monkeypatch, ["PATH=/image/path", "AWS_ACCESS_KEY_ID=ambient"],
-    )
+    start = patch_image_inspect(monkeypatch, ["PATH=/image/path", declared])
 
-    with pytest.raises(HarborTrialAdmissionError, match="image environment"):
+    with pytest.raises(HarborTrialAdmissionError, match="steers the container"):
         asyncio.run(trial.agent_environment.start(force_build=False))
     start.assert_not_awaited()
 
 
-def test_container_start_accepts_only_keys_overridden_by_the_sealed_environment(
+def test_container_start_admits_what_an_upstream_base_image_carries(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """46 of the 89 Terminal-Bench 2.1 images are `FROM python:3.x`, and every one of them
+    carries these three. Refusing them refused the corpus, not a risk."""
     trial = create_trial(tmp_path)
-    start = patch_image_inspect(monkeypatch, ["PATH=/image/path", "LANG=C"])
+    start = patch_image_inspect(monkeypatch, [
+        "PATH=/image/path", "LANG=C", "GPG_KEY=A035C8C19219BA821ECEA86B64E628F8D684696D",
+        "PYTHON_VERSION=3.13.1", "PYTHON_SHA256=9c30bc7f", "PYTHONPATH=/app:",
+    ])
 
     asyncio.run(trial.agent_environment.start(force_build=False))
     LIVE_PROXY_HANDLES.append(trial.agent.proxy_session.handle)
 
     start.assert_awaited_once_with(force_build=False)
+
+
+def test_the_evidence_names_everything_the_image_declared(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Admitting a key is only safe if the attestation still says the container carried it."""
+    trial = create_trial(tmp_path)
+    patch_image_inspect(
+        monkeypatch, ["PATH=/image/path", "PYTHON_VERSION=3.13.1", "GPG_KEY=A035C8C1"])
+
+    asyncio.run(trial.agent_environment.start(force_build=False))
+    LIVE_PROXY_HANDLES.append(trial.agent.proxy_session.handle)
+    document = json.loads(trial.agent_environment._evidence_path.read_text(encoding="utf-8"))
+
+    assert document["image"]["declared_environment_keys"] == [
+        "GPG_KEY", "PATH", "PYTHON_VERSION"]
+    assert document["image"]["declared_environment_digest"]
+    # The values are what a digest is for: the evidence travels, and one of these could be a
+    # secret the upstream image baked in for its own reasons.
+    assert "A035C8C1" not in json.dumps(document)
 
 
 def test_image_inspection_does_not_block_other_coroutines(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

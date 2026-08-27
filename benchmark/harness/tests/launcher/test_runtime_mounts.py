@@ -133,7 +133,7 @@ def test_the_sealed_contract_and_the_harbor_config_carry_the_same_read_only_moun
         "type": "bind", "source": staged["node"], "target": NODE_TARGET, "read_only": True}]
     contract = config.environment.kwargs["admission"]
     assert contract["runtime_mounts"] == {NODE_TARGET: staged["node"]}
-    assert contract["schema_version"] == "cortex-harbor-launch-admission/2"
+    assert contract["schema_version"] == "cortex-harbor-launch-admission/3"
 
 
 def test_a_trial_with_no_runtime_mounts_declares_none_at_all(tmp_path: Path) -> None:

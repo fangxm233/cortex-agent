@@ -89,3 +89,30 @@ carry the same tree — 89 tasks times three vendors is 267 builds, and that cos
 An arm that mounts anything must mount the CLI of the backend it drives: a Cortex arm on `pi`
 needs `pi` as well as `node`, because the server shells out to it. An arm that mounts nothing is
 the historical arm, and finds everything it needs baked into its image.
+
+## What a task image may declare for itself
+
+A campaign that runs unmodified upstream images inherits whatever those images declare. Until
+2026-08-27 admission required an image's own environment to be a subset of the keys the harness
+injects, which only an image the harness built could satisfy: 47 of the 89 Terminal-Bench 2.1
+tasks were refused, 46 of them for carrying `GPG_KEY`, `PYTHON_VERSION` and `PYTHON_SHA256` —
+what `FROM python:3.x` leaves in every image built on it.
+
+That rule was never what kept the image's environment away from the trial. Every command the
+harness runs goes through `exec env -i <sealed keys>`, so the agent and the verifier start from an
+empty environment holding exactly the sealed values no matter what the image declares. What the
+rule actually did was refuse legitimate images for declaring variables that cannot reach the
+measured process.
+
+Admission now refuses only the keys that can steer the one process which does inherit the image's
+environment — the service's own entrypoint, started by `docker compose up`: the proxy family,
+`LD_PRELOAD` and its siblings, `NODE_OPTIONS`, `BASH_ENV`. Everything else is admitted, and the
+launch evidence records the image's full declared key set with a digest of its values, so the
+attestation describes the whole container rather than only the part the harness supplies. The
+integrity guarantee is unchanged and comes from where it always came from: the image is pinned by
+digest, so what it declares cannot change without the pin changing.
+
+One consequence is worth knowing before reading a score. `env -i` strips the image's variables
+from the agent's environment, so a task whose fixtures expect one — `multi-source-data-merger`
+ships `PYTHONPATH=/app:` — is solved without it. That is how this harness has always run tasks,
+and it is a property of the measurement, not of the agent being measured.
