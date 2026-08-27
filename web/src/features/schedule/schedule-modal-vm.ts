@@ -1,8 +1,7 @@
-// Pure form → schedules.add logic for the New-schedule overlay (design 7c, prototype L1431-1459).
-// Framework-free so the DTO/value mapping is unit-tested in isolation. The modal (ScheduleModal.tsx)
-// and the provider (ScheduleModalProvider.tsx) hold React state + the tRPC mutation; this file only
-// derives: which fields a TYPE shows, the real `ScheduleAddArgs` payload, validation, and the footer
-// next-run label. intervalMs / delay are raw ms ints per the backend zod contract (scheduleAddInput).
+// input:  schedule DTOs, create/edit form values, and API field constraints
+// output: initialized forms, editable-field gates, validated payloads, and next-run labels
+// pos:    Framework-free schedule editor view model shared by desktop and mobile
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { ScheduleAddArgs, ScheduleUpdateArgs, ScheduleInfo } from '@cortex-agent/ui-contract';
 
@@ -83,6 +82,18 @@ export interface FieldVisibility {
   delay: boolean;
 }
 
+export type ScheduleEditorMode = 'create' | 'edit';
+
+/** Every form field is gated from the actual add/update contracts, not merely disabled in views. */
+export interface ScheduleEditableFields extends FieldVisibility {
+  type: boolean;
+  message: boolean;
+  profile: boolean;
+  projectId: boolean;
+  target: boolean;
+  fallback: boolean;
+}
+
 export function visibleFields(type: SchedType): FieldVisibility {
   return {
     time: type === 'daily' || type === 'weekly',
@@ -90,6 +101,54 @@ export function visibleFields(type: SchedType): FieldVisibility {
     dayOfWeek: type === 'weekly',
     delay: type === 'once',
   };
+}
+
+export function editableScheduleFields(
+  mode: ScheduleEditorMode,
+  type: SchedType,
+): ScheduleEditableFields {
+  const timing = visibleFields(type);
+  const editing = mode === 'edit';
+  return {
+    ...timing,
+    // A once DTO has no original delay/runAt and schedules.update accepts no once timing field.
+    delay: timing.delay && !editing,
+    type: !editing,
+    message: true,
+    profile: true,
+    projectId: true,
+    target: !editing,
+    fallback: !editing,
+  };
+}
+
+const FIELD_GATES: Partial<Record<keyof ScheduleForm, keyof ScheduleEditableFields>> = {
+  intervalValue: 'interval',
+  intervalUnit: 'interval',
+  delayValue: 'delay',
+  delayUnit: 'delay',
+};
+
+function patchFieldEditable(
+  fields: ScheduleEditableFields,
+  key: keyof ScheduleForm,
+): boolean {
+  const gate = FIELD_GATES[key] ?? key;
+  return fields[gate as keyof ScheduleEditableFields] ?? false;
+}
+
+/** Apply only fields accepted by the current API mode, protecting headless consumers too. */
+export function applyEditableSchedulePatch(
+  form: ScheduleForm,
+  mode: ScheduleEditorMode,
+  patch: Partial<ScheduleForm>,
+): ScheduleForm {
+  const fields = editableScheduleFields(mode, form.type);
+  const accepted: Partial<ScheduleForm> = {};
+  for (const key of Object.keys(patch) as (keyof ScheduleForm)[]) {
+    if (patchFieldEditable(fields, key)) Object.assign(accepted, { [key]: patch[key] });
+  }
+  return { ...form, ...accepted };
 }
 
 export function unitToMs(value: number, unit: IntervalUnit): number {
@@ -165,15 +224,36 @@ export interface Validation {
   errors: string[];
 }
 
-export function validateScheduleForm(form: ScheduleForm): Validation {
-  const errors: string[] = [];
-  if (form.message.trim().length === 0) errors.push('message is required');
-  if (form.type === 'interval' && !(form.intervalValue > 0)) errors.push('interval must be > 0');
-  if ((form.type === 'daily' || form.type === 'weekly') && !TIME_RE.test(form.time))
-    errors.push('time must be HH:MM');
-  if (form.type === 'weekly' && !(form.dayOfWeek >= 0 && form.dayOfWeek <= 6))
-    errors.push('dayOfWeek must be 0..6');
-  if (form.type === 'once' && !(form.delayValue > 0)) errors.push('delay must be > 0');
+function messageError(form: ScheduleForm): string | null {
+  return form.message.trim() ? null : 'message is required';
+}
+
+function intervalError(form: ScheduleForm): string | null {
+  return form.type === 'interval' && !(form.intervalValue > 0) ? 'interval must be > 0' : null;
+}
+
+function timeError(form: ScheduleForm): string | null {
+  const timed = form.type === 'daily' || form.type === 'weekly';
+  return timed && !TIME_RE.test(form.time) ? 'time must be HH:MM' : null;
+}
+
+function weekdayError(form: ScheduleForm): string | null {
+  const invalid = !(form.dayOfWeek >= 0 && form.dayOfWeek <= 6);
+  return form.type === 'weekly' && invalid ? 'dayOfWeek must be 0..6' : null;
+}
+
+function delayError(form: ScheduleForm, mode: ScheduleEditorMode): string | null {
+  const invalid = form.type === 'once' && mode === 'create' && !(form.delayValue > 0);
+  return invalid ? 'delay must be > 0' : null;
+}
+
+export function validateScheduleForm(
+  form: ScheduleForm,
+  mode: ScheduleEditorMode = 'create',
+): Validation {
+  const candidates = [messageError(form), intervalError(form), timeError(form),
+    weekdayError(form), delayError(form, mode)];
+  const errors = candidates.filter((error): error is string => error !== null);
   return { ok: errors.length === 0, errors };
 }
 

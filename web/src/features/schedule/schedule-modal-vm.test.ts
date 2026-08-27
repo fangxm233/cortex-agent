@@ -1,3 +1,8 @@
+// input:  schedule forms and DTO fixtures across create/edit modes
+// output: payload, validation, timing, field-lock, and initialization regressions
+// pos:    Pure shared schedule editor view-model specification
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import { describe, it, expect } from 'vitest';
 import {
   defaultScheduleForm,
@@ -5,6 +10,7 @@ import {
   unitToMs,
   buildScheduleAddArgs,
   validateScheduleForm,
+  editableScheduleFields,
   computeNextRun,
   profileOptions,
   DAY_OPTIONS,
@@ -151,9 +157,39 @@ describe('validateScheduleForm', () => {
     expect(validateScheduleForm(form({ type: 'weekly', time: '09:00', dayOfWeek: 7, message: 'x' })).ok).toBe(false);
     expect(validateScheduleForm(form({ type: 'weekly', time: '09:00', dayOfWeek: 6, message: 'x' })).ok).toBe(true);
   });
-  it('once requires a positive delay', () => {
-    expect(validateScheduleForm(form({ type: 'once', delayValue: 0, message: 'x' })).ok).toBe(false);
-    expect(validateScheduleForm(form({ type: 'once', delayValue: 3, message: 'x' })).ok).toBe(true);
+  it('once creation requires a positive delay, but once editing never validates unavailable timing', () => {
+    const once = form({ type: 'once', delayValue: 0, message: 'x' });
+    expect(validateScheduleForm(once, 'create').ok).toBe(false);
+    expect(validateScheduleForm(once, 'edit').ok).toBe(true);
+    expect(validateScheduleForm({ ...once, message: ' ' }, 'edit').ok).toBe(false);
+  });
+});
+
+describe('editableScheduleFields', () => {
+  it('locks fields omitted by schedules.update and hides unavailable once timing', () => {
+    expect(editableScheduleFields('edit', 'once')).toMatchObject({
+      type: false,
+      delay: false,
+      target: false,
+      fallback: false,
+      message: true,
+      profile: true,
+    });
+  });
+
+  it('only enables the timing fields supported by the persisted schedule type', () => {
+    expect(editableScheduleFields('edit', 'weekly')).toMatchObject({
+      time: true,
+      dayOfWeek: true,
+      interval: false,
+      delay: false,
+    });
+    expect(editableScheduleFields('edit', 'interval')).toMatchObject({
+      time: false,
+      dayOfWeek: false,
+      interval: true,
+      delay: false,
+    });
   });
 });
 

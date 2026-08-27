@@ -17,7 +17,7 @@ Cross-cutting concerns that any surface can pull in (live stream, media preview,
 | auth/ | subdir | Responsive provider login flow overlay |
 | issues/ | subdir | Non-blocking issue queue overlay |
 | notes/ | subdir | Private project notes on desktop surfaces |
-| schedule/ | subdir | New-schedule overlay |
+| schedule/ | subdir | Shared create/edit controller and desktop schedule overlay |
 | settings/ | subdir | Settings modal and its panels |
 | command-palette/ | subdir | Global search and command overlay |
 | notifications/ | subdir | In-app toasts for replies and notices |

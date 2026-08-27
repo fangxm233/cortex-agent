@@ -19,7 +19,7 @@ The shell mounts the neutral features/projects selection provider used by every 
 | mobile-tabs.test.ts | test | Unit tests for path to tab mapping |
 | mobile-tasks.ts | core | Groups tasks into six sections, done newest-first |
 | mobile-tasks.test.ts | test | Tests mobile classification and done order |
-| use-back-dismiss.ts | hook | Guards overlay history without undoing route navigation |
+| use-back-dismiss.ts | hook | Guards overlay history and re-arms after consumed nested-level back |
 | use-back-dismiss.test.ts | test | Tests back dismissal and replaced-sentinel cleanup |
 | use-viewport-height.ts | hook | Publishes keyboard-aware viewport size |
 | use-viewport-height.test.ts | test | Unit tests for viewport height mirroring |

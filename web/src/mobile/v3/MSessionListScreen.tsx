@@ -1,6 +1,6 @@
-// input:  session/schedule queries, project scope, mobile navigation
-// output: Sessions tab with sentinel-safe Scheduled run navigation
-// pos:    Mobile session-list data container
+// input:  session/schedule queries, project scope, mobile navigation, and editor-capable sheet
+// output: Sessions tab with sentinel-safe Scheduled run and edit navigation
+// pos:    Mobile session-list data container for the single Scheduled sheet
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 // 1a 会话列表 — the current project's direct sessions, day-grouped, newest first (scheme 1a L86-128).
 // ＋ opens a new-session draft; a row drills into the chat page (1b). The header clock button
@@ -36,6 +36,7 @@ const SHEET_COPY: { en: MScheduleSheetCopy; zh: MScheduleSheetCopy } = {
     nextIn: 'next in {d}',
     allRuns: 'all {n} runs',
     runListHint: 'tap a run → opens that session',
+    edit: 'Edit schedule',
   },
   zh: {
     title: 'Scheduled',
@@ -45,6 +46,7 @@ const SHEET_COPY: { en: MScheduleSheetCopy; zh: MScheduleSheetCopy } = {
     nextIn: '{d} 后运行',
     allRuns: '全部 {n} runs',
     runListHint: '点击任意 run → 打开该次会话',
+    edit: '编辑调度',
   },
 };
 

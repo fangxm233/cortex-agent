@@ -1,12 +1,16 @@
 Please update me when files in this folder change
 
-The schedule overlay: a global modal that creates or edits a schedule via add/update mutations.
-Type selection drives which timing fields show, and a success refreshes the schedules list.
+The shared schedule editor: one headless controller owns profiles, form state, API locks and writes.
+Desktop presents it as a global modal; mobile consumes the same controller inside its own sheet level.
+Once edits never fabricate timing: the DTO has no original delay and update accepts no timing patch.
 
 | filename | role | function |
 |---|---|---|
-| ScheduleModalProvider.tsx | provider | Mounts the modal, owns create and edit submit |
-| ScheduleModal.tsx | view | Renders typed schedule fields in one shared field cell |
-| ScheduleModal.test.tsx | test | Tests typed patches, edit locks and Escape handling |
-| schedule-modal-vm.ts | vm | Maps forms to add/update args and next run |
-| schedule-modal-vm.test.ts | test | Tests schedule payloads, validation, timing and form state |
+| useScheduleEditorController.ts | controller | Unifies profile query, create/edit initialization, protected changes, writes and list invalidation |
+| useScheduleEditorController.test.tsx | test | Tests real profiles, payloads, API field locks and invalidation |
+| ScheduleModalProvider.tsx | provider | Exposes desktop open/edit actions and mounts the controller-backed modal |
+| ScheduleModalProvider.test.tsx | test | Tests desktop context delegation and controller prop consumption |
+| ScheduleModal.tsx | view | Renders desktop editable fields and honest once-edit capability copy |
+| ScheduleModal.test.tsx | test | Tests typed patches, edit locks, once timing omission and Escape handling |
+| schedule-modal-vm.ts | vm | Maps DTOs/forms to editable gates, add/update args, validation and next run |
+| schedule-modal-vm.test.ts | test | Tests payloads, initialization, timing, validation and API-derived field gates |

@@ -1,3 +1,8 @@
+// input:  schedule/session DTO fixtures and SCHEDULED rail helpers
+// output: row grouping, ordinal, real-DTO action, and unread-count regressions
+// pos:    Desktop/mobile shared schedule-rail view-model specification
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import { describe, it, expect } from 'vitest';
 import type { ScheduleInfo, SessionInfo } from '@cortex-agent/ui-contract';
 import {
@@ -196,9 +201,9 @@ describe('scheduleRowAction', () => {
     expect(scheduleRowAction(row)).toEqual({ type: 'open', sessionId: 'solo' });
   });
 
-  it('a live schedule with zero runs falls back to edit', () => {
+  it('a live schedule with zero runs edits the real schedule DTO', () => {
     const [row] = buildScheduleRows([sched], [], now);
-    expect(scheduleRowAction(row)).toEqual({ type: 'edit' });
+    expect(scheduleRowAction(row)).toEqual({ type: 'edit', schedule: sched });
   });
 });
 

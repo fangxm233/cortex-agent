@@ -1,5 +1,5 @@
-// input:  browser history and overlay dismiss callback
-// output: sentinel-aware hardware-back dismissal hook
+// input:  browser history, overlay dismiss callback, and optional nested-level reset key
+// output: sentinel-aware hardware-back dismissal hook that can re-arm after level changes
 // pos:    Mobile transient-overlay history guard
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useEffect, useRef } from 'react';
@@ -67,8 +67,10 @@ function windowBackGuardHost(): BackGuardHost {
  * hardware back button (and browser back) dismiss the overlay instead of navigating the router.
  * `onDismiss` is read through a ref so the latest closure is always used without re-arming.
  */
-export function useBackDismiss(onDismiss: () => void): void {
+export function useBackDismiss(onDismiss: () => void, resetKey?: unknown): void {
   const ref = useRef(onDismiss);
   ref.current = onDismiss;
-  useEffect(() => armBackGuard(windowBackGuardHost(), () => ref.current()), []);
+  // A nested sheet level consumes the sentinel without unmounting the sheet. Re-arm when that level
+  // changes so a second hardware-back press can dismiss the next level instead of navigating away.
+  useEffect(() => armBackGuard(windowBackGuardHost(), () => ref.current()), [resetKey]);
 }

@@ -20,9 +20,13 @@ Framework-free view models map records to slots and have colocated unit tests.
 | m-chat-vm.test.ts | test | Tests localized run status, profile labels and row state |
 | MInteractionCards.tsx | view | Ask-user bottom-input and plan-approval cards |
 | MDecisionCards.tsx | view | Decision cards with bottom-sheet detail and responses |
-| MSessionListScreen.tsx | screen | Binds sessions and sentinel-safe Scheduled drill-down |
+| MSessionListScreen.tsx | screen | Binds sessions and the sentinel-safe editor-capable Scheduled sheet |
 | MSessionListView.tsx | view | Day-grouped session rows with clock entry |
-| MScheduleSheet.tsx | view | Scheduled bottom sheet with run drill-down |
+| MScheduleSheet.tsx | view | One compact list/runs/editor bottom-sheet state machine with level-aware back |
+| MScheduleSheetLevels.tsx | view | Presents the Scheduled list and run levels as small DOM-stable components |
+| MScheduleSheet.test.tsx | test | Tests real-DTO edits, one-sheet levels, Escape and hardware-back retreat |
+| MScheduleEditor.tsx | view | Composes shared-controller fields and honest once-edit limitations in-sheet |
+| MScheduleEditorFields.tsx | view | Presents mobile schedule field groups as small DOM-stable components |
 | m-session-list-vm.ts | vm | Groups sessions by day and derives status lines |
 | m-session-list-vm.test.ts | test | Unit tests for the session list view model |
 | MThreadsScreen.tsx | screen | Loads active and historical thread sections |

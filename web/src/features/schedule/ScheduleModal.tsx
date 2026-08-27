@@ -1,6 +1,6 @@
-// input:  schedule form state, localized labels and shared Select
-// output: create/edit schedule modal with typed field updates
-// pos:    Desktop schedule form presentation
+// input:  controller-owned form/editable gates, localized labels, and shared Select
+// output: API-locked desktop editor with typed updates and honest once timing copy
+// pos:    Desktop presentation for the shared schedule editor controller
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { useEffect, type CSSProperties } from 'react';
@@ -14,6 +14,7 @@ import {
   INTERVAL_UNITS,
   FALLBACK_OPTIONS,
   TARGET_OPTIONS,
+  type ScheduleEditableFields,
   type ScheduleForm,
   type SchedType,
 } from './schedule-modal-vm';
@@ -64,8 +65,9 @@ function bareSelectStyle(font: string): CSSProperties {
 
 export interface ScheduleModalProps {
   form: ScheduleForm;
-  /** 'edit' (design 27b) locks the immutable/not-patchable fields: type, target, fallback. */
+  /** 'edit' (design 27b) locks fields omitted by schedules.update. */
   mode?: 'create' | 'edit';
+  editableFields: ScheduleEditableFields;
   onChange: (patch: Partial<ScheduleForm>) => void;
   onCancel: () => void;
   onCreate: () => void;
@@ -76,7 +78,7 @@ export interface ScheduleModalProps {
   now?: Date;
 }
 
-export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCreate, valid, pending, profileOptions, now }: ScheduleModalProps) {
+export function ScheduleModal({ form, mode = 'create', editableFields, onChange, onCancel, onCreate, valid, pending, profileOptions, now }: ScheduleModalProps) {
   const L = useVocab();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -105,9 +107,10 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
   };
 
   const vis = visibleFields(form.type);
-  const { clock, delta } = nextRunParts(form, now ?? new Date());
   const canCreate = valid && !pending;
   const editing = mode === 'edit';
+  const onceTimingUnavailable = editing && form.type === 'once';
+  const nextRun = onceTimingUnavailable ? null : nextRunParts(form, now ?? new Date());
 
   // Left 130px cell: TIME (daily/weekly) · EVERY (interval) · IN (once). PROFILE always on the right;
   // weekly inserts a DAY cell between them (grid widens to 130/130/1fr — daily stays 130/1fr, 1:1).
@@ -169,7 +172,7 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
                   key={t}
                   data-sched-type-opt={t}
                   aria-pressed={selected}
-                  onClick={editing ? undefined : () => onChange({ type: t })}
+                  onClick={editableFields.type ? () => onChange({ type: t }) : undefined}
                   style={{
                     flex: 1,
                     textAlign: 'center',
@@ -179,8 +182,8 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
                     color: selected ? 'var(--proto-accent)' : 'var(--proto-muted-2)',
                     background: selected ? 'var(--proto-accent-bg)' : undefined,
                     borderRight: i < SCHED_TYPES.length - 1 ? '1px solid var(--proto-line)' : undefined,
-                    cursor: editing ? 'default' : 'pointer',
-                    opacity: editing && !selected ? 0.45 : 1,
+                    cursor: editableFields.type ? 'pointer' : 'default',
+                    opacity: !editableFields.type && !selected ? 0.45 : 1,
                   }}
                 >
                   {TYPE_LABELS[t]}
@@ -199,6 +202,7 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
                   <div style={CELL_BOX}>
                     <input
                       value={form.time}
+                      disabled={!editableFields.time}
                       onChange={(e) => onChange({ time: e.target.value })}
                       placeholder="09:00"
                       style={{
@@ -223,6 +227,7 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
                       type="number"
                       min={1}
                       value={form.intervalValue}
+                      disabled={!editableFields.interval}
                       onChange={(e) => onChange({ intervalValue: Number(e.target.value) })}
                       style={{
                         width: 44,
@@ -238,6 +243,7 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
                       density="bare"
                       aria-label={L.scEvery}
                       value={form.intervalUnit}
+                      disabled={!editableFields.interval}
                       options={INTERVAL_UNITS.map((unit) => ({ value: unit, label: unit }))}
                       onValueChange={(intervalUnit) => onChange({ intervalUnit })}
                       style={bareSelectStyle("400 10px 'IBM Plex Mono',monospace")}
@@ -245,10 +251,10 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
                   </div>
                 </>
               )}
-              {vis.delay && (
+              {vis.delay && editableFields.delay && (
                 <>
                   <div style={{ ...LABEL, marginBottom: 5 }}>{L.scIn}</div>
-                  <div style={CELL_BOX}>
+                  <div data-schedule-delay style={CELL_BOX}>
                     <input
                       type="number"
                       min={1}
@@ -275,6 +281,14 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
                   </div>
                 </>
               )}
+              {onceTimingUnavailable && (
+                <div
+                  data-once-timing-note
+                  style={{ fontSize: 10.5, lineHeight: 1.45, color: 'var(--proto-muted-2)' }}
+                >
+                  {L.scOnceTimingUnavailable}
+                </div>
+              )}
             </div>
 
             {/* DAY (weekly only) */}
@@ -287,6 +301,7 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
                     density="bare"
                     aria-label={L.scDay}
                     value={form.dayOfWeek}
+                    disabled={!editableFields.dayOfWeek}
                     options={DAY_OPTIONS.map((day) => ({
                       value: day.value,
                       label: DAY_LABELS[day.value] ?? day.label,
@@ -307,6 +322,7 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
                   density="bare"
                   aria-label={L.scProfile}
                   value={form.profile}
+                  disabled={!editableFields.profile}
                   options={profileOptions.map((profile) => ({ value: profile, label: profile }))}
                   onValueChange={(profile) => onChange({ profile })}
                   style={bareSelectStyle("500 11.5px 'IBM Plex Mono',monospace")}
@@ -320,6 +336,7 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
           <div style={{ border: '1px solid var(--proto-line)', borderRadius: 8, padding: '8px 11px', minHeight: 38 }}>
             <textarea
               value={form.message}
+              disabled={!editableFields.message}
               onChange={(e) => onChange({ message: e.target.value })}
               placeholder={L.scMessagePh}
               rows={2}
@@ -348,12 +365,12 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
                   density="bare"
                   aria-label={L.scTarget}
                   value={form.target}
-                  disabled={editing}
+                  disabled={!editableFields.target}
                   options={TARGET_OPTIONS.map((target) => ({ value: target, label: target }))}
                   onValueChange={(target) => onChange({ target })}
                   style={{
                     ...bareSelectStyle('11.5px system-ui, sans-serif'),
-                    cursor: editing ? 'not-allowed' : 'pointer',
+                    cursor: editableFields.target ? 'pointer' : 'not-allowed',
                   }}
                 />
               </div>
@@ -366,12 +383,12 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
                   density="bare"
                   aria-label={L.scFallback}
                   value={form.fallback}
-                  disabled={editing}
+                  disabled={!editableFields.fallback}
                   options={FALLBACK_OPTIONS.map((fallback) => ({ value: fallback, label: fallback }))}
                   onValueChange={(fallback) => onChange({ fallback })}
                   style={{
                     ...bareSelectStyle('11.5px system-ui, sans-serif'),
-                    cursor: editing ? 'not-allowed' : 'pointer',
+                    cursor: editableFields.fallback ? 'pointer' : 'not-allowed',
                   }}
                 />
               </div>
@@ -381,9 +398,11 @@ export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCre
 
         {/* footer (prototype L1454-1458) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 20px 16px' }}>
-          <span style={{ font: "500 10px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>
-            {L.scNextRun} <b style={{ color: 'var(--proto-accent)' }}>{clock}</b> · {L.scFooterIn} {delta}
-          </span>
+          {nextRun && (
+            <span data-schedule-next-run style={{ font: "500 10px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>
+              {L.scNextRun} <b style={{ color: 'var(--proto-accent)' }}>{nextRun.clock}</b> · {L.scFooterIn} {nextRun.delta}
+            </span>
+          )}
           <span
             onClick={onCancel}
             style={{

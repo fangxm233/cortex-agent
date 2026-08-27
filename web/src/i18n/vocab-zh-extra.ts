@@ -1,5 +1,5 @@
-// input:  shared Chinese product copy and usage policy strings
-// output: trailing Chinese vocabulary chunk
+// input:  shared Chinese product copy, schedule limits, and usage policy strings
+// output: trailing Chinese vocabulary chunk including honest editor capability text
 // pos:    Extra Chinese web vocabulary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -205,6 +205,7 @@ export const zhExtra = {
   scSaveSchedule: '保存修改',
   scToastUpdated: '调度已更新',
   scToastUpdateFailed: '无法更新调度',
+  scOnceTimingUnavailable: 'API 不提供原始单次运行时间，当前无法修改该时间。',
   memMemory: '记忆',
   memLoading: '加载中…',
   memNoFiles: '暂无记忆文件。',

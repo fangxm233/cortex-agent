@@ -1,26 +1,17 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+// input:  global open/edit requests, shared editor controller, toast copy, and children
+// output: desktop schedule context plus one controller-backed modal mount
+// pos:    Global desktop schedule editor provider
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
+import { createContext, useCallback, useContext, useMemo, type ReactNode } from 'react';
 import type { ScheduleInfo } from '@cortex-agent/ui-contract';
-import { useTRPC } from '@/lib/trpc';
 import { useToast } from '@/design';
 import { useVocab } from '@/i18n';
 import { ScheduleModal } from './ScheduleModal';
 import {
-  defaultScheduleForm,
-  formFromSchedule,
-  buildScheduleAddArgs,
-  buildScheduleUpdateArgs,
-  validateScheduleForm,
-  profileOptions,
-  type ScheduleForm,
-} from './schedule-modal-vm';
-
-// Global mount + open/close controller for the New-schedule overlay (design 7c). A single modal
-// instance lives here; any surface (Overview Schedules "+ New") opens it via useScheduleModal().
-// The provider owns the form state + the real `schedules.add` tRPC mutation and invalidates
-// `schedules.list` on success. Mirrors the global ⌘K / execution-log-drawer mounts in AppShell.
-// Edit mode (design 27b「Edit schedule ↗」): openEdit(schedule) prefills the form and submits
-// through `schedules.update` instead — the type/target/fallback stay fixed (not patchable).
+  useScheduleEditorController,
+  type ScheduleEditorControllerOptions,
+} from './useScheduleEditorController';
 
 interface OpenOptions {
   projectId?: string | null;
@@ -34,87 +25,44 @@ interface ScheduleModalContextValue {
 
 const ScheduleModalContext = createContext<ScheduleModalContextValue | null>(null);
 
-export function ScheduleModalProvider({ children }: { children: ReactNode }) {
+function useEditorOutcomes(): ScheduleEditorControllerOptions {
   const L = useVocab();
-  const trpc = useTRPC();
-  const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [form, setForm] = useState<ScheduleForm | null>(null);
-  // Non-null while editing an existing schedule → submit routes to schedules.update.
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const onCreated = useCallback(() => {
+    toast({ title: L.scToastCreated, tone: 'done' });
+  }, [L.scToastCreated, toast]);
+  const onUpdated = useCallback(() => {
+    toast({ title: L.scToastUpdated, tone: 'done' });
+  }, [L.scToastUpdated, toast]);
+  const onError = useCallback((mode: 'create' | 'edit', error: Error) => {
+    toast({ title: mode === 'edit' ? L.scToastUpdateFailed : L.scToastCreateFailed,
+      description: error.message, tone: 'failed' });
+  }, [L.scToastCreateFailed, L.scToastUpdateFailed, toast]);
+  return { onCreated, onUpdated, onError };
+}
 
-  // Real selectable profiles come from the redacted config.get snapshot (profiles.json → names).
-  const configQuery = useQuery(trpc.config.get.queryOptions({}));
-  const profileNames = configQuery.data?.profiles?.profiles.map((p) => p.name);
-
-  const close = useCallback(() => {
-    setForm(null);
-    setEditingId(null);
-  }, []);
-  const open = useCallback((opts?: OpenOptions) => {
-    setEditingId(null);
-    setForm(defaultScheduleForm(opts?.projectId ?? null));
-  }, []);
-  const openEdit = useCallback((schedule: ScheduleInfo) => {
-    setEditingId(schedule.id);
-    setForm(formFromSchedule(schedule));
-  }, []);
-
-  const addSchedule = useMutation(
-    trpc.schedules.add.mutationOptions({
-      onSuccess: () => {
-        queryClient.invalidateQueries(trpc.schedules.list.queryFilter());
-        toast({ title: L.scToastCreated, tone: 'done' });
-        close();
-      },
-      onError: (err) => {
-        toast({ title: L.scToastCreateFailed, description: err.message, tone: 'failed' });
-      },
-    }),
-  );
-
-  const updateSchedule = useMutation(
-    trpc.schedules.update.mutationOptions({
-      onSuccess: () => {
-        queryClient.invalidateQueries(trpc.schedules.list.queryFilter());
-        toast({ title: L.scToastUpdated, tone: 'done' });
-        close();
-      },
-      onError: (err) => {
-        toast({ title: L.scToastUpdateFailed, description: err.message, tone: 'failed' });
-      },
-    }),
-  );
-
-  const onChange = useCallback((patch: Partial<ScheduleForm>) => {
-    setForm((prev) => (prev ? { ...prev, ...patch } : prev));
-  }, []);
-
-  const onSubmit = useCallback(() => {
-    setForm((prev) => {
-      if (prev && validateScheduleForm(prev).ok) {
-        if (editingId) updateSchedule.mutate(buildScheduleUpdateArgs(editingId, prev));
-        else addSchedule.mutate(buildScheduleAddArgs(prev));
-      }
-      return prev;
-    });
-  }, [addSchedule, updateSchedule, editingId]);
-
-  const value = useMemo(() => ({ open, openEdit, close }), [open, openEdit, close]);
+export function ScheduleModalProvider({ children }: { children: ReactNode }) {
+  const editor = useScheduleEditorController(useEditorOutcomes());
+  const value = useMemo(() => ({
+    open: editor.openCreate,
+    openEdit: editor.openEdit,
+    close: editor.close,
+  }), [editor.close, editor.openCreate, editor.openEdit]);
 
   return (
     <ScheduleModalContext.Provider value={value}>
       {children}
-      {form && (
+      {editor.form && editor.mode && (
         <ScheduleModal
-          form={form}
-          mode={editingId ? 'edit' : 'create'}
-          onChange={onChange}
-          onCancel={close}
-          onCreate={onSubmit}
-          valid={validateScheduleForm(form).ok}
-          pending={addSchedule.isPending || updateSchedule.isPending}
-          profileOptions={profileOptions(profileNames, form.profile)}
+          form={editor.form}
+          mode={editor.mode}
+          editableFields={editor.editableFields}
+          onChange={editor.onChange}
+          onCancel={editor.close}
+          onCreate={() => { void editor.submit(); }}
+          valid={editor.valid}
+          pending={editor.pending}
+          profileOptions={editor.profileOptions}
         />
       )}
     </ScheduleModalContext.Provider>

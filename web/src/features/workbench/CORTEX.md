@@ -6,7 +6,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | filename | role | function |
 |---|---|---|
 | WorkbenchPage.tsx | entry | Composes panes and global workbench actions |
-| LeftRail.tsx | view | Collapsible rail framing the project folder tree |
+| LeftRail.tsx | view | Frames the collapsible project tree and routes real-DTO schedule actions |
 | RailTree.tsx | view | Renders project folders with their sessions and schedules |
 | rail-tree.ts | vm | Builds project folder nodes with session and schedule rows |
 | rail-tree.test.ts | test | Tests folder ordering, capping, filtering and badges |
@@ -20,8 +20,8 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | NewProjectModal.tsx | view | Presents desktop creation through the shared projects controller |
 | session-groups.ts | vm | Day-groups sessions with meta and stamp helpers |
 | session-groups.test.ts | test | Unit tests for session day grouping |
-| schedule-rail.ts | vm | Builds SCHEDULED rows, run ordinals and click routing |
-| schedule-rail.test.ts | test | Unit tests for the SCHEDULED section view model |
+| schedule-rail.ts | vm | Builds SCHEDULED rows, run ordinals and click routing with real ScheduleInfo edit actions |
+| schedule-rail.test.ts | test | Tests SCHEDULED grouping, ordinals and DTO-carrying edit routing |
 | RunListModal.tsx | view | Run-list modal opening a run in the chat pane |
 | ProfileMenu.tsx | view | Lists compact profiles above or below its anchor |
 | profile-menu.ts | vm | Filters live profile options and switch gates |

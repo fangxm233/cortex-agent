@@ -1,5 +1,5 @@
-// input:  tRPC data, shared project/session/modal contexts
-// output: collapsible desktop rail framing the project folder tree
+// input:  tRPC data, shared project/session/modal contexts, and DTO-carrying schedule actions
+// output: collapsible project-folder rail with real schedule editing
 // pos:    Owns workbench navigation and global-overlay triggers
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -438,7 +438,7 @@ export function LeftRail(): JSX.Element {
     else if (action.type === 'open') {
       const project = projectOfSession(action.sessionId, directSessions, scheduledSessions);
       if (project) openSession(project, action.sessionId);
-    } else if (row.schedule) scheduleModal.openEdit(row.schedule);
+    } else scheduleModal.openEdit(action.schedule);
   };
 
   // Approval center: real `approvals.list` pending count — the ALL-projects aggregate (the queue

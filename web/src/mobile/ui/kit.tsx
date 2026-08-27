@@ -1,5 +1,5 @@
-// input:  React nodes, mobile navigation dismissal, and shared presentation tokens
-// output: Themed mobile screens, cards, sheets, pills, and composer facade exports
+// input:  React nodes, level-aware mobile dismissal, and shared presentation tokens
+// output: themed mobile screens, cards, back-aware sheets, pills, and composer facade exports
 // pos:    Shared mobile primitive facade and non-composer presentation kit
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 // @ds-adherence-ignore -- mobile v3 UI kit, chrome extracted 1:1 from scheme-mobile.dc.html
@@ -415,10 +415,13 @@ export function shouldFlingClose(dragY: number, height: number, velocity: number
 
 export function MBottomSheet({
   onClose,
+  onBack,
   children,
   behind,
 }: {
   onClose: () => void;
+  /** Hardware-back/Escape action for a nested level; dim/drag still close the whole sheet. */
+  onBack?: () => void;
   children: ReactNode;
   /** The dimmed background screen shown behind the sheet. */
   behind?: ReactNode;
@@ -428,6 +431,7 @@ export function MBottomSheet({
   const [phase, setPhase] = useState<'enter' | 'open' | 'exit'>('enter');
   const [dragY, setDragY] = useState(0); // px the sheet is dragged down (≥0), only while touching
   const [dragging, setDragging] = useState(false);
+  const [hardwareBackEpoch, setHardwareBackEpoch] = useState(0);
   const drag = useRef<{ startY: number; lastY: number; lastT: number; v: number } | null>(null);
   const closed = useRef(false);
 
@@ -452,9 +456,28 @@ export function MBottomSheet({
     window.setTimeout(onClose, SHEET_MS);
   }, [onClose]);
 
-  // Android hardware back (and browser back) dismiss the sheet instead of navigating a route — every
-  // bottom sheet (profile picker, attach menu, new project, 原消息) gets this for free.
-  useBackDismiss(close);
+  // Android/browser back retreats one nested level when supplied. That pop consumed this guard's
+  // sentinel without unmounting the sheet, so the epoch re-arms exactly then (ordinary in-sheet
+  // taps keep the existing sentinel and do not churn browser history).
+  const onHardwareBack = useCallback(() => {
+    if (onBack) {
+      onBack();
+      setHardwareBackEpoch((value) => value + 1);
+    } else {
+      close();
+    }
+  }, [close, onBack]);
+  useBackDismiss(onHardwareBack, hardwareBackEpoch);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      if (onBack) onBack();
+      else close();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [close, onBack]);
 
   const onHandleDown = useCallback((e: React.PointerEvent) => {
     if (closed.current) return;

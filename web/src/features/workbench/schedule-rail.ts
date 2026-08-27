@@ -1,5 +1,5 @@
 // input:  ScheduleInfo/SessionInfo DTOs, scheduled-chat + cost helpers
-// output: buildScheduleRows / runOrdinals / row action + subline
+// output: schedule rows, run ordinals, DTO-carrying row actions, and sublines
 // pos:    SCHEDULED rail-section view model (desktop 30a + mobile 8b)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { ScheduleInfo, SessionInfo } from '@cortex-agent/ui-contract';
@@ -29,7 +29,7 @@ export interface ScheduleRow {
 export type ScheduleRowAction =
   | { type: 'modal' }
   | { type: 'open'; sessionId: string }
-  | { type: 'edit' };
+  | { type: 'edit'; schedule: ScheduleInfo };
 
 export type ScheduleSubline =
   | { kind: 'run'; stamp: string; cost: string | null }
@@ -110,7 +110,10 @@ export function runOrdinals(runs: SessionInfo[]): Map<string, number> {
 /** Click routing (30a): repeat → run-list modal; once with a run → open it directly (no modal);
  *  a live schedule with nothing to show yet → edit modal. */
 export function scheduleRowAction(row: ScheduleRow): ScheduleRowAction {
-  if (row.runs.length === 0) return { type: 'edit' };
+  if (row.runs.length === 0) {
+    if (!row.schedule) throw new Error(`Schedule row ${row.scheduleId} has neither a DTO nor a run`);
+    return { type: 'edit', schedule: row.schedule };
+  }
   if (row.kind === 'once') return { type: 'open', sessionId: row.runs[0].sessionId };
   return { type: 'modal' };
 }

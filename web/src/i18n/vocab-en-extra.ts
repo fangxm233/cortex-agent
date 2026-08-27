@@ -1,5 +1,5 @@
-// input:  shared English product copy and usage policy strings
-// output: trailing English vocabulary chunk
+// input:  shared English product copy, schedule limits, and usage policy strings
+// output: trailing English vocabulary chunk including honest editor capability text
 // pos:    Extra English web vocabulary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -205,6 +205,7 @@ export const enExtra = {
   scSaveSchedule: 'Save changes',
   scToastUpdated: 'Schedule updated',
   scToastUpdateFailed: 'Could not update schedule',
+  scOnceTimingUnavailable: 'The original one-time timing is not available from the API and cannot be changed.',
   memMemory: 'Memory',
   memLoading: 'Loading…',
   memNoFiles: 'No memory files.',

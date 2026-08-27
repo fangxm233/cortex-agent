@@ -1,12 +1,12 @@
-// input:  ScheduleModal with custom Select stub and schedule form fixtures
-// output: typed field patch and edit-lock regressions
-// pos:    Verifies schedule selection controls use the shared adapter
+// input:  ScheduleModal, editable-field gates, custom Select stub, and form fixtures
+// output: typed patches, API locks, honest once timing, and Escape regressions
+// pos:    Desktop shared-controller schedule presentation specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LangProvider } from '@/i18n';
-import { defaultScheduleForm, type ScheduleForm } from './schedule-modal-vm';
+import { defaultScheduleForm, editableScheduleFields, type ScheduleForm } from './schedule-modal-vm';
 
 vi.mock('@/design', async () => ({
   ...(await vi.importActual<typeof import('@/design/controls')>('@/design/controls')),
@@ -32,6 +32,7 @@ function mount(
         <ScheduleModal
           form={form}
           mode={mode}
+          editableFields={editableScheduleFields(mode, form.type)}
           onChange={onChange}
           onCancel={onCancel}
           onCreate={() => {}}
@@ -99,6 +100,14 @@ describe('ScheduleModal custom selections', () => {
 
     expect(renderer.root.findByProps({ 'data-schedule-select': 'target' }).props.disabled).toBe(true);
     expect(renderer.root.findByProps({ 'data-schedule-select': 'fallback' }).props.disabled).toBe(true);
+  });
+
+  it('hides the fabricated delay editor for once edits and explains the API limitation', () => {
+    const renderer = mount({ ...defaultScheduleForm(null), type: 'once' }, vi.fn(), 'edit');
+
+    expect(renderer.root.findAllByProps({ 'data-schedule-select': 'delayUnit' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-once-timing-note': true })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-schedule-next-run': true })).toHaveLength(0);
   });
 
   it('keeps the modal open when an inner Select consumes Escape', () => {
