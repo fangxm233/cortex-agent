@@ -83,8 +83,8 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 | MDaemonView.tsx | view | Shows daemon processes, restart and disconnect controls |
 | m-daemon-vm.ts | vm | Builds daemon process, summary and event models |
 | m-daemon-vm.test.ts | test | Unit tests for the daemon view model |
-| MSettingsScreen.tsx | screen | Renders settings immediately and hydrates config summaries |
-| MSettingsView.tsx | view | Keeps Daemon and Profile cards above title-only rows |
+| MSettingsScreen.tsx | screen | Renders settings immediately and hydrates config plus shared account summaries |
+| MSettingsView.tsx | view | Keeps Daemon and Profile cards above rows with canonical account facts |
 | MSettingsView.test.tsx | test | Tests canonical order, routing and live connection copy |
 | MSettingsControls.tsx | view | Supplies compact rows, toggles and field-local validation feedback |
 | MPlatformScreen.tsx | screen | Shows redacted platform state and queues reconnect approval |
@@ -103,13 +103,11 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 | MUsageView.test.tsx | test | Tests status omission, row saves, config gating, and refresh |
 | m-settings-vm.ts | vm | Maps canonical config, cost and registry summaries |
 | m-settings-vm.test.ts | test | Tests runtime source and summary data mapping |
-| MAccountsScreen.tsx | screen | Loads account state and binds login, logout and rescan |
-| MAccountsView.tsx | view | Shows account actions and the model rescan control |
-| MAccountsView.test.tsx | test | Tests account permissions, pending actions and credential redaction |
-| MAccountsView.custom.test.tsx | test | Tests custom-provider edit actions and delete confirmation |
-| MCustomProviderSheet.tsx | view | Bottom-sheet editor for one custom PI provider |
-| m-accounts-vm.ts | vm | Derives shared account state and actionable credentials |
-| m-accounts-vm.test.ts | test | Tests shared account filtering and action gates |
+| MAccountsScreen.tsx | screen | Adapts shared account/custom-provider controllers to mobile navigation and sheets |
+| MAccountsView.tsx | view | Preserves mobile account/custom-provider cards with operation-local action gates |
+| MAccountsView.test.tsx | test | Tests mobile account permissions, pending actions and credential redaction |
+| MAccountsView.custom.test.tsx | test | Tests mobile custom-provider actions, independent gates and delete confirmation |
+| MCustomProviderSheet.tsx | view | Presents the shared custom-provider draft, error copy and save state in a bottom sheet |
 | MHooksScreen.tsx | screen | Loads the hook registry and sheet selection |
 | MHooksView.tsx | view | Grouped read-only hooks with declaration sheet |
 | m-hooks-vm.ts | vm | Projects canonical hook namespace groups into read-only mobile slots |

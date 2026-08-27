@@ -1,13 +1,13 @@
-// input:  shared accounts VM, provider rows, action spies
-// output: mobile capability, rescan, pending and credential-safety tests
-// pos:    Verifies the mobile accounts drill-in view
+// input:  canonical accounts VM, mobile provider rows, and action spies
+// output: mobile capability, rescan, pending, and credential-safety regressions
+// pos:    Mobile accounts presentation contract specification
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthStatusSnapshot } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
-import { buildAccountsVm } from './m-accounts-vm';
+import { buildAccountsVm } from '@/features/settings/accounts-vm';
 import { MAccountsView } from './MAccountsView';
 
 const status: AuthStatusSnapshot = {

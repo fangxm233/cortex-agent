@@ -1,30 +1,20 @@
 // @ds-adherence-ignore -- mobile v3 raw px/font by design §8.3
-// input:  a custom provider draft and its validation errors
-// output: bottom-sheet editor for one user-defined PI provider
-// pos:    Presentational mobile custom provider editor
+// input:  canonical custom-provider draft/errors/copy mapping and operation state
+// output: mobile bottom-sheet editor with save-local gating
+// pos:    Mobile view over shared custom-provider ownership
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { ReactNode } from 'react';
 import type { CustomProviderApi } from '@cortex-agent/ui-contract';
-import { useVocab, type Vocab } from '@/i18n';
+import { useVocab } from '@/i18n';
 import { MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
 import {
   CUSTOM_PROVIDER_API_OPTIONS,
+  customProviderFieldErrorCopy,
   isCustomProviderFormValid,
-  type CustomProviderFieldError,
   type CustomProviderFormErrors,
   type CustomProviderFormState,
 } from '@/features/settings/custom-provider-vm';
-
-const FIELD_ERROR_LABEL: Record<CustomProviderFieldError, keyof Vocab> = {
-  'name-required': 'cpvErrNameRequired',
-  'name-charset': 'cpvErrNameCharset',
-  'name-taken': 'cpvErrNameTaken',
-  'upstream-required': 'cpvErrUpstreamRequired',
-  'upstream-scheme': 'cpvErrUpstreamScheme',
-  'models-required': 'cpvErrModelsRequired',
-  'model-id-duplicate': 'cpvErrModelsDuplicate',
-};
 
 const CONTROL_STYLE = {
   width: '100%',
@@ -55,10 +45,11 @@ function Field({ label, hint, danger, children }: {
   );
 }
 
-export function MCustomProviderSheet({ draft, creating, errors, onChange, onSave, onClose, behind }: {
+export function MCustomProviderSheet({ draft, creating, errors, pending, onChange, onSave, onClose, behind }: {
   draft: CustomProviderFormState;
   creating: boolean;
   errors: CustomProviderFormErrors;
+  pending: boolean;
   onChange: (next: CustomProviderFormState) => void;
   onSave: () => void;
   onClose: () => void;
@@ -67,10 +58,9 @@ export function MCustomProviderSheet({ draft, creating, errors, onChange, onSave
   const L = useVocab();
   const set = (patch: Partial<CustomProviderFormState>) => onChange({ ...draft, ...patch });
   const hint = (field: keyof CustomProviderFormErrors, fallback: ReactNode) => {
-    const code = errors[field];
-    return code ? L[FIELD_ERROR_LABEL[code]] : fallback;
+    return customProviderFieldErrorCopy(errors[field], L) ?? fallback;
   };
-  const savable = isCustomProviderFormValid(errors);
+  const savable = isCustomProviderFormValid(errors) && !pending;
 
   return (
     <MBottomSheet onClose={onClose} behind={behind}>

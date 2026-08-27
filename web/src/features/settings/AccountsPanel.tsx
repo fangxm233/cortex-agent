@@ -1,16 +1,13 @@
-// input:  auth status/logout tRPC, shared accounts VM, LoginFlow
-// output: desktop Claude and PI account-management panel
-// pos:    Dedicated desktop accounts settings section
+// input:  shared accounts controller/VM, LoginFlow, and desktop settings primitives
+// output: desktop Claude and PI account-management panel with operation-local gates
+// pos:    Desktop view over canonical accounts ownership
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AuthType } from '@cortex-agent/ui-contract';
-import { useToast } from '@/design';
 import { ProviderIcon } from '@/features/auth/ProviderIcon';
 import { useLoginFlow } from '@/features/auth/LoginFlowProvider';
 import { useVocab, type Vocab } from '@/i18n';
-import { useTRPC } from '@/lib/trpc';
 import {
   buildAccountsVm,
   type AccountActionTarget,
@@ -19,8 +16,9 @@ import {
   type AccountStatusVm,
   type ClaudeAccountVm,
   type PiProviderVm,
-} from '@/mobile/v3/m-accounts-vm';
+} from '@/features/settings/accounts-vm';
 import { CustomProvidersCard } from './CustomProvidersCard';
+import { useAccountsController } from './useAccountsController';
 import { SButton, SCard, SCardHeader, SFieldRow, S_CONTROL_STYLE } from './settings-ui';
 
 const MONO = "'IBM Plex Mono',monospace";
@@ -212,49 +210,25 @@ function PiProviderList({ providers, filter, onFilter, actions, onRescan, rescan
 
 export function AccountsPanel({ onLogin }: AccountsPanelProps) {
   const L = useVocab();
-  const trpc = useTRPC();
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
   const { openLogin } = useLoginFlow();
+  const controller = useAccountsController();
   const [filter, setFilter] = useState('');
-  const status = useQuery(trpc.auth.status.queryOptions({}));
-  const logout = useMutation(trpc.auth.logout.mutationOptions({
-    onSuccess: () => {
-      void queryClient.invalidateQueries(trpc.auth.status.queryFilter({}));
-      toast({ title: L.accountsLogoutDone, tone: 'done' });
-    },
-    onError: error => toast({ title: `${L.accountsLogoutFailed}: ${error.message}`, tone: 'failed' }),
-  }));
-  // Model routing is derived from what the logged-in backends expose, and the server re-derives it
-  // automatically when a login lands. This is the manual path for the cases that misses: a
-  // credential created before that behaviour existed, or a provider scan that failed transiently.
-  // Finding nothing is a legitimate outcome, so it is reported as guidance rather than an error.
-  const syncGateway = useMutation(trpc.auth.syncGateway.mutationOptions({
-    onSuccess: (result: { configured: boolean }) => {
-      if (!result.configured) {
-        toast({ title: L.accountsSyncModelsEmpty, tone: 'waiting' });
-        return;
-      }
-      void queryClient.invalidateQueries(trpc.auth.status.queryFilter({}));
-      void queryClient.invalidateQueries(trpc.config.get.queryFilter({}));
-      toast({ title: L.accountsSyncModelsDone, tone: 'done' });
-    },
-    onError: error => toast({ title: `${L.accountsSyncModelsFailed}: ${error.message}`, tone: 'failed' }),
-  }));
-  if (status.isLoading) return <div style={{ marginTop: 16 }}>{L.accountsLoading}</div>;
-  if (status.isError || !status.data) return <div style={{ marginTop: 16, color: 'var(--proto-danger)' }}>{L.accountsLoadFailed}</div>;
-  const vm = buildAccountsVm(status.data, filter);
+  if (controller.statusLoading) return <div style={{ marginTop: 16 }}>{L.accountsLoading}</div>;
+  if (controller.statusError || !controller.status) {
+    return <div style={{ marginTop: 16, color: 'var(--proto-danger)' }}>{L.accountsLoadFailed}</div>;
+  }
+  const vm = buildAccountsVm(controller.status, filter);
   const actions = {
-    disabled: logout.isPending,
+    disabled: controller.logoutPending,
     onLogin: onLogin ?? openLogin,
-    onLogout: (target: AccountActionTarget) => logout.mutate(target),
+    onLogout: controller.logout,
   };
   return (
     <>
       {vm.claude ? <ClaudeCard account={vm.claude} actions={actions} /> : null}
       <PiProviderList
         providers={vm.piProviders} filter={filter} onFilter={setFilter} actions={actions}
-        onRescan={() => syncGateway.mutate({})} rescanning={syncGateway.isPending}
+        onRescan={controller.syncGateway} rescanning={controller.syncPending}
       />
       <CustomProvidersCard />
     </>

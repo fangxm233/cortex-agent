@@ -1,6 +1,6 @@
-// input:  shared accounts VM, localized copy, gated actions
-// output: fixed Accounts header with grouped provider actions
-// pos:    Presentational mobile accounts view
+// input:  canonical accounts/custom-provider VMs, localized copy, and local action gates
+// output: mobile Accounts view with independently gated account, rescan, and custom actions
+// pos:    Presentational mobile settings view over shared ownership
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 // @ds-adherence-ignore -- mobile v3 raw px/font by design §8.3
@@ -24,7 +24,7 @@ import type {
   ClaudeAccountVm,
   MAccountsVm,
   PiProviderVm,
-} from './m-accounts-vm';
+} from '@/features/settings/accounts-vm';
 
 function authTypeLabel(L: Vocab, authType: AuthType, backend: 'claude' | 'pi'): string {
   if (authType === 'api_key') return L.authLoginApiKey;
@@ -170,9 +170,10 @@ function ProviderCard({ provider, actionsDisabled, onLogin, onLogout }: {
  * Custom providers carry no login: the credential sits in the gateway route, so the card offers an
  * editor and a two-tap delete instead of the login/logout pair above.
  */
-function CustomProviderCard({ provider, disabled, confirming, onEdit, onDelete }: {
+function CustomProviderCard({ provider, editDisabled, deleteDisabled, confirming, onEdit, onDelete }: {
   provider: CustomProviderView;
-  disabled: boolean;
+  editDisabled: boolean;
+  deleteDisabled: boolean;
   confirming: boolean;
   onEdit: () => void;
   onDelete: () => void;
@@ -197,22 +198,22 @@ function CustomProviderCard({ provider, disabled, confirming, onEdit, onDelete }
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
         <button
           type="button" data-cpv-action="edit" data-cpv-provider={provider.name}
-          disabled={disabled} onClick={onEdit}
+          disabled={editDisabled} onClick={onEdit}
           style={{
             border: `1px solid ${MC.run}`, borderRadius: 8, padding: '6px 9px', background: MC.card,
             color: MC.run, fontSize: 10.5, fontWeight: 650,
-            cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.45 : 1,
+            cursor: editDisabled ? 'not-allowed' : 'pointer', opacity: editDisabled ? 0.45 : 1,
           }}
         >
           {L.cpvEdit}
         </button>
         <button
           type="button" data-cpv-action="delete" data-cpv-provider={provider.name}
-          disabled={disabled} onClick={onDelete}
+          disabled={deleteDisabled} onClick={onDelete}
           style={{
             border: '1px solid var(--proto-danger-bg)', borderRadius: 8, padding: '6px 9px',
             background: MC.card, color: MC.fail, fontSize: 10.5, fontWeight: 650,
-            cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.45 : 1,
+            cursor: deleteDisabled ? 'not-allowed' : 'pointer', opacity: deleteDisabled ? 0.45 : 1,
           }}
         >
           {confirming ? L.cpvConfirmDelete : L.cpvDelete}
@@ -226,6 +227,8 @@ export interface MCustomProvidersProps {
   providers: CustomProviderView[];
   /** Name armed for deletion by a first tap, or null. */
   confirmingDelete: string | null;
+  savePending: boolean;
+  removePending: boolean;
   onNew: () => void;
   onEdit: (provider: CustomProviderView) => void;
   onDelete: (name: string) => void;
@@ -280,7 +283,8 @@ export function MAccountsView({ vm, onBack, onLogin, onLogout, actionsDisabled, 
             <MGroupLabel>
               {L.cpvTitle} · {custom.providers.length}
               <button
-                type="button" data-cpv-action="new" onClick={custom.onNew}
+                type="button" data-cpv-action="new" disabled={custom.savePending}
+                onClick={custom.onNew}
                 style={{
                   marginLeft: 8, border: `1px solid ${MC.run}`, borderRadius: 8, padding: '3px 8px',
                   background: MC.card, color: MC.run, fontSize: 10, fontWeight: 650, cursor: 'pointer',
@@ -292,7 +296,8 @@ export function MAccountsView({ vm, onBack, onLogin, onLogout, actionsDisabled, 
             {custom.providers.length > 0
               ? custom.providers.map(provider => (
                 <CustomProviderCard
-                  key={provider.name} provider={provider} disabled={actionsDisabled}
+                  key={provider.name} provider={provider}
+                  editDisabled={custom.savePending} deleteDisabled={custom.removePending}
                   confirming={custom.confirmingDelete === provider.name}
                   onEdit={() => custom.onEdit(provider)}
                   onDelete={() => custom.onDelete(provider.name)}

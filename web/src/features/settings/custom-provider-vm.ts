@@ -1,13 +1,14 @@
 // input:  CustomProviderView DTO and the auth.upsertCustomProvider arg type
-// output: custom provider form state, validation and mutation args
-// pos:    Shared view model for the custom PI provider editor
-// >>> If I am updated, update my header comment and CORTEX.md <<<
+// output: custom provider form state, validation/copy mapping, and mutation args
+// pos:    Canonical view model for desktop/mobile custom PI provider editors
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type {
   AuthUpsertCustomProviderArgs,
   CustomProviderApi,
   CustomProviderView,
 } from '@cortex-agent/ui-contract';
+import type { Vocab } from '@/i18n';
 
 // Pure derivations shared by the desktop accounts panel and the mobile accounts view: form state in
 // and out of the read DTO, a client-side echo of the server's rules (validateCustomProvider), and
@@ -62,6 +63,29 @@ export type CustomProviderFieldError =
   | 'upstream-scheme'
   | 'models-required'
   | 'model-id-duplicate';
+
+export const CUSTOM_PROVIDER_FIELD_ERROR_VOCAB_KEYS = {
+  'name-required': 'cpvErrNameRequired',
+  'name-charset': 'cpvErrNameCharset',
+  'name-taken': 'cpvErrNameTaken',
+  'upstream-required': 'cpvErrUpstreamRequired',
+  'upstream-scheme': 'cpvErrUpstreamScheme',
+  'models-required': 'cpvErrModelsRequired',
+  'model-id-duplicate': 'cpvErrModelsDuplicate',
+} as const satisfies Record<CustomProviderFieldError, keyof Vocab>;
+
+type CustomProviderFieldErrorVocab = Pick<
+  Vocab,
+  (typeof CUSTOM_PROVIDER_FIELD_ERROR_VOCAB_KEYS)[CustomProviderFieldError]
+>;
+
+/** Resolves shared validation copy without duplicating the code-to-vocabulary map in each view. */
+export function customProviderFieldErrorCopy(
+  error: CustomProviderFieldError | undefined,
+  vocab: CustomProviderFieldErrorVocab,
+): string | undefined {
+  return error ? vocab[CUSTOM_PROVIDER_FIELD_ERROR_VOCAB_KEYS[error]] : undefined;
+}
 
 export interface CustomProviderFormErrors {
   name?: CustomProviderFieldError;

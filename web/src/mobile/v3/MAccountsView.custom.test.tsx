@@ -1,13 +1,13 @@
-// input:  custom provider rows and action spies for the accounts view
-// output: mobile custom-provider interaction and delete-arming regressions
-// pos:    Verifies the mobile custom provider surface
+// input:  custom-provider rows, independent gates, and action spies for Accounts
+// output: mobile custom interaction, pending, and delete-arming regressions
+// pos:    Verifies the mobile custom-provider presentation contract
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthStatusSnapshot, CustomProviderView } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
-import { buildAccountsVm } from './m-accounts-vm';
+import { buildAccountsVm } from '@/features/settings/accounts-vm';
 import { MAccountsView } from './MAccountsView';
 
 // The editor itself is a bottom sheet, which needs a DOM to mount; its rules are covered by
@@ -28,7 +28,12 @@ const PROVIDER: CustomProviderView = {
   routed: false,
 };
 
-function mountView(over: { providers?: CustomProviderView[]; confirmingDelete?: string | null } = {}): {
+function mountView(over: {
+  providers?: CustomProviderView[];
+  confirmingDelete?: string | null;
+  savePending?: boolean;
+  removePending?: boolean;
+} = {}): {
   renderer: ReactTestRenderer;
   onNew: ReturnType<typeof vi.fn>;
   onEdit: ReturnType<typeof vi.fn>;
@@ -47,6 +52,8 @@ function mountView(over: { providers?: CustomProviderView[]; confirmingDelete?: 
           custom={{
             providers: over.providers ?? [PROVIDER],
             confirmingDelete: over.confirmingDelete ?? null,
+            savePending: over.savePending ?? false,
+            removePending: over.removePending ?? false,
             onNew, onEdit, onDelete,
           }}
         />
@@ -78,5 +85,17 @@ describe('mobile custom providers', () => {
 
     const armed = mountView({ confirmingDelete: 'my-vllm' });
     expect(JSON.stringify(armed.renderer.toJSON())).toContain('Confirm delete');
+  });
+
+  it('gates save/edit and remove actions independently', () => {
+    const saving = mountView({ savePending: true });
+    expect(button(saving.renderer, 'new').props.disabled).toBe(true);
+    expect(button(saving.renderer, 'edit').props.disabled).toBe(true);
+    expect(button(saving.renderer, 'delete').props.disabled).toBe(false);
+
+    const removing = mountView({ removePending: true });
+    expect(button(removing.renderer, 'new').props.disabled).toBe(false);
+    expect(button(removing.renderer, 'edit').props.disabled).toBe(false);
+    expect(button(removing.renderer, 'delete').props.disabled).toBe(true);
   });
 });

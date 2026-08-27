@@ -1,19 +1,25 @@
 Please update me when files in this folder change
 
 Desktop settings overlay: one modal with left nav and thirteen sections, mounted globally by its provider.
-Panels read snapshots; Usage independently queries the shared web usage feature.
+Panels keep their presentation while canonical controllers and VMs in this folder can serve mobile too.
 
 | filename | role | function |
 |---|---|---|
 | SettingsProvider.tsx | provider | Provides global open and close for the modal |
 | SettingsModal.tsx | view | Routes panels and lets Usage own its title/action header |
 | SettingsPanels.tsx | view | Renders non-runtime platform and config sections |
-| AccountsPanel.tsx | view | Filters providers and manages account login/logout |
-| AccountsPanel.test.tsx | test | Tests account permissions, actions, redaction and rescans |
-| CustomProvidersCard.tsx | view | Edits custom PI providers and API protocol |
-| CustomProvidersCard.test.tsx | test | Tests provider selections, writes and delete guard |
-| custom-provider-vm.ts | vm | Validates custom provider drafts and builds mutation args |
-| custom-provider-vm.test.ts | test | Unit tests for the custom provider view model |
+| AccountsPanel.tsx | view | Presents desktop account cards over the shared account owner and VM |
+| AccountsPanel.test.tsx | test | Tests desktop account permissions, actions, redaction and rescans |
+| accounts-vm.ts | vm | Canonically derives secret-free desktop/mobile account cards, groups and summaries |
+| accounts-vm.test.ts | test | Tests shared account grouping, status, filtering, actions and summaries |
+| useAccountsController.ts | controller | Owns auth status, logout, rescan, exact refreshes and operation feedback |
+| useAccountsController.test.tsx | test | Tests shared account query/mutation lifecycle, pending gates, refreshes and toasts |
+| CustomProvidersCard.tsx | view | Presents the desktop custom PI provider list and editor over shared ownership |
+| CustomProvidersCard.test.tsx | test | Tests desktop provider selections, writes and delete guard |
+| custom-provider-vm.ts | vm | Validates custom provider drafts, resolves field copy and builds mutation args |
+| custom-provider-vm.test.ts | test | Tests custom provider drafts, validation copy and mutation payloads |
+| useCustomProvidersController.ts | controller | Owns custom-provider list, drafts, validation, writes, delete guard and feedback |
+| useCustomProvidersController.test.tsx | test | Tests shared custom-provider drafts, independent writes, refreshes and toasts |
 | AuthLoginEntry.test.tsx | test | Tests non-stacked settings-to-login handoff |
 | RuntimeSettingsPanels.tsx | view | Presents desktop runtime switches, retention days, and job cadence selections over the shared writer |
 | RuntimeSettingsPanels.test.tsx | test | Tests desktop runtime rows, snapshot state, validation and toggle interaction |

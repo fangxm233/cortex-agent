@@ -1,7 +1,7 @@
-// input:  config/machine queries and live connection state
-// output: immediately rendered mobile settings index and navigation
-// pos:    Mobile settings query container
-// >>> If I am updated, update my header comment and CORTEX.md <<<
+// input:  config/auth/machine queries, canonical account VM, and connection state
+// output: immediately rendered mobile settings index with shared account summary
+// pos:    Mobile settings query adapter preserving the current settings presentation
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -12,7 +12,7 @@ import type { SettingsSectionKey } from '@/features/settings/settings-nav';
 import { useLang } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
 import { pickCopy } from '@/mobile/ui/format';
-
+import { buildAccountsVm } from '@/features/settings/accounts-vm';
 import { onlineMachineCount } from './m-project-vm';
 import { buildMSettingsVm } from './m-settings-vm';
 import { MSettingsView, type MSettingsCopy } from './MSettingsView';
@@ -43,10 +43,13 @@ export function MSettingsScreen() {
   const copy = pickCopy(useLang(), COPY);
   const connectionStatus = useConnectionStatus();
   const config = useQuery(trpc.config.get.queryOptions({}));
+  const auth = useQuery(trpc.auth.status.queryOptions({}));
   const machines = useQuery(trpc.machines.list.queryOptions({}));
   const vm = useMemo(() => buildMSettingsVm(config.data ?? EMPTY_SNAPSHOT, undefined), [config.data]);
+  const accounts = useMemo(() => auth.data ? buildAccountsVm(auth.data).summary
+    : { claudeLoggedIn: false, piLoggedInCount: 0 }, [auth.data]);
   return <MSettingsView vm={vm} copy={copy} connectionStatus={connectionStatus}
-    onlineMachines={onlineMachineCount(machines.data ?? [])}
+    accountsSummary={accounts} onlineMachines={onlineMachineCount(machines.data ?? [])}
     onBack={() => navigate('/m/project')} onOpenDaemon={() => navigate('/m/daemon')}
     onOpenSection={(section) => navigate(SECTION_PATH[section])} />;
 }

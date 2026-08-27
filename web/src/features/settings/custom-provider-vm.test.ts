@@ -1,12 +1,14 @@
-// input:  custom provider form state and CustomProviderView fixtures
-// output: validation, round-trip and mutation-args regressions
-// pos:    Unit tests for the custom provider view model
-// >>> If I am updated, update my header comment and CORTEX.md <<<
+// input:  custom-provider forms/views, vocabulary copy, and mutation DTOs
+// output: validation, error-copy, round-trip, and mutation-argument regressions
+// pos:    Canonical custom-provider view-model specification
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { describe, expect, it } from 'vitest';
 import type { CustomProviderView } from '@cortex-agent/ui-contract';
+import { en } from '@/i18n';
 import {
   buildCustomProviderArgs,
+  customProviderFieldErrorCopy,
   emptyCustomProviderForm,
   formStateFromCustomProvider,
   isCustomProviderFormValid,
@@ -83,6 +85,14 @@ describe('validateCustomProviderForm', () => {
   it('requires at least one unique model id', () => {
     expect(validateCustomProviderForm(form({ models: '' }), options).models).toBe('models-required');
     expect(validateCustomProviderForm(form({ models: 'a\na' }), options).models).toBe('model-id-duplicate');
+  });
+});
+
+describe('customProviderFieldErrorCopy', () => {
+  it('resolves shared field copy and preserves an absent error', () => {
+    expect(customProviderFieldErrorCopy('name-required', en)).toBe(en.cpvErrNameRequired);
+    expect(customProviderFieldErrorCopy('model-id-duplicate', en)).toBe(en.cpvErrModelsDuplicate);
+    expect(customProviderFieldErrorCopy(undefined, en)).toBeUndefined();
   });
 });
 

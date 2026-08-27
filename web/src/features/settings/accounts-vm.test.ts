@@ -10,7 +10,7 @@ import type {
   AuthStatusSnapshot,
   AuthType,
 } from '@cortex-agent/ui-contract';
-import { buildAccountsVm } from './m-accounts-vm';
+import { buildAccountsVm } from '@/features/settings/accounts-vm';
 
 function credential(
   authType: AuthType,

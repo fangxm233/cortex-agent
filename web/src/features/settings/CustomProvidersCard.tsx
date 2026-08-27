@@ -1,24 +1,20 @@
-// input:  auth.customProviders tRPC, custom provider VM and Select
-// output: desktop list and editor for user-defined PI providers
-// pos:    Custom provider section of the desktop accounts panel
+// input:  shared custom-provider controller/VM, Select, and desktop settings primitives
+// output: desktop list and editor with view-owned operation gates
+// pos:    Desktop custom-provider view over canonical settings ownership
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { useState, type ReactNode } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
 import type { CustomProviderApi, CustomProviderView } from '@cortex-agent/ui-contract';
-import { Select, useToast } from '@/design';
-import { useVocab, type Vocab } from '@/i18n';
-import { useTRPC } from '@/lib/trpc';
+import { Select } from '@/design';
+import { useVocab } from '@/i18n';
 import {
   CUSTOM_PROVIDER_API_OPTIONS,
-  buildCustomProviderArgs,
-  emptyCustomProviderForm,
-  formStateFromCustomProvider,
+  customProviderFieldErrorCopy,
   isCustomProviderFormValid,
-  validateCustomProviderForm,
-  type CustomProviderFieldError,
+  type CustomProviderFormErrors,
   type CustomProviderFormState,
 } from './custom-provider-vm';
+import { useCustomProvidersController } from './useCustomProvidersController';
 import {
   SButton,
   SCard,
@@ -30,16 +26,6 @@ import {
 } from './settings-ui';
 
 const MONO = "'IBM Plex Mono',monospace";
-
-const FIELD_ERROR_LABEL: Record<CustomProviderFieldError, keyof Vocab> = {
-  'name-required': 'cpvErrNameRequired',
-  'name-charset': 'cpvErrNameCharset',
-  'name-taken': 'cpvErrNameTaken',
-  'upstream-required': 'cpvErrUpstreamRequired',
-  'upstream-scheme': 'cpvErrUpstreamScheme',
-  'models-required': 'cpvErrModelsRequired',
-  'model-id-duplicate': 'cpvErrModelsDuplicate',
-};
 
 function Tag({ children, tone }: { children: ReactNode; tone: 'muted' | 'warn' }) {
   return (
@@ -55,9 +41,10 @@ function Tag({ children, tone }: { children: ReactNode; tone: 'muted' | 'warn' }
   );
 }
 
-function ProviderRow({ provider, disabled, confirming, onEdit, onDelete }: {
+function ProviderRow({ provider, editDisabled, deleteDisabled, confirming, onEdit, onDelete }: {
   provider: CustomProviderView;
-  disabled: boolean;
+  editDisabled: boolean;
+  deleteDisabled: boolean;
   confirming: boolean;
   onEdit: () => void;
   onDelete: () => void;
@@ -82,8 +69,8 @@ function ProviderRow({ provider, disabled, confirming, onEdit, onDelete }: {
           {provider.models.map((model) => model.id).join(', ')}
         </span>
         <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-          <SButton tone="neutral" data-cpv-action="edit" disabled={disabled} onClick={onEdit}>{L.cpvEdit}</SButton>
-          <SButton tone="danger" data-cpv-action="delete" disabled={disabled} onClick={onDelete}>
+          <SButton tone="neutral" data-cpv-action="edit" disabled={editDisabled} onClick={onEdit}>{L.cpvEdit}</SButton>
+          <SButton tone="danger" data-cpv-action="delete" disabled={deleteDisabled} onClick={onDelete}>
             {confirming ? L.cpvConfirmDelete : L.cpvDelete}
           </SButton>
         </span>
@@ -95,14 +82,13 @@ function ProviderRow({ provider, disabled, confirming, onEdit, onDelete }: {
 function Editor({ draft, creating, errors, onChange }: {
   draft: CustomProviderFormState;
   creating: boolean;
-  errors: ReturnType<typeof validateCustomProviderForm>;
+  errors: CustomProviderFormErrors;
   onChange: (next: CustomProviderFormState) => void;
 }) {
   const L = useVocab();
   const set = (patch: Partial<CustomProviderFormState>) => onChange({ ...draft, ...patch });
   const hint = (field: keyof typeof errors, fallback?: ReactNode) => {
-    const code = errors[field];
-    return code ? L[FIELD_ERROR_LABEL[code]] : fallback;
+    return customProviderFieldErrorCopy(errors[field], L) ?? fallback;
   };
   const tone = (field: keyof typeof errors) => (errors[field] ? ('danger' as const) : ('muted' as const));
 
@@ -162,100 +148,35 @@ function Editor({ draft, creating, errors, onChange }: {
  */
 export function CustomProvidersCard() {
   const L = useVocab();
-  const trpc = useTRPC();
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-  const [draft, setDraft] = useState<CustomProviderFormState | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [confirming, setConfirming] = useState<string | null>(null);
-
-  const list = useQuery(trpc.auth.customProviders.queryOptions({}));
-  const providers = list.data ?? [];
-
-  const refresh = (): void => {
-    void queryClient.invalidateQueries(trpc.auth.customProviders.queryFilter({}));
-    void queryClient.invalidateQueries(trpc.auth.status.queryFilter({}));
-  };
-  const failed = (error: { message: string }) => toast({ title: `${L.cpvToastFailed}: ${error.message}`, tone: 'failed' });
-
-  const save = useMutation(trpc.auth.upsertCustomProvider.mutationOptions({
-    onSuccess: () => {
-      refresh();
-      setDraft(null);
-      toast({ title: L.cpvToastSaved, tone: 'done' });
-    },
-    onError: failed,
-  }));
-  const remove = useMutation(trpc.auth.removeCustomProvider.mutationOptions({
-    onSuccess: () => {
-      refresh();
-      setConfirming(null);
-      toast({ title: L.cpvToastDeleted, tone: 'done' });
-    },
-    onError: failed,
-  }));
-
-  const busy = save.isPending || remove.isPending;
-  const errors = draft
-    ? validateCustomProviderForm(draft, {
-      mode: creating ? 'create' : 'update',
-      existingNames: providers.map((provider) => provider.name),
-    })
-    : {};
-
-  const openCreate = (): void => {
-    setCreating(true);
-    setDraft(emptyCustomProviderForm());
-  };
-  const openEdit = (provider: CustomProviderView): void => {
-    setCreating(false);
-    setDraft(formStateFromCustomProvider(provider));
-  };
-  // Two-step delete: the first click arms the row, the second one removes the gateway route the
-  // running gateway is currently serving.
-  const requestDelete = (name: string): void => {
-    if (confirming !== name) {
-      setConfirming(name);
-      return;
-    }
-    remove.mutate({ name });
-  };
-
+  const controller = useCustomProvidersController();
   return (
     <SCard style={{ marginTop: 12, maxWidth: 980, overflow: 'hidden' }}>
-      <SCardHeader
-        title={L.cpvTitle}
-        right={(
-          <SButton tone="accent" data-cpv-action="new" disabled={busy || draft !== null} onClick={openCreate}>
-            {L.cpvNew}
-          </SButton>
-        )}
-      />
+      <SCardHeader title={L.cpvTitle} right={(
+        <SButton tone="accent" data-cpv-action="new"
+          disabled={controller.savePending || controller.draft !== null} onClick={controller.openCreate}>
+          {L.cpvNew}
+        </SButton>
+      )} />
       <div style={{ padding: '8px 14px 0', font: `400 10px ${MONO}`, color: 'var(--proto-muted-3)' }}>
         {L.cpvSubtitle}
       </div>
-      {providers.length > 0
-        ? providers.map((provider) => (
-          <ProviderRow
-            key={provider.name} provider={provider} disabled={busy}
-            confirming={confirming === provider.name}
-            onEdit={() => openEdit(provider)}
-            onDelete={() => requestDelete(provider.name)}
-          />
-        ))
-        : <div style={{ padding: '12px 14px', color: 'var(--proto-muted-3)', fontSize: 11 }}>{L.cpvNone}</div>}
-      {draft ? (
+      {controller.providers.length > 0 ? controller.providers.map(provider => (
+        <ProviderRow key={provider.name} provider={provider}
+          editDisabled={controller.savePending} deleteDisabled={controller.removePending}
+          confirming={controller.confirmingDelete === provider.name}
+          onEdit={() => controller.openEdit(provider)}
+          onDelete={() => controller.requestDelete(provider.name)} />
+      )) : <div style={{ padding: '12px 14px', color: 'var(--proto-muted-3)', fontSize: 11 }}>{L.cpvNone}</div>}
+      {controller.draft ? (
         <div style={{ padding: '4px 14px 14px' }}>
-          <Editor draft={draft} creating={creating} errors={errors} onChange={setDraft} />
+          <Editor draft={controller.draft} creating={controller.creating}
+            errors={controller.errors} onChange={controller.changeDraft} />
           <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 10 }}>
-            <SButton tone="neutral" data-cpv-action="cancel" disabled={busy} onClick={() => setDraft(null)}>{L.cpvCancel}</SButton>
-            <SButton
-              tone="accent" data-cpv-action="save"
-              disabled={busy || !isCustomProviderFormValid(errors)}
-              onClick={() => save.mutate(buildCustomProviderArgs(draft))}
-            >
-              {L.cpvSave}
-            </SButton>
+            <SButton tone="neutral" data-cpv-action="cancel" disabled={controller.savePending}
+              onClick={controller.closeDraft}>{L.cpvCancel}</SButton>
+            <SButton tone="accent" data-cpv-action="save"
+              disabled={controller.savePending || !isCustomProviderFormValid(controller.errors)}
+              onClick={controller.save}>{L.cpvSave}</SButton>
           </div>
         </div>
       ) : null}
