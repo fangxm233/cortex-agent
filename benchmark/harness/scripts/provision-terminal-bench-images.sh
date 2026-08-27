@@ -18,6 +18,8 @@ PREFLIGHT_SCRIPT="$SCRIPT_DIR/vendor-runtime-preflight.js"
 ACQUIRE=0
 CAPTURE_DIGESTS=0
 CORTEX_SMOKE=0
+STAGE_ROOT=""
+VENDOR_CHOSEN=0
 VENDORS=(pi claude-code codex)
 
 cleanup() {
@@ -28,15 +30,22 @@ trap cleanup EXIT
 usage() {
   cat <<'EOF'
 Usage: provision-terminal-bench-images.sh [--acquire] [--capture-digests] [--vendor <name>] [--cortex-smoke]
+       provision-terminal-bench-images.sh --stage-runtimes <dir> [--acquire]
 
 Provision every task/vendor variant, one vendor's variants, or the Cortex smoke image.
 The command builds with no network or pull and prints immutable image references.
+
+`--stage-runtimes` builds no image at all. It verifies the same pinned runtimes against the same
+manifest and lays them out as the durable read-only roots a campaign's `runtimes:` block names, so
+an arm can be measured on an unmodified upstream task image instead of one baked to hold the same
+tree. It prints each staged root with its tree sha256.
 
 Options:
   --acquire          Fetch missing pinned sources, images, and verifier wheels.
   --capture-digests  Bootstrap newly declared image digests without accepting them.
   --vendor           Build only pi, claude-code, or codex variants.
   --cortex-smoke     Build only the committed Cortex-compatible smoke image.
+  --stage-runtimes   Stage the pinned runtimes into <dir> for mounting, and build nothing.
   -h, --help         Show this help.
 
 Examples:
@@ -44,6 +53,7 @@ Examples:
   benchmark/harness/scripts/provision-terminal-bench-images.sh --acquire
   benchmark/harness/scripts/provision-terminal-bench-images.sh --vendor codex
   benchmark/harness/scripts/provision-terminal-bench-images.sh --cortex-smoke
+  benchmark/harness/scripts/provision-terminal-bench-images.sh --stage-runtimes /var/tmp/cortex-bench/runtimes
 EOF
 }
 
@@ -53,13 +63,18 @@ while [[ $# -gt 0 ]]; do
     --capture-digests) CAPTURE_DIGESTS=1 ;;
     --vendor)
       case "${2:-}" in
-        pi|claude-code|codex) VENDORS=("$2"); shift ;;
+        pi|claude-code|codex) VENDORS=("$2"); VENDOR_CHOSEN=1; shift ;;
         *) printf 'invalid --vendor: %s (valid values: pi, claude-code, codex)\n' "${2:-}" >&2; exit 2 ;;
       esac
       ;;
     --cortex-smoke) CORTEX_SMOKE=1 ;;
+    --stage-runtimes)
+      STAGE_ROOT="${2:-}"
+      test -n "$STAGE_ROOT" || { printf -- '--stage-runtimes requires a directory\n' >&2; exit 2; }
+      shift
+      ;;
     -h|--help) usage; exit 0 ;;
-    *) printf 'unknown argument: %s (valid options: --acquire, --capture-digests, --vendor, --cortex-smoke, --help, -h)\n' "$1" >&2; exit 2 ;;
+    *) printf 'unknown argument: %s (valid options: --acquire, --capture-digests, --vendor, --cortex-smoke, --stage-runtimes, --help, -h)\n' "$1" >&2; exit 2 ;;
   esac
   shift
 done
@@ -255,6 +270,48 @@ case "$*" in
 esac
 EOF
   chmod 0755 "$bin/apt-get" "$bin/uvx" "$bin/curl"
+}
+
+stage_mounted_npm() {
+  # A baked image installs npm into the Node prefix at build time (see write_smoke_dockerfile).
+  # A mounted Node root is read-only at trial time, so the same layout has to exist before the
+  # mount does: npm under the prefix, and the two relative links a Node distribution ships. A
+  # Cortex arm needs `npm ls --offline` to find its own installed bundle, so this is not optional
+  # for the arm that mounts Node.
+  local npm_root
+  npm_root="${NPM_ROOT:-$(dirname "$(dirname "$(readlink -f "$(command -v npm)")")")}"
+  mkdir -p "$STAGE_ROOT/node/lib/node_modules"
+  cp -a "$npm_root" "$STAGE_ROOT/node/lib/node_modules/npm"
+  ln -sfn ../lib/node_modules/npm/bin/npm-cli.js "$STAGE_ROOT/node/bin/npm"
+  ln -sfn ../lib/node_modules/npm/bin/npx-cli.js "$STAGE_ROOT/node/bin/npx"
+  find "$STAGE_ROOT/node" -exec touch -h -d '1980-01-01T00:00:00Z' {} +
+}
+
+publish_staged_runtimes() {
+  # The mount layout the harness admits: one name, one root, matching
+  # `launcher/runtime_mounts.py::RUNTIME_TARGETS`. A staged root is replaced wholesale rather than
+  # merged, so a re-stage after a version bump cannot leave the previous tree half in place.
+  local name source records=()
+  mkdir -p "$STAGE_ROOT"
+  for name in node "${VENDORS[@]}" verifier; do
+    case "$name" in
+      node) source="$BUILD_ROOT/runtime/node" ;;
+      verifier) source="$BUILD_ROOT/runtime/verifier" ;;
+      claude-code) continue ;;
+      *) source="$BUILD_ROOT/runtime/vendors/$name" ;;
+    esac
+    test -d "$source" || continue
+    rm -rf "${STAGE_ROOT:?}/$name"
+    cp -a "$source" "$STAGE_ROOT/$name"
+    if [[ "$name" == node ]]; then stage_mounted_npm; fi
+    records+=("$(printf '{"name":%s,"root":%s,"tree_sha256":%s}' \
+      "$(json_string "$name")" "$(json_string "$STAGE_ROOT/$name")" \
+      "$(json_string "$(tree_sha256 "$STAGE_ROOT/$name")")")")
+  done
+  printf '{"ok":true,"stage_root":%s,"runtimes":[' "$(json_string "$STAGE_ROOT")"
+  printf '%s' "${records[0]}"
+  for ((index = 1; index < ${#records[@]}; index++)); do printf ',%s' "${records[$index]}"; done
+  printf ']}\n'
 }
 
 verify_source_file() {
@@ -571,9 +628,20 @@ SOURCE_REPOSITORY="$(json_text 'source.repository')"
 SOURCE_COMMIT="$(json_text 'source.commit')"
 SOURCE_DATE_EPOCH="$(json_text 'build_epoch')"
 export SOURCE_DATE_EPOCH
-acquire_source "$SOURCE_REPOSITORY" "$SOURCE_COMMIT"
 RUNTIME_INPUTS="$(resolve_input "$(json_text 'runtime_inputs')")"
 require_file "$RUNTIME_INPUTS"
+if [[ -n "$STAGE_ROOT" ]]; then
+  # No image is built, so the pinned Terminal-Bench source tree is not needed and not fetched.
+  # Claude Code is a single binary rather than a mountable tree and has no admitted mount target,
+  # so it is not staged unless it was asked for by name.
+  if [[ "$VENDOR_CHOSEN" != 1 ]]; then VENDORS=(pi codex); fi
+  stage_runtimes
+  stage_verifier
+  find "$BUILD_ROOT/runtime" -exec touch -h -d '1980-01-01T00:00:00Z' {} +
+  publish_staged_runtimes
+  exit 0
+fi
+acquire_source "$SOURCE_REPOSITORY" "$SOURCE_COMMIT"
 stage_runtimes
 stage_verifier
 find "$BUILD_ROOT/runtime" -exec touch -h -d '1980-01-01T00:00:00Z' {} +

@@ -23,6 +23,7 @@ Committed campaign documents declare the trials one `cortex-bench run` executes.
 | terminal-bench-2.1-vendor-pi-single.yaml | campaign | Declares task 3ff0's single-task PI live trial with the committed production envelope |
 | terminal-bench-2.1-vendor-pi-stream-diagnosis.yaml | campaign | Declares one approval-bounded PI scheduling replay with sanitized terminal-SSE diagnostics |
 | zero-paid-dry-run.yaml | campaign | Declares the neutral ZERO-PAID campaign the runner is proven against |
+| zero-paid-external-corpus.yaml | campaign | Declares the ZERO-PAID gate proving an external corpus task and mounted runtimes assemble a trial on an unmodified upstream image |
 | zero-paid-failed-agent.yaml | campaign | Declares the ZERO-PAID campaign proving a failed agent is published, scored and followed by the next trial |
 | zero-paid-parallel.yaml | campaign | Declares the ZERO-PAID campaign proving concurrent trials hold distinct subnets, addresses and live routes |
 | zero-paid-production-coder-review.yaml | campaign | Declares one production coder-review audit-retry ZERO-PAID recording trial using that arm's committed bundle and pinned image |
@@ -53,3 +54,34 @@ It is enforced as a set of addresses resolved once on the host at admission time
 rotation, CDN re-mapping, and connecting straight to an IP all defeat it. It keeps an honest
 agent off a host; it does not keep a determined one off. Do not use it as the only thing standing
 between a trial and the answers.
+
+## How a campaign names its tasks, and what its arms run on
+
+A campaign declares exactly one of `tasks` or `task_source`, and declaring neither or both is
+refused.
+
+`tasks` enumerates committed task copies with an inline digest-pinned `image_ref`. It is right for
+a handful of tasks whose directories live in `tasks/` under this folder, and it is what every
+campaign written before 2026-08-26 uses.
+
+`task_source` names a corpus that is too large to commit — a `root` directory of task folders and
+an `inventory` JSON that pins each task's local image id — plus an optional `select` block
+(`all` / `include` / `exclude`) to run a subset. Each entry expands into the same digest pin an
+inline `image_ref` carries; nothing about the pin gets weaker, it just stops being typed 89 times.
+Corpus tasks are staged once per campaign into a sibling of `trials_dir`, keeping only the three
+things Harbor reads, with the task's own `docker_image` and `allow_internet` lines rewritten. Both
+`root` and the staged inventory are host paths, so a `task_source` campaign belongs to the machine
+it was written for, the same way `trials_dir` already does.
+
+`runtimes` names the staged runtime roots this run may mount, and an arm's `runtime_mounts` names
+which of them it wants. The campaign declares the SOURCES; the harness owns the container targets,
+so a campaign cannot mount a runtime over `/usr/bin`, and every mount is admitted read-only. This
+is what lets an arm be measured on an unmodified upstream task image rather than one baked to
+carry the same tree — 89 tasks times three vendors is 267 builds, and that cost is why the
+89-task suite grew a second runner before this existed. Stage the roots with:
+
+    benchmark/harness/scripts/provision-terminal-bench-images.sh --stage-runtimes <dir>
+
+An arm that mounts anything must mount the CLI of the backend it drives: a Cortex arm on `pi`
+needs `pi` as well as `node`, because the server shells out to it. An arm that mounts nothing is
+the historical arm, and finds everything it needs baked into its image.

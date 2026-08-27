@@ -9,6 +9,7 @@ Harbor adapter modules resolve container paths and emit reproducibility metadata
 | artifact_provenance.py | boundary | Binds each built artifact to the source it came from, and refuses one that no longer matches the checkout |
 | campaign.py | CLI | Persists campaign results, reports and sanitized summaries |
 | campaign_config.py | boundary | Reads Cortex and vendor campaigns and scopes trial addresses |
+| campaign_progress.py | io | Writes the run-level ledger of what ran, what is running and what is left |
 | container_boundary.py | boundary | Records post-stop container exit and process census |
 | cwd.py | core | Resolves the live container workdir |
 | external_corpus.py | boundary | Stages a corpus task into the shape a committed task copy has |

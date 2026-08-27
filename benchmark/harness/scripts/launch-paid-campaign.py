@@ -97,9 +97,15 @@ CODEX_CREDENTIAL_CAPABILITIES = frozenset({
 # The generated references are leak canaries, not secrets: the scanner fails the trial if one of
 # these literals reaches a published artifact, which is how host environment or argv leakage is
 # detected. They are generated per launch and stay fixed for the whole campaign process.
+#
+# Keyed by the scan BLOCK the canary feeds, not by the variable name the campaign chose for it. It
+# used to be keyed by name, which meant the two names the paid campaigns happen to use were the
+# only ones this launcher could generate for: every other campaign -- every zero-paid document
+# among them -- refused at preflight until the operator hand-exported canaries of their own. What
+# a canary has to be is decided by the rule it feeds, and that is what this now reads.
 SENTINEL_PREFIXES = {
-    "CORTEX_BENCH_PAID_FORBIDDEN": "cortex-bench-paid-forbidden",
-    "CORTEX_BENCH_PAID_FORBIDDEN_ARGV": "cortex-bench-paid-argv",
+    "forbidden_environment": "cortex-bench-forbidden-env",
+    "forbidden_argv_environment": "cortex-bench-forbidden-argv",
 }
 SENTINEL_ENTROPY_BYTES = 8
 
@@ -230,14 +236,37 @@ def _reference_values(
 
 
 def _credential_origin(config: CampaignConfig) -> str:
-    return CODEX_AUTH_ORIGIN if _uses_codex_auth(config) else GATEWAY_ORIGIN
+    """Which host file this campaign's one credential comes from, or a refusal.
+
+    A campaign carries ONE credential: `proxy.credential_env` names one variable, the host scan
+    policy names one secret to hunt for in every artifact, and the proxy injects one upstream
+    identity. So the arms have to agree about where that credential comes from. They used to be
+    allowed to disagree -- `all(...)` meant a single DeepSeek arm beside five Codex arms silently
+    handed the Codex arms a DeepSeek key, and the run would have burned its envelope discovering
+    that at the first request. Disagreement is a refusal here instead, naming both groups, until
+    the proxy can carry a credential per arm rather than per campaign.
+    """
+    if not config.arms:
+        raise LaunchError("campaign declares no arm to resolve a credential for")
+    grouped: dict[str, list[str]] = {}
+    for arm in config.arms:
+        origin = (
+            CODEX_AUTH_ORIGIN
+            if str(arm["credential_capability"]) in CODEX_CREDENTIAL_CAPABILITIES
+            else GATEWAY_ORIGIN
+        )
+        grouped.setdefault(origin, []).append(str(arm["name"]))
+    if len(grouped) > 1:
+        detail = "; ".join(
+            f"{origin}: {sorted(names)}" for origin, names in sorted(grouped.items()))
+        raise LaunchError(
+            "campaign arms need credentials from more than one host source, and a campaign "
+            f"carries one ({detail}). Split it into one campaign per credential source")
+    return next(iter(grouped))
 
 
 def _uses_codex_auth(config: CampaignConfig) -> bool:
-    return bool(config.arms) and all(
-        str(arm["credential_capability"]) in CODEX_CREDENTIAL_CAPABILITIES
-        for arm in config.arms
-    )
+    return _credential_origin(config) == CODEX_AUTH_ORIGIN
 
 
 def _credential(
@@ -289,7 +318,7 @@ def _codex_access_token(auth_path: Path) -> str:
 def _generated(field: str, name: str, derived: Mapping[str, str]) -> str:
     if field in derived:
         return derived[field]
-    prefix = SENTINEL_PREFIXES.get(name)
+    prefix = SENTINEL_PREFIXES.get(field.split(".", 1)[0])
     if prefix is None:
         raise LaunchError(
             f"campaign host_scan_policy {field} names {name!r}, for which this launcher has no "

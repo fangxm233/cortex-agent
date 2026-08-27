@@ -1,0 +1,27 @@
+{
+  "name": "manager",
+  "description": "Owns a dispatched task node with manager Q&A unavailable",
+  "profile": "manager",
+  "persistSession": false,
+  "directive": "file:manager.md",
+  "systemPrompt": "file:manager.md",
+  "entryStage": "manage",
+  "stages": {
+    "manage": {
+      "description": "Advance the dispatched task: do the work directly or decompose it, then record the outcome.",
+      "promptTemplate": "{{input}}"
+    }
+  },
+  "tools": "Bash,Edit,Glob,Grep,Read,Skill,TodoWrite,WebFetch,WebSearch,Write",
+  "pluginDirs": [],
+  "mcpComposition": "thread-control",
+  "mcpToolAllowlist": [
+    "answer_subtask",
+    "task_list",
+    "task_result",
+    "task_status",
+    "thread_abort",
+    "thread_split",
+    "thread_wait"
+  ]
+}

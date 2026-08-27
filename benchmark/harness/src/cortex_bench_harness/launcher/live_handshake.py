@@ -332,8 +332,11 @@ def _start_session(
     proxy_dir: Path, host_credential: str,
 ) -> _HandshakeSession:
     arm = {"model": authority.model, "limits": authority.limits}
+    # Same binding a trial gets: a handshake spec that declares OAuth refresh material reads it
+    # from this host, and one that declares none binds none. A handshake is a single bounded
+    # request, so in practice it never needs the refresh path -- but it must not diverge from it.
     adapter = _select_trial_adapter(
-        authority.key, arm, upstream, host_credential, spec.access_expires_at_ms)
+        authority.key, arm, upstream, host_credential, spec, environ=None)
     armed_at_ms = host_now_ms()
     deadline_ms = armed_at_ms + int(authority.limits["deadline_seconds"]) * 1000
     proxy = _start_handshake_proxy(

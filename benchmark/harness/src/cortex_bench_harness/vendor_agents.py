@@ -38,6 +38,12 @@ from .launcher.trial_proxy import (
     require_capability_admission,
     revoke_trial_proxy,
 )
+from .launcher.runtime_mounts import (
+    RuntimeMountError,
+    arm_runtime_names,
+    runtime_agent_command,
+    runtime_link_command,
+)
 from .launcher.trial_seed import TrialSeed, parse_trial_seed
 from .manifest import MANIFEST_FILENAME, SCHEMA_VERSION
 from .scan.models import ArtifactInventory, ScanPolicy
@@ -455,6 +461,7 @@ class VendorLifecycleMixin:
             result = await environment.exec(command=self._setup_command(files))
             if result.return_code != 0:
                 raise VendorPreflightError("vendor dummy runtime setup failed")
+            await self._link_staged_runtimes(environment)
             await self._preflight_version(environment)
             self._write_vendor_manifest()
             self._setup_complete = True
@@ -478,6 +485,33 @@ class VendorLifecycleMixin:
             "vendor_cli": {"name": self.VENDOR_AGENT, "version": self._version},
         }
         atomic_write_json(self._artifact_dir / MANIFEST_FILENAME, document)
+
+    def _staged_runtime_names(self) -> tuple[str, ...]:
+        if self._trial_seed is None:
+            return ()
+        try:
+            return arm_runtime_names(self._trial_seed.arm)
+        except RuntimeMountError as error:
+            raise VendorPreflightError(str(error)) from error
+
+    async def _link_staged_runtimes(self, environment: BaseEnvironment) -> None:
+        """Put whatever the campaign mounted on PATH, before anything asks for its version.
+
+        A vendor arm has always required its CLI to be already in the task image; this is the
+        other way of already being there. Nothing changes for an arm that declares no staged
+        runtime: the commands below are empty and the version preflight is the same gate it was.
+        """
+        names = self._staged_runtime_names()
+        for command, run in (
+            (runtime_link_command(names), self.exec_as_root),
+            (runtime_agent_command(names), self.exec_as_agent),
+        ):
+            if not command:
+                continue
+            result = await run(environment, command=command)
+            if result.return_code != 0:
+                raise VendorPreflightError(
+                    f"staged runtime setup failed for {list(names)}")
 
     async def _preflight_version(self, environment: BaseEnvironment) -> None:
         command = self.get_version_command()

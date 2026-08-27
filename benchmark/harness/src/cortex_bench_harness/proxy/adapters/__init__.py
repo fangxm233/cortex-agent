@@ -53,6 +53,14 @@ CAP_BINDING_ADAPTERS: frozenset[AdapterFactory] = frozenset({
 EXPIRY_BINDING_ADAPTERS: frozenset[AdapterFactory] = frozenset({
     OpenAICodexResponsesOAuthAdapter,
 })
+# The adapters that can exchange a refresh token for a new access token, and so can outlive the
+# credential they were armed with. Listed rather than reflected, for the same reason as the cap:
+# an adapter that is not here is handed no refresh material at all, rather than being handed it
+# and quietly ignoring it.
+REFRESH_BINDING_ADAPTERS: frozenset[AdapterFactory] = frozenset({
+    OpenAICodexResponsesOAuthAdapter,
+})
+REFRESH_BINDINGS = ("refresh_token", "client_id", "token_endpoint_url")
 EXPIRY_VALIDATION_KEYS = frozenset({
     ("pi", "openai-codex", "openai-codex-responses", "oauth", PROXY_SCHEMA_VERSION),
     ("codex-cli", "openai-codex", "openai-codex-responses", "oauth", PROXY_SCHEMA_VERSION),
@@ -62,6 +70,7 @@ __all__ = [
     "ADAPTER_REGISTRY",
     "CAP_BINDING_ADAPTERS",
     "EXPIRY_BINDING_ADAPTERS",
+    "REFRESH_BINDING_ADAPTERS",
     "UNKNOWN_MEMBER",
     "AdapterUnavailable",
     "AdapterVersionMismatch",
@@ -80,6 +89,7 @@ def select_adapter(
     key: "CredentialCapabilityKey", *, upstream_base_url: str | None = None,
     credential: str | None = None, frozen_model: str | None = None,
     frozen_completion_cap: int | None = None, access_expires_at_ms: int | None = None,
+    **refresh: str,
 ) -> ProviderAdapter:
     members = (
         key.runner_or_backend, key.provider, key.protocol, key.credential_kind,
@@ -100,7 +110,7 @@ def select_adapter(
             f"adapted keys: {sorted(ADAPTER_REGISTRY)}")
     adapter = _construct_adapter(
         factory, members, upstream_base_url, credential, frozen_model,
-        frozen_completion_cap, access_expires_at_ms,
+        frozen_completion_cap, access_expires_at_ms, refresh,
     )
     if adapter.schema_version != key.proxy_adapter_version:
         raise AdapterVersionMismatch(
@@ -113,6 +123,7 @@ def _construct_adapter(
     factory: AdapterFactory, members: tuple[str, ...], upstream_base_url: str | None,
     credential: str | None, frozen_model: str | None,
     frozen_completion_cap: int | None, access_expires_at_ms: int | None,
+    refresh: Mapping[str, str],
 ) -> ProviderAdapter:
     bindings: dict[str, object] = {}
     if factory in CAP_BINDING_ADAPTERS:
@@ -123,4 +134,10 @@ def _construct_adapter(
         credential is not None or access_expires_at_ms is not None
     ):
         bindings["validate_access_expiry"] = True
+    if refresh:
+        unknown = sorted(set(refresh) - set(REFRESH_BINDINGS))
+        if unknown or factory not in REFRESH_BINDING_ADAPTERS:
+            raise AdapterUnavailable(
+                f"adapter for {members} takes no refresh material {sorted(refresh)}")
+        bindings.update(refresh)
     return factory(upstream_base_url, credential, frozen_model, **bindings)

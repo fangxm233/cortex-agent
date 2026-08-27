@@ -27,6 +27,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 from urllib.parse import urlsplit
 import re
@@ -41,6 +42,11 @@ from .launcher.arms import (
 )
 from .launcher.comparison_report import DIFFERENCE_CLASSES
 from .launcher.network_policy import NetworkAccess, NetworkAccessError, parse_network_access
+from .launcher.runtime_mounts import (
+    RuntimeMountError,
+    resolve_runtime_mounts,
+    runtime_target,
+)
 from .launcher.trial_proxy import TrialProxySpec, parse_trial_proxy_spec
 
 CAMPAIGN_SCHEMA_VERSION = "cortex-bench-campaign/1"
@@ -63,7 +69,7 @@ CAMPAIGN_REQUIRED_FIELDS = frozenset({
 # corpus and the inventory that pins it. Neither is optional in the sense of "may be omitted" --
 # omitting both is refused below, because a campaign without tasks is a typo, not a campaign.
 CAMPAIGN_OPTIONAL_FIELDS = frozenset({
-    "comparisons", "timeouts", "concurrency", "network", "tasks", "task_source",
+    "comparisons", "timeouts", "concurrency", "network", "tasks", "task_source", "runtimes",
 })
 # Harbor bounds the agent and verifier phases separately from the arm's own deadline. Absent
 # means today's behaviour: the agent phase is cut at `limits.deadline_seconds`, and the verifier
@@ -112,7 +118,8 @@ CORTEX_ARM_REQUIRED_FIELDS = ARM_COMMON_REQUIRED_FIELDS | frozenset({
 VENDOR_ARM_REQUIRED_FIELDS = ARM_COMMON_REQUIRED_FIELDS | frozenset({
     "vendor_agent", "vendor_cli_version",
 })
-VENDOR_ARM_OPTIONAL_FIELDS = frozenset({"thinking"})
+VENDOR_ARM_OPTIONAL_FIELDS = frozenset({"thinking", "runtime_mounts"})
+CORTEX_ARM_OPTIONAL_FIELDS = frozenset({"runtime_mounts"})
 ORCHESTRATION_REQUIRED_FIELDS = frozenset({"mode", "ask_manager"})
 ORCHESTRATION_OPTIONAL_FIELDS = frozenset({"coder_review_variant"})
 # Campaign limits describe the host envelope. Orchestration and concurrency live in the committed
@@ -245,6 +252,18 @@ class CampaignConfig:
     arms: tuple[Mapping[str, object], ...]
     tasks: tuple[CampaignTask, ...]
     comparisons: tuple[Mapping[str, object], ...]
+    # The run-level whitelist of staged runtime roots an arm may have mounted into its container.
+    # Empty is the historical campaign: every runtime an arm needs is baked into its task image.
+    runtimes: Mapping[str, str] = MappingProxyType({})
+
+    def arm_runtime_mounts(self, arm: Mapping[str, object]) -> dict[str, str]:
+        """This arm's extra bind mounts, target-keyed, or empty when it needs none."""
+        names = arm.get("runtime_mounts") or ()
+        assert isinstance(names, Sequence)
+        try:
+            return resolve_runtime_mounts(self.runtimes, [str(name) for name in names])
+        except RuntimeMountError as error:
+            raise CampaignConfigError(f"campaign arm {arm.get('name')}: {error}") from error
 
     def slot(self, index: int) -> NetworkSlot:
         return self.docker_network.slot(index)
@@ -344,9 +363,41 @@ def parse_campaign_config(
         arms=arms,
         tasks=_declared_tasks(document, base_dir),
         comparisons=_comparisons(document.get("comparisons", []), arms),
+        runtimes=_runtimes(document.get("runtimes"), base_dir),
     )
     _validate_trial_routes(config)
+    _validate_arm_runtimes(config)
     return config
+
+
+def _runtimes(source: object, base_dir: Path) -> Mapping[str, str]:
+    """Read the staged runtime roots, refusing a name this harness has no target for.
+
+    Each root must already exist: a runtime that is not staged yet is a run that dies at its first
+    container rather than at its config, and the whole point of staging is that it happened before
+    the campaign was launched.
+    """
+    if source is None:
+        return MappingProxyType({})
+    document = _mapping(source, "campaign runtimes")
+    staged: dict[str, str] = {}
+    for name in document:
+        try:
+            runtime_target(str(name))
+        except RuntimeMountError as error:
+            raise CampaignConfigError(f"campaign runtimes: {error}") from error
+        root = _path(document, str(name), base_dir, "campaign runtimes")
+        if not root.is_dir():
+            raise CampaignConfigError(
+                f"campaign runtimes {name} is not a staged directory: {root}")
+        staged[str(name)] = str(root)
+    return MappingProxyType(staged)
+
+
+def _validate_arm_runtimes(config: CampaignConfig) -> None:
+    """Refuse an arm asking for a runtime the campaign never staged, while it is still a file."""
+    for arm in config.arms:
+        config.arm_runtime_mounts(arm)
 
 
 def _network(value: object) -> NetworkAccess:
@@ -667,12 +718,38 @@ def _arm_common(document: Mapping[str, object], kind: str) -> dict[str, object]:
 
 
 def _cortex_arm(document: Mapping[str, object]) -> dict[str, object]:
-    _require_fields(document, CORTEX_ARM_REQUIRED_FIELDS, frozenset(), "campaign arm")
+    _require_fields(
+        document, CORTEX_ARM_REQUIRED_FIELDS, CORTEX_ARM_OPTIONAL_FIELDS, "campaign arm")
     return {
         **_arm_common(document, "cortex"),
         "backend": _text(document, "backend", "campaign arm"),
         "orchestration": _orchestration(document["orchestration"]),
+        **_arm_runtime_mounts(document),
     }
+
+
+def _arm_runtime_mounts(document: Mapping[str, object]) -> dict[str, object]:
+    """The staged runtimes this arm needs mounted, in declared order, each named once.
+
+    Absent means today's arm: everything the agent runs is already in the task image. The names
+    are checked against the harness vocabulary here so a typo is a refusal while the campaign is
+    still a document; whether the CAMPAIGN staged that name is checked once the run has a
+    `runtimes` block to check against.
+    """
+    if "runtime_mounts" not in document:
+        return {}
+    names = [
+        _text({"name": item}, "name", "campaign arm runtime_mounts")
+        for item in _sequence(document["runtime_mounts"], "campaign arm runtime_mounts")
+    ]
+    if len(names) != len(set(names)):
+        raise CampaignConfigError("campaign arm runtime_mounts must name each runtime once")
+    for name in names:
+        try:
+            runtime_target(name)
+        except RuntimeMountError as error:
+            raise CampaignConfigError(f"campaign arm {error}") from error
+    return {"runtime_mounts": list(names)}
 
 
 def _vendor_thinking(document: Mapping[str, object], vendor_agent: str) -> str | None:
@@ -705,7 +782,7 @@ def _vendor_arm(document: Mapping[str, object]) -> dict[str, object]:
     thinking = _vendor_thinking(document, vendor_agent)
     if thinking is not None:
         arm["thinking"] = thinking
-    return arm
+    return {**arm, **_arm_runtime_mounts(document)}
 
 
 def _orchestration(source: object) -> dict[str, object]:

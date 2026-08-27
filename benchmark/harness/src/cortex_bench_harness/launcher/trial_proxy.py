@@ -16,6 +16,7 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from ..proxy.adapters import ProviderAdapter, select_adapter
 from ..proxy.export import render_proxy_export
@@ -58,6 +59,12 @@ SPEC_REQUIRED_FIELDS = frozenset({
 })
 SPEC_OPTIONAL_FIELDS = frozenset({
     "listen_host", "advertised_host", "lease_seconds", "access_expires_at_ms",
+    # OAuth refresh material. `refresh_credential_env` is a NAME, exactly like `credential_env`:
+    # this value travels through a Harbor agent configuration and must never carry a secret. The
+    # client id and token endpoint are not secrets -- they are the public half of the OAuth
+    # client -- but they are declared rather than hard-coded, because a hard-coded token host is
+    # an unreviewable outbound destination.
+    "refresh_credential_env", "token_endpoint_url", "oauth_client_id",
 })
 
 # The paid envelope: what a run declares it may consume, wait for, and carry. It no longer carries
@@ -93,8 +100,19 @@ class TrialProxySpec:
     advertised_host: str | None = None
     #: Sealed by admission: the credential window, min(deadline_seconds, agent timeout).
     lease_seconds: int | None = None
-    #: Parsed by the campaign-wide Codex preflight; never read from a container auth file.
+    #: Parsed by the Codex freshness preflight; never read from a container auth file.
     access_expires_at_ms: int | None = None
+    #: Named, never carried: the host variable holding the OAuth refresh token. Without it an
+    #: expired access token ends the trial, which is what bounded a Codex campaign to one
+    #: concurrent wave inside one token lifetime.
+    refresh_credential_env: str | None = None
+    token_endpoint_url: str | None = None
+    oauth_client_id: str | None = None
+
+    @property
+    def can_refresh(self) -> bool:
+        return bool(
+            self.refresh_credential_env and self.token_endpoint_url and self.oauth_client_id)
 
 
 def parse_trial_proxy_spec(source: Mapping[str, object]) -> TrialProxySpec:
@@ -120,7 +138,30 @@ def parse_trial_proxy_spec(source: Mapping[str, object]) -> TrialProxySpec:
         access_expires_at_ms=(
             _positive_int(source, "access_expires_at_ms")
             if "access_expires_at_ms" in source else None),
+        **_refresh_fields(source),
     )
+
+
+def _refresh_fields(source: Mapping[str, object]) -> dict[str, str]:
+    """The three OAuth refresh fields, which are declared together or not at all.
+
+    Two of three is the shape that fails at the first expiry rather than at the config, hours into
+    a run that has already spent its envelope.
+    """
+    names = ("refresh_credential_env", "token_endpoint_url", "oauth_client_id")
+    declared = [name for name in names if name in source]
+    if not declared:
+        return {}
+    if len(declared) != len(names):
+        raise ValueError(
+            f"trial proxy spec OAuth refresh requires all of {list(names)}; "
+            f"got {sorted(declared)}")
+    fields = {name: _text(source, name) for name in names}
+    target = urlsplit(fields["token_endpoint_url"])
+    if target.scheme != "https" or not target.hostname or not target.path:
+        raise ValueError(
+            "trial proxy spec token_endpoint_url must be an https URL with a path")
+    return fields
 
 
 @dataclass(frozen=True)
@@ -286,8 +327,7 @@ def arm_trial_proxy(
     if paid_run:
         validate_paid_envelope(arm, spec, capability_id)
     credential = host_credential or _host_credential(spec.credential_env, environ)
-    adapter = _select_trial_adapter(
-        key, arm, upstream_base_url, credential, spec.access_expires_at_ms)
+    adapter = _select_trial_adapter(key, arm, upstream_base_url, credential, spec, environ)
     session = _start_proxy_session(
         arm, trial_id, upstream_base_url, spec, proxy_dir, adapter, now_ms,
         network_trace_path, network_trace_progress_interval_seconds,
@@ -304,15 +344,42 @@ def arm_trial_proxy(
 
 def _select_trial_adapter(
     key: CredentialCapabilityKey, arm: Mapping[str, object], upstream_base_url: str,
-    credential: str, access_expires_at_ms: int | None,
+    credential: str, spec: TrialProxySpec, environ: Mapping[str, str] | None,
 ) -> ProviderAdapter:
     return select_adapter(
         key, upstream_base_url=upstream_base_url, credential=credential,
         frozen_model=_text(arm, "model"),
         # The same declared cap the envelope validated is the one the adapter admits.
         frozen_completion_cap=_declared_positive_int(_limits(arm), "max_output_tokens"),
-        access_expires_at_ms=access_expires_at_ms,
+        access_expires_at_ms=spec.access_expires_at_ms,
+        **_refresh_bindings(spec, environ),
     )
+
+
+def _refresh_bindings(
+    spec: TrialProxySpec, environ: Mapping[str, str] | None,
+) -> dict[str, str]:
+    """Read the refresh token from the host environment, on the host side, once per trial.
+
+    The refresh token never leaves this process: it is bound to the adapter that lives beside the
+    proxy, and the container is handed the same dummy token it always was. That is the whole
+    exposure change -- the host process now holds a long-lived secret as well as a short-lived
+    one -- and it is what lets a run outlive one access token instead of being planned around it.
+    """
+    if not spec.can_refresh:
+        return {}
+    assert spec.refresh_credential_env is not None
+    values = os.environ if environ is None else environ
+    refresh = values.get(spec.refresh_credential_env, "")
+    if not refresh.strip():
+        raise ValueError(
+            f"trial proxy refresh credential {spec.refresh_credential_env} is not set on this "
+            "host; unset the OAuth refresh fields or export the token")
+    return {
+        "refresh_token": refresh.strip(),
+        "client_id": str(spec.oauth_client_id),
+        "token_endpoint_url": str(spec.token_endpoint_url),
+    }
 
 
 def revoke_trial_proxy(

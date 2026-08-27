@@ -1,0 +1,38 @@
+{
+  "name": "coder-review",
+  "description": "Coder implementation, reviewer audit, one conditional coder retry, and final review",
+  "agents": [
+    "coder",
+    "reviewer"
+  ],
+  "transitions": [
+    {
+      "from": "coder:implement",
+      "to": "reviewer:audit",
+      "condition": {
+        "type": "always"
+      }
+    },
+    {
+      "from": "reviewer:audit",
+      "to": "coder:retry",
+      "condition": {
+        "type": "convergence",
+        "marker": "[IMPL-APPROVED]",
+        "maxIterations": 1
+      }
+    },
+    {
+      "from": "coder:retry",
+      "to": "reviewer:finalAudit",
+      "condition": {
+        "type": "always"
+      }
+    }
+  ],
+  "entryAgent": "coder",
+  "entryStage": "implement",
+  "maxTotalSteps": 4,
+  "maxTotalCostUsd": 100,
+  "disableHooks": true
+}

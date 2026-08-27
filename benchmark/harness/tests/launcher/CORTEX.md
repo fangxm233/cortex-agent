@@ -16,6 +16,8 @@ Launcher tests cover production arm routing, admission and evidence recording.
 | test_deepseek_paid_smoke.py | test | Verifies paid smoke inputs |
 | test_deepseek_paid_smoke_launcher.py | test | Verifies pinned-image smoke launching and evidence |
 | test_external_task_source.py | test | Verifies external corpus expansion, selection, staging and trial-id composition |
+| test_campaign_progress.py | test | Verifies the run-level progress ledger and its best-effort writes |
+| test_codex_refresh_binding.py | test | Verifies OAuth refresh material binds to the adapter and never travels |
 | test_host_credential_vault.py | test | Verifies opaque credential transfer |
 | test_host_finalization.py | test | Verifies envelopes, terminal evidence and mapped scans |
 | test_live_handshake_permit.py | test | Verifies native-default bootstrap bounds and safe diagnostics |
@@ -23,6 +25,7 @@ Launcher tests cover production arm routing, admission and evidence recording.
 | test_paid_campaign_launch.py | test | Verifies paid launch and Codex auth loading |
 | test_production_arms.py | test | Verifies committed arm bundles |
 | test_result_summary.py | test | Verifies explicit thinking projection in public result summaries |
+| test_runtime_mounts.py | test | Verifies staged runtime mounts reach containers read-only or are refused |
 | test_production_home.py | test | Verifies sealed production homes |
 | test_production_session.py | test | Verifies sessions and all-arm terminal outcomes |
 | test_production_session_admission.py | test | Verifies sealed session execution |

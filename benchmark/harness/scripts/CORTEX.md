@@ -17,7 +17,7 @@ runs; the two scripts under it stay independently invocable and own every gate.
 | launch-terminal-bench-pi-full.py | launch | Runs the isolated 89-task PI full suite |
 | migrate-capability-evidence.py | evidence | Reproduces canonical v2 evidence and digests |
 | mutation-suite.py | evidence | Kills every listed mutation and regenerates offline evidence |
-| provision-terminal-bench-images.sh | build | Provisions role-safe vendor and Cortex-smoke images |
+| provision-terminal-bench-images.sh | build | Provisions role-safe vendor and Cortex-smoke images, and stages the pinned runtimes for mounting |
 | terminal-bench-2.1-images.json | config | Pins task sources, runtime variants and verifier inputs |
 | vendor-runtime-preflight.js | verify | Exercises one isolated CLI against loopback synthetic upstream |
 | zero-paid-runtime-inputs.json | config | Pins exact Node, npm and three vendor build inputs |

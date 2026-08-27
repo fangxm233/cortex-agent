@@ -1,0 +1,14 @@
+{
+  "defaultProfile": "coder-review",
+  "profiles": {
+    "coder-review": {
+      "model": "gpt-5.6-sol",
+      "backend": "pi",
+      "mode": "trial",
+      "provider": "openai-codex",
+      "thinking": "xhigh",
+      "maxOutputTokens": 65536,
+      "fallback": []
+    }
+  }
+}

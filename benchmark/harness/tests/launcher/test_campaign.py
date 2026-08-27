@@ -938,20 +938,46 @@ def test_cortex_pi_codex_three_trial_wave_passes_one_expiry_to_every_trial(
         expiry_ms}
 
 
-def test_short_codex_token_refuses_the_whole_campaign_with_zero_routes_armed(
+def test_a_token_too_short_for_a_trial_refuses_that_trial_and_arms_no_route(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
+    """Per trial, not per campaign: the refusal names what it could not cover and spends nothing,
+    and a re-run after the operator refreshes the token arms only what is left."""
     recorder = RecordingTrialPath().install(monkeypatch)
     monkeypatch.setattr(campaign, "_now_ms", lambda: CODEX_NOW_MS)
-    monkeypatch.setenv(CODEX_CREDENTIAL_ENV, codex_token(required_codex_expiry_ms() - 1000))
+    monkeypatch.setenv(CODEX_CREDENTIAL_ENV, codex_token(CODEX_NOW_MS + 60_000))
 
-    status = campaign.main(["run", "--config", str(write_campaign(
-        tmp_path, codex_campaign_document(tmp_path)))])
+    status, document, _ = run_cli(capsys, "run", "--config", str(write_campaign(
+        tmp_path, codex_campaign_document(tmp_path))))
 
     assert status == 1
-    assert "whole concurrent wave" in failure_document(capsys)["error"]
     assert recorder.armed == []
     assert recorder.calls == []
+    assert [trial["state"] for trial in document["trials"]] == ["failed"] * 3
+    assert all(
+        "does not cover this trial" in str(trial["reason"]) for trial in document["trials"])
+
+
+def test_a_campaign_that_can_refresh_arms_a_trial_the_token_would_not_cover(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A refreshing route has no wall-clock budget, so the freshness question stops being asked."""
+    recorder = RecordingTrialPath().install(monkeypatch)
+    monkeypatch.setattr(campaign, "_now_ms", lambda: CODEX_NOW_MS)
+    monkeypatch.setenv(CODEX_CREDENTIAL_ENV, codex_token(CODEX_NOW_MS + 60_000))
+    monkeypatch.setenv("CORTEX_BENCH_TEST_REFRESH", "refresh-token-value")
+    document = codex_campaign_document(tmp_path)
+    document["proxy"] = {
+        **document["proxy"],
+        "refresh_credential_env": "CORTEX_BENCH_TEST_REFRESH",
+        "token_endpoint_url": "https://auth.openai.com/oauth/token",
+        "oauth_client_id": "app_EMoamEEZ73f0CkXaXp7hrann",
+    }
+
+    status, _, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path, document)))
+
+    assert status == 0
+    assert len(recorder.armed) == 3
 
 
 def test_expired_codex_token_is_refused_before_native_refresh_or_route_arming(
@@ -970,19 +996,21 @@ def test_expired_codex_token_is_refused_before_native_refresh_or_route_arming(
     assert recorder.calls == []
 
 
-def test_codex_pending_trials_must_fit_one_concurrent_wave_before_arming(
+def test_codex_trials_no_longer_have_to_fit_one_concurrent_wave(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:
+    """623 trials do not fit in a wave of eight, and requiring it armed zero routes for the
+    89-task suite. Three trials at concurrency two is the same shape, small enough to run."""
     recorder = RecordingTrialPath().install(monkeypatch)
     monkeypatch.setattr(campaign, "_now_ms", lambda: CODEX_NOW_MS)
     monkeypatch.setenv(CODEX_CREDENTIAL_ENV, codex_token(required_codex_expiry_ms()))
 
-    status = campaign.main(["run", "--config", str(write_campaign(
-        tmp_path, codex_campaign_document(tmp_path, concurrency=2)))])
+    status, _, _ = run_cli(capsys, "run", "--config", str(write_campaign(
+        tmp_path, codex_campaign_document(tmp_path, concurrency=2))))
 
-    assert status == 1
-    assert "one concurrent wave" in failure_document(capsys)["error"]
-    assert recorder.armed == []
+    assert status == 0
+    assert len(recorder.armed) == 3
+    assert recorder.max_in_flight == 2
 
 
 def test_codex_vendor_arm_must_name_the_exact_codex_capability_before_arming(
@@ -1987,7 +2015,7 @@ def test_delivery_summary_projects_every_trial_and_sanitizes_host_values(
     assert persisted_result == public_result
     assert "result_path" not in public_result and "summary_path" not in public_result
     assert (trials_dir / "comparison-report.json").is_file()
-    assert summary["schema_version"] == "cortex-bench-campaign-result-summary/3"
+    assert summary["schema_version"] == "cortex-bench-campaign-result-summary/4"
     assert [trial["trial_id"] for trial in summary["trials"]] == [
         "camp-01-task-one-cortex-a", agent_failed, harness_incomplete, security_failed,
     ]
@@ -2007,7 +2035,7 @@ def test_delivery_summary_projects_every_trial_and_sanitizes_host_values(
     assert summary["trials"][3]["counters"]["cached_tokens"] == {
         "status": "unavailable",
     }
-    assert set(summary) == {"schema_version", "campaign", "trials"}
+    assert set(summary) == {"schema_version", "campaign", "arms", "trials"}
     assert set(summary["trials"][0]) == {
         "trial_id", "task_id", "terminal_state", "score_status", "verifier_rewards",
         "counters", "leak_scan", "revocation", "cli", "model", "thinking",
@@ -2027,7 +2055,7 @@ def test_committed_vendor_shapes_persist_all_three_delivery_artifacts(
     source["campaign"] = f"delivery-{vendor_agent}"
     config_copy = write_campaign(tmp_path, source)
     RecordingTrialPath(default_requests=1).install(monkeypatch)
-    monkeypatch.setattr(campaign, "_codex_wave_preflight", lambda *_: None)
+    monkeypatch.setattr(campaign, "_codex_preflight", lambda *_: None)
 
     status, result, stderr = run_cli(capsys, "run", "--config", str(config_copy))
 

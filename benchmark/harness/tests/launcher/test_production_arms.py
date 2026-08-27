@@ -297,3 +297,28 @@ def test_every_committed_bundle_ships_what_its_arm_declares() -> None:
             "context/projects/general/TASKS.yaml", "data/schedules.json",
         ):
             assert (home / required).is_file()
+
+
+def test_a_provider_pair_of_the_same_orchestration_differs_in_exactly_two_files() -> None:
+    """Five orchestrations exist twice, once per provider. If the pair differed anywhere else,
+    a provider comparison would be measuring that difference too."""
+    by_orchestration: dict[str, dict[str, object]] = {}
+    for bundle in PRODUCTION_ARM_BUNDLES:
+        suffix = f"-pi-{bundle.provider}"
+        assert bundle.key.endswith(suffix)
+        by_orchestration.setdefault(bundle.key[: -len(suffix)], {})[bundle.provider] = bundle
+
+    assert len(by_orchestration) == 5
+    for name, pair in by_orchestration.items():
+        assert sorted(pair) == ["deepseek", "openai-codex"], name
+        left, right = pair["deepseek"].bundle_dir, pair["openai-codex"].bundle_dir
+        differing = {
+            path.relative_to(left).as_posix()
+            for path in sorted(left.rglob("*")) if path.is_file()
+            and (right / path.relative_to(left)).read_bytes() != path.read_bytes()
+        }
+        assert differing == {"config/profiles.json", "data/mode.json"}, name
+        assert sorted(path.relative_to(left).as_posix()
+                      for path in left.rglob("*") if path.is_file()) == sorted(
+            path.relative_to(right).as_posix()
+            for path in right.rglob("*") if path.is_file())

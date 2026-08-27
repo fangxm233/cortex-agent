@@ -6,6 +6,7 @@
 import os
 import shlex
 from pathlib import Path, PurePosixPath
+from collections.abc import Sequence
 from typing import Any, Mapping, override
 
 from harbor.agents.installed.base import BaseInstalledAgent
@@ -37,6 +38,12 @@ from .launcher.trial_admission import (
     environment_digest,
 )
 from .launcher.trial_admission_io import atomic_write_json
+from .launcher.runtime_mounts import (
+    RuntimeMountError,
+    arm_runtime_names,
+    runtime_agent_command,
+    runtime_link_command,
+)
 from .launcher.trial_seed import parse_trial_seed
 from .launcher.host_credential_vault import HOST_CREDENTIAL_VAULT
 from .host_finalization import (
@@ -421,6 +428,7 @@ class CortexBenchAgent(BaseInstalledAgent):
             raise
 
     async def _install(self, environment: BaseEnvironment) -> None:
+        await self._link_staged_runtimes(environment)
         artifact_path, artifact = self._npm_artifact_upload()
         await environment.upload_file(artifact_path, str(artifact))
         await self.exec_as_root(environment, command=self._install_command(artifact))
@@ -431,6 +439,38 @@ class CortexBenchAgent(BaseInstalledAgent):
             environment, VERSION_COMMAND,
             "Installed Cortex CLI version probe returned no version",
         )
+
+    async def _link_staged_runtimes(self, environment: BaseEnvironment) -> None:
+        """Put the staged runtimes on PATH before the bundle that drives them is unpacked.
+
+        A Cortex arm installs itself from the pinned npm bundle, so from its image it needs a Node
+        interpreter -- and the CLI of the backend it drives, which the server shells out to.
+        Mounting both is what lets a Cortex arm run on an unmodified upstream task image instead
+        of a per-task image baked to hold the same trees.
+        """
+        names = arm_runtime_names(self._trial_seed.arm)
+        self._require_backend_runtime(names)
+        command = runtime_link_command(names)
+        if command:
+            await self.exec_as_root(environment, command=command)
+        agent_command = runtime_agent_command(names)
+        if agent_command:
+            await self.exec_as_agent(environment, command=agent_command)
+
+    def _require_backend_runtime(self, names: Sequence[str]) -> None:
+        """Refuse a mounted arm whose backend CLI was not among the mounts.
+
+        Only checked for an arm that mounts anything at all: an arm on a baked image mounts
+        nothing and finds every CLI already installed. But an arm that mounts Node and forgets its
+        backend gets a container with no `pi` in it, and the first thing that notices is a
+        `realpath -- ""` deep inside install -- a minute later, and about the wrong thing.
+        """
+        binary = backend_cli_binary(self._trial_seed.arm)
+        if names and binary not in names:
+            raise RuntimeMountError(
+                f"arm {self._trial_seed.arm.get('name')!r} mounts {list(names)} but drives the "
+                f"{binary} backend, whose CLI is neither mounted nor guaranteed by the task "
+                f"image; add {binary!r} to this arm's runtime_mounts")
 
     def _materialize_production_home(self) -> MaterializedProductionHome:
         assert self._npm_artifact is not None

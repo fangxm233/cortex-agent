@@ -19,13 +19,14 @@ LIMITS = {
 }
 
 
-def summary_config(tmp_path: Path) -> SimpleNamespace:
+def summary_config(tmp_path: Path, *arms: dict[str, object]) -> SimpleNamespace:
     return SimpleNamespace(
         campaign="summary-campaign",
         trials_dir=tmp_path,
         credential={"dummy_token_ref": "dummy-token"},
         proxy={"credential_env": "CORTEX_BENCH_TEST_CREDENTIAL"},
         cli_version="2026.8.6",
+        arms=list(arms),
     )
 
 
@@ -34,6 +35,7 @@ def outcome(arm: dict[str, object]) -> SimpleNamespace:
         plan=SimpleNamespace(
             trial_id="trial-01",
             arm=arm,
+            arm_name=str(arm["name"]),
             task=SimpleNamespace(task_id="task-01", image_digest=DIGEST),
         ),
         envelope=None,
@@ -85,9 +87,9 @@ def vendor_arm(**overrides: object) -> dict[str, object]:
 def test_vendor_result_summary_projects_the_declared_thinking_when_present(
     tmp_path: Path, arm: dict[str, object], expected: str | None,
 ) -> None:
-    summary = build_result_summary(summary_config(tmp_path), [outcome(arm)])
+    summary = build_result_summary(summary_config(tmp_path, arm), [outcome(arm)])
 
-    assert summary["schema_version"] == "cortex-bench-campaign-result-summary/3"
+    assert summary["schema_version"] == "cortex-bench-campaign-result-summary/4"
     assert summary["trials"][0]["thinking"] == expected
 
 
@@ -102,15 +104,34 @@ def test_vendor_result_summary_projects_the_declared_thinking_when_present(
 def test_cortex_result_summary_projects_the_resolved_bundle_thinking(
     tmp_path: Path, arm: dict[str, object], expected: str,
 ) -> None:
-    summary = build_result_summary(summary_config(tmp_path), [outcome(arm)])
+    summary = build_result_summary(summary_config(tmp_path, arm), [outcome(arm)])
 
     assert summary["trials"][0]["thinking"] == expected
 
 
 def test_non_bundle_cortex_arms_project_null_thinking(tmp_path: Path) -> None:
-    summary = build_result_summary(
-        summary_config(tmp_path),
-        [outcome(cortex_arm(backend="claude", credential_capability="claude-subscription"))],
-    )
+    arm = cortex_arm(backend="claude", credential_capability="claude-subscription")
+    summary = build_result_summary(summary_config(tmp_path, arm), [outcome(arm)])
 
     assert summary["trials"][0]["thinking"] is None
+
+
+def test_the_summary_counts_each_arm_against_the_denominator_it_earned(
+    tmp_path: Path,
+) -> None:
+    """A task the provider was down for is not a task the agent failed, so it is counted apart
+    rather than averaged in as a zero."""
+    arm = cortex_arm()
+    scored = outcome(arm)
+    scored.verifier_rewards = {"reward": 1.0}
+    unavailable = outcome(arm)
+    unavailable.score_status = "provider_unavailable"
+
+    summary = build_result_summary(
+        summary_config(tmp_path, arm), [scored, unavailable, outcome(arm)])
+
+    assert summary["arms"] == [{
+        "arm": "cortex-arm", "model": "deepseek-v4-flash", "thinking": "off",
+        "tasks": 3, "reward_total": 1.0,
+        "score_status": {"available": 2, "provider_unavailable": 1},
+    }]

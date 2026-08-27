@@ -1,0 +1,9 @@
+{
+  "mode": "api",
+  "claudeMode": "api",
+  "backend": "pi",
+  "claudeModel": "gpt-5.6-sol",
+  "activeProfile": "coder-review-fix",
+  "defaultAgent": "coder",
+  "channelProfiles": {}
+}

@@ -790,7 +790,7 @@ def test_launch_evidence_is_atomic_secret_free_and_complete(tmp_path: Path) -> N
     path = evidence_path(trial)
     document = json.loads(path.read_text())
     serialized = path.read_text()
-    assert document["schema_version"] == "cortex-harbor-launch-admission/1"
+    assert document["schema_version"] == "cortex-harbor-launch-admission/2"
     assert document["trial_id"] == "trial-one"
     assert document["root_run_id"] == "trial-one.cortex-direct"
     assert document["image"] == {"reference": IMAGE_REF, "pinned": True}

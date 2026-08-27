@@ -46,6 +46,7 @@ from .campaign_config import (
     load_campaign_config,
     parse_campaign_config,
 )
+from .campaign_progress import PROGRESS_FILENAME, CampaignProgress
 from .external_corpus import ExternalCorpusError, stage_task_input
 from .host_finalization import OUTER_ENVELOPE_FILENAME
 from .launcher.comparison_report import build_comparison_report, render_comparison_report
@@ -321,14 +322,19 @@ class _Schedule:
         self._recorded: dict[str, TrialOutcome] = {}
         self._queue: asyncio.Queue[TrialPlan] = asyncio.Queue()
         self.fault: HostFaultError | None = None
+        self._progress = CampaignProgress(
+            config.trials_dir / PROGRESS_FILENAME, config.campaign, _timestamp())
         partitioned = _partition(config, self._plans)
         pending = tuple(plan for plan, resumed in partitioned if resumed is None)
-        self._access_expires_at_ms = _codex_wave_preflight(config, pending)
+        self._access_expires_at_ms = _codex_preflight(config, pending)
         for plan, resumed in partitioned:
+            self._progress.declare(
+                plan.trial_id, plan.task.task_id, plan.arm_name, resumed is not None)
             if resumed is not None:
                 self._recorded[plan.trial_id] = resumed
             else:
                 self._queue.put_nowait(plan)
+        self._progress.flush()
 
     @property
     def pending(self) -> int:
@@ -352,7 +358,17 @@ class _Schedule:
 
     async def _run_trial(self, plan: TrialPlan, slot: NetworkSlot) -> TrialOutcome:
         started_at = _timestamp()
+        self._progress.started(plan.trial_id, slot.index, started_at)
+        return self._record(await self._trial(plan, slot, started_at))
+
+    async def _trial(
+        self, plan: TrialPlan, slot: NetworkSlot, started_at: str,
+    ) -> TrialOutcome:
         trial_root = self._config.trials_dir / plan.trial_id
+        refusal = _codex_trial_refusal(self._config, plan, self._access_expires_at_ms)
+        if refusal is not None:
+            return self._failed(
+                plan, slot, CampaignError(refusal), started_at, trial_root)
         try:
             await _arm_trial(
                 self._config, plan, slot, self._access_expires_at_ms,
@@ -366,6 +382,15 @@ class _Schedule:
         return _read_outcome(
             plan, trial_root, TRIAL_RAN, slot=slot.index, started_at=started_at,
             finished_at=_timestamp())
+
+    def _record(self, outcome: TrialOutcome) -> TrialOutcome:
+        self._progress.finished(
+            outcome.plan.trial_id,
+            failed=outcome.state in (TRIAL_FAILED, TRIAL_NOT_ARMED),
+            score_status=outcome.score_status, reason=outcome.reason,
+            finished_at=outcome.finished_at or _timestamp(),
+        )
+        return outcome
 
     def _failed(
         self, plan: TrialPlan, slot: NetworkSlot, error: Exception, started_at: str,
@@ -408,17 +433,26 @@ def _partition(
     return partitioned
 
 
-def _codex_wave_preflight(
+def _codex_preflight(
     config: CampaignConfig, pending: Sequence[TrialPlan],
 ) -> int | None:
+    """Validate the Codex arms and read the host token's expiry, without bounding the campaign.
+
+    This used to be a WAVE gate: every pending trial had to be Codex, they all had to fit in one
+    concurrent wave, and one access token had to outlive the whole wave. That made sense when the
+    proxy could not refresh -- the token was a fixed budget of wall-clock time, so the campaign
+    had to fit inside it. It also made a 623-trial campaign impossible to express: 623 trials do
+    not fit in a wave of eight, so zero routes were armed.
+
+    A refreshing route has no such budget, so the wave rules are gone. What is left is the part
+    that was always about correctness rather than scheduling: an arm that names Codex must name
+    the exact registered capability, and the token this host holds must be readable. Whether it
+    will still be valid when a particular trial starts is that trial's question, asked in
+    `_codex_trial_refusal` at the moment it is armed.
+    """
     codex = _codex_plans(pending)
     if not codex:
         return None
-    if len(codex) != len(pending):
-        raise CampaignError("pending Codex trials must be a single-provider concurrent wave")
-    if len(codex) > config.concurrency:
-        raise CampaignError(
-            "all pending Codex trials must fit in one concurrent wave before any route is armed")
     credential_name = str(config.proxy["credential_env"])
     credential = os.environ.get(credential_name)
     if not credential:
@@ -427,15 +461,40 @@ def _codex_wave_preflight(
         expiry_ms = extract_access_expiry_ms(credential)
     except ValueError as error:
         raise CampaignError(f"Codex token expiry preflight refused the campaign: {error}") from error
-    now_ms = _now_ms()
-    if expiry_ms <= now_ms:
-        raise CampaignError("Codex token is expired; no route was armed and no refresh was attempted")
-    required_ms = _codex_required_expiry_ms(config, codex, now_ms)
-    if expiry_ms < required_ms:
+    if expiry_ms <= _now_ms() and not _codex_can_refresh(config):
         raise CampaignError(
-            "Codex token cannot cover setup, lease, teardown, and clock skew for the "
-            "whole concurrent wave; zero routes were armed")
+            "Codex token is expired and this campaign declares no OAuth refresh material; "
+            "no route was armed and no refresh was attempted")
     return expiry_ms
+
+
+def _codex_can_refresh(config: CampaignConfig) -> bool:
+    """Whether the armed route can mint itself a new access token when this one expires."""
+    return all(
+        field in config.proxy
+        for field in ("refresh_credential_env", "token_endpoint_url", "oauth_client_id")
+    )
+
+
+def _codex_trial_refusal(
+    config: CampaignConfig, plan: TrialPlan, expires_at_ms: int | None,
+) -> str | None:
+    """Why this one trial cannot be armed on the current token, or None.
+
+    A trial is refused rather than the campaign, so the trials that already ran keep their
+    results and a re-run after the operator refreshes the token arms only what is left.
+    """
+    if expires_at_ms is None or _codex_can_refresh(config) or not _codex_plans([plan]):
+        return None
+    now_ms = _now_ms()
+    required_ms = _codex_required_expiry_ms(config, [plan], now_ms)
+    if expires_at_ms >= required_ms:
+        return None
+    return (
+        "Codex access token expires in "
+        f"{max(expires_at_ms - now_ms, 0) // 1000}s, which does not cover this trial's setup, "
+        f"lease, teardown and clock skew ({(required_ms - now_ms) // 1000}s). Refresh the host "
+        "token and re-run: this trial was not armed and spent nothing")
 
 
 def _codex_plans(pending: Sequence[TrialPlan]) -> tuple[TrialPlan, ...]:
@@ -543,6 +602,7 @@ async def _arm_trial(
             agent_timeout_seconds=config.timeouts.get("agent_seconds"),
             verifier_timeout_seconds=config.timeouts.get("verifier_seconds"),
             network=config.network,
+            runtime_mounts=config.arm_runtime_mounts(plan.arm),
         )
         await trial.run()
     except HostFaultError:

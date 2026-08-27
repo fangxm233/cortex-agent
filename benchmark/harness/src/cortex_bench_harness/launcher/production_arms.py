@@ -126,6 +126,16 @@ def _assert_bundle_profile(bundle: ProductionArmBundle) -> None:
         )
 
 
+# The five orchestrations exist twice, once per provider. A provider pair differs in exactly two
+# committed files -- the profile's provider/model/thinking and the mode's claudeModel -- and in
+# nothing else, so the pair is a controlled comparison of providers rather than of two arms that
+# happen to share a name. Written out per bundle rather than generated, because the bundle
+# directory it names is a committed tree that has to exist.
+CODEX_PROVIDER = {
+    "provider": "openai-codex", "model": "gpt-5.6-sol",
+    "credential_capability": "pi-openai-codex-oauth", "thinking": "xhigh",
+}
+
 PRODUCTION_ARM_BUNDLES: tuple[ProductionArmBundle, ...] = (
     _bundle(
         key="direct-pi-deepseek", profile_name="direct",
@@ -140,6 +150,45 @@ PRODUCTION_ARM_BUNDLES: tuple[ProductionArmBundle, ...] = (
         provider="openai-codex", model="gpt-5.6-sol",
         credential_capability="pi-openai-codex-oauth", thinking="xhigh",
         orchestration={"mode": "direct", "ask_manager": False},
+    ),
+    _bundle(
+        key="coder-review-audit-retry-pi-openai-codex",
+        profile_name="coder-review",
+        root_template="coder-review", evidence_mode="coder-review",
+        expected_roles=("coder", "reviewer"),
+        orchestration={
+            "mode": "coder-review", "coder_review_variant": "audit-retry",
+            "ask_manager": False,
+        },
+        **CODEX_PROVIDER,
+    ),
+    _bundle(
+        key="coder-review-reviewer-fix-pi-openai-codex",
+        profile_name="coder-review-fix",
+        root_template="coder-review-fix", evidence_mode="coder-review",
+        expected_roles=("coder", "fixer"),
+        orchestration={
+            "mode": "coder-review", "coder_review_variant": "reviewer-fix",
+            "ask_manager": False,
+        },
+        **CODEX_PROVIDER,
+    ),
+    _bundle(
+        key="manager-qa-off-pi-openai-codex", profile_name="manager",
+        root_template="manager", evidence_mode="manager",
+        expected_roles=("manager",), manager_qa="off",
+        orchestration={"mode": "manager", "ask_manager": False},
+        injection=TASK_ROOT, writable_home_paths=("context/projects/general",),
+        **CODEX_PROVIDER,
+    ),
+    _bundle(
+        key="manager-qa-on-pi-openai-codex", profile_name="manager",
+        root_template="manager", evidence_mode="manager",
+        expected_roles=("manager",), manager_qa="on",
+        orchestration={"mode": "manager", "ask_manager": True},
+        injection=TASK_ROOT, writable_home_paths=("context/projects/general",),
+        webhook_endpoints=(THREAD_OP_ENDPOINT, MANAGER_QA_ENDPOINT),
+        **CODEX_PROVIDER,
     ),
     _bundle(
         key="coder-review-audit-retry-pi-deepseek",

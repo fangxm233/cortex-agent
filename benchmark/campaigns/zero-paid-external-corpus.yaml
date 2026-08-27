@@ -1,0 +1,135 @@
+# input:  two Terminal-Bench 2.1 corpus tasks named by inventory, and runtimes staged for mounting
+# output: two ZERO-PAID trials on unmodified upstream images, one vendor arm and one Cortex arm
+# pos:    External-corpus and mounted-runtime ZERO-PAID gate
+# >>> If I am updated, update my header and folder CORTEX.md <<<
+#
+# WHAT THIS PROVES. Every other committed campaign names its tasks inline and runs them on images
+# baked to carry an agent runtime -- 89 tasks times three vendors is 267 builds, which is why the
+# 89-task suite grew a second runner instead of being expressed here. This one names the corpus
+# and its committed inventory, and mounts the pinned runtimes read-only into the UNMODIFIED
+# upstream task image. It exercises: external task expansion and digest pinning, per-campaign task
+# staging beside the trials root, runtime mount admission, the root/agent link commands each
+# mounted runtime owes, and route arming and revocation -- the whole launch path P1 changed.
+#
+# WHAT IT DOES NOT PROVE. Nothing about scores. The upstream is the committed synthetic DeepSeek
+# fixture, which answers exactly one instruction shape and refuses everything else with HTTP 400.
+# A real corpus task's instruction is not that shape, so no agent here can do any work. This gate
+# is about whether a trial can be ASSEMBLED from a corpus and a mount, not about whether an agent
+# can solve anything.
+#
+# The two arms therefore end differently, and both endings are correct for this fixture. The PI
+# arm gives up on the 502, its container is graded, and it records `reward 0.0` with
+# `score_status: available` -- which also proves the MOUNTED verifier ran. The Cortex arm keeps
+# retrying inside its own deadline, is killed by the agent timeout, and records
+# `harness-incomplete` with no grade. Read this campaign's result for the phases each trial
+# reached, not for what the numbers say.
+#
+# BEFORE LAUNCH, on the host this runs on:
+#   benchmark/harness/scripts/provision-terminal-bench-images.sh --stage-runtimes \
+#     /var/tmp/cortex-bench/runtimes
+#   start the synthetic DeepSeek upstream on loopback port 9099
+#   build both RUN-LOCAL artifacts named in `manifest`
+# The absolute paths below are lab2's. No provider endpoint or real credential is used; paid is
+# false.
+
+schema_version: cortex-bench-campaign/1
+campaign: zp-external
+paid: false
+trials_dir: /var/tmp/cortex-bench/zp-external
+cli_version: "2026.8.6"
+concurrency: 2
+
+timeouts:
+  agent_seconds: 600
+  verifier_seconds: 600
+
+manifest:
+  wheel_path: ../harness/dist/cortex_bench_harness-0.1.0-py3-none-any.whl
+  npm_artifact_path: ../harness/dist/cortex-agent-server-2026.8.6.tgz
+  lockfile_path: ../harness/uv.lock
+  lockfile_manifest_path: benchmark/harness/uv.lock
+
+credential:
+  upstream_base_url: http://127.0.0.1:9099
+  route_identity_host: api.deepseek.com
+  proxy_host_suffix: proxy.invalid
+  dummy_token_ref: zero-paid-dummy-token
+
+host_scan_policy:
+  secret_environment:
+    provider_credential: CORTEX_BENCH_ZERO_PAID_CREDENTIAL
+  forbidden_environment:
+    host_provider_credential: CORTEX_BENCH_ZERO_PAID_FORBIDDEN
+  forbidden_argv_environment:
+    host_provider_credential: CORTEX_BENCH_ZERO_PAID_FORBIDDEN_ARGV
+  repository_checkout_environment: CORTEX_BENCH_ZERO_PAID_CHECKOUT
+  host_identity_environment:
+    machine: CORTEX_BENCH_ZERO_PAID_IDENTITY
+
+docker_network:
+  subnet_pool: 172.30.224.0/20
+  subnet_prefix: 24
+
+proxy:
+  credential_env: CORTEX_BENCH_ZERO_PAID_CREDENTIAL
+  request_body_limit_bytes: 16777216
+  response_body_limit_bytes: 16777216
+  listen_host: 0.0.0.0
+
+# The staged roots this run may mount. The campaign declares the SOURCES; the harness owns the
+# container targets, so a campaign cannot mount a runtime over /usr/bin. Every mount is read-only:
+# one writable tree shared by concurrent trials would let one trial change the interpreter the
+# others are measured on.
+runtimes:
+  node: /var/tmp/cortex-bench/runtimes/node
+  pi: /var/tmp/cortex-bench/runtimes/pi
+  verifier: /var/tmp/cortex-bench/runtimes/verifier
+
+arms:
+  - name: zp-ext-pi
+    kind: vendor-baseline
+    vendor_agent: pi
+    vendor_cli_version: "0.82.1"
+    provider: deepseek
+    model: deepseek-v4-flash
+    credential_capability: pi-deepseek-api-key
+    runtime_mounts: [node, pi, verifier]
+    limits:
+      max_provider_requests: 20
+      max_cost_usd: "2.00"
+      deadline_seconds: 600
+      max_output_tokens: 65536
+
+  - name: zp-ext-cortex
+    kind: cortex
+    backend: pi
+    provider: deepseek
+    model: deepseek-v4-flash
+    credential_capability: pi-deepseek-api-key
+    runtime_mounts: [node, pi, verifier]
+    orchestration:
+      mode: direct
+      ask_manager: false
+    limits:
+      max_provider_requests: 20
+      max_cost_usd: "2.00"
+      deadline_seconds: 600
+      max_output_tokens: 65536
+
+# `open` because the mounted verifier is being exercised alongside, not instead of, the network
+# the paid campaigns currently score on. See campaigns/CORTEX.md for what each mode means.
+network:
+  mode: open
+
+# The corpus this host staged, pinned by the committed inventory. Each task's image is pinned by
+# the local image id the inventory recorded, which on a containerd-store Docker is the manifest
+# digest -- the same pin an inline `image_ref` carries, just not typed 89 times.
+task_source:
+  kind: external
+  root: /home/fangxin/.cache/cortex-bench/terminal-bench-2.1/tasks
+  inventory: ../external-suites/terminal-bench-2.1-7131e437-images.json
+  select:
+    mode: include
+    ids: [adaptive-rejection-sampler, bn-fit-modify]
+
+comparisons: []

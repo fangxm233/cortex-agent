@@ -1,0 +1,24 @@
+{
+  "name": "coder",
+  "description": "Implements a task directly in an isolated task workspace",
+  "profile": "coder-review",
+  "persistSession": true,
+  "directive": "file:coder.md",
+  "systemPrompt": "file:coder.md",
+  "entryStage": "implement",
+  "stages": {
+    "implement": {
+      "description": "Inspect the task workspace, implement the requested change, and record a concise handoff.",
+      "promptTemplate": "Task:\n{{input}}\n\nInspect the current task workspace and implement the requested change. Run targeted verification for the affected behavior. Do not assume git, commits, or a repository-wide test command exists. When finished, append a concise implementation handoff to {{artifactPath}} for the reviewer. Do not write the reviewer approval token."
+    },
+    "retry": {
+      "description": "Address the first audit's blockers and record the revision.",
+      "continuesSession": true,
+      "promptTemplate": "Read the latest reviewer audit in {{artifactPath}}. Re-check each blocker against the current task workspace, fix only confirmed blockers, and run targeted verification for the revised behavior. Append a concise retry handoff to {{artifactPath}}. Do not write the reviewer approval token."
+    }
+  },
+  "tools": "Bash,Edit,Glob,Grep,Read,Skill,TodoWrite,Write",
+  "pluginDirs": [],
+  "mcpComposition": "none",
+  "mcpToolAllowlist": []
+}

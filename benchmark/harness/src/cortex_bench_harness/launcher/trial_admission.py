@@ -43,6 +43,7 @@ from ..vendor_agents import VENDOR_FIXED_ENVIRONMENT
 from .trial_seed import TrialSeed, parse_trial_seed
 from .host_credential_vault import HOST_CREDENTIAL_VAULT
 from .arms import VENDOR_AGENTS, arm_backend, build_agent_config, require_pinned_image
+from .runtime_mounts import RUNTIME_TARGETS
 from .network_policy import (
     MODE_OPEN,
     DenylistEntry,
@@ -61,7 +62,7 @@ from .trial_admission_io import (
     redact_mount_sources,
 )
 
-ADMISSION_SCHEMA_VERSION = "cortex-harbor-launch-admission/1"
+ADMISSION_SCHEMA_VERSION = "cortex-harbor-launch-admission/2"
 ADMISSION_EVIDENCE_FILENAME = "harbor-launch-admission.json"
 ADMISSION_ENVIRONMENT_IMPORT_PATH = "cortex_bench_harness.launcher.trial_admission:AdmittedDockerEnvironment"
 TRIAL_ROOT = PurePosixPath("/logs/agent/trial-home")
@@ -252,7 +253,7 @@ def _container_ipv4(trial_proxy: Mapping[str, object] | None) -> str:
 def _admission_contract(
     seed: TrialSeed, task_root: Path, trial_root: Path,
     environment: Mapping[str, str], proxy_host: str, container_ipv4: str,
-    network: NetworkAccess,
+    network: NetworkAccess, runtime_mounts: Mapping[str, str],
 ) -> dict[str, object]:
     _provider(seed.arm)
     return {
@@ -272,7 +273,25 @@ def _admission_contract(
             "allowlist": list(network.allowlist),
             "denylist": list(network.denylist),
         },
+        # Target-keyed and sorted: the only extra bind mounts this trial may carry, each at the
+        # one container path its runtime name maps to. Empty for a trial whose agent runtime is
+        # baked into its task image, which is every trial this harness ran before mounts existed.
+        "runtime_mounts": _sealed_runtime_mounts(runtime_mounts),
     }
+
+
+def _sealed_runtime_mounts(runtime_mounts: Mapping[str, str]) -> dict[str, str]:
+    sealed: dict[str, str] = {}
+    for target, source in sorted(runtime_mounts.items()):
+        if target not in RUNTIME_TARGETS.values():
+            raise HarborTrialAdmissionError(
+                f"runtime mount target is not one this harness mounts: {target}")
+        path = Path(source).expanduser()
+        if not path.is_absolute() or not path.is_dir():
+            raise HarborTrialAdmissionError(
+                f"runtime mount source must be an existing absolute directory: {source}")
+        sealed[_canonical_target(target)] = str(path.resolve(strict=True))
+    return sealed
 
 
 def _trial_paths(trials_dir: Path | str, trial_id: str) -> tuple[Path, Path]:
@@ -364,6 +383,7 @@ def build_harbor_trial_config(
     host_scan_policy: Mapping[str, object], trial_proxy: Mapping[str, object] | None = None,
     credential_handle: str | None = None, agent_timeout_seconds: int | None = None,
     verifier_timeout_seconds: int | None = None, network: NetworkAccess | None = None,
+    runtime_mounts: Mapping[str, str] | None = None,
 ) -> TrialConfig:
     seed = parse_trial_seed(trial_seed)
     if seed.arm != arm:
@@ -377,6 +397,7 @@ def build_harbor_trial_config(
     contract = _admission_contract(
         seed, task_root, trial_root, environment, proxy_host,
         _container_ipv4(trial_proxy), network or NetworkAccess(mode=MODE_OPEN),
+        runtime_mounts or {},
     )
     agent = _build_trial_agent_config(
         arm, seed, trial_root, manifest, trial_seed, cli_version,
@@ -386,6 +407,7 @@ def build_harbor_trial_config(
     trial_environment = _trial_environment_config(
         environment, contract, _vendor_agent(seed.arm),
     )
+
     return _reserve_trial_config(
         task_root, trials_root, trial_root, seed.trial_id, agent,
         trial_environment, verifier_timeout_seconds,
@@ -411,9 +433,14 @@ def _trial_environment_config(
     kwargs: dict[str, object] = {"admission": contract}
     if vendor_agent is not None:
         kwargs["vendor_agent"] = vendor_agent
+    runtime = _contract_runtime_mounts(contract)
     return TrialEnvironmentConfig(
         import_path=ADMISSION_ENVIRONMENT_IMPORT_PATH,
         env=dict(environment), kwargs=kwargs,
+        mounts=[
+            ServiceVolumeConfig(type="bind", source=source, target=target, read_only=True)
+            for target, source in sorted(runtime.items())
+        ] or None,
     )
 
 
@@ -435,6 +462,7 @@ async def create_harbor_trial(
     agent_timeout_seconds: int | None = None,
     verifier_timeout_seconds: int | None = None,
     network: NetworkAccess | None = None,
+    runtime_mounts: Mapping[str, str] | None = None,
 ) -> Trial:
     try:
         config = build_harbor_trial_config(
@@ -444,7 +472,7 @@ async def create_harbor_trial(
             credential_handle=credential_handle,
             agent_timeout_seconds=agent_timeout_seconds,
             verifier_timeout_seconds=verifier_timeout_seconds,
-            network=network,
+            network=network, runtime_mounts=runtime_mounts,
         )
         _validate_no_extra_allowed_hosts(config)
         trial = await Trial.create(config)
@@ -481,7 +509,7 @@ def _parse_contract(source: object) -> Mapping[str, object]:
     required = {
         "schema_version", "trial_id", "root_run_id", "task_root", "trial_root",
         "image_ref", "proxy_host", "container_ipv4", "configured_environment_keys",
-        "admitted_environment_keys", "environment_digest", "network",
+        "admitted_environment_keys", "environment_digest", "network", "runtime_mounts",
     }
     if set(source) != required or source.get("schema_version") != ADMISSION_SCHEMA_VERSION:
         raise HarborTrialAdmissionError("admission policy is incomplete or unsupported")
@@ -491,6 +519,17 @@ def _parse_contract(source: object) -> Mapping[str, object]:
 def _contract_path(contract: Mapping[str, object], key: str) -> Path:
     value = _required_text(contract, key)
     return Path(value).resolve(strict=True)
+
+
+def _contract_runtime_mounts(contract: Mapping[str, object]) -> dict[str, str]:
+    value = contract.get("runtime_mounts")
+    if not isinstance(value, Mapping) or not all(
+        isinstance(target, str) and isinstance(source, str)
+        for target, source in value.items()
+    ):
+        raise HarborTrialAdmissionError(
+            "admission policy runtime_mounts must map container targets to host sources")
+    return {str(target): str(source) for target, source in value.items()}
 
 
 def _contract_keys(contract: Mapping[str, object], key: str) -> frozenset[str]:
@@ -635,13 +674,13 @@ def _validate_mount_shape(mount: ServiceVolumeConfig) -> None:
 
 def _mount_record(
     mount: ServiceVolumeConfig, standard: Mapping[str, Path],
-    task_root: Path, trial_root: Path,
+    task_root: Path, trial_root: Path, runtime: Mapping[str, str],
 ) -> dict[str, object]:
     _validate_mount_shape(mount)
     source = Path(str(mount.get("source", ""))).resolve(strict=True)
     target = _canonical_target(str(mount.get("target", "")))
     _reject_sensitive_source(source)
-    owner, read_only = _mount_owner(mount, source, target, standard, task_root)
+    owner, read_only = _mount_owner(mount, source, target, standard, task_root, runtime)
     if owner == "harbor-output-handoff" and not source.is_relative_to(trial_root):
         raise HarborTrialAdmissionError(f"Harbor mount escapes trial root: {source}")
     if owner == "harbor-task-input" and _overlaps(source, trial_root.parent):
@@ -668,16 +707,35 @@ def _standard_mount_owner(
 
 def _mount_owner(
     mount: ServiceVolumeConfig, source: Path, target: str,
-    standard: Mapping[str, Path], task_root: Path,
+    standard: Mapping[str, Path], task_root: Path, runtime: Mapping[str, str],
 ) -> tuple[str, bool]:
     standard_owner = _standard_mount_owner(mount, source, target, standard)
     if standard_owner is not None:
         return standard_owner
+    if target in runtime:
+        return _runtime_mount_owner(mount, source, target, runtime)
     if target != "/harbor/input" or not source.is_relative_to(task_root):
         raise HarborTrialAdmissionError(f"extra bind mount is not admitted: {target}")
     if mount.get("read_only") is not True:
         raise HarborTrialAdmissionError("Harbor task input mount must be read-only")
     return "harbor-task-input", True
+
+
+def _runtime_mount_owner(
+    mount: ServiceVolumeConfig, source: Path, target: str, runtime: Mapping[str, str],
+) -> tuple[str, bool]:
+    """A staged runtime is admitted at exactly the target and source the contract sealed.
+
+    Read-only is not a courtesy here. The same tree is mounted into every concurrent trial of the
+    campaign, so a writable mount would let one trial modify the interpreter the next twenty run
+    on, and the trials would stop being independent measurements of the same thing.
+    """
+    if str(source) != runtime[target]:
+        raise HarborTrialAdmissionError(
+            f"runtime mount at {target} differs from the sealed staged root")
+    if mount.get("read_only") is not True:
+        raise HarborTrialAdmissionError(f"runtime mount at {target} must be read-only")
+    return "harness-staged-runtime", True
 
 
 def _refresh_mount_records(records: Sequence[dict[str, object]]) -> None:
@@ -707,13 +765,21 @@ def _mount_records(
     if actual_trial_root != trial_root:
         raise HarborTrialAdmissionError("Harbor trial root differs from sealed policy")
     standard = _standard_mounts(trial_paths)
+    runtime = _contract_runtime_mounts(contract)
     records = [
-        _mount_record(mount, standard, task_root, trial_root)
+        _mount_record(mount, standard, task_root, trial_root, runtime)
         for mount in list(mounts or [])
     ]
     targets = [str(record["target"]) for record in records]
     if len(targets) != len(set(targets)) or not set(standard).issubset(targets):
         raise HarborTrialAdmissionError("Harbor final mount list is incomplete or duplicated")
+    # A sealed runtime that never reached the container is a trial whose agent would fall back to
+    # whatever the image happens to have, which is the comparison this whole harness exists to
+    # prevent. Missing is as much a refusal as extra.
+    if not set(runtime).issubset(targets):
+        raise HarborTrialAdmissionError(
+            f"sealed runtime mounts are missing from the final mount list: "
+            f"{sorted(set(runtime) - set(targets))}")
     ordered = sorted(records, key=lambda record: str(record["target"]))
     return ordered, [_canonical_mount(record) for record in ordered]
 

@@ -1,0 +1,16 @@
+{
+  "clientHotReloadEnabled": false,
+  "taskDispatchMaxConcurrent": 1,
+  "taskDispatchEnabled": false,
+  "taskDispatchIntervalMs": 2147483647,
+  "dispatchReconcilerEnabled": false,
+  "taskArchiveEnabled": false,
+  "taskArchiveIntervalMs": 2147483647,
+  "storeArchiveEnabled": false,
+  "memoryIndexRegenEnabled": false,
+  "memoryIndexRegenIntervalMs": 2147483647,
+  "serverUpdateDisable": true,
+  "diskMonitor": false,
+  "waitingSweepMs": 0,
+  "eventLog": false
+}

@@ -14,7 +14,7 @@ from .campaign_config import CampaignConfig, TrialPlan
 from .launcher.production_arms import resolve_production_arm
 
 RESULT_SUMMARY_FILENAME = "result-summary.json"
-RESULT_SUMMARY_SCHEMA_VERSION = "cortex-bench-campaign-result-summary/3"
+RESULT_SUMMARY_SCHEMA_VERSION = "cortex-bench-campaign-result-summary/4"
 PROXY_EXPORT_FILENAME = "proxy-export.json"
 _COUNTER_FIELDS = ("requests", "input_tokens", "output_tokens", "cached_tokens")
 _REVOCATION_BOOLEAN_FIELDS = ("route_active", "listener_present", "serving_thread_alive")
@@ -35,8 +35,47 @@ def build_result_summary(
     return {
         "schema_version": RESULT_SUMMARY_SCHEMA_VERSION,
         "campaign": config.campaign,
+        "arms": _arm_matrix(config, outcomes),
         "trials": [_trial_summary(config, outcome) for outcome in outcomes],
     }
+
+
+def _arm_matrix(
+    config: CampaignConfig, outcomes: Sequence[SummaryOutcome],
+) -> list[dict[str, object]]:
+    """Per arm: how many tasks were scored, and how many were not and why.
+
+    Six hundred trials is not a list a reader can hold. What they need first is the denominator
+    each arm actually earned against, which is why `score_status` is counted rather than folded
+    into the reward: a task where the provider was down is not a task the agent failed, and
+    averaging it in as a zero is how a provider outage becomes a published capability claim.
+    """
+    matrix: dict[str, dict[str, object]] = {}
+    for arm in config.arms:
+        matrix[str(arm["name"])] = {
+            "arm": arm["name"], "model": arm["model"], "thinking": _thinking(arm),
+            "tasks": 0, "reward_total": 0.0, "score_status": {},
+        }
+    for outcome in outcomes:
+        row = matrix.get(outcome.plan.arm_name)
+        if row is None:
+            continue
+        row["tasks"] = int(row["tasks"]) + 1
+        status = outcome.score_status or "unreported"
+        counts = row["score_status"]
+        assert isinstance(counts, dict)
+        counts[status] = counts.get(status, 0) + 1
+        row["reward_total"] = float(row["reward_total"]) + _reward_total(
+            outcome.verifier_rewards)
+    for row in matrix.values():
+        row["score_status"] = dict(sorted(row["score_status"].items()))
+    return list(matrix.values())
+
+
+def _reward_total(rewards: Mapping[str, int | float] | None) -> float:
+    if not rewards:
+        return 0.0
+    return float(sum(value for value in rewards.values() if isinstance(value, (int, float))))
 
 
 def render_result_summary(summary: Mapping[str, object]) -> str:
