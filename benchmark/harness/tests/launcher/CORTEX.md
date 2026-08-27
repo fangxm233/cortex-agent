@@ -15,6 +15,7 @@ Launcher tests cover production arm routing, admission and evidence recording.
 | test_credential_capabilities.py | test | Verifies current capability projections and evidence bindings |
 | test_deepseek_paid_smoke.py | test | Verifies paid smoke inputs |
 | test_deepseek_paid_smoke_launcher.py | test | Verifies pinned-image smoke launching and evidence |
+| test_external_task_source.py | test | Verifies external corpus expansion, selection, staging and trial-id composition |
 | test_host_credential_vault.py | test | Verifies opaque credential transfer |
 | test_host_finalization.py | test | Verifies envelopes, terminal evidence and mapped scans |
 | test_live_handshake_permit.py | test | Verifies native-default bootstrap bounds and safe diagnostics |

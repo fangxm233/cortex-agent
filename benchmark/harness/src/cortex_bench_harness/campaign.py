@@ -46,6 +46,7 @@ from .campaign_config import (
     load_campaign_config,
     parse_campaign_config,
 )
+from .external_corpus import ExternalCorpusError, stage_task_input
 from .host_finalization import OUTER_ENVELOPE_FILENAME
 from .launcher.comparison_report import build_comparison_report, render_comparison_report
 from .launcher.credential_capabilities import (
@@ -170,6 +171,10 @@ class TrialOutcome:
             "trial_id": self.plan.trial_id, "arm": self.plan.arm_name,
             "task_id": self.plan.task.task_id, "state": self.state,
         }
+        if self.plan.trial_id_was_shortened:
+            # A shortened id is still the whole identity; the reader should be able to see the
+            # campaign-task-arm triple it was cut from without recomputing the hash.
+            record["declared_trial_id"] = self.plan.declared_trial_id
         if self.requests is not None:
             record["requests"] = self.requests
         if self.metered_requests is not None:
@@ -231,7 +236,8 @@ def run(arguments: argparse.Namespace) -> dict[str, object]:
     if arguments.dry_run:
         return _dry_run_document(config, plans)
     started_at = _timestamp()
-    outcomes, fault = asyncio.run(_run_campaign(config, plans))
+    task_inputs = _stage_task_inputs(config)
+    outcomes, fault = asyncio.run(_run_campaign(config, plans, task_inputs))
     report_path, report_sha256 = _write_comparison_report(config, outcomes)
     failed = sum(outcome.state in (TRIAL_FAILED, TRIAL_NOT_ARMED) for outcome in outcomes)
     document: dict[str, object] = {
@@ -258,11 +264,36 @@ def run(arguments: argparse.Namespace) -> dict[str, object]:
     return document
 
 
+def _stage_task_inputs(config: CampaignConfig) -> dict[str, Path]:
+    """Give every task the Harbor input directory it will be admitted from.
+
+    A committed task is already that directory and is used where it lies. An external corpus task
+    is not: it carries its own Dockerfile, README and solution, and it names its image by tag. It
+    is staged once per campaign — not once per trial, since the directory is read-only input that
+    every arm shares — into a sibling of `trials_dir`, which is deliberately NOT inside it:
+    admission refuses a task input that overlaps the trials root, because that is how one trial
+    would end up reading another's output.
+    """
+    staged: dict[str, Path] = {}
+    root = config.trials_dir.parent / f"{config.campaign}-task-inputs"
+    for task in config.tasks:
+        if task.origin != "external":
+            staged[task.task_id] = task.path
+            continue
+        try:
+            staged[task.task_id] = stage_task_input(
+                task.path, root / task.task_id, task.image_ref)
+        except (ExternalCorpusError, OSError) as error:
+            raise HostFaultError(
+                f"cannot stage external task {task.task_id} from {task.path}: {error}") from error
+    return staged
+
+
 async def _run_campaign(
-    config: CampaignConfig, plans: Sequence[TrialPlan],
+    config: CampaignConfig, plans: Sequence[TrialPlan], task_inputs: Mapping[str, Path],
 ) -> tuple[list[TrialOutcome], HostFaultError | None]:
     """Resume what already ran, then run the rest `concurrency` at a time."""
-    schedule = _Schedule(config, plans)
+    schedule = _Schedule(config, plans, task_inputs)
     workers = [
         asyncio.create_task(schedule.work(slot))
         for slot in range(min(config.concurrency, schedule.pending))
@@ -280,9 +311,13 @@ class _Schedule:
     unwind this one.
     """
 
-    def __init__(self, config: CampaignConfig, plans: Sequence[TrialPlan]) -> None:
+    def __init__(
+        self, config: CampaignConfig, plans: Sequence[TrialPlan],
+        task_inputs: Mapping[str, Path],
+    ) -> None:
         self._config = config
         self._plans = tuple(plans)
+        self._task_inputs = dict(task_inputs)
         self._recorded: dict[str, TrialOutcome] = {}
         self._queue: asyncio.Queue[TrialPlan] = asyncio.Queue()
         self.fault: HostFaultError | None = None
@@ -320,7 +355,8 @@ class _Schedule:
         trial_root = self._config.trials_dir / plan.trial_id
         try:
             await _arm_trial(
-                self._config, plan, slot, self._access_expires_at_ms)
+                self._config, plan, slot, self._access_expires_at_ms,
+                self._task_inputs[plan.task.task_id])
         except HostFaultError as error:
             # The machine, not the trial: stop the other workers before they arm anything else.
             self.fault = self.fault or error
@@ -491,7 +527,7 @@ def _now_ms() -> int:
 
 async def _arm_trial(
     config: CampaignConfig, plan: TrialPlan, slot: NetworkSlot,
-    access_expires_at_ms: int | None = None,
+    access_expires_at_ms: int | None = None, task_path: Path | None = None,
 ) -> None:
     """One trial, through the production trial path and nothing else."""
     network_id = ""
@@ -499,7 +535,8 @@ async def _arm_trial(
     try:
         network_id = _create_trial_network(config, plan, slot)
         trial = await create_harbor_trial(
-            arm=dict(plan.arm), task_path=plan.task.path, trials_dir=config.trials_dir,
+            arm=dict(plan.arm), task_path=task_path or plan.task.path,
+            trials_dir=config.trials_dir,
             manifest=config.trial_manifest(plan), trial_seed=config.trial_seed(plan),
             cli_version=config.cli_version, host_scan_policy=dict(config.host_scan_policy),
             trial_proxy=_slot_proxy(config, slot, access_expires_at_ms),

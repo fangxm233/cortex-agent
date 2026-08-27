@@ -20,7 +20,9 @@
 # at the proxy made it over-state a 99.2%-cached trial by 12.7x.
 # `proxy.bound_source_ip` was one literal describing one container; it is now derived per slot.
 
+import hashlib
 import ipaddress
+import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
@@ -48,7 +50,7 @@ IDENTIFIER = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 
 CAMPAIGN_REQUIRED_FIELDS = frozenset({
     "schema_version", "campaign", "paid", "trials_dir", "cli_version",
-    "manifest", "credential", "host_scan_policy", "docker_network", "proxy", "arms", "tasks",
+    "manifest", "credential", "host_scan_policy", "docker_network", "proxy", "arms",
 })
 # `concurrency` is absent-means-one: a document that says nothing about parallelism gets the
 # serial campaign it has always described.
@@ -56,7 +58,13 @@ CAMPAIGN_REQUIRED_FIELDS = frozenset({
 # that can reach the internet. Every committed campaign still declares it, because the value
 # decides whether the resulting score measures the agent or measures its ability to look up the
 # answer, and that is not a fact to leave implicit.
-CAMPAIGN_OPTIONAL_FIELDS = frozenset({"comparisons", "timeouts", "concurrency", "network"})
+# `tasks` and `task_source` are the two ways to say the same thing and a document says exactly
+# one of them: `tasks` enumerates committed in-repo copies, `task_source` names a staged external
+# corpus and the inventory that pins it. Neither is optional in the sense of "may be omitted" --
+# omitting both is refused below, because a campaign without tasks is a typo, not a campaign.
+CAMPAIGN_OPTIONAL_FIELDS = frozenset({
+    "comparisons", "timeouts", "concurrency", "network", "tasks", "task_source",
+})
 # Harbor bounds the agent and verifier phases separately from the arm's own deadline. Absent
 # means today's behaviour: the agent phase is cut at `limits.deadline_seconds`, and the verifier
 # at whatever the task's own `[verifier] timeout_sec` declares. Declaring them here overrides a
@@ -115,6 +123,20 @@ ARM_POSITIVE_LIMITS = (
 ARM_LIMIT_FIELDS = frozenset(ARM_POSITIVE_LIMITS + ("max_cost_usd",))
 TASK_REQUIRED_FIELDS = frozenset({"task_id", "path", "image_ref"})
 TASK_OPTIONAL_FIELDS = frozenset({"image_size_bytes"})
+TASK_SOURCE_REQUIRED_FIELDS = frozenset({"kind", "root", "inventory"})
+TASK_SOURCE_OPTIONAL_FIELDS = frozenset({"select"})
+TASK_SOURCE_KINDS = frozenset({"external"})
+EXTERNAL_INVENTORY_SCHEMA_VERSION = "cortex-bench-external-task-inventory/1"
+EXTERNAL_INVENTORY_TASK_FIELDS = frozenset({"task_id", "image_ref", "image_id"})
+SELECT_REQUIRED_FIELDS = frozenset({"mode"})
+SELECT_OPTIONAL_FIELDS = frozenset({"ids"})
+SELECT_MODES = frozenset({"all", "include", "exclude"})
+SELECT_ID_MODES = frozenset({"include", "exclude"})
+# The trial id is a container hostname, so 63 characters is a hard ceiling rather than a style
+# rule. Below it nothing is rewritten -- every id a committed campaign already produced stays
+# byte-identical, which is what keeps `--resume` reading the roots it wrote last week.
+TRIAL_ID_LIMIT = 63
+TRIAL_ID_HASH_LENGTH = 6
 COMPARISON_FIELDS = frozenset({"left_arm", "right_arm", "difference_class"})
 
 
@@ -174,6 +196,11 @@ class CampaignTask:
     image_ref: str
     image_digest: str
     image_size_bytes: int | None
+    # "committed" is a task copy in this repository whose image was baked and registry-pinned;
+    # "external" is a staged corpus directory whose image is pinned by the local image identity
+    # the inventory recorded. Both end up as one digest-pinned ref, so nothing downstream has to
+    # know which rule admitted the task -- but the evidence should still say.
+    origin: str = "committed"
 
     def as_seed_task(self) -> dict[str, object]:
         return {"task_id": self.task_id, "image_ref": self.image_ref,
@@ -186,10 +213,17 @@ class TrialPlan:
     root_run_id: str
     arm: Mapping[str, object]
     task: CampaignTask
+    # What the trial id would have been if 63 characters had been enough. Equal to `trial_id` for
+    # every id that fits, which is every id a committed campaign has ever produced.
+    declared_trial_id: str = ""
 
     @property
     def arm_name(self) -> str:
         return str(self.arm["name"])
+
+    @property
+    def trial_id_was_shortened(self) -> bool:
+        return self.declared_trial_id != self.trial_id
 
 
 @dataclass(frozen=True)
@@ -308,7 +342,7 @@ def parse_campaign_config(
         timeouts=_timeouts(document.get("timeouts")),
         network=_network(document.get("network")),
         arms=arms,
-        tasks=_tasks(document["tasks"], base_dir),
+        tasks=_declared_tasks(document, base_dir),
         comparisons=_comparisons(document.get("comparisons", []), arms),
     )
     _validate_trial_routes(config)
@@ -374,13 +408,48 @@ def _trial_plan(
     campaign: str, arm: Mapping[str, object], task: CampaignTask,
 ) -> TrialPlan:
     arm_name = str(arm["name"])
-    trial_id = f"{campaign}-{task.task_id}-{arm_name}"
+    declared = f"{campaign}-{task.task_id}-{arm_name}"
+    trial_id = _trial_id(campaign, task.task_id, arm_name, declared)
+    return TrialPlan(
+        trial_id=trial_id, root_run_id=f"{trial_id}.{arm_name}", arm=arm, task=task,
+        declared_trial_id=declared)
+
+
+def _trial_id(campaign: str, task_id: str, arm_name: str, declared: str) -> str:
+    """The declared id when it fits a hostname, and a stable shortening of it when it does not.
+
+    Shortening is a function of the declared id alone, so the same campaign document always
+    produces the same roots: the task segment gives up characters first (an operator picked the
+    campaign and arm names and can shorten those; the corpus picked the task ids and cannot), the
+    arm segment gives up characters only if that was not enough, and a six-hex digest of the full
+    declared id is appended so two tasks truncated to the same prefix stay distinct.
+    """
+    if len(declared) <= TRIAL_ID_LIMIT:
+        if IDENTIFIER.fullmatch(declared) is None:
+            raise CampaignConfigError(
+                f"campaign, task_id and arm name compose the invalid trial id {declared!r}; "
+                "it must match [a-z0-9-] and stay within 63 characters")
+        return declared
+    suffix = hashlib.sha256(declared.encode()).hexdigest()[:TRIAL_ID_HASH_LENGTH]
+    budget = TRIAL_ID_LIMIT - len(suffix) - 1
+    fixed = len(campaign) + 2
+    task_slug, arm_slug = task_id, arm_name
+    if fixed + len(task_slug) + len(arm_slug) > budget:
+        task_slug = _trim(task_slug, budget - fixed - len(arm_slug))
+    if fixed + len(task_slug) + len(arm_slug) > budget:
+        arm_slug = _trim(arm_slug, budget - fixed - len(task_slug))
+    trial_id = "-".join(part for part in (campaign, task_slug, arm_slug, suffix) if part)
     if IDENTIFIER.fullmatch(trial_id) is None:
         raise CampaignConfigError(
-            f"campaign, task_id and arm name compose the invalid trial id {trial_id!r}; "
-            "it must match [a-z0-9-] and stay within 63 characters")
-    return TrialPlan(
-        trial_id=trial_id, root_run_id=f"{trial_id}.{arm_name}", arm=arm, task=task)
+            f"campaign, task_id and arm name compose the trial id {declared!r}, which cannot be "
+            f"shortened into a valid hostname (best effort was {trial_id!r}); shorten the "
+            "campaign or arm name")
+    return trial_id
+
+
+def _trim(value: str, length: int) -> str:
+    """Cut to `length` and leave no trailing hyphen, which a hostname label may not end with."""
+    return value[:max(length, 0)].rstrip("-")
 
 
 def _require_fields(
@@ -674,14 +743,142 @@ def _integer(document: Mapping[str, object], field: str, *, minimum: int) -> int
     return value
 
 
-def _tasks(source: object, base_dir: Path) -> tuple[CampaignTask, ...]:
-    entries = _sequence(source, "campaign tasks")
-    tasks = tuple(_task(entry, base_dir) for entry in entries)
+def _declared_tasks(
+    document: Mapping[str, object], base_dir: Path,
+) -> tuple[CampaignTask, ...]:
+    """Read whichever of the two task declarations the document makes, and refuse both or neither.
+
+    An external corpus is 89 directories that do not belong in this repository, so enumerating it
+    inline would mean committing a 89-entry list that restates a file the corpus already ships.
+    `task_source` names that file instead. What it does NOT do is loosen the pin: every task still
+    ends up with a digest-pinned image ref, it is just pinned by the identity the inventory
+    recorded rather than by a registry manifest an operator typed.
+    """
+    declared = {field for field in ("tasks", "task_source") if field in document}
+    if declared != {"tasks"} and declared != {"task_source"}:
+        raise CampaignConfigError(
+            "campaign must declare exactly one of tasks (committed copies) or task_source "
+            f"(a staged external corpus); got {sorted(declared) or 'neither'}")
+    tasks = (
+        _tasks(document["tasks"], base_dir) if "tasks" in document
+        else _task_source(document["task_source"], base_dir)
+    )
     identifiers = [task.task_id for task in tasks]
     duplicates = sorted({value for value in identifiers if identifiers.count(value) > 1})
     if duplicates:
         raise CampaignConfigError(f"campaign task ids must be unique; repeated {duplicates}")
     return tasks
+
+
+def _tasks(source: object, base_dir: Path) -> tuple[CampaignTask, ...]:
+    entries = _sequence(source, "campaign tasks")
+    return tuple(_task(entry, base_dir) for entry in entries)
+
+
+def _task_source(source: object, base_dir: Path) -> tuple[CampaignTask, ...]:
+    document = _mapping(source, "campaign task_source")
+    _require_fields(
+        document, TASK_SOURCE_REQUIRED_FIELDS, TASK_SOURCE_OPTIONAL_FIELDS,
+        "campaign task_source")
+    kind = _text(document, "kind", "campaign task_source")
+    if kind not in TASK_SOURCE_KINDS:
+        raise CampaignConfigError(
+            f"campaign task_source kind must be one of {sorted(TASK_SOURCE_KINDS)}; got {kind!r}")
+    root = _path(document, "root", base_dir, "campaign task_source")
+    if not root.is_dir():
+        raise CampaignConfigError(f"campaign task_source root is not a directory: {root}")
+    entries = _inventory_tasks(_path(document, "inventory", base_dir, "campaign task_source"))
+    selected = _select(document.get("select"), entries)
+    return tuple(_external_task(entry, root) for entry in selected)
+
+
+def _inventory_tasks(path: Path) -> tuple[Mapping[str, object], ...]:
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except OSError as error:
+        raise CampaignConfigError(
+            f"cannot read campaign task_source inventory {path}: "
+            f"{error.strerror or error}") from error
+    except json.JSONDecodeError as error:
+        raise CampaignConfigError(
+            f"campaign task_source inventory {path} is not valid JSON: {error}") from error
+    if not isinstance(document, Mapping):
+        raise CampaignConfigError(f"campaign task_source inventory {path} must be a mapping")
+    version = document.get("schema_version")
+    if version != EXTERNAL_INVENTORY_SCHEMA_VERSION:
+        raise CampaignConfigError(
+            f"campaign task_source inventory schema_version must be "
+            f"{EXTERNAL_INVENTORY_SCHEMA_VERSION!r}; got {version!r}")
+    rows = document.get("tasks")
+    if not isinstance(rows, list) or not rows:
+        raise CampaignConfigError(
+            f"campaign task_source inventory {path} must list at least one task")
+    return tuple(_mapping(row, "campaign task_source inventory task") for row in rows)
+
+
+def _select(
+    source: object, entries: Sequence[Mapping[str, object]],
+) -> tuple[Mapping[str, object], ...]:
+    """Take a subset of the inventory by id, refusing an id the inventory does not have.
+
+    A silently-ignored id is the failure this exists to prevent: an operator who mistypes one of
+    eighty-nine task ids would otherwise get a run that is quietly one task short and no message
+    saying so.
+    """
+    if source is None:
+        return tuple(entries)
+    document = _mapping(source, "campaign task_source select")
+    _require_fields(
+        document, SELECT_REQUIRED_FIELDS, SELECT_OPTIONAL_FIELDS, "campaign task_source select")
+    mode = _text(document, "mode", "campaign task_source select")
+    if mode not in SELECT_MODES:
+        raise CampaignConfigError(
+            f"campaign task_source select mode must be one of {sorted(SELECT_MODES)}; "
+            f"got {mode!r}")
+    if (mode in SELECT_ID_MODES) != ("ids" in document):
+        raise CampaignConfigError(
+            f"campaign task_source select mode {mode!r} "
+            f"{'requires' if mode in SELECT_ID_MODES else 'rejects'} an ids list")
+    if mode == "all":
+        return tuple(entries)
+    ids = [
+        _identifier({"id": item}, "id", "campaign task_source select")
+        for item in _sequence(document["ids"], "campaign task_source select ids")
+    ]
+    available = {str(entry.get("task_id")) for entry in entries}
+    unknown = sorted(set(ids) - available)
+    if unknown:
+        raise CampaignConfigError(
+            f"campaign task_source select names {unknown}, which the inventory does not contain")
+    wanted = set(ids)
+    keep = (lambda value: value in wanted) if mode == "include" else (
+        lambda value: value not in wanted)
+    selected = tuple(entry for entry in entries if keep(str(entry.get("task_id"))))
+    if not selected:
+        raise CampaignConfigError("campaign task_source select leaves no task to run")
+    return selected
+
+
+def _external_task(entry: Mapping[str, object], root: Path) -> CampaignTask:
+    _require_fields(
+        entry, EXTERNAL_INVENTORY_TASK_FIELDS, frozenset(),
+        "campaign task_source inventory task")
+    task_id = _identifier(entry, "task_id", "campaign task_source inventory task")
+    image_id = _text(entry, "image_id", "campaign task_source inventory task")
+    if IMAGE_DIGEST.fullmatch(image_id) is None:
+        raise CampaignConfigError(
+            f"campaign task_source inventory task {task_id} image_id must be sha256:<64 hex>; "
+            f"got {image_id!r}")
+    repository, _, _ = _text(
+        entry, "image_ref", "campaign task_source inventory task").partition(":")
+    path = root / task_id
+    if not (path / "task.toml").is_file():
+        raise CampaignConfigError(
+            f"campaign task_source has no task.toml for {task_id} at {path}")
+    return CampaignTask(
+        task_id=task_id, path=path, image_ref=f"{repository}@{image_id}",
+        image_digest=image_id, image_size_bytes=None, origin="external",
+    )
 
 
 def _task(source: object, base_dir: Path) -> CampaignTask:

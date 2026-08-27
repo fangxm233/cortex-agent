@@ -11,6 +11,7 @@ Harbor adapter modules resolve container paths and emit reproducibility metadata
 | campaign_config.py | boundary | Reads Cortex and vendor campaigns and scopes trial addresses |
 | container_boundary.py | boundary | Records post-stop container exit and process census |
 | cwd.py | core | Resolves the live container workdir |
+| external_corpus.py | boundary | Stages a corpus task into the shape a committed task copy has |
 | manifest.py | core | Records artifacts and the installed CLI version |
 | harbor_agent.py | adapter | Runs production and finalizes terminal deadline evidence |
 | host_finalization.py | boundary | Publishes trial evidence and deadline outcomes |
