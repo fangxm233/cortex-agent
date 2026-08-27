@@ -1,13 +1,13 @@
-// input:  shared project scope, memory tree query, and mobile navigation
-// output: mobile project-memory tree and accordion state
+// input:  Shared project scope, memory-tree query/facts, and mobile navigation
+// output: Mobile project-memory accordions and read-only file drill-ins
 // pos:    Mobile memory browser data controller
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 // 1j 项目记忆 — the current project's memory tree, drilled from the project page (scheme 1e→1j). NON-Tab
 // drill page (the shell hides the Tab bar for /m/memory). READ-ONLY. Real tRPC: `memory.tree({ projectId })`
 // scoped to the mobile current project. Back → the project page (1e). Files tap through to the read-only
-// file viewer (/m/memory/file); the four memory dirs are accordions whose open-state is owned here. Writes
-// to behavioral content (rules/skills) still go through approval (agent-only).
+// file viewer (/m/memory/file); memory dirs are accordions whose open-state is owned here. Writes to
+// behavioral content (rules/skills) still go through approval (agent-only).
 import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -15,6 +15,7 @@ import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
+import { deriveMemoryTreeFacts } from '@/features/memory/memory-tree';
 import { MScreen, MC } from '@/mobile/ui/kit';
 import { MMemoryView, type MMemoryCopy } from './MMemoryView';
 import { buildMMemoryVm } from './m-memory-vm';
@@ -50,7 +51,8 @@ export function MMemoryScreen() {
     ...trpc.memory.tree.queryOptions({ projectId: currentProjectId ?? '' }),
     enabled: !!currentProjectId,
   });
-  const vm = useMemo(() => buildMMemoryVm(treeQuery.data, now), [treeQuery.data, now]);
+  const treeFacts = useMemo(() => deriveMemoryTreeFacts(treeQuery.data), [treeQuery.data]);
+  const vm = useMemo(() => buildMMemoryVm(treeFacts, now), [treeFacts, now]);
 
   const [openDirs, setOpenDirs] = useState<Set<string>>(() => new Set());
   const toggleDir = useCallback((name: string) => {

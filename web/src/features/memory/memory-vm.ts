@@ -1,8 +1,9 @@
-// input:  memory tree, diff, and blame DTOs
-// output: memory rows, diff styles, and blame presentation models
+// input:  Shared memory-tree facts plus diff and blame DTOs
+// output: Hierarchical desktop rows, diff styles, and blame presentation models
 // pos:    Pure view model for the desktop memory browser
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-import type { MemoryTree, MemoryLineDiff, MemoryBlameLine } from '@cortex-agent/ui-contract';
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+import type { MemoryLineDiff, MemoryBlameLine } from '@cortex-agent/ui-contract';
+import type { MemoryTreeFacts } from './memory-tree';
 
 // Pure view-model helpers for the memory viewer 7b center view (prototype.dc.html L658–719). No JSX,
 // no fabricated data. Project selection is owned separately by features/projects.
@@ -11,8 +12,10 @@ export interface TreeRow {
   /** Display name — dirs carry a trailing slash. */
   name: string;
   kind: 'file' | 'dir';
-  /** memory.file path for a selectable file, else null (dirs cannot be listed — no dir scope). */
+  /** memory.file path for a selectable top-level or nested file; null for a directory row. */
   path: string | null;
+  /** 0 for top-level files/directories, 1 for entries nested under a directory. */
+  depth: 0 | 1;
   selectable: boolean;
   selected: boolean;
   /** Right-aligned mono count — the real dir `entryCount`; null for files (no line-count backend). */
@@ -20,34 +23,46 @@ export interface TreeRow {
 }
 
 /**
- * Tree rows for the 200px file tree: the real top-level files (selectable → memory.file) followed by
- * the real memory dirs with their entryCount. Dirs are NON-selectable: the memory.tree scope returns
- * only dir names + counts, not their entries, so nested files cannot be enumerated (flagged gap). File
- * rows carry NO right-hand chip — the prototype's `≤120L`/`9` are mock line counts with no backend.
+ * Tree rows for the 200px browser: selectable top-level files followed by each directory and its real
+ * selectable entries. Directory rows retain the server count but remain labels, while nested rows use
+ * canonical memory.file paths from the shared facts. Files carry no fabricated line-count chip.
  */
-export function buildTreeRows(tree: MemoryTree, selectedPath: string | null): TreeRow[] {
-  const files: TreeRow[] = tree.files.map((f) => ({
-    name: f.name,
+export function buildTreeRows(facts: MemoryTreeFacts, selectedPath: string | null): TreeRow[] {
+  const topLevelRows: TreeRow[] = facts.topLevelFiles.map((file) => ({
+    name: file.name,
     kind: 'file',
-    path: f.name,
+    path: file.path,
+    depth: 0,
     selectable: true,
-    selected: f.name === selectedPath,
+    selected: file.path === selectedPath,
     right: null,
   }));
-  const dirs: TreeRow[] = tree.dirs.map((d) => ({
-    name: `${d.name}/`,
-    kind: 'dir',
-    path: null,
-    selectable: false,
-    selected: false,
-    right: String(d.entryCount),
-  }));
-  return [...files, ...dirs];
+  const dirRows = facts.dirs.flatMap<TreeRow>((dir) => [
+    {
+      name: `${dir.name}/`,
+      kind: 'dir',
+      path: null,
+      depth: 0,
+      selectable: false,
+      selected: false,
+      right: String(dir.entryCount),
+    },
+    ...dir.entries.map<TreeRow>((file) => ({
+      name: file.name,
+      kind: 'file',
+      path: file.path,
+      depth: 1,
+      selectable: true,
+      selected: file.path === selectedPath,
+      right: null,
+    })),
+  ]);
+  return [...topLevelRows, ...dirRows];
 }
 
-/** Default selected file = the first top-level file, else null (nothing to render). */
-export function pickDefaultPath(tree: MemoryTree): string | null {
-  return tree.files[0]?.name ?? null;
+/** Default selected file = first top-level file, otherwise the first nested entry. */
+export function pickDefaultPath(facts: MemoryTreeFacts): string | null {
+  return facts.firstFile?.path ?? null;
 }
 
 /** `updated 2m ago` from an ISO timestamp; `updated —` when missing/unparseable. */

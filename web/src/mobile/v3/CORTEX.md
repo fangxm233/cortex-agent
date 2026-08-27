@@ -65,12 +65,12 @@ Framework-free view models map records to slots and have colocated unit tests.
 | m-notes-vm.test.ts | test | Tests note counts, groups and local time |
 | m-notes-gestures.ts | util | Resolves swipe and post-drag click suppression |
 | m-notes-gestures.test.ts | test | Tests tap and swipe gesture thresholds |
-| MMemoryScreen.tsx | screen | Binds the memory tree and accordion state |
-| MMemoryView.tsx | view | Keeps drill header above memory tree |
-| m-memory-vm.ts | vm | Maps the memory tree to rows and cards |
-| m-memory-vm.test.ts | test | Unit tests for the memory view model |
-| MMemoryFileScreen.tsx | screen | Binds one memory file by path parameter |
-| MMemoryFileView.tsx | view | Read-only markdown file with header metaline |
+| MMemoryScreen.tsx | screen | Builds shared tree facts and binds accordion state |
+| MMemoryView.tsx | view | Keeps drill header above clean-read file accordions |
+| m-memory-vm.ts | vm | Projects shared memory facts into timed rows and cards |
+| m-memory-vm.test.ts | test | Tests shared-fact accordion, time and count projection |
+| MMemoryFileScreen.tsx | screen | Binds one memory file by canonical path parameter |
+| MMemoryFileView.tsx | view | Clean read-only markdown file with header metaline |
 | m-memory-file-vm.ts | vm | Derives basename, byte size and metaline |
 | MMachinesScreen.tsx | screen | Binds machine probes and registration approval requests |
 | MMachinesView.tsx | view | Expandable machine cards with telemetry and Add action |

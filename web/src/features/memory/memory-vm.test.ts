@@ -1,5 +1,10 @@
+// input:  Shared memory-tree facts plus diff and blame DTOs
+// output: Desktop hierarchy, selection, and blame presentation regressions
+// pos:    Desktop memory view-model specification
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import type { MemoryTree, MemoryBlameLine } from '@cortex-agent/ui-contract';
+import { deriveMemoryTreeFacts } from './memory-tree';
 import {
   buildTreeRows,
   pickDefaultPath,
@@ -14,47 +19,65 @@ function tree(over: Partial<MemoryTree> = {}): MemoryTree {
       { name: 'STATUS.md', sizeBytes: 200, modifiedAt: '2026-07-02T00:00:00.000Z' },
     ],
     dirs: [
-      { name: 'experiments', entryCount: 23, entries: [] },
-      { name: 'knowledge', entryCount: 12, entries: [] },
+      {
+        name: 'experiments',
+        entryCount: 2,
+        entries: [
+          { name: 'EXP-001.md', sizeBytes: 30, modifiedAt: '2026-07-03T00:00:00.000Z' },
+          { name: 'EXP-002.md', sizeBytes: 40, modifiedAt: '2026-07-04T00:00:00.000Z' },
+        ],
+      },
+      {
+        name: 'knowledge',
+        entryCount: 1,
+        entries: [{ name: 'K-001.md', sizeBytes: 50, modifiedAt: '2026-07-05T00:00:00.000Z' }],
+      },
     ],
     ...over,
   };
 }
 
 describe('buildTreeRows', () => {
-  it('lists files first (selectable, path=name) then dirs (non-selectable, count)', () => {
-    const rows = buildTreeRows(tree(), 'STATUS.md');
+  it('lists top-level files, then each non-selectable directory and its selectable nested files', () => {
+    const rows = buildTreeRows(deriveMemoryTreeFacts(tree()), 'experiments/EXP-002.md');
     expect(rows.map((r) => r.name)).toEqual([
       'mission.md',
       'STATUS.md',
       'experiments/',
+      'EXP-001.md',
+      'EXP-002.md',
       'knowledge/',
+      'K-001.md',
     ]);
-    const file = rows[0];
-    expect(file).toMatchObject({ kind: 'file', path: 'mission.md', selectable: true });
-    expect(file.right).toBeNull(); // no fabricated line-count chip
-
-    const dir = rows[2];
-    expect(dir).toMatchObject({ kind: 'dir', path: null, selectable: false, right: '23' });
+    expect(rows[0]).toMatchObject({ kind: 'file', path: 'mission.md', selectable: true, depth: 0 });
+    expect(rows[0].right).toBeNull(); // no fabricated line-count chip
+    expect(rows[2]).toMatchObject({ kind: 'dir', path: null, selectable: false, right: '2', depth: 0 });
+    expect(rows[3]).toMatchObject({
+      kind: 'file',
+      path: 'experiments/EXP-001.md',
+      selectable: true,
+      depth: 1,
+    });
   });
 
-  it('marks the selected file row', () => {
-    const rows = buildTreeRows(tree(), 'STATUS.md');
-    expect(rows.find((r) => r.name === 'STATUS.md')!.selected).toBe(true);
-    expect(rows.find((r) => r.name === 'mission.md')!.selected).toBe(false);
+  it('marks a nested selected file row', () => {
+    const rows = buildTreeRows(deriveMemoryTreeFacts(tree()), 'experiments/EXP-002.md');
+    expect(rows.find((r) => r.path === 'experiments/EXP-002.md')!.selected).toBe(true);
+    expect(rows.find((r) => r.path === 'mission.md')!.selected).toBe(false);
   });
 
   it('appends a trailing slash to dir names only', () => {
-    const rows = buildTreeRows(tree(), null);
+    const rows = buildTreeRows(deriveMemoryTreeFacts(tree()), null);
     expect(rows.find((r) => r.kind === 'dir')!.name.endsWith('/')).toBe(true);
     expect(rows.find((r) => r.kind === 'file')!.name.endsWith('/')).toBe(false);
   });
 });
 
 describe('pickDefaultPath', () => {
-  it('returns the first file path, else null', () => {
-    expect(pickDefaultPath(tree())).toBe('mission.md');
-    expect(pickDefaultPath(tree({ files: [] }))).toBeNull();
+  it('returns the first top-level path, then the first nested path, else null', () => {
+    expect(pickDefaultPath(deriveMemoryTreeFacts(tree()))).toBe('mission.md');
+    expect(pickDefaultPath(deriveMemoryTreeFacts(tree({ files: [] })))).toBe('experiments/EXP-001.md');
+    expect(pickDefaultPath(deriveMemoryTreeFacts(tree({ files: [], dirs: [] })))).toBeNull();
   });
 });
 

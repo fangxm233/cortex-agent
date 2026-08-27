@@ -1,5 +1,5 @@
-// input:  project memory queries and memory view models
-// output: memory tree, markdown reader, and blame pane
+// input:  Project memory queries, shared tree facts, and desktop view models
+// output: Hierarchical memory browser, markdown reader, and blame pane
 // pos:    Desktop project-memory surface
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -9,6 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useVocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
 import { deriveActiveProjectId } from '@/features/projects/current-project';
+import { deriveMemoryTreeFacts } from './memory-tree';
 import {
   buildTreeRows,
   pickDefaultPath,
@@ -99,7 +100,7 @@ function TreeRowView({ row, onPick }: { row: TreeRow; onPick: (path: string) => 
         display: 'flex',
         alignItems: 'center',
         gap: 7,
-        padding: '5px 8px',
+        padding: `5px 8px 5px ${row.depth === 1 ? 22 : 8}px`,
         background: bg,
         borderRadius: 7,
         cursor: row.selectable ? 'pointer' : 'default',
@@ -154,9 +155,10 @@ export function MemoryView(): JSX.Element {
     enabled: !!activeProjectId,
   });
   const tree = treeQuery.data;
+  const treeFacts = useMemo(() => deriveMemoryTreeFacts(tree), [tree]);
 
-  // Effective selection: explicit pick, else the first file once the tree resolves.
-  const effectivePath = selectedPath ?? (tree ? pickDefaultPath(tree) : null);
+  // Effective selection: explicit pick, else the first top-level or nested file once the tree resolves.
+  const effectivePath = selectedPath ?? pickDefaultPath(treeFacts);
 
   const fileQuery = useQuery({
     ...trpc.memory.file.queryOptions({ projectId: activeProjectId ?? '', path: effectivePath ?? '' }),
@@ -164,7 +166,7 @@ export function MemoryView(): JSX.Element {
   });
   const file = fileQuery.data;
 
-  const rows = tree ? buildTreeRows(tree, effectivePath) : [];
+  const rows = buildTreeRows(treeFacts, effectivePath);
   const dt = diffToggle(diffOn);
   // Real per-file git line counts (memory.file.lineDiff); null → honest placeholder (never fabricated).
   const lineDiff = formatLineDiff(file?.lineDiff);
@@ -224,7 +226,7 @@ export function MemoryView(): JSX.Element {
             <div style={{ fontSize: 10.5, color: 'var(--proto-faint)', padding: '6px 8px' }}>{L.memNoFiles}</div>
           )}
           {rows.map((r) => (
-            <TreeRowView key={r.name} row={r} onPick={setSelectedPath} />
+            <TreeRowView key={r.path ?? `dir:${r.name}`} row={r} onPick={setSelectedPath} />
           ))}
         </div>
 

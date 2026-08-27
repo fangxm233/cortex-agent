@@ -1,11 +1,8 @@
-// Pure view-model for the 1j 项目记忆 screen (scheme-mobile.dc.html 1j L523-554). Maps the real
-// `memory.tree({ projectId })` DTO into a `核心` group (top-level files) + one card per memory dir.
-// READ-ONLY. Only real DTO fields (name / sizeBytes / modifiedAt / entryCount / entries) are surfaced
-// — the scheme's `+42 −7` line-diff badges, `草稿` status badge, and per-file descriptors are design
-// MOCKS with NO field on MemoryTree/MemoryFileEntry/MemoryDirEntry → never fabricated (see MMemoryView).
-// Each row carries the real project-root-relative `path` so the view can open it via `memory.file`
-// (top-level files: the filename itself; dir entries: `<dir>/<name>`).
-import type { MemoryTree } from '@cortex-agent/ui-contract';
+// input:  Shared memory-tree facts and an optional clock
+// output: Mobile core rows, directory accordions, relative times, and total count
+// pos:    Pure mobile project-memory presentation model
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+import type { MemoryTreeFacts } from '@/features/memory/memory-tree';
 import { relTimeZh } from '@/mobile/ui/format';
 
 export interface MMemoryFileRow {
@@ -36,23 +33,28 @@ export interface MMemoryVm {
   isEmpty: boolean;
 }
 
-export function buildMMemoryVm(tree: MemoryTree | null | undefined, now: number = Date.now()): MMemoryVm {
-  const files = tree?.files ?? [];
-  const dirs = tree?.dirs ?? [];
-  const core: MMemoryFileRow[] = files.map((f) => ({
-    name: f.name,
-    path: f.name,
-    time: relTimeZh(f.modifiedAt, now),
+export function buildMMemoryVm(
+  facts: MemoryTreeFacts | null | undefined,
+  now: number = Date.now(),
+): MMemoryVm {
+  const core: MMemoryFileRow[] = (facts?.topLevelFiles ?? []).map((file) => ({
+    name: file.name,
+    path: file.path,
+    time: relTimeZh(file.modifiedAt, now),
   }));
-  const dirCards: MMemoryDirCard[] = dirs.map((d) => ({
-    name: d.name,
-    entryCount: d.entryCount,
-    entries: (d.entries ?? []).map((e) => ({
-      name: e.name,
-      path: `${d.name}/${e.name}`,
-      time: relTimeZh(e.modifiedAt, now),
+  const dirCards: MMemoryDirCard[] = (facts?.dirs ?? []).map((dir) => ({
+    name: dir.name,
+    entryCount: dir.entryCount,
+    entries: dir.entries.map((file) => ({
+      name: file.name,
+      path: file.path,
+      time: relTimeZh(file.modifiedAt, now),
     })),
   }));
-  const fileCount = files.length + dirs.reduce((sum, d) => sum + d.entryCount, 0);
-  return { fileCount, core, dirs: dirCards, isEmpty: core.length === 0 && dirCards.length === 0 };
+  return {
+    fileCount: facts?.fileCount ?? 0,
+    core,
+    dirs: dirCards,
+    isEmpty: core.length === 0 && dirCards.length === 0,
+  };
 }
