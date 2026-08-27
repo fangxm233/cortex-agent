@@ -1,6 +1,6 @@
-// input:  pending approvals, shared project scope, and approval mutations
-// output: mobile project-scoped approval queue
-// pos:    Mobile approvals data and routing controller
+// input:  shared approval queue/project scope plus mobile expansion and feedback state
+// output: mobile project-grouped approval queue with optional reject feedback
+// pos:    Mobile approvals routing and surface-interaction controller
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 // 1f 审批 — the approval queue, drilled from the project page's amber bar (scheme 1e→1f). A non-Tab
@@ -9,14 +9,13 @@
 // `approvals.approve` / `approvals.reject` flip the target entry's Status line in PENDING_APPROVALS.md
 // (the mutate never runs the underlying op) → the list re-invalidates. The first pending card is
 // expanded for an inline decision; tapping a collapsed card swaps which one is expanded.
-import { useEffect, useMemo, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { ApprovalInfo } from '@cortex-agent/ui-contract';
-import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
+import { defaultSelectedId } from '@/features/approvals/approval-center-vm';
+import { useApprovalQueue } from '@/features/approvals/useApprovalQueue';
 import { MApprovalsView, type MApprovalsCopy } from './MApprovalsView';
 import { buildMApprovalsVm } from './m-approvals-vm';
 
@@ -29,6 +28,7 @@ const COPY: { en: MApprovalsCopy; zh: MApprovalsCopy } = {
     paused: 'thread paused, waiting',
     approve: 'Approve',
     reject: 'Reject with feedback',
+    feedbackPlaceholder: 'Optional feedback',
     seeDiff: 'tap for diff ›',
     empty: 'No pending approvals',
     globalGroup: 'GLOBAL',
@@ -41,6 +41,7 @@ const COPY: { en: MApprovalsCopy; zh: MApprovalsCopy } = {
     paused: '线程已暂停等待',
     approve: '批准',
     reject: '拒绝并反馈',
+    feedbackPlaceholder: '可选反馈',
     seeDiff: '点开看 diff ›',
     empty: '没有待处理的审批',
     globalGroup: '全局',
@@ -48,44 +49,42 @@ const COPY: { en: MApprovalsCopy; zh: MApprovalsCopy } = {
 };
 
 export function MApprovalsScreen() {
-  const trpc = useTRPC();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const lang = useLang();
   const copy = pickCopy(lang, COPY);
-
+  const queue = useApprovalQueue();
   const { currentProjectId } = useCurrentProject();
-  const listQuery = useQuery(trpc.approvals.list.queryOptions({ status: 'pending' }));
-  const entries = useMemo<ApprovalInfo[]>(() => listQuery.data ?? [], [listQuery.data]);
+
   // Grouped by project attribution: current project first, then 全局 (null), then other projects.
   const vm = useMemo(
-    () => buildMApprovalsVm(entries, Date.now(), currentProjectId),
-    [entries, currentProjectId],
+    () => buildMApprovalsVm(queue.entries, Date.now(), currentProjectId),
+    [queue.entries, currentProjectId],
   );
 
-  // Which card is expanded — default to the first pending; keep valid as the list re-invalidates.
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  useEffect(() => {
-    setExpandedId((cur) =>
-      cur && vm.cards.some((c) => c.id === cur) ? cur : vm.cards[0]?.id ?? null,
-    );
-  }, [vm.cards]);
-
-  const invalidate = () => queryClient.invalidateQueries(trpc.approvals.list.queryFilter());
-  const approve = useMutation(trpc.approvals.approve.mutationOptions({ onSettled: invalidate }));
-  const reject = useMutation(trpc.approvals.reject.mutationOptions({ onSettled: invalidate }));
-  const busy = approve.isPending || reject.isPending;
+  // Expansion and feedback are mobile interaction state, not shared queue state.
+  const [rawExpandedId, setRawExpandedId] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState('');
+  const expandedId = defaultSelectedId(vm.cards, rawExpandedId);
+  const expand = (id: string) => {
+    setFeedback('');
+    setRawExpandedId(id);
+  };
+  const settle = (decision: Promise<void>) => {
+    void decision.catch(() => undefined).finally(() => setFeedback(''));
+  };
 
   return (
     <MApprovalsView
       vm={vm}
       copy={copy}
       expandedId={expandedId}
-      busy={busy}
+      feedback={feedback}
+      busy={queue.isPending}
       onBack={() => navigate('/m/project')}
-      onExpand={setExpandedId}
-      onApprove={(id) => approve.mutate({ id })}
-      onReject={(id) => reject.mutate({ id })}
+      onExpand={expand}
+      onFeedback={setFeedback}
+      onApprove={(id) => settle(queue.approve(id))}
+      onReject={(id, draft) => settle(queue.reject(id, draft))}
     />
   );
 }

@@ -1,9 +1,9 @@
-// input:  React, mobile UI kit, mobile approval view model
-// output: MApprovalsView and approval presentation types
-// pos:    Mobile approval queue presentational view
+// input:  mobile approval view model, copy, feedback draft, and surface handlers
+// output: MApprovalsView with expandable cards and optional reject feedback
+// pos:    Pure mobile approval queue presentation
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3
-// The first pending card renders expanded with reject / approve actions; remaining cards collapse.
+// The selected pending card renders expanded with optional feedback plus reject / approve actions.
 // Real data fills reason, impact, command, and provenance without fabricated estimates.
 import { type ReactNode } from 'react';
 import { MScreen, MDrillHeader, MScrollBody, MCard, MPill, MC, MONO } from '@/mobile/ui/kit';
@@ -18,6 +18,7 @@ export interface MApprovalsCopy {
   paused: string;
   approve: string;
   reject: string;
+  feedbackPlaceholder: string;
   seeDiff: string;
   empty: string;
   /** Group label for entries with no project attribution (projectId null). */
@@ -29,20 +30,24 @@ export interface MApprovalsViewProps {
   copy: MApprovalsCopy;
   /** Which card is expanded (defaults to the first pending id upstream); null when none pending. */
   expandedId: string | null;
+  feedback: string;
   busy: boolean;
   onBack: () => void;
   onExpand: (id: string) => void;
+  onFeedback: (value: string) => void;
   onApprove: (id: string) => void;
-  onReject: (id: string) => void;
+  onReject: (id: string, feedback: string) => void;
 }
 
 export function MApprovalsView({
   vm,
   copy,
   expandedId,
+  feedback,
   busy,
   onBack,
   onExpand,
+  onFeedback,
   onApprove,
   onReject,
 }: MApprovalsViewProps) {
@@ -83,7 +88,9 @@ export function MApprovalsView({
                   key={card.id}
                   card={card}
                   copy={copy}
+                  feedback={feedback}
                   busy={busy}
+                  onFeedback={onFeedback}
                   onApprove={onApprove}
                   onReject={onReject}
                 />
@@ -136,15 +143,19 @@ function TierPill({ copy, operation }: { copy: MApprovalsCopy; operation: string
 function ExpandedCard({
   card,
   copy,
+  feedback,
   busy,
+  onFeedback,
   onApprove,
   onReject,
 }: {
   card: MApprovalCard;
   copy: MApprovalsCopy;
+  feedback: string;
   busy: boolean;
+  onFeedback: (value: string) => void;
   onApprove: (id: string) => void;
-  onReject: (id: string) => void;
+  onReject: (id: string, feedback: string) => void;
 }) {
   return (
     <MCard
@@ -214,10 +225,33 @@ function ExpandedCard({
           )}
           {copy.paused}
         </div>
+        <textarea
+          data-approval-feedback={true}
+          value={feedback}
+          disabled={busy}
+          rows={2}
+          onChange={(event) => onFeedback(event.target.value)}
+          placeholder={copy.feedbackPlaceholder}
+          aria-label={copy.feedbackPlaceholder}
+          style={{
+            width: '100%',
+            minHeight: 58,
+            marginTop: 10,
+            padding: '9px 10px',
+            resize: 'vertical',
+            border: '1px solid var(--proto-line-3)',
+            borderRadius: 9,
+            background: 'var(--proto-card)',
+            color: MC.ink,
+            font: '400 12px/1.45 inherit',
+            boxSizing: 'border-box',
+            opacity: busy ? 0.6 : 1,
+          }}
+        />
       </div>
       {/* decision buttons follow the desktop order: reject, then approve */}
       <div style={{ display: 'flex', gap: 8, padding: '12px 14px 14px' }}>
-        <DecisionButton kind="outline" busy={busy} onClick={() => onReject(card.id)}>
+        <DecisionButton kind="outline" busy={busy} onClick={() => onReject(card.id, feedback)}>
           {copy.reject}
         </DecisionButton>
         <DecisionButton kind="ink" busy={busy} onClick={() => onApprove(card.id)}>

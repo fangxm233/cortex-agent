@@ -99,7 +99,10 @@ export function toDetail(a: ApprovalInfo): ApprovalDetailVm {
 }
 
 /** Keep the current selection if it still exists, else default to the first entry (or null). */
-export function defaultSelectedId(entries: ApprovalInfo[], current: string | null): string | null {
-  if (current && entries.some((e) => e.id === current)) return current;
+export function defaultSelectedId(
+  entries: ReadonlyArray<{ id: string }>,
+  current: string | null,
+): string | null {
+  if (current && entries.some((entry) => entry.id === current)) return current;
   return entries[0]?.id ?? null;
 }

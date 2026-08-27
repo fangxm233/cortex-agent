@@ -1,12 +1,10 @@
-// input:  approval DTOs, center state, and approval mutations
-// output: approval-center modal and internal presentation
-// pos:    Desktop approval queue surface
+// input:  shared approval queue, desktop selection/deny state, vocab, and toast adapter
+// output: approval-center modal and desktop-only decision presentation
+// pos:    Desktop approval queue surface and interaction owner
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { useEffect, useMemo, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 import type { ApprovalInfo } from '@cortex-agent/ui-contract';
-import { useTRPC } from '@/lib/trpc';
 import { useToast } from '@/design';
 import { useVocab } from '@/i18n';
 import {
@@ -15,6 +13,7 @@ import {
   toDetail,
   toListCard,
 } from './approval-center-vm';
+import { useApprovalQueue } from './useApprovalQueue';
 
 // Approval center overlay (screen 7a), rebuilt 1:1 from prototype.dc.html L1317-1405 (+ shared
 // backdrop L1292). Exact inline styles / px / hex / font-size / weight / EN copy from the source;
@@ -657,50 +656,32 @@ function HoverButton({
   );
 }
 
-// ── container: binds real tRPC data + mutations ───────────────────────────────────────────────
+// ── container: adapts the shared queue to desktop-only interaction and feedback ───────────────
 
 export function ApprovalCenterModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const L = useVocab();
-  const trpc = useTRPC();
-  const queryClient = useQueryClient();
   const { toast } = useToast();
-
-  const listQuery = useQuery({
-    ...trpc.approvals.list.queryOptions({ status: 'pending' }),
-    enabled: open,
-  });
-  const entries = useMemo<ApprovalInfo[]>(() => listQuery.data ?? [], [listQuery.data]);
+  const queue = useApprovalQueue({ enabled: open });
 
   const [rawSelectedId, setRawSelectedId] = useState<string | null>(null);
   const [armed, setArmed] = useState(false);
   const [feedback, setFeedback] = useState('');
-  const selectedId = defaultSelectedId(entries, rawSelectedId);
+  const selectedId = defaultSelectedId(queue.entries, rawSelectedId);
 
-  const invalidate = () => queryClient.invalidateQueries(trpc.approvals.list.queryFilter());
   const resetDeny = () => {
     setArmed(false);
     setFeedback('');
   };
-
-  const approve = useMutation(
-    trpc.approvals.approve.mutationOptions({
-      onSuccess: () => toast({ title: L.apToastApproved, tone: 'done' }),
-      onSettled: () => {
-        resetDeny();
-        invalidate();
-      },
-    }),
-  );
-  const reject = useMutation(
-    trpc.approvals.reject.mutationOptions({
-      onSuccess: () => toast({ title: L.apToastRejected, tone: 'failed' }),
-      onSettled: () => {
-        resetDeny();
-        invalidate();
-      },
-    }),
-  );
-  const pending = approve.isPending || reject.isPending;
+  const approve = (id: string) => {
+    void queue.approve(id)
+      .then(() => toast({ title: L.apToastApproved, tone: 'done' }), () => undefined)
+      .finally(resetDeny);
+  };
+  const reject = (id: string) => {
+    void queue.reject(id, feedback)
+      .then(() => toast({ title: L.apToastRejected, tone: 'failed' }), () => undefined)
+      .finally(resetDeny);
+  };
 
   // reset transient deny state whenever the overlay opens/closes or the selection changes
   useEffect(() => {
@@ -724,17 +705,17 @@ export function ApprovalCenterModal({ open, onClose }: { open: boolean; onClose:
 
   return (
     <ApprovalCenterView
-      entries={entries}
+      entries={queue.entries}
       selectedId={selectedId}
       armed={armed}
       feedback={feedback}
-      pending={pending}
+      pending={queue.isPending}
       onSelect={setRawSelectedId}
       onClose={onClose}
       onArm={() => setArmed(true)}
       onCancel={resetDeny}
-      onApprove={(id) => approve.mutate({ id })}
-      onReject={(id) => reject.mutate({ id, feedback: feedback.trim() || undefined })}
+      onApprove={approve}
+      onReject={reject}
       onFeedback={setFeedback}
     />
   );

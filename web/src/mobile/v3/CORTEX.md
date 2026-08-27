@@ -50,8 +50,10 @@ Framework-free view models map records to slots and have colocated unit tests.
 | MNewProjectView.test.tsx | test | Tests mobile creation errors and pending gating |
 | m-new-project-flow.ts | controller | Scopes a returned project id before close and navigation |
 | m-new-project-flow.test.ts | test | Tests scope-before-navigation ordering |
-| MApprovalsScreen.tsx | screen | Binds approvals list, approve and reject |
-| MApprovalsView.tsx | view | Project-grouped queue with expandable decision card |
+| MApprovalsScreen.tsx | screen | Adapts the shared queue and owns expanded selection plus feedback reset |
+| MApprovalsScreen.test.tsx | test | Tests selection fallback, card-switch reset and settled feedback clearing |
+| MApprovalsView.tsx | view | Project-grouped queue with expandable decision card and optional feedback |
+| MApprovalsView.test.tsx | test | Tests feedback presentation and reject handoff |
 | m-approvals-vm.ts | vm | Groups pending approvals by project into card slots |
 | m-approvals-vm.test.ts | test | Unit tests for the approvals view model |
 | MIssuesScreen.tsx | screen | Binds issue list, delete and handle flow |

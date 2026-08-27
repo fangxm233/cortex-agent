@@ -1,3 +1,8 @@
+// input:  approval DTOs and structural id facts
+// output: desktop mapping and shared default-selection regressions
+// pos:    Approval center pure view-model specification
+// >>> If I am updated, update my header comment and CORTEX.md <<<
+
 import { describe, it, expect } from 'vitest';
 import type { ApprovalInfo } from '@cortex-agent/ui-contract';
 import {
@@ -104,5 +109,8 @@ describe('defaultSelectedId', () => {
   });
   it('returns null for an empty list', () => {
     expect(defaultSelectedId([], 'a')).toBeNull();
+  });
+  it('accepts layout-neutral id facts so mobile and desktop share the fallback', () => {
+    expect(defaultSelectedId([{ id: 'mobile-a' }, { id: 'mobile-b' }], 'gone')).toBe('mobile-a');
   });
 });
