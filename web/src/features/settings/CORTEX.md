@@ -22,10 +22,10 @@ Panels read snapshots; Usage independently queries the shared web usage feature.
 | BudgetPanel.tsx | view | Writes global and per-project daily/monthly spend limits |
 | budget-vm.ts | vm | Resolves budget scope and builds chips, payload and spend bar |
 | budget-vm.test.ts | test | Tests budget scope, parsing, payloads and percentage arithmetic |
-| ProfilesPanel.tsx | view | Profile table and typed profile selectors |
+| ProfilesPanel.tsx | view | Profile table and editor using shared backend transitions and error copy |
 | ProfilesPanel.test.tsx | test | Tests profile permissions, secret safety, errors and delete guard |
-| profiles-panel-vm.ts | vm | Validates profile drafts and builds mutation args |
-| profiles-panel-vm.test.ts | test | Unit tests for the profiles panel view model |
+| profiles-panel-vm.ts | vm | Shares profile transitions, validation copy and mutation args across desktop/mobile |
+| profiles-panel-vm.test.ts | test | Tests profile transitions, error copy, validation and mutation args |
 | HooksPanel.tsx | view | Hook editor with result selection and test runner |
 | HooksPanel.test.tsx | test | Tests hook permissions, validation, delete state and runner errors |
 | hooks-panel-vm.ts | vm | Filters, groups, validates and builds hook mutation args |

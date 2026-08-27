@@ -1,6 +1,6 @@
-// input:  config profiles, profile form state, mutations and Select
-// output: profile table with create, edit and delete
-// pos:    Settings view for the profiles map of profiles.json
+// input:  config profiles, shared profile transitions/error copy, mutations and Select
+// output: profile table with validated create, edit and delete
+// pos:    Desktop settings view for the profiles map of profiles.json
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { useState, type CSSProperties, type ReactNode } from 'react';
@@ -8,7 +8,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ConfigProfileEntry, ConfigSnapshot } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { Select, useToast } from '@/design';
-import { useVocab, type Vocab } from '@/i18n';
+import { useVocab } from '@/i18n';
 import {
   MonoKV,
   SButton,
@@ -27,9 +27,10 @@ import {
   formStateFromEntry,
   isProfileFormDirty,
   isProfileFormValid,
+  profileFieldErrorCopy,
+  transitionProfileBackend,
   validateProfileForm,
   type ProfileBackend,
-  type ProfileFieldError,
   type ProfileFormState,
 } from './profiles-panel-vm';
 
@@ -57,20 +58,6 @@ const TH: CSSProperties = {
 };
 
 const GRID = '84px 1fr 66px 52px 58px 118px';
-
-const FIELD_ERROR_LABEL: Record<ProfileFieldError, keyof Vocab> = {
-  'name-required': 'pfErrNameRequired',
-  'name-charset': 'pfErrNameCharset',
-  'name-taken': 'pfErrNameTaken',
-  'model-required': 'pfErrModelRequired',
-  'mode-charset': 'pfErrModeCharset',
-  'provider-required': 'pfErrProviderRequired',
-  'provider-charset': 'pfErrProviderCharset',
-  'thinking-level': 'pfErrThinkingLevel',
-  'option-key-prefix': 'pfErrOptionKeyPrefix',
-  'option-key-duplicate': 'pfErrOptionKeyDuplicate',
-  'option-value-required': 'pfErrOptionValueRequired',
-};
 
 function RowAction({
   children,
@@ -141,10 +128,8 @@ function ProfileEditor({
 }) {
   const L = useVocab();
   const set = (patch: Partial<ProfileFormState>) => onDraftChange({ ...draft, ...patch });
-  const hint = (field: keyof typeof errors, fallback?: ReactNode) => {
-    const code = errors[field];
-    return code ? L[FIELD_ERROR_LABEL[code]] : fallback;
-  };
+  const hint = (field: keyof typeof errors, fallback?: ReactNode) =>
+    profileFieldErrorCopy(errors[field], L) ?? fallback;
   const tone = (field: keyof typeof errors) => (errors[field] ? ('danger' as const) : ('muted' as const));
 
   return (
@@ -177,12 +162,7 @@ function ProfileEditor({
           aria-label={L.pfFieldBackend}
           value={draft.backend}
           options={PROFILE_BACKENDS.map((backend) => ({ value: backend, label: backend }))}
-          onValueChange={(backend: ProfileBackend) => {
-            // Thinking levels are backend-specific — a level the new backend does not accept would
-            // be rejected by the server, so it is dropped with the switch rather than left to fail.
-            const thinking = THINKING_LEVELS[backend].includes(draft.thinking) ? draft.thinking : '';
-            set({ backend, thinking });
-          }}
+          onValueChange={(backend: ProfileBackend) => onDraftChange(transitionProfileBackend(draft, backend))}
           style={S_CONTROL_STYLE}
         />
       </SFieldRow>

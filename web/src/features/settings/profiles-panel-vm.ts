@@ -1,8 +1,9 @@
-// input:  ConfigProfileEntry DTO and the profiles.* mutation arg types
-// output: profile form state, validation and mutation args
-// pos:    View model for the settings profiles panel
+// input:  ConfigProfileEntry DTO, profile vocabulary and profiles.* mutation arg types
+// output: shared form transitions, validation copy and mutation args
+// pos:    View model for desktop and mobile profile editors
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
+import type { Vocab } from '@/i18n';
 import type {
   ConfigProfileEntry,
   ProfileDraftInput,
@@ -46,6 +47,18 @@ export interface ProfileFormState {
   thinking: string;
   claudeBackend: ProfileClaudeBackend | '';
   extraOption: ProfileOptionRow[];
+}
+
+/** Applies the same backend-specific thinking cleanup in every profile editor. */
+export function transitionProfileBackend(
+  form: ProfileFormState,
+  backend: ProfileBackend,
+): ProfileFormState {
+  return {
+    ...form,
+    backend,
+    thinking: THINKING_LEVELS[backend].includes(form.thinking) ? form.thinking : '',
+  };
 }
 
 export function formStateFromEntry(entry: ConfigProfileEntry): ProfileFormState {
@@ -111,6 +124,33 @@ export type ProfileFieldError =
   | 'option-key-prefix'
   | 'option-key-duplicate'
   | 'option-value-required';
+
+export const PROFILE_FIELD_ERROR_VOCAB_KEYS = {
+  'name-required': 'pfErrNameRequired',
+  'name-charset': 'pfErrNameCharset',
+  'name-taken': 'pfErrNameTaken',
+  'model-required': 'pfErrModelRequired',
+  'mode-charset': 'pfErrModeCharset',
+  'provider-required': 'pfErrProviderRequired',
+  'provider-charset': 'pfErrProviderCharset',
+  'thinking-level': 'pfErrThinkingLevel',
+  'option-key-prefix': 'pfErrOptionKeyPrefix',
+  'option-key-duplicate': 'pfErrOptionKeyDuplicate',
+  'option-value-required': 'pfErrOptionValueRequired',
+} as const satisfies Record<ProfileFieldError, keyof Vocab>;
+
+type ProfileFieldErrorVocab = Pick<
+  Vocab,
+  (typeof PROFILE_FIELD_ERROR_VOCAB_KEYS)[ProfileFieldError]
+>;
+
+/** Resolves validation copy without duplicating the error-to-vocabulary map in each surface. */
+export function profileFieldErrorCopy(
+  error: ProfileFieldError | undefined,
+  vocab: ProfileFieldErrorVocab,
+): string | undefined {
+  return error ? vocab[PROFILE_FIELD_ERROR_VOCAB_KEYS[error]] : undefined;
+}
 
 export interface ProfileFormErrors {
   name?: ProfileFieldError;

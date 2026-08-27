@@ -83,9 +83,10 @@ Framework-free view models map records to slots and have colocated unit tests.
 | MSettingsScreen.tsx | screen | Renders settings immediately and hydrates config summaries |
 | MSettingsView.tsx | view | Keeps Daemon and Profile cards above title-only rows |
 | MSettingsView.test.tsx | test | Tests canonical order, routing and live connection copy |
-| MSettingsControls.tsx | view | Supplies compact rows, fields and toggles for settings |
+| MSettingsControls.tsx | view | Supplies compact rows, toggles and field-local validation feedback |
 | MPlatformScreen.tsx | screen | Shows redacted platform state and queues reconnect approval |
-| MProfilesScreen.tsx | screen | Selects defaults and creates, edits or removes profiles |
+| MProfilesScreen.tsx | screen | Selects defaults and edits profiles with shared transitions and field errors |
+| MProfilesScreen.test.tsx | test | Tests mobile profile field errors and backend transitions |
 | MBudgetScreen.tsx | screen | Edits global and project daily or monthly budgets |
 | MBudgetScreen.test.ts | test | Tests complete-pair mobile budget initialization |
 | MMcpScreen.tsx | screen | Lists configured MCP servers read-only |

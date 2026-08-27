@@ -1,6 +1,6 @@
-// input:  profile config snapshot, profile mutations and shared validation
-// output: mobile default selection and profile CRUD editor
-// pos:    Mobile Profiles settings screen
+// input:  profile config, mutations, shared transitions and field-error copy
+// output: mobile default selection and field-validated profile CRUD editor
+// pos:    Mobile Profiles settings screen and presentational editor
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { useState, type ReactNode } from 'react';
@@ -13,10 +13,13 @@ import { useTRPC } from '@/lib/trpc';
 import { MC } from '@/mobile/ui/kit';
 import {
   PROFILE_BACKENDS, THINKING_LEVELS, buildProfileCreateArgs, buildProfileUpdateArgs,
-  emptyProfileForm, formStateFromEntry, isProfileFormValid, validateProfileForm,
-  type ProfileFormState,
+  emptyProfileForm, formStateFromEntry, isProfileFormValid, profileFieldErrorCopy,
+  transitionProfileBackend, validateProfileForm, type ProfileFormErrors, type ProfileFormState,
 } from '@/features/settings/profiles-panel-vm';
-import { MSettingsButton, MSettingsCard, MSettingsField, MSettingsPage, MSettingsRow, MSettingsSelect } from './MSettingsControls';
+import {
+  MSettingsButton, MSettingsCard, MSettingsFeedback, MSettingsField,
+  MSettingsPage, MSettingsRow, MSettingsSelect,
+} from './MSettingsControls';
 
 interface EditorState { mode: 'create' | 'update'; draft: ProfileFormState }
 
@@ -34,57 +37,77 @@ function ProfileRow(props: {
     </div>} />;
 }
 
-function ExtraOptions(props: { draft: ProfileFormState; onChange: (draft: ProfileFormState) => void }) {
+function ExtraOptions(props: {
+  draft: ProfileFormState;
+  error?: string;
+  onChange: (draft: ProfileFormState) => void;
+}) {
   const L = useVocab();
   const update = (index: number, field: 'key' | 'value', value: string) => {
     const rows = props.draft.extraOption.map((row, rowIndex) => rowIndex === index ? { ...row, [field]: value } : row);
     props.onChange({ ...props.draft, extraOption: rows });
   };
-  return <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+  return <div data-profile-extra-options style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
     {props.draft.extraOption.map((row, index) => <div key={index} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 5 }}>
-      <MSettingsField label={L.pfOptionKeyPlaceholder} value={row.key} onChange={(event) => update(index, 'key', event.target.value)} />
-      <MSettingsField label={L.pfOptionValuePlaceholder} value={row.value} onChange={(event) => update(index, 'value', event.target.value)} />
+      <MSettingsField data-profile-option-key={index} label={L.pfOptionKeyPlaceholder} value={row.key}
+        onChange={(event) => update(index, 'key', event.target.value)} />
+      <MSettingsField data-profile-option-value={index} label={L.pfOptionValuePlaceholder} value={row.value}
+        onChange={(event) => update(index, 'value', event.target.value)} />
       <MSettingsButton danger onClick={() => props.onChange({ ...props.draft,
         extraOption: props.draft.extraOption.filter((_, rowIndex) => rowIndex !== index) })}>×</MSettingsButton>
     </div>)}
     <MSettingsButton onClick={() => props.onChange({ ...props.draft,
       extraOption: [...props.draft.extraOption, { key: '', value: '' }] })}>{L.pfAddOption}</MSettingsButton>
+    <MSettingsFeedback error={props.error} />
   </div>;
 }
 
-function ProfileFields(props: { state: EditorState; onChange: (draft: ProfileFormState) => void }) {
+function ProfileFields(props: {
+  state: EditorState;
+  errors: ProfileFormErrors;
+  onChange: (draft: ProfileFormState) => void;
+}) {
   const L = useVocab();
   const draft = props.state.draft;
   const set = <K extends keyof ProfileFormState>(key: K, value: ProfileFormState[K]) => props.onChange({ ...draft, [key]: value });
+  const error = (field: keyof ProfileFormErrors) => profileFieldErrorCopy(props.errors[field], L);
   return <div style={{ display: 'flex', flexDirection: 'column', gap: 9, padding: 13 }}>
-    <MSettingsField label={L.pfFieldName} value={draft.name} disabled={props.state.mode === 'update'} onChange={(event) => set('name', event.target.value)} />
-    <MSettingsField label={L.pfFieldModel} value={draft.model} onChange={(event) => set('model', event.target.value)} />
-    <MSettingsSelect label={L.pfFieldBackend} value={draft.backend} onChange={(event) => set('backend', event.target.value as ProfileFormState['backend'])}>
+    <MSettingsField data-profile-field="name" label={L.pfFieldName} value={draft.name}
+      disabled={props.state.mode === 'update'} error={error('name')}
+      hint={props.state.mode === 'create' ? L.pfNameHint : L.pfNoRename}
+      onChange={(event) => set('name', event.target.value)} />
+    <MSettingsField data-profile-field="model" label={L.pfFieldModel} value={draft.model}
+      error={error('model')} hint={L.pfModelHint} onChange={(event) => set('model', event.target.value)} />
+    <MSettingsSelect data-profile-field="backend" label={L.pfFieldBackend} value={draft.backend}
+      onChange={(event) => props.onChange(transitionProfileBackend(draft, event.target.value as ProfileFormState['backend']))}>
       {PROFILE_BACKENDS.map((backend) => <option key={backend}>{backend}</option>)}
     </MSettingsSelect>
-    <MSettingsField label={L.pfFieldMode} value={draft.mode} onChange={(event) => set('mode', event.target.value)} />
-    <MSettingsField label={L.pfFieldProvider} value={draft.provider} onChange={(event) => set('provider', event.target.value)} />
-    <MSettingsSelect label={L.pfFieldThinking} value={draft.thinking} onChange={(event) => set('thinking', event.target.value)}>
+    <MSettingsField data-profile-field="mode" label={L.pfFieldMode} value={draft.mode}
+      error={error('mode')} hint={L.pfModeHint} onChange={(event) => set('mode', event.target.value)} />
+    <MSettingsField data-profile-field="provider" label={L.pfFieldProvider} value={draft.provider}
+      error={error('provider')} hint={L.pfProviderHint} onChange={(event) => set('provider', event.target.value)} />
+    <MSettingsSelect data-profile-field="thinking" label={L.pfFieldThinking} value={draft.thinking}
+      error={error('thinking')} onChange={(event) => set('thinking', event.target.value)}>
       <option value="">{L.pfNotDeclared}</option>
       {THINKING_LEVELS[draft.backend].map((level) => <option key={level}>{level}</option>)}
     </MSettingsSelect>
-    {draft.backend === 'claude' && <MSettingsSelect label={L.pfFieldClaudeBackend} value={draft.claudeBackend}
+    {draft.backend === 'claude' && <MSettingsSelect data-profile-field="claudeBackend"
+      label={L.pfFieldClaudeBackend} value={draft.claudeBackend}
       onChange={(event) => set('claudeBackend', event.target.value as ProfileFormState['claudeBackend'])}>
       <option value="">{L.pfPrintDefault}</option><option value="print">print</option><option value="tui">tui</option>
     </MSettingsSelect>}
-    <ExtraOptions draft={draft} onChange={props.onChange} />
+    <ExtraOptions draft={draft} error={error('extraOption')} onChange={props.onChange} />
   </div>;
 }
 
-function ProfileEditor(props: {
+export function MProfileEditor(props: {
   state: EditorState; names: string[]; pending: boolean;
   onChange: (draft: ProfileFormState) => void; onCancel: () => void; onSave: () => void;
 }) {
   const L = useVocab();
   const errors = validateProfileForm(props.state.draft, { mode: props.state.mode, existingNames: props.names });
-  return <MSettingsCard title={props.state.mode === 'create' ? L.pfCreateTitle : L.pfEditTitle}
-    note={Object.keys(errors).length > 0 ? L.pfNameHint : undefined}>
-    <ProfileFields state={props.state} onChange={props.onChange} />
+  return <MSettingsCard title={props.state.mode === 'create' ? L.pfCreateTitle : L.pfEditTitle}>
+    <ProfileFields state={props.state} errors={errors} onChange={props.onChange} />
     <div style={{ display: 'flex', gap: 7, padding: '0 13px 13px' }}>
       <MSettingsButton onClick={props.onCancel}>{L.cancel}</MSettingsButton>
       <MSettingsButton disabled={!isProfileFormValid(errors) || props.pending} onClick={props.onSave}>{L.pfSave}</MSettingsButton>
@@ -129,7 +152,7 @@ export function MProfilesScreen() {
   if (query.isError) return page(<MSettingsCard><div style={{ padding: 13, color: MC.fail }}>{L.stFailedLoadConfig}</div></MSettingsCard>);
   return <MSettingsPage title={L.stNavProfiles} onBack={() => navigate('/m/settings')}
     trailing={<MSettingsButton onClick={() => setEditor({ mode: 'create', draft: emptyProfileForm() })}>{L.pfNew}</MSettingsButton>}>
-    {editor && <ProfileEditor state={editor} names={profiles.map((profile) => profile.name)} pending={pending}
+    {editor && <MProfileEditor state={editor} names={profiles.map((profile) => profile.name)} pending={pending}
       onChange={(draft) => setEditor({ ...editor, draft })} onCancel={() => setEditor(null)} onSave={save} />}
     <MSettingsCard>{profiles.map((profile) => <ProfileRow key={profile.name} profile={profile}
       current={profile.name === current} pending={pending}

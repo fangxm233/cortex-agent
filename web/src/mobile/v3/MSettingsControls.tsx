@@ -1,5 +1,5 @@
-// input:  mobile UI primitives, labels and form callbacks
-// output: compact settings page, rows, toggles and fields
+// input:  mobile UI primitives, labels, field feedback and form callbacks
+// output: compact settings page, rows, toggles and validated fields
 // pos:    Shared presentation controls for mobile settings drill-ins
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -78,22 +78,60 @@ export function MSettingsButton(props: { children: ReactNode; onClick: () => voi
 const FIELD: CSSProperties = { width: '100%', boxSizing: 'border-box', border: `1px solid ${MC.hairline}`,
   borderRadius: 8, background: MC.card, color: MC.ink, padding: '9px 10px', font: `400 12px ${MONO}` };
 
-export function MSettingsField(props: InputHTMLAttributes<HTMLInputElement> & { label: string }) {
-  const { label, ...input } = props;
+interface MSettingsControlFeedback {
+  label: string;
+  hint?: ReactNode;
+  error?: ReactNode;
+}
+
+export function MSettingsFeedback({ hint, error }: Omit<MSettingsControlFeedback, 'label'>) {
+  const hasError = error !== undefined && error !== null;
+  const copy = hasError ? error : hint;
+  if (copy === undefined || copy === null) return null;
+  return (
+    <span
+      data-settings-field-error={hasError || undefined}
+      style={{ ...MSET_SUB, display: 'block', color: hasError ? MC.fail : MC.faint, marginTop: 4 }}
+    >
+      {copy}
+    </span>
+  );
+}
+
+export function MSettingsField(
+  props: InputHTMLAttributes<HTMLInputElement> & MSettingsControlFeedback,
+) {
+  const { label, hint, error, ...input } = props;
+  const hasError = error !== undefined && error !== null;
   return (
     <label style={{ display: 'block' }}>
       <span style={{ ...MSET_KEY, display: 'block', marginBottom: 4 }}>{label}</span>
-      <input {...input} style={{ ...FIELD, ...input.style }} />
+      <input
+        {...input}
+        aria-invalid={input['aria-invalid'] ?? (hasError || undefined)}
+        style={{ ...FIELD, borderColor: hasError ? MC.failBorder : undefined, ...input.style }}
+      />
+      <MSettingsFeedback hint={hint} error={error} />
     </label>
   );
 }
 
-export function MSettingsSelect(props: SelectHTMLAttributes<HTMLSelectElement> & { label: string }) {
-  const { label, children, ...select } = props;
+export function MSettingsSelect(
+  props: SelectHTMLAttributes<HTMLSelectElement> & MSettingsControlFeedback,
+) {
+  const { label, hint, error, children, ...select } = props;
+  const hasError = error !== undefined && error !== null;
   return (
     <label style={{ display: 'block' }}>
       <span style={{ ...MSET_KEY, display: 'block', marginBottom: 4 }}>{label}</span>
-      <select {...select} style={{ ...FIELD, ...select.style }}>{children}</select>
+      <select
+        {...select}
+        aria-invalid={select['aria-invalid'] ?? (hasError || undefined)}
+        style={{ ...FIELD, borderColor: hasError ? MC.failBorder : undefined, ...select.style }}
+      >
+        {children}
+      </select>
+      <MSettingsFeedback hint={hint} error={error} />
     </label>
   );
 }

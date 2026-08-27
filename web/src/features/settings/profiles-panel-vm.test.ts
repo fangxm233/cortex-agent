@@ -1,6 +1,6 @@
 // input:  profile form state and ConfigProfileEntry fixtures
-// output: validation, dirty and mutation-args regressions
-// pos:    Unit tests for the profiles panel view model
+// output: validation, backend-transition, error-copy, dirty and mutation-args regressions
+// pos:    Unit tests for shared desktop/mobile profile form behavior
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { describe, expect, it } from 'vitest';
@@ -12,6 +12,8 @@ import {
   formStateFromEntry,
   isProfileFormDirty,
   isProfileFormValid,
+  profileFieldErrorCopy,
+  transitionProfileBackend,
   usedOptionRows,
   validateProfileForm,
   type ProfileFormState,
@@ -76,6 +78,44 @@ describe('formStateFromEntry', () => {
     expect(usedOptionRows([{ key: '', value: '' }, { key: '--a', value: '1' }])).toEqual([
       { key: '--a', value: '1' },
     ]);
+  });
+});
+
+describe('transitionProfileBackend', () => {
+  it('keeps a thinking level supported by the new backend', () => {
+    const draft = form({ backend: 'claude', thinking: 'high' });
+
+    expect(transitionProfileBackend(draft, 'pi')).toEqual({ ...draft, backend: 'pi' });
+  });
+
+  it('clears a thinking level unsupported by the new backend in either direction', () => {
+    const claudeDraft = form({ backend: 'claude', thinking: 'max' });
+    const piDraft = form({ backend: 'pi', thinking: 'off' });
+
+    expect(transitionProfileBackend(claudeDraft, 'pi').thinking).toBe('');
+    expect(transitionProfileBackend(piDraft, 'claude').thinking).toBe('');
+  });
+});
+
+describe('profileFieldErrorCopy', () => {
+  it('maps validation codes to their shared vocabulary copy', () => {
+    const copy = {
+      pfErrNameRequired: 'name copy',
+      pfErrNameCharset: '',
+      pfErrNameTaken: '',
+      pfErrModelRequired: 'model copy',
+      pfErrModeCharset: '',
+      pfErrProviderRequired: 'provider copy',
+      pfErrProviderCharset: '',
+      pfErrThinkingLevel: '',
+      pfErrOptionKeyPrefix: '',
+      pfErrOptionKeyDuplicate: '',
+      pfErrOptionValueRequired: '',
+    };
+
+    expect(profileFieldErrorCopy('model-required', copy)).toBe('model copy');
+    expect(profileFieldErrorCopy('provider-required', copy)).toBe('provider copy');
+    expect(profileFieldErrorCopy(undefined, copy)).toBeUndefined();
   });
 });
 
