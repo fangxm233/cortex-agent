@@ -33,7 +33,9 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | CenterChat.tsx | view | Reconciles compact chat state, startup progress and composer placement |
 | scheduled-chat.ts | vm | Cadence label and next-run delta helpers |
 | ChatHeader.tsx | view | Session title, command, browser, notes and session menu |
-| MessageStream.tsx | view | Renders transcript with lazy subagent detail and turn-tail copy |
+| MessageStream.tsx | view | Orchestrates lazy subagent rows, decisions, editing, turn-tail copy and scroll pinning |
+| MessageAttachmentCards.tsx | view | Renders user and agent attachment, media, file and HTML-view cards |
+| attachment-presentation.ts | util | Shares attachment extension, size and semantic color presentation helpers |
 | ChatMarkdown.tsx | view | Renders Markdown with width-bounded KaTeX formulas |
 | ChatMarkdown.test.tsx | test | Tests formula parsing, opt-in behavior and untrusted-input safety |
 | ChatNotice.tsx | view | Localized semantic notices with optional actions |
@@ -61,7 +63,10 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | InlineThreadCardProto.tsx | view | Live thread card opening modal detail |
 | thread-card-proto.ts | vm | Maps thread detail to inline card rows and pill |
 | thread-card-proto.test.ts | test | Unit tests for the inline thread card model |
-| Composer.tsx | view | Unified input card with browser startup and run status |
+| Composer.tsx | view | Orchestrates the unified input card, drafts, uploads and run status |
+| ComposerAttachmentChip.tsx | view | Renders pending media and document-aware composer attachment chips |
+| ComposerSendFailure.tsx | view | Presents localized rejected-send draft restoration feedback |
+| composer-attachments.ts | model | Owns pending attachment types, accessors, upload transport and restore helpers |
 | Composer.test.tsx | test | Tests shortcuts, startup status and rejected sends |
 | ComposerActionRow.tsx | view | Toolbar row: ＋ menu and browser capsule left, profile/context/send right |
 | BrowserOptIn.tsx | model | Browser device options for the composer ＋ menu |
