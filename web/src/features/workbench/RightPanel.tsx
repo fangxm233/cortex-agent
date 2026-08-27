@@ -1,5 +1,5 @@
 // input:  project data, cost summary, threads, notes state
-// output: collapsible desktop right pane with icon navigation
+// output: animated collapsible desktop right pane with icon navigation
 // pos:    Workbench right-side pane host
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -173,7 +173,7 @@ export function RightPanel(): JSX.Element {
   };
   const collapseAction = <PanelToggle expanded label={L.rpCollapsePanel} onClick={() => setCollapsed(true)} />;
   return (
-    <aside data-pane="right" data-collapsed={collapsed || undefined} style={{ width: collapsed ? PANEL_RAIL_WIDTH : PANEL_WIDTH, flex: 'none', background: 'var(--proto-rail)', borderLeft: '1px solid var(--proto-line)', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+    <aside data-pane="right" data-collapsed={collapsed || undefined} style={{ width: collapsed ? PANEL_RAIL_WIDTH : PANEL_WIDTH, transition: 'width 220ms cubic-bezier(0.22, 1, 0.36, 1)', flex: 'none', background: 'var(--proto-rail)', borderLeft: '1px solid var(--proto-line)', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
       {collapsed && <RightPanelRail active={active} labels={labels} navigationLabel={L.rpPanelNavigation} expandLabel={L.rpExpandPanel} onExpand={() => setCollapsed(false)} onSelect={select} />}
       <div style={{ display: collapsed ? 'none' : 'flex', flex: 1, minHeight: 0, width: '100%' }}>
         {notes.isOpen

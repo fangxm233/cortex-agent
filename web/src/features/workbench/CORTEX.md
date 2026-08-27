@@ -87,7 +87,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | useMarkSessionRead.ts | hook | Marks the visible session read |
 | SessionIdModal.tsx | view | Shows session identifiers with copy actions |
 | session-id.ts | vm | Builds identifier rows with a dash fallback |
-| RightPanel.tsx | view | Hosts scoped budget, work tabs, or notes |
+| RightPanel.tsx | view | Animates scoped work tabs or notes into an icon rail |
 | right-panel-vm.ts | vm | Formats budget, thread and machine metadata |
 | right-panel-vm.test.ts | test | Tests budget, thread and machine view models |
 | RightThreadCard.tsx | view | Opens run, task and thread details from activity rows |
