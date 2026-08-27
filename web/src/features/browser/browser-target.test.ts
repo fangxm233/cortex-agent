@@ -10,6 +10,7 @@ import {
   addBrowserTab,
   applyBrowserTitle,
   browserItemName,
+  browserTabChip,
   browserTabForwardSource,
   browserTabLabel,
   closeBrowserTab,
@@ -176,6 +177,35 @@ describe('browser tabs', () => {
     };
     expect(browserTabLabel(tab)).toBe('New tab');
     expect(browserTabForwardSource(tab)).toBe('lab:3000');
+  });
+
+  it('chips a forward with its original device:port and a plain address with its own port', () => {
+    const targetUrl = 'http://127.0.0.1:41235/';
+    const history = pushHistory(EMPTY_HISTORY, targetUrl);
+    const forwarded = {
+      ...createBrowserTab('tab-a'),
+      history,
+      forward: { status: 'ready' as const, device: 'my-pc', originalPort: 6006, targetUrl },
+    };
+    expect(browserTabChip(forwarded)).toEqual({ text: 'my-pc:6006', kind: 'forward' });
+    expect(browserTabChip({
+      ...forwarded,
+      forward: { status: 'ready' as const, device: '', originalPort: 5173, targetUrl },
+    })).toEqual({ text: ':5173', kind: 'forward' });
+    expect(browserTabChip({ ...createBrowserTab('tab-b'), history })).toEqual({ text: ':41235', kind: 'plain' });
+  });
+
+  it('drops the chip, and keeps the port in the label, when the URL carries no port', () => {
+    const tab = { ...createBrowserTab('tab-a'), history: pushHistory(EMPTY_HISTORY, 'https://example.com/docs') };
+    expect(browserTabChip(tab)).toBeNull();
+    expect(browserTabLabel(tab)).toBe('example.com/docs');
+    expect(browserTabChip(createBrowserTab('tab-b'))).toBeNull();
+  });
+
+  it('spells the port once: the chip shows it, so the label drops it', () => {
+    const tab = { ...createBrowserTab('tab-a'), history: pushHistory(EMPTY_HISTORY, 'http://localhost:3000/admin') };
+    expect(browserTabChip(tab)).toEqual({ text: ':3000', kind: 'plain' });
+    expect(browserTabLabel(tab)).toBe('localhost/admin');
   });
 
   it('orders title loads but accepts a BFCache document restore', () => {

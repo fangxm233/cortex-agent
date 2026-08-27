@@ -21,6 +21,7 @@ import {
   addBrowserTab,
   applyBrowserTitle,
   browserItemName,
+  browserTabChip,
   browserTabForwardSource,
   browserTabLabel,
   canGoBack,
@@ -39,6 +40,7 @@ import {
   selectBrowserTab,
   updateBrowserTab,
   webItem,
+  type BrowserTabChip,
   type BrowserTabState,
   type BrowserTabsState,
   type ViewportPreset,
@@ -324,7 +326,7 @@ function TabStrip({ state, onAdd, onSelect, onClose, onReorder }: {
         <AnimatePresence initial={false} mode="popLayout">
           {state.tabs.map((tab) => <BrowserTab key={tab.id} tab={tab} active={tab.id === state.activeId} draggable={state.tabs.length > 1} reduceMotion={reduceMotion} onSelect={onSelect} onClose={onClose} />)}
         </AnimatePresence>
-        <motion.button layout type="button" data-add-tab="" title="New tab" onClick={onAdd} style={{ ...SMALL_BUTTON, borderRadius: '7px 7px 0 0' }}>+</motion.button>
+        <motion.button layout type="button" data-add-tab="" title="New tab" onClick={onAdd} style={{ ...SMALL_BUTTON, alignSelf: 'flex-end', borderRadius: '7px 7px 0 0' }}>+</motion.button>
       </Reorder.Group>
     </MotionConfig>
   );
@@ -345,18 +347,31 @@ const BrowserTab = forwardRef<HTMLDivElement, BrowserTabProps>(function BrowserT
   const url = currentUrl(tab.history);
   const label = browserTabLabel(tab);
   const source = browserTabForwardSource(tab);
+  const chip = browserTabChip(tab);
   const tooltip = source ? `${label}\nForwarded from ${source}` : (url ?? label);
   const isPresent = useIsPresent();
   return (
     <Reorder.Item ref={ref} as="div" value={tab.id} dragListener={draggable && isPresent} dragElastic={0.08} initial={reduceMotion ? false : { opacity: 0, scale: 0.94 }} animate={reduceMotion ? undefined : { opacity: 1, scale: 1 }} exit={reduceMotion ? undefined : { opacity: 0, scale: 0.94, transition: { duration: 0.12, ease: 'easeIn' } }} transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 500, damping: 40, opacity: { duration: 0.12 }, scale: { duration: 0.14 } }} whileDrag={reduceMotion ? undefined : { scale: 1.03 }} style={{ ...TAB_ITEM_STYLE, pointerEvents: isPresent ? 'auto' : 'none', borderBottomColor: active ? 'var(--proto-card)' : 'var(--proto-line)', background: active ? 'var(--proto-card)' : 'var(--proto-gray)' }}>
       <button type="button" aria-pressed={active} data-browser-tab={tab.id} data-active={active ? 'true' : 'false'} onClick={() => onSelect(tab.id)} title={tooltip} style={{ ...TAB_SELECT_STYLE, color: active ? 'var(--proto-ink)' : 'var(--proto-muted)' }}>
+        {chip && <TabChip chip={chip} source={source} />}
         <span style={TAB_LABEL_STYLE}>{label}</span>
-        {source && <span data-forward-source={source} style={TAB_SOURCE_STYLE}><span style={TAB_SOURCE_DOT_STYLE} />{source}</span>}
       </button>
       <button type="button" disabled={!isPresent} data-close-tab={tab.id} title="Close tab" aria-label="Close tab" onPointerDown={(event) => event.stopPropagation()} onClick={() => onClose(tab.id)} style={TAB_CLOSE_STYLE}>×</button>
     </Reorder.Item>
   );
 });
+
+/** The forward chip keeps `data-forward-source` — provenance the address bar cannot show. */
+function TabChip({ chip, source }: { chip: BrowserTabChip; source: string | null }): JSX.Element {
+  const forwarded = chip.kind === 'forward' && source !== null;
+  return (
+    <span
+      {...(forwarded ? { 'data-forward-source': source } : {})}
+      title={forwarded ? `Forwarded from ${source}` : undefined}
+      style={forwarded ? TAB_CHIP_FORWARD_STYLE : TAB_CHIP_PLAIN_STYLE}
+    >{chip.text}</span>
+  );
+}
 
 function motionReduction(mode: MotionMode): 'always' | 'never' | 'user' {
   if (mode === 'reduced') return 'always';
@@ -384,23 +399,31 @@ function BrowserToolbar({ tab, url, inputRef, portsOpen, onStep, onReload, onDra
   onViewport: (id: ViewportPreset['id']) => void;
   onTogglePorts: () => void;
 }): JSX.Element {
+  const origin = browserTabForwardSource(tab);
   return (
     <div style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', borderBottom: '1px solid var(--proto-line)', background: 'var(--proto-card)' }}>
       <NavBtn title="Back" disabled={!canGoBack(tab.history)} onClick={() => onStep('back')}>‹</NavBtn>
       <NavBtn title="Forward" disabled={!canGoForward(tab.history)} onClick={() => onStep('forward')}>›</NavBtn>
       <NavBtn title="Reload" disabled={url === null} onClick={onReload}>⟳</NavBtn>
-      <input
-        ref={inputRef}
-        value={tab.draft}
-        spellCheck={false}
-        placeholder="Port or http://host:port"
-        onChange={(event) => onDraft(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') onNavigate();
-          if (event.key === 'Escape') onResetDraft();
-        }}
-        style={{ flex: 1, minWidth: 0, height: 26, padding: '0 8px', borderRadius: 7, border: '1px solid var(--proto-line)', background: 'var(--proto-gray)', color: 'var(--proto-ink)', font: `500 11px ${MONO}`, outline: 'none' }}
-      />
+      <div style={ADDRESS_FIELD_STYLE}>
+        {origin && (
+          <span data-forward-origin={origin} title={`Forwarded from ${origin}`} style={ADDRESS_BADGE_STYLE}>
+            {origin}<span style={{ opacity: 0.65 }}>→</span>
+          </span>
+        )}
+        <input
+          ref={inputRef}
+          value={tab.draft}
+          spellCheck={false}
+          placeholder="Port or http://host:port"
+          onChange={(event) => onDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') onNavigate();
+            if (event.key === 'Escape') onResetDraft();
+          }}
+          style={{ flex: 1, minWidth: 0, height: '100%', padding: 0, border: 'none', background: 'transparent', color: 'var(--proto-ink)', font: `500 11px ${MONO}`, outline: 'none' }}
+        />
+      </div>
       <select title="Viewport width" value={tab.viewportId} onChange={(event) => onViewport(event.target.value as ViewportPreset['id'])} style={SELECT_STYLE}>
         {VIEWPORT_PRESETS.map((preset) => <option key={preset.id} value={preset.id}>{preset.label}</option>)}
       </select>
@@ -503,11 +526,14 @@ function NavBtn({ children, title, disabled, onClick }: { children: React.ReactN
 }
 
 const TAB_STRIP_STYLE: React.CSSProperties = { display: 'flex', gap: 3, padding: '5px 7px 0', background: 'var(--proto-gray)', overflowX: 'auto', flex: 'none', position: 'relative' };
-const TAB_ITEM_STYLE: React.CSSProperties = { display: 'flex', alignItems: 'center', flex: 'none', minWidth: 104, maxWidth: 190, height: 39, border: '1px solid var(--proto-line)', borderRadius: '7px 7px 0 0', position: 'relative', cursor: 'grab', overflow: 'hidden', transition: 'background-color 140ms ease, border-color 140ms ease' };
-const TAB_SELECT_STYLE: React.CSSProperties = { display: 'flex', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'center', minWidth: 0, height: '100%', flex: 1, padding: '3px 2px 3px 7px', border: 'none', background: 'transparent', font: `500 10px ${MONO}`, cursor: 'inherit', transition: 'color 140ms ease', textAlign: 'left' };
+const TAB_ITEM_STYLE: React.CSSProperties = { display: 'flex', alignItems: 'center', flex: 'none', minWidth: 96, maxWidth: 210, height: 30, border: '1px solid var(--proto-line)', borderRadius: '7px 7px 0 0', position: 'relative', cursor: 'grab', overflow: 'hidden', transition: 'background-color 140ms ease, border-color 140ms ease' };
+const TAB_SELECT_STYLE: React.CSSProperties = { display: 'flex', alignItems: 'center', minWidth: 0, height: '100%', flex: 1, padding: '0 2px 0 7px', border: 'none', background: 'transparent', font: `500 10px ${MONO}`, cursor: 'inherit', transition: 'color 140ms ease', textAlign: 'left' };
 const TAB_LABEL_STYLE: React.CSSProperties = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: '13px' };
-const TAB_SOURCE_STYLE: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--proto-accent)', font: `600 8.5px ${MONO}`, lineHeight: '11px' };
-const TAB_SOURCE_DOT_STYLE: React.CSSProperties = { width: 5, height: 5, flex: 'none', borderRadius: '50%', background: 'var(--proto-accent)' };
+const TAB_CHIP_STYLE: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', flex: 'none', maxWidth: 98, height: 16, padding: '0 5px', marginRight: 6, borderRadius: 5, font: `600 9px ${MONO}`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
+const TAB_CHIP_FORWARD_STYLE: React.CSSProperties = { ...TAB_CHIP_STYLE, background: 'var(--proto-accent-bg)', color: 'var(--proto-accent)' };
+const TAB_CHIP_PLAIN_STYLE: React.CSSProperties = { ...TAB_CHIP_STYLE, border: '1px solid var(--proto-line)', color: 'var(--proto-muted-2)' };
+const ADDRESS_FIELD_STYLE: React.CSSProperties = { flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, height: 26, padding: '0 8px', borderRadius: 7, border: '1px solid var(--proto-line)', background: 'var(--proto-gray)' };
+const ADDRESS_BADGE_STYLE: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none', maxWidth: '45%', height: 16, padding: '0 6px', borderRadius: 5, background: 'var(--proto-accent-bg)', color: 'var(--proto-accent)', font: `600 9px ${MONO}`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 const TAB_CLOSE_STYLE: React.CSSProperties = { width: 24, height: '100%', flex: 'none', border: 'none', background: 'transparent', color: 'var(--proto-muted-2)', font: `500 13px ${MONO}`, lineHeight: 1, cursor: 'pointer', padding: 0 };
 const SMALL_BUTTON: React.CSSProperties = { width: 26, height: 26, flex: 'none', borderRadius: 7, border: '1px solid var(--proto-line)', background: 'var(--proto-card)', color: 'var(--proto-muted)', font: `500 13px ${MONO}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 };
 const SELECT_STYLE: React.CSSProperties = { height: 26, borderRadius: 7, border: '1px solid var(--proto-line)', background: 'var(--proto-card)', color: 'var(--proto-muted)', font: `500 10.5px ${MONO}`, cursor: 'pointer' };

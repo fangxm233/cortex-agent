@@ -58,6 +58,17 @@ export function browserItemName(url: string): string {
   }
 }
 
+/** `browserItemName` minus the port — the label half of a chip-and-label pair. */
+function browserHostPath(url: string): string {
+  try {
+    const u = new URL(url);
+    const path = u.pathname === '/' ? '' : u.pathname;
+    return `${u.hostname}${path}`;
+  } catch {
+    return url;
+  }
+}
+
 /** Build the docked item for a URL (already normalized). */
 export function webItem(url: string): WebItem {
   return { kind: 'web', name: url === '' ? 'Browser' : browserItemName(url), url };
@@ -222,9 +233,12 @@ export function createBrowserTab(id: string): BrowserTabState {
   };
 }
 
+/** Tab label: the page title, else the address without the port the chip already carries. */
 export function browserTabLabel(tab: BrowserTabState): string {
+  if (tab.pageTitle !== null) return tab.pageTitle;
   const url = currentUrl(tab.history);
-  return tab.pageTitle ?? (url ? browserItemName(url) : 'New tab');
+  if (url === null) return 'New tab';
+  return browserTabChip(tab) === null ? browserItemName(url) : browserHostPath(url);
 }
 
 export function applyBrowserTitle(
@@ -243,6 +257,34 @@ export function browserTabForwardSource(tab: BrowserTabState): string | null {
   if (tab.forward.status === 'ready' && tab.forward.targetUrl !== currentUrl(tab.history)) return null;
   const device = tab.forward.device === '' ? 'server' : tab.forward.device;
   return `${device}:${tab.forward.originalPort}`;
+}
+
+/**
+ * The compact port marker a tab shows in its favicon slot.
+ *
+ * A forward is the case worth marking: the address is a locally mapped port, so the original
+ * `device:port` is provenance the URL itself no longer carries — it gets the accent chip, with the
+ * device omitted when the port is the server's own. A plain address gets a muted chip echoing the
+ * port from its URL, which keeps every tab the same shape and lets the label drop the port.
+ */
+export interface BrowserTabChip {
+  text: string;
+  kind: 'forward' | 'plain';
+}
+
+export function browserTabChip(tab: BrowserTabState): BrowserTabChip | null {
+  const forward = tab.forward;
+  if (forward && browserTabForwardSource(tab) !== null) {
+    return { text: `${forward.device}:${forward.originalPort}`, kind: 'forward' };
+  }
+  const url = currentUrl(tab.history);
+  if (url === null) return null;
+  try {
+    const port = new URL(url).port;
+    return port === '' ? null : { text: `:${port}`, kind: 'plain' };
+  } catch {
+    return null;
+  }
 }
 
 export function createBrowserTabs(id: string): BrowserTabsState {
