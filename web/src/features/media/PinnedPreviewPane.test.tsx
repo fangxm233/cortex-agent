@@ -1,4 +1,4 @@
-// input:  pinned-preview controls and browser workspace rendering
+// input:  pinned-preview, theme and browser workspace rendering
 // output: browser keep-alive regressions across pane visibility
 // pos:    Focused component test for docked browser lifetime
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -6,6 +6,7 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
 import { webItem } from '@/features/browser/browser-target';
+import { ThemeProvider } from '@/theme';
 import { PinnedPreviewPane } from './PinnedPreviewPane';
 import { PinnedPreviewProvider, usePinnedPreview } from './PinnedPreviewProvider';
 
@@ -34,7 +35,7 @@ function navigate(renderer: ReactTestRenderer): void {
 describe('PinnedPreviewPane browser keep-alive', () => {
   it('hides rather than unmounting browser frames across pane close and file preview', () => {
     let renderer!: ReactTestRenderer;
-    act(() => { renderer = create(<PinnedPreviewProvider><Harness /></PinnedPreviewProvider>); });
+    act(() => { renderer = create(<ThemeProvider><PinnedPreviewProvider><Harness /></PinnedPreviewProvider></ThemeProvider>); });
     action(renderer, 'web');
     navigate(renderer);
     const frame = renderer.root.findByProps({ 'data-browser-frame': 'browser-tab-0' });

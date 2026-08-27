@@ -1,10 +1,12 @@
 // input:  browser tab state, app/API origins and port forwarding
-// output: tabbed browser pane with live iframe keep-alive
+// output: animated sortable tabs with live iframe keep-alive
 // pos:    Desktop browser workspace view
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, MotionConfig, Reorder, motion, useIsPresent, useReducedMotion } from 'motion/react';
 import { apiBase } from '@/lib/desktop-config';
+import { useMotionMode, type MotionMode } from '@/theme';
 import { openExternalUrl } from '@/lib/external-navigation';
 import { usePinnedPreview } from '@/features/media/PinnedPreviewProvider';
 import {
@@ -30,6 +32,7 @@ import {
   normalizeBrowserUrl,
   previewOriginConflict,
   pushHistory,
+  reorderBrowserTabs,
   selectBrowserTab,
   updateBrowserTab,
   webItem,
@@ -62,6 +65,7 @@ export function WebBody({ item }: { item: WebItem }): JSX.Element {
   const nextTab = useRef(1);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const frameRefs = useRef(new Map<string, HTMLIFrameElement>());
+  const frameOrder = useRef(['browser-tab-0']);
   const active = activeBrowserTab(tabs);
   const url = currentUrl(active.history);
   const forbiddenOrigins = useMemo(
@@ -110,7 +114,11 @@ export function WebBody({ item }: { item: WebItem }): JSX.Element {
 
   const addTab = (): void => {
     const tab = createBrowserTab(`browser-tab-${nextTab.current++}`);
-    setTabs((state) => addBrowserTab(state, tab));
+    setTabs((state) => {
+      const next = addBrowserTab(state, tab);
+      frameOrder.current = syncFrameOrder(frameOrder.current, next.tabs);
+      return next;
+    });
     show(webItem(''));
   };
 
@@ -124,8 +132,13 @@ export function WebBody({ item }: { item: WebItem }): JSX.Element {
   const removeTab = (id: string): void => {
     const replacement = createBrowserTab(`browser-tab-${nextTab.current++}`);
     const next = closeBrowserTab(tabs, id, replacement);
+    frameOrder.current = syncFrameOrder(frameOrder.current, next.tabs);
     setTabs(next);
     if (id === tabs.activeId) show(webItem(currentUrl(activeBrowserTab(next).history) ?? ''));
+  };
+
+  const reorderTabs = (orderedIds: string[]): void => {
+    setTabs((state) => reorderBrowserTabs(state, orderedIds));
   };
 
   const step = (dir: 'back' | 'forward'): void => {
@@ -188,7 +201,7 @@ export function WebBody({ item }: { item: WebItem }): JSX.Element {
 
   return (
     <div data-browser-workspace="" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-      <TabStrip state={tabs} onAdd={addTab} onSelect={pickTab} onClose={removeTab} />
+      <TabStrip state={tabs} onAdd={addTab} onSelect={pickTab} onClose={removeTab} onReorder={reorderTabs} />
       <BrowserToolbar
         tab={active}
         url={url}
@@ -204,46 +217,68 @@ export function WebBody({ item }: { item: WebItem }): JSX.Element {
       />
       {ports.open && <PortsPanel state={ports} onDevice={pickDevice} onPort={openPort} />}
       <BrowserNotice tab={active} url={url} />
-      <BrowserFrames state={tabs} frameRefs={frameRefs.current} onLoad={onFrameLoad} />
+      <BrowserFrames state={tabs} order={frameOrder.current} frameRefs={frameRefs.current} onLoad={onFrameLoad} />
     </div>
   );
 }
 
-function TabStrip({ state, onAdd, onSelect, onClose }: {
+function TabStrip({ state, onAdd, onSelect, onClose, onReorder }: {
   state: BrowserTabsState;
   onAdd: () => void;
   onSelect: (id: string) => void;
   onClose: (id: string) => void;
+  onReorder: (orderedIds: string[]) => void;
 }): JSX.Element {
+  const motionMode = useMotionMode();
+  const systemReduced = useReducedMotion();
+  const reduceMotion = motionMode === 'reduced' || (motionMode === 'system' && systemReduced === true);
   return (
-    <div style={{ display: 'flex', gap: 3, padding: '5px 7px 0', background: 'var(--proto-gray)', overflowX: 'auto', flex: 'none' }}>
-      {state.tabs.map((tab) => {
-        const active = tab.id === state.activeId;
-        const url = currentUrl(tab.history);
-        return (
-          <button
-            key={tab.id}
-            type="button"
-            data-browser-tab={tab.id}
-            data-active={active ? 'true' : 'false'}
-            onClick={() => onSelect(tab.id)}
-            title={url ?? 'New tab'}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 92, maxWidth: 180, height: 27, padding: '0 7px', border: '1px solid var(--proto-line)', borderBottomColor: active ? 'var(--proto-card)' : 'var(--proto-line)', borderRadius: '7px 7px 0 0', background: active ? 'var(--proto-card)' : 'var(--proto-gray)', color: active ? 'var(--proto-ink)' : 'var(--proto-muted)', font: `500 10px ${MONO}`, cursor: 'pointer' }}
-          >
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{url ? browserItemName(url) : 'New tab'}</span>
-            <span
-              role="button"
-              data-close-tab={tab.id}
-              title="Close tab"
-              onClick={(event) => { event.stopPropagation(); onClose(tab.id); }}
-              style={{ color: 'var(--proto-muted-2)', fontSize: 13, lineHeight: 1 }}
-            >×</span>
-          </button>
-        );
-      })}
-      <button type="button" data-add-tab="" title="New tab" onClick={onAdd} style={{ ...SMALL_BUTTON, borderRadius: '7px 7px 0 0' }}>+</button>
-    </div>
+    <MotionConfig reducedMotion={motionReduction(motionMode)}>
+      <Reorder.Group as="div" axis="x" values={state.tabs.map((tab) => tab.id)} onReorder={onReorder} layoutScroll style={TAB_STRIP_STYLE}>
+        <AnimatePresence initial={false} mode="popLayout">
+          {state.tabs.map((tab) => <BrowserTab key={tab.id} tab={tab} active={tab.id === state.activeId} draggable={state.tabs.length > 1} reduceMotion={reduceMotion} onSelect={onSelect} onClose={onClose} />)}
+        </AnimatePresence>
+        <motion.button layout type="button" data-add-tab="" title="New tab" onClick={onAdd} style={{ ...SMALL_BUTTON, borderRadius: '7px 7px 0 0' }}>+</motion.button>
+      </Reorder.Group>
+    </MotionConfig>
   );
+}
+
+interface BrowserTabProps {
+  tab: BrowserTabState;
+  active: boolean;
+  draggable: boolean;
+  reduceMotion: boolean;
+  onSelect: (id: string) => void;
+  onClose: (id: string) => void;
+}
+
+const BrowserTab = forwardRef<HTMLDivElement, BrowserTabProps>(function BrowserTab(
+  { tab, active, draggable, reduceMotion, onSelect, onClose }, ref,
+): JSX.Element {
+  const url = currentUrl(tab.history);
+  const isPresent = useIsPresent();
+  return (
+    <Reorder.Item ref={ref} as="div" value={tab.id} dragListener={draggable && isPresent} dragElastic={0.08} initial={reduceMotion ? false : { opacity: 0, scale: 0.94 }} animate={reduceMotion ? undefined : { opacity: 1, scale: 1 }} exit={reduceMotion ? undefined : { opacity: 0, scale: 0.94, transition: { duration: 0.12, ease: 'easeIn' } }} transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 500, damping: 40, opacity: { duration: 0.12 }, scale: { duration: 0.14 } }} whileDrag={reduceMotion ? undefined : { scale: 1.03 }} style={{ ...TAB_ITEM_STYLE, pointerEvents: isPresent ? 'auto' : 'none', borderBottomColor: active ? 'var(--proto-card)' : 'var(--proto-line)', background: active ? 'var(--proto-card)' : 'var(--proto-gray)' }}>
+      <button type="button" aria-pressed={active} data-browser-tab={tab.id} data-active={active ? 'true' : 'false'} onClick={() => onSelect(tab.id)} title={url ?? 'New tab'} style={{ ...TAB_SELECT_STYLE, color: active ? 'var(--proto-ink)' : 'var(--proto-muted)' }}>
+        <span style={TAB_LABEL_STYLE}>{url ? browserItemName(url) : 'New tab'}</span>
+      </button>
+      <button type="button" disabled={!isPresent} data-close-tab={tab.id} title="Close tab" aria-label="Close tab" onPointerDown={(event) => event.stopPropagation()} onClick={() => onClose(tab.id)} style={TAB_CLOSE_STYLE}>×</button>
+    </Reorder.Item>
+  );
+});
+
+function motionReduction(mode: MotionMode): 'always' | 'never' | 'user' {
+  if (mode === 'reduced') return 'always';
+  if (mode === 'full') return 'never';
+  return 'user';
+}
+
+function syncFrameOrder(current: string[], tabs: BrowserTabState[]): string[] {
+  const liveIds = new Set(tabs.map((tab) => tab.id));
+  const kept = current.filter((id) => liveIds.has(id));
+  const known = new Set(kept);
+  return [...kept, ...tabs.map((tab) => tab.id).filter((id) => !known.has(id))];
 }
 
 function BrowserToolbar({ tab, url, inputRef, portsOpen, onStep, onReload, onDraft, onNavigate, onResetDraft, onViewport, onTogglePorts }: {
@@ -320,14 +355,17 @@ function BrowserNotice({ tab, url }: { tab: BrowserTabState; url: string | null 
   return <div style={{ ...NOTICE_STYLE, color: 'var(--proto-danger)' }}>{tab.rejected}</div>;
 }
 
-function BrowserFrames({ state, frameRefs, onLoad }: {
+function BrowserFrames({ state, order, frameRefs, onLoad }: {
   state: BrowserTabsState;
+  order: string[];
   frameRefs: Map<string, HTMLIFrameElement>;
   onLoad: (id: string) => void;
 }): JSX.Element {
+  const tabsById = new Map(state.tabs.map((tab) => [tab.id, tab]));
+  const renderTabs = order.map((id) => tabsById.get(id)).filter((tab): tab is BrowserTabState => tab !== undefined);
   return (
     <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', background: 'var(--proto-gray)', position: 'relative' }}>
-      {state.tabs.map((tab) => {
+      {renderTabs.map((tab) => {
         const active = tab.id === state.activeId;
         const url = currentUrl(tab.history);
         const viewport = VIEWPORT_PRESETS.find((preset) => preset.id === tab.viewportId) ?? VIEWPORT_PRESETS[0];
@@ -374,6 +412,11 @@ function NavBtn({ children, title, disabled, onClick }: { children: React.ReactN
   return <button type="button" title={title} disabled={disabled} onClick={onClick} style={{ ...SMALL_BUTTON, color: disabled ? 'var(--proto-faint)' : 'var(--proto-muted)', cursor: disabled ? 'default' : 'pointer' }}>{children}</button>;
 }
 
+const TAB_STRIP_STYLE: React.CSSProperties = { display: 'flex', gap: 3, padding: '5px 7px 0', background: 'var(--proto-gray)', overflowX: 'auto', flex: 'none', position: 'relative' };
+const TAB_ITEM_STYLE: React.CSSProperties = { display: 'flex', alignItems: 'center', flex: 'none', minWidth: 92, maxWidth: 180, height: 27, border: '1px solid var(--proto-line)', borderRadius: '7px 7px 0 0', position: 'relative', cursor: 'grab', overflow: 'hidden', transition: 'background-color 140ms ease, border-color 140ms ease' };
+const TAB_SELECT_STYLE: React.CSSProperties = { display: 'flex', alignItems: 'center', minWidth: 0, height: '100%', flex: 1, padding: '0 2px 0 7px', border: 'none', background: 'transparent', font: `500 10px ${MONO}`, cursor: 'inherit', transition: 'color 140ms ease' };
+const TAB_LABEL_STYLE: React.CSSProperties = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 };
+const TAB_CLOSE_STYLE: React.CSSProperties = { width: 24, height: '100%', flex: 'none', border: 'none', background: 'transparent', color: 'var(--proto-muted-2)', font: `500 13px ${MONO}`, lineHeight: 1, cursor: 'pointer', padding: 0 };
 const SMALL_BUTTON: React.CSSProperties = { width: 26, height: 26, flex: 'none', borderRadius: 7, border: '1px solid var(--proto-line)', background: 'var(--proto-card)', color: 'var(--proto-muted)', font: `500 13px ${MONO}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 };
 const SELECT_STYLE: React.CSSProperties = { height: 26, borderRadius: 7, border: '1px solid var(--proto-line)', background: 'var(--proto-card)', color: 'var(--proto-muted)', font: `500 10.5px ${MONO}`, cursor: 'pointer' };
 const PORT_BUTTON: React.CSSProperties = { height: 26, flex: 'none', padding: '0 8px', borderRadius: 7, font: `600 10.5px ${MONO}`, cursor: 'pointer' };

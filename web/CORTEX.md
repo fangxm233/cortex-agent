@@ -10,7 +10,7 @@ Holds build tooling, design tokens and the source tree; the built bundle also sh
 | tailwind.config.ts | config | Design tokens, compact menu chrome and animations |
 | postcss.config.js | config | Enables Tailwind and autoprefixer processing |
 | tsconfig.json | config | Strict TypeScript options and path alias |
-| package.json | config | Scripts, UI primitives and native link bridge |
+| package.json | config | Scripts, UI primitives, Motion and native links |
 | .gitignore | config | Excludes the build output from git |
 | public/ | assets | Shared theme tokens and browser icons |
 | src/ | subdir | All application source code |

@@ -1,5 +1,5 @@
 // input:  address text, origins, navigation and tab intents
-// output: URL guards, history, tab state and viewport presets
+// output: URL guards, history, ordered tab state and viewports
 // pos:    Pure browser-pane and tab-workspace model
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -223,6 +223,17 @@ export function addBrowserTab(state: BrowserTabsState, tab: BrowserTabState): Br
 export function selectBrowserTab(state: BrowserTabsState, id: string): BrowserTabsState {
   if (id === state.activeId || !state.tabs.some((tab) => tab.id === id)) return state;
   return { ...state, activeId: id };
+}
+
+export function reorderBrowserTabs(state: BrowserTabsState, orderedIds: string[]): BrowserTabsState {
+  const tabsById = new Map(state.tabs.map((tab) => [tab.id, tab]));
+  const valid = orderedIds.length === state.tabs.length
+    && new Set(orderedIds).size === orderedIds.length
+    && orderedIds.every((id) => tabsById.has(id));
+  if (!valid) return state;
+  const tabs = orderedIds.map((id) => tabsById.get(id)!);
+  if (tabs.every((tab, index) => tab === state.tabs[index])) return state;
+  return { ...state, tabs };
 }
 
 export function updateBrowserTab(

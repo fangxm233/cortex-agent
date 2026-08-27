@@ -1,5 +1,5 @@
 // input:  browser URL, history and tab helpers
-// output: regressions for guards, history and independent tabs
+// output: regressions for guards, history and ordered tabs
 // pos:    Unit tests for the browser workspace model
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
@@ -22,6 +22,7 @@ import {
   normalizeBrowserUrl,
   previewOriginConflict,
   pushHistory,
+  reorderBrowserTabs,
   frameRefusedEmbedding,
   FRAME_REFUSED_HINT,
 } from './browser-target';
@@ -180,6 +181,26 @@ describe('browser tabs', () => {
     const selected = selectBrowserTab(original, 'tab-a');
     expect(selected.activeId).toBe('tab-a');
     expect(selected.tabs).toBe(original.tabs);
+  });
+
+  it('reorders tabs without changing active or per-tab state', () => {
+    let state = addBrowserTab(createBrowserTabs('tab-a'), createBrowserTab('tab-b'));
+    state = addBrowserTab(state, createBrowserTab('tab-c'));
+    const originalTabs = [...state.tabs];
+
+    const reordered = reorderBrowserTabs(state, ['tab-c', 'tab-a', 'tab-b']);
+
+    expect(reordered.activeId).toBe('tab-c');
+    expect(reordered.tabs.map((tab) => tab.id)).toEqual(['tab-c', 'tab-a', 'tab-b']);
+    expect(reordered.tabs).toEqual([originalTabs[2], originalTabs[0], originalTabs[1]]);
+    expect(reordered.tabs[0]).toBe(originalTabs[2]);
+  });
+
+  it('ignores invalid tab reorder permutations', () => {
+    const state = addBrowserTab(createBrowserTabs('tab-a'), createBrowserTab('tab-b'));
+    expect(reorderBrowserTabs(state, ['tab-a'])).toBe(state);
+    expect(reorderBrowserTabs(state, ['tab-a', 'tab-a'])).toBe(state);
+    expect(reorderBrowserTabs(state, ['tab-a', 'tab-c'])).toBe(state);
   });
 
   it('selects an adjacent tab after close and replaces the final tab with blank', () => {
