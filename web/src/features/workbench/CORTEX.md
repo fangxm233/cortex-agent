@@ -34,6 +34,10 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | ChatHeader.tsx | view | Session title, command, browser, notes and session menu |
 | MessageStream.tsx | view | Orchestrates lazy subagent rows, decisions, editing, turn-tail copy and scroll pinning |
 | MessageAttachmentCards.tsx | view | Renders user and agent attachment, media, file and HTML-view cards |
+| DecisionCards.tsx | view | Expands agent-announced decisions in place with approve, explain and revise |
+| DecisionCards.test.tsx | test | Tests card disclosure, approve wiring and composed response messages |
+| decision-vm.ts | vm | Derives decision status and composes the explain and revise messages |
+| decision-vm.test.ts | test | Tests status precedence and message templating |
 | attachment-presentation.ts | util | Adapts canonical byte labels plus attachment extension and semantic colors |
 | ChatMarkdown.tsx | view | Renders Markdown with width-bounded KaTeX formulas |
 | ChatMarkdown.test.tsx | test | Tests formula parsing, opt-in behavior and untrusted-input safety |

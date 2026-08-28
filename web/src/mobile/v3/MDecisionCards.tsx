@@ -1,10 +1,10 @@
 // input:  decision items, shared decision rules, and the respondDecision hook
-// output: Mobile decision cards with a bottom-sheet detail and actions
+// output: Mobile decision cards that expand in place, with actions
 // pos:    @ds-adherence-ignore Mobile presentation of agent-announced decisions
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useState } from 'react';
 import type { DecisionItem, DecisionActionKind } from '@cortex-agent/ui-contract';
-import { MC, MONO, MBottomSheet } from '@/mobile/ui/kit';
+import { MC, MONO } from '@/mobile/ui/kit';
 import { useVocab, type Vocab } from '@/i18n';
 import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
 import { messageTimeLabel } from '@/features/workbench/transcript-vm';
@@ -12,7 +12,7 @@ import { useDecisionActions, type DecisionActions } from '@/features/workbench/D
 import { decisionStatus, buildDecisionMessage, type DecisionStatus } from '@/features/workbench/decision-vm';
 
 // Mobile twin of the desktop DecisionCards: same vocabulary, same pure rules (decision-vm), same
-// mutation hook — only the chrome differs (tap → MBottomSheet instead of hover actions + modal).
+// mutation hook — only the chrome differs (tap the row to expand; full-width action buttons).
 
 function chipOf(status: DecisionStatus, L: Vocab): { label: string; fg: string; bg: string } | null {
   if (status === 'approved') return { label: `✓ ${L.wbDecApproved}`, fg: MC.done, bg: MC.doneBg };
@@ -44,11 +44,27 @@ function Section({ label, text }: { label: string; text: string }): JSX.Element 
   );
 }
 
-type SheetMode = 'view' | 'explain' | 'revise';
+type Mode = 'view' | 'explain' | 'revise';
 
-function MDecisionSheet({ d, actions, onClose }: { d: DecisionItem; actions?: DecisionActions; onClose: () => void }): JSX.Element {
+/** Disclosure caret — points right when collapsed, down when open. */
+function Caret({ open }: { open: boolean }): JSX.Element {
+  return (
+    <span
+      style={{ width: 12, height: 12, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: MC.faint, transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .16s ease' }}
+    >
+      <svg width={7} height={10} viewBox="0 0 7 10" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M1.5 1 5.5 5l-4 4" />
+      </svg>
+    </span>
+  );
+}
+
+/** One decision: a collapsed one-line record that expands in place. No sheet, so it needs no
+ *  screen-level host — the whole thing stays inside the transcript row. */
+function MDecisionCard({ d, actions }: { d: DecisionItem; actions?: DecisionActions }): JSX.Element {
   const L = useVocab();
-  const [mode, setMode] = useState<SheetMode>('view');
+  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<Mode>('view');
   const [text, setText] = useState('');
   const status = decisionStatus(d);
   const chip = chipOf(status, L);
@@ -62,36 +78,42 @@ function MDecisionSheet({ d, actions, onClose }: { d: DecisionItem; actions?: De
   );
   const canSend = !busy && composed !== null;
 
-  const send = (): void => {
-    if (!canSend || mode === 'view') return;
-    actions?.respond(d.id, mode, composed!);
-    onClose();
-  };
+  const collapse = (): void => { setOpen(false); setMode('view'); setText(''); };
   const approve = (): void => {
     if (busy) return;
     actions?.respond(d.id, 'approve');
-    onClose();
+  };
+  const send = (): void => {
+    if (!canSend || mode === 'view') return;
+    actions?.respond(d.id, mode, composed!);
+    collapse();
   };
   const modeBtn = (m: 'explain' | 'revise', label: string): JSX.Element => (
     <span
       role="button"
       onClick={() => setMode(mode === m ? 'view' : m)}
-      style={{ flex: 1, height: 40, borderRadius: 10, border: `1px solid ${mode === m ? MC.run : MC.cardBorder}`, background: mode === m ? MC.runBg : 'var(--proto-card)', color: mode === m ? MC.run : MC.ink, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}
+      style={{ flex: 1, height: 38, borderRadius: 10, border: `1px solid ${mode === m ? MC.run : MC.cardBorder}`, background: mode === m ? MC.runBg : 'var(--proto-card)', color: mode === m ? MC.run : MC.ink, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}
     >
       {label}
     </span>
   );
 
   return (
-    <MBottomSheet onClose={onClose}>
-      <div style={{ padding: '2px 16px 12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Badge L={L} />
-          {chip && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: chip.bg, color: chip.fg, flex: 'none' }}>{chip.label}</span>}
-        </div>
-        <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em', marginTop: 8, lineHeight: 1.4, overflowWrap: 'break-word' }}>{d.title}</div>
+    <div style={{ border: `1px solid ${MC.hairline}`, background: 'var(--proto-card)', borderRadius: 12, boxSizing: 'border-box' }}>
+      <div
+        role="button"
+        data-decision-toggle={d.id}
+        onClick={() => (open ? collapse() : setOpen(true))}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 11px' }}
+      >
+        <Badge L={L} />
+        <span style={{ fontSize: 12.5, fontWeight: 600, color: MC.ink, minWidth: 0, flex: 1, lineHeight: 1.4, ...(open ? { overflowWrap: 'break-word' as const } : { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }) }}>{d.title}</span>
+        {chip && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: chip.bg, color: chip.fg, flex: 'none', whiteSpace: 'nowrap' }}>{chip.label}</span>}
+        <Caret open={open} />
+      </div>
 
-        <div style={{ maxHeight: '46vh', overflow: 'auto', marginTop: 2 }}>
+      {open && (
+        <div style={{ borderTop: `1px solid ${MC.hairline}`, padding: '2px 12px 12px' }}>
           <Section label={L.wbDecContext} text={d.context} />
           <Section label={L.wbDecDecision} text={d.decision} />
           <Section label={L.wbDecReasoning} text={d.reasoning} />
@@ -109,78 +131,50 @@ function MDecisionSheet({ d, actions, onClose }: { d: DecisionItem; actions?: De
               </div>
             </div>
           )}
-        </div>
 
-        {actions && (
-          <div style={{ marginTop: 14 }}>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {status === 'approved' ? (
-                <span style={{ flex: 1, height: 40, borderRadius: 10, background: MC.doneBg, color: MC.done, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}>
-                  ✓ {L.wbDecApproved}
-                </span>
-              ) : (
-                <span
-                  role="button"
-                  onClick={approve}
-                  style={{ flex: 1, height: 40, borderRadius: 10, background: busy ? MC.faint : MC.ink, color: MC.inkSolidFg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}
-                >
-                  ✓ {L.wbDecApprove}
-                </span>
-              )}
-              {modeBtn('explain', L.wbDecExplain)}
-              {modeBtn('revise', L.wbDecRevise)}
-            </div>
-            {mode !== 'view' && (
-              <div style={{ display: 'flex', gap: 8, marginTop: 9, alignItems: 'flex-end' }}>
-                <textarea
-                  autoFocus
-                  rows={2}
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  placeholder={mode === 'explain' ? L.wbDecExplainPlaceholder : L.wbDecRevisePlaceholder}
-                  style={{ flex: 1, minWidth: 0, resize: 'none', border: `1px solid ${MC.runBorder}`, borderRadius: 10, padding: '8px 11px', fontSize: 13, lineHeight: 1.5, color: MC.ink, background: 'var(--proto-card)', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
-                />
-                <span
-                  role="button"
-                  onClick={send}
-                  style={{ height: 38, borderRadius: 10, padding: '0 16px', background: canSend ? MC.ink : MC.faint, color: MC.inkSolidFg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, flex: 'none' }}
-                >
-                  {L.wbDecSend}
-                </span>
+          {actions && (
+            <div style={{ marginTop: 13 }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {status === 'approved' ? (
+                  <span style={{ flex: 1, height: 38, borderRadius: 10, background: MC.doneBg, color: MC.done, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}>
+                    ✓ {L.wbDecApproved}
+                  </span>
+                ) : (
+                  <span
+                    role="button"
+                    onClick={approve}
+                    style={{ flex: 1, height: 38, borderRadius: 10, background: busy ? MC.faint : MC.ink, color: MC.inkSolidFg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}
+                  >
+                    ✓ {L.wbDecApprove}
+                  </span>
+                )}
+                {modeBtn('explain', L.wbDecExplain)}
+                {modeBtn('revise', L.wbDecRevise)}
               </div>
-            )}
-          </div>
-        )}
-      </div>
-    </MBottomSheet>
-  );
-}
-
-function MDecisionCard({ d, actions }: { d: DecisionItem; actions?: DecisionActions }): JSX.Element {
-  const L = useVocab();
-  const [open, setOpen] = useState(false);
-  const chip = chipOf(decisionStatus(d), L);
-  return (
-    <>
-      <div
-        role="button"
-        onClick={() => setOpen(true)}
-        style={{ display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${MC.hairline}`, background: 'var(--proto-card)', borderRadius: 12, padding: '9px 11px', boxSizing: 'border-box' }}
-      >
-        <Badge L={L} />
-        <span style={{ fontSize: 12.5, fontWeight: 600, color: MC.ink, minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.title}</span>
-        {chip && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: chip.bg, color: chip.fg, flex: 'none', whiteSpace: 'nowrap' }}>{chip.label}</span>}
-        <span style={{ fontSize: 11, color: MC.faint, flex: 'none' }}>›</span>
-      </div>
-      {open && (
-        // MBottomSheet lays itself out as `absolute; inset: 0`, so it needs a positioned host that
-        // spans the app frame — inline in the transcript it would otherwise size to the scroll
-        // content. MobileShell's transform makes `fixed` resolve against that frame.
-        <div style={{ position: 'fixed', inset: 0, zIndex: 30 }}>
-          <MDecisionSheet d={d} actions={actions} onClose={() => setOpen(false)} />
+              {mode !== 'view' && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 9, alignItems: 'flex-end' }}>
+                  <textarea
+                    autoFocus
+                    rows={2}
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    placeholder={mode === 'explain' ? L.wbDecExplainPlaceholder : L.wbDecRevisePlaceholder}
+                    style={{ flex: 1, minWidth: 0, resize: 'none', border: `1px solid ${MC.runBorder}`, borderRadius: 10, padding: '8px 11px', fontSize: 13, lineHeight: 1.5, color: MC.ink, background: 'var(--proto-card)', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                  />
+                  <span
+                    role="button"
+                    onClick={send}
+                    style={{ height: 38, borderRadius: 10, padding: '0 16px', background: canSend ? MC.ink : MC.faint, color: MC.inkSolidFg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, flex: 'none' }}
+                  >
+                    {L.wbDecSend}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
-    </>
+    </div>
   );
 }
 

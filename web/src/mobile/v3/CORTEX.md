@@ -19,7 +19,7 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 | m-chat-vm.ts | vm | Maps run facts with canonical USD labels and builds chat rows/profile/menu placement |
 | m-chat-vm.test.ts | test | Tests localized run status, profile labels and row state |
 | MInteractionCards.tsx | view | Ask-user bottom-input and plan-approval cards |
-| MDecisionCards.tsx | view | Decision cards with bottom-sheet detail and responses |
+| MDecisionCards.tsx | view | Decision cards that expand in place, with responses |
 | MSessionListScreen.tsx | screen | Binds sessions and the sentinel-safe editor-capable Scheduled sheet |
 | MSessionListView.tsx | view | Day-grouped session rows with clock entry |
 | MScheduleSheet.tsx | view | One compact list/runs/editor bottom-sheet state machine with level-aware back |
