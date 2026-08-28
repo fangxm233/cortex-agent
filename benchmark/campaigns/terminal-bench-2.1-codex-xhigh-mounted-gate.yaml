@@ -79,11 +79,17 @@ proxy:
   response_body_limit_bytes: 67108864
   listen_host: 0.0.0.0
 
+# No `verifier` here on purpose. The staged verifier tree is an OFFLINE substitute: its uvx shim
+# drops the `-p`/`-w` arguments an upstream tests/test.sh uses to install that task's own
+# dependencies, and its apt-get and curl land ahead of the real ones on PATH. In a trial that can
+# reach the internet -- which `network: mode: open` below means this one can -- mounting it
+# replaces a verifier that installs numpy, torch or mteb with one that has only pytest, and the
+# resulting import failure is scored as a failed agent. The task image's own test.sh does this
+# correctly on its own; the harness refuses the combination outright.
 runtimes:
   node: /var/tmp/cortex-bench/runtimes/node
   pi: /var/tmp/cortex-bench/runtimes/pi
   codex: /var/tmp/cortex-bench/runtimes/codex
-  verifier: /var/tmp/cortex-bench/runtimes/verifier
 
 arms:
   - name: mnt-nat-cdx
@@ -94,7 +100,7 @@ arms:
     model: gpt-5.6-sol
     credential_capability: codex-subscription
     thinking: xhigh
-    runtime_mounts: [node, codex, verifier]
+    runtime_mounts: [node, codex]
     limits:
       max_provider_requests: 500
       max_cost_usd: "2.00"
@@ -109,7 +115,7 @@ arms:
     model: gpt-5.6-sol
     credential_capability: pi-openai-codex-oauth
     thinking: xhigh
-    runtime_mounts: [node, pi, verifier]
+    runtime_mounts: [node, pi]
     limits:
       max_provider_requests: 500
       max_cost_usd: "2.00"
@@ -124,7 +130,7 @@ arms:
     credential_capability: pi-openai-codex-oauth
     # No `thinking` here: a Cortex arm's is fixed by the committed bundle its
     # (orchestration, backend, provider, model) resolves to, and that bundle is xhigh.
-    runtime_mounts: [node, pi, verifier]
+    runtime_mounts: [node, pi]
     orchestration:
       mode: direct
       ask_manager: false

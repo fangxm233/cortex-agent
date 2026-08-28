@@ -69,11 +69,17 @@ proxy:
   response_body_limit_bytes: 67108864
   listen_host: 0.0.0.0
 
+# No `verifier` here on purpose. The staged verifier tree is an OFFLINE substitute: its uvx shim
+# drops the `-p`/`-w` arguments an upstream tests/test.sh uses to install that task's own
+# dependencies, and its apt-get and curl land ahead of the real ones on PATH. In a trial that can
+# reach the internet -- which `network: mode: open` below means this one can -- mounting it
+# replaces a verifier that installs numpy, torch or mteb with one that has only pytest, and the
+# resulting import failure is scored as a failed agent. The task image's own test.sh does this
+# correctly on its own; the harness refuses the combination outright.
 runtimes:
   node: /home/xinmin/cortex-benchmark/runtimes/node
   pi: /home/xinmin/cortex-benchmark/runtimes/pi
   codex: /home/xinmin/cortex-benchmark/runtimes/codex
-  verifier: /home/xinmin/cortex-benchmark/runtimes/verifier
 
 arms:
   - name: cx-dir
@@ -82,7 +88,7 @@ arms:
     provider: openai-codex
     model: gpt-5.6-sol
     credential_capability: pi-openai-codex-oauth
-    runtime_mounts: [node, pi, verifier]
+    runtime_mounts: [node, pi]
     orchestration:
       mode: direct
       ask_manager: false

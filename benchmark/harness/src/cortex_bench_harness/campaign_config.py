@@ -43,6 +43,7 @@ from .launcher.arms import (
 from .launcher.comparison_report import DIFFERENCE_CLASSES
 from .launcher.network_policy import NetworkAccess, NetworkAccessError, parse_network_access
 from .launcher.runtime_mounts import (
+    OFFLINE_ONLY_RUNTIMES,
     RuntimeMountError,
     resolve_runtime_mounts,
     runtime_target,
@@ -403,6 +404,35 @@ def _validate_arm_runtimes(config: CampaignConfig) -> None:
     """Refuse an arm asking for a runtime the campaign never staged, while it is still a file."""
     for arm in config.arms:
         config.arm_runtime_mounts(arm)
+    _validate_offline_only_runtimes(config)
+
+
+def _validate_offline_only_runtimes(config: CampaignConfig) -> None:
+    """Refuse a substitute runtime in a campaign whose trials can fetch the real thing.
+
+    Refused rather than silently dropped. Dropping it would be this bug wearing the other face:
+    the document would still say the trial ran with a mounted verifier, the run would still be
+    named after a campaign that reads one way and behaves another, and the next person to add a
+    runtime would have no reason to think about the interaction at all. The declaration is a fact
+    about whether a score can be trusted, so it stays in the document and the document is refused
+    until it says something true.
+    """
+    if config.network.filtered:
+        return
+    for arm in config.arms:
+        names = arm.get("runtime_mounts") or ()
+        assert isinstance(names, Sequence)
+        offending = sorted(OFFLINE_ONLY_RUNTIMES.intersection(str(name) for name in names))
+        if not offending:
+            continue
+        raise CampaignConfigError(
+            f"campaign arm {arm.get('name')} mounts {offending} under network mode "
+            f"'{config.network.mode}'. Those runtimes stand in for what a trial cannot fetch for "
+            "itself, and this trial can: the staged verifier's apt-get, curl and uvx shims land "
+            "ahead of the real ones on PATH and silently discard the per-task dependencies an "
+            "upstream tests/test.sh installs, which scores an unrunnable verifier as a failed "
+            "agent. Either drop them from runtime_mounts and let the task image's own test.sh "
+            "run, or declare network mode 'filtered' and accept that only pytest is available")
 
 
 def _network(value: object) -> NetworkAccess:

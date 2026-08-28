@@ -27,6 +27,24 @@ RUNTIME_TARGETS: Mapping[str, str] = {
     "codex": "/opt/cortex-bench-codex",
     "verifier": "/opt/terminal-bench-verifier",
 }
+# A runtime that SUBSTITUTES for something the trial could otherwise obtain for itself, and so is
+# only honest when the trial cannot.
+#
+# `verifier` is the one. An upstream Terminal-Bench `tests/test.sh` prepares its own dependencies:
+# it apt-gets curl, curls the uv installer, and then names the exact per-task closure it needs on
+# the uvx line -- `-w numpy==2.3.1`, `-w torch==2.7.0`, `-w mteb==1.36.8`. 32 of the 89 tasks in
+# the 2.1 corpus name something beyond pytest that way. The staged `verifier` tree cannot honor
+# any of it: its wheelhouse holds pytest, pytest-json-ctrf and their four transitive dependencies,
+# and its uvx shim drops `-p` and `-w` outright because offline it has nothing to install from.
+#
+# Mounted into a trial that CANNOT reach the internet, that is the best available approximation
+# and the shim's refusals are legible. Mounted into a trial that CAN, it is a silent downgrade:
+# the shim's apt-get and curl land on /usr/local/bin, which precedes /usr/bin, so the upstream
+# script is intercepted at its first line and every per-task dependency it asked for is discarded
+# without a word. The verifier then dies importing numpy, the reward file is written 0, and the
+# trial is indistinguishable from an agent that failed the task. Refusing the combination is
+# `campaign_config._validate_arm_runtimes`; this set is what it refuses on.
+OFFLINE_ONLY_RUNTIMES = frozenset({"verifier"})
 # What each mounted runtime has to become for an agent that expects it on PATH. Written as one
 # `ln -sf` per line so a partially staged runtime fails at the link rather than at first use.
 RUNTIME_LINKS: Mapping[str, tuple[tuple[str, str], ...]] = {

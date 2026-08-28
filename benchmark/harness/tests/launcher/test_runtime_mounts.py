@@ -17,6 +17,7 @@ import pytest
 
 from cortex_bench_harness.campaign_config import CampaignConfigError, load_campaign_config
 from cortex_bench_harness.launcher.runtime_mounts import (
+    OFFLINE_ONLY_RUNTIMES,
     RUNTIME_TARGETS,
     RuntimeMountError,
     arm_runtime_names,
@@ -179,6 +180,44 @@ def test_every_declarable_runtime_has_a_target_and_a_link_rule() -> None:
 
     assert set(RUNTIME_LINKS) == set(RUNTIME_TARGETS)
     assert set(RUNTIME_AGENT_SETUP) == set(RUNTIME_TARGETS)
+    assert OFFLINE_ONLY_RUNTIMES <= set(RUNTIME_TARGETS)
+
+
+def verifier_campaign(root: Path, **overrides: object) -> Path:
+    document = campaign_document(root, comparisons=[], **overrides)
+    document["runtimes"] = stage_runtimes(root, "node", "pi", "verifier")
+    document["arms"] = [arm_document("cortex-a", runtime_mounts=["node", "pi", "verifier"])]
+    return write_campaign(root, document)
+
+
+@pytest.mark.parametrize("declared", [None, {"mode": "open"}])
+def test_a_campaign_that_can_reach_the_internet_may_not_mount_the_offline_verifier(
+    tmp_path: Path, declared: dict[str, str] | None,
+) -> None:
+    """The mount that scored 116 trials 0 on 2026-08-27 without the verifier ever running.
+
+    An upstream tests/test.sh installs its own per-task dependencies; the staged verifier's uvx
+    shim drops the arguments that name them. Offline that is the best approximation available.
+    Online it substitutes a pytest-only verifier for one that would have had numpy, and the import
+    failure is recorded as reward 0 -- indistinguishable from an agent that failed the task. An
+    absent network block is the same refusal as an explicit `open` one, because absent means open.
+    """
+    overrides = {} if declared is None else {"network": declared}
+
+    with pytest.raises(CampaignConfigError) as error:
+        load_campaign_config(verifier_campaign(tmp_path, **overrides))
+    message = str(error.value)
+    assert "['verifier']" in message
+    assert "network mode 'open'" in message
+
+
+def test_a_filtered_campaign_still_mounts_the_offline_verifier(tmp_path: Path) -> None:
+    """The trial the staged tree exists for: no route out but its own credential proxy."""
+    config = load_campaign_config(
+        verifier_campaign(tmp_path, network={"mode": "filtered"}))
+
+    assert config.arm_runtime_mounts(config.arms[0])[RUNTIME_TARGETS["verifier"]] == str(
+        tmp_path / "staged/verifier")
 
 
 def test_an_arm_seed_naming_an_unknown_runtime_is_refused_at_the_agent() -> None:

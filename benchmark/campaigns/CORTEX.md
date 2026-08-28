@@ -90,6 +90,19 @@ An arm that mounts anything must mount the CLI of the backend it drives: a Corte
 needs `pi` as well as `node`, because the server shells out to it. An arm that mounts nothing is
 the historical arm, and finds everything it needs baked into its image.
 
+`verifier` is not like the others and may only be mounted under `mode: filtered`. The other
+runtimes ADD something no task image carries; `verifier` SUBSTITUTES for something an upstream
+`tests/test.sh` obtains for itself. That script apt-gets curl, curls the uv installer, and then
+names its own per-task closure on the uvx line — `-w numpy==2.3.1`, `-w torch==2.7.0`,
+`-w mteb==1.36.8` — and 32 of the 89 tasks in the 2.1 corpus name something beyond pytest that
+way. The staged tree honors none of it: its wheelhouse holds pytest, pytest-json-ctrf and four
+transitive dependencies, and its uvx shim drops `-p` and `-w` because offline it has nothing to
+install from. Its `apt-get` and `curl` are linked onto `/usr/local/bin`, which precedes
+`/usr/bin`, so the upstream script is intercepted at its first line. Offline that is the best
+available approximation. Online it is a silent downgrade — the verifier dies importing numpy, the
+reward file is written 0, and the trial reads exactly like an agent that failed the task. A
+campaign that declares `mode: open` and mounts `verifier` is refused when it is still a document.
+
 ## What a task image may declare for itself
 
 A campaign that runs unmodified upstream images inherits whatever those images declare. Until

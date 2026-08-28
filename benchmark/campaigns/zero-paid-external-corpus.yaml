@@ -116,10 +116,16 @@ arms:
       deadline_seconds: 600
       max_output_tokens: 65536
 
-# `open` because the mounted verifier is being exercised alongside, not instead of, the network
-# the paid campaigns currently score on. See campaigns/CORTEX.md for what each mode means.
+# `filtered` with an empty block: the container reaches its own credential route and nothing else.
+# That is the only mode under which mounting `verifier` is honest, and this campaign is the one
+# that exercises the mount. The staged verifier substitutes for what an upstream tests/test.sh
+# would otherwise install for itself over the network, so a trial that could reach the internet
+# and mounts it anyway is scored on a verifier that silently lost its per-task dependencies --
+# `campaign_config._validate_offline_only_runtimes` refuses that combination. Nothing here needs
+# the open internet: the upstream is a loopback fixture reached through the trial proxy, which an
+# empty `filtered` block always admits. See campaigns/CORTEX.md for what each mode means.
 network:
-  mode: open
+  mode: filtered
 
 # The corpus this host staged, pinned by the committed inventory. Each task's image is pinned by
 # the local image id the inventory recorded, which on a containerd-store Docker is the manifest
