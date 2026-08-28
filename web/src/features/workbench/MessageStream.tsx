@@ -330,7 +330,7 @@ function Row({ row, interactionActions, editCopy, assistantCopyText, onStartEdit
       );
     case 'interaction':
       return (
-        <div className="group">
+        <div className="group" style={{ display: 'flex', flexDirection: 'column' }}>
           <InteractionRowCard row={row} actions={interactionActions} />
           <TurnCopyAction text={assistantCopyText} copy={editCopy} />
         </div>

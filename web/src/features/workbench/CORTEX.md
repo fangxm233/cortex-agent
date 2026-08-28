@@ -29,10 +29,12 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | profile-menu.test.ts | test | Tests live profile filtering and switch gates |
 | SessionProfileSelector.tsx | view | Shares guarded profile state with composer controls |
 | SessionProfileSelector.test.tsx | test | Tests profile routing and selection interactions |
+| DraftProjectSelector.tsx | view | Shows and switches the project for a desktop draft session |
+| DraftProjectSelector.test.tsx | test | Tests draft project visibility, switching and pending lock |
 | CenterChat.tsx | view | Reconciles compact chat state, startup progress and composer placement |
 | scheduled-chat.ts | vm | Cadence label and next-run delta helpers |
 | ChatHeader.tsx | view | Session title, command, browser, notes and session menu |
-| MessageStream.tsx | view | Orchestrates lazy subagent rows, decisions, editing, turn-tail copy and scroll pinning |
+| MessageStream.tsx | view | Renders transcript rows, controls and scroll pinning |
 | MessageAttachmentCards.tsx | view | Renders user and agent attachment, media, file and HTML-view cards |
 | DecisionCards.tsx | view | Expands agent-announced decisions in place with approve, explain and revise |
 | DecisionCards.test.tsx | test | Tests card disclosure, approve wiring and composed response messages |
@@ -66,7 +68,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | InlineThreadCardProto.tsx | view | Live thread card opening modal detail |
 | thread-card-proto.ts | vm | Maps thread detail to inline card rows, canonical USD labels and pill |
 | thread-card-proto.test.ts | test | Unit tests for the inline thread card model |
-| Composer.tsx | view | Adapts drafts and desktop inputs to the neutral attachment controller and shared run status |
+| Composer.tsx | view | Adapts project-scoped drafts and inputs to uploads and shared run status |
 | session-run-status.ts | vm | Derives locale-free foreground, background, idle and fresh session facts |
 | session-run-status.test.ts | test | Tests run phases, active tone, metrics and finalized-cost visibility |
 | ComposerAttachmentChip.tsx | view | Renders queued, uploading, failed, and done neutral attachment items with retry/remove controls |
