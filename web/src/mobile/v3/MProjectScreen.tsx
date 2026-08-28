@@ -26,7 +26,7 @@ import { MobileRateLimitSheet, useRateLimitStatus } from '@/features/rate-limit'
 import { NOTES_COPY } from '@/features/notes/notes-copy';
 import { useNotesResource } from '@/features/notes/useNotesResource';
 import { buildMNotesVm } from './m-notes-vm';
-import { useAllSessions } from '@/features/workbench/useProjectSessions';
+import { useAllSessions } from '@/features/projects/useProjectSessions';
 
 const COPY: { en: MProjectCopy; zh: MProjectCopy } = {
   en: {

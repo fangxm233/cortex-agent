@@ -20,7 +20,7 @@ import { MScreen, MC } from '@/mobile/ui/kit';
 import { MSessionListView, type MSessionListCopy } from './MSessionListView';
 import { MScheduleSheet, type MScheduleSheetCopy } from './MScheduleSheet';
 import { buildSessionGroups } from './m-session-list-vm';
-import { useProjectSessions } from '@/features/workbench/useProjectSessions';
+import { useProjectSessions } from '@/features/projects/useProjectSessions';
 
 const COPY: { en: MSessionListCopy; zh: MSessionListCopy } = {
   en: { title: 'Sessions', today: 'Today', yesterday: 'Yesterday', earlier: 'Earlier', empty: 'No sessions yet' },

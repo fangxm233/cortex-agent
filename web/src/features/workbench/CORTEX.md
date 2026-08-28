@@ -114,8 +114,6 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | useRecentNow.test.ts | test | Tests recent-list timer and cleanup |
 | useThreadsLiveSync.ts | hook | Refreshes the thread list on thread events |
 | useSessionsLiveSync.ts | hook | Refreshes the session list on lifecycle events |
-| useProjectSessions.ts | hook | Selects project sessions from shared origin caches |
-| useProjectSessions.test.ts | test | Tests shared session project projection |
 | SelectedSessionProvider.tsx | provider | Shares sessions and external draft prefill |
 | selected-session.ts | vm | Resolves selected session and transition profile |
 | selected-session.test.ts | test | Unit tests for session selection |

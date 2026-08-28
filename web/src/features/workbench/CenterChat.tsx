@@ -20,7 +20,7 @@ import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useSelectedSession } from './SelectedSessionProvider';
 import { useOptimisticUserMessages } from './useOptimisticUserMessages';
 import { scheduledRunTitle } from './schedule-rail';
-import { useProjectSessions } from './useProjectSessions';
+import { useProjectSessions } from '@/features/projects/useProjectSessions';
 
 // CENTER CHAT pane — 1:1 rebuild from prototype.dc.html L103–395 (workspace-chat view). Task aba0
 // (S4 chat) makes the transcript body + composer send REAL, replacing 89e7's GAP-A (static transcript)

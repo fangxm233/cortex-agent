@@ -40,7 +40,7 @@ import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvi
 import { connectionDot, connectionLabelKey, type ConnectionDot } from '@/features/connection/connection-status';
 import { RailRateLimitStatus, useRateLimitStatus } from '@/features/rate-limit';
 import { PlusGlyph } from '@/design';
-import { useAllSessions } from './useProjectSessions';
+import { useAllSessions } from '@/features/projects/useProjectSessions';
 
 const mono = "'IBM Plex Mono',monospace";
 const RAIL_WIDTH = 340;

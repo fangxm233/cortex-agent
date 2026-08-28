@@ -62,7 +62,7 @@ import { DEFAULT_BROWSER_DEVICE } from '@/features/workbench/BrowserOptIn';
 import { listForwardDevices, type ForwardDevice } from '@/features/browser/forward';
 import { M_INT_COPY } from './MInteractionCards';
 import type { RejectPlanNavState } from './MPlanReadScreen';
-import { useProjectSessions } from '@/features/workbench/useProjectSessions';
+import { useProjectSessions } from '@/features/projects/useProjectSessions';
 import {
   buildMobileChatRows,
   chatHeaderStatus,

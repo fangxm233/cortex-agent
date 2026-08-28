@@ -7,7 +7,7 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { resolveCurrentProjectId } from './current-project';
-import { useAllSessions } from '@/features/workbench/useProjectSessions';
+import { useAllSessions } from './useProjectSessions';
 
 export interface CurrentProjectContextValue {
   currentProjectId: string | null;
