@@ -52,6 +52,15 @@ from cortex_bench_harness.campaign_config import (  # noqa: E402
     CampaignConfigError,
     load_campaign_config,
 )
+from cortex_bench_harness.verifier_gate import (  # noqa: E402
+    GATE_REPORT_NAME,
+    VerifierGateError,
+    read_report,
+    report_path,
+    run_gate,
+    unpaid_tasks,
+    write_report,
+)
 
 LAUNCH_SCHEMA_VERSION = "cortex-bench-launch/1"
 DOCKER_TIMEOUT_SECONDS = 30
@@ -303,12 +312,64 @@ def foreground_run(config_path: str, passthrough: list[str]) -> int:
     return subprocess.run(command, cwd=str(HARNESS), check=False).returncode
 
 
+# --- verifier gate ------------------------------------------------------------------------------
+
+def run_verifier_gate(config: CampaignConfig) -> dict[str, object]:
+    """Probe every declared task's verifier on its pinned image, and record what happened."""
+    report = run_gate(config)
+    path = write_report(config.trials_dir, report)
+    counts = report["counts"]
+    assert isinstance(counts, dict)
+    return {
+        "report": str(path), "counts": counts,
+        "unavailable": report["unavailable"], "inconclusive": report["inconclusive"],
+    }
+
+
+def check_verifier_gate(config: CampaignConfig) -> dict[str, object]:
+    """Refuse to pay for a task this campaign's own gate found unrunnable.
+
+    Refused rather than skipped. A run that quietly dropped tasks would report a denominator that
+    no longer matches the document it was launched from, and the whole reason this gate exists is
+    that a score whose denominator lies is worse than no score. So the campaign is edited to
+    exclude the task -- which leaves a record of WHY the suite shrank -- or the task is fixed and
+    the gate re-run.
+
+    A campaign with no report at all is not refused. The gate is new, the paid path predates it,
+    and making it mandatory here would be a second gate wearing this one's name.
+    """
+    report = read_report(config.trials_dir)
+    if report is None:
+        return {"checked": False, "note": (
+            f"no {GATE_REPORT_NAME} beside {config.trials_dir}; run `bench --config "
+            f"{config.source} --verifier-gate` to prove every verifier starts before paying for "
+            "an agent to face it")}
+    blocked = sorted(set(unpaid_tasks(report)).intersection(
+        task.task_id for task in config.tasks))
+    if blocked:
+        raise BenchError(
+            f"the verifier gate found {len(blocked)} task(s) whose verifier cannot start on their "
+            f"own pinned image, and this campaign still declares them: {blocked}. Every arm would "
+            "score 0 on them without being measured. Exclude them from the campaign's task "
+            "selection, or fix the verifier and re-run --verifier-gate. Evidence per task is in "
+            f"{report_path(config.trials_dir)}")
+    return {"checked": True, "report": str(report_path(config.trials_dir)),
+            "counts": report.get("counts")}
+
+
 # --- procedure ----------------------------------------------------------------------------------
 
 def execute(arguments: argparse.Namespace) -> tuple[dict[str, object], int]:
     config = load_campaign_config(arguments.config)
     checkout = checkout_root(config)
     steps: dict[str, object] = {}
+
+    # The gate builds no artifact, arms no route and creates no Docker network, so it runs before
+    # -- and independently of -- the two burdens the paid path carries. It is also the one mode
+    # that is useful when those would refuse.
+    if arguments.mode == "verifier-gate":
+        steps["verifier_gate"] = run_verifier_gate(config)
+        return _document(config, "verifier-gate", steps), 0
 
     live = live_subnets()
     leaked = leaked_trial_networks(live)
@@ -327,6 +388,8 @@ def execute(arguments: argparse.Namespace) -> tuple[dict[str, object], int]:
         else:
             only = None if (arguments.force_build or len(stale) == 2) else _only_for(stale)
             steps["artifacts"]["rebuilt"] = build_artifacts(arguments.config, only)
+
+    steps["verifier_gate"] = check_verifier_gate(config)
 
     passthrough = _passthrough(arguments)
     if arguments.mode == "preflight":
@@ -384,9 +447,11 @@ def build_parser() -> argparse.ArgumentParser:
             "  bench --config ../campaigns/zero-paid-dry-run.yaml\n"
             "  bench --config ../campaigns/terminal-bench-2.1-vendor-codex.yaml --run\n"
             "  bench --config ../campaigns/zero-paid-dry-run.yaml --run --foreground\n"
-            "  bench --config ../campaigns/terminal-bench-2.1-vendor-pi.yaml --force-build\n\n"
+            "  bench --config ../campaigns/terminal-bench-2.1-vendor-pi.yaml --force-build\n"
+            "  bench --config ../campaigns/terminal-bench-2.1-vendor-codex.yaml --verifier-gate\n\n"
             "Preflight is the default and pays nothing. --run detaches into its own session and "
-            "names its log files on stdout; the campaign outlives this shell."),
+            "names its log files on stdout; the campaign outlives this shell. --verifier-gate "
+            "pays nothing either, and --run refuses any task it found unrunnable."),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--config", required=True, help="Campaign YAML path")
@@ -397,6 +462,10 @@ def build_parser() -> argparse.ArgumentParser:
     mode.add_argument(
         "--run", dest="mode", action="store_const", const="run",
         help="Check subnets and artifacts, then run the campaign detached")
+    mode.add_argument(
+        "--verifier-gate", dest="mode", action="store_const", const="verifier-gate",
+        help="Run every declared task's own tests/test.sh on its pinned image, before any agent "
+             "and without paying anything, and record which verifiers can start")
     parser.add_argument(
         "--foreground", action="store_true",
         help="With --run, stay attached. Only for short zero-paid campaigns: a paid campaign "
@@ -417,16 +486,29 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _refuse_flag_combination(arguments: argparse.Namespace) -> str | None:
+    """Say so when a flag cannot mean anything in the chosen mode, instead of ignoring it."""
+    if arguments.foreground and arguments.mode != "run":
+        return "--foreground applies to --run"
+    if arguments.mode == "verifier-gate" and (arguments.force_build or arguments.skip_build):
+        return (
+            "--force-build and --skip-build apply to --preflight and --run. The verifier gate "
+            "runs each task's own test script on its own pinned image and uses neither trial "
+            "artifact, so it would ignore them")
+    return None
+
+
 def main(argv: list[str] | None = None) -> int:
     arguments = build_parser().parse_args(argv)
-    if arguments.foreground and arguments.mode != "run":
-        print(json.dumps(
-            {"ok": False, "error": "--foreground applies to --run"}, sort_keys=True),
-            file=sys.stderr)
+    refusal = _refuse_flag_combination(arguments)
+    if refusal is not None:
+        print(json.dumps({"ok": False, "error": refusal}, sort_keys=True), file=sys.stderr)
         return 2
     try:
         document, code = execute(arguments)
-    except (BenchError, CampaignConfigError, ProvenanceError, OSError) as error:
+    except (
+        BenchError, CampaignConfigError, ProvenanceError, VerifierGateError, OSError,
+    ) as error:
         print(json.dumps({"ok": False, "error": str(error)}, sort_keys=True), file=sys.stderr)
         return 1
     if document:

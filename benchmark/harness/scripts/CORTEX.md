@@ -7,7 +7,7 @@ runs; the two scripts under it stay independently invocable and own every gate.
 | filename | role | function |
 |---|---|---|
 | bench | launch | Runs bench-launch.py under the pinned offline harness environment |
-| bench-launch.py | launch | Proves the declared subnets are free, rebuilds only stale trial artifacts, then preflights or runs the campaign detached |
+| bench-launch.py | launch | Proves the declared subnets are free and every declared verifier can start, rebuilds only stale trial artifacts, then preflights or runs the campaign detached |
 | build-trial-artifacts.py | build | Builds both trial artifacts from current source into the paths a campaign pins, each with a provenance record |
 | build-wheel.sh | build | Builds the fixed wheel at a pinned epoch |
 | build-zero-paid-runtime-image.sh | build | Builds one pinned offline vendor runtime image |

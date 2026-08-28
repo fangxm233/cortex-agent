@@ -235,10 +235,18 @@ def trial_scratch_discard_command(
     return f"set -u; {survey}; rm -rf -- {targets}"
 
 
-def _common_trial_environment(seed: TrialSeed) -> dict[str, str]:
+def sealed_trial_environment(trial_id: str) -> dict[str, str]:
+    """The environment every phase of a trial starts from, the verifier's included.
+
+    Public because the verifier phase is measurable outside a trial and has to be measured under
+    exactly this: `HOME` decides where an upstream test.sh's `source $HOME/.local/bin/env` looks
+    for the uv it just installed, and `PATH` -- which carries no /sbin -- decides which apt-get and
+    curl that script finds. A probe that used the image's own environment would be answering a
+    different question from the one the trial asks.
+    """
     root = TRIAL_ROOT
     return {
-        "HOME": str(root / "home"), "HOSTNAME": seed.trial_id,
+        "HOME": str(root / "home"), "HOSTNAME": trial_id,
         "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
         "NODE_DISABLE_COMPILE_CACHE": "1", "PATH": FIXED_PATH,
         "TEMP": str(root / "tmp"), "TMP": str(root / "tmp"),
@@ -246,6 +254,10 @@ def _common_trial_environment(seed: TrialSeed) -> dict[str, str]:
         "XDG_CACHE_HOME": str(root / "xdg-cache"),
         "XDG_CONFIG_HOME": str(root / "xdg-config"),
     }
+
+
+def _common_trial_environment(seed: TrialSeed) -> dict[str, str]:
+    return sealed_trial_environment(seed.trial_id)
 
 
 def _trial_environment(seed: TrialSeed, backend: str) -> dict[str, str]:
