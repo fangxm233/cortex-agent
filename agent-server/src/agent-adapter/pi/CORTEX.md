@@ -17,7 +17,7 @@ Adds Cortex MCP tools, hooks, subagents, shims, and web tools.
 | mcp-config.ts | config | Writes and reloads private plugin MCP config |
 | event-parser.ts | parser | Translates PI events and child prompt attribution |
 | framing.ts | codec | encodes and splits PI newline JSON records |
-| mcp-bridge.ts | bridge | Loads gated MCP tools concurrently |
+| mcp-bridge.ts | bridge | Loads one Cortex bundle plus plugin MCP tools |
 | mcp-bridge-logic.ts | core | decides server loading and maps tool content |
 | hook-bridge.ts | bridge | preserves native PI hook results and mutations |
 | web-fetch.ts | tool | fetches bounded HTTP(S) and strips data images |

@@ -12,7 +12,7 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | session-todos.ts | state | holds each session's latest agent task list |
 | calver.ts | util | compares CalVer YYYY.M.D[-N] versions |
 | cli-utils.ts | util | formats CLI help/errors and reads stdin as text or raw bytes |
-| config-generator.ts | config | generates shared interaction and gated MCP configs |
+| config-generator.ts | config | generates bundled and gated MCP configs |
 | debug-mode.ts | config | reports DEBUG state and tool size limits |
 | gateway-generator.ts | config | discovers models and builds bounded gateway.yaml |
 | hook-bus.ts | core | dispatches hooks with safe arguments and diagnostics |
@@ -22,6 +22,7 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | json-repository.ts | core | reads and writes cached JSON stores |
 | log.ts | core | creates loggers with process-scoped console and file policy |
 | loopback-http.ts | transport | Runs bounded MCP-to-daemon JSON requests |
+| mcp-bundles.ts | policy | defines validated built-in MCP compositions |
 | mcp-timeout.ts | config | Defines the shared MCP infrastructure deadline |
 | mcp-tool-gate.ts | policy | canonicalizes and enforces MCP tool allowlists |
 | paths.ts | config | defines install, data, and config paths |

@@ -92,7 +92,7 @@ test('generateConfigs writes isolated task, manager-Q&A, and thread MCP configs'
     );
     assert.deepEqual(Object.keys(tasks.mcpServers), ['cortex-tasks']);
     assert.deepEqual(Object.keys(managerQa.mcpServers), ['cortex-manager-qa']);
-    assert.deepEqual(Object.keys(thread.mcpServers), ['cortex-thread']);
+    assert.deepEqual(Object.keys(thread.mcpServers), ['cortex-core']);
   } finally {
     fs.rmSync(home, { recursive: true, force: true });
   }

@@ -39,7 +39,7 @@ Cortex 定义了后端可能支持的十种能力。编排层在尝试后端特�
 
 参考后端。支持所有十种能力。有两种适配器模式可用：
 
-**Print 模式**（`claudeBackend: "print"`，默认）。使用 `claude -p --stream-json` 进行一次性回合。每条用户消息生成一个新的 Claude 调用。快速、无状态，是大多数使用场景的推荐模式。
+**Print 模式**（`claudeBackend: "print"`，默认）。使用持久化的 `claude -p` 进程以及 stream-json 输入输出。Cortex 按 session key 池化该进程，并通过同一 NDJSON stream 发送后续回合，直到 session 被关闭、超时或 spawn identity 改变。
 
 **TUI 模式**（`claudeBackend: "tui"`）。在 tmux 下生成交互式 Claude 会话，并尾随会话的 JSONL 文件获取事件。支持带会话持久化的多轮对话。资源使用更重，但允许交互式工作流。
 
@@ -49,7 +49,7 @@ session-retention 协调器还会把 Claude 用户级 `cleanupPeriodDays` 同步
 
 ## PI
 
-PI 通过适配器扩展提供与 Claude Code 对等的 Cortex 能力。`mcp-bridge.ts` 将 PI 连接到内置及插件 MCP 服务器，并在用户发起的直接会话中加载 `cortex-interaction-bridge`。因此 Claude TUI、Claude print 和 PI 会暴露相同的 `cortex_ask_user`、`cortex_plan_enter` 与 `cortex_plan_exit` 工具，并使用相同的阻塞式 webhook 处理器。`tool-shims.ts` 提供其余 PI 本地 Agent、TodoWrite、WebFetch 和 WebSearch 工具。`hook-bridge.ts` 把 PI 工具事件转换为 Cortex 钩子脚本，PI 原生的 `--skill` 标志承载 Cortex 插件 skill。
+PI 通过适配器扩展提供与 Claude Code 对等的 Cortex 能力。`mcp-bridge.ts` 将 PI 连接到一个按 composition 限定的 Cortex MCP 进程，并分别连接 assigned plugin MCP servers。用户发起的直接会话会在这个 Cortex 进程中加入 interaction registrations。因此 Claude TUI、Claude print 和 PI 会暴露相同的 `cortex_ask_user`、`cortex_plan_enter` 与 `cortex_plan_exit` 工具，并使用相同的阻塞式 webhook 处理器。`tool-shims.ts` 提供其余 PI 本地 Agent、TodoWrite、WebFetch 和 WebSearch 工具。`hook-bridge.ts` 把 PI 工具事件转换为 Cortex 钩子脚本，PI 原生的 `--skill` 标志承载 Cortex 插件 skill。
 
 PI 会话使用 `--session <path>` 进行恢复，使用 `--system-prompt` 覆盖系统提示。适配器处理 PI 事件流的 LF-only NDJSON 帧格式。
 

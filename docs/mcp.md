@@ -30,6 +30,18 @@ by reading shared files), and the result flows back to the agent.
 
 ## The bundled MCP servers
 
+The names below are logical capability bundles, not separate processes. Every
+non-empty Claude Code or PI backend process starts one Cortex-owned stdio child
+from `agent-server/src/domain/mcp/bundled-server.ts`; that child registers only
+the bundles selected for the session. Claude keeps the `cortex-core` server key,
+so core remote tools retain their existing raw names. Other bundled Claude tools
+share that prefix, such as `mcp__cortex-core__task_status`. PI continues to
+expose the same unprefixed tool names.
+
+User-provided MCP is outside this bundle. Portable plugin servers, browser MCP,
+remote HTTP/SSE servers, and Claude-native MCP from an assigned legacy plugin
+keep independent configurations, transports, and failure boundaries.
+
 ### cortex-core
 
 Exposes remote-machine operations and the read-only clock. It is loaded in all
@@ -66,8 +78,8 @@ The server implementation is at `agent-server/src/domain/mcp/tasks-server.ts`.
 
 Exposes the manager-to-subtask answer channel to top-level direct and thread
 sessions. The canonical Claude tool name is
-`mcp__cortex-manager-qa__answer_subtask`. PI `Agent` subagents do not load this
-server because they do not own task-tree questions.
+`mcp__cortex-core__answer_subtask`. PI `Agent` subagents do not load this
+bundle because they do not own task-tree questions.
 
 | Tool | Parameters | Description |
 |---|---|---|
@@ -193,9 +205,10 @@ The tools are in `agent-server/src/domain/mcp/tools/ui-file.ts`,
 ### cortex-interaction-bridge
 
 Direct Claude TUI sessions, user-initiated direct Claude print sessions, and
-user-initiated direct PI sessions load this interaction server. Each session
-starts its own stdio process, while all three modes share the registrations and
-handlers in `agent-server/src/domain/mcp/interaction-server.ts`.
+user-initiated direct PI sessions select this interaction bundle in their
+single Cortex stdio process. All three modes share the registrations and
+handlers in `agent-server/src/domain/mcp/tools/interaction-plan.ts` and
+`agent-server/src/domain/mcp/tools/interaction-ask.ts`.
 
 | Tool | Description |
 |---|---|
@@ -215,17 +228,17 @@ in `agent-server/src/entry/startup-helpers.ts`). Platform-specific servers
 (cortex-slack, cortex-feishu, cortex-web) are dynamically loaded based on the
 session's origin platform.
 
-| File | Loaded by | Servers |
+| File | Purpose | Default logical bundles |
 |---|---|---|
-| `~/.cortex/config/mcp-config.json` | Direct-session base | core + tasks + manager-Q&A + ext |
-| `~/.cortex/config/mcp-config-core.json` | Thread-session layer | cortex-core only |
-| `~/.cortex/config/mcp-config-tasks.json` | Thread-session layer | cortex-tasks only |
-| `~/.cortex/config/mcp-config-manager-qa.json` | Thread-session answer layer | cortex-manager-qa only |
-| `~/.cortex/config/mcp-config-thread.json` | Thread-session-only layer | cortex-thread only |
-| `~/.cortex/config/mcp-config-interaction.json` | Interaction layering (on-demand) | cortex-interaction-bridge only |
-| `~/.cortex/config/mcp-config-slack.json` | Slack-specific layering (on-demand) | cortex-slack |
-| `~/.cortex/config/mcp-config-feishu.json` | Feishu-specific layering (on-demand) | cortex-feishu |
-| `~/.cortex/config/mcp-config-web.json` | Web-UI-specific layering (on-demand) | cortex-web |
+| `~/.cortex/config/mcp-config.json` | Direct-session Cortex process | core + tasks + manager-Q&A + ext |
+| `~/.cortex/config/mcp-config-thread.json` | Thread-session Cortex process | core + tasks + manager-Q&A + thread |
+| `~/.cortex/config/mcp-config-core.json` | Explicit restricted composition | core |
+| `~/.cortex/config/mcp-config-tasks.json` | Explicit task-monitor composition | tasks |
+| `~/.cortex/config/mcp-config-manager-qa.json` | Explicit manager-answer composition | manager-Q&A |
+| `~/.cortex/config/mcp-config-interaction.json` | Explicit interaction composition | interaction |
+| `~/.cortex/config/mcp-config-slack.json` | Explicit Slack composition | Slack |
+| `~/.cortex/config/mcp-config-feishu.json` | Explicit Feishu composition | Feishu |
+| `~/.cortex/config/mcp-config-web.json` | Explicit Web composition | Web |
 
 Each file follows Claude Code's standard MCP config format:
 
@@ -234,22 +247,10 @@ Each file follows Claude Code's standard MCP config format:
   "mcpServers": {
     "cortex-core": {
       "command": "node",
-      "args": ["/path/to/core-server.js"],
-      "cwd": "/path/to/cwd"
-    },
-    "cortex-tasks": {
-      "command": "node",
-      "args": ["/path/to/tasks-server.js"],
-      "cwd": "/path/to/cwd"
-    },
-    "cortex-manager-qa": {
-      "command": "node",
-      "args": ["/path/to/manager-qa-server.js"],
-      "cwd": "/path/to/cwd"
-    },
-    "cortex-ext": {
-      "command": "node",
-      "args": ["/path/to/server.js"],
+      "args": [
+        "/path/to/bundled-server.js",
+        "[\"cortex-core\",\"cortex-tasks\",\"cortex-manager-qa\",\"cortex-ext\"]"
+      ],
       "cwd": "/path/to/cwd"
     }
   }
@@ -263,22 +264,24 @@ that the tools read.
 
 ### How the right config gets selected
 
-In `agent-adapter/claude/spawn-args.ts`, MCP configs are composed from session
-context:
+In `agent-adapter/claude/spawn-args.ts`, direct sessions load
+`mcp-config.json`, while thread/template sessions load only
+`mcp-config-thread.json`. The adapter writes the final logical selection to
+`CORTEX_MCP_BUNDLES` for each backend process, adding interaction and one
+eligible platform bundle when the session context permits them. Supplemental
+portable MCP and browser MCP remain separate config entries.
 
-- **Direct/user sessions** load `mcp-config.json` (core + tasks + manager-Q&A + ext), then add eligible platform and interaction layers. They never load `mcp-config-thread.json`.
-- **Thread/template sessions** load `mcp-config-core.json`, `mcp-config-tasks.json`, `mcp-config-manager-qa.json`, and `mcp-config-thread.json`. They do not load direct-only ext, platform, or TUI-bridge layers.
-
-The thread branch is marked by `session.cortexContext.useCoreMcp`. In the PI
-bridge, top-level sessions always connect core, tasks, manager-Q&A, and ext;
-`shouldLoadThreadControl()` adds cortex-thread only when `CORTEX_THREAD_ID` is
-present. PI `Agent` subagents connect only cortex-core. Platform-specific
-servers remain gated by their source-channel predicates.
+The thread branch is marked by `session.cortexContext.useCoreMcp`. The PI bridge
+computes the same logical selection and creates one built-in state plus any
+independent plugin states. PI `Agent` subagents select only cortex-core. Tool
+allowlists are validated against the selected logical union before the bundled
+server registers tools.
 
 ## How MCP tools communicate with agent-server
 
-MCP servers run as separate child processes. They cannot directly access
-agent-server in-process state (WebSocket connections, the schedule repo, the
+Each backend process runs one Cortex-owned MCP child, while user-provided stdio
+MCP entries remain separate children. These processes cannot directly access
+agent-server in-process state (WebSocket connections, the schedule repo, or the
 execution registry). Instead, they communicate through two paths:
 
 1. **HTTP loopback** — remote machine tools (`remote_bash`, `remote_read`,
@@ -325,11 +328,12 @@ not a sandbox or a separate authorization boundary. Legacy Claude-native MCP
 configuration remains outside that confirmation. Cortex applies the following
 controls:
 
-1. **Server-level availability** — MCP privileges are separated by server
-   because backend tool allowlists do not filter individual MCP tools. Both
-   top-level direct and thread sessions receive cortex-manager-qa. Only thread
-   sessions receive cortex-thread. PI `Agent` subagents receive cortex-core
-   alone, while top-level PI sessions retain cortex-ext.
+1. **Registration-level availability** — the bundled Cortex child registers
+   only the logical surfaces selected for that session, and an optional
+   canonical tool allowlist filters them further. Both top-level direct and
+   thread sessions receive manager-Q&A tools, only thread sessions receive
+   thread control, PI `Agent` subagents receive core tools alone, and top-level
+   PI sessions retain ext tools.
 
 2. **Claude account-level MCP discovery is disabled** — the setting
    `ENABLE_CLAUDEAI_MCP_SERVERS: "false"` in `~/.cortex/.claude/settings.json`
@@ -366,6 +370,7 @@ The MCP server processes receive a subset of the agent server's environment:
 | `CORTEX_PROFILE` | Session context | context tools |
 | `CORTEX_PROJECT` | Session context | context tools |
 | `CORTEX_EXECUTION_ID` | Execution context | task lock hooks |
+| `CORTEX_MCP_BUNDLES` | Backend process composition | bundled Cortex MCP server |
 | `CORTEX_TUI_MODE` | Set to `'1'` in TUI mode | Claude TUI process |
 | `CORTEX_CALLBACK_SOURCE` | Optional callback metadata | cortex-ext |
 | `CORTEX_SCHEDULE_TASK_ID` | Optional schedule task ID | cortex-ext |

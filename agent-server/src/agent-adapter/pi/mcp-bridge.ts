@@ -1,5 +1,5 @@
 // input:  PI API, MCP configs, tool gates, process env
-// output: Gated built-in, interaction, and plugin MCP tools
+// output: Bundled Cortex and independent plugin MCP tools
 // pos:    Bridges MCP servers into PI tools
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -21,6 +21,7 @@ import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { Type } from '@sinclair/typebox';
 import { createLogger } from '@core/log.js';
 import { MCP_INFRASTRUCTURE_TIMEOUT_MS } from '@core/mcp-timeout.js';
+import { encodeMcpBundles, MCP_BUNDLES_ENV, parseMcpBundles, type McpBundleName } from '@core/mcp-bundles.js';
 import {
   MCP_TOOL_ALLOWLIST_ENV, MCP_TOOLS_BY_SERVER, parseMcpToolAllowlist,
   validateMcpToolAllowlist,
@@ -52,15 +53,7 @@ export { PI_PLUGIN_MCP_CONFIG_ENV } from './mcp-config.js';
 // eslint-disable-next-line no-undef
 const _dirname: string = (typeof __dirname === 'string' ? __dirname : null) ?? dirname(fileURLToPath(import.meta.url));
 // Point at compiled siblings because installed packages do not ship src/.
-const CORE_SERVER_PATH = resolve(_dirname, '../../domain/mcp/core-server.js');
-const TASKS_SERVER_PATH = resolve(_dirname, '../../domain/mcp/tasks-server.js');
-const MANAGER_QA_SERVER_PATH = resolve(_dirname, '../../domain/mcp/manager-qa-server.js');
-const THREAD_SERVER_PATH = resolve(_dirname, '../../domain/mcp/thread-server.js');
-const INTERACTION_SERVER_PATH = resolve(_dirname, '../../domain/mcp/interaction-server.js');
-const EXT_SERVER_PATH = resolve(_dirname, '../../domain/mcp/server.js');
-const SLACK_SERVER_PATH = resolve(_dirname, '../../domain/mcp/slack-server.js');
-const FEISHU_SERVER_PATH = resolve(_dirname, '../../domain/mcp/feishu-server.js');
-const WEB_SERVER_PATH = resolve(_dirname, '../../domain/mcp/web-server.js');
+const BUNDLED_SERVER_PATH = resolve(_dirname, '../../domain/mcp/bundled-server.js');
 
 const log = createLogger('pi-mcp-bridge');
 
@@ -120,15 +113,15 @@ function builtinEnv(env: NodeJS.ProcessEnv): Record<string, string> {
   } as Record<string, string>;
 }
 
-function builtinServerConfig(
-  name: string, serverPath: string, env: NodeJS.ProcessEnv,
+function bundledServerConfig(
+  bundles: readonly McpBundleName[], env: NodeJS.ProcessEnv,
 ): McpServerConfig {
   return {
-    name,
+    name: 'core',
     type: 'stdio',
     command: 'node',
-    args: [serverPath],
-    env: builtinEnv(env),
+    args: [BUNDLED_SERVER_PATH],
+    env: { ...builtinEnv(env), [MCP_BUNDLES_ENV]: encodeMcpBundles(bundles) },
     cwd: process.cwd(),
   };
 }
@@ -152,36 +145,29 @@ function assertUniqueServerStateNames(states: ServerState[]): ServerState[] {
   return states;
 }
 
-const BUILTIN_TOOL_SERVERS: Readonly<Record<string, string>> = {
-  core: 'cortex-core', tasks: 'cortex-tasks', 'manager-qa': 'cortex-manager-qa',
-  thread: 'cortex-thread', interaction: 'cortex-interaction-bridge', ext: 'cortex-ext', slack: 'cortex-slack',
-  feishu: 'cortex-feishu', web: 'cortex-web',
-};
-
 function validateToolGatedStates(
   env: NodeJS.ProcessEnv, states: ServerState[],
 ): ServerState[] {
   const allowlist = parseMcpToolAllowlist(env[MCP_TOOL_ALLOWLIST_ENV]);
   if (allowlist === null) return states;
-  const known = new Set<string>();
-  for (const state of states) {
-    const serverName = BUILTIN_TOOL_SERVERS[state.name];
-    for (const tool of MCP_TOOLS_BY_SERVER[serverName] ?? []) known.add(tool);
-  }
+  const core = states.find(state => state.name === 'core');
+  const bundles = core?.config.type === 'stdio'
+    ? parseMcpBundles(core.config.env[MCP_BUNDLES_ENV]) : [];
+  const known = new Set(bundles.flatMap(bundle => MCP_TOOLS_BY_SERVER[bundle] ?? []));
   validateMcpToolAllowlist([...allowlist], known);
   return states;
 }
 
-function optionalBuiltins(env: NodeJS.ProcessEnv): ServerState[] {
+function optionalBundles(env: NodeJS.ProcessEnv): McpBundleName[] {
   const channel = env.SLACK_CHANNEL;
-  const optional: Array<[boolean, ServerState]> = [
-    [shouldLoadThreadControl(env.CORTEX_THREAD_ID), createState('thread', builtinServerConfig('thread', THREAD_SERVER_PATH, env))],
-    [true, createState('ext', builtinServerConfig('ext', EXT_SERVER_PATH, env))],
-    [shouldLoadSlack(channel), createState('slack', builtinServerConfig('slack', SLACK_SERVER_PATH, env))],
-    [shouldLoadFeishu(channel), createState('feishu', builtinServerConfig('feishu', FEISHU_SERVER_PATH, env))],
-    [shouldLoadWeb(channel), createState('web', builtinServerConfig('web', WEB_SERVER_PATH, env))],
+  const optional: Array<[boolean, McpBundleName]> = [
+    [shouldLoadThreadControl(env.CORTEX_THREAD_ID), 'cortex-thread'],
+    [true, 'cortex-ext'],
+    [shouldLoadSlack(channel), 'cortex-slack'],
+    [shouldLoadFeishu(channel), 'cortex-feishu'],
+    [shouldLoadWeb(channel), 'cortex-web'],
   ];
-  return optional.filter(([enabled]) => enabled).map(([, state]) => state);
+  return optional.filter(([enabled]) => enabled).map(([, bundle]) => bundle);
 }
 
 function pluginLoadResult(value: ReturnType<PluginConfigLoader>): PiPluginMcpConfigLoadResult {
@@ -247,22 +233,22 @@ export function buildServerStates(
 ): ServerState[] {
   const composition = env[PI_MCP_COMPOSITION_ENV];
   if (composition === 'none') return validateToolGatedStates(env, []);
-  const states = [createState('core', builtinServerConfig('core', CORE_SERVER_PATH, env))];
-  if (env.CORTEX_PI_SUBAGENT === '1') return validateToolGatedStates(env, states);
-  const interactionStates = composition === 'direct' && env[PI_INTERACTION_BRIDGE_ENV] === '1'
-    ? [createState('interaction', builtinServerConfig('interaction', INTERACTION_SERVER_PATH, env))]
-    : [];
-  states.push(
-    createState('tasks', builtinServerConfig('tasks', TASKS_SERVER_PATH, env)),
-    createState('manager-qa', builtinServerConfig('manager-qa', MANAGER_QA_SERVER_PATH, env)),
-    ...interactionStates,
-    ...optionalBuiltins(env),
-    ...loadPluginStates(
+  const bundles: McpBundleName[] = ['cortex-core'];
+  if (env.CORTEX_PI_SUBAGENT !== '1') {
+    bundles.push('cortex-tasks', 'cortex-manager-qa');
+    if (composition === 'direct' && env[PI_INTERACTION_BRIDGE_ENV] === '1') {
+      bundles.push('cortex-interaction-bridge');
+    }
+    bundles.push(...optionalBundles(env));
+  }
+  const states = [createState('core', bundledServerConfig(bundles, env))];
+  if (env.CORTEX_PI_SUBAGENT !== '1') {
+    states.push(...loadPluginStates(
       env,
       options.loadPluginConfig ?? loadPiPluginMcpConfig,
       options.reportPluginIssue ?? (() => undefined),
-    ),
-  );
+    ));
+  }
   return validateToolGatedStates(env, assertUniqueServerStateNames(states));
 }
 

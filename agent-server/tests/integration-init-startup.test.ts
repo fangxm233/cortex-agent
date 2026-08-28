@@ -242,7 +242,7 @@ test('Test 1: cortex init creates valid directory structure (non-interactive)', 
     );
     assert.deepEqual(Object.keys(tasksConfig.mcpServers), ['cortex-tasks']);
     assert.deepEqual(Object.keys(managerQaConfig.mcpServers), ['cortex-manager-qa']);
-    assert.deepEqual(Object.keys(threadConfig.mcpServers), ['cortex-thread']);
+    assert.deepEqual(Object.keys(threadConfig.mcpServers), ['cortex-core']);
 
     // Assert .env contains CORTEX_MACHINE
     const envContent = readFileSync(path.join(tempDir, 'config', '.env'), 'utf-8');

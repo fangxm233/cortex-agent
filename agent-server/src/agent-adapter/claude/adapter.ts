@@ -21,6 +21,7 @@ import type {
   InjectionAckSink, McpComposition, SpawnedAgentProcess, UserMessage,
 } from '../types.js';
 import type { AgentResult, ContextUsage, ReportedAccountingSnapshot } from '@core/types/agent-types.js';
+import { encodeMcpBundles, MCP_BUNDLES_ENV } from '@core/mcp-bundles.js';
 import type { NormalizedEvent, ToolUseSubagent } from '../normalize/event-types.js';
 import { parseTodoWrite } from '../normalize/todo.js';
 import { createEventStream } from '../normalize/event-stream.js';
@@ -34,7 +35,7 @@ import {
 } from './defaults.js';
 import { buildHooksSettings } from './hooks-builder.js';
 import {
-  buildClaudeEnv, buildSpawnArgs, claudeRouteIdentity,
+  buildClaudeEnv, buildSpawnArgs, claudeRouteIdentity, resolveClaudeMcpBundles,
   ClaudeSpawnOptions, CortexAgentContext,
 } from './spawn-args.js';
 import { ClaudeTuiSession, defaultTailFactory, computeJsonlPath, resolveTuiResume, type ClaudeTuiSessionConfig } from './adapter-tui.js';
@@ -569,15 +570,16 @@ class ClaudeSession {
   }
 
   private buildProcessLaunch(): { args: string[]; env: NodeJS.ProcessEnv } {
-    const env = buildClaudeEnv(
-      this.channel, this.sessionId, this.callbackSource, this.scheduleTaskId,
-      this.anthropicBaseUrl, this.extraEnv, this.context, this.pinnedEnv, this.unsetEnv,
-    );
     const options = this.toSpawnOptions();
     options.loadSlackMcp = this.channel.startsWith('slack:');
     options.loadFeishuMcp = this.channel.startsWith('feishu:');
     options.loadWebMcp = this.channel.startsWith('web:');
     options.isUserInitiated = this.isUserInitiated;
+    const env = buildClaudeEnv(
+      this.channel, this.sessionId, this.callbackSource, this.scheduleTaskId,
+      this.anthropicBaseUrl, this.extraEnv, this.context, this.pinnedEnv, this.unsetEnv,
+    );
+    env[MCP_BUNDLES_ENV] = encodeMcpBundles(resolveClaudeMcpBundles(options));
     return { args: buildSpawnArgs(options), env };
   }
 

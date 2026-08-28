@@ -7,7 +7,7 @@ Core infrastructure tests: paths, config and profile generation, auth, locks, i1
 | atomic-write-guard.test.ts | test | mutation guard, cancellation, modes and locking |
 | auth.test.ts | test | Shared-secret generation, runtime capture, scrubbing and comparison |
 | bg-held-sessions.test.ts | test | per-session background hold registry |
-| config-generator.test.ts | test | shared, scoped and per-tool gated MCP configs |
+| config-generator.test.ts | test | bundled configs, gates and user MCP isolation |
 | debug-mode.test.ts | test | debug gate, thresholds, large-tool warnings |
 | gateway-generator.test.ts | test | model discovery, body limits and gateway yaml |
 | i18n.test.ts | test | locale lookup, fallback, and table parity |

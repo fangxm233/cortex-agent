@@ -1,5 +1,5 @@
 // input:  PI MCP bridge, interaction env, tool gates, clients
-// output: Loading, gating, error, isolation, and retry tests
+// output: Bundle loading, plugin isolation and retry tests
 // pos:    Tests PI MCP bridge behavior
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -35,15 +35,14 @@ import {
 } from '../src/agent-adapter/pi/spawn-args.js';
 import type { ExtensionAPI, ToolDefinition } from '../src/agent-adapter/pi/pi-ext-types.js';
 import type { McpServerConfig } from '../src/agent-adapter/types.js';
+import { MCP_BUNDLES_ENV, parseMcpBundles } from '../src/core/mcp-bundles.js';
 import { MCP_TOOL_ALLOWLIST_ENV } from '../src/core/mcp-tool-gate.js';
 
-// The CORE_SERVER_PATH / EXT_SERVER_PATH exported from mcp-bridge resolves relative to its own
-// location: when loaded via tsx from src/ those siblings don't exist; when running compiled from
-// dist/ they do. For the integration tests below we always target the compiled dist/ files so the
-// test verifies the deployed (npm install) behavior — `npm run build` must have run first.
+// The bundled server path resolves relative to compiled adapter output. The integration test below
+// targets dist/ so it verifies installed-package behavior; `npm run build` must run first.
 const TESTS_DIR = dirname(fileURLToPath(import.meta.url));
 const DIST_DIR = resolve(TESTS_DIR, '../dist');
-const EXT_SERVER_PATH = resolve(DIST_DIR, 'domain/mcp/server.js');
+const BUNDLED_SERVER_PATH = resolve(DIST_DIR, 'domain/mcp/bundled-server.js');
 const PLUGIN_CONFIG_PATH = '/runtime/pi-plugin-mcp.json';
 
 // --- Test C: mapMcpContent pure unit tests ---
@@ -193,7 +192,13 @@ function pluginConfig(...servers: McpServerConfig[]): McpServerConfig[] {
   return servers;
 }
 
-const BUILTIN_STATES = ['core', 'tasks', 'manager-qa', 'ext'];
+const BUILTIN_STATES = ['core'];
+
+function selectedBundles(states: ServerState[]): string[] {
+  const core = states.find(state => state.name === 'core');
+  assert.ok(core?.config.type === 'stdio');
+  return parseMcpBundles(core.config.env[MCP_BUNDLES_ENV]);
+}
 
 function deferred(): { promise: Promise<void>; resolve(): void } {
   let resolve!: () => void;
@@ -424,7 +429,9 @@ test('buildServerStates loads the shared interaction bridge only for eligible di
     { env: { [PI_MCP_COMPOSITION_ENV]: 'none', [PI_INTERACTION_BRIDGE_ENV]: '1' }, hasInteraction: false },
   ];
   for (const { env, hasInteraction } of cases) {
-    assert.equal(buildServerStates(env).some(state => state.name === 'interaction'), hasInteraction);
+    const states = buildServerStates(env);
+    const selected = states.length > 0 && selectedBundles(states).includes('cortex-interaction-bridge');
+    assert.equal(selected, hasInteraction);
   }
 });
 
@@ -435,7 +442,7 @@ test('buildServerStates validates interaction tools only when the shared bridge 
     [PI_INTERACTION_BRIDGE_ENV]: '1',
     [MCP_TOOL_ALLOWLIST_ENV]: allowed,
   });
-  assert.ok(states.some(state => state.name === 'interaction'));
+  assert.ok(selectedBundles(states).includes('cortex-interaction-bridge'));
   assert.throws(() => buildServerStates({
     [PI_MCP_COMPOSITION_ENV]: 'direct',
     [MCP_TOOL_ALLOWLIST_ENV]: allowed,
@@ -447,13 +454,11 @@ test('eligible PI sessions register the three shared interaction tool names', as
   const interactionTools = ['cortex_ask_user', 'cortex_plan_enter', 'cortex_plan_exit'];
   const deps = bridgeDeps({
     env: { [PI_MCP_COMPOSITION_ENV]: 'direct', [PI_INTERACTION_BRIDGE_ENV]: '1' },
-    spawnClient: async (state) => state.name === 'interaction'
-      ? fakeHandle(state.name, {
-        listTools: async () => ({
-          tools: interactionTools.map(name => ({ name, inputSchema: { type: 'object' } })),
-        }),
-      })
-      : fakeHandle(state.name),
+    spawnClient: async (state) => fakeHandle(state.name, {
+      listTools: async () => ({
+        tools: interactionTools.map(name => ({ name, inputSchema: { type: 'object' } })),
+      }),
+    }),
   });
   await installMcpBridge(harness.pi, deps);
   await harness.fire('before_agent_start');
@@ -474,7 +479,7 @@ test('buildServerStates validates a tool gate against the composed built-in unio
     CORTEX_THREAD_ID: 'thr_fixture',
     [MCP_TOOL_ALLOWLIST_ENV]: JSON.stringify(['thread_wait', 'task_status']),
   });
-  assert.ok(states.some(state => state.name === 'thread'));
+  assert.ok(selectedBundles(states).includes('cortex-thread'));
 });
 
 test('buildServerStates appends namespaced plugin servers after the built-in direct set', () => {
@@ -489,9 +494,10 @@ test('buildServerStates appends namespaced plugin servers after the built-in dir
   });
 
   assert.deepEqual(states.map(state => state.name), [
-    'core', 'tasks', 'manager-qa', 'ext',
-    pluginServerStateName('portable-http'),
-    pluginServerStateName('portable-sse'),
+    'core', pluginServerStateName('portable-http'), pluginServerStateName('portable-sse'),
+  ]);
+  assert.deepEqual(selectedBundles(states), [
+    'cortex-core', 'cortex-tasks', 'cortex-manager-qa', 'cortex-ext',
   ]);
 });
 
@@ -527,7 +533,7 @@ test('buildServerStates reports and skips duplicate plugin server state names de
   });
 
   assert.deepEqual(states.map(state => state.name), [
-    'core', 'tasks', 'manager-qa', 'ext', pluginServerStateName('duplicate'),
+    'core', pluginServerStateName('duplicate'),
   ]);
   assert.deepEqual(issues, [`Duplicate MCP server state name: ${pluginServerStateName('duplicate')}`]);
 });
@@ -558,7 +564,7 @@ test('plugin config duplicate-name issues are reported while built-ins and uniqu
   await harness.fire('before_agent_start');
   assert.deepEqual(spawned, [...BUILTIN_STATES, uniqueState]);
   assert.deepEqual(harness.registered, [
-    'core_tool', 'tasks_tool', 'manager-qa_tool', 'ext_tool', pluginToolName(uniqueState, 'search'),
+    'core_tool', pluginToolName(uniqueState, 'search'),
   ]);
   assert.equal(failures.length, 1);
   assert.match(failures[0], /Duplicate PI plugin MCP server name/);
@@ -587,7 +593,7 @@ test('plugin config envelope failures are reported while built-ins still registe
   await installMcpBridge(harness.pi, deps);
   await harness.fire('before_agent_start');
 
-  assert.deepEqual(spawned, ['core', 'tasks', 'manager-qa', 'ext']);
+  assert.deepEqual(spawned, ['core']);
   assert.equal(failures.length, 1);
   assert.match(failures[0], /hash mismatch/);
 });
@@ -675,10 +681,8 @@ test('top-level direct MCP bridge loads manager answers without thread control',
   await installMcpBridge(harness.pi, deps);
   await harness.fire('before_agent_start');
 
-  assert.deepEqual(spawned, ['core', 'tasks', 'manager-qa', 'ext']);
-  assert.deepEqual(harness.registered, [
-    'core_tool', 'tasks_tool', 'manager-qa_tool', 'ext_tool',
-  ]);
+  assert.deepEqual(spawned, ['core']);
+  assert.deepEqual(harness.registered, ['core_tool']);
 });
 
 function alphaPluginConfig(): McpServerConfig[] {
@@ -715,9 +719,6 @@ function connectFailureScenario() {
 function assertConnectAttempts(attempts: Map<string, number>): void {
   assert.deepEqual(Object.fromEntries(attempts), {
     core: 1,
-    tasks: 1,
-    'manager-qa': 1,
-    ext: 1,
     [ALPHA_STATE]: 2,
     [BETA_STATE]: 1,
   });
@@ -727,15 +728,11 @@ test('plugin connect failure isolates the server and retries later without dropp
   const { harness, attempts, failures, deps } = connectFailureScenario();
   await installMcpBridge(harness.pi, deps);
   await harness.fire('before_agent_start');
-  assert.deepEqual(harness.registered, [
-    'core_tool', 'tasks_tool', 'manager-qa_tool', 'ext_tool', BETA_TOOL,
-  ]);
+  assert.deepEqual(harness.registered, ['core_tool', BETA_TOOL]);
   assert.equal(failures.length, 1);
   assert.match(failures[0], /portable-alpha.*connect/);
   await harness.fire('before_agent_start');
-  assert.deepEqual(harness.registered, [
-    'core_tool', 'tasks_tool', 'manager-qa_tool', 'ext_tool', BETA_TOOL, ALPHA_TOOL,
-  ]);
+  assert.deepEqual(harness.registered, ['core_tool', BETA_TOOL, ALPHA_TOOL]);
   assertConnectAttempts(attempts);
 });
 
@@ -824,7 +821,7 @@ test('duplicate plugin exposed tool names fail deterministically before register
   const { harness, failures, deps } = duplicateToolScenario();
   await installMcpBridge(harness.pi, deps);
   await harness.fire('before_agent_start');
-  assert.deepEqual(harness.registered, ['core_tool', 'tasks_tool', 'manager-qa_tool', 'ext_tool']);
+  assert.deepEqual(harness.registered, ['core_tool']);
   assert.equal(failures.length, 1);
   assert.match(failures[0], /Duplicate MCP tool name:/);
 });
@@ -861,8 +858,9 @@ test('shutdown closes every handle and a later turn can reconnect', async () => 
 test('cost_query tool returns text content when called', { timeout: 15000 }, async () => {
   const transport = new StdioClientTransport({
     command: 'node',
-    args: [EXT_SERVER_PATH],
+    args: [BUNDLED_SERVER_PATH],
     stderr: 'pipe',
+    env: { ...process.env, [MCP_BUNDLES_ENV]: JSON.stringify(['cortex-ext']) },
   });
   const client = new Client({ name: 'test-ext-server-cost', version: '1.0.0' });
   await client.connect(transport);

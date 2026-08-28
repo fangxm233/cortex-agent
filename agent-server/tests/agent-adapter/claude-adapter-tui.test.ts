@@ -373,7 +373,7 @@ test('result carries enteredPlanMode + planFilePath when plan tools observed', a
 
   tail.push({
     type: 'assistant',
-    message: { id: 'm1', model: 'claude-sonnet-4-5-x', content: [{ type: 'tool_use', id: 'tu_1', name: 'mcp__cortex-interaction-bridge__cortex_plan_enter', input: { reasoning: '...' } }], usage: { input_tokens: 1, output_tokens: 1 } },
+    message: { id: 'm1', model: 'claude-sonnet-4-5-x', content: [{ type: 'tool_use', id: 'tu_1', name: 'mcp__cortex-core__cortex_plan_enter', input: { reasoning: '...' } }], usage: { input_tokens: 1, output_tokens: 1 } },
   });
   tail.push({
     type: 'assistant',
@@ -403,7 +403,7 @@ test('result does NOT collect askUserQuestions from self-resolving MCP cortex_as
   tail.push({
     type: 'assistant',
     message: { id: 'm1', model: 'claude-sonnet-4-5-x', content: [{
-      type: 'tool_use', id: 'tu_1', name: 'mcp__cortex-interaction-bridge__cortex_ask_user',
+      type: 'tool_use', id: 'tu_1', name: 'mcp__cortex-core__cortex_ask_user',
       input: {
         questions: [
           { question: 'Pick one', header: 'choice', options: [{ label: 'A' }, { label: 'B' }], multiSelect: false },
@@ -416,7 +416,7 @@ test('result does NOT collect askUserQuestions from self-resolving MCP cortex_as
 
   const result = await turnPromise;
   assert.equal(result.askUserQuestions.length, 0);
-  assert.deepEqual(tools.map(x => x.name), ['mcp__cortex-interaction-bridge__cortex_ask_user']);
+  assert.deepEqual(tools.map(x => x.name), ['mcp__cortex-core__cortex_ask_user']);
 });
 
 // =====================================================================================

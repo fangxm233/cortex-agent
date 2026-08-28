@@ -31,6 +31,7 @@ import {
   buildClaudeEnv,
   buildSpawnArgs,
   claudeRouteIdentity,
+  resolveClaudeMcpBundles,
 } from '../src/agent-adapter/claude/spawn-args.js';
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
 import {
@@ -41,6 +42,7 @@ import { safeNativeComposite } from '../src/domain/plugins/native-name.js';
 import { PI_PLUGIN_MCP_CONFIG_ENV } from '../src/agent-adapter/pi/mcp-config.js';
 import { buildPiEnv, PI_MCP_COMPOSITION_ENV } from '../src/agent-adapter/pi/spawn-args.js';
 import { generateMcpConfig } from '../src/core/config-generator.js';
+import { encodeMcpBundles, MCP_BUNDLES_ENV } from '../src/core/mcp-bundles.js';
 import { CONFIG_DIR, DATA_DIR } from '../src/core/paths.js';
 import { resetSettingsForTests } from '../src/core/settings.js';
 import { getSavedApiEnv, type ModeEnv } from '../src/domain/agents/config.js';
@@ -104,17 +106,22 @@ function canonicalize(value: unknown): unknown {
 }
 
 function childEnvironment(config: AgentSpawnConfig): NodeJS.ProcessEnv {
-  return buildClaudeEnv(
-    config.channel ?? config.sessionKey,
-    config.sessionId!,
-    config.callbackSource,
-    config.scheduleTaskId,
-    config.anthropicBaseUrl,
-    config.env,
-    config.cortexContext,
-    config.pinnedEnv,
-    config.unsetEnv,
+  const channel = config.channel ?? config.sessionKey;
+  const env = buildClaudeEnv(
+    channel, config.sessionId!, config.callbackSource, config.scheduleTaskId,
+    config.anthropicBaseUrl, config.env, config.cortexContext, config.pinnedEnv, config.unsetEnv,
   );
+  env[MCP_BUNDLES_ENV] = encodeMcpBundles(resolveClaudeMcpBundles({
+    tools: null,
+    needsResume: config.resume,
+    sessionId: config.sessionId!,
+    mcpComposition: config.mcpComposition,
+    isUserInitiated: config.isUserInitiated,
+    loadSlackMcp: channel.startsWith('slack:'),
+    loadFeishuMcp: channel.startsWith('feishu:'),
+    loadWebMcp: channel.startsWith('web:'),
+  }));
+  return env;
 }
 
 function resolvedGolden(config: AgentSpawnConfig): string {
@@ -528,9 +535,7 @@ function assertPrivatePluginCapture(capture: PiSpawnCapture): void {
   assert.equal(typeof configPath, 'string');
   assert.ok(configPath!.includes(path.join('plugin-runtime', 'pi-mcp')));
   const states = buildServerStates(capture.envs[0]).map(state => state.name);
-  assert.deepEqual(states, [
-    'core', 'tasks', 'manager-qa', 'ext', pluginServerStateName('portable-private'),
-  ]);
+  assert.deepEqual(states, ['core', pluginServerStateName('portable-private')]);
 }
 
 function assertPiPrivatePluginMcpBridge(): void {

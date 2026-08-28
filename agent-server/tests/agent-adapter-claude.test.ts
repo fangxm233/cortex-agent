@@ -12,7 +12,9 @@ import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 
 import { resetSettingsForTests } from '../src/core/settings.js';
-import { buildSpawnArgs, buildClaudeEnv } from '../src/agent-adapter/claude/spawn-args.js';
+import {
+  buildSpawnArgs, buildClaudeEnv, resolveClaudeMcpBundles,
+} from '../src/agent-adapter/claude/spawn-args.js';
 import type { ClaudeSpawnOptions } from '../src/agent-adapter/claude/spawn-args.js';
 import {
   claudeSupplementalMcpConfigJson,
@@ -200,9 +202,6 @@ function assertSupplementalCompositionPaths(args: Record<string, string[]>): voi
     '/fixture/supplemental.json',
   ]);
   assert.deepEqual(mcpConfigPaths(args.thread), [
-    CORE_MCP_CONFIG,
-    TASKS_MCP_CONFIG,
-    MANAGER_QA_MCP_CONFIG,
     THREAD_MCP_CONFIG,
     '/fixture/supplemental.json',
   ]);
@@ -260,11 +259,7 @@ test('buildSpawnArgs thread session layers core, tasks, manager Q&A, and thread 
     sessionId: 'uuid-thread',
     mcpComposition: 'thread-control',
   });
-  const start = args.indexOf('--mcp-config');
-  assert.deepEqual(
-    args.slice(start + 1, start + 5),
-    [CORE_MCP_CONFIG, TASKS_MCP_CONFIG, MANAGER_QA_MCP_CONFIG, THREAD_MCP_CONFIG],
-  );
+  assert.deepEqual(mcpConfigPaths(args), [THREAD_MCP_CONFIG]);
   assert.ok(!args.includes(MCP_CONFIG));
 });
 
@@ -435,9 +430,9 @@ test('buildSpawnArgs: no --effort when thinking is absent (backward compat)', ()
   assert.ok(!buildSpawnArgs({ ...base, thinking: null }).includes('--effort'));
 });
 
-// --- buildSpawnArgs: Feishu MCP layering (Feishu-originated sessions) ---
+// --- bundled MCP selection for platform-originated sessions ---
 
-test('buildSpawnArgs loadFeishuMcp — layers cortex-feishu config on top of the full MCP set', () => {
+test('loadFeishuMcp selects Feishu tools without adding another config', () => {
   const args = buildSpawnArgs({
     tools: null,
     systemPrompt: null,
@@ -450,11 +445,10 @@ test('buildSpawnArgs loadFeishuMcp — layers cortex-feishu config on top of the
     sessionId: 'uuid-feishu',
     loadFeishuMcp: true,
   });
-  // --mcp-config is variadic: both the base full config and the feishu config are passed.
-  const i = args.indexOf('--mcp-config');
-  assert.ok(i >= 0, '--mcp-config present');
-  assert.equal(args[i + 1], MCP_CONFIG, 'base full config first');
-  assert.equal(args[i + 2], FEISHU_MCP_CONFIG, 'feishu config layered second');
+  assert.deepEqual(mcpConfigPaths(args), [MCP_CONFIG]);
+  assert.ok(resolveClaudeMcpBundles({
+    tools: null, needsResume: false, sessionId: 'uuid-feishu', loadFeishuMcp: true,
+  }).includes('cortex-feishu'));
 });
 
 test('buildSpawnArgs without loadFeishuMcp — does NOT load the cortex-feishu config', () => {
@@ -472,7 +466,7 @@ test('buildSpawnArgs without loadFeishuMcp — does NOT load the cortex-feishu c
   assert.ok(!args.includes(FEISHU_MCP_CONFIG), 'non-feishu session must NOT load the cortex-feishu server');
 });
 
-test('buildSpawnArgs loadWebMcp — layers cortex-web config on top of the full MCP set', () => {
+test('loadWebMcp selects Web tools without adding another config', () => {
   const args = buildSpawnArgs({
     tools: null,
     systemPrompt: null,
@@ -485,10 +479,10 @@ test('buildSpawnArgs loadWebMcp — layers cortex-web config on top of the full 
     sessionId: 'uuid-web',
     loadWebMcp: true,
   });
-  const i = args.indexOf('--mcp-config');
-  assert.ok(i >= 0, '--mcp-config present');
-  assert.equal(args[i + 1], MCP_CONFIG, 'base full config first');
-  assert.equal(args[i + 2], WEB_MCP_CONFIG, 'web config layered second');
+  assert.deepEqual(mcpConfigPaths(args), [MCP_CONFIG]);
+  assert.ok(resolveClaudeMcpBundles({
+    tools: null, needsResume: false, sessionId: 'uuid-web', loadWebMcp: true,
+  }).includes('cortex-web'));
 });
 
 test('buildSpawnArgs without loadWebMcp — does NOT load the cortex-web config', () => {
@@ -520,7 +514,10 @@ test('buildSpawnArgs loadWebMcp — thread-control composition suppresses the we
     mcpComposition: 'thread-control',
     loadWebMcp: true,
   });
-  assert.ok(!args.includes(WEB_MCP_CONFIG), 'core/thread sessions must stay on the core server set only');
+  assert.ok(!resolveClaudeMcpBundles({
+    tools: null, needsResume: false, sessionId: 'uuid-web-thread',
+    mcpComposition: 'thread-control', loadWebMcp: true,
+  }).includes('cortex-web'));
 });
 
 test('buildSpawnArgs loadFeishuMcp — thread-control composition suppresses the feishu layer', () => {
@@ -537,7 +534,10 @@ test('buildSpawnArgs loadFeishuMcp — thread-control composition suppresses the
     mcpComposition: 'thread-control',
     loadFeishuMcp: true,
   });
-  assert.ok(!args.includes(FEISHU_MCP_CONFIG), 'core/thread sessions must stay on the core server set only');
+  assert.ok(!resolveClaudeMcpBundles({
+    tools: null, needsResume: false, sessionId: 'uuid-feishu-thread',
+    mcpComposition: 'thread-control', loadFeishuMcp: true,
+  }).includes('cortex-feishu'));
 });
 
 // --- buildSpawnArgs: token-level streaming (--include-partial-messages) ---
@@ -641,10 +641,10 @@ test("buildSpawnArgs mode='tui' — omits -p / stream-json flags, layers TUI bri
   assert.ok(args.includes('--dangerously-skip-permissions'));
   assert.ok(args.includes('--permission-mode'));
   assert.ok(args.includes('bypassPermissions'));
-  // MCP loading mirrors print mode (full MCP_CONFIG) AND additionally layers the TUI bridge.
-  assert.ok(args.includes(MCP_CONFIG), 'tui non-thread loads the same base MCP set as print mode');
-  assert.ok(!args.includes(THREAD_MCP_CONFIG), 'direct tui must not load thread control');
-  assert.ok(args.includes(INTERACTION_MCP_CONFIG), 'direct tui loads the interaction bridge');
+  assert.deepEqual(mcpConfigPaths(args), [MCP_CONFIG]);
+  assert.ok(resolveClaudeMcpBundles({
+    tools: null, needsResume: false, sessionId: 'uuid-tui-1', mode: 'tui',
+  }).includes('cortex-interaction-bridge'));
   assert.ok(args.includes(TUI_TOOLS));
   assert.ok(args.includes('--session-id'));
   assert.ok(args.includes('uuid-tui-1'));
@@ -664,12 +664,11 @@ test("buildSpawnArgs mode='tui' — thread-control composition drops the TUI bri
     mode: 'tui',
     mcpComposition: 'thread-control',
   });
-  assert.ok(args.includes(CORE_MCP_CONFIG), 'thread tui loads the remote execution server');
-  assert.ok(args.includes(TASKS_MCP_CONFIG), 'thread tui loads read-only task monitoring');
-  assert.ok(args.includes(MANAGER_QA_MCP_CONFIG), 'thread tui loads manager answer support');
-  assert.ok(args.includes(THREAD_MCP_CONFIG), 'thread tui loads its control plane');
-  assert.ok(!args.includes(INTERACTION_MCP_CONFIG), 'thread tui must not load the interaction bridge');
-  assert.ok(!args.includes(MCP_CONFIG), 'thread tui must not fall back to the direct MCP set');
+  assert.deepEqual(mcpConfigPaths(args), [THREAD_MCP_CONFIG]);
+  assert.deepEqual(resolveClaudeMcpBundles({
+    tools: null, needsResume: false, sessionId: 'uuid-tui-thread',
+    mode: 'tui', mcpComposition: 'thread-control',
+  }), ['cortex-core', 'cortex-tasks', 'cortex-manager-qa', 'cortex-thread']);
   // No bridge → fall back to the standard tool whitelist (not TUI_TOOLS, which references bridge tools).
   assert.ok(!args.includes(TUI_TOOLS), 'thread tui must not whitelist the bridge tools');
 });
@@ -804,8 +803,8 @@ test("buildSpawnArgs mode='print' (default) — behavior unchanged from existing
 
 // --- buildSpawnArgs: print-mode interaction-bridge tools (user-initiated sessions) ---
 // The native EnterPlanMode/ExitPlanMode/AskUserQuestion tools are filtered out by headless -p
-// mode. For user-message-initiated direct sessions we layer the interaction MCP server and its
-// three tools so plan/ask still works over the channel. Thread/core sessions never get it.
+// mode. User-message-initiated direct sessions add interaction registrations to the bundled
+// Cortex server. Thread/core sessions never get them.
 
 test('buildSpawnArgs print + isUserInitiated — layers interaction MCP config and tools', () => {
   const args = buildSpawnArgs({
@@ -822,10 +821,10 @@ test('buildSpawnArgs print + isUserInitiated — layers interaction MCP config a
   });
   // Still print mode (-p) and still loads the full base MCP set
   assert.ok(args.includes('-p'), 'print mode preserved');
-  const i = args.indexOf('--mcp-config');
-  assert.equal(args[i + 1], MCP_CONFIG, 'base full config first');
-  assert.ok(!args.includes(THREAD_MCP_CONFIG), 'direct print must not load thread control');
-  assert.ok(args.includes(INTERACTION_MCP_CONFIG), 'user print loads the interaction bridge');
+  assert.deepEqual(mcpConfigPaths(args), [MCP_CONFIG]);
+  assert.ok(resolveClaudeMcpBundles({
+    tools: null, needsResume: false, sessionId: 'uuid-print-user', isUserInitiated: true,
+  }).includes('cortex-interaction-bridge'));
   // Tools: base DEFAULT_TOOLS retained + the 3 bridge tools appended
   const tools = args[args.indexOf('--tools') + 1].split(',');
   assert.ok(tools.includes('Bash'), 'base tools retained');
@@ -851,10 +850,11 @@ test('buildSpawnArgs print + isUserInitiated + thread-control gets no bridge', (
     mcpComposition: 'thread-control',
     isUserInitiated: true,
   });
-  assert.ok(args.includes(TASKS_MCP_CONFIG), 'thread session gets task monitoring');
-  assert.ok(args.includes(MANAGER_QA_MCP_CONFIG), 'thread session gets manager answer support');
-  assert.ok(args.includes(THREAD_MCP_CONFIG), 'thread session gets thread control');
-  assert.ok(!args.includes(INTERACTION_MCP_CONFIG), 'thread sessions must not load the interaction bridge');
+  assert.deepEqual(mcpConfigPaths(args), [THREAD_MCP_CONFIG]);
+  assert.ok(!resolveClaudeMcpBundles({
+    tools: null, needsResume: false, sessionId: 'uuid-print-thread',
+    mcpComposition: 'thread-control', isUserInitiated: true,
+  }).includes('cortex-interaction-bridge'));
   const tools = args[args.indexOf('--tools') + 1].split(',');
   for (const tool of INTERACTION_BRIDGE_TOOLS) {
     assert.ok(!tools.includes(tool), `thread session must not get bridge tool ${tool}`);
@@ -902,9 +902,9 @@ test('buildSpawnArgs print + isUserInitiated with explicit tools — bridge tool
 
 test('INTERACTION_BRIDGE_TOOLS contains the three MCP replacements used by TUI_TOOLS', () => {
   assert.deepEqual([...INTERACTION_BRIDGE_TOOLS].sort(), [
-    'mcp__cortex-interaction-bridge__cortex_ask_user',
-    'mcp__cortex-interaction-bridge__cortex_plan_enter',
-    'mcp__cortex-interaction-bridge__cortex_plan_exit',
+    'mcp__cortex-core__cortex_ask_user',
+    'mcp__cortex-core__cortex_plan_enter',
+    'mcp__cortex-core__cortex_plan_exit',
   ]);
   const tuiTools = TUI_TOOLS.split(',');
   for (const tool of INTERACTION_BRIDGE_TOOLS) {
@@ -1160,9 +1160,9 @@ test('TUI_TOOLS excludes AskUserQuestion / EnterPlanMode / ExitPlanMode and incl
   assert.ok(!tools.includes('AskUserQuestion'), 'TUI_TOOLS must exclude AskUserQuestion');
   assert.ok(!tools.includes('EnterPlanMode'), 'TUI_TOOLS must exclude EnterPlanMode');
   assert.ok(!tools.includes('ExitPlanMode'), 'TUI_TOOLS must exclude ExitPlanMode');
-  assert.ok(tools.includes('mcp__cortex-interaction-bridge__cortex_plan_enter'));
-  assert.ok(tools.includes('mcp__cortex-interaction-bridge__cortex_plan_exit'));
-  assert.ok(tools.includes('mcp__cortex-interaction-bridge__cortex_ask_user'));
+  assert.ok(tools.includes('mcp__cortex-core__cortex_plan_enter'));
+  assert.ok(tools.includes('mcp__cortex-core__cortex_plan_exit'));
+  assert.ok(tools.includes('mcp__cortex-core__cortex_ask_user'));
   // Non-replaced tools still present
   assert.ok(tools.includes('Bash'));
   assert.ok(tools.includes('Read'));

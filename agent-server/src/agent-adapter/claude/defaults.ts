@@ -40,16 +40,13 @@ export const TASKS_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-tasks.json');
 export const MANAGER_QA_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-manager-qa.json');
 export const THREAD_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-thread.json');
 export const EMPTY_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-empty.json');
-/** Shared interaction MCP set (only cortex-interaction-bridge, no core/ext leakage). */
+/** Explicit interaction-only config; normal sessions select it through bundle env. */
 export const INTERACTION_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-interaction.json');
-/** Slack platform-specific tools (cortex-slack server). Layered on top of the full config via the variadic
- *  `--mcp-config` only for sessions that originate from Slack (channel carries the `slack:` prefix). */
+/** Explicit Slack-only config; normal sessions select it through bundle env. */
 export const SLACK_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-slack.json');
-/** Feishu document tools (cortex-feishu server). Layered on top of the full config via the variadic
- *  `--mcp-config` only for sessions that originate from Feishu (channel carries the `feishu:` prefix). */
+/** Explicit Feishu-only config; normal sessions select it through bundle env. */
 export const FEISHU_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-feishu.json');
-/** Web UI tools (cortex-web server, send_file). Layered on top of the full config via the variadic
- *  `--mcp-config` only for sessions that originate from the Web UI (channel carries the `web:` prefix). */
+/** Explicit Web-only config; normal sessions select it through bundle env. */
 export const WEB_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-web.json');
 // User-customizable Claude settings live under DATA_DIR (init copies the seed from
 // defaults/.claude/settings.json on first run). The installed package's defaults/.claude/
@@ -66,15 +63,15 @@ export const DEFAULT_TOOLS = 'Agent,AskUserQuestion,Bash,Edit,EnterPlanMode,Exit
  * Claude's canonical form for MCP tools.
  */
 export const INTERACTION_BRIDGE_TOOLS: readonly string[] = [
-  'mcp__cortex-interaction-bridge__cortex_plan_enter',
-  'mcp__cortex-interaction-bridge__cortex_plan_exit',
-  'mcp__cortex-interaction-bridge__cortex_ask_user',
+  'mcp__cortex-core__cortex_plan_enter',
+  'mcp__cortex-core__cortex_plan_exit',
+  'mcp__cortex-core__cortex_ask_user',
 ];
 
 /**
  * DR-0012: Tool whitelist for TUI mode. Removes the three interaction tools that conflict with
  * Cortex's MCP-mediated approval flow (AskUserQuestion / EnterPlanMode / ExitPlanMode) and adds
- * their MCP replacements from the shared interaction MCP server.
+ * their MCP replacements from the bundled Cortex MCP server.
  */
 export const TUI_TOOLS = [
   'Agent', 'Bash', 'Edit', 'Glob', 'Grep', 'Read', 'Skill', 'TaskStop', 'TodoWrite', 'WebFetch', 'WebSearch', 'Write',

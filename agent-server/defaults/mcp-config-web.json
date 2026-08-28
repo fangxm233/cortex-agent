@@ -1,9 +1,10 @@
 {
   "mcpServers": {
-    "cortex-web": {
+    "cortex-core": {
       "command": "node",
       "args": [
-        "/path/to/web-server.js"
+        "/path/to/bundled-server.js",
+        "[\"cortex-web\"]"
       ],
       "cwd": "/path/to/server"
     }

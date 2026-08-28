@@ -55,9 +55,10 @@ operations.
 The reference backend. Supports all ten capabilities. Two
 adapter modes are available:
 
-**Print mode** (`claudeBackend: "print"`, default). Uses `claude -p
---stream-json` for one-shot turns. Each user message spawns a fresh Claude
-invocation. Fast, stateless, and the recommended mode for most use cases.
+**Print mode** (`claudeBackend: "print"`, default). Uses a persistent
+`claude -p` process with stream-json input and output. Cortex pools the process
+by session key and sends later turns over the same NDJSON stream until the
+session is closed, times out, or its spawn identity changes.
 
 **TUI mode** (`claudeBackend: "tui"`). Spawns an interactive Claude session
 under tmux and tails the session's JSONL file for events. Supports
@@ -81,11 +82,11 @@ rewritten.
 ## PI
 
 PI provides the same Cortex capabilities through adapter extensions.
-`mcp-bridge.ts` connects PI to the built-in and plugin MCP servers and loads
-`cortex-interaction-bridge` for user-initiated direct sessions. Claude TUI, Claude
-print, and PI therefore expose the same `cortex_ask_user`,
-`cortex_plan_enter`, and `cortex_plan_exit` tools with the same blocking
-webhook handlers. `tool-shims.ts` supplies the remaining PI-local Agent,
+`mcp-bridge.ts` connects PI to one composition-scoped Cortex MCP process and to
+independent assigned plugin MCP servers. User-initiated direct sessions include
+the interaction registrations in that Cortex process. Claude TUI, Claude print,
+and PI therefore expose the same `cortex_ask_user`, `cortex_plan_enter`, and
+`cortex_plan_exit` tools with the same blocking webhook handlers. `tool-shims.ts` supplies the remaining PI-local Agent,
 TodoWrite, WebFetch, and WebSearch tools. `hook-bridge.ts` translates PI tool
 events to Cortex hook scripts, and PI's native `--skill` flag carries Cortex
 plugin skills.

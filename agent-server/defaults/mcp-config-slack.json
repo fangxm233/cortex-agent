@@ -1,9 +1,10 @@
 {
   "mcpServers": {
-    "cortex-slack": {
+    "cortex-core": {
       "command": "node",
       "args": [
-        "/path/to/slack-server.js"
+        "/path/to/bundled-server.js",
+        "[\"cortex-slack\"]"
       ],
       "cwd": "/path/to/server"
     }

@@ -1,9 +1,11 @@
 Please update me when files in this folder change
 
-Gated MCP stdio servers expose Cortex tools by privilege and platform.
+One bundled stdio server exposes session-scoped Cortex tools.
+Standalone entries preserve scoped compatibility surfaces.
 
 | filename | role | function |
 |---|---|---|
+| bundled-server.ts | entry | Serves selected Cortex tool bundles |
 | core-server.ts | entry | Serves remote execution and time tools |
 | feishu-server.ts | entry | Serves Feishu file tools |
 | manager-qa-server.ts | entry | Serves subtask answer tools |

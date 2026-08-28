@@ -1,13 +1,17 @@
-// input:  Filesystem, config paths, server root, MCP gates
-// output: Full, interaction, platform and gated MCP configs
-// pos:    Generates declared MCP compositions
+// input:  Filesystem, config paths, MCP bundles and gates
+// output: Scoped configs and collapsed per-process MCP compositions
+// pos:    Generates and materializes MCP configurations
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import * as path from 'path';
 import { SERVER_ROOT, CONFIG_DIR } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
+import {
+  BUNDLED_MCP_SERVER_NAME, encodeMcpBundles, MCP_BUNDLES_ENV,
+  parseMcpBundles, type McpBundleName,
+} from './mcp-bundles.js';
 import {
   canonicalizeMcpToolAllowlist, MCP_TOOL_ALLOWLIST_ENV, MCP_TOOLS_BY_SERVER,
   validateMcpToolAllowlist,
@@ -31,12 +35,18 @@ const WEB_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-web.json');
  * Claude Code 2.1.123: the `cwd` field in MCP config is NOT inherited by the
  * spawned process, so relative paths silently fail ("status":"failed").
  */
-function serverEntry(script: string, serverRoot: string) {
+function serverEntry(script: string, serverRoot: string, env?: Record<string, string>) {
   return {
     command: 'node',
     args: [path.join(serverRoot, script)],
     cwd: serverRoot,
+    ...(env ? { env } : {}),
   };
+}
+
+function bundledServerEntry(bundles: readonly McpBundleName[], serverRoot: string) {
+  const entry = serverEntry('dist/domain/mcp/bundled-server.js', serverRoot);
+  return { ...entry, args: [...entry.args, encodeMcpBundles(bundles)] };
 }
 
 interface McpServerEntry {
@@ -52,61 +62,115 @@ function readMcpConfig(configPath: string): McpConfigDocument {
   return JSON.parse(readFileSync(configPath, 'utf8')) as McpConfigDocument;
 }
 
+function entryBundles(entry: McpServerEntry): McpBundleName[] | null {
+  const envSelection = entry.env?.[MCP_BUNDLES_ENV];
+  if (envSelection !== undefined) return parseMcpBundles(envSelection);
+  const args = Array.isArray(entry.args) ? entry.args : [];
+  const executable = typeof args[0] === 'string' ? args[0].replaceAll('\\', '/') : '';
+  const isBundled = path.basename(executable) === 'bundled-server.js';
+  return isBundled && typeof args[1] === 'string' ? parseMcpBundles(args[1]) : null;
+}
+
 function knownToolsIn(configs: readonly McpConfigDocument[]): Set<string> {
   const known = new Set<string>();
   for (const config of configs) {
-    for (const serverName of Object.keys(config.mcpServers)) {
-      for (const tool of MCP_TOOLS_BY_SERVER[serverName] ?? []) known.add(tool);
+    for (const [serverName, entry] of Object.entries(config.mcpServers)) {
+      const logicalServers = entryBundles(entry) ?? [serverName];
+      for (const logicalName of logicalServers) {
+        for (const tool of MCP_TOOLS_BY_SERVER[logicalName] ?? []) known.add(tool);
+      }
     }
   }
   return known;
 }
 
-function applyToolAllowlist(config: McpConfigDocument, encoded: string): McpConfigDocument {
-  const mcpServers = Object.fromEntries(Object.entries(config.mcpServers).map(([name, entry]) => [
-    name,
-    MCP_TOOLS_BY_SERVER[name]
-      ? { ...entry, env: { ...(entry.env ?? {}), [MCP_TOOL_ALLOWLIST_ENV]: encoded } }
-      : entry,
-  ]));
-  return { ...config, mcpServers };
+interface CollectedMcpEntries {
+  external: Record<string, McpServerEntry>;
+  bundles: McpBundleName[];
+  template: McpServerEntry | null;
 }
 
-function gatedConfigPath(
-  outputDir: string, sourcePath: string, document: McpConfigDocument, encoded: string,
+function collectMcpEntries(documents: readonly McpConfigDocument[]): CollectedMcpEntries {
+  const collected: CollectedMcpEntries = { external: {}, bundles: [], template: null };
+  for (const document of documents) {
+    for (const [name, entry] of Object.entries(document.mcpServers)) {
+      const selected = entryBundles(entry);
+      if (selected === null) {
+        collected.external[name] = entry;
+        continue;
+      }
+      collected.template ??= entry;
+      collected.bundles.push(...selected);
+    }
+  }
+  return collected;
+}
+
+function mergedMcpConfig(
+  documents: readonly McpConfigDocument[], encodedAllowlist: string | undefined,
+  selectedBundles?: readonly McpBundleName[],
+): McpConfigDocument {
+  const { external, bundles: declaredBundles, template } = collectMcpEntries(documents);
+  const bundles = selectedBundles ?? declaredBundles;
+  if (!template) return { mcpServers: external };
+  if (external[BUNDLED_MCP_SERVER_NAME]) {
+    throw new Error(`User MCP server name conflicts with reserved ${BUNDLED_MCP_SERVER_NAME}`);
+  }
+  const args = Array.isArray(template.args) ? [...template.args] : [];
+  args[1] = encodeMcpBundles(bundles);
+  const env = {
+    ...(template.env ?? {}),
+    ...(encodedAllowlist ? { [MCP_TOOL_ALLOWLIST_ENV]: encodedAllowlist } : {}),
+  };
+  return {
+    mcpServers: {
+      [BUNDLED_MCP_SERVER_NAME]: { ...template, args, env },
+      ...external,
+    },
+  };
+}
+
+function materializedConfigPath(
+  outputDir: string, configPaths: readonly string[], documents: readonly McpConfigDocument[],
+  encodedAllowlist: string | undefined, selectedBundles: readonly McpBundleName[] | undefined,
 ): string {
   const digest = createHash('sha256')
-    .update(JSON.stringify({ sourcePath, document, encoded }))
+    .update(JSON.stringify({ configPaths, documents, encodedAllowlist, selectedBundles }))
     .digest('hex').slice(0, 16);
-  return path.join(outputDir, `${path.basename(sourcePath, '.json')}-${digest}.json`);
+  return path.join(outputDir, `mcp-composition-${digest}.json`);
 }
 
 export function materializeMcpToolAllowlistConfigs(
   configPaths: readonly string[], allowlist: readonly string[] | undefined,
   outputDir = path.join(CONFIG_DIR, 'mcp-tool-gates'),
+  selectedBundles?: readonly McpBundleName[],
 ): string[] {
   if (allowlist === undefined) return [...configPaths];
   const documents = configPaths.map(readMcpConfig);
   const canonical = canonicalizeMcpToolAllowlist(allowlist);
-  validateMcpToolAllowlist(canonical, knownToolsIn(documents));
+  const selectedTools = selectedBundles
+    ? new Set(selectedBundles.flatMap(bundle => MCP_TOOLS_BY_SERVER[bundle] ?? []))
+    : knownToolsIn(documents);
+  validateMcpToolAllowlist(canonical, selectedTools);
   const encoded = JSON.stringify(canonical);
-  mkdirSync(outputDir, { recursive: true });
-  return documents.map((document, index) => {
-    const gated = applyToolAllowlist(document, encoded);
-    const target = gatedConfigPath(outputDir, configPaths[index], document, encoded);
-    writeFileSync(target, JSON.stringify(gated, null, 2));
-    return target;
-  });
+  const materialized = mergedMcpConfig(documents, encoded, selectedBundles);
+  mkdirSync(outputDir, { recursive: true, mode: 0o700 });
+  chmodSync(outputDir, 0o700);
+  const target = materializedConfigPath(
+    outputDir, configPaths, documents, encoded, selectedBundles,
+  );
+  writeFileSync(target, JSON.stringify(materialized, null, 2), { mode: 0o600 });
+  chmodSync(target, 0o600);
+  return [target];
 }
 
 /** Direct-session config: always-on tools plus direct-only Cortex management. */
 export function buildFullConfig(serverRoot: string): object {
   return {
     mcpServers: {
-      'cortex-core': serverEntry('dist/domain/mcp/core-server.js', serverRoot),
-      'cortex-tasks': serverEntry('dist/domain/mcp/tasks-server.js', serverRoot),
-      'cortex-manager-qa': serverEntry('dist/domain/mcp/manager-qa-server.js', serverRoot),
-      'cortex-ext': serverEntry('dist/domain/mcp/server.js', serverRoot),
+      'cortex-core': bundledServerEntry([
+        'cortex-core', 'cortex-tasks', 'cortex-manager-qa', 'cortex-ext',
+      ], serverRoot),
     },
   };
 }
@@ -115,7 +179,7 @@ export function buildFullConfig(serverRoot: string): object {
 export function buildCoreConfig(serverRoot: string): object {
   return {
     mcpServers: {
-      'cortex-core': serverEntry('dist/domain/mcp/core-server.js', serverRoot),
+      'cortex-core': bundledServerEntry(['cortex-core'], serverRoot),
     },
   };
 }
@@ -124,7 +188,7 @@ export function buildCoreConfig(serverRoot: string): object {
 export function buildTasksConfig(serverRoot: string): object {
   return {
     mcpServers: {
-      'cortex-tasks': serverEntry('dist/domain/mcp/tasks-server.js', serverRoot),
+      'cortex-tasks': bundledServerEntry(['cortex-tasks'], serverRoot),
     },
   };
 }
@@ -133,16 +197,18 @@ export function buildTasksConfig(serverRoot: string): object {
 export function buildManagerQaConfig(serverRoot: string): object {
   return {
     mcpServers: {
-      'cortex-manager-qa': serverEntry('dist/domain/mcp/manager-qa-server.js', serverRoot),
+      'cortex-manager-qa': bundledServerEntry(['cortex-manager-qa'], serverRoot),
     },
   };
 }
 
-/** Thread lifecycle control, loaded only for thread sessions. */
+/** Complete built-in surface for thread/template sessions. */
 export function buildThreadConfig(serverRoot: string): object {
   return {
     mcpServers: {
-      'cortex-thread': serverEntry('dist/domain/mcp/thread-server.js', serverRoot),
+      'cortex-core': bundledServerEntry([
+        'cortex-core', 'cortex-tasks', 'cortex-manager-qa', 'cortex-thread',
+      ], serverRoot),
     },
   };
 }
@@ -156,43 +222,34 @@ export function buildEmptyConfig(): object {
 export function buildInteractionConfig(serverRoot: string): object {
   return {
     mcpServers: {
-      'cortex-interaction-bridge': serverEntry('dist/domain/mcp/interaction-server.js', serverRoot),
+      'cortex-interaction-bridge': bundledServerEntry(['cortex-interaction-bridge'], serverRoot),
     },
   };
 }
 
-/** Slack MCP config — layered ON TOP of the full config (via the variadic `--mcp-config`) only for
- *  sessions that originate from Slack (channel carries the `slack:` prefix). Isolated to the single
- *  cortex-slack server so it can be added/removed independently of the base config; the Claude adapter
- *  and the PI mcp-bridge each decide whether to load it based on the session's source channel. */
+/** Explicit Slack-only composition; normal sessions select this bundle through process env. */
 export function buildSlackConfig(serverRoot: string): object {
   return {
     mcpServers: {
-      'cortex-slack': serverEntry('dist/domain/mcp/slack-server.js', serverRoot),
+      'cortex-slack': bundledServerEntry(['cortex-slack'], serverRoot),
     },
   };
 }
 
-/** Feishu MCP config — layered ON TOP of the full config (via the variadic `--mcp-config`) only for
- *  sessions that originate from Feishu (channel carries the `feishu:` prefix). Isolated to the single
- *  cortex-feishu server so it can be added/removed independently of the base config; the Claude adapter
- *  and the PI mcp-bridge each decide whether to load it based on the session's source channel. */
+/** Explicit Feishu-only composition; normal sessions select this bundle through process env. */
 export function buildFeishuConfig(serverRoot: string): object {
   return {
     mcpServers: {
-      'cortex-feishu': serverEntry('dist/domain/mcp/feishu-server.js', serverRoot),
+      'cortex-feishu': bundledServerEntry(['cortex-feishu'], serverRoot),
     },
   };
 }
 
-/** Web MCP config — layered ON TOP of the full config (via the variadic `--mcp-config`) only for
- *  sessions that originate from the Web UI (channel carries the `web:` prefix). Isolated to the single
- *  cortex-web server (send_file tool) so it can be added/removed independently of the base config; the
- *  Claude adapter decides whether to load it based on the session's source channel. */
+/** Explicit Web-only composition; normal sessions select this bundle through process env. */
 export function buildWebConfig(serverRoot: string): object {
   return {
     mcpServers: {
-      'cortex-web': serverEntry('dist/domain/mcp/web-server.js', serverRoot),
+      'cortex-web': bundledServerEntry(['cortex-web'], serverRoot),
     },
   };
 }

@@ -12,9 +12,6 @@
     "--permission-mode",
     "bypassPermissions",
     "--mcp-config",
-    "<CORTEX_HOME>/config/mcp-config-core.json",
-    "<CORTEX_HOME>/config/mcp-config-tasks.json",
-    "<CORTEX_HOME>/config/mcp-config-manager-qa.json",
     "<CORTEX_HOME>/config/mcp-config-thread.json",
     "--tools",
     "Agent,AskUserQuestion,Bash,Edit,EnterPlanMode,ExitPlanMode,Glob,Grep,Read,Skill,TaskStop,TodoWrite,WebFetch,WebSearch,Write",
@@ -34,6 +31,7 @@
     "CLAUDE_CODE_IDE_SKIP_AUTO_INSTALL": "1",
     "CORTEX_EXECUTION_ID": "exec-thread",
     "CORTEX_HOME": "/fixture/cortex-home",
+    "CORTEX_MCP_BUNDLES": "[\"cortex-core\",\"cortex-tasks\",\"cortex-manager-qa\",\"cortex-thread\"]",
     "CORTEX_PROFILE": "fixture-profile",
     "CORTEX_SESSION_ID": "tracked-thread",
     "CORTEX_SESSION_NAME": "cortex-fixture",
@@ -45,6 +43,7 @@
     "FEISHU_CHANNEL": "thread-fixture",
     "HOME": "/fixture/home",
     "LANG": "C",
+    "MCP_TOOL_TIMEOUT": "1830000",
     "PATH": "/usr/bin:/bin",
     "SLACK_CHANNEL": "thread-fixture"
   }

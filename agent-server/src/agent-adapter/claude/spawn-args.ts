@@ -5,24 +5,18 @@
 
 import { createHash } from 'crypto';
 import {
-  CORE_MCP_CONFIG,
   DEFAULT_TOOLS,
   EMPTY_MCP_CONFIG,
-  FEISHU_MCP_CONFIG,
-  MANAGER_QA_MCP_CONFIG,
   MCP_CONFIG,
-  SLACK_MCP_CONFIG,
-  TASKS_MCP_CONFIG,
   THREAD_MCP_CONFIG,
   INTERACTION_BRIDGE_TOOLS,
-  INTERACTION_MCP_CONFIG,
   TUI_STRIP_TOOLS,
   TUI_TOOLS,
-  WEB_MCP_CONFIG,
 } from './defaults.js';
 import { getSettings } from '@core/settings.js';
 import { materializeMcpToolAllowlistConfigs } from '@core/config-generator.js';
 import { MCP_INFRASTRUCTURE_TIMEOUT_MS } from '@core/mcp-timeout.js';
+import type { McpBundleName } from '@core/mcp-bundles.js';
 import type { McpComposition } from '../types.js';
 import { buildHooksSettings } from './hooks-builder.js';
 
@@ -54,15 +48,11 @@ export interface ClaudeSpawnOptions {
   disableHooks?: boolean;
   /** Explicit partial-message policy; absent reads the daemon setting. */
   streamDeltas?: boolean;
-  /** Layer the cortex-slack MCP server on top of the base config. Set by the adapter for sessions
-   *  that originate from Slack (channel carries the `slack:` prefix). Direct composition only. */
+  /** Select Slack tools in the bundled server for Slack-originated direct sessions. */
   loadSlackMcp?: boolean;
-  /** Layer the cortex-feishu MCP server on top of the base config. Set by the adapter for sessions
-   *  that originate from Feishu (channel carries the `feishu:` prefix). Direct composition only. */
+  /** Select Feishu tools in the bundled server for Feishu-originated direct sessions. */
   loadFeishuMcp?: boolean;
-  /** Layer the cortex-web MCP server on top of the base config. Set by the adapter for sessions that
-   *  originate from the Web UI (channel carries the `web:` prefix), enabling the send_file tool.
-   *  Direct composition only. */
+  /** Select Web tools in the bundled server for Web-originated direct sessions. */
   loadWebMcp?: boolean;
   /** Path to a Playwright MCP config for a browser-enabled session. Absent → the session gets zero
    *  browser tools, which is the default and the reason this is opt-in at all. */
@@ -88,18 +78,13 @@ export function isStreamDeltasEnabled(): boolean {
 
 const MCP_CONFIGS: Record<McpComposition, readonly string[]> = {
   direct: [MCP_CONFIG],
-  'thread-control': [CORE_MCP_CONFIG, TASKS_MCP_CONFIG, MANAGER_QA_MCP_CONFIG, THREAD_MCP_CONFIG],
+  'thread-control': [THREAD_MCP_CONFIG],
   none: [EMPTY_MCP_CONFIG],
 };
 
-function appendDirectMcpConfigs(
-  configs: string[],
-  options: ClaudeSpawnOptions,
-  isDirect: boolean,
+function appendBrowserMcpConfig(
+  configs: string[], options: ClaudeSpawnOptions, isDirect: boolean,
 ): void {
-  if (options.loadSlackMcp && isDirect) configs.push(SLACK_MCP_CONFIG);
-  if (options.loadFeishuMcp && isDirect) configs.push(FEISHU_MCP_CONFIG);
-  if (options.loadWebMcp && isDirect) configs.push(WEB_MCP_CONFIG);
   if (options.browserMcpConfigPath && isDirect) configs.push(options.browserMcpConfigPath);
 }
 
@@ -115,10 +100,10 @@ function resolveMcpConfigs(
     && (composition === 'direct' || composition === 'thread-control')) {
     configs.push(options.supplementalMcpConfigPath);
   }
-  if (wantsInteractionBridge) configs.push(INTERACTION_MCP_CONFIG);
-  appendDirectMcpConfigs(configs, options, composition === 'direct');
+  appendBrowserMcpConfig(configs, options, composition === 'direct');
   return materializeMcpToolAllowlistConfigs(
-    configs, options.mcpToolAllowlist ?? undefined,
+    configs, options.mcpToolAllowlist ?? undefined, undefined,
+    resolveClaudeMcpBundles(options),
   );
 }
 
@@ -136,6 +121,25 @@ function printModeArgs(options: ClaudeSpawnOptions, mode: ClaudeSpawnMode): stri
     args.push('--include-partial-messages');
   }
   return args;
+}
+
+export function resolveClaudeMcpBundles(options: ClaudeSpawnOptions): McpBundleName[] {
+  const composition = options.mcpComposition ?? 'direct';
+  if (composition === 'none') return [];
+  if (composition === 'thread-control') {
+    return ['cortex-core', 'cortex-tasks', 'cortex-manager-qa', 'cortex-thread'];
+  }
+  const bundles: McpBundleName[] = [
+    'cortex-core', 'cortex-tasks', 'cortex-manager-qa', 'cortex-ext',
+  ];
+  const mode = options.mode ?? 'print';
+  if (mode === 'tui' || (mode === 'print' && !!options.isUserInitiated)) {
+    bundles.push('cortex-interaction-bridge');
+  }
+  if (options.loadSlackMcp) bundles.push('cortex-slack');
+  if (options.loadFeishuMcp) bundles.push('cortex-feishu');
+  if (options.loadWebMcp) bundles.push('cortex-web');
+  return bundles;
 }
 
 function replaceInteractionTools(tools: string, includeBridge: boolean): string {

@@ -1,5 +1,5 @@
-// input:  compiled MCP entries, tool gates, stdio client, QA webhook
-// output: gated privilege surfaces, refusals and answerer identity
+// input:  MCP entries, bundles, gates and QA webhook
+// output: bundled surfaces, refusals and answerer identity tests
 // pos:    Built MCP server integration tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -11,7 +11,9 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { MCP_TOOL_ALLOWLIST_ENV } from '../../../src/core/mcp-tool-gate.js';
+import { encodeMcpBundles, MCP_BUNDLES_ENV, type McpBundleName } from '../../../src/core/mcp-bundles.js';
+import { MCP_TOOL_ALLOWLIST_ENV, MCP_TOOLS_BY_SERVER } from '../../../src/core/mcp-tool-gate.js';
+import { loadBundleRegistrars, type Registrar } from '../../../src/domain/mcp/bundled-server.js';
 
 const TESTS_DIR = dirname(fileURLToPath(import.meta.url));
 const MCP_DIST_DIR = resolve(TESTS_DIR, '../../../dist/domain/mcp');
@@ -50,6 +52,10 @@ async function toolNames(client: Client): Promise<string[]> {
   return tools.map((tool) => tool.name).sort();
 }
 
+function expectedBundleTools(bundles: readonly McpBundleName[]): string[] {
+  return bundles.flatMap(bundle => MCP_TOOLS_BY_SERVER[bundle] ?? []).sort();
+}
+
 async function withQaWebhook(
   run: (port: number, received: Record<string, unknown>[]) => Promise<void>,
 ): Promise<void> {
@@ -85,6 +91,49 @@ test('built cortex-core exposes remote operations and current_time only', async 
     const result = await client.callTool({ name: 'current_time', arguments: { timezone: 'UTC' } });
     assert.equal(result.isError ?? false, false);
     assert.equal(JSON.parse((result.content as any[])[0].text).timezone, 'UTC');
+  });
+});
+
+test('bundle load and registration failures do not remove healthy registrations', async () => {
+  const registered: string[] = [];
+  const failures: string[] = [];
+  const healthy: Registrar = () => { registered.push('core'); };
+  const broken: Registrar = () => { throw new Error('registration failed'); };
+  const loaded = await loadBundleRegistrars(
+    ['cortex-core', 'cortex-web', 'cortex-slack'],
+    async bundle => {
+      if (bundle === 'cortex-web') throw new Error('optional dependency missing');
+      return bundle === 'cortex-slack' ? broken : healthy;
+    },
+    (bundle, error) => failures.push(`${bundle}:${(error as Error).message}`),
+  );
+  loaded.forEach(register => register({} as any));
+  assert.deepEqual(registered, ['core']);
+  assert.deepEqual(failures, [
+    'cortex-web:optional dependency missing',
+    'cortex-slack:registration failed',
+  ]);
+});
+
+test('bundled server exposes one exact direct Web composition', async () => {
+  const bundles: McpBundleName[] = [
+    'cortex-core', 'cortex-tasks', 'cortex-manager-qa', 'cortex-ext',
+    'cortex-interaction-bridge', 'cortex-web',
+  ];
+  await withServer('bundled-server.js', async (client) => {
+    assert.deepEqual(await toolNames(client), expectedBundleTools(bundles));
+  }, { [MCP_BUNDLES_ENV]: encodeMcpBundles(bundles) });
+});
+
+test('bundled server applies one allowlist across logical surfaces', async () => {
+  const bundles: McpBundleName[] = [
+    'cortex-core', 'cortex-tasks', 'cortex-manager-qa', 'cortex-thread',
+  ];
+  await withServer('bundled-server.js', async (client) => {
+    assert.deepEqual(await toolNames(client), ['task_status', 'thread_wait']);
+  }, {
+    [MCP_BUNDLES_ENV]: encodeMcpBundles(bundles),
+    [MCP_TOOL_ALLOWLIST_ENV]: JSON.stringify(['task_status', 'thread_wait']),
   });
 });
 

@@ -1,5 +1,5 @@
 // input:  Cwd, composition, tool gates, prompts, TUI deps
-// output: Interactive Claude session with frozen tool surface
+// output: Interactive Claude session with bundled tool surface
 // pos:    Runs Claude TUI sessions under tmux
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -27,8 +27,10 @@ import {
   PANE_READY_MARKER,
 } from './defaults.js';
 import {
-  buildSpawnArgs, buildClaudeEnv, claudeRouteIdentity, type CortexAgentContext,
+  buildSpawnArgs, buildClaudeEnv, claudeRouteIdentity, resolveClaudeMcpBundles,
+  type ClaudeSpawnOptions, type CortexAgentContext,
 } from './spawn-args.js';
+import { encodeMcpBundles, MCP_BUNDLES_ENV } from '@core/mcp-bundles.js';
 import { validateClaudeSupplementalMcpConfig } from './mcp-config.js';
 import { buildPrompt, mergeSubstantialOutput } from './event-parser.js';
 import { SUBAGENT_SPAWN_TOOLS, type NormalizedEvent } from '../normalize/event-types.js';
@@ -272,8 +274,8 @@ export class ClaudeTuiSession {
     }
   }
 
-  private tuiSpawnArgs(): string[] {
-    return buildSpawnArgs({
+  private tuiSpawnOptions(): ClaudeSpawnOptions {
+    return {
       tools: this.config.tools ?? null,
       systemPrompt: this.config.systemPrompt ?? null,
       appendSystemPrompt: this.config.appendSystemPrompt ?? null,
@@ -292,7 +294,15 @@ export class ClaudeTuiSession {
       needsResume: this.needsResume,
       sessionId: this.sessionId,
       mode: 'tui',
-    });
+      isUserInitiated: true,
+      loadSlackMcp: this.channel.startsWith('slack:'),
+      loadFeishuMcp: this.channel.startsWith('feishu:'),
+      loadWebMcp: this.channel.startsWith('web:'),
+    };
+  }
+
+  private tuiSpawnArgs(): string[] {
+    return buildSpawnArgs(this.tuiSpawnOptions());
   }
 
   private tuiSpawnEnv(): Record<string, string> {
@@ -307,6 +317,7 @@ export class ClaudeTuiSession {
       undefined, // pinnedEnv: the TUI path does not carry a pinned trial environment
       this.config.unsetEnv,
     );
+    env[MCP_BUNDLES_ENV] = encodeMcpBundles(resolveClaudeMcpBundles(this.tuiSpawnOptions()));
     // Mark TUI mode for downstream MCP server self-detection.
     env.CORTEX_TUI_MODE = '1';
     // Filter env to string-only entries (tmux -e requires KEY=VAL strings).

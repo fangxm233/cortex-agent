@@ -69,7 +69,7 @@ function summarizeUsage(entries: PerMessageUsage[]) {
  * facade.onAskUserQuestion + lifecycle.sendMessages).
  *
  * Only the NATIVE `AskUserQuestion` belongs here. The TUI-mode MCP replacement
- * `mcp__cortex-interaction-bridge__cortex_ask_user` is deliberately EXCLUDED: it is self-contained — it
+ * `mcp__cortex-core__cortex_ask_user` is deliberately EXCLUDED: it is self-contained — it
  * posts the Slack card, blocks, and returns the answer inline through its own webhook
  * (tui-ask.ts:82 → /hook/ask-user-question → ask-user.requested → hook-bridge-subscribers). The
  * jsonl normalizer is a passive transcript observer; synthesizing an actionable event for an
@@ -85,7 +85,7 @@ const ASK_USER_TOOL_NAMES = new Set([
 /** Tool names that signal "enter plan mode" semantics (native + TUI-mode MCP replacement). */
 const PLAN_ENTER_TOOL_NAMES = new Set([
   'EnterPlanMode',
-  'mcp__cortex-interaction-bridge__cortex_plan_enter',
+  'mcp__cortex-core__cortex_plan_enter',
 ]);
 
 /**

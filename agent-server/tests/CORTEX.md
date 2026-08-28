@@ -11,14 +11,14 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | _test-home.ts | setup | isolates the data home per test process |
 | _vitest-setup.ts | setup | isolates the data home per test file |
 | agent-adapter/ | subdir | backend adapters, usage pull and event normalization |
-| agent-adapter-claude.test.ts | test | Claude env, interactions, pools, hooks and proxy |
+| agent-adapter-claude.test.ts | test | Claude bundles, interactions, pools and proxy |
 | agent-adapter-pi-agent-dir.test.ts | test | PI provider config and auth dir setup |
 | agent-adapter-pi-custom-catalog.test.ts | test | provider definitions and frozen caps reaching spawn catalogs |
 | agent-adapter-pi-event-parser.test.ts | test | PI tool, dialog, lifecycle and usage events |
 | agent-adapter-pi-hook-bridge.test.ts | test | PI hook lifecycle and CORTEX injection |
 | agent-adapter-pi-hook-registry.test.ts | test | PI hook contracts and task guards |
 | agent-adapter-pi-mcp-config.test.ts | test | PI MCP config privacy and reloads |
-| agent-adapter-pi-mcp-bridge.test.ts | test | PI MCP concurrency, gates, errors and isolation |
+| agent-adapter-pi-mcp-bridge.test.ts | test | PI bundled MCP, plugin isolation and retry |
 | agent-adapter-pi-quota-probe.test.ts | test | PI quota labels, persistence, and throttle failure parity |
 | agent-adapter-pi-streaming.test.ts | test | PI delta streaming with settings reset |
 | agent-adapter-pi-subagent.test.ts | test | PI schema, chain prompts, isolation and usage |
@@ -81,9 +81,9 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | hook-bus.test.ts | test | HookBus ordering, timeout and diagnostics |
 | hook-callers.test.ts | test | Session timeout, diagnostics and injection |
 | hook-exec.test.ts | test | Hook subprocess output, status and stdin |
-| init.test.ts | test | cortex init path, env and MCP config generation |
+| init.test.ts | test | init paths, env and bundled MCP generation |
 | integration-init-answers.test.ts | e2e | init answers, local UI and usage preservation |
-| integration-init-startup.test.ts | e2e | init and server lifecycle hook behavior |
+| integration-init-startup.test.ts | e2e | init, MCP configs and lifecycle hooks |
 | integration-settings-hotreload.test.ts | e2e | Settings migration and live reload behavior |
 | interaction-handlers.test.ts | test | modal submit publishes answered event |
 | lang-command.test.ts | test | language switch command and persistence |
@@ -130,9 +130,9 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | slack-adapter-throttle.test.ts | test | Slack update throttle and 429 retry |
 | slack-message.test.ts | test | substantial output merge logic |
 | slack-output-stream.test.ts | test | Slack output stream emit, flush and tail |
-| spawn-seam-direct.golden.json | golden | pins ordinary direct argv and environment |
-| spawn-seam-thread.golden.json | golden | pins ordinary thread argv and environment |
-| spawn-seam.test.ts | test | Proves context, accounting, tool gates, policy and spawn seams |
+| spawn-seam-direct.golden.json | golden | pins direct argv and bundled MCP environment |
+| spawn-seam-thread.golden.json | golden | pins thread argv and bundled MCP environment |
+| spawn-seam.test.ts | test | Proves context, MCP bundles, policy and spawn seams |
 | status-helpers.test.ts | test | status sealing and reset-isolated buttons |
 | status-md-guard.test.ts | test | STATUS.md size-guard allow/deny/warn hook |
 | store/ | subdir | JSON repository and store concurrency tests |
