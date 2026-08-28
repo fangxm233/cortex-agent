@@ -1,8 +1,9 @@
-// input:  ScheduleRow, schedule ordinals, i18n vocab, and shared USD formatting
-// output: 30b run-list modal (RUN · FIRED · COST)
+// input:  controlled bare Modal, ScheduleRow, ordinals, i18n, and shared USD formatting
+// output: Accessible 30b run-list modal (RUN · FIRED · COST)
 // pos:    Repeating schedule's run history → open a run in chat
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-import { useEffect } from 'react';
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
+import { Modal } from '@/design/Modal';
 import { useVocab } from '@/i18n';
 import { runOrdinals, type ScheduleRow } from './schedule-rail';
 import { cadenceLabel, nextRunDelta } from './scheduled-chat';
@@ -37,14 +38,6 @@ export function RunListModal({
   onClose: () => void;
 }): JSX.Element {
   const L = useVocab();
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
   const now = Date.now();
   const ordinals = runOrdinals(row.runs);
   const sched = row.schedule;
@@ -55,30 +48,33 @@ export function RunListModal({
     : null;
 
   return (
-    <>
-      <div
-        data-backdrop="run-list"
-        onClick={onClose}
-        style={{ position: 'fixed', inset: 0, background: 'var(--overlay-scrim)', zIndex: 60, animation: 'cxfade .18s ease' }}
-      />
-      <div
-        data-modal="run-list"
-        style={{
-          position: 'fixed',
-          left: '50%',
-          top: '50%',
-          transform: 'translate(-50%,-50%)',
-          width: 400,
-          maxWidth: 'calc(100vw - 40px)',
-          background: 'var(--proto-card)',
-          borderRadius: 14,
-          boxShadow: 'var(--shadow-overlay-strong)',
-          zIndex: 61,
-          display: 'flex',
-          flexDirection: 'column',
-          maxHeight: 'min(560px, calc(100vh - 80px))',
-        }}
-      >
+    <Modal
+      chrome="bare"
+      size="custom"
+      open={true}
+      showClose={false}
+      title={row.title}
+      description={sub ?? L.wbSchedRunListHint}
+      onOpenChange={(open) => { if (!open) onClose(); }}
+      contentDataAttributes={{ 'data-modal': 'run-list' }}
+      overlayDataAttributes={{ 'data-backdrop': 'run-list' }}
+      bodyStyle={{ display: 'contents' }}
+      contentStyle={{
+        position: 'fixed',
+        left: '50%',
+        top: '50%',
+        transform: 'translate(-50%,-50%)',
+        width: 400,
+        maxWidth: 'calc(100vw - 40px)',
+        background: 'var(--proto-card)',
+        borderRadius: 14,
+        boxShadow: 'var(--shadow-overlay-strong)',
+        zIndex: 61,
+        display: 'flex',
+        flexDirection: 'column',
+        maxHeight: 'min(560px, calc(100vh - 80px))',
+      }}
+    >
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '15px 18px 12px', borderBottom: '1px solid var(--proto-line)', flex: 'none' }}>
           <svg width={13} height={13} viewBox="0 0 14 14" fill="none" stroke="var(--proto-accent)" strokeWidth={1.6} style={{ flex: 'none' }}>
             <circle cx="7" cy="7" r="5.6" />
@@ -146,7 +142,6 @@ export function RunListModal({
           </span>
           <span style={{ marginLeft: 'auto', font: `400 9.5px ${mono}`, color: 'var(--proto-muted-3)' }}>{L.wbSchedRunListHint}</span>
         </div>
-      </div>
-    </>
+    </Modal>
   );
 }

@@ -17,12 +17,13 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | left-rail-projects.test.ts | test | Tests project activity ordering, ages and hotkeys |
 | project-menu.ts | vm | Counts per-project running and attention badges |
 | project-menu.test.ts | test | Unit tests for project menu counts |
-| NewProjectModal.tsx | view | Presents desktop creation through the shared projects controller |
+| NewProjectModal.tsx | view | Presents desktop creation in the shared accessible bare dialog through the projects controller |
 | session-groups.ts | vm | Day-groups sessions with meta and stamp helpers |
 | session-groups.test.ts | test | Unit tests for session day grouping |
 | schedule-rail.ts | vm | Builds SCHEDULED rows, shared-USD costs, run ordinals and real ScheduleInfo edit actions |
 | schedule-rail.test.ts | test | Tests SCHEDULED grouping, ordinals and DTO-carrying edit routing |
-| RunListModal.tsx | view | Run-list modal with canonical USD costs opening a run in the chat pane |
+| RunListModal.tsx | view | Accessible bare run-list dialog with canonical USD costs and schedule-manage handoff |
+| WorkbenchModals.test.tsx | test | Guards bare-shell dismissal, Enter, copy, run-open and manage behavior |
 | ProfileMenu.tsx | view | Lists compact profiles above or below its anchor |
 | profile-menu.ts | vm | Filters live profile options and switch gates |
 | profile-menu.test.ts | test | Tests live profile filtering and switch gates |
@@ -98,7 +99,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | useSessionMessageLiveSync.test.tsx | test | Tests message authority, compact child suppression and Todo isolation |
 | useSessionsLiveSync.test.tsx | test | Tests rail-wide session snapshot refresh |
 | useMarkSessionRead.ts | hook | Marks the visible session read |
-| SessionIdModal.tsx | view | Shows session identifiers with success-only shared copy feedback |
+| SessionIdModal.tsx | view | Shows session identifiers in an accessible bare dialog with success-only shared copy feedback |
 | session-id.ts | vm | Builds identifier rows with a dash fallback |
 | PaneToggle.tsx | view | Chevron button collapsing either side pane, mirrored per side |
 | RightPanel.tsx | view | Animates scoped work tabs or notes and adapts the shared machine roster count |

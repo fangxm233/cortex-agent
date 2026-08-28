@@ -1,8 +1,9 @@
-// input:  session identifiers, shared clipboard feedback, and localized labels
-// output: themed session identifier modal with copy actions
-// pos:    Desktop session metadata overlay
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-import { useEffect } from 'react';
+// input:  controlled bare Modal, session identifiers, clipboard feedback, and localized labels
+// output: Accessible themed session identifier modal with copy actions
+// pos:    Desktop session metadata overlay hosted by the shared dialog primitive
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
+import { Modal } from '@/design/Modal';
 import { useVocab } from '@/i18n';
 import { buildSessionIdRows } from './session-id';
 import { useClipboardFeedback } from '@/design/useClipboardFeedback';
@@ -34,46 +35,35 @@ export function SessionIdModal({
   });
   const { copiedKey, copy } = useClipboardFeedback<string>();
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
   const copyRow = (key: string, value: string): void => {
     if (value !== '—') void copy(value, key);
   };
 
   return (
-    <>
-      <div
-        onClick={onClose}
-        style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'var(--overlay-scrim)',
-          zIndex: 60,
-          animation: 'cxfade .18s ease',
-        }}
-      />
-      <div
-        data-modal="session-id"
-        style={{
-          position: 'fixed',
-          left: '50%',
-          top: '50%',
-          transform: 'translate(-50%,-50%)',
-          animation: 'cxmodal .26s cubic-bezier(.22,1,.36,1)',
-          width: 480,
-          background: 'var(--proto-card)',
-          borderRadius: 14,
-          boxShadow: 'var(--shadow-overlay-strong)',
-          zIndex: 61,
-          overflow: 'hidden',
-        }}
-      >
+    <Modal
+      chrome="bare"
+      size="custom"
+      open={true}
+      showClose={false}
+      title={L.wbSessionId}
+      description={L.wbBackendUuid}
+      onOpenChange={(open) => { if (!open) onClose(); }}
+      contentDataAttributes={{ 'data-modal': 'session-id' }}
+      bodyStyle={{ display: 'contents' }}
+      contentStyle={{
+        position: 'fixed',
+        left: '50%',
+        top: '50%',
+        transform: 'translate(-50%,-50%)',
+        animation: 'cxmodal .26s cubic-bezier(.22,1,.36,1)',
+        width: 480,
+        background: 'var(--proto-card)',
+        borderRadius: 14,
+        boxShadow: 'var(--shadow-overlay-strong)',
+        zIndex: 61,
+        overflow: 'hidden',
+      }}
+    >
         <div style={{ display: 'flex', alignItems: 'center', padding: '14px 20px 0' }}>
           <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--proto-ink)' }}>{L.wbSessionId}</span>
           <span
@@ -147,7 +137,6 @@ export function SessionIdModal({
             </div>
           ))}
         </div>
-      </div>
-    </>
+    </Modal>
   );
 }

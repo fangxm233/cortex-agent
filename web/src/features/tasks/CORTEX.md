@@ -8,7 +8,8 @@ Grouping, status, claim, dependency, completion and dispatch semantics are share
 | TasksPage.tsx | entry | Tasks route page wrapping the tasks panel |
 | TasksPanel.tsx | core | Complete six-group task list with modal links |
 | TaskRow.tsx | view | Renders task cards with one-line blocker details |
-| TaskModal.tsx | view | Adapts verification data into the desktop detail modal, fields and actions |
+| TaskModal.tsx | view | Adapts verification into an accessible full-bleed bare dialog with independent body scroll |
+| TaskModal.test.tsx | test | Characterizes full-bleed chrome, independent scrolling, split backgrounds and dismissal |
 | TaskModalProvider.tsx | provider | Opens project-scoped task details globally |
 | TaskModalProvider.test.ts | test | Tests modal selection state transitions |
 | task-detail-facts.ts | model | Normalizes status, claim, completion, dependency graph and newest-first verification facts |

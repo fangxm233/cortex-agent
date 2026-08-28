@@ -1,11 +1,11 @@
-// input:  task/list DTOs, verification query, canonical detail projections, and mutations
-// output: Desktop task detail overlay with copy, evidence, dependencies, and actions
-// pos:    Desktop task detail view and query adapter
+// input:  controlled bare Modal, task/list DTOs, verification query, projections, and mutations
+// output: Accessible desktop task detail with full-bleed shell, evidence, and actions
+// pos:    Desktop task detail view and query adapter hosted by the shared dialog primitive
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
+import { Modal } from '@/design/Modal';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
 import { buildTaskModalVm } from './task-modal-vm';
@@ -127,47 +127,34 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
     ? buildTaskVerificationVm(verification)
     : null;
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
   return (
-    <>
-      {/* backdrop (prototype L1292) */}
-      <div
-        onClick={onClose}
-        style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'var(--overlay-scrim)',
-          zIndex: 60,
-          animation: 'cxfade .18s ease',
-        }}
-      />
-      {/* shell (prototype L1464) */}
-      <div
-        data-task-modal-id={task.id}
-        style={{
-          position: 'fixed',
-          left: '50%',
-          top: '50%',
-          transform: 'translate(-50%,-50%)',
-          animation: 'cxmodal .26s cubic-bezier(.22,1,.36,1)',
-          width: 760,
-          maxHeight: '84vh',
-          background: 'var(--proto-alt)',
-          borderRadius: 14,
-          boxShadow: 'var(--shadow-overlay-strong)',
-          zIndex: 61,
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
+    <Modal
+      chrome="bare"
+      size="custom"
+      open={true}
+      showClose={false}
+      title={`${tm.id} · ${tm.title}`}
+      description={task.why ?? task.doneWhen ?? tm.title}
+      onOpenChange={(open) => { if (!open) onClose(); }}
+      contentDataAttributes={{ 'data-task-modal-id': task.id }}
+      bodyStyle={{ display: 'contents' }}
+      contentStyle={{
+        position: 'fixed',
+        left: '50%',
+        top: '50%',
+        transform: 'translate(-50%,-50%)',
+        animation: 'cxmodal .26s cubic-bezier(.22,1,.36,1)',
+        width: 760,
+        maxHeight: '84vh',
+        background: 'var(--proto-alt)',
+        borderRadius: 14,
+        boxShadow: 'var(--shadow-overlay-strong)',
+        zIndex: 61,
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
         {/* header (prototype L1465-1470) */}
         <div
           style={{
@@ -474,7 +461,6 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
             </div>
           </div>
         </div>
-      </div>
-    </>
+    </Modal>
   );
 }

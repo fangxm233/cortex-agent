@@ -25,7 +25,15 @@ export { Tooltip, TooltipProvider, type TooltipProps } from './Tooltip';
 export { EmptyState, type EmptyStateProps } from './EmptyState';
 export { DegradedState, type DegradedStateProps } from './DegradedState';
 export { DEGRADED_SEVERITIES, severityTone, type DegradedSeverity } from './degraded';
-export { Modal, ModalClose, type ModalProps } from './Modal';
+export {
+  Modal,
+  ModalClose,
+  type ModalChrome,
+  type ModalDataAttributes,
+  type ModalLayer,
+  type ModalProps,
+  type ModalSize,
+} from './Modal';
 export { Drawer, DrawerClose, type DrawerProps, type DrawerSide } from './Drawer';
 export { Popover, PopoverClose, type PopoverProps } from './Popover';
 export { Select, type SelectDensity, type SelectOption, type SelectProps, type SelectValue } from './Select';

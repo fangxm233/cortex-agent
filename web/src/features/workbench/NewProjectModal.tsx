@@ -1,9 +1,10 @@
-// input:  modal visibility, shared project-creation controller, and localized copy
-// output: desktop new-project creation modal
-// pos:    Workbench project-creation surface
+// input:  controlled bare Modal, shared project-creation controller, and localized copy
+// output: Accessible desktop new-project creation modal with prototype visuals
+// pos:    Workbench project-creation surface hosted by the shared dialog primitive
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
+import { Modal } from '@/design/Modal';
 import { useVocab } from '@/i18n';
 import { canCreateProject, NP_BREADCRUMB, NP_PLACEHOLDER } from '@/features/projects/new-project';
 import { useCreateProject } from '@/features/projects/useCreateProject';
@@ -32,47 +33,33 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
     void createProject(name);
   };
 
-  // Esc closes the modal (matches the esc chip / prototype closeModal).
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
   const creatable = canCreateProject(name);
 
   return (
-    <>
-      {/* backdrop (prototype L1291-1293) */}
-      <div
-        onClick={onClose}
-        style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'var(--overlay-scrim)',
-          zIndex: 60,
-          animation: 'cxfade .18s ease',
-        }}
-      />
-      {/* card (prototype L1409) */}
-      <div
-        data-modal="newproj"
-        style={{
-          position: 'fixed',
-          left: '50%',
-          top: '50%',
-          transform: 'translate(-50%,-50%)',
-          animation: 'cxmodal .26s cubic-bezier(.22,1,.36,1)',
-          width: 540,
-          background: 'var(--proto-card)',
-          borderRadius: 14,
-          boxShadow: 'var(--shadow-overlay-strong)',
-          zIndex: 61,
-          overflow: 'hidden',
-        }}
-      >
+    <Modal
+      chrome="bare"
+      size="custom"
+      open={true}
+      showClose={false}
+      title={L.newProject}
+      description={L.npHint}
+      onOpenChange={(open) => { if (!open) onClose(); }}
+      contentDataAttributes={{ 'data-modal': 'newproj' }}
+      bodyStyle={{ display: 'contents' }}
+      contentStyle={{
+        position: 'fixed',
+        left: '50%',
+        top: '50%',
+        transform: 'translate(-50%,-50%)',
+        animation: 'cxmodal .26s cubic-bezier(.22,1,.36,1)',
+        width: 540,
+        background: 'var(--proto-card)',
+        borderRadius: 14,
+        boxShadow: 'var(--shadow-overlay-strong)',
+        zIndex: 61,
+        overflow: 'hidden',
+      }}
+    >
         {/* header (L1410-1414) */}
         <div style={{ display: 'flex', alignItems: 'center', padding: '14px 20px 0' }}>
           <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--proto-ink)' }}>{L.newProject}</span>
@@ -187,7 +174,6 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
             {L.npCreate}
           </span>
         </div>
-      </div>
-    </>
+    </Modal>
   );
 }
