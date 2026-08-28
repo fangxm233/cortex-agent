@@ -172,7 +172,14 @@ function MDecisionCard({ d, actions }: { d: DecisionItem; actions?: DecisionActi
         {chip && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: chip.bg, color: chip.fg, flex: 'none', whiteSpace: 'nowrap' }}>{chip.label}</span>}
         <span style={{ fontSize: 11, color: MC.faint, flex: 'none' }}>›</span>
       </div>
-      {open && <MDecisionSheet d={d} actions={actions} onClose={() => setOpen(false)} />}
+      {open && (
+        // MBottomSheet lays itself out as `absolute; inset: 0`, so it needs a positioned host that
+        // spans the app frame — inline in the transcript it would otherwise size to the scroll
+        // content. MobileShell's transform makes `fixed` resolve against that frame.
+        <div style={{ position: 'fixed', inset: 0, zIndex: 30 }}>
+          <MDecisionSheet d={d} actions={actions} onClose={() => setOpen(false)} />
+        </div>
+      )}
     </>
   );
 }

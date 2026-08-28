@@ -8,6 +8,13 @@ import { act, create, type ReactTestInstance } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type { DecisionItem } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
+
+// The modal shell is the shared bare Modal (Radix portal); the test renderer cannot mount portals,
+// so it collapses to a plain wrapper here — same seam as WorkbenchModals.test.tsx.
+vi.mock('@/design/Modal', () => ({
+  Modal: ({ children }: { children?: unknown }) => <div data-shared-modal>{children as never}</div>,
+}));
+
 import { DecisionModal, type DecisionActions } from './DecisionCards';
 
 const T = '2026-08-27T08:00:00.000Z';

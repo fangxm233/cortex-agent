@@ -3,10 +3,11 @@
 // pos:    Transcript-inline presentation of agent-announced decisions
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { DecisionItem, DecisionActionKind } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
+import { Modal } from '@/design/Modal';
 import { useVocab } from '@/i18n';
 import type { Vocab } from '@/i18n';
 import { ChatMarkdown } from './ChatMarkdown';
@@ -82,7 +83,7 @@ function TextBtn({ onClick, accent, children }: { onClick: () => void; accent?: 
     <span
       role="button"
       onClick={onClick}
-      style={{ height: 24, borderRadius: 7, border: `1px solid ${accent ? 'var(--proto-accent-border)' : 'var(--proto-line)'}`, background: 'var(--proto-rail)', color: accent ? 'var(--proto-accent)' : 'var(--proto-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', font: `500 10px ${mono}`, padding: '0 8px', cursor: 'pointer', flex: 'none', whiteSpace: 'nowrap' }}
+      style={{ height: 22, borderRadius: 7, border: `1px solid ${accent ? 'var(--proto-accent-border)' : 'var(--proto-line)'}`, background: 'var(--proto-rail)', color: accent ? 'var(--proto-accent)' : 'var(--proto-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', font: `500 10px ${mono}`, padding: '0 8px', cursor: 'pointer', flex: 'none', whiteSpace: 'nowrap' }}
     >
       {children}
     </span>
@@ -117,15 +118,6 @@ export function DecisionModal({ d, mode: initialMode, actions, onClose }: {
   const chip = statusChip(status, L);
   const busy = !!actions?.busy;
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
   const composed = mode === 'view' ? null : buildDecisionMessage(
     { explain: L.wbDecExplainTemplate, explainBare: L.wbDecExplainTemplateBare, revise: L.wbDecReviseTemplate },
     mode,
@@ -146,14 +138,33 @@ export function DecisionModal({ d, mode: initialMode, actions, onClose }: {
   };
 
   return (
-    <div
-      onClick={onClose}
-      style={{ position: 'fixed', inset: 0, background: 'var(--overlay-scrim-medium)', zIndex: 70, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+    <Modal
+      chrome="bare"
+      size="custom"
+      open={true}
+      showClose={false}
+      title={d.title}
+      description={d.decision}
+      onOpenChange={(open) => { if (!open) onClose(); }}
+      contentDataAttributes={{ 'data-modal': 'decision' }}
+      bodyStyle={{ display: 'contents' }}
+      contentStyle={{
+        position: 'fixed',
+        left: '50%',
+        top: '50%',
+        transform: 'translate(-50%,-50%)',
+        animation: 'cxmodal .26s cubic-bezier(.22,1,.36,1)',
+        width: 640,
+        maxWidth: 'calc(100vw - 64px)',
+        maxHeight: 'min(680px, calc(100vh - 80px))',
+        background: 'var(--proto-card)',
+        borderRadius: 14,
+        boxShadow: 'var(--shadow-overlay-strong)',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+      }}
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{ width: 640, maxWidth: 'calc(100vw - 64px)', maxHeight: 'min(680px, calc(100vh - 80px))', background: 'var(--proto-card)', borderRadius: 14, boxShadow: 'var(--shadow-overlay-strong)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
-      >
         {/* header — badge · title · status chip · ✕ */}
         <div style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 9, padding: '13px 16px', borderBottom: '1px solid var(--proto-line-2)' }}>
           <DecBadge L={L} />
@@ -251,8 +262,7 @@ export function DecisionModal({ d, mode: initialMode, actions, onClose }: {
             )}
           </div>
         )}
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -273,7 +283,7 @@ function DecisionCard({ d, actions }: { d: DecisionItem; actions?: DecisionActio
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
         onClick={() => setModal('view')}
-        style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', border: '1px solid var(--proto-line)', background: 'var(--proto-card)', borderRadius: 10, padding: '8px 11px', boxShadow: 'var(--shadow-card-subtle)', boxSizing: 'border-box', cursor: 'pointer' }}
+        style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', minHeight: 38, border: '1px solid var(--proto-line)', background: 'var(--proto-card)', borderRadius: 10, padding: '6px 11px', boxShadow: 'var(--shadow-card-subtle)', boxSizing: 'border-box', cursor: 'pointer' }}
       >
         <DecBadge L={L} />
         <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--proto-ink)', minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.title}</span>
@@ -300,7 +310,7 @@ function DecisionCard({ d, actions }: { d: DecisionItem; actions?: DecisionActio
 export function DecisionCardGroup({ decisions, sessionId }: { decisions: DecisionItem[]; sessionId?: string }): JSX.Element {
   const actions = useDecisionActions(sessionId ?? '');
   return (
-    <div style={{ maxWidth: 560, display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 6, marginTop: 10 }}>
+    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 6, marginTop: 10 }}>
       {decisions.map((d) => (
         <DecisionCard key={d.id} d={d} actions={sessionId ? actions : undefined} />
       ))}
