@@ -1,6 +1,6 @@
-// input:  project registry, shared unscoped session queries, and explicit selections
-// output: shared current-project context and listed projects for shell consumers
-// pos:    Cross-surface project selection state owner
+// input:  project registry, shared sessions, explicit selection, and shell project order
+// output: shared current-project context, listed projects, and rendered project order
+// pos:    Cross-surface project selection and ordering state owner
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
@@ -13,7 +13,9 @@ import { useAllSessions } from './useProjectSessions';
 export interface CurrentProjectContextValue {
   currentProjectId: string | null;
   projects: ProjectConduitInfo[];
+  projectOrder: string[];
   setCurrentProject: (id: string) => void;
+  setProjectOrder: (ids: string[]) => void;
 }
 
 const CurrentProjectContext = createContext<CurrentProjectContextValue | null>(null);
@@ -24,6 +26,7 @@ export function CurrentProjectProvider({ children }: { children: ReactNode }) {
   const sessionsQuery = useAllSessions('direct');
   useAllSessions('scheduled');
   const [override, setOverride] = useState<string | null>(null);
+  const [projectOrder, setProjectOrderState] = useState<string[]>([]);
 
   const projects = projectsQuery.data ?? [];
   const currentProjectId = resolveCurrentProjectId(
@@ -32,9 +35,16 @@ export function CurrentProjectProvider({ children }: { children: ReactNode }) {
     projects,
   );
   const setCurrentProject = useCallback((id: string) => setOverride(id), []);
+  const setProjectOrder = useCallback((ids: string[]) => {
+    setProjectOrderState((previous) => (
+      previous.length === ids.length && previous.every((id, index) => id === ids[index])
+        ? previous
+        : [...ids]
+    ));
+  }, []);
   const value = useMemo(
-    () => ({ currentProjectId, projects, setCurrentProject }),
-    [currentProjectId, projects, setCurrentProject],
+    () => ({ currentProjectId, projects, projectOrder, setCurrentProject, setProjectOrder }),
+    [currentProjectId, projects, projectOrder, setCurrentProject, setProjectOrder],
   );
 
   return (

@@ -1,5 +1,5 @@
-// input:  tRPC data, shared contexts, shell daemon overlay and DTO-carrying schedule actions
-// output: collapsible project-folder rail with real schedule editing and global controls
+// input:  tRPC data, shared project order, shell overlays, and schedule actions
+// output: collapsible project rail, shared rendered order, and global controls
 // pos:    Owns workbench navigation and shell-overlay triggers
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -215,7 +215,7 @@ export function LeftRail(): JSX.Element {
   // Keep every row's running dot live: one unscoped session.status subscription → refetch the list.
   useSessionsLiveSync();
 
-  const { currentProjectId, setCurrentProject } = useCurrentProject();
+  const { currentProjectId, setCurrentProject, setProjectOrder } = useCurrentProject();
   const { selectedSessionId, setSelectedSession } = useSelectedSession();
 
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data]);
@@ -308,6 +308,12 @@ export function LeftRail(): JSX.Element {
       manualOrder, dragged,
     ],
   );
+
+  // Publish the exact visible project order for project pickers. A search temporarily filters the
+  // tree, so it must not replace the full order shared with the new-session selector.
+  useEffect(() => {
+    if (!filter.trim()) setProjectOrder(tree.projects.map((project) => project.id));
+  }, [filter, tree.projects, setProjectOrder]);
 
   // The tree's notion of "current" is the project owning the selected session. Push it into the
   // shared context so the right panel, notes and issues follow the chat without the user ever

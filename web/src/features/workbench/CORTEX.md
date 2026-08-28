@@ -6,7 +6,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | filename | role | function |
 |---|---|---|
 | WorkbenchPage.tsx | entry | Composes panes and global workbench actions |
-| LeftRail.tsx | view | Frames the collapsible project tree, real-DTO schedules and shell daemon trigger |
+| LeftRail.tsx | view | Frames the project tree and publishes its rendered project order |
 | RailTree.tsx | view | Renders project folders with their sessions and schedules |
 | rail-tree.ts | vm | Builds project folder nodes with session and schedule rows |
 | rail-tree.test.ts | test | Tests folder ordering, capping, filtering and badges |
@@ -29,8 +29,8 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | profile-menu.test.ts | test | Tests live profile filtering and switch gates |
 | SessionProfileSelector.tsx | view | Shares guarded profile state with composer controls |
 | SessionProfileSelector.test.tsx | test | Tests profile routing and selection interactions |
-| DraftProjectSelector.tsx | view | Shows and switches the project for a desktop draft session |
-| DraftProjectSelector.test.tsx | test | Tests draft project visibility, switching and pending lock |
+| DraftProjectSelector.tsx | view | Profile-styled draft project chip ordered like the left rail |
+| DraftProjectSelector.test.tsx | test | Tests capsule style, rail order, switching and pending lock |
 | CenterChat.tsx | view | Reconciles compact chat state, startup progress and composer placement |
 | scheduled-chat.ts | vm | Cadence label and next-run delta helpers |
 | ChatHeader.tsx | view | Session title, command, browser, notes and session menu |

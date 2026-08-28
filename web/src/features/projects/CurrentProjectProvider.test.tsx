@@ -1,5 +1,5 @@
-// input:  mounted shared project provider with project/session query fixtures
-// output: provider derivation and explicit-selection regression coverage
+// input:  mounted project provider with project/session queries and rendered order updates
+// output: provider derivation, listing, selection, and ordering regression coverage
 // pos:    Current-project context integration specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -74,7 +74,9 @@ describe('CurrentProjectProvider', () => {
     expect(observed?.projects.map((project) => project.id)).toEqual(['alpha', 'beta']);
 
     act(() => observed?.setCurrentProject('alpha'));
+    act(() => observed?.setProjectOrder(['beta', 'alpha']));
 
     expect(observed?.currentProjectId).toBe('alpha');
+    expect(observed?.projectOrder).toEqual(['beta', 'alpha']);
   });
 });
