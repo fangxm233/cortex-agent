@@ -1,16 +1,18 @@
 // input:  project registry, shared unscoped session queries, and explicit selections
-// output: shared current-project context for desktop and mobile consumers
+// output: shared current-project context and listed projects for shell consumers
 // pos:    Cross-surface project selection state owner
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import type { ProjectConduitInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { resolveCurrentProjectId } from './current-project';
 import { useAllSessions } from './useProjectSessions';
 
 export interface CurrentProjectContextValue {
   currentProjectId: string | null;
+  projects: ProjectConduitInfo[];
   setCurrentProject: (id: string) => void;
 }
 
@@ -23,15 +25,16 @@ export function CurrentProjectProvider({ children }: { children: ReactNode }) {
   useAllSessions('scheduled');
   const [override, setOverride] = useState<string | null>(null);
 
+  const projects = projectsQuery.data ?? [];
   const currentProjectId = resolveCurrentProjectId(
     override,
     sessionsQuery.data ?? [],
-    projectsQuery.data ?? [],
+    projects,
   );
   const setCurrentProject = useCallback((id: string) => setOverride(id), []);
   const value = useMemo(
-    () => ({ currentProjectId, setCurrentProject }),
-    [currentProjectId, setCurrentProject],
+    () => ({ currentProjectId, projects, setCurrentProject }),
+    [currentProjectId, projects, setCurrentProject],
   );
 
   return (

@@ -15,12 +15,15 @@ const harness = vi.hoisted(() => ({
   openSettings: vi.fn(),
   attachmentItems: [] as any[],
   attachmentRetry: vi.fn(),
+  createPending: false,
 }));
 
 vi.mock('@tanstack/react-query', () => ({
   useMutation: (options: { __kind?: string }) => options.__kind === 'cancel'
     ? { mutate: harness.cancel, isPending: false }
-    : { mutateAsync: harness.send, isPending: false },
+    : options.__kind === 'create'
+      ? { mutateAsync: harness.send, isPending: harness.createPending }
+      : { mutateAsync: harness.send, isPending: false },
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
 
@@ -51,6 +54,14 @@ vi.mock('./SessionProfileSelector', async () => {
       pick: harness.pickProfile,
     }),
     SessionProfileSelectorView: () => React.createElement('profile-selector'),
+  };
+});
+
+vi.mock('./DraftProjectSelector', async () => {
+  const React = await import('react');
+  return {
+    DraftProjectSelector: ({ disabled }: { disabled?: boolean }) =>
+      React.createElement('draft-project-selector', { disabled }),
   };
 });
 
@@ -99,6 +110,20 @@ function enterCommand(renderer: ReactTestRenderer, command: string): void {
   act(() => renderer.root.findByProps({ 'data-composer-input': true }).props.onChange({ target: { value: command } }));
   act(() => renderer.root.findByProps({ 'data-composer-input': true }).props.onKeyDown({ key: 'Enter', shiftKey: false, preventDefault: vi.fn() }));
 }
+
+describe('Composer draft project selector', () => {
+  it('renders only for drafts and locks while create-and-send is pending', () => {
+    const live = mountComposer(() => {});
+    expect(live.root.findAllByType('draft-project-selector' as any)).toHaveLength(0);
+    act(() => live.unmount());
+
+    harness.createPending = true;
+    const draft = mountComposer(() => {}, { isDraft: true });
+    expect(draft.root.findByType('draft-project-selector' as any).props.disabled).toBe(true);
+    harness.createPending = false;
+    act(() => draft.unmount());
+  });
+});
 
 describe('Composer UI slash shortcuts', () => {
   it('routes all five commands locally instead of sending them', () => {

@@ -71,6 +71,7 @@ describe('CurrentProjectProvider', () => {
     });
 
     expect(observed?.currentProjectId).toBe('beta');
+    expect(observed?.projects.map((project) => project.id)).toEqual(['alpha', 'beta']);
 
     act(() => observed?.setCurrentProject('alpha'));
 

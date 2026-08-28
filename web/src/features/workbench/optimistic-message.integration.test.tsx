@@ -98,7 +98,11 @@ vi.mock('@/lib/trpc', () => ({
 }));
 
 vi.mock('@/features/projects/CurrentProjectProvider', () => ({
-  useCurrentProject: () => ({ currentProjectId: harness.projectId }),
+  useCurrentProject: () => ({
+    currentProjectId: harness.projectId,
+    projects: [{ id: harness.projectId }],
+    setCurrentProject: vi.fn(),
+  }),
 }));
 
 vi.mock('./SelectedSessionProvider', async () => {
@@ -148,6 +152,7 @@ vi.mock('@/features/media/DocViewer', () => ({ useDocViewer: () => ({ openDoc: v
 vi.mock('./ChatHeader', () => ({ ChatHeader: () => null }));
 vi.mock('./InlineThreadCardProto', () => ({ InlineThreadCardProto: () => null }));
 vi.mock('./ContextUsageControl', () => ({ ContextUsageControl: () => null }));
+vi.mock('./DraftProjectSelector', () => ({ DraftProjectSelector: () => null }));
 vi.mock('./MessageStream', async () => {
   const React = await import('react');
   return {

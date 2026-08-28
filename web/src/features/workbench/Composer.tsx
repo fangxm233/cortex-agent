@@ -1,5 +1,5 @@
-// input:  Session/browser state, shared run-status facts, shortcuts, attachments, and drafts
-// output: Guarded composer over the neutral upload controller with prioritized run status
+// input:  Session/browser/project state, run facts, shortcuts, attachments, and drafts
+// output: Guarded composer with draft project scope and prioritized run status
 // pos:    Workbench message input and turn-control surface
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useRef, useState, useCallback, useEffect, useLayoutEffect, type ReactNode } from 'react';
@@ -31,6 +31,7 @@ import type { ContextCompactAction } from './ContextUsageControl';
 import type { TodoSnapshot } from '@cortex-agent/ui-contract';
 import { runOptimisticMutation, type OptimisticUserMessage } from './optimistic-message';
 import { deriveSessionRunStatus } from './session-run-status';
+import { DraftProjectSelector } from './DraftProjectSelector';
 
 // Composer — a unified card: full-width input on top, one toolbar row below. The toolbar keeps the
 // ＋ menu (attach · browser opt-in · local slash commands) on the left and the profile chip, context
@@ -467,6 +468,8 @@ export function Composer({
             the highest-value line on this surface and belongs at the point of gaze; it renders
             nothing at all when the session has no task list. */}
         {!isDraft && <TodoRail sessionId={sessionId} todos={todos ?? null} lang={lang} />}
+
+        {isDraft && <DraftProjectSelector disabled={createAndSendMut.isPending} />}
 
         {/* Composer card — doubles as drop zone (15a) */}
         <div

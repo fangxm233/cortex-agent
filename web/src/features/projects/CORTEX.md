@@ -6,8 +6,8 @@ No desktop or mobile feature may wrap, alias, or duplicate these exports.
 
 | filename | role | function |
 |---|---|---|
-| CurrentProjectProvider.tsx | provider | Owns the effective project selection across one application shell |
-| CurrentProjectProvider.test.tsx | test | Verifies provider derivation and sticky explicit selection |
+| CurrentProjectProvider.tsx | provider | Owns effective selection and exposes the listed projects |
+| CurrentProjectProvider.test.tsx | test | Verifies project listing, derivation and sticky explicit selection |
 | useProjectSessions.ts | hook | Reuses unscoped origin caches and selects project sessions for both surfaces |
 | useProjectSessions.test.ts | test | Tests shared session project projection |
 | current-project.ts | model | Resolves latest-session, first-project, and explicit project ids |
