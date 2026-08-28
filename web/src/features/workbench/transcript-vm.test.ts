@@ -1184,6 +1184,117 @@ describe('buildTranscriptRows — native subagent grouping', () => {
     expect(block.status).toBe('running');
   });
 
+  it('uses compact summaries as the card authority and keeps compact child anchors out of children', () => {
+    const rows = buildTranscriptRows(
+      {
+        sessionId: 's-compact',
+        turns: [{ turnIndex: 0, messages: [
+          msg({ type: 'user', text: 'go' }),
+          msg({
+            type: 'tool', toolName: 'agent', toolInput: 'Inspect renderers',
+            subagentSpawns: [{ id: 'child-1', type: 'explore', description: 'Prompt label', prompt: 'Inspect renderers thoroughly.' }],
+          } as any),
+          msg({
+            type: 'assistant', text: 'delegate deeper', subagentId: 'child-1',
+            subagentDescription: 'event label should lose',
+            subagentSpawns: [{ id: 'grand-1', type: 'review', description: 'Grand prompt', prompt: 'Review notes carefully.' }],
+          } as any),
+          msg({ type: 'assistant', text: 'main resumes' }),
+        ] }],
+        subagentSummaries: [
+          {
+            id: 'child-1', type: 'explore', description: 'Summary label', model: 'claude-sonnet',
+            toolCount: 2, hasDetails: true, structurallyOpen: true,
+          },
+          {
+            id: 'grand-1', type: 'review', description: 'Grand summary', model: 'pi-small',
+            toolCount: 0, hasDetails: false, structurallyOpen: false,
+          },
+        ],
+      },
+      [],
+      { running: true },
+    );
+
+    const blocks = rows.filter((row) => row.kind === 'subagent') as Array<Extract<ChatRow, { kind: 'subagent' }>>;
+    expect(blocks.map((block) => block.id)).toEqual(['child-1', 'grand-1']);
+    expect(blocks[0]).toMatchObject({
+      description: 'Summary label',
+      prompt: 'Inspect renderers thoroughly.',
+      model: 'claude-sonnet',
+      toolCount: 2,
+      status: 'running',
+      hasDetails: true,
+      detailMode: 'lazy',
+      children: [],
+    });
+    expect(blocks[1]).toMatchObject({
+      description: 'Grand summary',
+      prompt: 'Review notes carefully.',
+      model: 'pi-small',
+      status: 'done',
+      hasDetails: false,
+      detailMode: 'lazy',
+      children: [],
+    });
+    expect(rows.some((row) => row.kind === 'assistant' && row.text === 'delegate deeper')).toBe(false);
+  });
+
+  it('keeps a finalized live child row as temporary compact-card detail', () => {
+    const rows = buildTranscriptRows(
+      {
+        sessionId: 's-compact-live',
+        turns: [{ turnIndex: 0, messages: [
+          msg({ type: 'user', text: 'go' }),
+          msg({
+            type: 'tool', toolName: 'agent', toolInput: 'Inspect renderers',
+            subagentSpawns: [{ id: 'child-1', type: 'explore', description: 'Inspect', prompt: 'Inspect.' }],
+          } as any),
+        ] }],
+        subagentSummaries: [{
+          id: 'child-1', type: 'explore', description: 'Inspect', model: 'pi-small',
+          toolCount: 1, hasDetails: true, structurallyOpen: true,
+        }],
+      },
+      [{
+        sessionId: 's-compact-live', role: 'assistant', text: 'fresh child result',
+        subagentId: 'child-1', ts: '2026-08-01T01:00:00.000Z',
+      }],
+      { running: true },
+    );
+
+    const child = rows.find((row) => row.kind === 'subagent' && row.id === 'child-1') as Extract<ChatRow, { kind: 'subagent' }>;
+    expect(child.children).toMatchObject([{ kind: 'assistant', text: 'fresh child result' }]);
+    expect(child.toolCount).toBe(1);
+  });
+
+  it('keeps the old embedded-child behavior when no compact summaries are present', () => {
+    const rows = buildTranscriptRows(
+      tx([{ turnIndex: 0, messages: [
+        msg({ type: 'user', text: 'go' }),
+        msg({
+          type: 'tool', toolName: 'agent', toolInput: 'Inspect renderers',
+          subagentSpawns: [{ id: 'child-1', type: 'explore', description: 'Prompt label', prompt: 'Inspect renderers thoroughly.' }],
+        } as any),
+        msg({
+          type: 'assistant', text: 'delegate deeper', subagentId: 'child-1',
+          subagentDescription: 'event label wins',
+          subagentSpawns: [{ id: 'grand-1', type: 'review', description: 'Grand prompt', prompt: 'Review notes carefully.' }],
+        } as any),
+      ] }]),
+      [],
+      { running: true },
+    );
+
+    const child = rows.find((row) => row.kind === 'subagent' && row.id === 'child-1') as Extract<ChatRow, { kind: 'subagent' }>;
+    expect(child).toMatchObject({
+      description: 'event label wins',
+      prompt: 'Inspect renderers thoroughly.',
+    });
+    expect(child.detailMode).toBeUndefined();
+    expect(child.children).toMatchObject([{ kind: 'assistant', text: 'delegate deeper' }]);
+  });
+
   it('carries subagent fields from a live session.message', () => {
     const live: LiveSessionMessage = {
       sessionId: 's1', role: 'assistant', text: 'notes', ts: T,

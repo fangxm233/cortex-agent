@@ -1,11 +1,48 @@
-// input:  mobile rows, Todo snapshots, slash, send and profile state
-// output: Mobile turn-copy, Todo, message, and composer contracts
+// input:  mobile rows, lazy subagent detail, Todo snapshots, slash, send and profile state
+// output: Mobile turn-copy, lazy detail, Todo, message, and composer contracts
 // pos:    Mobile chat interaction behavior tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { renderToStaticMarkup } from 'react-dom/server';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+const harness = vi.hoisted(() => ({
+  queryCalls: [] as any[],
+  detail: {
+    sessionId: 's1',
+    subagentId: 'tu_lazy',
+    messages: [
+      { type: 'user', text: 'hidden user', toolName: null, toolInput: null, ts: '2026-08-01T01:00:00.000Z', elapsedMs: null },
+      { type: 'tool', text: null, toolName: 'Read', toolInput: 'a.ts', ts: '2026-08-01T01:00:01.000Z', elapsedMs: 1000 },
+      { type: 'assistant', text: 'child output', toolName: null, toolInput: null, ts: '2026-08-01T01:00:02.000Z', elapsedMs: 1000 },
+    ],
+  },
+}));
+
+vi.mock('@tanstack/react-query', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@tanstack/react-query')>();
+  return {
+    ...actual,
+    useQuery: (options: any) => {
+      harness.queryCalls.push(options);
+      if (options.__kind === 'sessions.subagentTranscript') {
+        return { data: harness.detail, isPending: false, isError: false, refetch: vi.fn() };
+      }
+      return { data: undefined, isPending: false, isError: false, refetch: vi.fn() };
+    },
+  };
+});
+
+vi.mock('@/lib/trpc', () => ({
+  useTRPC: () => ({
+    sessions: {
+      subagentTranscript: {
+        queryOptions: (input: unknown) => ({ __kind: 'sessions.subagentTranscript', input }),
+      },
+    },
+  }),
+}));
+
 import { ComposerFullscreen, MComposer } from '@/mobile/ui/kit';
 import { LangProvider } from '@/i18n';
 import type { TodoSnapshot } from '@cortex-agent/ui-contract';
@@ -84,6 +121,10 @@ function renderChat(running: boolean, sendEnabled: boolean): string {
     />,
   );
 }
+
+beforeEach(() => {
+  harness.queryCalls = [];
+});
 
 describe('MChatView slash shortcuts', () => {
   it('renders enabled suggestions and ignores disabled picks', () => {
@@ -296,6 +337,36 @@ describe('MChatStream subagent prompt', () => {
     const rendered = JSON.stringify(renderer.toJSON());
     expect(rendered).toContain(prompt.replace(/\n/g, '\\n'));
     expect(rendered).toContain('child output');
+  });
+
+  it('loads lazy detail only after expand and keeps the mobile body to tools plus assistant prose', () => {
+    const rows: ChatRow[] = [{
+      kind: 'subagent', id: 'tu_lazy', agentType: 'explore', description: 'Inspect mobile',
+      prompt: 'Prompt body', model: null, status: 'done', toolCount: 1, children: [],
+      detailMode: 'lazy', hasDetails: true,
+    } as Extract<ChatRow, { kind: 'subagent' }>];
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        <LangProvider>
+          <MChatStream rows={rows} toolCallsUnit="tools" copyLabel="copy" copiedLabel="copied" streamKey="s1" />
+        </LangProvider>,
+      );
+    });
+
+    expect(harness.queryCalls).toHaveLength(0);
+    act(() => renderer.root.findByProps({ role: 'button' }).props.onClick());
+    expect(harness.queryCalls).toHaveLength(1);
+    expect(harness.queryCalls[0].input).toEqual({ sessionId: 's1', subagentId: 'tu_lazy' });
+
+    const toolRow = renderer.root.findAll((node) => typeof node.props.onClick === 'function')[1];
+    act(() => toolRow.props.onClick());
+
+    const rendered = JSON.stringify(renderer.toJSON());
+    expect(rendered).toContain('Read');
+    expect(rendered).toContain('a.ts');
+    expect(rendered).toContain('child output');
+    expect(rendered).not.toContain('hidden user');
   });
 });
 

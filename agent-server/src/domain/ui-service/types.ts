@@ -100,6 +100,7 @@ export type QueryScope =
   | 'projects.list'
   | 'sessions.list'
   | 'sessions.transcript'
+  | 'sessions.subagentTranscript'
   | 'sessions.debugDetails'
   | 'sessions.pendingInteraction'
   | 'threads.list'
@@ -229,6 +230,12 @@ export interface SessionsListParams {
 
 export interface SessionsTranscriptParams {
   sessionId: string;
+  compactSubagents?: boolean;
+}
+
+export interface SessionsSubagentTranscriptParams {
+  sessionId: string;
+  subagentId: string;
 }
 
 export interface SessionsDebugDetailsParams {
@@ -951,12 +958,30 @@ export interface PendingTranscriptUserMessage {
   attachments?: AttachmentMeta[];
 }
 
+export interface TranscriptSubagentSummary {
+  id: string;
+  type?: string;
+  description?: string;
+  model?: string;
+  toolCount: number;
+  hasDetails: boolean;
+  structurallyOpen: boolean;
+}
+
 export interface SessionTranscript {
   sessionId: string;
   turns: TranscriptTurn[];
   /** Durable messages accepted into a live backend turn but not consumed by the model yet.
    *  Optional for rolling compatibility with older servers; current servers always return it. */
   pendingUserMessages?: PendingTranscriptUserMessage[];
+  /** Compact opt-in only. Present even when empty; absent on full transcript responses. */
+  subagentSummaries?: TranscriptSubagentSummary[];
+}
+
+export interface SessionSubagentTranscript {
+  sessionId: string;
+  subagentId: string;
+  messages: TranscriptMessage[];
 }
 
 export interface ThreadInfo {
@@ -2045,6 +2070,7 @@ export interface QueryParamMap {
   'projects.list': Record<string, never>;
   'sessions.list': SessionsListParams;
   'sessions.transcript': SessionsTranscriptParams;
+  'sessions.subagentTranscript': SessionsSubagentTranscriptParams;
   'sessions.debugDetails': SessionsDebugDetailsParams;
   'sessions.pendingInteraction': SessionsPendingInteractionParams;
   'threads.list': ThreadsListParams;
@@ -2080,6 +2106,7 @@ export interface QueryReturnMap {
   'projects.list': ProjectConduitInfo[];
   'sessions.list': SessionInfo[];
   'sessions.transcript': SessionTranscript;
+  'sessions.subagentTranscript': SessionSubagentTranscript;
   'sessions.debugDetails': TranscriptDebugDetails | null;
   'sessions.pendingInteraction': SessionsPendingInteraction;
   'threads.list': ThreadInfo[];
@@ -2300,6 +2327,8 @@ export interface UiServiceDeps {
       sessionId: string,
       options?: { includeToolDebug?: boolean },
     ): Promise<SessionHistory | null>;
+    getCompactHistory?(sessionId: string): Promise<import('@store/conversation-history-repo.js').CompactConversationHistory | null>;
+    getSubagentHistory?(sessionId: string, subagentId: string): Promise<import('@store/conversation-history-repo.js').SubagentConversationHistory>;
     getToolDebugDetails?(
       sessionId: string,
       toolRef: string,

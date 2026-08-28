@@ -12,7 +12,7 @@ import { InlineThreadCardProto } from './InlineThreadCardProto';
 import { Composer } from './Composer';
 import { ContextUsageControl } from './ContextUsageControl';
 import { useSessionCompact } from './useSessionCompact';
-import { useSessionMessageLiveSync } from './useSessionMessageLiveSync';
+import { invalidateActiveSubagentTranscriptQueries, useSessionMessageLiveSync } from './useSessionMessageLiveSync';
 import { useInteractionActions } from './useInteractionActions';
 import { useMarkSessionRead } from './useMarkSessionRead';
 import { buildTranscriptRows, turnCount, resolveTurns, currentTurnElapsedMs, formatElapsed, formatDividerFromVocab } from './transcript-vm';
@@ -93,7 +93,7 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
       : 'No session';
 
   const transcriptQuery = useQuery({
-    ...trpc.sessions.transcript.queryOptions({ sessionId }),
+    ...trpc.sessions.transcript.queryOptions({ sessionId, compactSubagents: true }),
     enabled: !!sessionId,
   });
 
@@ -163,6 +163,7 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
       if (!sessionId) return;
       queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
       queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
+      invalidateActiveSubagentTranscriptQueries(queryClient, trpc, sessionId);
     },
   }));
   const edit = useMemo<MessageEditCtx | undefined>(() => {

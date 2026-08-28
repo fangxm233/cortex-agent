@@ -1,5 +1,5 @@
 // input:  shared Zod schema maps
-// output: query/mutate schema behavior incl window-target policy routes
+// output: query/mutate schema behavior incl compact transcript detail routes
 // pos:    UI-contract runtime schema guard
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -100,8 +100,10 @@ test('project-scoped query schemas accept valid input', () => {
   assert.deepEqual(queryInputSchemas['memory.tree'].parse({ projectId: 'p' }), { projectId: 'p' });
   const memoryFile = { projectId: 'p', path: 'STATUS.md' };
   assert.deepEqual(queryInputSchemas['memory.file'].parse(memoryFile), memoryFile);
-  const transcript = { sessionId: 'sess-1' };
+  const transcript = { sessionId: 'sess-1', compactSubagents: true };
   assert.deepEqual(queryInputSchemas['sessions.transcript'].parse(transcript), transcript);
+  const subagentTranscript = { sessionId: 'sess-1', subagentId: 'toolu_01#0' };
+  assert.deepEqual(queryInputSchemas['sessions.subagentTranscript'].parse(subagentTranscript), subagentTranscript);
   const debugDetails = { sessionId: 'sess-1', ref: 'toolu_01:abc' };
   assert.deepEqual(queryInputSchemas['sessions.debugDetails'].parse(debugDetails), debugDetails);
   assert.deepEqual(queryInputSchemas['issues.list'].parse({ projectId: 'p' }), { projectId: 'p' });
@@ -119,6 +121,7 @@ test('query schemas reject invalid input', () => {
   assert.throws(() => queryInputSchemas['memory.tree'].parse({}));
   assert.throws(() => queryInputSchemas['memory.file'].parse({ projectId: 'p' }));
   assert.throws(() => queryInputSchemas['sessions.transcript'].parse({}));
+  assert.throws(() => queryInputSchemas['sessions.subagentTranscript'].parse({ sessionId: 's' }));
   assert.throws(() => queryInputSchemas['sessions.debugDetails'].parse({ sessionId: 's', ref: '' }));
   assert.throws(() => queryInputSchemas['approvals.list'].parse({ status: 'nope' }));
   assert.throws(() => queryInputSchemas['issues.list'].parse({}));

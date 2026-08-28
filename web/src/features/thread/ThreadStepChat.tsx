@@ -27,12 +27,14 @@ export function ThreadStepChat({ sessionId, live }: { sessionId: string | null; 
   const L = useVocab();
 
   const transcriptQuery = useQuery({
-    ...trpc.sessions.transcript.queryOptions({ sessionId: sessionId ?? '' }),
+    ...trpc.sessions.transcript.queryOptions({ sessionId: sessionId ?? '', compactSubagents: true }),
     enabled: !!sessionId,
   });
 
   // Only subscribe to the live stream for the running step (passing '' disables the subscription).
-  const { liveTail, streaming, running } = useSessionMessageLiveSync(live && sessionId ? sessionId : '');
+  const { liveTail, streaming, running } = useSessionMessageLiveSync(live && sessionId ? sessionId : '', undefined, undefined, {
+    transcript: transcriptQuery.data ?? null,
+  });
 
   const transcript = transcriptQuery.data ?? EMPTY_TRANSCRIPT;
   const rows = useMemo(

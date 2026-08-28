@@ -1,4 +1,4 @@
-// input:  Mobile chat rows, Todo snapshots, interactions, composer state
+// input:  Mobile chat rows, lazy subagent detail, Todo snapshots, interactions, composer state
 // output: Mobile chat with turn-tail actions and composer controls
 // pos:    Mobile chat presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -38,6 +38,7 @@ import { useToolCallOverflow } from '@/features/workbench/useToolCallOverflow';
 import { ChatNotice } from '@/features/workbench/ChatNotice';
 import { useVocab } from '@/i18n';
 import { assistantTurnCopyTargets, regenNoteIndexes, messageTimeLabel, subagentModelLabel, type ChatRow, type Attachment } from '@/features/workbench/transcript-vm';
+import { SubagentTranscriptDetail } from '@/features/workbench/SubagentTranscriptDetail';
 import { buildSessionIdRows } from '@/features/workbench/session-id';
 import {
   interactionView,
@@ -743,9 +744,10 @@ function ExpandedToolCalls({ count, calls, unit, onCollapse }: {
  * is a single inline JSX map with no recursive entry point, and a flattened block carries the same
  * information at this width.
  */
-function MSubagentBlock({ row, unit }: {
+function MSubagentBlock({ row, unit, sessionId }: {
   row: Extract<ChatRow, { kind: 'subagent' }>;
   unit: string;
+  sessionId?: string;
 }): JSX.Element {
   const L = useVocab();
   const [expanded, setExpanded] = useState(false);
@@ -787,12 +789,36 @@ function MSubagentBlock({ row, unit }: {
               </pre>
             </div>
           ) : null}
-          {calls.length > 0 && <ToolCallsRow count={calls.length} calls={calls} unit={unit} />}
-          {texts.map((t, index) => (
-            <div key={index} style={{ fontSize: 12.5, lineHeight: 1.6, color: MC.body, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
-              <ChatMarkdown text={t} />
-            </div>
-          ))}
+          {row.detailMode === 'lazy' && row.hasDetails && sessionId ? (
+            <SubagentTranscriptDetail
+              sessionId={sessionId}
+              subagentId={row.id}
+              fallbackRows={row.children}
+              render={(detailRows) => {
+                const detailCalls = detailRows.flatMap((detailRow) => (detailRow.kind === 'tools' ? detailRow.calls : []));
+                const detailTexts = detailRows.flatMap((detailRow) => (detailRow.kind === 'assistant' && detailRow.text ? [detailRow.text] : []));
+                return (
+                  <>
+                    {detailCalls.length > 0 && <ToolCallsRow count={detailCalls.length} calls={detailCalls} unit={unit} />}
+                    {detailTexts.map((text, index) => (
+                      <div key={index} style={{ fontSize: 12.5, lineHeight: 1.6, color: MC.body, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
+                        <ChatMarkdown text={text} />
+                      </div>
+                    ))}
+                  </>
+                );
+              }}
+            />
+          ) : (
+            <>
+              {calls.length > 0 && <ToolCallsRow count={calls.length} calls={calls} unit={unit} />}
+              {texts.map((t, index) => (
+                <div key={index} style={{ fontSize: 12.5, lineHeight: 1.6, color: MC.body, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
+                  <ChatMarkdown text={t} />
+                </div>
+              ))}
+            </>
+          )}
         </div>
       )}
     </div>
@@ -977,7 +1003,7 @@ export function MChatStream({ rows, toolCallsUnit, copyLabel, copiedLabel, inter
           )}
           {row.kind === 'subagent' && (
             <div style={dimmed ? { opacity: 0.35, pointerEvents: 'none' } : undefined}>
-              <MSubagentBlock row={row} unit={toolCallsUnit} />
+              <MSubagentBlock row={row} unit={toolCallsUnit} sessionId={streamKey} />
               <AssistantTurnCopyAction text={assistantCopies.get(i)} label={copyLabel} copiedLabel={copiedLabel} />
             </div>
           )}

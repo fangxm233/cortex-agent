@@ -8,6 +8,7 @@ import { handleProjectsList } from './query/projects.js';
 import {
   handleSessionsList,
   handleSessionsTranscript,
+  handleSessionsSubagentTranscript,
   handleSessionsDebugDetails,
   handleSessionsPendingInteraction,
 } from './query/sessions.js';
@@ -111,6 +112,7 @@ const queryHandlers: Record<string, QueryHandler> = {
   'projects.list': (deps) => handleProjectsList(deps),
   'sessions.list': (deps, params) => handleSessionsList(deps, params),
   'sessions.transcript': (deps, params) => handleSessionsTranscript(deps, params),
+  'sessions.subagentTranscript': (deps, params) => handleSessionsSubagentTranscript(deps, params),
   'sessions.debugDetails': (deps, params) => handleSessionsDebugDetails(deps, params),
   'sessions.pendingInteraction': (deps, params) => handleSessionsPendingInteraction(deps, params),
   'threads.list': (deps, params) => handleThreadsList(deps, params),

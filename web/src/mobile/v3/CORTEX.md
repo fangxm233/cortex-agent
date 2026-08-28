@@ -5,10 +5,10 @@ Framework-free view models map records to slots and have colocated unit tests.
 
 | filename | role | function |
 |---|---|---|
-| MChatScreen.tsx | screen | Routes chat, name-only profile chip, sends and actions |
+| MChatScreen.tsx | screen | Routes compact chat, name-only profile chip, sends and actions |
 | MChatScreen.optimistic.test.tsx | test | Tests Todo wiring, optimistic sends and shortcuts |
-| MChatView.tsx | view | Renders chat, turn-tail copy and profile composer |
-| MChatView.test.tsx | test | Tests turn-tail copy, Todo and composer layout |
+| MChatView.tsx | view | Renders chat, lazy subagent detail, turn-tail copy and profile composer |
+| MChatView.test.tsx | test | Tests turn-tail copy, lazy subagent detail, Todo and composer layout |
 | m-chat-vm.ts | vm | Builds chat rows, profile labels and menu placement |
 | m-chat-vm.test.ts | test | Tests chat status, profile labels and row state |
 | MInteractionCards.tsx | view | Ask-user bottom-input and plan-approval cards |
@@ -102,7 +102,7 @@ Framework-free view models map records to slots and have colocated unit tests.
 | MHooksView.tsx | view | Grouped read-only hooks with declaration sheet |
 | m-hooks-vm.ts | vm | Groups hooks by namespace into read-only slots |
 | m-hooks-vm.test.ts | test | Unit tests for the hooks view model |
-| MPlanReadScreen.tsx | screen | Loads a plan and handles approve or reject |
+| MPlanReadScreen.tsx | screen | Loads a plan from the compact transcript and handles approve or reject |
 | MPlanReadView.tsx | view | Full plan text with scroll progress and actions |
 | MNotificationProvider.tsx | provider | Streams messages and notices into banners |
 | MNotificationToaster.tsx | view | Stacked tappable top notification banners |

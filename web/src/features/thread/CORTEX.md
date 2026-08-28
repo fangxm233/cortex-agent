@@ -8,7 +8,7 @@ The AppShell-level provider opens details without changing browser navigation.
 | ThreadDetailModal.tsx | provider | Opens and controls the global detail modal |
 | ThreadDetailView.tsx | view | Renders detail header, metadata, and columns |
 | ThreadPipeline.tsx | view | Expands step chats and opens subthreads |
-| ThreadStepChat.tsx | view | Renders a step session with live tail and lazy DEBUG |
+| ThreadStepChat.tsx | view | Renders a compact step session with live tail and lazy subagent detail |
 | ThreadArtifactPanel.tsx | view | Shows references and wrapping Markdown content |
 | thread-detail-vm.ts | vm | Builds pipeline, metadata, and artifact slots |
 | thread-detail-vm.test.ts | test | Tests desktop thread detail derivations |

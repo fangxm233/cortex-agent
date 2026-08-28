@@ -16,7 +16,7 @@ import {
   rewindStats,
 } from '@/features/workbench/transcript-vm';
 import { scheduledRunTitle } from '@/features/workbench/schedule-rail';
-import { useSessionMessageLiveSync } from '@/features/workbench/useSessionMessageLiveSync';
+import { invalidateActiveSubagentTranscriptQueries, useSessionMessageLiveSync } from '@/features/workbench/useSessionMessageLiveSync';
 import { useOptimisticUserMessages } from '@/features/workbench/useOptimisticUserMessages';
 import { runOptimisticMutation } from '@/features/workbench/optimistic-message';
 import { useInteractionActions } from '@/features/workbench/useInteractionActions';
@@ -278,7 +278,7 @@ export function MChatScreen(): JSX.Element {
   }, [isScheduledRun, active?.scheduleId, active?.sessionId, schedulesQuery.data, scheduledSessionsQuery.data]);
 
   const transcriptQuery = useQuery({
-    ...trpc.sessions.transcript.queryOptions({ sessionId }),
+    ...trpc.sessions.transcript.queryOptions({ sessionId, compactSubagents: true }),
     enabled: !!sessionId,
   });
   // `deltas: true` — this is the surface that shows a live preview, so it (and only it) opens the
@@ -445,6 +445,7 @@ export function MChatScreen(): JSX.Element {
       if (!sessionId) return;
       queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
       queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
+      invalidateActiveSubagentTranscriptQueries(queryClient, trpc, sessionId);
     },
   }));
 

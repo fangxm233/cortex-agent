@@ -1,4 +1,4 @@
-// input:  ChatRows, notices, interactions, and edits
+// input:  ChatRows, lazy subagent detail, notices, interactions, and edits
 // output: Transcript with turn-tail actions and message controls
 // pos:    Desktop workbench message presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -8,6 +8,7 @@ import { useLang, useVocab } from '@/i18n';
 import type { ChatRow, Attachment } from './transcript-vm';
 import { ToolCallsRow } from './ToolCallsRow';
 import { SubagentBlock } from './SubagentBlock';
+import { SubagentTranscriptDetail } from './SubagentTranscriptDetail';
 import { ChatMarkdown } from './ChatMarkdown';
 import type { AttachmentMeta } from './chat-content';
 import { useDownloadFile } from '@/features/media/useDownloadFile';
@@ -716,7 +717,18 @@ function Row({ row, interactionActions, editCopy, assistantCopyText, onStartEdit
             status={row.status}
             toolCount={row.toolCount}
           >
-            <ChatRows rows={row.children} interactionActions={interactionActions} streamKey={streamKey} turnCopy={false} />
+            {row.detailMode === 'lazy' && row.hasDetails && streamKey ? (
+              <SubagentTranscriptDetail
+                sessionId={streamKey}
+                subagentId={row.id}
+                fallbackRows={row.children}
+                render={(detailRows) => (
+                  <ChatRows rows={detailRows} interactionActions={interactionActions} streamKey={streamKey} turnCopy={false} />
+                )}
+              />
+            ) : (
+              <ChatRows rows={row.children} interactionActions={interactionActions} streamKey={streamKey} turnCopy={false} />
+            )}
           </SubagentBlock>
           <TurnCopyAction text={assistantCopyText} copy={editCopy} />
         </div>

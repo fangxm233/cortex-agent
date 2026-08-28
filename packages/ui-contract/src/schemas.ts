@@ -8,6 +8,7 @@ export {
   projectsCreateInput,
   sessionsListInput,
   sessionsTranscriptInput,
+  sessionsSubagentTranscriptInput,
   sessionsDebugDetailsInput,
   sessionsCreateInput,
   sessionsSendInput,

@@ -1,5 +1,5 @@
-// input:  histories, pending data, DEBUG gate and warning env
-// output: transcript grouping, spawn prompts, interactions, DEBUG tests
+// input:  histories, compact projections, pending data, and DEBUG gate
+// output: transcript grouping, compact summaries, subagent detail, interactions, and DEBUG tests
 // pos:    Authoritative sessions.transcript handler specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import {
   handleSessionsDebugDetails,
   handleSessionsTranscript,
+  handleSessionsSubagentTranscript,
 } from '../../../src/domain/ui-service/query/sessions.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 import type { SessionHistory } from '../../../src/store/conversation-history-repo.js';
@@ -177,6 +178,83 @@ test('sessions.transcript elapsedMs is null when a ts is unparseable', async () 
 test('sessions.transcript returns empty turns for an absent history', async () => {
   const out = await handleSessionsTranscript(makeDeps(null), { sessionId: 'nope' });
   assert.deepEqual(out, { sessionId: 'nope', turns: [], pendingUserMessages: [] });
+});
+
+test('sessions.transcript stays full by default and compact opt-in always returns subagent summaries', async () => {
+  const fullHistory: SessionHistory = {
+    sessionId: 'sess-compact-query',
+    events: [
+      { type: 'user', text: 'go', ts: '2026-07-07T00:00:00.000Z', turnIndex: 0 },
+      { type: 'tool', toolName: 'agent', toolInput: 'Inspect renderers', ts: '2026-07-07T00:00:01.000Z', turnIndex: 0, subagentSpawns: [{ id: 'child-1', type: 'explore', description: 'Inspect renderers', prompt: 'Inspect renderers thoroughly.' }] },
+      { type: 'assistant', text: 'child note', ts: '2026-07-07T00:00:02.000Z', turnIndex: 0, subagentId: 'child-1' },
+      { type: 'assistant', text: 'main reply', ts: '2026-07-07T00:00:03.000Z', turnIndex: 0 },
+    ],
+  };
+  const compactHistory = {
+    sessionId: 'sess-compact-query',
+    events: [
+      { type: 'user', text: 'go', ts: '2026-07-07T00:00:00.000Z', turnIndex: 0, elapsedMs: null },
+      { type: 'tool', toolName: 'agent', toolInput: 'Inspect renderers', ts: '2026-07-07T00:00:01.000Z', turnIndex: 0, elapsedMs: 1000, subagentSpawns: [{ id: 'child-1', type: 'explore', description: 'Inspect renderers', prompt: 'Inspect renderers thoroughly.' }] },
+      { type: 'assistant', text: 'main reply', ts: '2026-07-07T00:00:03.000Z', turnIndex: 0, elapsedMs: 1000 },
+    ],
+    committedSourceIds: [],
+    subagentSummaries: [{ id: 'child-1', type: 'explore', description: 'Inspect renderers', toolCount: 0, hasDetails: true, structurallyOpen: false }],
+  };
+  const deps = {
+    conversationHistory: {
+      getHistory: async () => fullHistory,
+      getCompactHistory: async () => compactHistory,
+    },
+    pendingInjections: { listBySession: async () => [] },
+  } as unknown as UiServiceDeps;
+
+  const full = await handleSessionsTranscript(deps, { sessionId: 'sess-compact-query' });
+  assert.equal(full.subagentSummaries, undefined);
+  assert.equal(full.turns[0].messages.length, 4);
+
+  const compact = await handleSessionsTranscript(deps, { sessionId: 'sess-compact-query', compactSubagents: true } as any);
+  assert.deepEqual(compact.subagentSummaries, compactHistory.subagentSummaries);
+  assert.equal(compact.turns[0].messages.length, 3);
+
+  const emptyCompact = await handleSessionsTranscript({
+    conversationHistory: {
+      getHistory: async () => null,
+      getCompactHistory: async () => null,
+    },
+    pendingInjections: { listBySession: async () => [] },
+  } as unknown as UiServiceDeps, { sessionId: 'empty-compact', compactSubagents: true } as any);
+  assert.deepEqual(emptyCompact.subagentSummaries, []);
+});
+
+test('sessions.subagentTranscript returns exact-id rows and an empty detail when the id has no rows', async () => {
+  const deps = {
+    conversationHistory: {
+      getHistory: async () => null,
+      getSubagentHistory: async (_sessionId: string, subagentId: string) => ({
+        sessionId: 'sess-subagent-detail',
+        subagentId,
+        events: subagentId === 'child-1'
+          ? [{ type: 'assistant', text: 'child note', ts: '2026-07-07T00:00:02.000Z', turnIndex: 0, elapsedMs: null }]
+          : [],
+      }),
+    },
+  } as unknown as UiServiceDeps;
+
+  const detail = await handleSessionsSubagentTranscript(deps, {
+    sessionId: 'sess-subagent-detail',
+    subagentId: 'child-1',
+  } as any);
+  assert.equal(detail.subagentId, 'child-1');
+  assert.deepEqual(detail.messages[0], {
+    type: 'assistant', text: 'child note', toolName: null, toolInput: null,
+    ts: '2026-07-07T00:00:02.000Z', elapsedMs: null,
+  });
+
+  const empty = await handleSessionsSubagentTranscript(deps, {
+    sessionId: 'sess-subagent-detail',
+    subagentId: 'missing',
+  } as any);
+  assert.deepEqual(empty, { sessionId: 'sess-subagent-detail', subagentId: 'missing', messages: [] });
 });
 
 // ── Interaction entity materialization (web-interactions-redesign plan) ──────

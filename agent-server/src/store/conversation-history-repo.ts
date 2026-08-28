@@ -1,5 +1,5 @@
-// input:  session JSONL, interactions and DEBUG sidecars
-// output: full/lightweight history reads and lazy tool details
+// input:  session JSONL, interactions, DEBUG sidecars, and durable compact read-model cache state
+// output: full history reads, incremental compact/detail projections, and lazy tool details
 // pos:    Canonical per-session transcript file store
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -7,13 +7,22 @@ import * as path from 'path';
 import { createReadStream, promises as fs } from 'fs';
 import { createInterface } from 'node:readline';
 import { STORE_DIR } from '@core/paths.js';
+import {
+  estimateCompactHistoryBytes,
+  projectCompactHistory,
+  projectSubagentHistory,
+  type CompactConversationHistory,
+  type SubagentConversationHistory,
+} from './conversation-display-projection.js';
+import {
+  ConversationHistoryAccumulator,
+  parseHistoryText,
+  readHistoryAccumulator,
+  readHistoryStream,
+} from './conversation-history-reader.js';
 import type { ChatNoticeLevel, NoticeAction } from '@core/types/agent-types.js';
 import { parseTodoSnapshot, renderTodoProgress } from '../agent-adapter/normalize/todo.js';
 import type { SubagentSpawnRef } from '../agent-adapter/normalize/event-types.js';
-import {
-  debugToolWarningChars,
-  isDebugToolOverWarningThreshold,
-} from '@core/debug-mode.js';
 
 const HISTORY_DIR = path.join(STORE_DIR, 'conversation-history');
 
@@ -63,22 +72,14 @@ export interface InteractionResult {
   feedback?: string;
 }
 
-// ── Decision entity types (send_decision) ────────────────────────────────────
-// A decision is a non-blocking record the agent announces via the web-only `send_decision`
-// MCP tool. The assistant line carries the decision bodies; later user responses are
-// append-only `decision-action` lines folded into each decision's `actions[]` at read time
-// (same append-only discipline as edit-marker — no line is ever rewritten).
-
 export type DecisionActionKind = 'approve' | 'explain' | 'revise';
 
 export interface HistoryDecisionAction {
   action: DecisionActionKind;
-  /** The chat message sent for explain/revise; absent for approve (nothing goes to the agent). */
   message?: string;
   ts: string;
 }
 
-/** Decision body as persisted on the assistant line (no actions — those are separate lines). */
 export interface RawDecisionItem {
   id: string;
   title: string;
@@ -87,7 +88,6 @@ export interface RawDecisionItem {
   reasoning: string;
 }
 
-/** Read-time decision: the persisted body plus the folded action log. */
 export interface HistoryDecisionItem extends RawDecisionItem {
   actions: HistoryDecisionAction[];
 }
@@ -137,7 +137,7 @@ export interface HistoryEvent {
   turnIndex: number;
   /** Optional file attachments (user events from web composer). */
   attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' | 'view' }[];
-  /** Agent-announced decisions (assistant events from `send_decision`), with folded action logs. */
+  /** Agent-announced decisions with append-only response actions folded in. */
   decisions?: HistoryDecisionItem[];
   /** Present on a user event that replaced an earlier message via edit+rewind. Derived on read
    *  from the preceding `edit-marker` raw line (the marker itself is never emitted). */
@@ -147,10 +147,8 @@ export interface HistoryEvent {
 /** Raw line as persisted (no turnIndex — derived on read).
  *  `edit-marker` is a persistence-only line (message edit + rewind): appended right before the
  *  edited user event's re-send; on read it attaches to the NEXT user event as `edited` and is
- *  never emitted as an event itself.
- *  `decision-action` is a persistence-only line too: it folds into the matching decision's
- *  `actions[]` at read time and is never emitted as an event. */
-interface RawEvent {
+ *  never emitted as an event itself. */
+export interface RawEvent {
   type: HistoryEventType | 'edit-marker' | 'debug-user-prompt' | 'debug-tool-result' | 'decision-action';
   /** edit-marker lines only. */
   originalText?: string;
@@ -183,13 +181,9 @@ interface RawEvent {
   ts: string;
   /** Optional file attachments (user events from web composer). */
   attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' | 'view' }[];
-  /** Decision bodies (assistant lines from `send_decision`). */
   decisions?: RawDecisionItem[];
-  /** decision-action lines only: the target decision's id. */
   decisionId?: string;
-  /** decision-action lines only. */
   action?: DecisionActionKind;
-  /** decision-action lines only: the chat message sent for explain/revise. */
   message?: string;
   /** Internal idempotency key for a recovered pending injection. Never emitted by getHistory. */
   sourceId?: string;
@@ -207,6 +201,47 @@ export interface HistoryReadOptions {
   includeToolDebug?: boolean;
 }
 
+export interface ConversationHistoryRepoOptions {
+  compactCacheEntries?: number;
+  compactCacheBytes?: number;
+  compactHistoryAccumulatorReader?: (
+    sessionId: string,
+    filePath: string,
+    options: HistoryReadOptions,
+  ) => Promise<ConversationHistoryAccumulator>;
+}
+
+export type { CompactConversationHistory, CompactConversationEvent, CompactSubagentSummary, SubagentConversationHistory } from './conversation-display-projection.js';
+
+interface CompactCacheEntry {
+  generation: number;
+  bytes: number;
+  accumulator: ConversationHistoryAccumulator;
+  value: CompactConversationHistory;
+}
+
+interface ScannedCompactHistory {
+  accumulator: ConversationHistoryAccumulator;
+  value: CompactConversationHistory;
+}
+
+const DEFAULT_COMPACT_CACHE_ENTRIES = 32;
+const DEFAULT_COMPACT_CACHE_BYTES = 32 * 1024 * 1024;
+
+function estimateCacheEntryBytes(
+  value: CompactConversationHistory,
+  accumulator: ConversationHistoryAccumulator,
+): number {
+  const retained = accumulator.snapshot();
+  const retainedBytes = retained ? Buffer.byteLength(JSON.stringify(retained), 'utf8') : 0;
+  return retainedBytes + estimateCompactHistoryBytes(value);
+}
+
+function appendedCacheBytes(serializedLine: string): number {
+  if (serializedLine.startsWith('{"type":"debug-tool-result"')) return 0;
+  return Buffer.byteLength(serializedLine, 'utf8') + 256;
+}
+
 function nowIso(): string {
   return new Date().toISOString();
 }
@@ -218,19 +253,6 @@ export interface SubagentRowRef {
   type?: string | null;
   description?: string | null;
   model?: string | null;
-}
-
-/** Carry the persisted subagent fields back onto a read-time event, omitting absent ones so a
- *  pre-existing history line still reads as plain main-agent output. */
-function subagentReadFields(ev: RawEvent):
-  { subagentId?: string; subagentType?: string; subagentDescription?: string; subagentModel?: string } {
-  if (!ev.subagentId) return {};
-  return {
-    subagentId: ev.subagentId,
-    ...(ev.subagentType ? { subagentType: ev.subagentType } : {}),
-    ...(ev.subagentDescription ? { subagentDescription: ev.subagentDescription } : {}),
-    ...(ev.subagentModel ? { subagentModel: ev.subagentModel } : {}),
-  };
 }
 
 function subagentRowFields(ref?: SubagentRowRef):
@@ -266,30 +288,63 @@ export function summarizeToolInputForHistory(input: any): string {
   return s.length > 120 ? s.slice(0, 117) + '…' : s;
 }
 
-function isPrefixRelated(a: string, b: string): boolean {
-  return a.startsWith(b) || b.startsWith(a);
-}
-
 /** UUID sessionIds are filename-safe; sanitize defensively all the same. */
 function sessionFilePath(historyDir: string, sessionId: string): string {
   const safe = sessionId.replace(/[^A-Za-z0-9._-]/g, '_');
   return path.join(historyDir, `${safe}.jsonl`);
 }
 
-function debugResultToolRef(line: string): string | null {
-  const encoded = /"toolUseId":"((?:\\.|[^"\\])*)"/.exec(line)?.[1];
-  if (encoded === undefined) return null;
-  try { return JSON.parse(`"${encoded}"`) as string; } catch { return null; }
+// --- Repo ---
+
+function truncateLines(
+  lines: string[],
+  turnIndex: number,
+): { kept: string[]; removed: { text: string; ts: string; attachments?: RawEvent['attachments'] } | null } {
+  let userCount = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const ev = parseRawLine(lines[i]);
+    if (ev?.type !== 'user') continue;
+    if (userCount !== turnIndex) {
+      userCount += 1;
+      continue;
+    }
+    const keepEnd = markerAdjustedKeepEnd(lines, i);
+    return {
+      kept: lines.slice(0, keepEnd),
+      removed: { text: ev.text ?? '', ts: ev.ts, ...(ev.attachments !== undefined ? { attachments: ev.attachments } : {}) },
+    };
+  }
+  return { kept: lines, removed: null };
 }
 
-// --- Repo ---
+function markerAdjustedKeepEnd(lines: string[], cutAt: number): number {
+  if (cutAt === 0) return 0;
+  return parseRawLine(lines[cutAt - 1])?.type === 'edit-marker' ? cutAt - 1 : cutAt;
+}
+
+function parseRawLine(line: string): RawEvent | null {
+  try { return JSON.parse(line) as RawEvent; } catch { return null; }
+}
 
 export class ConversationHistoryRepo {
   /** Per-session serial write chain — keeps concurrent appends from interleaving a line. */
   private writeChains = new Map<string, Promise<void>>();
+  private generations = new Map<string, number>();
+  private compactCache = new Map<string, CompactCacheEntry>();
+  private compactCacheBytes = 0;
   private dirReady = false;
+  private readonly compactCacheEntryLimit: number;
+  private readonly compactCacheByteLimit: number;
+  private readonly compactHistoryAccumulatorReader: NonNullable<ConversationHistoryRepoOptions['compactHistoryAccumulatorReader']>;
 
-  constructor(private readonly historyDir: string = HISTORY_DIR) {}
+  constructor(
+    private readonly historyDir: string = HISTORY_DIR,
+    options: ConversationHistoryRepoOptions = {},
+  ) {
+    this.compactCacheEntryLimit = options.compactCacheEntries ?? DEFAULT_COMPACT_CACHE_ENTRIES;
+    this.compactCacheByteLimit = options.compactCacheBytes ?? DEFAULT_COMPACT_CACHE_BYTES;
+    this.compactHistoryAccumulatorReader = options.compactHistoryAccumulatorReader ?? readHistoryAccumulator;
+  }
 
   private async ensureDir(): Promise<void> {
     if (this.dirReady) return;
@@ -297,16 +352,181 @@ export class ConversationHistoryRepo {
     this.dirReady = true;
   }
 
+  private currentGeneration(sessionId: string): number {
+    return this.generations.get(sessionId) ?? 0;
+  }
+
+  private bumpGeneration(sessionId: string): number {
+    const next = this.currentGeneration(sessionId) + 1;
+    this.generations.set(sessionId, next);
+    return next;
+  }
+
+  private async awaitWriteChain(sessionId: string): Promise<void> {
+    await (this.writeChains.get(sessionId) ?? Promise.resolve()).catch(() => {});
+  }
+
+  private dropCompactCache(sessionId: string): void {
+    const cached = this.compactCache.get(sessionId);
+    if (!cached) return;
+    this.compactCacheBytes -= cached.bytes;
+    this.compactCache.delete(sessionId);
+  }
+
+  private readCompactCache(sessionId: string): CompactConversationHistory | null | undefined {
+    const cached = this.compactCache.get(sessionId);
+    if (!cached) return undefined;
+    if (cached.generation !== this.currentGeneration(sessionId)) {
+      this.dropCompactCache(sessionId);
+      return undefined;
+    }
+    this.compactCache.delete(sessionId);
+    this.compactCache.set(sessionId, cached);
+    return cached.value;
+  }
+
+  private markCompactCacheGeneration(sessionId: string, generation: number): void {
+    const cached = this.compactCache.get(sessionId);
+    if (!cached) return;
+    cached.generation = generation;
+    this.compactCache.delete(sessionId);
+    this.compactCache.set(sessionId, cached);
+  }
+
+  private storeCompactCache(
+    sessionId: string,
+    value: CompactConversationHistory | null,
+    generation: number,
+    accumulator?: ConversationHistoryAccumulator,
+    estimatedBytes?: number,
+  ): void {
+    if (value === null || !accumulator) return this.dropCompactCache(sessionId);
+    const bytes = estimatedBytes ?? estimateCacheEntryBytes(value, accumulator);
+    this.dropCompactCache(sessionId);
+    if (bytes > this.compactCacheByteLimit) return;
+    this.compactCache.set(sessionId, { generation, bytes, accumulator, value });
+    this.compactCacheBytes += bytes;
+    this.trimCompactCache();
+  }
+
+  private trimCompactCache(): void {
+    while (
+      this.compactCache.size > this.compactCacheEntryLimit
+      || this.compactCacheBytes > this.compactCacheByteLimit
+    ) {
+      const oldest = this.compactCache.keys().next().value;
+      if (!oldest) return;
+      this.dropCompactCache(oldest);
+    }
+  }
+
+  private updateCompactCacheAfterAppend(sessionId: string, serializedLine: string, generation: number): void {
+    const cached = this.compactCache.get(sessionId);
+    if (!cached) return;
+    try {
+      cached.accumulator.consumeLine(serializedLine.slice(0, -1));
+      const history = cached.accumulator.snapshot();
+      const bytes = cached.bytes + appendedCacheBytes(serializedLine);
+      this.storeCompactCache(
+        sessionId,
+        history ? projectCompactHistory(history) : null,
+        generation,
+        cached.accumulator,
+        bytes,
+      );
+    } catch {
+      this.dropCompactCache(sessionId);
+    }
+  }
+
   private append(sessionId: string, ev: RawEvent): Promise<void> {
+    const generation = this.bumpGeneration(sessionId);
+    const serializedLine = JSON.stringify(ev) + '\n';
     const prev = this.writeChains.get(sessionId) ?? Promise.resolve();
-    const next = prev
-      .catch(() => {})
-      .then(async () => {
-        await this.ensureDir();
-        await fs.appendFile(sessionFilePath(this.historyDir, sessionId), JSON.stringify(ev) + '\n', 'utf8');
-      });
+    const next = prev.catch(() => {}).then(async () => {
+      await this.ensureDir();
+      try {
+        await fs.appendFile(sessionFilePath(this.historyDir, sessionId), serializedLine, 'utf8');
+      } catch (error) {
+        this.dropCompactCache(sessionId);
+        throw error;
+      }
+      this.updateCompactCacheAfterAppend(sessionId, serializedLine, generation);
+    });
     this.writeChains.set(sessionId, next);
     return next;
+  }
+
+  private async readHistoryFile(sessionId: string): Promise<string | null> {
+    try {
+      return await fs.readFile(sessionFilePath(this.historyDir, sessionId), 'utf8');
+    } catch {
+      return null;
+    }
+  }
+
+  private async readStreamHistory(sessionId: string): Promise<SessionHistory | null> {
+    const filePath = sessionFilePath(this.historyDir, sessionId);
+    try {
+      return await readHistoryStream(sessionId, filePath, { includeToolDebug: false });
+    } catch {
+      return null;
+    }
+  }
+
+  private async rewriteTruncatedSession(
+    sessionId: string,
+    turnIndex: number,
+  ): Promise<{ text: string; ts: string; attachments?: RawEvent['attachments'] } | null> {
+    const raw = await this.readHistoryFile(sessionId);
+    if (raw === null) return null;
+    const { kept, removed } = truncateLines(raw.split('\n').filter((line) => line.trim()), turnIndex);
+    if (!removed) return null;
+    await fs.writeFile(sessionFilePath(this.historyDir, sessionId), kept.length ? kept.join('\n') + '\n' : '', 'utf8');
+    return removed;
+  }
+
+  private async scanCompactHistory(sessionId: string): Promise<ScannedCompactHistory | null> {
+    const filePath = sessionFilePath(this.historyDir, sessionId);
+    try {
+      const accumulator = await this.compactHistoryAccumulatorReader(sessionId, filePath, { includeToolDebug: false });
+      const history = accumulator.snapshot();
+      return history ? { accumulator, value: projectCompactHistory(history) } : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async stableCompactHistory(sessionId: string): Promise<CompactConversationHistory | null> {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const generation = this.currentGeneration(sessionId);
+      const history = await this.scanCompactHistory(sessionId);
+      if (this.currentGeneration(sessionId) !== generation) {
+        await this.awaitWriteChain(sessionId);
+        const cached = this.readCompactCache(sessionId);
+        if (cached !== undefined) return cached;
+        continue;
+      }
+      this.storeCompactCache(sessionId, history?.value ?? null, generation, history?.accumulator);
+      return history?.value ?? null;
+    }
+    await this.awaitWriteChain(sessionId);
+    const cached = this.readCompactCache(sessionId);
+    if (cached !== undefined) return cached;
+    return this.serializedCompactHistory(sessionId);
+  }
+
+  private async serializedCompactHistory(sessionId: string): Promise<CompactConversationHistory | null> {
+    let history: ScannedCompactHistory | null = null;
+    const generation = this.currentGeneration(sessionId);
+    const prev = this.writeChains.get(sessionId) ?? Promise.resolve();
+    const next = prev.catch(() => {}).then(async () => { history = await this.scanCompactHistory(sessionId); });
+    this.writeChains.set(sessionId, next);
+    await next;
+    if (this.currentGeneration(sessionId) === generation) {
+      this.storeCompactCache(sessionId, history?.value ?? null, generation, history?.accumulator);
+    }
+    return history?.value ?? null;
   }
 
   /** Append a user message — starts a new turn (turn boundaries are derived on read).
@@ -342,9 +562,6 @@ export class ConversationHistoryRepo {
     });
   }
 
-  /** Append a DECISION ACTION line (user response to a `send_decision` card): folds into the
-   *  matching decision's `actions[]` at read time. Append-only — the decision line itself is
-   *  never rewritten. */
   appendDecisionAction(sessionId: string, opts: { decisionId: string; action: DecisionActionKind; message?: string; ts?: string }): Promise<void> {
     return this.append(sessionId, {
       type: 'decision-action', decisionId: opts.decisionId, action: opts.action,
@@ -387,7 +604,7 @@ export class ConversationHistoryRepo {
 
   /** Append an interaction RESOLVED record (final status + result). Merged into the created
    *  row by id at read time; kept standalone if no created row exists (defensive). */
-  appendInteractionResolved(sessionId: string, opts: { id: string; status: InteractionStatus; result?: InteractionResult; resolvedVia: InteractionResolvedVia; text: string; ts?: string }): Promise<void> {
+  appendInteractionResolved(sessionId: string, opts: { id: string; status: InteractionStatus; result?: InteractionResult; resolvedVia: InteractionResolvedVia; text?: string; ts?: string }): Promise<void> {
     return this.append(sessionId, { type: 'interaction', id: opts.id, status: opts.status, result: opts.result, resolvedVia: opts.resolvedVia, text: opts.text, ts: opts.ts ?? nowIso() });
   }
 
@@ -405,44 +622,19 @@ export class ConversationHistoryRepo {
    * (for the edit marker + attachment reuse), or null when the turn does not exist.
    */
   async truncateFromTurn(sessionId: string, turnIndex: number): Promise<{ text: string; ts: string; attachments?: RawEvent['attachments'] } | null> {
+    const generation = this.bumpGeneration(sessionId);
     let removed: { text: string; ts: string; attachments?: RawEvent['attachments'] } | null = null;
     const prev = this.writeChains.get(sessionId) ?? Promise.resolve();
-    const next = prev
-      .catch(() => {})
-      .then(async () => {
-        let raw: string;
-        try {
-          raw = await fs.readFile(sessionFilePath(this.historyDir, sessionId), 'utf8');
-        } catch {
-          return; // no history — nothing to truncate
-        }
-        const lines = raw.split('\n').filter(l => l.trim());
-        let userCount = 0;
-        let cutAt = -1;
-        for (let i = 0; i < lines.length; i++) {
-          let ev: RawEvent;
-          try { ev = JSON.parse(lines[i]) as RawEvent; } catch { continue; }
-          if (ev.type === 'user') {
-            if (userCount === turnIndex) {
-              cutAt = i;
-              removed = { text: ev.text ?? '', ts: ev.ts, ...(ev.attachments !== undefined ? { attachments: ev.attachments } : {}) };
-              break;
-            }
-            userCount++;
-          }
-        }
-        if (cutAt === -1) return; // turn out of range — no-op
-        // Drop a marker line directly preceding the cut: it described the removed user event.
-        let keepEnd = cutAt;
-        if (keepEnd > 0) {
-          try {
-            const prevEv = JSON.parse(lines[keepEnd - 1]) as RawEvent;
-            if (prevEv.type === 'edit-marker') keepEnd--;
-          } catch { /* keep as is */ }
-        }
-        const kept = lines.slice(0, keepEnd);
-        await fs.writeFile(sessionFilePath(this.historyDir, sessionId), kept.length ? kept.join('\n') + '\n' : '', 'utf8');
-      });
+    const next = prev.catch(() => {}).then(async () => {
+      try {
+        removed = await this.rewriteTruncatedSession(sessionId, turnIndex);
+      } catch (error) {
+        this.dropCompactCache(sessionId);
+        throw error;
+      }
+      if (removed) this.dropCompactCache(sessionId);
+      else this.markCompactCacheGeneration(sessionId, generation);
+    });
     this.writeChains.set(sessionId, next);
     await next;
     return removed;
@@ -457,175 +649,22 @@ export class ConversationHistoryRepo {
     sessionId: string,
     options: HistoryReadOptions = {},
   ): Promise<SessionHistory | null> {
-    let raw: string;
-    try {
-      raw = await fs.readFile(sessionFilePath(this.historyDir, sessionId), 'utf8');
-    } catch {
-      return null;
-    }
+    await this.awaitWriteChain(sessionId);
+    const raw = await this.readHistoryFile(sessionId);
+    return raw === null ? null : parseHistoryText(sessionId, raw, options);
+  }
 
-    const events: HistoryEvent[] = [];
-    const committedSourceIds = new Set<string>();
-    // Interaction entity merge: id → the created row already pushed into `events`.
-    // A later resolved line with the same id updates that row in place (position kept).
-    const interactionById = new Map<string, HistoryEvent>();
-    // DEBUG sidecars merge into visible rows and never affect transcript ordering or turn indexes.
-    const toolByUseId = new Map<string, HistoryEvent>();
-    // Decision fold: id → the read-time decision item already attached to its assistant row.
-    // Later decision-action lines append into that item's `actions[]` (position kept).
-    const decisionById = new Map<string, HistoryDecisionItem>();
-    let lastUser: HistoryEvent | null = null;
-    let turnIndex = -1;
-    // Pending edit-marker: attaches to the NEXT user event as `edited` (never emitted itself).
-    let pendingEdit: { originalText: string; originalTs: string } | null = null;
-    const includeToolDebug = options.includeToolDebug !== false;
-    for (const line of raw.split('\n')) {
-      if (!line.trim()) continue;
-      if (!includeToolDebug && line.startsWith('{"type":"debug-tool-result"')) {
-        const ref = debugResultToolRef(line);
-        const tool = ref ? toolByUseId.get(ref) : undefined;
-        if (tool && line.length > debugToolWarningChars()) {
-          tool.debug = { ...(tool.debug ?? {}), overCharacterThreshold: true };
-        }
-        continue;
-      }
-      let ev: RawEvent;
-      try { ev = JSON.parse(line) as RawEvent; } catch { continue; }
+  async getCompactHistory(sessionId: string): Promise<CompactConversationHistory | null> {
+    await this.awaitWriteChain(sessionId);
+    const cached = this.readCompactCache(sessionId);
+    return cached !== undefined ? cached : this.stableCompactHistory(sessionId);
+  }
 
-      if (ev.type === 'edit-marker') {
-        pendingEdit = { originalText: ev.originalText ?? '', originalTs: ev.originalTs ?? '' };
-      } else if (ev.type === 'decision-action') {
-        const target = ev.decisionId ? decisionById.get(ev.decisionId) : undefined;
-        if (target && ev.action) {
-          target.actions.push({
-            action: ev.action,
-            ...(ev.message !== undefined ? { message: ev.message } : {}),
-            ts: ev.ts,
-          });
-        }
-      } else if (ev.type === 'debug-user-prompt') {
-        if (lastUser && ev.agentMessage !== undefined) {
-          lastUser.debug = { ...(lastUser.debug ?? {}), agentMessage: ev.agentMessage };
-        }
-      } else if (ev.type === 'debug-tool-result') {
-        const tool = ev.toolUseId ? toolByUseId.get(ev.toolUseId) : undefined;
-        if (tool) {
-          tool.debug = {
-            ...(tool.debug ?? {}),
-            toolResult: { content: ev.text ?? '', isError: ev.isError === true },
-          };
-        }
-      } else if (ev.type === 'user') {
-        turnIndex++;
-        if (ev.sourceId) committedSourceIds.add(ev.sourceId);
-        const user: HistoryEvent = {
-          type: 'user', text: ev.text ?? '', ts: ev.ts, turnIndex, attachments: ev.attachments,
-          ...(pendingEdit ? { edited: pendingEdit } : {}),
-          ...(ev.agentMessage !== undefined ? { debug: { agentMessage: ev.agentMessage } } : {}),
-        };
-        events.push(user);
-        lastUser = user;
-        pendingEdit = null;
-      } else if (ev.type === 'assistant') {
-        const tIdx = Math.max(0, turnIndex);
-        const last = events[events.length - 1];
-        const text = ev.text ?? '';
-        // An assistant event carrying file attachments (agent-sent file, 20a) or decisions
-        // (send_decision) is a distinct card — never fold it into a preceding streamed text block,
-        // and never fold a later text block into it (the empty-caption case is prefix-related to
-        // any text and would otherwise swallow it).
-        const hasAttachments = ev.attachments !== undefined;
-        const hasDecisions = ev.decisions !== undefined && ev.decisions.length > 0;
-        const canCollapse =
-          !hasAttachments &&
-          !hasDecisions &&
-          ev.noticeLevel === undefined &&
-          !!last &&
-          last.type === 'assistant' &&
-          last.noticeLevel === undefined &&
-          last.turnIndex === tIdx &&
-          last.attachments === undefined &&
-          last.decisions === undefined &&
-          // Never merge across the main/subagent boundary, nor between two subagents: streaming
-          // partials only ever collapse within one author.
-          last.subagentId === ev.subagentId &&
-          typeof last.text === 'string' &&
-          isPrefixRelated(last.text, text);
-        if (canCollapse) {
-          if (text.length >= last!.text!.length) { last!.text = text; last!.ts = ev.ts; }
-        } else {
-          const decisions = hasDecisions
-            ? ev.decisions!.map((d): HistoryDecisionItem => ({ ...d, actions: [] }))
-            : undefined;
-          events.push({
-            type: 'assistant', text, ts: ev.ts, turnIndex: tIdx,
-            ...(hasAttachments ? { attachments: ev.attachments } : {}),
-            ...(decisions ? { decisions } : {}),
-            ...(ev.noticeLevel ? { noticeLevel: ev.noticeLevel } : {}),
-            ...(ev.noticeAction ? { noticeAction: ev.noticeAction } : {}),
-            ...(ev.subagentSpawns?.length ? { subagentSpawns: ev.subagentSpawns } : {}),
-            ...subagentReadFields(ev),
-          });
-          if (decisions) for (const d of decisions) decisionById.set(d.id, d);
-        }
-      } else if (ev.type === 'tool') {
-        const toolRef = ev.toolUseId;
-        const inputWarned = !includeToolDebug && ev.fullInput !== undefined
-          && isDebugToolOverWarningThreshold({ toolInput: ev.fullInput });
-        const toolDebug = toolRef || inputWarned || (includeToolDebug && ev.fullInput !== undefined)
-          ? {
-              ...(toolRef ? { toolRef } : {}),
-              ...(includeToolDebug && ev.fullInput !== undefined ? { toolInput: ev.fullInput } : {}),
-              ...(inputWarned ? { overCharacterThreshold: true as const } : {}),
-            }
-          : undefined;
-        const tool: HistoryEvent = {
-          type: 'tool',
-          toolName: ev.toolName ?? '',
-          toolInput: ev.toolInput ?? '',
-          ts: ev.ts,
-          turnIndex: Math.max(0, turnIndex),
-          ...(toolDebug ? { debug: toolDebug } : {}),
-          ...(ev.subagentSpawns?.length ? { subagentSpawns: ev.subagentSpawns } : {}),
-          ...subagentReadFields(ev),
-        };
-        events.push(tool);
-        if (ev.toolUseId) toolByUseId.set(ev.toolUseId, tool);
-      } else if (ev.type === 'interaction') {
-        if (ev.id) {
-          const prior = interactionById.get(ev.id);
-          if (prior && ev.status && ev.status !== 'pending') {
-            // Resolved record → merge into the created row in place.
-            prior.status = ev.status;
-            if (ev.result !== undefined) prior.result = ev.result;
-            if (ev.resolvedVia !== undefined) prior.resolvedVia = ev.resolvedVia;
-            prior.resolvedAt = ev.ts;
-            if (ev.text) prior.text = ev.text;
-            continue;
-          }
-          const entity: HistoryEvent = {
-            type: 'interaction',
-            id: ev.id,
-            kind: ev.kind,
-            status: ev.status ?? 'pending',
-            payload: ev.payload,
-            result: ev.result,
-            resolvedVia: ev.resolvedVia,
-            text: ev.text ?? '',
-            ts: ev.ts,
-            turnIndex: Math.max(0, turnIndex),
-          };
-          events.push(entity);
-          interactionById.set(ev.id, entity);
-        } else {
-          // Legacy line: {subtype, text} only.
-          events.push({ type: 'interaction', subtype: ev.subtype, text: ev.text ?? '', ts: ev.ts, turnIndex: Math.max(0, turnIndex) });
-        }
-      }
-    }
-
-    if (events.length === 0) return null;
-    return { sessionId, events, committedSourceIds: [...committedSourceIds] };
+  async getSubagentHistory(sessionId: string, subagentId: string): Promise<SubagentConversationHistory> {
+    await this.awaitWriteChain(sessionId);
+    const history = await this.readStreamHistory(sessionId);
+    const projected = projectSubagentHistory(history, subagentId);
+    return { ...projected, sessionId };
   }
 
   /** Load one tool's lossless DEBUG payload without attaching every result to the transcript. */
@@ -633,6 +672,7 @@ export class ConversationHistoryRepo {
     sessionId: string,
     toolRef: string,
   ): Promise<HistoryDebugDetails | null> {
+    await this.awaitWriteChain(sessionId);
     const stream = createReadStream(sessionFilePath(this.historyDir, sessionId), { encoding: 'utf8' });
     const lines = createInterface({ input: stream, crlfDelay: Infinity });
     let details: HistoryDebugDetails | null = null;
@@ -662,13 +702,9 @@ export class ConversationHistoryRepo {
 
   /** True when a recovered pending injection has already appended its committed user row. */
   async hasUserSourceId(sessionId: string, sourceId: string): Promise<boolean> {
-    await (this.writeChains.get(sessionId) ?? Promise.resolve()).catch(() => {});
-    let raw: string;
-    try {
-      raw = await fs.readFile(sessionFilePath(this.historyDir, sessionId), 'utf8');
-    } catch {
-      return false;
-    }
+    await this.awaitWriteChain(sessionId);
+    const raw = await this.readHistoryFile(sessionId);
+    if (raw === null) return false;
     for (const line of raw.split('\n')) {
       if (!line.trim()) continue;
       try {
@@ -685,12 +721,9 @@ export class ConversationHistoryRepo {
    * stops at the first `user` line, so it does not parse the whole history.
    */
   async getFirstUserText(sessionId: string): Promise<string | null> {
-    let raw: string;
-    try {
-      raw = await fs.readFile(sessionFilePath(this.historyDir, sessionId), 'utf8');
-    } catch {
-      return null;
-    }
+    await this.awaitWriteChain(sessionId);
+    const raw = await this.readHistoryFile(sessionId);
+    if (raw === null) return null;
     for (const line of raw.split('\n')) {
       if (!line.trim()) continue;
       let ev: RawEvent;
@@ -704,25 +737,41 @@ export class ConversationHistoryRepo {
   }
 
   async clear(sessionId: string): Promise<void> {
-    // Wait for any in-flight append to this session, then remove the file.
-    await (this.writeChains.get(sessionId) ?? Promise.resolve()).catch(() => {});
-    this.writeChains.delete(sessionId);
-    try { await fs.unlink(sessionFilePath(this.historyDir, sessionId)); } catch { /* already gone */ }
+    const generation = this.bumpGeneration(sessionId);
+    const prev = this.writeChains.get(sessionId) ?? Promise.resolve();
+    const next = prev.catch(() => {}).then(async () => {
+      this.dropCompactCache(sessionId);
+      try { await fs.unlink(sessionFilePath(this.historyDir, sessionId)); } catch { /* already gone */ }
+      this.markCompactCacheGeneration(sessionId, generation);
+    });
+    this.writeChains.set(sessionId, next);
+    await next;
+    if (this.writeChains.get(sessionId) === next) this.writeChains.delete(sessionId);
   }
 
   async clearBySessionIds(sessionIds: Iterable<string>): Promise<number> {
     let removed = 0;
-    for (const sessionId of sessionIds) {
-      const filePath = sessionFilePath(this.historyDir, sessionId);
-      await (this.writeChains.get(sessionId) ?? Promise.resolve()).catch(() => {});
-      this.writeChains.delete(sessionId);
+    for (const sessionId of sessionIds) removed += await this.clearOneSession(sessionId);
+    return removed;
+  }
+
+  private async clearOneSession(sessionId: string): Promise<number> {
+    const generation = this.bumpGeneration(sessionId);
+    let removed = 0;
+    const prev = this.writeChains.get(sessionId) ?? Promise.resolve();
+    const next = prev.catch(() => {}).then(async () => {
+      this.dropCompactCache(sessionId);
       try {
-        await fs.unlink(filePath);
-        removed += 1;
+        await fs.unlink(sessionFilePath(this.historyDir, sessionId));
+        removed = 1;
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
       }
-    }
+      this.markCompactCacheGeneration(sessionId, generation);
+    });
+    this.writeChains.set(sessionId, next);
+    await next;
+    if (this.writeChains.get(sessionId) === next) this.writeChains.delete(sessionId);
     return removed;
   }
 

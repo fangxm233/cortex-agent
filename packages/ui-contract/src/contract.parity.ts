@@ -10,6 +10,7 @@ import type {
   projectsCreateInput,
   sessionsListInput,
   sessionsTranscriptInput,
+  sessionsSubagentTranscriptInput,
   sessionsDebugDetailsInput,
   sessionsCreateInput,
   sessionsSendInput,
@@ -101,6 +102,7 @@ type MutateParity<O extends keyof MutateArgsMap, Schema extends z.ZodType> = Exa
 const _projectsList: QueryParity<'projects.list', typeof projectsListInput> = true;
 const _sessionsList: QueryParity<'sessions.list', typeof sessionsListInput> = true;
 const _sessionsTranscript: QueryParity<'sessions.transcript', typeof sessionsTranscriptInput> = true;
+const _sessionsSubagentTranscript: QueryParity<'sessions.subagentTranscript', typeof sessionsSubagentTranscriptInput> = true;
 const _sessionsDebugDetails: QueryParity<'sessions.debugDetails', typeof sessionsDebugDetailsInput> = true;
 const _threadsList: QueryParity<'threads.list', typeof threadsListInput> = true;
 const _threadsGet: QueryParity<'threads.get', typeof threadsGetInput> = true;
@@ -194,7 +196,7 @@ const _executionsLog: Exact<z.infer<typeof executionsLogInput>, ExecutionsLogPar
 // Reference the guards so noUnusedLocals (if enabled) stays quiet and the
 // checks are not tree-shaken away by the type checker.
 export const _contractParityChecked = [
-  _projectsList, _sessionsList, _sessionsTranscript, _threadsList, _threadsGet, _tasksList, _schedulesList,
+  _projectsList, _sessionsList, _sessionsTranscript, _sessionsSubagentTranscript, _threadsList, _threadsGet, _tasksList, _schedulesList,
   _executionsList, _executionsGet, _memoryTree, _memoryFile, _approvalsList, _notesList, _costSummary, _configGet,
   _authStatus, _authFlowState, _machinesList, _skillsList, _pluginsList, _threadTemplatesGet,
   _projectsCreate, _sessionsCreate, _sessionsSend, _sessionsCompact, _sessionsSetProfile, _threadsCancel, _executionsCancel,

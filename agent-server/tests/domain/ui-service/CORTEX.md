@@ -37,7 +37,7 @@ Scopes cover approvals, config, executions, issues, memory, plugins, projects, s
 | query-memory.test.ts | test | Covers memory tree, file read and path guards |
 | query-projects.test.ts | test | Covers project list with conduit info |
 | query-schedules.test.ts | test | Covers schedule list filters and fields |
-| query-sessions-transcript.test.ts | test | Covers transcript prompts, turns and interactions |
+| query-sessions-transcript.test.ts | test | Covers full/compact transcripts, subagent detail, prompts, turns, and interactions |
 | query-sessions.test.ts | test | Covers session list filters and run state |
 | query-skills.test.ts | test | Covers skills list grouping by source |
 | plugins.test.ts | test | Covers plugin list, assignment and hot reload |

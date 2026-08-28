@@ -11,6 +11,7 @@ import {
   projectsCreateInput,
   sessionsListInput,
   sessionsTranscriptInput,
+  sessionsSubagentTranscriptInput,
   sessionsDebugDetailsInput,
   sessionsCreateInput,
   sessionsSendInput,
@@ -188,6 +189,7 @@ function sessionsRouter(service: UiService) {
   return router({
     list: makeQuery(service, 'sessions.list', sessionsListInput),
     transcript: makeQuery(service, 'sessions.transcript', sessionsTranscriptInput),
+    subagentTranscript: makeQuery(service, 'sessions.subagentTranscript', sessionsSubagentTranscriptInput),
     debugDetails: makeQuery(service, 'sessions.debugDetails', sessionsDebugDetailsInput),
     pendingInteraction: makeQuery(service, 'sessions.pendingInteraction', sessionsPendingInteractionInput),
     create: makeMutation(service, 'sessions.create', sessionsCreateInput),

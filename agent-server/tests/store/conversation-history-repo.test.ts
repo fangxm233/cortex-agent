@@ -1,5 +1,5 @@
-// input:  isolated session JSONL plus visible/debug/notice/source-id APIs
-// output: grouping, spawn prompts, notices, rewind, and DEBUG regressions
+// input:  isolated session JSONL plus compact/detail projection, durable cache flow, and DEBUG APIs
+// output: grouping, spawn prompts, summaries, rewind, incremental cache behavior, and DEBUG regressions
 // pos:    Backend-independent conversation-history store specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import '../_test-home.js'; // MUST be first import — repoints CORTEX_HOME before paths bind
@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { STORE_DIR } from '../../src/core/paths.js';
+import { readHistoryAccumulator } from '../../src/store/conversation-history-reader.js';
 import { ConversationHistoryRepo } from '../../src/store/conversation-history-repo.js';
 
 const CUSTOM_HISTORY_DIR = path.join(STORE_DIR, 'history-retention-tests');
@@ -413,4 +414,201 @@ test('clearBySessionIds removes all matching transcript files and ignores missin
   assert.equal(await repo.getHistory('track-a'), null);
   assert.ok(await repo.getHistory('track-b'));
   assert.equal(await repo.getHistory('track-c'), null);
+});
+
+test('compact projection keeps main rows, structural child anchors, orphan anchors, and exact-id details', async () => {
+  const repo = new ConversationHistoryRepo(CUSTOM_HISTORY_DIR);
+  const sid = 'sess-compact-main';
+  const child = { id: 'child-1', type: 'explore', description: 'Inspect renderers', model: 'claude-sonnet' } as const;
+  const grand = { id: 'grand-1', type: 'review', description: 'Review notes', prompt: 'Review notes carefully.' };
+  await repo.appendUser(sid, { text: 'go', ts: '2026-07-07T00:00:00.000Z' });
+  await repo.appendTool(sid, {
+    toolName: 'agent', toolInput: 'Inspect renderers', ts: '2026-07-07T00:00:01.000Z',
+    subagentSpawns: [{ id: child.id, type: child.type, description: child.description, prompt: 'Inspect renderers thoroughly.' }],
+  });
+  await repo.appendAssistant(sid, {
+    text: 'child note', ts: '2026-07-07T00:00:02.000Z', subagent: child,
+  });
+  await repo.appendTool(sid, {
+    toolName: 'Read', toolInput: 'web/src/a.tsx', ts: '2026-07-07T00:00:03.000Z', subagent: child,
+  });
+  await repo.appendAssistant(sid, {
+    text: 'delegate deeper', ts: '2026-07-07T00:00:04.000Z', subagent: child,
+    subagentSpawns: [grand],
+  });
+  await repo.appendAssistant(sid, {
+    text: 'legacy orphan anchor', ts: '2026-07-07T00:00:05.000Z',
+    subagent: { id: 'orphan-1', type: 'research', description: 'Orphan branch', model: 'pi-small' },
+  });
+  await repo.appendAssistant(sid, { text: 'main resumes', ts: '2026-07-07T00:00:06.000Z' });
+
+  const compact = await repo.getCompactHistory(sid);
+  assert.deepEqual(compact!.events.map((event) => [event.type, event.subagentId ?? null, event.text ?? event.toolName]), [
+    ['user', null, 'go'],
+    ['tool', null, 'agent'],
+    ['assistant', 'child-1', 'delegate deeper'],
+    ['assistant', 'orphan-1', 'legacy orphan anchor'],
+    ['assistant', null, 'main resumes'],
+  ]);
+  assert.deepEqual(compact!.subagentSummaries, [
+    {
+      id: 'child-1', type: 'explore', description: 'Inspect renderers', model: 'claude-sonnet',
+      toolCount: 1, hasDetails: true, structurallyOpen: false,
+    },
+    {
+      id: 'grand-1', type: 'review', description: 'Review notes',
+      toolCount: 0, hasDetails: false, structurallyOpen: false,
+    },
+    {
+      id: 'orphan-1', type: 'research', description: 'Orphan branch', model: 'pi-small',
+      toolCount: 0, hasDetails: true, structurallyOpen: false,
+    },
+  ]);
+
+  const detail = await repo.getSubagentHistory(sid, 'child-1');
+  assert.deepEqual(detail!.events.map((event) => [event.type, event.text ?? event.toolName, event.subagentSpawns ?? null]), [
+    ['assistant', 'child note', null],
+    ['tool', 'Read', null],
+    ['assistant', 'delegate deeper', null],
+  ]);
+  assert.deepEqual((await repo.getSubagentHistory(sid, 'grand-1'))!.events, []);
+});
+
+test('subagent detail keeps full-session elapsed timing across interleaved main rows', async () => {
+  const repo = new ConversationHistoryRepo(CUSTOM_HISTORY_DIR);
+  const sid = 'sess-detail-elapsed';
+  const child = { id: 'child-elapsed', type: 'explore' } as const;
+  await repo.appendUser(sid, { text: 'start', ts: '2026-07-07T00:00:00.000Z' });
+  await repo.appendAssistant(sid, { text: 'child first', ts: '2026-07-07T00:00:01.000Z', subagent: child });
+  await repo.appendTool(sid, { toolName: 'Read', toolInput: 'main.ts', ts: '2026-07-07T00:00:04.000Z' });
+  await repo.appendTool(sid, { toolName: 'Grep', toolInput: 'child', ts: '2026-07-07T00:00:05.000Z', subagent: child });
+
+  const detail = await repo.getSubagentHistory(sid, child.id);
+  assert.deepEqual(detail.events.map((event) => event.elapsedMs), [1000, 1000]);
+});
+
+test('clear preserves a later append queued on the same session write chain', async () => {
+  const repo = new ConversationHistoryRepo(CUSTOM_HISTORY_DIR);
+  const sid = 'sess-clear-append-race';
+  await repo.appendUser(sid, { text: 'old' });
+
+  const clearing = repo.clear(sid);
+  const appending = repo.appendUser(sid, { text: 'new' });
+  await Promise.all([clearing, appending]);
+
+  const history = await repo.getHistory(sid);
+  assert.deepEqual(history?.events.map((event) => event.text), ['new']);
+});
+
+test('compact projection breaks PI self-reference cycles and detail strips recursive spawn metadata', async () => {
+  const repo = new ConversationHistoryRepo(CUSTOM_HISTORY_DIR);
+  const sid = 'sess-compact-self';
+  await repo.appendUser(sid, { text: 'start', ts: '2026-07-07T00:00:00.000Z' });
+  await repo.appendAssistant(sid, {
+    text: 'self referenced child', ts: '2026-07-07T00:00:01.000Z',
+    subagent: { id: 'pi-child#0', type: 'explore', description: 'Self ref', model: 'pi-fast' },
+    subagentSpawns: [{ id: 'pi-child#0', type: 'explore', description: 'Self ref', prompt: 'Stay on task.' }],
+  });
+
+  const compact = await repo.getCompactHistory(sid);
+  assert.equal(compact!.subagentSummaries.length, 1);
+  assert.equal(compact!.subagentSummaries[0].id, 'pi-child#0');
+  assert.equal(compact!.subagentSummaries[0].hasDetails, true);
+
+  const detail = await repo.getSubagentHistory(sid, 'pi-child#0');
+  assert.equal(detail!.events.length, 1);
+  assert.equal(detail!.events[0].subagentSpawns, undefined);
+});
+
+test('compact projection warms once, updates from durable appends without re-scan, and invalidates on rewind/clear', async () => {
+  let scanCount = 0;
+  const repo = new ConversationHistoryRepo(CUSTOM_HISTORY_DIR, {
+    compactCacheEntries: 2,
+    compactCacheBytes: 2048,
+    compactHistoryAccumulatorReader: async (sessionId, filePath, options) => {
+      scanCount += 1;
+      return readHistoryAccumulator(sessionId, filePath, options);
+    },
+  });
+  const sid = 'sess-compact-cache';
+  const child = { id: 'child-cache-1', type: 'explore', description: 'Inspect cache', model: 'claude-sonnet' } as const;
+
+  const queued = repo.appendUser(sid, { text: 'queued user', ts: '2026-07-07T00:00:00.000Z' });
+  const first = await repo.getCompactHistory(sid);
+  await queued;
+  assert.equal(first!.events[0].text, 'queued user');
+  assert.equal(scanCount, 1, 'first compact read does one cold scan');
+
+  await repo.appendTool(sid, {
+    toolName: 'agent', toolInput: 'Inspect cache', ts: '2026-07-07T00:00:01.000Z',
+    subagentSpawns: [{ id: child.id, type: child.type, description: child.description, prompt: 'Inspect cache thoroughly.' }],
+  });
+  await repo.appendTool(sid, {
+    toolName: 'Read', toolInput: 'agent-server/src/store/conversation-history-repo.ts', ts: '2026-07-07T00:00:02.000Z',
+    subagent: child,
+  });
+  await repo.appendAssistant(sid, { text: 'main reply', ts: '2026-07-07T00:00:03.000Z' });
+
+  const refreshed = await repo.getCompactHistory(sid);
+  assert.equal(scanCount, 1, 'warm cache is incrementally updated instead of re-stream scanning');
+  assert.deepEqual(refreshed!.events.map((event) => [event.type, event.subagentId ?? null, event.text ?? event.toolName]), [
+    ['user', null, 'queued user'],
+    ['tool', null, 'agent'],
+    ['assistant', null, 'main reply'],
+  ]);
+  assert.deepEqual(refreshed!.subagentSummaries, [{
+    id: child.id,
+    type: child.type,
+    description: child.description,
+    model: child.model,
+    toolCount: 1,
+    hasDetails: true,
+    structurallyOpen: false,
+  }]);
+
+  await repo.truncateFromTurn(sid, 0);
+  assert.equal(await repo.getCompactHistory(sid), null);
+  assert.equal((repo as any).compactCache.size, 0);
+
+  await repo.appendUser(sid, { text: 'after rewind', ts: '2026-07-07T00:00:04.000Z' });
+  await repo.getCompactHistory(sid);
+  await repo.clear(sid);
+  assert.equal(await repo.getCompactHistory(sid), null);
+  assert.equal((repo as any).compactCache.size, 0);
+});
+
+test('truncateFromTurn out of range preserves a warm compact cache without a re-scan', async () => {
+  let scanCount = 0;
+  const repo = new ConversationHistoryRepo(CUSTOM_HISTORY_DIR, {
+    compactCacheEntries: 2,
+    compactCacheBytes: 2048,
+    compactHistoryAccumulatorReader: async (sessionId, filePath, options) => {
+      scanCount += 1;
+      return readHistoryAccumulator(sessionId, filePath, options);
+    },
+  });
+  const sid = 'sess-compact-cache-noop-rewind';
+
+  await repo.appendUser(sid, { text: 'keep me', ts: '2026-07-07T00:00:00.000Z' });
+  assert.equal((await repo.getCompactHistory(sid))!.events[0].text, 'keep me');
+  assert.equal(scanCount, 1);
+
+  assert.equal(await repo.truncateFromTurn(sid, 9), null);
+  assert.equal((await repo.getCompactHistory(sid))!.events[0].text, 'keep me');
+  assert.equal(scanCount, 1, 'no-op rewind keeps the warm cache generation aligned');
+});
+
+test('compact projection LRU evicts by count and estimated bytes', async () => {
+  const repo = new ConversationHistoryRepo(CUSTOM_HISTORY_DIR, { compactCacheEntries: 2, compactCacheBytes: 220 });
+  await repo.appendUser('lru-a', { text: 'alpha alpha alpha alpha', ts: '2026-07-07T00:00:00.000Z' });
+  await repo.appendUser('lru-b', { text: 'beta beta beta beta', ts: '2026-07-07T00:00:00.000Z' });
+  await repo.appendUser('lru-c', { text: 'gamma gamma gamma gamma', ts: '2026-07-07T00:00:00.000Z' });
+
+  await repo.getCompactHistory('lru-a');
+  await repo.getCompactHistory('lru-b');
+  await repo.getCompactHistory('lru-c');
+
+  const cacheKeys = [...(repo as any).compactCache.keys()];
+  assert.equal(cacheKeys.includes('lru-a'), false, 'oldest entry evicted when count limit is exceeded');
+  assert.ok((repo as any).compactCacheBytes <= 220, 'byte budget is enforced');
 });

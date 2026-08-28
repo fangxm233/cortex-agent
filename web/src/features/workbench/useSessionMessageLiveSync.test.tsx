@@ -1,5 +1,5 @@
-// input:  mounted live-sync hook and captured message/Todo events
-// output: message/prompt authority and Todo isolation regressions
+// input:  mounted live-sync hook and captured message/Todo/compact-detail events
+// output: message authority, compact invalidation, and Todo isolation regressions
 // pos:    Verifies session-scoped live state before and after renders
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -9,13 +9,16 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 
 const harness = vi.hoisted(() => ({
   liveHandler: null as null | ((event: any) => void),
+  deltaHandler: null as null | ((event: any) => void),
   invalidateQueries: vi.fn(),
+  refetch: vi.fn(),
 }));
 
 vi.mock('@tanstack/react-query', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@tanstack/react-query')>();
   return {
     ...actual,
+    useQuery: () => ({ data: undefined, isPending: false, isError: false, refetch: harness.refetch }),
     useQueryClient: () => ({ invalidateQueries: harness.invalidateQueries }),
   };
 });
@@ -27,6 +30,7 @@ vi.mock('@/lib/trpc', () => ({
       sessions: {
         list: { queryFilter },
         transcript: { queryFilter },
+        subagentTranscript: { queryFilter },
         pendingInteraction: { queryFilter },
       },
     };
@@ -40,11 +44,17 @@ vi.mock('@/features/live/LiveEventsProvider', () => ({
   },
 }));
 
-vi.mock('./useAssistantDeltaStream', () => ({ useAssistantDeltaStream: () => {} }));
+vi.mock('./useAssistantDeltaStream', () => ({
+  useAssistantDeltaStream: (_sessionId: string, enabled: boolean, handler: (event: any) => void) => {
+    harness.deltaHandler = enabled ? handler : null;
+  },
+}));
 
 import { useSessionMessageLiveSync, type SessionLiveState } from './useSessionMessageLiveSync';
+import { registerActiveSubagentTranscript } from './SubagentTranscriptDetail';
 
-const TRANSCRIPT = { sessionId: 's1', turns: [], pendingUserMessages: [] };
+const FULL_TRANSCRIPT = { sessionId: 's1', turns: [], pendingUserMessages: [] };
+const COMPACT_TRANSCRIPT = { sessionId: 's1', turns: [], pendingUserMessages: [], subagentSummaries: [] };
 const TODO_SNAPSHOT = {
   items: [{ content: 'Inspect state', activeForm: 'Inspecting state', status: 'in_progress' as const }],
   total: 1,
@@ -55,16 +65,23 @@ const TODO_SNAPSHOT = {
 let observed: SessionLiveState | null = null;
 let mounted: ReactTestRenderer | null = null;
 
-function Probe({ sessionId = 's1' }: { sessionId?: string }): null {
+function Probe({ sessionId = 's1', transcript = FULL_TRANSCRIPT, deltas = false }: {
+  sessionId?: string;
+  transcript?: typeof FULL_TRANSCRIPT | typeof COMPACT_TRANSCRIPT | null;
+  deltas?: boolean;
+}): null {
   observed = useSessionMessageLiveSync(sessionId, false, false, {
-    transcript: sessionId === TRANSCRIPT.sessionId ? TRANSCRIPT : null,
+    transcript: transcript && sessionId === transcript.sessionId ? transcript : null,
+    deltas,
   });
   return null;
 }
 
 beforeEach(async () => {
   harness.liveHandler = null;
+  harness.deltaHandler = null;
   harness.invalidateQueries.mockReset();
+  harness.refetch.mockReset();
   observed = null;
   await act(async () => {
     mounted = create(<Probe />, { unstable_isConcurrent: true } as any);
@@ -190,5 +207,122 @@ describe('useSessionMessageLiveSync message authority snapshot', () => {
         pendingUser: [],
       });
     });
+  });
+
+  it('keeps a bounded child fallback in the compact live tail and invalidates active detail queries', async () => {
+    const unregister = registerActiveSubagentTranscript('s1', 'child-1');
+    try {
+      await act(async () => {
+        mounted?.update(<Probe transcript={COMPACT_TRANSCRIPT} />);
+      });
+
+      act(() => {
+        harness.liveHandler?.({
+          type: 'session.message',
+          payload: {
+            sessionId: 's1', role: 'assistant', text: 'child note', subagentId: 'child-1',
+            ts: '2026-08-01T01:00:00.000Z',
+          },
+        });
+      });
+
+      expect(observed?.getMessageSnapshot().liveTail).toMatchObject([{
+        subagentId: 'child-1', text: 'child note',
+      }]);
+      expect(harness.invalidateQueries).toHaveBeenCalledWith({ input: { sessionId: 's1' } });
+      expect(harness.invalidateQueries).toHaveBeenCalledWith({ input: { sessionId: 's1', subagentId: 'child-1' } });
+    } finally {
+      unregister();
+    }
+  });
+
+  it('does not let a child final message retire the main-agent delta preview', async () => {
+    await act(async () => {
+      mounted?.update(<Probe transcript={COMPACT_TRANSCRIPT} deltas />);
+    });
+
+    act(() => {
+      harness.deltaHandler?.({ blockId: 'main-block', text: 'main partial' });
+    });
+    expect(observed?.streamingText).toBe('main partial');
+
+    act(() => {
+      harness.liveHandler?.({
+        type: 'session.message',
+        payload: {
+          sessionId: 's1', role: 'assistant', text: 'child result', subagentId: 'child-1',
+          ts: '2026-08-01T01:00:00.000Z',
+        },
+      });
+    });
+
+    expect(observed?.streamingText).toBe('main partial');
+  });
+
+  it('keeps structural child spawn events in the compact live tail and still invalidates detail queries', async () => {
+    const unregister = registerActiveSubagentTranscript('s1', 'child-1');
+    try {
+      await act(async () => {
+        mounted?.update(<Probe transcript={COMPACT_TRANSCRIPT} />);
+      });
+
+      act(() => {
+        harness.liveHandler?.({
+          type: 'session.message',
+          payload: {
+            sessionId: 's1', role: 'assistant', text: 'delegate deeper', subagentId: 'child-1',
+            subagentSpawns: [{ id: 'grand-1', type: 'review', description: 'Review', prompt: 'Review carefully.' }],
+            ts: '2026-08-01T01:00:00.000Z',
+          },
+        });
+      });
+
+      expect(observed?.getMessageSnapshot().liveTail).toMatchObject([{
+        subagentId: 'child-1',
+        subagentSpawns: [{ id: 'grand-1', type: 'review', description: 'Review', prompt: 'Review carefully.' }],
+      }]);
+      expect(harness.invalidateQueries).toHaveBeenCalledWith({ input: { sessionId: 's1' } });
+      expect(harness.invalidateQueries).toHaveBeenCalledWith({ input: { sessionId: 's1', subagentId: 'child-1' } });
+    } finally {
+      unregister();
+    }
+  });
+
+  it('keeps the old live-tail behavior when the transcript has no compact authority', () => {
+    act(() => {
+      harness.liveHandler?.({
+        type: 'session.message',
+        payload: {
+          sessionId: 's1', role: 'assistant', text: 'child note', subagentId: 'child-1',
+          ts: '2026-08-01T01:00:00.000Z',
+        },
+      });
+    });
+
+    expect(observed?.getMessageSnapshot().liveTail).toMatchObject([{ subagentId: 'child-1', text: 'child note' }]);
+  });
+
+  it('rewind still clears the tail and invalidates active subagent detail queries', () => {
+    const unregister = registerActiveSubagentTranscript('s1', 'child-1');
+    try {
+      act(() => {
+        harness.liveHandler?.({
+          type: 'session.message',
+          payload: { sessionId: 's1', role: 'assistant', text: 'main reply', ts: '2026-08-01T01:00:00.000Z' },
+        });
+      });
+      expect(observed?.getMessageSnapshot().liveTail).toHaveLength(1);
+
+      act(() => {
+        harness.liveHandler?.({ type: 'session.rewound', payload: { sessionId: 's1' } });
+      });
+
+      expect(observed?.getMessageSnapshot().liveTail).toEqual([]);
+      expect(harness.invalidateQueries).toHaveBeenCalledWith({ input: { sessionId: 's1' } });
+      expect(harness.invalidateQueries).toHaveBeenCalledWith({ input: undefined });
+      expect(harness.invalidateQueries).toHaveBeenCalledWith({ input: { sessionId: 's1', subagentId: 'child-1' } });
+    } finally {
+      unregister();
+    }
   });
 });

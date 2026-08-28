@@ -27,7 +27,7 @@ export function MPlanReadScreen(): JSX.Element {
   const copy = pickCopy(lang, M_PLAN_READ_COPY);
 
   const transcriptQuery = useQuery({
-    ...trpc.sessions.transcript.queryOptions({ sessionId }),
+    ...trpc.sessions.transcript.queryOptions({ sessionId, compactSubagents: true }),
     enabled: !!sessionId,
   });
   // Live convergence: session.interaction events (this or ANY client resolving) invalidate the

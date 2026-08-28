@@ -1,5 +1,5 @@
 // input:  session/history stores plus process DEBUG size policy
-// output: session snapshots, lightweight transcripts and lazy DEBUG
+// output: session snapshots, full/compact transcripts, subagent detail, and lazy DEBUG
 // pos:    Authoritative query boundary for session transcripts
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -8,8 +8,10 @@ import type {
   SessionInfo,
   SessionsListParams,
   SessionsTranscriptParams,
+  SessionsSubagentTranscriptParams,
   SessionsDebugDetailsParams,
   SessionTranscript,
+  SessionSubagentTranscript,
   TranscriptTurn,
   TranscriptMessage,
   TranscriptDebugDetails,
@@ -18,6 +20,7 @@ import type {
 } from '../types.js';
 import { effectiveBackendSessionId } from '@store/session-registry-repo.js';
 import type { HistoryEvent } from '@store/conversation-history-repo.js';
+import { projectCompactHistory, projectSubagentHistory } from '@store/conversation-display-projection.js';
 import { isDebugMode, isDebugToolOverWarningThreshold } from '@core/debug-mode.js';
 
 export async function handleSessionsList(
@@ -196,98 +199,182 @@ async function pendingUserSnapshot(
   }));
 }
 
+type EventWithElapsed = HistoryEvent & { elapsedMs?: number | null };
+
+function eventElapsedMs(event: EventWithElapsed, previousMs: number | null): number | null {
+  if (event.elapsedMs !== undefined) return event.elapsedMs;
+  const currentMs = Date.parse(event.ts);
+  return previousMs !== null && Number.isFinite(currentMs) ? currentMs - previousMs : null;
+}
+
+function nextPreviousMs(event: EventWithElapsed): number | null {
+  const currentMs = Date.parse(event.ts);
+  return Number.isFinite(currentMs) ? currentMs : null;
+}
+
+function interactionParts(deps: UiServiceDeps, event: EventWithElapsed) {
+  if (event.type !== 'interaction' || !event.id) return { interaction: undefined, subtype: event.subtype };
+  const currentMs = Date.parse(event.ts);
+  const live = deps.isInteractionPending?.(event.id) ?? false;
+  const age = Number.isFinite(currentMs) ? Date.now() - currentMs : Infinity;
+  const status = event.status === 'pending' && (!live || age > INTERACTION_TTL_MS)
+    ? 'expired'
+    : (event.status ?? 'pending');
+  return {
+    interaction: {
+      id: event.id,
+      kind: (event.kind ?? 'ask-user') as NonNullable<TranscriptMessage['interaction']>['kind'],
+      status: status as NonNullable<TranscriptMessage['interaction']>['status'],
+      payload: event.payload ?? {},
+      ...(event.result !== undefined ? { result: event.result } : {}),
+      ...(event.resolvedVia !== undefined ? { resolvedVia: event.resolvedVia } : {}),
+    },
+    subtype: interactionSubtype(event.kind ?? 'ask-user', status),
+  };
+}
+
+function messageFromEvent(
+  deps: UiServiceDeps,
+  event: EventWithElapsed,
+  elapsedMs: number | null,
+): TranscriptMessage {
+  const { interaction, subtype } = interactionParts(deps, event);
+  const debug = transcriptDebugDetails(event);
+  return {
+    type: event.type as TranscriptMessage['type'],
+    text: event.type === 'tool' ? null : (event.text ?? ''),
+    toolName: event.type === 'tool' ? (event.toolName ?? '') : null,
+    toolInput: event.type === 'tool' ? (event.toolInput ?? '') : null,
+    ts: event.ts,
+    elapsedMs,
+    ...((event.type === 'user' || event.type === 'assistant') && event.attachments !== undefined ? { attachments: event.attachments } : {}),
+    ...(event.type === 'assistant' && event.decisions !== undefined ? { decisions: event.decisions } : {}),
+    ...(event.type === 'assistant' && event.noticeLevel !== undefined ? { noticeLevel: event.noticeLevel } : {}),
+    ...(event.type === 'assistant' && event.noticeAction !== undefined ? { noticeAction: event.noticeAction } : {}),
+    ...(event.type === 'user' && event.edited !== undefined ? { edited: event.edited } : {}),
+    ...(debug !== undefined ? { debug } : {}),
+    ...(event.type === 'interaction' && subtype ? { subtype } : {}),
+    ...(interaction !== undefined ? { interaction } : {}),
+    ...(event.subagentId !== undefined ? { subagentId: event.subagentId } : {}),
+    ...(event.subagentSpawns !== undefined ? { subagentSpawns: event.subagentSpawns } : {}),
+    ...(event.subagentType !== undefined ? { subagentType: event.subagentType } : {}),
+    ...(event.subagentDescription !== undefined ? { subagentDescription: event.subagentDescription } : {}),
+    ...(event.subagentModel !== undefined ? { subagentModel: event.subagentModel } : {}),
+  };
+}
+
+function transcriptTurns(deps: UiServiceDeps, events: EventWithElapsed[]): TranscriptTurn[] {
+  const byTurn = new Map<number, TranscriptTurn>();
+  const order: number[] = [];
+  let previousMs: number | null = null;
+  for (const event of events) {
+    const turn = byTurn.get(event.turnIndex) ?? { turnIndex: event.turnIndex, messages: [] };
+    if (!byTurn.has(event.turnIndex)) {
+      byTurn.set(event.turnIndex, turn);
+      order.push(event.turnIndex);
+    }
+    turn.messages.push(messageFromEvent(deps, event, eventElapsedMs(event, previousMs)));
+    previousMs = nextPreviousMs(event);
+  }
+  return order.map((index) => byTurn.get(index)!);
+}
+
+function transcriptMessages(deps: UiServiceDeps, events: EventWithElapsed[]): TranscriptMessage[] {
+  let previousMs: number | null = null;
+  return events.map((event) => {
+    const message = messageFromEvent(deps, event, eventElapsedMs(event, previousMs));
+    previousMs = nextPreviousMs(event);
+    return message;
+  });
+}
+
+function pendingMessages(
+  snapshot: NonNullable<SessionTranscript['pendingUserMessages']>,
+  committedSourceIds: string[] | undefined,
+) {
+  const committed = new Set(committedSourceIds ?? []);
+  return snapshot.filter((message) => !committed.has(message.id));
+}
+
+async function compactHistory(deps: UiServiceDeps, sessionId: string) {
+  if (deps.conversationHistory.getCompactHistory) return deps.conversationHistory.getCompactHistory(sessionId);
+  const history = await deps.conversationHistory.getHistory(sessionId, { includeToolDebug: false });
+  return history ? projectCompactHistory(history) : null;
+}
+
+async function subagentHistory(deps: UiServiceDeps, sessionId: string, subagentId: string) {
+  if (deps.conversationHistory.getSubagentHistory) {
+    return deps.conversationHistory.getSubagentHistory(sessionId, subagentId);
+  }
+  return projectSubagentHistory(
+    await deps.conversationHistory.getHistory(sessionId, { includeToolDebug: false }),
+    subagentId,
+  );
+}
+
+function sessionTranscript(
+  deps: UiServiceDeps,
+  sessionId: string,
+  events: EventWithElapsed[],
+  pendingUserMessages: NonNullable<SessionTranscript['pendingUserMessages']>,
+  subagentSummaries?: SessionTranscript['subagentSummaries'],
+): SessionTranscript {
+  return {
+    sessionId,
+    turns: transcriptTurns(deps, events),
+    pendingUserMessages,
+    ...(subagentSummaries !== undefined ? { subagentSummaries } : {}),
+  };
+}
+
+async function fullTranscript(
+  deps: UiServiceDeps,
+  params: SessionsTranscriptParams,
+  pendingSnapshot: NonNullable<SessionTranscript['pendingUserMessages']>,
+): Promise<SessionTranscript> {
+  const history = await deps.conversationHistory.getHistory(params.sessionId, { includeToolDebug: false });
+  return sessionTranscript(
+    deps,
+    params.sessionId,
+    history?.events ?? [],
+    pendingMessages(pendingSnapshot, history?.committedSourceIds),
+  );
+}
+
+async function compactTranscript(
+  deps: UiServiceDeps,
+  params: SessionsTranscriptParams,
+  pendingSnapshot: NonNullable<SessionTranscript['pendingUserMessages']>,
+): Promise<SessionTranscript> {
+  const history = await compactHistory(deps, params.sessionId);
+  return sessionTranscript(
+    deps,
+    params.sessionId,
+    history?.events ?? [],
+    pendingMessages(pendingSnapshot, history?.committedSourceIds),
+    history?.subagentSummaries ?? [],
+  );
+}
+
 export async function handleSessionsTranscript(
   deps: UiServiceDeps,
   params: SessionsTranscriptParams,
 ): Promise<SessionTranscript> {
-  // Read active state first, then committed history. Commit order is history → active remove, so
-  // this sequence must observe the message on at least one side of that cross-store handoff.
   const pendingSnapshot = await pendingUserSnapshot(deps, params.sessionId);
-  const history = await deps.conversationHistory.getHistory(
-    params.sessionId,
-    { includeToolDebug: false },
-  );
-  if (!history) return { sessionId: params.sessionId, turns: [], pendingUserMessages: pendingSnapshot };
-  const committedIds = new Set(history.committedSourceIds ?? []);
-  const pendingUserMessages = pendingSnapshot.filter((message) => !committedIds.has(message.id));
+  return params.compactSubagents
+    ? compactTranscript(deps, params, pendingSnapshot)
+    : fullTranscript(deps, params, pendingSnapshot);
+}
 
-  const byTurn = new Map<number, TranscriptTurn>();
-  const order: number[] = [];
-  // Real per-message elapsed: delta from the previous event in the flat chronological stream
-  // (history.events is already chronological). First message → null; either ts unparseable → null.
-  let prevMs: number | null = null;
-  for (const ev of history.events) {
-    let turn = byTurn.get(ev.turnIndex);
-    if (!turn) {
-      turn = { turnIndex: ev.turnIndex, messages: [] };
-      byTurn.set(ev.turnIndex, turn);
-      order.push(ev.turnIndex);
-    }
-    const curMs = Date.parse(ev.ts);
-    const curValid = Number.isFinite(curMs);
-    const elapsedMs = prevMs !== null && curValid ? curMs - prevMs : null;
-
-    // Interaction entity rows: derive `expired` for pending rows whose live resolver is gone
-    // (server restarted) or older than the TTL. The in-process pending index (via
-    // deps.isInteractionPending) is the liveness signal.
-    let interaction: TranscriptMessage['interaction'];
-    let entitySubtype: string | undefined;
-    if (ev.type === 'interaction' && ev.id) {
-      let status = ev.status ?? 'pending';
-      if (status === 'pending') {
-        const live = deps.isInteractionPending?.(ev.id) ?? false;
-        const age = curValid ? Date.now() - curMs : Infinity;
-        if (!live || age > INTERACTION_TTL_MS) status = 'expired';
-      }
-      interaction = {
-        id: ev.id,
-        kind: (ev.kind ?? 'ask-user') as NonNullable<TranscriptMessage['interaction']>['kind'],
-        status: status as NonNullable<TranscriptMessage['interaction']>['status'],
-        payload: ev.payload ?? {},
-        ...(ev.result !== undefined ? { result: ev.result } : {}),
-        ...(ev.resolvedVia !== undefined ? { resolvedVia: ev.resolvedVia } : {}),
-      };
-      entitySubtype = interactionSubtype(interaction.kind, interaction.status);
-    }
-
-    const debug = transcriptDebugDetails(ev);
-    turn.messages.push({
-      type: ev.type as TranscriptMessage['type'],
-      text: ev.type === 'tool' ? null : (ev.text ?? ''),
-      toolName: ev.type === 'tool' ? (ev.toolName ?? '') : null,
-      toolInput: ev.type === 'tool' ? (ev.toolInput ?? '') : null,
-      ts: ev.ts,
-      elapsedMs,
-      // Only materialize the key when present — an explicit `attachments: undefined` breaks
-      // deep-equality with the DTO shape (pre-existing red test, fixed in passing). Both user
-      // uploads (15a) and agent-sent files (20a, assistant events) carry attachments.
-      ...((ev.type === 'user' || ev.type === 'assistant') && ev.attachments !== undefined ? { attachments: ev.attachments } : {}),
-      // Agent-announced decisions (send_decision) with their folded action logs.
-      ...(ev.type === 'assistant' && ev.decisions !== undefined ? { decisions: ev.decisions } : {}),
-      ...(ev.type === 'assistant' && ev.noticeLevel !== undefined ? { noticeLevel: ev.noticeLevel } : {}),
-      ...(ev.type === 'assistant' && ev.noticeAction !== undefined ? { noticeAction: ev.noticeAction } : {}),
-      // Edit+rewind marker (sessions.rewind): backs the「已编辑」badge + original-message card.
-      ...(ev.type === 'user' && ev.edited !== undefined ? { edited: ev.edited } : {}),
-      // Defense in depth: persisted debug records stay hidden when DEBUG is off. Large-tool
-      // warnings are derived here from the current agent-server env and never written to history.
-      ...(debug !== undefined ? { debug } : {}),
-      ...(ev.type === 'interaction' && (entitySubtype ?? ev.subtype) ? { subtype: entitySubtype ?? ev.subtype } : {}),
-      ...(interaction !== undefined ? { interaction } : {}),
-      // Native-subagent grouping. Reloading a transcript must reproduce the same blocks the live
-      // stream drew, so these ride the snapshot exactly as they ride `session.message`.
-      ...(ev.subagentId !== undefined ? { subagentId: ev.subagentId } : {}),
-      ...(ev.subagentSpawns !== undefined ? { subagentSpawns: ev.subagentSpawns } : {}),
-      ...(ev.subagentType !== undefined ? { subagentType: ev.subagentType } : {}),
-      ...(ev.subagentDescription !== undefined ? { subagentDescription: ev.subagentDescription } : {}),
-      ...(ev.subagentModel !== undefined ? { subagentModel: ev.subagentModel } : {}),
-    });
-    prevMs = curValid ? curMs : null;
-  }
-
+export async function handleSessionsSubagentTranscript(
+  deps: UiServiceDeps,
+  params: SessionsSubagentTranscriptParams,
+): Promise<SessionSubagentTranscript> {
+  const history = await subagentHistory(deps, params.sessionId, params.subagentId);
   return {
-    sessionId: history.sessionId,
-    turns: order.map((i) => byTurn.get(i)!),
-    pendingUserMessages,
+    sessionId: params.sessionId,
+    subagentId: params.subagentId,
+    messages: transcriptMessages(deps, history.events),
   };
 }
 

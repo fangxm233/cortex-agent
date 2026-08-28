@@ -1,5 +1,5 @@
-// input:  transcript DTOs with DEBUG warnings, notices, pending data
-// output: ChatRows, turn-tail copy targets, and reconciliation
+// input:  transcript DTOs with DEBUG warnings, notices, pending data, and compact summaries
+// output: ChatRows, compact-authority subagent cards, turn-tail copy targets, and reconciliation
 // pos:    Shared desktop/mobile transcript view-model
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type {
@@ -10,6 +10,7 @@ import type {
   SessionTranscript,
   TranscriptInteractionDetail,
   TranscriptMessage,
+  TranscriptSubagentSummary,
 } from '@cortex-agent/ui-contract';
 import type { Vocab } from '@/i18n';
 
@@ -28,7 +29,10 @@ export interface SubagentSpawnView {
   requestedModel?: string;
 }
 
-type TranscriptMessageWithSpawns = TranscriptMessage & { subagentSpawns?: SubagentSpawnView[] };
+type TranscriptMessageWithSpawns = TranscriptMessage & {
+  subagentSpawns?: SubagentSpawnView[];
+  liveTail?: true;
+};
 
 /** A live `session.message` event payload (the tRPC subscribe UiEvent.payload for that event). */
 export interface LiveSessionMessage {
@@ -281,7 +285,8 @@ export type ChatRow =
   // so it comes off `message.model` of the subagent's own messages and is therefore null until the
   // subagent has said something — the anchor alone cannot know it.
   | { kind: 'subagent'; id: string; agentType: string | null; description: string | null;
-      prompt: string | null; model: string | null; status: 'running' | 'done'; toolCount: number; children: ChatRow[] };
+      prompt: string | null; model: string | null; status: 'running' | 'done'; toolCount: number; children: ChatRow[];
+      hasDetails?: boolean; detailMode?: 'lazy' };
 
 export interface BuildOpts {
   /** True while the session is actively producing output — marks the last assistant row's caret. */
@@ -602,17 +607,24 @@ export function buildTranscriptRows(
   for (const turn of transcript.turns) {
     for (const m of turn.messages) push(m as TranscriptMessageWithSpawns, turn.turnIndex);
   }
-  for (const lm of liveTail) push(liveToMessage(lm));
+  for (const lm of liveTail) push({ ...liveToMessage(lm), liveTail: true });
 
   const rows: ChatRow[] = [];
   let curDay: string | null = null;
   let firstUserSeen = false;
+  const summaryAuthority = transcript.subagentSummaries !== undefined;
+  const summaries = new Map<string, TranscriptSubagentSummary>();
+  for (const summary of transcript.subagentSummaries ?? []) summaries.set(summary.id, summary);
 
   // Rows land in a sink, not straight into `rows`: a native subagent's output goes into its own
   // block's `children` instead of the top level. Each sink buffers its own consecutive tool calls,
   // so a subagent's tools collapse among themselves and never merge with the main agent's.
   const top: RowSink = { rows, toolBuf: [] };
-  const blocks = new Map<string, { row: Extract<ChatRow, { kind: 'subagent' }>; sink: RowSink }>();
+  const blocks = new Map<string, {
+    row: Extract<ChatRow, { kind: 'subagent' }>;
+    sink: RowSink;
+    summary?: TranscriptSubagentSummary;
+  }>();
 
   const flushTools = (sink: RowSink): void => {
     if (sink.toolBuf.length === 0) return;
@@ -634,6 +646,7 @@ export function buildTranscriptRows(
     id: string,
     spawn?: SubagentSpawnView,
   ) => {
+    const summary = summaries.get(id);
     const existing = blocks.get(id);
     if (existing) {
       // A backgrounded subagent runs WHILE the main agent keeps working, so main-agent rows land
@@ -641,31 +654,36 @@ export function buildTranscriptRows(
       // subagent proves it was still going; the block reopens rather than fragmenting into a second
       // one, and the last main-agent row after it genuinely ends leaves it done.
       existing.row.status = 'running';
-      // The anchor carries the description, the child rows carry the declared type — whichever
-      // arrives second fills in what the first could not know.
-      if (!existing.row.agentType && (m.subagentType || spawn?.type)) {
-        existing.row.agentType = m.subagentType ?? spawn?.type ?? null;
+      if (!existing.summary) {
+        // The anchor carries the description, the child rows carry the declared type — whichever
+        // arrives second fills in what the first could not know.
+        if (!existing.row.agentType && (m.subagentType || spawn?.type)) {
+          existing.row.agentType = m.subagentType ?? spawn?.type ?? null;
+        }
+        if (m.subagentDescription) existing.row.description = m.subagentDescription;
+        else if (!existing.row.description && spawn?.description) existing.row.description = spawn.description;
+        if (!existing.row.model && m.subagentModel) existing.row.model = m.subagentModel;
       }
-      if (m.subagentDescription) existing.row.description = m.subagentDescription;
-      else if (!existing.row.description && spawn?.description) existing.row.description = spawn.description;
       if (!existing.row.prompt && spawn?.prompt) existing.row.prompt = spawn.prompt;
-      if (!existing.row.model && m.subagentModel) existing.row.model = m.subagentModel;
       return existing;
     }
     flushTools(top);
     const row: Extract<ChatRow, { kind: 'subagent' }> = {
       kind: 'subagent',
       id,
-      agentType: m.subagentType ?? spawn?.type ?? null,
-      description: m.subagentDescription ?? spawn?.description ?? null,
+      agentType: summary?.type ?? m.subagentType ?? spawn?.type ?? null,
+      description: summary?.description ?? m.subagentDescription ?? spawn?.description ?? null,
       prompt: spawn?.prompt ?? null,
-      model: m.subagentModel ?? null,
+      model: summary?.model ?? m.subagentModel ?? null,
       status: 'running',
-      toolCount: 0,
+      toolCount: summary?.toolCount ?? 0,
       children: [],
+      ...(summaryAuthority && summary
+        ? { hasDetails: summary.hasDetails, detailMode: 'lazy' as const }
+        : {}),
     };
     rows.push(row);
-    const entry = { row, sink: { rows: row.children, toolBuf: [] } as RowSink };
+    const entry = { row, sink: { rows: row.children, toolBuf: [] } as RowSink, summary };
     blocks.set(id, entry);
     return entry;
   };
@@ -691,14 +709,18 @@ export function buildTranscriptRows(
     const isAnchor = m.type === 'tool' && !!m.subagentId && isSubagentSpawnTool(m.toolName);
     if (isAnchor) {
       const block = openBlock(m, m.subagentId!);
-      if (!block.row.description && m.toolInput) block.row.description = m.toolInput;
+      if (!block.summary && !block.row.description && m.toolInput) block.row.description = m.toolInput;
+      continue;
+    }
+    if (summaryAuthority && m.subagentId && !m.liveTail) {
+      openBlock(m, m.subagentId);
       continue;
     }
     const block = m.subagentId ? openBlock(m, m.subagentId) : null;
     if (!block) closeOpenBlocks();
     const sink = block ? block.sink : top;
     if (m.type === 'tool') {
-      if (block) block.row.toolCount += 1;
+      if (block && !block.summary) block.row.toolCount += 1;
       const debug = (m as TranscriptMessage & { debug?: DebugToolDetail }).debug;
       sink.toolBuf.push({
         kind: m.toolName ?? '',
@@ -749,6 +771,18 @@ export function buildTranscriptRows(
   // main-agent row we can point at. Only a live session may leave a block genuinely running.
   const sessionLive = opts.running ?? (opts.streaming === true || !!opts.streamingText);
   if (!sessionLive) closeOpenBlocks();
+  if (summaryAuthority) {
+    for (const block of blocks.values()) {
+      if (!block.summary) continue;
+      block.row.status = sessionLive && block.summary.structurallyOpen ? 'running' : 'done';
+      block.row.toolCount = block.summary.toolCount;
+      block.row.hasDetails = block.summary.hasDetails;
+      block.row.detailMode = 'lazy';
+      if (block.summary.type) block.row.agentType = block.summary.type;
+      if (block.summary.description) block.row.description = block.summary.description;
+      if (block.summary.model) block.row.model = block.summary.model;
+    }
+  }
 
   // The in-flight block, after every persisted/live message and after any tool row of this turn.
   // Flagged `preview`: this is the only row whose text is still arriving, so it is the only one the

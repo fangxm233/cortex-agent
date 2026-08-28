@@ -1,5 +1,5 @@
-// input:  shared SSE context/notices, React Query, durable snapshots
-// output: live messages with spawn prompts, Todo, and runtime state
+// input:  shared SSE context/notices, React Query, durable snapshots, and compact authority
+// output: live messages, lazy-detail invalidation, Todo, and runtime state
 // pos:    React bridge from session events to desktop/mobile chat rows
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -17,6 +17,7 @@ import {
 import { contextUsageFromLivePayload, resolveContextUsage } from './context-usage';
 import { resolveTodos, todoSnapshotFromLivePayload } from './todo-vm';
 import { useAssistantDeltaStream } from './useAssistantDeltaStream';
+import { activeSubagentTranscriptIds } from './SubagentTranscriptDetail';
 
 // Live `session.message` feed for the center chat (S4 chat, task aba0). Listens on the SHARED live
 // stream (`features/live/LiveEventsProvider`) scoped to `sessionId` — the scope filter reproduces the
@@ -43,8 +44,22 @@ import { useAssistantDeltaStream } from './useAssistantDeltaStream';
 // dedupe as one row. The transcript also carries the server's durable active-pending snapshot, so a
 // reload/device switch rehydrates missed pending events and a missed delivery converges on refetch.
 
-const TAIL_CAP = 60; // bound the live buffer; older events reconcile via the transcript refetch
+const TAIL_CAP = 60; // bound the main-agent live buffer; older events reconcile via transcript
+const COMPACT_CHILD_TAIL_CAP = 20; // temporary child fallback while lazy detail refetches
 const STREAM_IDLE_MS = 2500; // treat the session as streaming until this quiet gap after the last event
+
+function appendLiveTail(
+  previous: LiveSessionMessage[],
+  message: LiveSessionMessage,
+  compactAuthority: boolean,
+): LiveSessionMessage[] {
+  const next = [...previous, message];
+  if (!compactAuthority) return next.length > TAIL_CAP ? next.slice(-TAIL_CAP) : next;
+  const main = next.filter((item) => !item.subagentId).slice(-TAIL_CAP);
+  const child = next.filter((item) => !!item.subagentId).slice(-COMPACT_CHILD_TAIL_CAP);
+  const retained = new Set([...main, ...child]);
+  return next.filter((item) => retained.has(item));
+}
 
 export interface SessionLiveState {
   liveTail: LiveSessionMessage[];
@@ -100,6 +115,16 @@ export interface SessionLiveSyncOptions {
   contextUsage?: SessionContextUsage | null;
   /** sessions.list task-list snapshot, restored before the next live event. */
   todos?: TodoSnapshot | null;
+}
+
+export function invalidateActiveSubagentTranscriptQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+  trpc: ReturnType<typeof useTRPC>,
+  sessionId: string,
+): void {
+  for (const subagentId of activeSubagentTranscriptIds(sessionId)) {
+    queryClient.invalidateQueries(trpc.sessions.subagentTranscript.queryFilter({ sessionId, subagentId }));
+  }
 }
 
 export function useSessionMessageLiveSync(
@@ -204,6 +229,7 @@ export function useSessionMessageLiveSync(
     if (reconnectEpoch === 0 || !sessionId) return;
     queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
     queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
+    invalidateActiveSubagentTranscriptQueries(queryClient, trpc, sessionId);
   }, [reconnectEpoch, sessionId, queryClient, trpc]);
 
   useLiveEvents(
@@ -265,12 +291,14 @@ export function useSessionMessageLiveSync(
         setPending([]);
         queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
         queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
+        invalidateActiveSubagentTranscriptQueries(queryClient, trpc, sessionId);
         return;
       }
       // Full prompt/tool results never ride SSE. This content-free hint fires only after the
       // DEBUG sidecar is durable, so the authoritative query can safely reveal the inspector data.
       if (raw.type === 'session.debug.updated') {
         queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
+        invalidateActiveSubagentTranscriptQueries(queryClient, trpc, sessionId);
         return;
       }
       // Interaction entity state change (created / answered / approved / expired / …):
@@ -341,6 +369,7 @@ export function useSessionMessageLiveSync(
         queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
         return;
       }
+      const compactAuthority = transcript?.sessionId === sessionId && transcript.subagentSummaries !== undefined;
       const msg: LiveSessionMessage = {
         sessionId: p.sessionId ?? sessionId,
         role: p.role,
@@ -365,17 +394,19 @@ export function useSessionMessageLiveSync(
       };
       // The authoritative text for a previewed block: retire the preview in the SAME state update
       // that appends the message, so the row is replaced rather than briefly doubled.
-      if (p.role === 'assistant' && !p.noticeLevel) {
+      if (p.role === 'assistant' && !p.noticeLevel && !p.subagentId) {
         setAssistantPreview((prev) => finalizeAssistantPreview(prev, p.blockId));
       }
-      setLiveTail((prev) => {
-        const next = [...prev, msg];
-        return next.length > TAIL_CAP ? next.slice(next.length - TAIL_CAP) : next;
-      });
       if (!p.noticeLevel) {
         setStreaming(true);
         if (idleTimer.current) clearTimeout(idleTimer.current);
         idleTimer.current = setTimeout(() => setStreaming(false), STREAM_IDLE_MS);
+      }
+      setLiveTail((prev) => appendLiveTail(prev, msg, compactAuthority));
+      if (compactAuthority && p.subagentId) {
+        queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
+        invalidateActiveSubagentTranscriptQueries(queryClient, trpc, sessionId);
+        return;
       }
       // Reconcile the authoritative history (finalized turns) — the tail de-dups against it.
       queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));

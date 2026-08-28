@@ -30,21 +30,23 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | profile-menu.test.ts | test | Tests live profile filtering and switch gates |
 | SessionProfileSelector.tsx | view | Shares guarded profile state with composer controls |
 | SessionProfileSelector.test.tsx | test | Tests profile routing and selection interactions |
-| CenterChat.tsx | view | Reconciles chat state, startup progress and composer placement |
+| CenterChat.tsx | view | Reconciles compact chat state, startup progress and composer placement |
 | scheduled-chat.ts | vm | Cadence label and next-run delta helpers |
 | ChatHeader.tsx | view | Session title, command, browser, notes and session menu |
-| MessageStream.tsx | view | Renders transcript with one turn-tail copy action |
+| MessageStream.tsx | view | Renders transcript with lazy subagent detail and turn-tail copy |
 | ChatMarkdown.tsx | view | Renders Markdown with width-bounded KaTeX formulas |
 | ChatMarkdown.test.tsx | test | Tests formula parsing, opt-in behavior and untrusted-input safety |
 | ChatNotice.tsx | view | Localized semantic notices with optional actions |
 | ChatNotice.test.tsx | test | Tests semantic roles, action gating and safe auth activation |
 | MessageEdit.tsx | view | Bare message actions, edit box and rewind |
 | chat-content.ts | types | Defines chat types and local shortcut catalog |
-| transcript-vm.ts | vm | Builds chat rows and finds substantive turn tails |
-| transcript-vm.test.ts | test | Tests transcript rows, turn tails, auth actions and decisions |
+| transcript-vm.ts | vm | Builds compact chat rows, decision cards and turn tails |
+| transcript-vm.test.ts | test | Tests compact rows, turn tails, auth actions and decisions |
 | ToolCallsRow.tsx | view | Expands tool chips and lazy-loads DEBUG details |
 | SubagentBlock.tsx | view | Shows prompt rows with a right-aligned tool count |
+| SubagentTranscriptDetail.tsx | view | Lazily loads one subagent transcript with minimal retry UI |
 | SubagentBlock.test.tsx | test | Tests prompt disclosure and nested copy isolation |
+| SubagentTranscriptDetail.test.tsx | test | Tests expansion-gated detail queries and retry states |
 | tool-call-overflow.ts | util | Computes bounded visible and hidden tool counts |
 | tool-call-overflow.test.ts | test | Tests counts beyond the measured chip prefix |
 | useToolCallOverflow.ts | hook | Measures a bounded chip prefix on resize |
@@ -52,10 +54,6 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | interaction-vm.ts | vm | Maps interactions to card models and answer state |
 | interaction-vm.test.ts | test | Unit tests for the interaction view model |
 | useInteractionActions.ts | hook | Answers questions and responds to plan approvals |
-| DecisionCards.tsx | view | Decision cards with detail modal and responses |
-| DecisionCards.test.tsx | test | Tests card actions and composed decision messages |
-| decision-vm.ts | vm | Derives decision status and composes messages |
-| decision-vm.test.ts | test | Unit tests for the decision card rules |
 | useInteractionTtl.ts | hook | Ticks remaining time until an interaction expires |
 | PlanReadOverlay.tsx | view | Full plan text with progress and actions |
 | plan-read-vm.ts | vm | Derives plan reading progress, status and meta |
@@ -92,8 +90,8 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | useRevealedText.ts | hook | Drives the frame loop revealing streamed text |
 | reveal-pacing.ts | util | Computes how much streamed text to show |
 | reveal-pacing.test.ts | test | Unit tests for reveal pacing |
-| useSessionMessageLiveSync.ts | hook | Streams session-scoped messages and runtime snapshots |
-| useSessionMessageLiveSync.test.tsx | test | Tests message authority and Todo isolation |
+| useSessionMessageLiveSync.ts | hook | Streams session-scoped messages, compact invalidation and runtime snapshots |
+| useSessionMessageLiveSync.test.tsx | test | Tests message authority, compact child suppression and Todo isolation |
 | useSessionsLiveSync.test.tsx | test | Tests rail-wide session snapshot refresh |
 | useMarkSessionRead.ts | hook | Marks the visible session read |
 | SessionIdModal.tsx | view | Shows session identifiers with copy actions |
