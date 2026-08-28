@@ -27,6 +27,11 @@ SCORE_AVAILABLE = "available"
 SCORE_FAILED = "failed"
 SCORE_UNAVAILABLE = "unavailable"
 REVOCATION_SCHEMA_VERSION = "cortex-bench-proxy-revocation/1"
+# The report a Terminal-Bench `tests/test.sh` asks pytest for, on the verifier's own log root.
+# Harbor knows nothing about it -- it reads reward.json, then reward.txt, and nothing else -- so
+# this is the only place the DISTINCTION below is available at all.
+VERIFIER_ROOT = "verifier"
+VERIFIER_CTRF = "ctrf.json"
 _REQUIRED_ROOTS = frozenset({"agent", "verifier", "artifacts"})
 _THREAD_FAILURE_STATUSES = frozenset({"failed", "cancelled", "aborted"})
 _AGENT_EXCEPTION_TYPES = frozenset({
@@ -97,6 +102,11 @@ class TrialOutcomeReader:
         self, result: Mapping[str, object], envelope: _Envelope,
     ) -> ReadOutcome:
         rewards, reward_reason = _rewards(result)
+        if rewards is not None:
+            unmeasured = _unmeasured_reason(self._trial_root)
+            if unmeasured is not None:
+                return self._outcome(
+                    TERMINAL_VERIFIER_FAILURE, SCORE_UNAVAILABLE, unmeasured, envelope=envelope)
         exception = result.get("exception_info")
         if exception is not None:
             return self._exception_outcome(exception, rewards, envelope)
@@ -142,6 +152,39 @@ class TrialOutcomeReader:
             envelope_sha256=None if envelope is None else envelope.sha256,
             requests=None if envelope is None else envelope.requests,
         )
+
+
+def _unmeasured_reason(trial_root: Path) -> str | None:
+    """Why this trial's reward is not a measurement of the agent, or None if it is one.
+
+    A reward of 0 has meant two unrelated things and the difference was invisible. An upstream
+    `tests/test.sh` ends `if [ $? -eq 0 ]; then echo 1 > reward.txt; else echo 0 > reward.txt; fi`,
+    so pytest exiting 2 because it could not IMPORT numpy writes the same 0 as pytest exiting 1
+    because the agent's answer was wrong. Harbor reads that file and nothing else, so both arrive
+    here as `terminal-success, reward 0` -- and 241 of them did on 2026-08-27, which is how a
+    verifier that never started got counted as a fleet of agents that failed.
+
+    The CTRF report separates them, measured on this host: an import failure at collection time
+    exits 2 and writes a report of 0 tests, a failed assertion exits 1 and writes a report of 1
+    test with 1 failure, and a pass exits 0 and writes 1 test with 1 pass. So a report that names
+    zero tests is a verifier that never ran one, whatever the reward file says.
+
+    Read only, never inferred. No report at all leaves the reward alone: a task whose test script
+    does not ask for `--ctrf` would otherwise be condemned for a file it never promised, and this
+    reader has no way to tell that task from one whose verifier died before pytest. That case is
+    what the pre-agent gate exists to catch instead.
+    """
+    document, _ = _read_mapping(trial_root / VERIFIER_ROOT / VERIFIER_CTRF, "verifier CTRF report")
+    if document is None:
+        return None
+    results = document.get("results")
+    summary = results.get("summary") if isinstance(results, Mapping) else None
+    tests = summary.get("tests") if isinstance(summary, Mapping) else None
+    if not isinstance(tests, int) or isinstance(tests, bool) or tests > 0:
+        return None
+    return (
+        f"verifier published {VERIFIER_ROOT}/{VERIFIER_CTRF} reporting 0 tests, so it never ran "
+        "one and its reward measures the verifier rather than the agent")
 
 
 def _read_mapping(path: Path, label: str) -> tuple[Mapping[str, object] | None, str | None]:

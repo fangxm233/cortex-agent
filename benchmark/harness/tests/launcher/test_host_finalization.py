@@ -1421,6 +1421,63 @@ def test_vendor_uses_the_shared_envelope_with_explicit_cortex_unavailability(
 
 
 @pytest.mark.parametrize(
+    ("report", "state", "rewards"),
+    [
+        # pytest exits 2 and reports 0 tests when a test file cannot import what it needs. The
+        # task script writes reward 0 for that exactly as it does for a wrong answer.
+        ({"results": {"summary": {"tests": 0, "passed": 0, "failed": 0}}},
+         "terminal-verifier-failure", None),
+        # pytest exits 1 and reports the failure it ran. This is the agent being wrong, and the
+        # reward stays a measurement.
+        ({"results": {"summary": {"tests": 1, "passed": 0, "failed": 1}}},
+         "terminal-success", {"reward": 0.0}),
+        # A task whose script never asked for --ctrf promised no report, and is not condemned for
+        # the absence of one.
+        (None, "terminal-success", {"reward": 0.0}),
+    ],
+)
+def test_a_reward_only_measures_the_agent_when_the_verifier_ran_a_test(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    report: Mapping[str, object] | None, state: str, rewards: Mapping[str, float] | None,
+) -> None:
+    """Reward 0 has meant both 'the agent was wrong' and 'the verifier never started'.
+
+    Harbor reads reward.txt and nothing else, so both reach the outcome reader as the same
+    terminal-success/0. The CTRF report the task's own script asks for is what separates them.
+    """
+    finalize_vendor_trial(tmp_path, monkeypatch)
+    write_json(tmp_path / "result.json", {"verifier_result": {"rewards": {"reward": 0.0}}})
+    if report is not None:
+        write_json(tmp_path / "verifier" / "ctrf.json", report)
+
+    outcome = TrialOutcomeReader(
+        trial_id=TRIAL_ID, arm_name="pi-vendor", trial_root=tmp_path,
+    ).read()
+
+    assert outcome.outcome_state == state
+    assert outcome.verifier_rewards == rewards
+    assert outcome.score_status == ("unavailable" if rewards is None else "available")
+
+
+def test_a_verifier_that_ran_nothing_is_unavailable_even_with_a_passing_reward(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A reward of 1 beside an empty report is not a pass, it is an unexplained reward file."""
+    finalize_vendor_trial(tmp_path, monkeypatch)
+    write_json(tmp_path / "result.json", {"verifier_result": {"rewards": {"reward": 1.0}}})
+    write_json(
+        tmp_path / "verifier" / "ctrf.json", {"results": {"summary": {"tests": 0}}})
+
+    outcome = TrialOutcomeReader(
+        trial_id=TRIAL_ID, arm_name="pi-vendor", trial_root=tmp_path,
+    ).read()
+
+    assert outcome.outcome_state == "terminal-verifier-failure"
+    assert outcome.verifier_rewards is None
+    assert "0 tests" in (outcome.reason or "")
+
+
+@pytest.mark.parametrize(
     "failure", ["scan-dirty", "scan-incomplete", "revocation-active",
                 "revocation-foreign", "harness"],
 )
