@@ -6,8 +6,8 @@ Once edits never fabricate timing: the DTO has no original delay and update acce
 
 | filename | role | function |
 |---|---|---|
-| useScheduleEditorController.ts | controller | Unifies profile query, create/edit initialization, protected changes, writes and list invalidation |
-| useScheduleEditorController.test.tsx | test | Tests real profiles, payloads, API field locks and invalidation |
+| useScheduleEditorController.ts | controller | Binds async writes/outcomes to editor generations while preserving profile query and invalidation |
+| useScheduleEditorController.test.tsx | test | Tests payloads, field locks, invalidation and stale success/error isolation |
 | ScheduleModalProvider.tsx | provider | Exposes desktop open/edit actions and mounts the controller-backed modal |
 | ScheduleModalProvider.test.tsx | test | Tests desktop context delegation and controller prop consumption |
 | ScheduleModal.tsx | view | Renders desktop editable fields and honest once-edit capability copy |

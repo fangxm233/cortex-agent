@@ -1,5 +1,5 @@
 // input:  mounted budget writer, config.set outcomes, and query cache
-// output: write/clear operation, payload, invalidation, and failure regressions
+// output: serialized nullable operations, payload, invalidation, and failure regressions
 // pos:    Shared desktop/mobile budget writer integration specification
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -44,6 +44,12 @@ function Probe() {
   return null;
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
 async function mount() {
   const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
   const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
@@ -66,7 +72,7 @@ describe('useBudgetWriter', () => {
   it('writes a scoped budget, refreshes config and every cost summary, and returns write', async () => {
     adapter.set.mockResolvedValue({ written: true, section: 'budget' });
     const { invalidate, queryClient } = await mount();
-    let operation: BudgetWriterOperation | undefined;
+    let operation: BudgetWriterOperation | null | undefined;
 
     await act(async () => {
       operation = await writer?.write('alpha', { daily_usd: 5, monthly_usd: 100 });
@@ -84,7 +90,7 @@ describe('useBudgetWriter', () => {
   it('clears a project override through the same mutation and refresh path, preserving clear', async () => {
     adapter.set.mockResolvedValue({ written: true, section: 'budget' });
     const { invalidate, queryClient } = await mount();
-    let operation: BudgetWriterOperation | undefined;
+    let operation: BudgetWriterOperation | null | undefined;
 
     await act(async () => {
       operation = await writer?.clear('alpha');
@@ -94,6 +100,28 @@ describe('useBudgetWriter', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['config.get', {}] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['cost.summary'] });
     expect(operation).toBe('clear');
+    queryClient.clear();
+  });
+
+  it('synchronously ignores a duplicate write or clear while one mutation is pending', async () => {
+    const gate = deferred<{ written: true; section: 'budget' }>();
+    adapter.set.mockReturnValue(gate.promise);
+    const { queryClient } = await mount();
+    let first: Promise<BudgetWriterOperation | null> | undefined;
+    let duplicate: BudgetWriterOperation | null | undefined;
+
+    act(() => {
+      first = writer?.write('alpha', { daily_usd: 5, monthly_usd: 100 });
+      void writer?.clear('alpha').then((result) => { duplicate = result; });
+    });
+    await act(async () => { await Promise.resolve(); });
+    expect(adapter.set).toHaveBeenCalledOnce();
+    expect(duplicate).toBeNull();
+
+    await act(async () => {
+      gate.resolve({ written: true, section: 'budget' });
+      expect(await first).toBe('write');
+    });
     queryClient.clear();
   });
 

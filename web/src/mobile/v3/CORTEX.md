@@ -24,7 +24,7 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 | MSessionListView.tsx | view | Day-grouped session rows with clock entry |
 | MScheduleSheet.tsx | view | One compact list/runs/editor bottom-sheet state machine with level-aware back |
 | MScheduleSheetLevels.tsx | view | Presents canonical-USD Scheduled list/run levels as DOM-stable components |
-| MScheduleSheet.test.tsx | test | Tests real-DTO edits, one-sheet levels, Escape and hardware-back retreat |
+| MScheduleSheet.test.tsx | test | Tests real-DTO edits, one-sheet levels and pending-safe Escape/hardware-back reopen |
 | MScheduleEditor.tsx | view | Composes shared-controller fields and honest once-edit limitations in-sheet |
 | MScheduleEditorFields.tsx | view | Presents mobile schedule field groups as small DOM-stable components |
 | m-session-list-vm.ts | vm | Groups sessions by day and derives status lines |
@@ -90,8 +90,8 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 | MPlatformScreen.tsx | screen | Shows redacted platform state and queues reconnect approval |
 | MProfilesScreen.tsx | screen | Adapts the shared profile owner to the mobile list, native confirmation and editor view |
 | MProfilesScreen.test.tsx | test | Tests mobile profile field errors and controller callback delegation |
-| MBudgetScreen.tsx | screen | Keeps mobile budget scope/form/query view over the shared writer and operation toasts |
-| MBudgetScreen.test.ts | test | Tests complete-pair initialization plus clear, write and failure feedback |
+| MBudgetScreen.tsx | screen | Keeps mobile budget view over pending-safe nullable shared-writer outcomes |
+| MBudgetScreen.test.ts | test | Tests complete-pair initialization, pending gates and nullable operation feedback |
 | MMcpScreen.tsx | screen | Lists configured MCP servers read-only |
 | MRuntimeSettingsScreen.tsx | screen | Edits Notifications and keyed Advanced descriptors through the shared runtime writer |
 | MRuntimeSettingsScreen.test.tsx | test | Tests descriptor-keyed Advanced rows, safe integer gating and writes |

@@ -1,5 +1,5 @@
 // input:  mounted profiles controller, config/profile adapters, query cache and toast spy
-// output: facts, editor, validation, writes, confirmation and operation-local pending regressions
+// output: facts, editor, validation, serialized writes and operation-local pending regressions
 // pos:    Shared desktop/mobile profiles controller integration specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -135,14 +135,31 @@ describe('useProfilesController', () => {
     mounted.queryClient.clear();
   });
 
-  it('creates while a default write is pending and gives each operation exact refresh and feedback', async () => {
+  it('serializes every profile write synchronously while preserving operation-local pending', async () => {
     const setGate = deferred<{ section: 'profiles'; written: true }>();
     adapter.set.mockReturnValue(setGate.promise);
     const mounted = await mount();
 
-    act(() => { controller?.setDefault('sol'); });
+    act(() => { controller?.openCreate(); });
+    act(() => { controller?.changeDraft(validCreate()); });
+    act(() => {
+      controller?.setDefault('sol');
+      controller?.save();
+      controller?.confirmDelete('sol');
+      controller?.setDefault('sol');
+    });
+    await vi.waitFor(() => expect(adapter.set).toHaveBeenCalledOnce());
+    act(() => { controller?.openEdit('sol'); });
+    act(() => { controller?.changeDraft({ ...controller!.draft!, model: 'gpt-5.1' }); });
+    act(() => { controller?.save(); });
+    expect(adapter.create).not.toHaveBeenCalled();
+    expect(adapter.update).not.toHaveBeenCalled();
+    expect(adapter.remove).not.toHaveBeenCalled();
     await vi.waitFor(() => expect(controller?.defaultPendingName).toBe('sol'));
     expect(controller?.savePending).toBe(false);
+
+    setGate.resolve({ section: 'profiles', written: true });
+    await vi.waitFor(() => expect(controller?.defaultPendingName).toBeNull());
     act(() => { controller?.openCreate(); });
     act(() => { controller?.changeDraft(validCreate()); });
     act(() => { controller?.save(); });
@@ -150,12 +167,6 @@ describe('useProfilesController', () => {
       name: 'new-pi', model: 'deepseek-v3', backend: 'pi', mode: 'openai',
       provider: 'deepseek', thinking: 'high',
     }));
-    await vi.waitFor(() => expect(controller?.draft).toBeNull());
-    expect(controller?.defaultPendingName).toBe('sol');
-    expect(adapter.toast).toHaveBeenCalledWith({ title: `${en.pfToastCreated} · new-pi`, tone: 'done' });
-
-    setGate.resolve({ section: 'profiles', written: true });
-    await vi.waitFor(() => expect(controller?.defaultPendingName).toBeNull());
     expect(mounted.invalidate.mock.calls.map(call => call[0])).toEqual([
       { queryKey: ['config.get', {}] }, { queryKey: ['config.get', {}] },
     ]);

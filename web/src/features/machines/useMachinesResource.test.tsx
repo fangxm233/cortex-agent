@@ -1,5 +1,5 @@
 // input:  mounted machine resource, roster/detail transports, polling and approval outcomes
-// output: shared roster, expanded-online probe, status and add-machine lifecycle regressions
+// output: shared roster, probe status and approval request/cache lifecycle regressions
 // pos:    Headless desktop/mobile machines resource specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -23,9 +23,12 @@ vi.mock('@/lib/trpc', () => ({
         queryKey: ['machines.detail', { machine }], queryFn: () => adapter.detail(machine),
       }) },
     },
-    approvals: { request: { mutationOptions: (options: object) => ({
-      ...options, mutationFn: (input: unknown) => adapter.request(input),
-    }) } },
+    approvals: {
+      request: { mutationOptions: (options: object) => ({
+        ...options, mutationFn: (input: unknown) => adapter.request(input),
+      }) },
+      list: { queryFilter: () => ({ queryKey: ['approvals.list'] }) },
+    },
   }),
 }));
 
@@ -139,6 +142,16 @@ describe('machine detail gating and errors', () => {
 });
 
 describe('machine approval lifecycle', () => {
+  it('invalidates pending approval caches after a successful request', async () => {
+    const { queryClient, renderer } = await mount();
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+
+    await act(async () => { await resource?.requestAddMachine('atlas'); });
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['approvals.list'] });
+    renderer.unmount();
+  });
+
   it('queues trimmed add-machine approvals and exposes pending or rejected operations', async () => {
     let reject: ((error: Error) => void) | undefined;
     adapter.request.mockImplementation(() => new Promise((_resolve, fail) => { reject = fail; }));

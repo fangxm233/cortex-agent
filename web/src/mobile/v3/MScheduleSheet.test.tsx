@@ -1,5 +1,5 @@
 // input:  schedule sheet rows, real schedule DTOs, and a headless editor controller
-// output: single-sheet list/runs/editor transitions and level-aware back regressions
+// output: single-sheet transitions, pending-safe back/reopen and level-aware regressions
 // pos:    Mobile Scheduled bottom-sheet state-machine specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -121,6 +121,23 @@ describe('MScheduleSheetView', () => {
 
     act(() => renderer.root.findByProps({ 'data-action': 'hardware-back' }).props.onClick());
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('allows back and reopening another editor while a save is pending', () => {
+    const real = schedule();
+    const rows = buildScheduleRows([real], [], Date.now());
+    const editor = editorFor(real);
+    editor.pending = true;
+    const { renderer } = mount(rows, editor);
+
+    act(() => renderer.root.findByProps({ 'data-schedule-row': 'sch-1' }).props.onClick());
+    expect(renderer.root.findByProps({ 'data-action': 'save-schedule' }).props.disabled).toBe(true);
+    act(() => renderer.root.findByProps({ 'data-action': 'hardware-back' }).props.onClick());
+    act(() => renderer.root.findByProps({ 'data-schedule-row': 'sch-1' }).props.onClick());
+
+    expect(editor.close).toHaveBeenCalledOnce();
+    expect(editor.openEdit).toHaveBeenCalledTimes(2);
+    expect(renderer.root.findAllByProps({ 'data-mobile-schedule-editor': true })).toHaveLength(1);
   });
 
   it('opens the run-level manage action as an editor and back returns only to runs', () => {

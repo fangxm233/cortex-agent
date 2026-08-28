@@ -1,9 +1,9 @@
 // input:  config.get/profile mutations, canonical profile VM, query cache and toast feedback
-// output: shared profile facts, editor lifecycle, validation, confirmations and operation-local pending
+// output: shared profile facts, editor lifecycle, serialized writes and operation-local pending
 // pos:    Cross-surface profiles settings controller
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { useState } from 'react';
+import { useRef, useState, type MutableRefObject } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ConfigProfileEntry, ConfigSetArgs, ConfigSnapshot } from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';
@@ -135,28 +135,36 @@ function defaultProfileVariable(vars: ConfigSetArgs | undefined): string | null 
   return vars?.section === 'profiles' ? vars.value.defaultProfile : null;
 }
 
+function runProfileWrite(gate: MutableRefObject<boolean>, write: () => Promise<unknown>): void {
+  if (gate.current) return;
+  gate.current = true;
+  void write().catch(() => undefined).finally(() => { gate.current = false; });
+}
+
 function useProfileActions(
   facts: ProfileFact[], editor: ReturnType<typeof useProfileEditor>,
   writes: ReturnType<typeof useProfileWrites>, errors: ProfileFormErrors,
-  setConfirmingDelete: (name: string | null) => void,
+  setConfirmingDelete: (name: string | null) => void, gate: MutableRefObject<boolean>,
 ) {
   const allowed = (name: string, action: 'canSetDefault' | 'canDelete') =>
     facts.some(fact => fact.profile.name === name && fact[action]);
   const save = () => {
     if (!editor.draft || !isProfileFormValid(errors)) return;
-    if (editor.mode === 'create' && !writes.create.isPending) writes.create.mutate(buildProfileCreateArgs(editor.draft));
-    if (editor.mode === 'update' && !writes.update.isPending) writes.update.mutate(buildProfileUpdateArgs(editor.draft));
+    if (editor.mode === 'create') runProfileWrite(gate,
+      () => writes.create.mutateAsync(buildProfileCreateArgs(editor.draft!)));
+    if (editor.mode === 'update') runProfileWrite(gate,
+      () => writes.update.mutateAsync(buildProfileUpdateArgs(editor.draft!)));
   };
   const setDefault = (name: string) => {
-    if (allowed(name, 'canSetDefault') && !writes.setDefault.isPending) {
-      writes.setDefault.mutate({ section: 'profiles', value: { defaultProfile: name } });
-    }
+    if (allowed(name, 'canSetDefault')) runProfileWrite(gate, () => writes.setDefault.mutateAsync({
+      section: 'profiles', value: { defaultProfile: name },
+    }));
   };
   const requestDelete = (name: string) => {
-    if (allowed(name, 'canDelete') && !writes.remove.isPending) setConfirmingDelete(name);
+    if (allowed(name, 'canDelete') && !gate.current) setConfirmingDelete(name);
   };
   const confirmDelete = (name: string) => {
-    if (allowed(name, 'canDelete') && !writes.remove.isPending) writes.remove.mutate({ name });
+    if (allowed(name, 'canDelete')) runProfileWrite(gate, () => writes.remove.mutateAsync({ name }));
   };
   const changeBackend = (backend: ProfileBackend) => {
     if (editor.draft) editor.change(transitionProfileBackend(editor.draft, backend));
@@ -172,13 +180,14 @@ export function useProfilesController(initialSnapshot?: ConfigSnapshot): Profile
   const defaultProfile = config.data?.profiles?.defaultProfile ?? null;
   const facts = buildProfileFacts(profiles, defaultProfile);
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
+  const writeGate = useRef(false);
   const editor = useProfileEditor(profiles, () => setConfirmingDelete(null));
   const writes = useProfileWrites(editor.close, () => setConfirmingDelete(null));
   const errors = editor.draft ? validateProfileForm(editor.draft, {
     mode: editor.mode === 'create' ? 'create' : 'update', existingNames: profiles.map(profile => profile.name),
   }) : {};
   const dirty = !!editor.draft && (editor.mode === 'create' || !!editor.entry && isProfileFormDirty(editor.draft, editor.entry));
-  const actions = useProfileActions(facts, editor, writes, errors, setConfirmingDelete);
+  const actions = useProfileActions(facts, editor, writes, errors, setConfirmingDelete, writeGate);
   return {
     snapshot: config.data, loading: config.isLoading, error: config.error,
     profiles, profileFacts: facts, defaultProfile,

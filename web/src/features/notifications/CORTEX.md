@@ -15,8 +15,8 @@ The feed owns direct-session gating, buffering, queue semantics and external-del
 | turn-buffer.ts | core | Buffers each session's latest assistant message |
 | turn-buffer.test.ts | test | Unit tests for the turn buffer |
 | useDmNotifications.ts | hook | Feeds assistant messages and turn ends onward |
-| useNotificationFeed.ts | hook | Unifies direct-session mapping, turn gates, notices, queue and external fallback |
-| useNotificationFeed.test.tsx | test | Tests shared feed gating, delivery fallback, dedupe, dismissal and unmount safety |
+| useNotificationFeed.ts | hook | Retains unknown turns through lookup failure, then delivers direct or discards confirmed non-direct turns |
+| useNotificationFeed.test.tsx | test | Tests direct retry/flush, non-direct disposal, suppression, fallback, dedupe and unmount safety |
 | useSystemNotices.ts | hook | Feeds system notice events to a callback |
 | os-notify.ts | util | Delivers OS notifications and tap events |
 | os-notify.test.ts | test | Unit tests for the OS notification bridge |

@@ -1,5 +1,5 @@
 // input:  mocked direct sessions, DM turn events, system notices, and external delivery outcomes
-// output: unified notification-feed gating, queue, fallback, and unmount regressions
+// output: notification gating, retryable direct lookup, fallback and unmount regressions
 // pos:    Hook integration specification for the shared desktop/mobile notification feed
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -10,19 +10,20 @@ import type { SystemNoticeMessage } from './useSystemNotices';
 import type { NotificationItem } from './notification-vm';
 
 const harness = vi.hoisted(() => ({
-  sessions: [] as Array<{
+  sessions: undefined as Array<{
     sessionId: string;
     label: string | null;
     name: string | null;
     projectId: string | null;
-  }>,
+  }> | undefined,
+  refetch: vi.fn(),
   dm: null as DmNotificationHandlers | null,
   notice: null as ((message: SystemNoticeMessage) => void) | null,
   queryInputs: [] as unknown[],
 }));
 
 vi.mock('@tanstack/react-query', () => ({
-  useQuery: () => ({ data: harness.sessions }),
+  useQuery: () => ({ data: harness.sessions, refetch: harness.refetch }),
 }));
 
 vi.mock('@/lib/trpc', () => ({
@@ -94,6 +95,8 @@ beforeEach(() => {
   harness.sessions = [
     { sessionId: 'direct-1', label: 'Inbox', name: 'fallback', projectId: 'atlas' },
   ];
+  harness.refetch.mockReset();
+  harness.refetch.mockResolvedValue({ data: harness.sessions });
   harness.dm = null;
   harness.notice = null;
   harness.queryInputs = [];
@@ -106,7 +109,7 @@ afterEach(() => {
 
 describe('useNotificationFeed', () => {
   it('queries direct sessions, buffers the latest turn message, and applies membership/open gates', () => {
-    harness.sessions.push({
+    harness.sessions!.push({
       sessionId: 'open-1', label: 'Open', name: 'open', projectId: 'atlas',
     });
     mountFeed({ isSessionOpen: (sessionId) => sessionId === 'open-1' });
@@ -130,6 +133,79 @@ describe('useNotificationFeed', () => {
       sessionId: 'direct-1',
       projectId: 'atlas',
     });
+  });
+
+  it('keeps a turn across an unready failed lookup and flushes when the query later fills', async () => {
+    harness.sessions = undefined;
+    harness.refetch.mockRejectedValueOnce(new Error('not ready'));
+    const options = { isSessionOpen: () => false };
+    mountFeed(options);
+
+    act(() => {
+      emitAssistant('late-direct', 'survives retry');
+      endTurn('late-direct');
+    });
+    await flush();
+    expect(feed?.items).toEqual([]);
+
+    harness.sessions = [
+      { sessionId: 'late-direct', label: 'Late inbox', name: null, projectId: 'atlas' },
+    ];
+    act(() => mounted?.update(<Probe {...options} />));
+    expect(feed?.items[0]).toMatchObject({ meta: 'survives retry', sessionId: 'late-direct' });
+  });
+
+  it('retains an ended turn while the direct map is unknown and flushes after a supplemental query', async () => {
+    harness.sessions = [];
+    harness.refetch.mockResolvedValueOnce({ data: [
+      { sessionId: 'late-direct', label: 'Late inbox', name: null, projectId: 'atlas' },
+    ] });
+    mountFeed({ isSessionOpen: () => false });
+
+    act(() => {
+      emitAssistant('late-direct', 'kept until known');
+      endTurn('late-direct');
+    });
+    expect(feed?.items).toEqual([]);
+    expect(harness.refetch).toHaveBeenCalledOnce();
+    await flush();
+
+    expect(feed?.items[0]).toMatchObject({
+      title: 'Late inbox', meta: 'kept until known', sessionId: 'late-direct',
+    });
+  });
+
+  it('drops a confirmed non-direct turn after refresh instead of retaining it indefinitely', async () => {
+    harness.sessions = [];
+    const options = { isSessionOpen: () => false };
+    mountFeed(options);
+
+    act(() => {
+      emitAssistant('scheduled-1', 'scheduled chatter');
+      endTurn('scheduled-1');
+    });
+    await flush();
+    harness.sessions = [
+      { sessionId: 'scheduled-1', label: 'Not direct', name: null, projectId: 'atlas' },
+    ];
+    act(() => mounted?.update(<Probe {...options} />));
+
+    expect(feed?.items).toEqual([]);
+  });
+
+  it('consumes a buffered turn when open-session suppression is confirmed without a map entry', async () => {
+    harness.sessions = undefined;
+    mountFeed({ isSessionOpen: (sessionId) => sessionId === 'open-unknown' });
+
+    act(() => {
+      emitAssistant('open-unknown', 'already visible');
+      endTurn('open-unknown');
+      endTurn('open-unknown');
+    });
+    await flush();
+
+    expect(feed?.items).toEqual([]);
+    expect(harness.refetch).not.toHaveBeenCalled();
   });
 
   it('queues system notices, dedupes consecutive content, and dismisses by id', () => {

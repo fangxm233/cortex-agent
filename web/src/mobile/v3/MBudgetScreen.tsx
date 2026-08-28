@@ -1,5 +1,5 @@
 // input:  budget/config/cost/project queries, scope/form state, and shared budget writer
-// output: scoped mobile editor with operation-specific success and failure toasts
+// output: scoped mobile editor with pending-safe nullable operation feedback
 // pos:    Mobile Budget settings screen
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -75,7 +75,8 @@ export function MBudgetScreen() {
   const budget = config.data?.budget ?? null;
   const resolved = pickScopeBudget(budget, scope);
   const cost = scope === null ? globalCost.data : scopedCost.data;
-  const writeSucceeded = (operation: BudgetWriterOperation) => {
+  const writeSucceeded = (operation: BudgetWriterOperation | null) => {
+    if (!operation) return;
     toast({
       title: operation === 'clear' ? L.stToastBudgetCleared : L.stToastBudgetWritten,
       tone: 'done',
@@ -85,10 +86,10 @@ export function MBudgetScreen() {
     toast({ title: `${L.stToastWriteFailed}: ${error.message}`, tone: 'failed' });
   };
   const save = (value: BudgetValue) => {
-    void writer.write(scope, value).then(writeSucceeded).catch(writeFailed);
+    if (!writer.isPending) void writer.write(scope, value).then(writeSucceeded).catch(writeFailed);
   };
   const clear = () => {
-    if (scope) void writer.clear(scope).then(writeSucceeded).catch(writeFailed);
+    if (scope && !writer.isPending) void writer.clear(scope).then(writeSucceeded).catch(writeFailed);
   };
   if (config.isLoading) return <MSettingsPage title={L.stNavBudget} onBack={() => navigate('/m/settings')}>
     <MSettingsCard><div style={{ padding: 13 }}>{L.stLoadingConfig}</div></MSettingsCard>

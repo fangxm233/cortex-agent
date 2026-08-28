@@ -28,17 +28,18 @@ Panels keep their presentation while canonical controllers and VMs in this folde
 | runtime-settings-writer.test.tsx | test | Tests runtime commit lifecycle, failures, refresh gating and production mutation wiring |
 | AppearancePanel.tsx | view | Edits language, theme, palette, accent and motion |
 | AppearancePanel.test.tsx | test | Tests theme, palette, accent and motion wiring |
-| BudgetPanel.tsx | view | Keeps desktop budget scope/form/query presentation over the shared writer |
+| BudgetPanel.tsx | view | Keeps desktop budget presentation while gating chip, Enter, apply and clear during writes |
+| BudgetPanel.test.tsx | test | Tests desktop pending action gates and ignored-write feedback |
 | budget-vm.ts | vm | Shares budget scope, draft, payload, chip, formatting and spend-bar derivations |
 | budget-vm.test.ts | test | Tests budget scope, drafts, parsing, payloads and percentage arithmetic |
-| useBudgetWriter.ts | hook | Shares budget config.set and config/cost invalidation while preserving write/clear operations |
-| useBudgetWriter.test.tsx | test | Tests writer payloads, operation results, invalidation and failures |
+| useBudgetWriter.ts | hook | Synchronously serializes budget config.set, returns nullable operations, and invalidates config/cost |
+| useBudgetWriter.test.tsx | test | Tests writer serialization, nullable results, payloads, invalidation and failures |
 | ProfilesPanel.tsx | view | Adapts the shared profile owner to the desktop table, editor and action gates |
 | ProfilesPanel.test.tsx | test | Tests desktop profile permissions, secret safety, controller errors and delete guard |
 | profiles-panel-vm.ts | vm | Shares profile transitions, validation copy and mutation args across desktop/mobile |
 | profiles-panel-vm.test.ts | test | Tests profile transitions, error copy, validation and mutation args |
-| useProfilesController.ts | controller | Owns config profile facts, drafts, validation, writes, confirmation, refresh and feedback |
-| useProfilesController.test.tsx | test | Tests shared profile lifecycle, permissions, independent pending, refreshes and toasts |
+| useProfilesController.ts | controller | Owns profile facts/drafts and one synchronous busy gate across all profile writes |
+| useProfilesController.test.tsx | test | Tests profile lifecycle, shared write serialization, operation-local pending and feedback |
 | HooksPanel.tsx | view | Hook editor with result selection and test runner |
 | HooksPanel.test.tsx | test | Tests hook permissions, validation, delete state and runner errors |
 | hooks-panel-vm.ts | vm | Canonically detects/groups hook namespaces for desktop/mobile, then validates editor mutations |

@@ -1,5 +1,5 @@
 // input:  config/cost/project queries, scope/form state, and shared budget writer
-// output: desktop global and project budget settings panel
+// output: desktop budget panel with pending-safe write, chip, Enter, apply and clear actions
 // pos:    Desktop Budget settings view
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -99,17 +99,19 @@ export function BudgetPanel({
   };
 
   const write = (patch: { daily?: number; monthly?: number }, label: string) => {
+    if (writer.isPending) return;
     const value = buildBudgetValue(resolved, patch);
     if (!value) {
       toast({ title: L.stBudgetWriteError, tone: 'waiting' });
       return;
     }
-    void writer.write(scope, value)
-      .then(() => toast({ title: `${label} · ${L.stToastBudgetWritten}`, tone: 'done' }))
-      .catch(writeFailed);
+    void writer.write(scope, value).then((operation) => {
+      if (operation) toast({ title: `${label} · ${L.stToastBudgetWritten}`, tone: 'done' });
+    }).catch(writeFailed);
   };
 
   const onApplyTyped = (field: 'daily' | 'monthly') => {
+    if (writer.isPending) return;
     const amount = parseAmountInput(draft);
     if (amount == null) {
       toast({ title: L.stBudgetAmountInvalid, tone: 'waiting' });
@@ -120,10 +122,10 @@ export function BudgetPanel({
   };
 
   const onClearOverride = () => {
-    if (!scope) return;
-    void writer.clear(scope)
-      .then(() => toast({ title: `${scope} · ${L.stToastBudgetCleared}`, tone: 'done' }))
-      .catch(writeFailed);
+    if (!scope || writer.isPending) return;
+    void writer.clear(scope).then((operation) => {
+      if (operation) toast({ title: `${scope} · ${L.stToastBudgetCleared}`, tone: 'done' });
+    }).catch(writeFailed);
   };
 
   const limitRow = (
@@ -161,8 +163,9 @@ export function BudgetPanel({
         {chips.map((v) => (
           <span
             key={v}
-            onClick={() => write({ [field]: v }, `${label} → ${formatBudgetUsd(v)}`)}
+            onClick={writer.isPending ? undefined : () => write({ [field]: v }, `${label} → ${formatBudgetUsd(v)}`)}
             role="button"
+            aria-disabled={writer.isPending}
             data-budget-chip={`${field}-${v}`}
             style={{
               ...chipStyle(!resolved.inherited && isChipActive(current, v)),
@@ -176,15 +179,17 @@ export function BudgetPanel({
       <div style={{ display: 'flex', gap: 6, marginLeft: 'auto', alignItems: 'center' }}>
         <input
           value={draft}
+          disabled={writer.isPending}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') onApplyTyped(field);
+            if (!writer.isPending && e.key === 'Enter') onApplyTyped(field);
           }}
           placeholder={L.stBudgetCustomPlaceholder}
           data-budget-input={field}
           style={{ ...S_CONTROL_STYLE, width: 88 }}
         />
-        <SButton tone="neutral" disabled={draft.trim() === ''} onClick={() => onApplyTyped(field)}>
+        <SButton tone="neutral" disabled={writer.isPending || draft.trim() === ''}
+          onClick={() => onApplyTyped(field)}>
           {L.stApply}
         </SButton>
       </div>
@@ -292,7 +297,7 @@ export function BudgetPanel({
               <span style={{ fontSize: 10.5, color: 'var(--proto-muted-2)', flex: 1 }}>
                 {L.stBudgetClearHint}
               </span>
-              <SButton tone="danger" onClick={onClearOverride} data-budget-clear>
+              <SButton tone="danger" disabled={writer.isPending} onClick={onClearOverride} data-budget-clear>
                 {L.stBudgetClear}
               </SButton>
             </div>

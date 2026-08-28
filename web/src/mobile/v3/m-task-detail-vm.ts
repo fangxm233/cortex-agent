@@ -8,7 +8,6 @@
 import type { TaskInfo, TaskVerificationInfo, TaskDispatchRecord } from '@cortex-agent/ui-contract';
 import {
   buildTaskDetailFacts,
-  taskDetailStatusKind,
   type TaskClaimFacts,
   type TaskDependencyFacts,
   type TaskDetailStatusKind,
@@ -17,7 +16,6 @@ import {
 import { fmtMoney } from '@/mobile/ui/format';
 
 export type MTaskStatusKind = TaskDetailStatusKind;
-export { taskDetailStatusKind as taskStatusKind };
 
 /** Elapsed label from a real durationMs (language-neutral s/m/h units); null when no source. */
 export function formatElapsed(ms: number | null): string | null {

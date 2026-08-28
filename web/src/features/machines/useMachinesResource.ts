@@ -1,9 +1,9 @@
 // input:  expanded machine names, machines/approvals tRPC contracts and query cache
-// output: shared polled roster, online detail facts and add-machine approval lifecycle
+// output: shared polled roster, detail facts and approval request/cache lifecycle
 // pos:    Headless desktop/mobile machines resource
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { useMutation, useQueries, useQuery } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   ApprovalsRequestReturn,
   MachineDetail,
@@ -75,6 +75,7 @@ function queriedDetail(
 
 export function useMachinesResource(expanded: readonly string[] = []): MachinesResource {
   const trpc = useTRPC();
+  const queryClient = useQueryClient();
   const roster = useQuery({
     ...trpc.machines.list.queryOptions({}),
     refetchInterval: ROSTER_REFRESH_MS,
@@ -87,7 +88,9 @@ export function useMachinesResource(expanded: readonly string[] = []): MachinesR
   })) });
   const details = offlineDetails(machines, expanded);
   online.forEach((machine, index) => details.set(machine.name, queriedDetail(machine, probes[index])));
-  const add = useMutation(trpc.approvals.request.mutationOptions());
+  const add = useMutation(trpc.approvals.request.mutationOptions({
+    onSuccess: () => queryClient.invalidateQueries(trpc.approvals.list.queryFilter()),
+  }));
   return {
     machines, loading: roster.isLoading, error: asError(roster.error),
     detailFor: (machineName) => details.get(machineName),

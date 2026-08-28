@@ -1,5 +1,5 @@
 // input:  shared budget draft builder, writer operations, and mobile screen query fixtures
-// output: complete-pair initialization and operation-specific toast regressions
+// output: complete-pair initialization, pending gates and nullable operation toast regressions
 // pos:    Mobile Budget editor specification
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -12,13 +12,14 @@ const adapter = vi.hoisted(() => ({
   write: vi.fn(),
   clear: vi.fn(),
   toast: vi.fn(),
+  pending: false,
 }));
 
 vi.mock('@/features/settings/useBudgetWriter', () => ({
   useBudgetWriter: () => ({
     write: adapter.write,
     clear: adapter.clear,
-    isPending: false,
+    isPending: adapter.pending,
   }),
 }));
 
@@ -110,6 +111,7 @@ async function mountProjectBudget(): Promise<ReactTestRenderer> {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  adapter.pending = false;
   adapter.write.mockResolvedValue('write');
   adapter.clear.mockResolvedValue('clear');
 });
@@ -126,6 +128,31 @@ describe('MBudgetScreen writer feedback', () => {
 
     expect(adapter.clear).toHaveBeenCalledWith('alpha');
     expect(adapter.toast.mock.calls).toEqual([[{ title: 'cleared', tone: 'done' }]]);
+  });
+
+  it('disables apply and clear while pending and never invokes their handlers', async () => {
+    adapter.pending = true;
+    const renderer = await mountProjectBudget();
+    const buttons = renderer.root.findAllByType('button');
+    const apply = buttons.find((button) => button.children.includes('Apply'))!;
+    const clear = buttons.find((button) => button.children.includes('Clear'))!;
+
+    expect(apply.props.disabled).toBe(true);
+    expect(clear.props.disabled).toBe(true);
+    act(() => { apply.props.onClick(); clear.props.onClick(); });
+    expect(adapter.write).not.toHaveBeenCalled();
+    expect(adapter.clear).not.toHaveBeenCalled();
+  });
+
+  it('does not toast when the writer synchronously ignores an operation', async () => {
+    adapter.clear.mockResolvedValueOnce(null);
+    const renderer = await mountProjectBudget();
+    const clear = renderer.root.findAllByType('button').find((button) => button.children.includes('Clear'))!;
+
+    await act(async () => { clear.props.onClick(); await Promise.resolve(); });
+
+    expect(adapter.clear).toHaveBeenCalledWith('alpha');
+    expect(adapter.toast).not.toHaveBeenCalled();
   });
 
   it('shows written for a write and keeps backend failures failed', async () => {

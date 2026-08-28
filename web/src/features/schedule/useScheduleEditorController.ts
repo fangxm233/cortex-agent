@@ -1,9 +1,9 @@
 // input:  config/schedule tRPC endpoints, project scope, and optional outcome callbacks
-// output: headless shared profile/form/create/update/invalidation schedule editor state
+// output: generation-safe shared profile/form/create/update/invalidation schedule editor state
 // pos:    Cross-surface schedule editor data controller
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ScheduleInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
@@ -25,6 +25,7 @@ interface EditorState {
   mode: ScheduleEditorMode;
   form: ScheduleForm;
   schedule: ScheduleInfo | null;
+  generation: number;
 }
 
 export interface ScheduleEditorControllerOptions {
@@ -52,9 +53,10 @@ interface SaveActions {
   add: (form: ScheduleForm) => Promise<unknown>;
   update: (scheduleId: string, form: ScheduleForm) => Promise<unknown>;
   invalidate: () => Promise<unknown>;
+  isCurrent: (generation: number) => boolean;
   success: (mode: ScheduleEditorMode) => void;
   failure: (mode: ScheduleEditorMode, error: Error) => void;
-  close: () => void;
+  close: (generation: number) => void;
 }
 
 function toError(caught: unknown): Error {
@@ -75,11 +77,12 @@ async function saveEditorState(state: EditorState, actions: SaveActions): Promis
   try {
     if (!await writeEditorState(state, actions)) return false;
     await actions.invalidate();
+    if (!actions.isCurrent(state.generation)) return false;
     actions.success(state.mode);
-    actions.close();
+    actions.close(state.generation);
     return true;
   } catch (caught) {
-    actions.failure(state.mode, toError(caught));
+    if (actions.isCurrent(state.generation)) actions.failure(state.mode, toError(caught));
     return false;
   }
 }
@@ -87,21 +90,32 @@ async function saveEditorState(state: EditorState, actions: SaveActions): Promis
 function useEditorState() {
   const [state, setState] = useState<EditorState | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const close = useCallback(() => { setState(null); setError(null); }, []);
+  const generation = useRef(0);
+  const nextGeneration = useCallback(() => ++generation.current, []);
+  const isCurrent = useCallback((value: number) => generation.current === value, []);
+  const close = useCallback(() => {
+    nextGeneration(); setState(null); setError(null);
+  }, [nextGeneration]);
+  const closeGeneration = useCallback((value: number) => {
+    if (generation.current === value) close();
+  }, [close]);
   const openCreate = useCallback((options?: { projectId?: string | null }) => {
     setError(null);
-    setState({ mode: 'create', form: defaultScheduleForm(options?.projectId ?? null), schedule: null });
-  }, []);
+    setState({ mode: 'create', form: defaultScheduleForm(options?.projectId ?? null),
+      schedule: null, generation: nextGeneration() });
+  }, [nextGeneration]);
   const openEdit = useCallback((schedule: ScheduleInfo) => {
     setError(null);
-    setState({ mode: 'edit', form: formFromSchedule(schedule), schedule });
-  }, []);
+    setState({ mode: 'edit', form: formFromSchedule(schedule), schedule,
+      generation: nextGeneration() });
+  }, [nextGeneration]);
   const onChange = useCallback((patch: Partial<ScheduleForm>) => {
     setState((current) => current ? {
       ...current, form: applyEditableSchedulePatch(current.form, current.mode, patch),
     } : current);
   }, []);
-  return { state, error, setError, close, openCreate, openEdit, onChange };
+  return { state, error, setError, close, closeGeneration, isCurrent,
+    openCreate, openEdit, onChange };
 }
 
 function useScheduleResources(form: ScheduleForm | null) {
@@ -129,14 +143,15 @@ function useScheduleSubmit(state: EditorState | null,
       add: (form) => resources.add.mutateAsync(buildScheduleAddArgs(form)),
       update: (id, form) => resources.update.mutateAsync(buildScheduleUpdateArgs(id, form)),
       invalidate: resources.invalidate,
+      isCurrent: editor.isCurrent,
       success: (mode) => mode === 'edit' ? options.onUpdated?.() : options.onCreated?.(),
       failure: (mode, error) => {
         editor.setError(error.message);
         options.onError?.(mode, error);
       },
-      close: editor.close,
+      close: editor.closeGeneration,
     });
-  }, [editor.close, editor.setError, options, resources, state]);
+  }, [editor.closeGeneration, editor.isCurrent, editor.setError, options, resources, state]);
 }
 
 function editorForm(state: EditorState | null): ScheduleForm | null {
