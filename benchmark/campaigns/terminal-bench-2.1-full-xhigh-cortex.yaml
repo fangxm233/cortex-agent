@@ -16,11 +16,20 @@
 #   benchmark/harness/scripts/bench --config ../campaigns/terminal-bench-2.1-full-xhigh-cortex.yaml --run
 # Both the access and refresh tokens are read from ~/.codex/auth.json at execution time. The paths
 # below are lab-ksu's.
+#
+# RE-RUN INTO A FRESH trials_dir. The first run of this suite mounted the offline `verifier`
+# runtime, whose shim `apt-get` and `curl` symlink onto /usr/local/bin ahead of /usr/bin. Those
+# links are created in the agent's install phase, so they intercepted BOTH phases: the agent could
+# not install a package or fetch a URL in a container that had real network, and the verifier lost
+# the per-task `-w` closure its upstream tests/test.sh asks uvx to install. `runtimes:` below no
+# longer names it, and campaign_config now refuses the combination outright. The directory is
+# suffixed rather than reused because a campaign resumes from the trial roots it already produced:
+# pointed at the old directory this would re-run nothing.
 
 schema_version: cortex-bench-campaign/1
 campaign: tb21-full-cx
 paid: true
-trials_dir: /home/xinmin/cortex-benchmark/runs/tb21-full-xhigh-cortex
+trials_dir: /home/xinmin/cortex-benchmark/runs/tb21-full-xhigh-cortex-r2
 cli_version: "2026.8.6"
 concurrency: 8
 
