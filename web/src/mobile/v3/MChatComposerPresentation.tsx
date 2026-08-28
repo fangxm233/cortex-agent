@@ -100,8 +100,32 @@ export function ComposerAbove({ props }: { props: MChatViewProps }): JSX.Element
 
 function ProfileChip({ label, onClick }: { label: string; onClick: () => void }): JSX.Element {
   return (
-    <button type="button" onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 6, border: `1.5px solid ${MC.runBorder}`, background: MC.card, borderRadius: 999, height: 34, padding: '0 13px', boxSizing: 'border-box', flex: 'none', minWidth: 0, cursor: 'pointer' }}>
-      <span style={{ width: 5, height: 5, borderRadius: '50%', background: MC.run, flex: 'none' }} /><span style={{ font: `600 11.5px ${MONO}`, color: MC.run, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span><span style={{ fontSize: 8, color: MC.muted, flex: 'none' }}>▾</span>
+    <button type="button" onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 6, border: `1.5px solid ${MC.runBorder}`, background: MC.card, borderRadius: 999, height: 34, padding: '0 13px', boxSizing: 'border-box', flex: '0 1 auto', minWidth: 0, overflow: 'hidden', cursor: 'pointer' }}>
+      <span style={{ width: 5, height: 5, borderRadius: '50%', background: MC.run, flex: 'none' }} />
+      <span style={{ minWidth: 0, font: `600 11.5px ${MONO}`, color: MC.run, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+    </button>
+  );
+}
+
+export function BrowserChip({ device, label, onClick }: {
+  device: string;
+  label: string;
+  onClick?: () => void;
+}): JSX.Element {
+  return (
+    <button type="button" data-chip="browser" data-browser-device={device}
+      data-editable={onClick ? 'true' : 'false'} aria-label={`${label} · ${device}`}
+      onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 5, flex: '0 1 auto',
+        minWidth: 0, maxWidth: 132, height: 34, padding: '0 11px', boxSizing: 'border-box',
+        borderRadius: 999, border: `1.5px solid ${MC.runBorder}`, background: MC.runBg,
+        color: MC.run, font: `500 11px ${MONO}`, overflow: 'hidden',
+        cursor: onClick ? 'pointer' : 'default' }}>
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+        strokeWidth="1.5" style={{ flex: 'none' }}>
+        <circle cx="8" cy="8" r="6.5" />
+        <path d="M1.5 8h13M8 1.5c-1.8 1.8-2.7 4-2.7 6.5S6.2 13.2 8 14.5c1.8-1.3 2.7-4 2.7-6.5S9.8 3.3 8 1.5z" />
+      </svg>
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{device}</span>
     </button>
   );
 }

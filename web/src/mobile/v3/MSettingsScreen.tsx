@@ -1,5 +1,5 @@
-// input:  config/auth queries, shared account facts, machine roster, and connection state
-// output: immediately rendered mobile settings index with shared summaries
+// input:  config query, shared machine roster, and connection state
+// output: immediately rendered mobile settings index with stable presentation
 // pos:    Mobile settings query adapter preserving the current settings presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -13,7 +13,6 @@ import type { SettingsSectionKey } from '@/features/settings/settings-nav';
 import { useLang } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
 import { pickCopy } from '@/mobile/ui/format';
-import { buildAccountsVm } from '@/features/settings/accounts-vm';
 import { onlineMachineCount } from './m-project-vm';
 import { buildMSettingsVm } from './m-settings-vm';
 import { MSettingsView, type MSettingsCopy } from './MSettingsView';
@@ -44,13 +43,10 @@ export function MSettingsScreen() {
   const copy = pickCopy(useLang(), COPY);
   const connectionStatus = useConnectionStatus();
   const config = useQuery(trpc.config.get.queryOptions({}));
-  const auth = useQuery(trpc.auth.status.queryOptions({}));
   const machines = useMachinesResource();
   const vm = useMemo(() => buildMSettingsVm(config.data ?? EMPTY_SNAPSHOT, undefined), [config.data]);
-  const accounts = useMemo(() => auth.data ? buildAccountsVm(auth.data).summary
-    : { claudeLoggedIn: false, piLoggedInCount: 0 }, [auth.data]);
   return <MSettingsView vm={vm} copy={copy} connectionStatus={connectionStatus}
-    accountsSummary={accounts} onlineMachines={onlineMachineCount(machines.machines)}
+    onlineMachines={onlineMachineCount(machines.machines)}
     onBack={() => navigate('/m/project')} onOpenDaemon={() => navigate('/m/daemon')}
     onOpenSection={(section) => navigate(SECTION_PATH[section])} />;
 }

@@ -83,8 +83,8 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 | MDaemonView.tsx | view | Shows canonical daemon tones with mobile long-press restart and disconnect controls |
 | m-daemon-vm.ts | vm | Projects shared daemon facts into mobile fallback, summary and recent-event models |
 | m-daemon-vm.test.ts | test | Tests shared process tones plus mobile fallback, summaries and recent events |
-| MSettingsScreen.tsx | screen | Renders settings immediately from config, account summaries and the shared machine roster |
-| MSettingsView.tsx | view | Keeps Daemon and Profile cards above rows with canonical account facts |
+| MSettingsScreen.tsx | screen | Renders settings immediately from config and the shared machine roster |
+| MSettingsView.tsx | view | Keeps Daemon and Profile cards above stable title-only rows |
 | MSettingsView.test.tsx | test | Tests canonical order, routing and live connection copy |
 | MSettingsControls.tsx | view | Supplies compact rows, toggles and field-local validation feedback |
 | MPlatformScreen.tsx | screen | Shows redacted platform state and queues reconnect approval |

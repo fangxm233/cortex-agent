@@ -34,7 +34,9 @@ import { MAskCard, MPlanCard, M_INT_COPY } from './MInteractionCards';
 import { MDecisionCardGroup } from './MDecisionCards';
 import { AttachmentGroup } from './MChatAttachments';
 import { AssistantTurnCopyAction, longPressHandlers, MsgActionMenu } from './MChatMessageActions';
-import { AttachMenu, ComposerAbove, ComposerLeading, ComposerTools, MobileSlashMenu } from './MChatComposerPresentation';
+import {
+  AttachMenu, BrowserChip, ComposerAbove, ComposerLeading, ComposerTools, MobileSlashMenu,
+} from './MChatComposerPresentation';
 import { BrowserSheet, ContextUsageSheet, MoreMenu, ProfileSheet, SessionIdSheet } from './MChatSheets';
 import type { ChatHeaderStatus } from './m-chat-vm';
 import type { MChatEditCopy, MChatInteractions, MChatViewProps, MEditMode } from './MChatView.types';
@@ -582,7 +584,13 @@ export function MChatView(props: MChatViewProps): JSX.Element {
           running={props.status.running}
           onStop={props.onStop}
           stopEnabled={props.stopEnabled}
-          leading={props.editing || props.rejectBar ? undefined : <ComposerLeading onClick={props.onPlus} />}
+          leading={props.editing || props.rejectBar ? undefined : (
+            <>
+              <ComposerLeading onClick={props.onPlus} />
+              {props.browserDevice && <BrowserChip device={props.browserDevice}
+                label={copy.attachBrowser} onClick={props.onOpenBrowser} />}
+            </>
+          )}
           tools={<ComposerTools props={props} />}
           above={<ComposerAbove props={props} />}
           commandMenu={commandMenu}

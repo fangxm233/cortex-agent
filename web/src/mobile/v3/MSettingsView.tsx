@@ -1,6 +1,6 @@
-// input:  canonical settings nav/account summary, mobile facts, and connection state
+// input:  canonical settings nav, mobile facts, and connection state
 // output: mobile settings index with honest interactive capabilities
-// pos:    Presentational mobile settings view over shared feature facts
+// pos:    Presentational mobile settings view preserving dedicated profile chrome
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { ReactNode } from 'react';
@@ -10,7 +10,6 @@ import { getSettingsNav, type SettingsSectionKey } from '@/features/settings/set
 import { useVocab } from '@/i18n';
 import { BUILD_STAMP } from '@/lib/build-info';
 import { MCard, MDrillHeader, MScreen, MScrollBody, MC, MONO } from '@/mobile/ui/kit';
-import type { AccountsSummaryVm } from '@/features/settings/accounts-vm';
 import type { MSettingsVm } from './m-settings-vm';
 
 export interface MSettingsCopy {
@@ -30,7 +29,6 @@ interface MSettingsViewProps {
   onOpenDaemon: () => void;
   onlineMachines: number;
   connectionStatus: ConnectionStatus;
-  accountsSummary: AccountsSummaryVm;
   onOpenSection: (section: SettingsSectionKey) => void;
 }
 
@@ -95,17 +93,8 @@ function ProfileCard(props: MSettingsViewProps) {
   );
 }
 
-function accountSummary(summary: AccountsSummaryVm, L: ReturnType<typeof useVocab>): string {
-  const claude = summary.claudeLoggedIn ? L.accountsConnectedMark : L.accountsDisconnected;
-  return `CC ${claude} · ${L.accountsPiSummary.replace('{count}', String(summary.piLoggedInCount))}`;
-}
-
 function summaries(props: MSettingsViewProps): Partial<Record<SettingsSectionKey, string>> {
-  const L = useVocab();
-  return {
-    accounts: accountSummary(props.accountsSummary, L),
-    machines: `${props.onlineMachines} ${props.copy.machinesOk}`,
-  };
+  return { machines: `${props.onlineMachines} ${props.copy.machinesOk}` };
 }
 
 function SettingsRow(props: {
