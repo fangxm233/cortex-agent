@@ -271,11 +271,8 @@ def _vendor_task_record(task: Mapping[str, object] | None) -> dict[str, str]:
 def _require_trusted_security(
     scan: Mapping[str, object], revocation: TrialRevocation | None, trial_id: str,
 ) -> None:
-    if scan.get("ok") is not True or scan.get("clean") is not True:
-        raise HostFinalizationError("output_scan_untrusted")
-    if any(scan.get(key) != [] for key in (
-        "matches", "missing_sources", "unclassified_files",
-    )):
+    # Coverage uncertainty stays in the envelope; only an observed leak blocks publication.
+    if scan.get("matches") != []:
         raise HostFinalizationError("output_scan_untrusted")
     record = _revocation_record(revocation)
     expected = {
@@ -398,7 +395,11 @@ def _scan_collected(
     if any(contains_sensitive_literal(item.relative_path, policy) for item in collected):
         raise HostFinalizationError("output_leak_detected")
     if not roots:
-        return _unavailable("evidence_roots_unavailable")
+        return {
+            **_unavailable("evidence_roots_unavailable"),
+            "ok": False, "clean": False, "sources": [], "matches": [],
+            "missing_sources": [], "unclassified_files": [],
+        }
     sources = {
         item.source: roots[item.root] / item.relative_path
         for item in collected if item.kind == "file"

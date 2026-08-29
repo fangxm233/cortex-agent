@@ -1478,18 +1478,22 @@ def test_a_verifier_that_ran_nothing_is_unavailable_even_with_a_passing_reward(
 
 
 @pytest.mark.parametrize(
-    "failure", ["scan-dirty", "scan-incomplete", "revocation-active",
-                "revocation-foreign", "harness"],
+    "failure", ["scan-dirty", "scan-missing-matches", "scan-malformed-matches",
+                "revocation-active", "revocation-foreign", "harness"],
 )
 def test_vendor_security_or_harness_failure_publishes_no_gradable_envelope(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str,
 ) -> None:
     if failure.startswith("scan"):
-        clean = failure == "scan-incomplete"
-        monkeypatch.setattr(finalization, "_scan_collected", lambda *_args: {
-            "ok": True, "clean": clean, "matches": [], "missing_sources": [],
-            "unclassified_files": ["collected:0000"] if clean else [],
-        })
+        report: dict[str, object] = {
+            "ok": False, "clean": False, "matches": [{"rule": "secret"}],
+            "missing_sources": [], "unclassified_files": [],
+        }
+        if failure == "scan-missing-matches":
+            del report["matches"]
+        elif failure == "scan-malformed-matches":
+            report["matches"] = "none"
+        monkeypatch.setattr(finalization, "_scan_collected", lambda *_args: report)
     elif failure == "harness":
         def fail_collection(*_args: object) -> object:
             raise HostFinalizationError("trial_output_collection_failed")
@@ -1504,6 +1508,40 @@ def test_vendor_security_or_harness_failure_publishes_no_gradable_envelope(
         )
 
     assert not envelope_path(tmp_path).exists()
+
+
+def test_scan_coverage_uncertainty_is_recorded_without_refusal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report = {
+        "ok": False, "clean": False, "matches": [],
+        "missing_sources": ["collected:0000"],
+        "unclassified_files": [{"root_index": 0, "relative_path": "socket"}],
+    }
+    monkeypatch.setattr(finalization, "_scan_collected", lambda *_args: report)
+
+    envelope = finalize_vendor_trial(tmp_path, monkeypatch)
+
+    assert envelope["leak_scan"] == report
+    assert envelope_path(tmp_path).exists()
+
+
+def test_all_unavailable_roots_are_recorded_without_refusal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unavailable(roots: Mapping[str, Path]) -> object:
+        return ({name: "unavailable" for name in roots}, ())
+
+    monkeypatch.setattr(finalization, "_collect_roots", unavailable)
+
+    envelope = finalize_vendor_trial(tmp_path, monkeypatch)
+
+    assert envelope["leak_scan"] == {
+        "status": "unavailable", "reason": "evidence_roots_unavailable",
+        "ok": False, "clean": False, "sources": [], "matches": [],
+        "missing_sources": [], "unclassified_files": [],
+    }
+    assert envelope_path(tmp_path).exists()
 
 
 def test_collected_provider_credential_refuses_publication(
@@ -1521,20 +1559,21 @@ def test_collected_provider_credential_refuses_publication(
 
 
 @pytest.mark.parametrize("target", ["missing-target", "/etc/passwd"])
-def test_dangling_or_escaping_collected_symlink_refuses_publication(
+def test_dangling_or_escaping_collected_symlink_is_recorded_without_refusal(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, target: str,
 ) -> None:
     def inject_symlink(root: Path) -> None:
         (root / "agent/unsafe-link").symlink_to(target)
 
-    with pytest.raises(HostFinalizationError) as raised:
-        finalize_vendor_trial(tmp_path, monkeypatch, mutation=inject_symlink)
+    envelope = finalize_vendor_trial(tmp_path, monkeypatch, mutation=inject_symlink)
 
-    assert raised.value.reason == "output_scan_untrusted"
-    assert not envelope_path(tmp_path).exists()
+    assert envelope["leak_scan"]["unclassified_files"] == [
+        {"root_index": 0, "relative_path": "unsafe-link"},
+    ]
+    assert envelope_path(tmp_path).exists()
 
 
-def test_collected_source_missing_before_scan_refuses_publication(
+def test_collected_source_missing_before_scan_is_recorded_without_refusal(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     original = finalization._collect_roots
@@ -1545,11 +1584,11 @@ def test_collected_source_missing_before_scan_refuses_publication(
         return result
 
     monkeypatch.setattr(finalization, "_collect_roots", remove_after_collection)
-    with pytest.raises(HostFinalizationError) as raised:
-        finalize_vendor_trial(tmp_path, monkeypatch)
 
-    assert raised.value.reason == "output_scan_untrusted"
-    assert not envelope_path(tmp_path).exists()
+    envelope = finalize_vendor_trial(tmp_path, monkeypatch)
+
+    assert envelope["leak_scan"]["missing_sources"] != []
+    assert envelope_path(tmp_path).exists()
 
 
 def test_a_coder_review_trial_never_records_the_direct_arm_bundle(tmp_path: Path) -> None:

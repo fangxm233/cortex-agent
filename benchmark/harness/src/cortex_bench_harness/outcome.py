@@ -336,12 +336,23 @@ def _roots_reason(envelope: Mapping[str, object]) -> str | None:
     roots = evidence.get("roots") if isinstance(evidence, Mapping) else None
     if not isinstance(roots, list):
         return "evidence roots are unavailable"
-    collected = {
-        item.get("root") for item in roots
-        if isinstance(item, Mapping) and item.get("status") == "collected"
-    }
-    if not _REQUIRED_ROOTS <= collected:
-        return "evidence roots were not all collected"
+    entries = [
+        (item.get("root"), item.get("status")) if isinstance(item, Mapping)
+        else (None, None)
+        for item in roots
+    ]
+    if any(
+        not isinstance(root, str) or not isinstance(status, str)
+        for root, status in entries
+    ):
+        return "evidence root records are malformed"
+    if (
+        len(entries) != len(_REQUIRED_ROOTS)
+        or {root for root, _ in entries} != _REQUIRED_ROOTS
+    ):
+        return "evidence root records are malformed"
+    if any(status not in {"collected", "unavailable"} for _, status in entries):
+        return "evidence root records are malformed"
     return None
 
 
@@ -349,11 +360,8 @@ def _scan_reason(envelope: Mapping[str, object]) -> str | None:
     scan = envelope.get("leak_scan")
     if not isinstance(scan, Mapping):
         return "leak scan is unavailable"
-    if scan.get("ok") is not True or scan.get("clean") is not True:
-        return "leak scan is not clean"
-    for field in ("matches", "missing_sources", "unclassified_files"):
-        if scan.get(field) != []:
-            return f"leak scan {field} is not empty"
+    if scan.get("matches") != []:
+        return "leak scan has matches or is malformed"
     return None
 
 

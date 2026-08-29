@@ -6,7 +6,7 @@ Launcher tests cover production arm routing, admission and evidence recording.
 |---|---|---|
 | trial_fixtures.py | fixture | Builds production trial documents |
 | test_arms.py | test | Verifies arm/task selection, seed binding and direct-arm routing |
-| test_campaign.py | test | Verifies campaign admission, execution, outcomes and delivery artifacts |
+| test_campaign.py | test | Verifies campaign execution and score admission semantics |
 | test_capability_ceilings.py | test | Verifies committed paid-envelope ceilings |
 | test_capability_evidence.py | test | Verifies current capability provenance and proof sources |
 | test_capability_state_gate.py | test | Verifies offline and live capability admission |
@@ -19,7 +19,7 @@ Launcher tests cover production arm routing, admission and evidence recording.
 | test_campaign_progress.py | test | Verifies the run-level progress ledger and its best-effort writes |
 | test_codex_refresh_binding.py | test | Verifies OAuth refresh material binds to the adapter and never travels |
 | test_host_credential_vault.py | test | Verifies opaque credential transfer |
-| test_host_finalization.py | test | Verifies envelopes, terminal evidence and mapped scans |
+| test_host_finalization.py | test | Verifies envelopes, leak gates and scan diagnostics |
 | test_live_handshake_permit.py | test | Verifies native-default bootstrap bounds and safe diagnostics |
 | test_leak_scan_finalization_docker.py | test | Proves clean publication after verifier alias cleanup |
 | test_paid_campaign_launch.py | test | Verifies paid launch and Codex auth loading |

@@ -1797,17 +1797,77 @@ def test_resuming_a_terminal_verifier_failure_keeps_it_failed_without_rearming(
     assert report["runs"][0]["score_status"] == "failed"
 
 
-@pytest.mark.parametrize("untrustworthy", ["scan", "revocation", "revocation-types"])
+@pytest.mark.parametrize("uncertainty", ["missing", "unclassified", "root", "all-roots"])
+def test_scan_coverage_uncertainty_keeps_the_verifier_score(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+    uncertainty: str,
+) -> None:
+    def record_uncertainty(document: dict[str, object]) -> dict[str, object]:
+        scan = document["leak_scan"]
+        assert isinstance(scan, dict)
+        scan["ok"] = False
+        scan["clean"] = False
+        if uncertainty == "missing":
+            scan["missing_sources"] = ["collected:0000"]
+        elif uncertainty == "unclassified":
+            scan["unclassified_files"] = [
+                {"root_index": 0, "relative_path": "runtime.sock"},
+            ]
+        else:
+            roots = document["evidence"]["roots"]
+            assert isinstance(roots, list)
+            selected = roots if uncertainty == "all-roots" else roots[:1]
+            for root in selected:
+                root["status"] = "unavailable"
+        return document
+
+    RecordingTrialPath(envelope_mutation=record_uncertainty).install(monkeypatch)
+
+    status, result, _ = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path)))
+
+    assert status == 0
+    first = result["trials"][0]
+    assert first["state"] == "ran"
+    assert first["verifier_rewards"] == {"reward": 1.0}
+    assert first["score_status"] == "available"
+
+
+@pytest.mark.parametrize(
+    "untrustworthy", ["scan", "scan-missing-matches", "scan-malformed-matches",
+                      "root-missing", "root-unknown", "root-duplicate",
+                      "root-nonscalar-name", "root-nonscalar-status",
+                      "revocation", "revocation-types"],
+)
 def test_untrustworthy_security_evidence_never_exposes_a_score(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
     untrustworthy: str,
 ) -> None:
     def fail_security(document: dict[str, object]) -> dict[str, object]:
-        if untrustworthy == "scan":
+        if untrustworthy.startswith("scan"):
+            matches: object = [{"rule": "secret"}]
+            if untrustworthy == "scan-missing-matches":
+                matches = None
+            elif untrustworthy == "scan-malformed-matches":
+                matches = "none"
             document["leak_scan"] = {
-                "ok": False, "clean": False, "matches": [{"rule": "secret"}],
+                "ok": False, "clean": False, "matches": matches,
                 "missing_sources": [], "unclassified_files": [],
             }
+            if untrustworthy == "scan-missing-matches":
+                del document["leak_scan"]["matches"]
+        elif untrustworthy.startswith("root-"):
+            roots = document["evidence"]["roots"]
+            assert isinstance(roots, list)
+            if untrustworthy == "root-missing":
+                roots.pop()
+            elif untrustworthy == "root-unknown":
+                roots[0]["status"] = "unknown"
+            elif untrustworthy == "root-duplicate":
+                roots.append(dict(roots[0]))
+            elif untrustworthy == "root-nonscalar-name":
+                roots[0]["root"] = []
+            else:
+                roots[0]["status"] = {}
         elif untrustworthy == "revocation":
             document["revocation"]["route_active"] = True
         else:
