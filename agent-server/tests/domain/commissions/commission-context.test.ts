@@ -1,5 +1,5 @@
 // input:  ../../_test-home, vitest, commission-context with injected deps
-// output: contract/ledger loading, closed-commission and truncation tests
+// output: identity/dir resolution, ledger presence, closed-commission and missing-contract tests
 // pos:    [Commission] injection payload loader contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -23,20 +23,25 @@ function harness(files: Record<string, string>, status: 'active' | 'done' = 'act
   };
 }
 
-test('loads contract text and ledger digest for an active commission', async () => {
+test('resolves identity and directory for an active commission, without carrying file contents', async () => {
   const ctx = await loadCommissionPromptContext('comm-1', harness({
     'contract.md': '# Contract\ngoal',
     'ledger.md': '# Ledger\nstatus line',
   }));
+  assert.equal(ctx?.id, 'comm-1');
   assert.equal(ctx?.title, 'My task');
   assert.equal(ctx?.dir, '/ctx/proj/commissions/my-task');
-  assert.equal(ctx?.contractText, '# Contract\ngoal');
-  assert.equal(ctx?.ledgerDigest, '# Ledger\nstatus line');
+  assert.equal(ctx?.hasLedger, true);
+  // The context is an index — no snapshot fields, no matter how large the files are.
+  assert.deepEqual(Object.keys(ctx!).sort(), ['dir', 'hasLedger', 'id', 'title']);
 });
 
-test('missing ledger is tolerated; missing or empty contract loads nothing', async () => {
-  const noLedger = await loadCommissionPromptContext('c', harness({ 'contract.md': 'X' }));
-  assert.equal(noLedger?.ledgerDigest, '');
+test('a missing or empty ledger is reported as absent, not fatal', async () => {
+  assert.equal((await loadCommissionPromptContext('c', harness({ 'contract.md': 'X' })))?.hasLedger, false);
+  assert.equal((await loadCommissionPromptContext('c', harness({ 'contract.md': 'X', 'ledger.md': ' \n' })))?.hasLedger, false);
+});
+
+test('a missing or empty contract means the commission is not set up — nothing is injected', async () => {
   assert.equal(await loadCommissionPromptContext('c', harness({})), null);
   assert.equal(await loadCommissionPromptContext('c', harness({ 'contract.md': '  \n' })), null);
 });
@@ -46,13 +51,11 @@ test('closed commissions and unknown ids load nothing', async () => {
   assert.equal(await loadCommissionPromptContext('c', { ...harness({}), findCommission: async () => null }), null);
 });
 
-test('oversize contract and ledger are truncated with an on-disk pointer', async () => {
+test('an enormous contract and ledger cost nothing — size never reaches the prompt', async () => {
   const ctx = await loadCommissionPromptContext('c', harness({
-    'contract.md': 'A'.repeat(20_000),
-    'ledger.md': Array.from({ length: 300 }, (_, i) => `line ${i} ${'x'.repeat(40)}`).join('\n'),
+    'contract.md': 'A'.repeat(200_000),
+    'ledger.md': 'B'.repeat(200_000),
   }));
-  assert.ok(ctx!.contractText.length < 17_000);
-  assert.match(ctx!.contractText, /truncated/);
-  assert.match(ctx!.ledgerDigest, /truncated — read ledger\.md/);
-  assert.ok(ctx!.ledgerDigest.split('\n').length <= 82);
+  assert.equal(ctx?.hasLedger, true);
+  assert.ok(JSON.stringify(ctx).length < 200, 'context stays constant-size regardless of file size');
 });

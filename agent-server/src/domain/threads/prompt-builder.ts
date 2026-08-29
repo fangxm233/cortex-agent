@@ -314,8 +314,9 @@ function appendPendingMessages(
  *    via resolveConversationProject) passes it only on the FIRST turn of a Web UI direct session
  *    bound to a user project, so the agent knows which project the session belongs to;
  *  - prepends a [Commission] block when opts.commission is given (fresh commission-bound sessions
- *    only — see resolveConversationCommission): contract text, ledger digest, and the execution
- *    protocol (DR-0037). Pure text assembly; all file I/O stays in the commissions domain loader;
+ *    only — see resolveConversationCommission): an INDEX of the commission directory plus the
+ *    execution protocol (DR-0037) — contract.md / ledger.md are named, never pasted. Pure text
+ *    assembly; all file I/O stays in the commissions domain loader;
  *  - NEVER injects THREAD_PROTOCOL_PREAMBLE (no artifact, no [ABORT] protocol for conversations).
  */
 export function buildConversationPrompt(
@@ -364,18 +365,23 @@ const COMMISSION_PROTOCOL = `Commission protocol:
 3. Before this session ends, and at each stage boundary, append a checkpoint CP-N to ledger.md with three diffs — plan vs done, contract vs current direction, assumptions vs reality — graded ok / attention / gate. Re-read contract.md (including 修订记录) before writing it.
 4. Contract gates are blocking: ask the user and wait. A streak of approvals never downgrades a gate.`;
 
+/** Index, not snapshot: the block names the two files and tells the agent to read them. Their
+ *  contents are deliberately NOT pasted in — they grow without bound and the user may edit
+ *  contract.md at any time, so a snapshot is both expensive and potentially stale. */
 function buildCommissionBlock(c: CommissionPromptContext): string {
+  const ledgerLine = c.hasLedger
+    ? `  ledger.md   — your state record: 状态 line, 计划 items, checkpoints CP-N, log entries L-NNN`
+    : `  ledger.md   — NOT created yet. Derive it from the contract's acceptance criteria before working`;
   return [
     `[Commission] This session belongs to the commission "${c.title}" (${c.id}).`,
     `Commission directory: ${c.dir}`,
-    `contract.md is the binding intent reference; ledger.md is your state record. Snapshots below — `
-    + `re-read the files on disk at every checkpoint, the user may have edited the contract.`,
+    `  contract.md — the binding intent reference: goal, inferences, acceptance criteria, exclusions, gates, 修订记录`,
+    ledgerLine,
+    `  assets/     — rich content you generate; decisions.jsonl — server-written, never touch it`,
     '',
-    '--- contract.md ---',
-    c.contractText.trim(),
-    '',
-    '--- ledger digest ---',
-    c.ledgerDigest.trim() || '(ledger not started yet — create ledger.md from the contract before working)',
+    `Read both files now, before anything else — their contents are not reproduced here, and the `
+    + `copies on disk are the only source of truth. Re-read contract.md (including 修订记录) at every `
+    + `checkpoint; the user may have edited it since you last looked.`,
     '',
     COMMISSION_PROTOCOL,
   ].join('\n');

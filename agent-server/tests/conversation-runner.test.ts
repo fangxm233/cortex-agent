@@ -140,28 +140,37 @@ const commissionCtx: CommissionPromptContext = {
   id: 'comm-1',
   title: 'Ship the parser',
   dir: '/ctx/projects/proj-a/commissions/ship-the-parser',
-  contractText: 'CONTRACT BODY',
-  ledgerDigest: 'LEDGER DIGEST',
+  hasLedger: true,
 };
 
-test('buildConversationPrompt injects the commission block with contract, ledger and protocol', () => {
+test('buildConversationPrompt injects the commission block as an index plus the protocol', () => {
   const prompt = buildConversationPrompt(makeAgentConfig({ directive: '' }), 'hello', {
     project: { id: 'proj-a', contextDir: '/ctx/projects/proj-a' },
     commission: commissionCtx,
   });
   assert.match(prompt, /\[Commission\] This session belongs to the commission "Ship the parser" \(comm-1\)/);
-  assert.match(prompt, /CONTRACT BODY/);
-  assert.match(prompt, /LEDGER DIGEST/);
+  assert.match(prompt, /Commission directory: \/ctx\/projects\/proj-a\/commissions\/ship-the-parser/);
+  assert.match(prompt, /Read both files now/);
   assert.match(prompt, /Commission protocol:/);
   assert.ok(prompt.indexOf('[Session Project]') < prompt.indexOf('[Commission]'), 'commission block follows the project block');
   assert.ok(prompt.endsWith('hello'));
 });
 
-test('buildConversationPrompt with an empty ledger digest points the agent at creating ledger.md', () => {
+test('the commission block never pastes contract or ledger content', () => {
   const prompt = buildConversationPrompt(makeAgentConfig({ directive: '' }), 'hi', {
-    commission: { ...commissionCtx, ledgerDigest: '' },
+    commission: commissionCtx,
   });
-  assert.match(prompt, /ledger not started yet/);
+  assert.ok(!prompt.includes('--- contract.md ---'), 'no contract snapshot');
+  assert.ok(!prompt.includes('ledger digest'), 'no ledger snapshot');
+  // The whole block stays small enough to be free at the start of every commission session.
+  assert.ok(prompt.length < 1_800, `block unexpectedly large: ${prompt.length}`);
+});
+
+test('buildConversationPrompt tells the agent to create ledger.md when it does not exist yet', () => {
+  const prompt = buildConversationPrompt(makeAgentConfig({ directive: '' }), 'hi', {
+    commission: { ...commissionCtx, hasLedger: false },
+  });
+  assert.match(prompt, /ledger\.md   — NOT created yet/);
 });
 
 test('resolveConversationCommission loads the context only for commission-bound sessions', async () => {

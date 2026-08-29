@@ -2,7 +2,7 @@
 name: commission
 description: "How to run a commission (委托/长任务) — a contract-anchored long task. This session is in commission mode, so the skill is loaded: use it to start a commission (drill → contract → approval) or to work inside one already bound (checkpoint discipline)."
 author: Cortex
-version: 2.0.0
+version: 2.1.0
 allowed-tools:
   - Read
   - Write
@@ -127,7 +127,7 @@ Then start executing, under Phase B discipline.
 
 ## Phase B — Execution: checkpoint discipline
 
-The [Commission] block carries snapshots; the files on disk are authoritative. The user may have edited contract.md since the snapshot — re-read it at every checkpoint, including 修订记录.
+The [Commission] block is only an index — it names contract.md and ledger.md, it does not carry their contents. Read both at the start of the session, and re-read contract.md (including 修订记录) at every checkpoint; the user may have edited it.
 
 **Surprise triage.** Everything unexpected is one of three kinds:
 - an **obstacle** — route around it yourself, note it in a ledger L-entry;
