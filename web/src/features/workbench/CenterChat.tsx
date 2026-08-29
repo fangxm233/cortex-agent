@@ -21,6 +21,7 @@ import { useSelectedSession } from './SelectedSessionProvider';
 import { useOptimisticUserMessages } from './useOptimisticUserMessages';
 import { scheduledRunTitle } from './schedule-rail';
 import { useProjectSessions } from '@/features/projects/useProjectSessions';
+import { CommissionBanner } from '@/features/commission/CommissionBanner';
 
 // CENTER CHAT pane — 1:1 rebuild from prototype.dc.html L103–395 (workspace-chat view). Task aba0
 // (S4 chat) makes the transcript body + composer send REAL, replacing 89e7's GAP-A (static transcript)
@@ -200,6 +201,9 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
         backendSessionId={active?.backendSessionId ?? null}
         sessionName={active?.name ?? null}
       />
+      {/* Sits OUTSIDE the transcript grid so it never scrolls away: a commission's anchor has to
+          survive the whole conversation, not just its first screen. */}
+      {active?.commissionId && <CommissionBanner commissionId={active.commissionId} />}
       <div
         data-chat-phase={preFirstMessage ? 'pre-start' : 'active'}
         style={{

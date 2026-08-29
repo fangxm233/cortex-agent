@@ -7,4 +7,5 @@ The board is opened globally by a provider; the registry itself is served by `co
 |---|---|---|
 | CommissionBoardModalProvider.tsx | provider | Owns board selection, queries, close mutation and session hand-off |
 | CommissionBoardModal.tsx | view | Renders the ledger/contract panes, decision stream, gates and close actions |
+| CommissionBanner.tsx | view | Persistent chat strip naming the commission and its gate count |
 | useCommissionLiveSync.ts | hook | Invalidates commission queries on `commission.updated` |
