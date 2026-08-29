@@ -25,7 +25,8 @@ export type InlineNode =
   | { type: 'italic'; text: string }
   | { type: 'code'; text: string }
   | { type: 'math'; text: string }
-  | { type: 'link'; text: string; href: string };
+  | { type: 'link'; text: string; href: string }
+  | { type: 'image'; alt: string; src: string };
 
 export type Block =
   | { type: 'heading'; level: number; inline: InlineNode[] }
@@ -81,8 +82,8 @@ export function splitFrontmatter(content: string): { frontmatter: Frontmatter | 
   return { frontmatter: { entries, summary }, body };
 }
 
-const INLINE_RE = /(?<bold>\*\*[^*]+\*\*)|(?<code>(?<ticks>`+)(?<codeText>.*?)\k<ticks>)|(?<link>\[(?<linkText>[^\]]+)\]\((?<href>[^)]+)\))|(?<italicStar>\*[^*]+\*)|(?<italicUnderscore>_[^_]+_)/;
-const INLINE_KINDS = ['bold', 'code', 'link', 'italicStar', 'italicUnderscore'] as const;
+const INLINE_RE = /(?<bold>\*\*[^*]+\*\*)|(?<code>(?<ticks>`+)(?<codeText>.*?)\k<ticks>)|(?<image>!\[(?<alt>[^\]]*)\]\((?<src>[^)]+)\))|(?<link>\[(?<linkText>[^\]]+)\]\((?<href>[^)]+)\))|(?<italicStar>\*[^*]+\*)|(?<italicUnderscore>_[^_]+_)/;
+const INLINE_KINDS = ['bold', 'code', 'image', 'link', 'italicStar', 'italicUnderscore'] as const;
 
 type InlineKind = (typeof INLINE_KINDS)[number];
 type InlineGroups = Record<string, string | undefined>;
@@ -92,6 +93,7 @@ interface InlineSpan { index: number; length: number; node: InlineNode }
 const INLINE_FACTORIES: Record<InlineKind, InlineFactory> = {
   bold: (groups) => ({ type: 'bold', text: groups.bold!.slice(2, -2) }),
   code: (groups) => ({ type: 'code', text: groups.codeText! }),
+  image: (groups) => ({ type: 'image', alt: groups.alt ?? '', src: groups.src! }),
   link: (groups) => ({ type: 'link', text: groups.linkText!, href: groups.href! }),
   italicStar: (groups) => ({ type: 'italic', text: groups.italicStar!.slice(1, -1) }),
   italicUnderscore: (groups) => ({ type: 'italic', text: groups.italicUnderscore!.slice(1, -1) }),

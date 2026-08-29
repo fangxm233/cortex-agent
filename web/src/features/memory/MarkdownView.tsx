@@ -1,6 +1,53 @@
-import { type CSSProperties, type ReactNode, Fragment } from 'react';
+import {
+  createContext, useContext, useEffect, useState,
+  type CSSProperties, type ReactNode, Fragment,
+} from 'react';
 import { useVocab } from '@/i18n';
 import { splitFrontmatter, parseBlocks, type InlineNode, type Block } from './markdown';
+
+/** Resolves a markdown image `src` to a displayable URL. Async because the bytes behind a Cortex
+ *  image need an authenticated fetch — an `<img>` tag cannot carry the `x-cortex-token` header, so
+ *  the caller fetches and hands back an object URL, which this view revokes on unmount. */
+export type MarkdownImageResolver = (src: string) => Promise<string>;
+
+const ImageResolverContext = createContext<MarkdownImageResolver | null>(null);
+
+/** No resolver in context → the image degrades to its alt text. That is the correct default for
+ *  every surface that renders untrusted markdown: nothing is fetched unless a host opts in. */
+function InlineImage({ alt, src }: { alt: string; src: string }): JSX.Element {
+  const resolve = useContext(ImageResolverContext);
+  const [url, setUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (!resolve) return;
+    let cancelled = false;
+    let created: string | null = null;
+    setUrl(null);
+    setFailed(false);
+    resolve(src)
+      .then((objectUrl) => {
+        if (cancelled) {
+          URL.revokeObjectURL(objectUrl);
+          return;
+        }
+        created = objectUrl;
+        setUrl(objectUrl);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+      if (created) URL.revokeObjectURL(created);
+    };
+  }, [resolve, src]);
+
+  if (!resolve || failed || !url) {
+    return <span style={{ color: 'var(--proto-muted-3)' }}>{alt || src}</span>;
+  }
+  return <img src={url} alt={alt} style={{ maxWidth: '100%', borderRadius: 6, display: 'block', margin: '8px 0' }} />;
+}
 
 // Presentational Markdown renderer for the memory viewer 7b. Maps the pure markdown.ts
 // nodes onto the prototype's exact typography (prototype.dc.html L685–716): frontmatter card +
@@ -38,6 +85,8 @@ function renderInline(nodes: InlineNode[]): ReactNode {
             {n.text}
           </a>
         );
+      case 'image':
+        return <InlineImage key={i} alt={n.alt} src={n.src} />;
       default:
         return <Fragment key={i}>{n.text}</Fragment>;
     }
@@ -150,11 +199,15 @@ function renderBlock(b: Block, i: number): ReactNode {
   }
 }
 
-export function MarkdownView({ content }: { content: string }): JSX.Element {
+export function MarkdownView({ content, resolveImage }: {
+  content: string;
+  resolveImage?: MarkdownImageResolver;
+}): JSX.Element {
   const L = useVocab();
   const { frontmatter, body } = splitFrontmatter(content);
   const blocks = parseBlocks(body);
   return (
+    <ImageResolverContext.Provider value={resolveImage ?? null}>
     <div>
       {frontmatter && (frontmatter.entries.length > 0 || frontmatter.summary) && (
         <div style={{ background: 'var(--proto-rail)', border: '1px solid var(--proto-line-2)', borderRadius: 8, padding: '10px 13px' }}>
@@ -174,5 +227,6 @@ export function MarkdownView({ content }: { content: string }): JSX.Element {
       )}
       {blocks.map((b, i) => renderBlock(b, i))}
     </div>
+    </ImageResolverContext.Provider>
   );
 }

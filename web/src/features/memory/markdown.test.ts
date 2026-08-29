@@ -102,6 +102,26 @@ describe('parseInline', () => {
   });
 });
 
+describe('parseInline images', () => {
+  it('parses an image and does not fall through to the link rule', () => {
+    expect(parseInline('![plot](assets/p.png)')).toEqual([
+      { type: 'image', alt: 'plot', src: 'assets/p.png' },
+    ]);
+  });
+
+  it('keeps a plain link a link when it follows an image', () => {
+    expect(parseInline('![a](x.png) and [b](y)')).toEqual([
+      { type: 'image', alt: 'a', src: 'x.png' },
+      { type: 'text', text: ' and ' },
+      { type: 'link', text: 'b', href: 'y' },
+    ]);
+  });
+
+  it('accepts an empty alt', () => {
+    expect(parseInline('![](a.png)')).toEqual([{ type: 'image', alt: '', src: 'a.png' }]);
+  });
+});
+
 describe('parseBlocks', () => {
   it('parses headings with levels', () => {
     const blocks = parseBlocks('# H1\n## H2');

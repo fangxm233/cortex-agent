@@ -10,6 +10,11 @@ import { parseBlocks, type Block, type InlineNode } from '@/features/memory/mark
 
 const mono = "'IBM Plex Mono',monospace";
 type InlineRenderer = (node: InlineNode, key: number) => ReactNode;
+/** Each renderer receives its OWN narrowed variant, so adding an inline node type is a compile
+ *  error here until it is handled rather than a silent `node.text` crash at runtime. */
+type InlineRenderers = {
+  [K in InlineNode['type']]: (node: Extract<InlineNode, { type: K }>, key: number) => ReactNode;
+};
 
 function MathMarkup({ text, display }: { text: string; display: boolean }): JSX.Element {
   const markup = katex.renderToString(text, {
@@ -26,7 +31,7 @@ function MathMarkup({ text, display }: { text: string; display: boolean }): JSX.
   return <Tag style={style} dangerouslySetInnerHTML={{ __html: markup }} />;
 }
 
-const INLINE_RENDERERS: Record<InlineNode['type'], InlineRenderer> = {
+const INLINE_RENDERERS: InlineRenderers = {
   text: (node, key) => <Fragment key={key}>{node.text}</Fragment>,
   bold: (node, key) => <strong key={key} style={{ fontWeight: 650 }}>{node.text}</strong>,
   italic: (node, key) => <em key={key}>{node.text}</em>,
@@ -36,14 +41,16 @@ const INLINE_RENDERERS: Record<InlineNode['type'], InlineRenderer> = {
     </code>
   ),
   math: (node, key) => <MathMarkup key={key} text={node.text} display={false} />,
-  link: (node, key) => {
-    const link = node as Extract<InlineNode, { type: 'link' }>;
-    return <a key={key} href={link.href} target="_blank" rel="noreferrer" style={{ color: 'var(--proto-accent)', textDecoration: 'underline' }}>{link.text}</a>;
-  },
+  link: (node, key) => (
+    <a key={key} href={node.href} target="_blank" rel="noreferrer" style={{ color: 'var(--proto-accent)', textDecoration: 'underline' }}>{node.text}</a>
+  ),
+  // The transcript renders untrusted model output, so an image reference stays inert text here:
+  // fetching an arbitrary src from a chat message would be a new outbound request per message.
+  image: (node, key) => <Fragment key={key}>{node.alt || node.src}</Fragment>,
 };
 
 function Inline({ nodes }: { nodes: InlineNode[] }): JSX.Element {
-  return <>{nodes.map((node, key) => INLINE_RENDERERS[node.type](node, key))}</>;
+  return <>{nodes.map((node, key) => (INLINE_RENDERERS[node.type] as InlineRenderer)(node, key))}</>;
 }
 
 type BlockOf<T extends Block['type']> = Extract<Block, { type: T }>;

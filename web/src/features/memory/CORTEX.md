@@ -7,8 +7,8 @@ Shares canonical hierarchical tree facts with mobile while retaining rendered Ma
 |---|---|---|
 | MemoryPage.tsx | entry | Route frame assembling rails around the view |
 | MemoryView.tsx | view | Center pane with selectable top-level/nested files, diff toggle and body |
-| MarkdownView.tsx | view | Renders parsed markdown nodes as styled elements |
-| markdown.ts | core | Parses frontmatter, Markdown and code-safe opt-in math |
+| MarkdownView.tsx | view | Renders parsed markdown nodes, with opt-in async image resolution |
+| markdown.ts | core | Parses frontmatter, Markdown, images and code-safe opt-in math |
 | markdown.test.ts | test | Tests Markdown and math parser behavior |
 | memory-tree.ts | core | Canonicalizes top-level/nested paths, directories, count and first file |
 | memory-tree.test.ts | test | Tests shared hierarchical memory facts and nested fallback |

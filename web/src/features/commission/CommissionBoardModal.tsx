@@ -3,11 +3,12 @@
 // pos:    Presentational body of the commission board overlay (DR-0037)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import type { CommissionDecisionEntry, CommissionInfo, SessionInfo } from '@cortex-agent/ui-contract';
 import { Modal } from '@/design/Modal';
 import { useVocab } from '@/i18n';
 import { MarkdownView } from '@/features/memory/MarkdownView';
+import { fetchCommissionAssetObjectUrl } from '@/lib/files';
 import { DecisionCardGroup } from '@/features/workbench/DecisionCards';
 
 const mono = "'IBM Plex Mono',monospace";
@@ -107,6 +108,19 @@ export interface CommissionBoardModalProps {
 
 export function CommissionBoardModal(props: CommissionBoardModalProps): JSX.Element {
   const L = useVocab();
+  const { projectId, slug } = props.commission;
+  // Ledger images live in the commission's own `assets/`, so a relative reference is resolved
+  // against that directory and fetched through the authenticated asset route. An absolute URL is
+  // left alone — the agent may legitimately cite a remote image.
+  const resolveImage = useCallback(
+    (src: string) => {
+      if (/^[a-z]+:\/\//i.test(src) || src.startsWith('data:')) return Promise.resolve(src);
+      const clean = src.replace(/^\.\//, '');
+      const path = clean.startsWith('commissions/') ? clean : `commissions/${slug}/${clean}`;
+      return fetchCommissionAssetObjectUrl(projectId, path);
+    },
+    [projectId, slug],
+  );
   const [pane, setPane] = useState<BoardPane>('ledger');
   // Completing or abandoning a commission is the one irreversible act on this surface, so it goes
   // through an inline confirm strip rather than a bare button — and the strip carries the closing
@@ -222,7 +236,7 @@ export function CommissionBoardModal(props: CommissionBoardModalProps): JSX.Elem
           </div>
           <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '14px 18px 24px' }}>
             {text ? (
-              <MarkdownView content={text} />
+              <MarkdownView content={text} resolveImage={resolveImage} />
             ) : (
               <div style={{ color: 'var(--proto-faint)', fontSize: 12.5, padding: '18px 0' }}>{emptyText}</div>
             )}
