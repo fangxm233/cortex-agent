@@ -18,7 +18,6 @@ import {
   TUI_TMUX_NAME_PREFIX,
   TUI_JSONL_BASE,
   IDLE_SESSION_TIMEOUT,
-  MAX_TIMEOUT,
   TURN_IDLE_TIMEOUT,
   JSONL_FIRST_EVENT_TIMEOUT,
   PASTE_SUBMIT_DELAY_MS,
@@ -214,7 +213,6 @@ export class ClaudeTuiSession {
 
   private currentTurn: PendingTurn | null = null;
   private idleTimer: NodeJS.Timeout | null = null;
-  private maxTimer: NodeJS.Timeout | null = null;
   private turnIdleTimer: NodeJS.Timeout | null = null;
   private firstEventTimer: NodeJS.Timeout | null = null;
 
@@ -381,12 +379,6 @@ export class ClaudeTuiSession {
   private activateSpawnedSession(): void {
     this.alive = true;
     this.resetIdleTimer();
-    this.maxTimer = setTimeout(() => {
-      log.info(`TUI session ${this.sessionId.substring(0, 8)} hit max timeout, killing`);
-      this.kill();
-    }, MAX_TIMEOUT);
-    // Long-lived timers must not keep the event loop alive.
-    if (typeof this.maxTimer.unref === 'function') this.maxTimer.unref();
   }
 
   /**
@@ -720,10 +712,9 @@ export class ClaudeTuiSession {
 
   close(): void {
     if (this.idleTimer) clearTimeout(this.idleTimer);
-    if (this.maxTimer) clearTimeout(this.maxTimer);
     if (this.turnIdleTimer) clearTimeout(this.turnIdleTimer);
     this.clearFirstEventWatchdog();
-    this.idleTimer = this.maxTimer = this.turnIdleTimer = null;
+    this.idleTimer = this.turnIdleTimer = null;
     this.alive = false;
     void this.stopTails();
     this.continuationSink = null;
@@ -741,10 +732,9 @@ export class ClaudeTuiSession {
 
   kill(): boolean {
     if (this.idleTimer) clearTimeout(this.idleTimer);
-    if (this.maxTimer) clearTimeout(this.maxTimer);
     if (this.turnIdleTimer) clearTimeout(this.turnIdleTimer);
     this.clearFirstEventWatchdog();
-    this.idleTimer = this.maxTimer = this.turnIdleTimer = null;
+    this.idleTimer = this.turnIdleTimer = null;
     const wasAlive = this.alive;
     this.alive = false;
     void this.stopTails();

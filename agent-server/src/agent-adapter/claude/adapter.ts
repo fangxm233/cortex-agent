@@ -31,7 +31,6 @@ import {
   DEFAULT_TOOLS,
   IDLE_SESSION_TIMEOUT,
   LOGS_DIR,
-  MAX_TIMEOUT,
   TURN_IDLE_TIMEOUT,
 } from './defaults.js';
 import { buildHooksSettings } from './hooks-builder.js';
@@ -432,7 +431,6 @@ class ClaudeSession {
   private needsResume: boolean;
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private turnIdleTimer: ReturnType<typeof setTimeout> | null = null;
-  private maxTimer: ReturnType<typeof setTimeout> | null = null;
   private stderr: string = '';
   private cumulativeCostUsd: number = 0;
   /** Captured from result event's modelUsage key for cost_record. */
@@ -514,10 +512,8 @@ class ClaudeSession {
   private handleProcessClose(code: number | null): void {
     log.info(`Process closed: ${this.sessionId.substring(0, 8)} code=${code}`);
     if (this.idleTimer) clearTimeout(this.idleTimer);
-    if (this.maxTimer) clearTimeout(this.maxTimer);
     if (this.turnIdleTimer) clearTimeout(this.turnIdleTimer);
     this.idleTimer = null;
-    this.maxTimer = null;
     this.turnIdleTimer = null;
     this.alive = false;
     clearActivePlanFile(this.sessionId);
@@ -607,10 +603,6 @@ class ClaudeSession {
   private armProcessTimers(): void {
     this.alive = true;
     this.resetIdleTimer();
-    this.maxTimer = setTimeout(() => {
-      log.info(`Session ${this.sessionId.substring(0, 8)} hit max timeout, killing`);
-      this.kill();
-    }, MAX_TIMEOUT);
   }
 
   private spawnProcess(): void {
@@ -1204,8 +1196,8 @@ class ClaudeSession {
     if (this.idleTimer) clearTimeout(this.idleTimer);
     // While background tasks are still running — or an injected message is queued inside the CLI
     // awaiting its spontaneous turn — the session must stay alive to receive the continuation,
-    // even through a long silent wait. Don't arm idle-close (the overall maxTimer still bounds
-    // session lifetime).
+    // even through a long silent wait. Don't arm idle-close; the session lives until the
+    // background work settles or it is closed/killed explicitly.
     if (this.bgTracker.hasPending() || this.pendingInjections.length > 0 || this.injectionContinuationArmed) {
       this.idleTimer = null;
       return;
@@ -1218,7 +1210,6 @@ class ClaudeSession {
 
   close() {
     if (this.idleTimer) clearTimeout(this.idleTimer);
-    if (this.maxTimer) clearTimeout(this.maxTimer);
     if (this.turnIdleTimer) clearTimeout(this.turnIdleTimer);
     // Do NOT clear continuationSink here: if background tasks are pending, the process
     // 'close' event (handleProcessClose) must still deliver the interruption to the sink
@@ -1252,7 +1243,6 @@ class ClaudeSession {
 
   kill(): boolean {
     if (this.idleTimer) clearTimeout(this.idleTimer);
-    if (this.maxTimer) clearTimeout(this.maxTimer);
     if (this.turnIdleTimer) clearTimeout(this.turnIdleTimer);
     // Sink intentionally NOT cleared: handleProcessClose (via the SIGTERM 'close' event)
     // delivers the background-task interruption to it, then clears it.
@@ -1908,7 +1898,6 @@ function makeSessionForTest(
   s.currentTurn = null;
   s.idleTimer = null;
   s.turnIdleTimer = null;
-  s.maxTimer = null;
   s.cumulativeCostUsd = 0;
   s.preserveUnreportedAccounting = false;
   s.lastTokenUsage = null;

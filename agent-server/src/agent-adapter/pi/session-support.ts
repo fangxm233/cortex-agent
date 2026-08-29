@@ -19,7 +19,6 @@ export const CLOSE_EXIT_WAIT_MS = 5000;
 export const SWITCH_SESSION_TIMEOUT_MS = 5000;
 export const PI_IDLE_SESSION_TIMEOUT = 65 * 60 * 1000;
 export const PI_TURN_IDLE_TIMEOUT = 60 * 60 * 1000;
-export const PI_MAX_TIMEOUT = 30_000_000;
 export const PI_CONTEXT_USAGE_TIMEOUT_MS = 1000;
 export const PI_CONTEXT_USAGE_SAMPLE_MS = 2000;
 

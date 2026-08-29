@@ -1497,7 +1497,6 @@ function compactTestSession(): { session: any; writes: string[]; cleanup: () => 
     cleanup: () => {
       if (session.idleTimer) clearTimeout(session.idleTimer);
       if (session.turnIdleTimer) clearTimeout(session.turnIdleTimer);
-      if (session.maxTimer) clearTimeout(session.maxTimer);
     },
   };
 }

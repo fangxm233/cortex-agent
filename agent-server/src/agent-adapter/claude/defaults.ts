@@ -8,7 +8,6 @@ import * as os from 'os';
 import { DATA_DIR, CONFIG_DIR, HOOKS_DIR } from '../../core/utils.js';
 import { excludedPlanTools, planToolsFor, type PlanToolVariant } from '../../core/mcp-tool-gate.js';
 
-export const MAX_TIMEOUT = 30_000_000;
 export const IDLE_SESSION_TIMEOUT = 65 * 60 * 1000;
 export const TURN_IDLE_TIMEOUT = 60 * 60 * 1000;
 /** DR-0012: fast-fail window for a fresh turn. The jsonl file appears only after the first submit,

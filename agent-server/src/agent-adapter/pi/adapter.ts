@@ -37,7 +37,6 @@ import {
   DEFAULT_PI_BINARY,
   EventQueue,
   PI_IDLE_SESSION_TIMEOUT,
-  PI_MAX_TIMEOUT,
   PI_TURN_IDLE_TIMEOUT,
   PIContextUsageProbe,
   PI_CONTEXT_USAGE_TIMEOUT_MS,
@@ -183,7 +182,6 @@ class PISession {
   private readonly streamDeltas: boolean;
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private turnIdleTimer: ReturnType<typeof setTimeout> | null = null;
-  private maxTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingSwitch: {
     id: string;
     resolve: (r: SwitchResult) => void;
@@ -295,11 +293,6 @@ class PISession {
     this.proc.stdin?.write(encodeCommand({ id: 'bootstrap', type: 'get_state' }));
 
     this.resetIdleTimer();
-    this.maxTimer = setTimeout(() => {
-      log.info(`Session ${this.sessionKey} hit max timeout, killing`);
-      this.kill();
-      this.onClose?.(this.sessionKey, this);
-    }, PI_MAX_TIMEOUT);
   }
 
   /**
@@ -321,7 +314,6 @@ class PISession {
   private clearTimers(): void {
     if (this.idleTimer) { clearTimeout(this.idleTimer); this.idleTimer = null; }
     if (this.turnIdleTimer) { clearTimeout(this.turnIdleTimer); this.turnIdleTimer = null; }
-    if (this.maxTimer) { clearTimeout(this.maxTimer); this.maxTimer = null; }
     this.contextUsageProbe.close();
     this.flushTextBuffer();
   }
@@ -1221,7 +1213,7 @@ export class PIAdapter implements AgentAdapter {
   }
 
   /** Drop a pooled entry only while it is still the one this key points at: a self-closing session
-   *  (idle/max timeout) can finish long after the pool moved on to its replacement. */
+   *  (idle timeout) can finish long after the pool moved on to its replacement. */
   private evictSession(sessionKey: string, session: unknown): void {
     if (this.sessions.get(sessionKey) === session) this.sessions.delete(sessionKey);
   }
