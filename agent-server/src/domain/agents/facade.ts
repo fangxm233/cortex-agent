@@ -14,7 +14,7 @@ import {
 import {
   consumeEventStream, createProcessCloser, createRunEventTee, settleEventfulRun,
 } from '../../agent-adapter/event-tee.js';
-import { buildAgentSpawnConfig, filterChannelScopedPlugins } from './spawn-config.js';
+import { buildAgentSpawnConfig, filterChannelScopedPlugins, filterScopedPlugins } from './spawn-config.js';
 import type { AgentConfig, RunAgentOptions, RunObserver } from './spawn-config.js';
 import {
   freezeProductionAttemptIdentity, type ProductionAttemptIdentityRecord,
@@ -195,7 +195,8 @@ function withTerminalNotices(handle: AgentHandle, notices: AttemptNoticeTracker)
 // can reach them without importing the ambient adapter registry (design §13 S6.1). Re-exported
 // here so every existing importer of the facade keeps working against the single definition.
 export {
-  buildAgentSpawnConfig, buildPiGatewaySubPath, CHANNEL_SCOPED_PLUGINS, filterChannelScopedPlugins,
+  buildAgentSpawnConfig, buildPiGatewaySubPath, CHANNEL_SCOPED_PLUGINS, COMMISSION_SCOPED_PLUGINS,
+  filterChannelScopedPlugins, filterScopedPlugins,
 } from './spawn-config.js';
 export type { AgentConfig, RunAgentOptions, RunObserver } from './spawn-config.js';
 
@@ -735,6 +736,7 @@ export const _test = {
   withRateLimitProvider,
   buildSpawnConfig: buildAgentSpawnConfig,
   filterChannelScopedPlugins,
+  filterScopedPlugins,
 };
 
 // --- Pooled-session control (backend-neutral) and Claude bridge helper re-exports ---

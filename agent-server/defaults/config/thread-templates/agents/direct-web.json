@@ -11,6 +11,7 @@
     "plugins/cortex-stage-gate",
     "plugins/cortex-coder",
     "plugins/cortex-system",
+    "plugins/cortex-commission",
     "plugins/cortex-feishu"
   ]
 }

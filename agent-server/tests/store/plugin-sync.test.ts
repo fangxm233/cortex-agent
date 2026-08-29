@@ -13,7 +13,9 @@ import * as fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { syncManagedPlugins, parsePluginVersion } from '../../src/store/plugin-sync.js';
+import {
+  syncManagedPlugins, parsePluginVersion, pruneRetiredPluginPaths, RETIRED_PLUGIN_PATHS,
+} from '../../src/store/plugin-sync.js';
 
 /** Write a plugin tree under `root/<name>`: a versioned manifest (version=null → omit) + a SKILL.md. */
 async function writePlugin(
@@ -142,4 +144,36 @@ test('(g) preserves a user-added file inside a managed plugin across a refresh',
     'user skill',
     'user-added content untouched',
   );
+});
+
+test('a retired skill path is removed from an existing install', async () => {
+  // The sync never deletes, so a skill that moved plugins would stay live at its old address —
+  // and for the commission skill "still live" means every ordinary session keeps loading it.
+  const { dst, cleanup } = await mkdirs();
+  try {
+    const [plugin, rel] = RETIRED_PLUGIN_PATHS[0];
+    const retired = path.join(dst, plugin, rel);
+    await fs.mkdir(retired, { recursive: true });
+    await fs.writeFile(path.join(retired, 'SKILL.md'), 'stale');
+    const keep = path.join(dst, plugin, 'skills', 'other');
+    await fs.mkdir(keep, { recursive: true });
+    await fs.writeFile(path.join(keep, 'SKILL.md'), 'keep me');
+
+    const removed = await pruneRetiredPluginPaths(dst);
+
+    assert.deepEqual(removed, [`${plugin}/${rel}`]);
+    assert.equal(existsSync(retired), false);
+    assert.equal(existsSync(path.join(keep, 'SKILL.md')), true, 'siblings survive');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('pruning is idempotent when the retired path is already gone', async () => {
+  const { dst, cleanup } = await mkdirs();
+  try {
+    assert.deepEqual(await pruneRetiredPluginPaths(dst), []);
+  } finally {
+    await cleanup();
+  }
 });

@@ -54,6 +54,8 @@ export interface RunConversationOptions {
   /** Plan-tool variant for this turn. 'commission' swaps cortex_plan_enter/exit for their
    *  commission counterparts; absent behaves as 'standard'. */
   planToolVariant?: PlanToolVariant | null;
+  /** True while the session is in commission mode; loads the commission skill bundle. */
+  commissionMode?: boolean;
   /** Fired once the execution record is created, before the agent starts — lets the caller
    *  attach an execution-scoped Cancel button to the status message. */
   onExecutionStarted?: (executionId: string) => void | Promise<void>;
@@ -219,6 +221,7 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
     // Only a session that opted in carries an endpoint, so only it gets browser tools.
     browserCdpEndpoint: opts.browserCdpEndpoint ?? null,
     planToolVariant: opts.planToolVariant ?? undefined,
+    commissionMode: opts.commissionMode ?? false,
     mcpToolAllowlist: agentConfig.mcpToolAllowlist,
     sessionName: opts.sessionName,
     claudeAgent: agentConfig.claudeAgent || null,

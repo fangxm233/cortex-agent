@@ -31,4 +31,4 @@ Also runs startup file migrations and keeps deployed hooks and plugins in sync w
 | hook-registry.ts | config | Validates event capabilities, loads and classifies mounted hook declarations |
 | hook-writer.ts | config | Creates, edits, removes and toggles hook declarations |
 | hook-sync.ts | startup | Syncs and diagnoses managed hook assets |
-| plugin-sync.ts | startup | Refreshes deployed plugins from defaults |
+| plugin-sync.ts | startup | Refreshes deployed plugins from defaults and prunes retired paths |

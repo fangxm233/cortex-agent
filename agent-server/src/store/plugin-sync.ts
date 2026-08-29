@@ -22,6 +22,36 @@ const log = createLogger('plugin-sync');
 
 const MANIFEST_REL = path.join('.claude-plugin', 'plugin.json');
 
+/** Skill directories that MOVED to another plugin. The sync only ever writes shipped files, never
+ *  deletes, so a skill that changed plugins would otherwise stay live at its old address on every
+ *  existing install — and a skill's whole point is that it loads. Each entry is removed once and
+ *  then stays removed (it no longer ships, so nothing puts it back).
+ *
+ *  `[plugin, relative path]`; the path is joined under PLUGINS_DIR and must stay inside it. */
+export const RETIRED_PLUGIN_PATHS: ReadonlyArray<readonly [string, string]> = [
+  // Moved to cortex-commission, which loads only in commission mode (DR-0037 v2).
+  ['cortex-system', 'skills/commission'],
+];
+
+/** Remove retired paths from the deployed tree. Returns the plugin-relative ids actually removed. */
+export async function pruneRetiredPluginPaths(dstDir: string): Promise<string[]> {
+  const removed: string[] = [];
+  for (const [plugin, rel] of RETIRED_PLUGIN_PATHS) {
+    const target = path.resolve(dstDir, plugin, rel);
+    // Belt and braces: a bad entry must not turn this into an arbitrary delete.
+    if (!target.startsWith(path.resolve(dstDir) + path.sep)) continue;
+    if (!existsSync(target)) continue;
+    try {
+      await fs.rm(target, { recursive: true, force: true });
+      removed.push(`${plugin}/${rel}`);
+      log.info(`removed retired plugin path ${plugin}/${rel}`);
+    } catch (e) {
+      log.error(`failed to remove retired plugin path ${plugin}/${rel}: ${(e as Error).message}`);
+    }
+  }
+  return removed;
+}
+
 /** Parse the `version` field from a plugin.json manifest string, or null if absent/malformed.
  *  compareCalVer is a generic numeric dotted-version comparator, so plain semver ("0.1.0") works. */
 export function parsePluginVersion(manifestJson: string): string | null {
@@ -91,6 +121,7 @@ export async function syncManagedPlugins(opts: { srcDir?: string; dstDir?: strin
   }
 
   await fs.mkdir(dstDir, { recursive: true });
+  await pruneRetiredPluginPaths(dstDir);
 
   const updated: string[] = [];
   for (const entry of entries) {

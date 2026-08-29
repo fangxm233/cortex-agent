@@ -1,5 +1,5 @@
 {
   "name": "cortex-system",
-  "version": "0.2.0",
-  "description": "Cortex system skill bundle — orient / evolve / schedule / compound / approval and other system-level skills"
+  "version": "0.3.0",
+  "description": "Cortex system skill bundle — orient / evolve / schedule / compound / approval and other system-level skills. The commission skill moved to cortex-commission, which loads only in commission mode."
 }

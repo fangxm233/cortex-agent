@@ -298,6 +298,8 @@ export class AgentRunner {
     /** Set while the session is in commission mode but its contract has not been named yet; that
      *  is exactly the window in which the plan tools must be the commission pair (DR-0037 v2). */
     let sessionCommissionDraft: string | null = null;
+    /** Set once a contract has landed. Either field means the session is in commission mode. */
+    let sessionCommissionId: string | null = null;
     if (sessionId) {
       sessionLease = await acquireSessionUseLease(sessionId);
       if (!sessionLease) throw new Error(`Session not found or pending deletion: ${sessionId}`);
@@ -306,6 +308,7 @@ export class AgentRunner {
       projectId = sessionLease.session.projectId ?? 'general';
       sessionBrowser = sessionLease.session.browser ?? null;
       sessionCommissionDraft = sessionLease.session.commissionDraft ?? null;
+      sessionCommissionId = sessionLease.session.commissionId ?? null;
     } else {
       sessionId = crypto.randomUUID();
       projectId = (await adapter.resolveInboundProject(channel)) ?? 'general';
@@ -452,6 +455,7 @@ export class AgentRunner {
         adapter, channel,
         browserCdpEndpoint,
         planToolVariant: sessionCommissionDraft ? 'commission' : 'standard',
+        commissionMode: !!(sessionCommissionDraft || sessionCommissionId),
         userMessage: agentMessage,
         trackSessionId: sessionId,
         projectId,

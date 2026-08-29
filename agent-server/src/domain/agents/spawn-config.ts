@@ -117,6 +117,10 @@ export interface RunAgentOptions {
   mcpToolAllowlist?: string[];
   /** Commission-mode plan-tool swap for this turn, resolved from the session record. */
   planToolVariant?: PlanToolVariant;
+  /** True while the session is in commission mode (drafting a contract or bound to a landed one).
+   *  Gates the commission skill bundle; broader than {@link planToolVariant}, which only covers the
+   *  drafting window. */
+  commissionMode?: boolean;
   /** Legacy thread-surface selector. Accepted for existing callers and resolved when the explicit
    *  composition is absent. */
   useCoreMcp?: boolean;
@@ -167,7 +171,7 @@ export function buildPiGatewaySubPath(mode: string | null, provider: string): st
   return `/m/${mode}/${provider}`;
 }
 
-// --- Channel-scoped plugin gating ---
+// --- Scoped plugin gating ---
 
 /** Plugins that load only for sessions originating from a specific platform channel.
  *  Mirrors the channel-gated MCP loading (loadFeishuMcp = channel.startsWith('feishu:')):
@@ -177,22 +181,44 @@ export const CHANNEL_SCOPED_PLUGINS: ReadonlyArray<{ plugin: string; channelPref
   { plugin: 'cortex-feishu', channelPrefix: 'feishu:' },
 ];
 
-/** Drop channel-scoped plugin dirs whose channel prefix the current session does not match.
- *  Non-scoped plugins always pass through. Matched by the plugin dir's final path segment
- *  (basename) so substrings like `cortex-feishu-x` are not affected. */
-export function filterChannelScopedPlugins(
+/** Plugins that load only for sessions in commission mode. The commission skill is long and
+ *  prescriptive (drill protocol, contract shape, checkpoint discipline); loading it into every
+ *  session would put a procedure nobody asked for in front of the model (DR-0037 v2). */
+export const COMMISSION_SCOPED_PLUGINS: readonly string[] = ['cortex-commission'];
+
+/** What a plugin dir is scoped against. Both are properties of the session, not the agent, which
+ *  is why the filter runs at spawn time rather than being baked into the agent's pluginDirs. */
+export interface PluginScope {
+  channel?: string;
+  /** True while the session is in commission mode, drafting or already bound. */
+  commissionMode?: boolean;
+}
+
+/** Drop scoped plugin dirs the current session does not qualify for. Non-scoped plugins always pass
+ *  through. Matched by the plugin dir's final path segment (basename) so substrings like
+ *  `cortex-feishu-x` are not affected. */
+export function filterScopedPlugins(
   dirs: string[] | undefined,
-  channel: string | undefined,
+  scope: PluginScope,
 ): string[] | undefined {
   if (!dirs) return dirs;
   if (!Array.isArray(dirs)) return undefined;
   return dirs.filter((dir) => {
     if (typeof dir !== 'string') return false;
-    const base = dir.split('/').filter(Boolean).pop();
+    const base = dir.split('/').filter(Boolean).pop() ?? '';
+    if (COMMISSION_SCOPED_PLUGINS.includes(base)) return scope.commissionMode === true;
     const rule = CHANNEL_SCOPED_PLUGINS.find((r) => r.plugin === base);
     if (!rule) return true;
-    return !!channel && channel.startsWith(rule.channelPrefix);
+    return !!scope.channel && scope.channel.startsWith(rule.channelPrefix);
   });
+}
+
+/** @deprecated Kept for callers that only gate on the channel; prefer {@link filterScopedPlugins}. */
+export function filterChannelScopedPlugins(
+  dirs: string[] | undefined,
+  channel: string | undefined,
+): string[] | undefined {
+  return filterScopedPlugins(dirs, { channel, commissionMode: false });
 }
 
 // --- Spawn config ---
@@ -266,7 +292,10 @@ function pluginSpawnFields(
   config: AgentConfig,
   mcpComposition: McpComposition,
 ): Partial<AgentSpawnConfig> {
-  const selectedPluginDirs = filterChannelScopedPlugins(options.pluginDirs, options.channel);
+  const selectedPluginDirs = filterScopedPlugins(options.pluginDirs, {
+    channel: options.channel,
+    commissionMode: options.commissionMode,
+  });
   const runtime = resolvePluginRuntime({
     backend: config.backend, selectedPluginDirs, mcpComposition,
   });

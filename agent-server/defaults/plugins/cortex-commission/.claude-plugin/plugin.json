@@ -1,0 +1,5 @@
+{
+  "name": "cortex-commission",
+  "version": "0.1.0",
+  "description": "Commission (委托) mode skill bundle — drill, contract and checkpoint discipline for a contract-anchored long task. Loaded only for sessions created in commission mode, so an ordinary session never sees it."
+}

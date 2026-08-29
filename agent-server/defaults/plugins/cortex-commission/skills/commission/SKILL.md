@@ -1,8 +1,8 @@
 ---
 name: commission
-description: "Use when the user asks to run something as a commission (委托/长任务) — a contract-anchored long task — including starting one (drill alignment → contract → approval) or working inside a session already bound to a commission (checkpoint discipline). Trigger phrases: commission 模式, 长任务, 委托, drill me on this task."
+description: "How to run a commission (委托/长任务) — a contract-anchored long task. This session is in commission mode, so the skill is loaded: use it to start a commission (drill → contract → approval) or to work inside one already bound (checkpoint discipline)."
 author: Cortex
-version: 1.0.0
+version: 2.0.0
 allowed-tools:
   - Read
   - Write
@@ -12,11 +12,16 @@ allowed-tools:
   - Glob
   - mcp__cortex-core__cortex_context
   - mcp__cortex-core__cortex_ask_user
+  - mcp__cortex-core__cortex_commission_plan_enter
   - mcp__cortex-core__cortex_commission_plan_exit
   - mcp__cortex-core__send_decision
 ---
 
 # Commission Mode
+
+This session was created in commission mode — the user chose it at creation, the same way they
+choose a browser session. That is why you have `cortex_commission_plan_enter` / `_exit` instead of
+the ordinary `cortex_plan_enter` / `_exit`, and why this skill is loaded at all.
 
 A commission is a long task anchored by two files the user can always read:
 
@@ -33,15 +38,17 @@ commissions/<slug>/
   decisions.jsonl # server-side projection of send_decision — NEVER write this file
 ```
 
-Two situations. If this session already has a [Commission] block in context, skip to Phase B. Otherwise the user is starting a new commission: run Phase A.
+Two situations. If this session already has a [Commission] block in context it is bound to a landed
+commission — skip to Phase B. Otherwise the user is starting a new one: run Phase A.
 
 ## Phase A — Initiation: drill → contract → approval
 
-### A1. Create the draft directory
+### A1. Enter drill
 
-Get your session name from `cortex_context` (e.g. `cortex-a1b2`), then create
-`<project context dir>/commissions/_draft-<session name>/`. The contract iterates in there.
-The draft is not registered anywhere; if abandoned it is just a directory.
+Call `cortex_commission_plan_enter`. It returns the drill protocol and names the draft directory —
+`<project context dir>/commissions/_draft-<session name>/` — which the **server already created**
+when the session was made. Do not create or rename it. The draft is not registered anywhere; if the
+commission is abandoned it is just a directory.
 
 Do not implement anything in this phase. Investigation is read-only; the only thing you write is the contract draft.
 
