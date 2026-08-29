@@ -57,6 +57,19 @@ export const schedulesListInput = z.object({
   paused: z.boolean().optional(),
 });
 
+export const commissionsListInput = z.object({
+  projectId: z.string().optional(),
+  status: z.enum(['active', 'done', 'abandoned']).optional(),
+});
+
+export const commissionsGetInput = z.object({
+  commissionId: z.string(),
+});
+
+export const commissionsDecisionsInput = z.object({
+  commissionId: z.string(),
+});
+
 export const executionsListInput = z.object({
   status: z.array(z.string()).optional(),
   limit: z.number().optional(),

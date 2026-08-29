@@ -31,6 +31,10 @@ import {
   tasksListInput,
   taskVerificationInput,
   schedulesListInput,
+  commissionsListInput,
+  commissionsGetInput,
+  commissionsDecisionsInput,
+  commissionCloseInput,
   executionsListInput,
   executionsGetInput,
   memoryTreeInput,
@@ -238,6 +242,15 @@ function schedulesRouter(service: UiService) {
   });
 }
 
+function commissionsRouter(service: UiService) {
+  return router({
+    list: makeQuery(service, 'commissions.list', commissionsListInput),
+    get: makeQuery(service, 'commissions.get', commissionsGetInput),
+    decisions: makeQuery(service, 'commissions.decisions', commissionsDecisionsInput),
+    close: makeMutation(service, 'commissions.close', commissionCloseInput),
+  });
+}
+
 function executionLogProcedure(service: UiService) {
   return publicProcedure.input(executionsLogInput).subscription(async function* ({ input, signal }) {
     const sub = service.subscribeExecutionLog(input.executionId);
@@ -405,6 +418,7 @@ export function createAppRouter(service: UiService) {
     threads: threadsRouter(service),
     tasks: tasksRouter(service),
     schedules: schedulesRouter(service),
+    commissions: commissionsRouter(service),
     executions: executionsRouter(service),
     memory: memoryRouter(service),
     approvals: approvalsRouter(service),

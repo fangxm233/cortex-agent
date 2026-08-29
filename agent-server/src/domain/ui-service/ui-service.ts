@@ -16,6 +16,11 @@ import { handleThreadsList, handleThreadsGet } from './query/threads.js';
 import { handleTasksList } from './query/tasks.js';
 import { handleTaskVerification } from './query/task-verification.js';
 import { handleSchedulesList } from './query/schedules.js';
+import {
+  handleCommissionsList,
+  handleCommissionsGet,
+  handleCommissionsDecisions,
+} from './query/commissions.js';
 import { handleExecutionsList, handleExecutionsGet } from './query/executions.js';
 import { handleMemoryTree, handleMemoryFile } from './query/memory.js';
 import { handleApprovalsList } from './query/approvals.js';
@@ -70,6 +75,7 @@ import {
   handleAddSchedule,
   handleUpdateSchedule,
 } from './mutate/schedules.js';
+import { handleCommissionClose } from './mutate/commissions.js';
 import {
   handleClaimTask,
   handleUnclaimTask,
@@ -120,6 +126,9 @@ const queryHandlers: Record<string, QueryHandler> = {
   'tasks.list': (deps, params) => handleTasksList(deps, params),
   'tasks.verification': (deps, params) => handleTaskVerification(deps, params),
   'schedules.list': (deps, params) => handleSchedulesList(deps, params),
+  'commissions.list': (deps, params) => handleCommissionsList(deps, params),
+  'commissions.get': (deps, params) => handleCommissionsGet(deps, params),
+  'commissions.decisions': (deps, params) => handleCommissionsDecisions(deps, params),
   'executions.list': (deps, params) => handleExecutionsList(deps, params),
   'executions.get': (deps, params) => handleExecutionsGet(deps, params),
   'memory.tree': (deps, params) => handleMemoryTree(deps, params),
@@ -165,6 +174,7 @@ const mutateHandlers: Record<string, MutateHandler> = {
   'schedules.remove': (deps, args) => handleRemoveSchedule(deps, args),
   'schedules.add': (deps, args) => handleAddSchedule(deps, args),
   'schedules.update': (deps, args) => handleUpdateSchedule(deps, args),
+  'commissions.close': (deps, args) => handleCommissionClose(deps, args),
   'tasks.claim': (deps, args) => handleClaimTask(deps, args),
   'tasks.unclaim': (deps, args) => handleUnclaimTask(deps, args),
   'tasks.complete': (deps, args) => handleCompleteTask(deps, args),

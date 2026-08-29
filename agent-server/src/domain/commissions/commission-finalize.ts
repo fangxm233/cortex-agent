@@ -28,7 +28,7 @@ export interface CommissionFinalizeDeps {
 }
 
 export type CommissionFinalizeError = { ok: false; error: string };
-export type CommissionFinalizeOk = { ok: true; commissionId: string; slug: string; dir: string };
+export type CommissionFinalizeOk = { ok: true; commissionId: string; projectId: string; slug: string; dir: string };
 interface FinalizePlan { projectId: string; slug: string; draftDir: string; targetDir: string }
 
 function fail(error: string): CommissionFinalizeError {
@@ -102,5 +102,5 @@ export async function finalizeCommission(
     id, projectId, slug, title, status: 'active', createdAt: now, updatedAt: now,
   });
   await (deps.bindSession ?? ((s: string, c: string) => sessionStore.bindCommission(s, c)))(args.sessionId!, id);
-  return { ok: true, commissionId: id, slug, dir: targetDir };
+  return { ok: true, commissionId: id, projectId, slug, dir: targetDir };
 }

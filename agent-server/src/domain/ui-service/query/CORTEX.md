@@ -11,6 +11,7 @@ Handlers return DTOs only and never change state.
 | task-verification.ts | query | gathers done-when evidence for one task |
 | executions.ts | query | lists and fetches dispatch executions |
 | schedules.ts | query | lists scheduled tasks |
+| commissions.ts | query | lists commissions and folds decisions.jsonl into board cards |
 | projects.ts | query | lists projects and their conduits |
 | memory.ts | query | browses and reads project memory files |
 | approvals.ts | query | lists pending approval entries |

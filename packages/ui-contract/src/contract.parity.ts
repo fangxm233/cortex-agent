@@ -21,6 +21,10 @@ import type {
   tasksListInput,
   taskVerificationInput,
   schedulesListInput,
+  commissionsListInput,
+  commissionsGetInput,
+  commissionsDecisionsInput,
+  commissionCloseInput,
   executionsListInput,
   executionsGetInput,
   memoryTreeInput,
@@ -109,6 +113,9 @@ const _threadsGet: QueryParity<'threads.get', typeof threadsGetInput> = true;
 const _tasksList: QueryParity<'tasks.list', typeof tasksListInput> = true;
 const _taskVerification: QueryParity<'tasks.verification', typeof taskVerificationInput> = true;
 const _schedulesList: QueryParity<'schedules.list', typeof schedulesListInput> = true;
+const _commissionsList: QueryParity<'commissions.list', typeof commissionsListInput> = true;
+const _commissionsGet: QueryParity<'commissions.get', typeof commissionsGetInput> = true;
+const _commissionsDecisions: QueryParity<'commissions.decisions', typeof commissionsDecisionsInput> = true;
 const _executionsList: QueryParity<'executions.list', typeof executionsListInput> = true;
 const _executionsGet: QueryParity<'executions.get', typeof executionsGetInput> = true;
 const _memoryTree: QueryParity<'memory.tree', typeof memoryTreeInput> = true;
@@ -145,6 +152,7 @@ const _schedulesResume: MutateParity<'schedules.resume', typeof scheduleActionIn
 const _schedulesRemove: MutateParity<'schedules.remove', typeof scheduleActionInput> = true;
 const _schedulesAdd: MutateParity<'schedules.add', typeof scheduleAddInput> = true;
 const _schedulesUpdate: MutateParity<'schedules.update', typeof scheduleUpdateInput> = true;
+const _commissionsClose: MutateParity<'commissions.close', typeof commissionCloseInput> = true;
 const _tasksClaim: MutateParity<'tasks.claim', typeof taskActionInput> = true;
 const _tasksUnclaim: MutateParity<'tasks.unclaim', typeof taskActionInput> = true;
 const _tasksComplete: MutateParity<'tasks.complete', typeof taskCompleteInput> = true;
@@ -201,6 +209,7 @@ export const _contractParityChecked = [
   _authStatus, _authFlowState, _machinesList, _skillsList, _pluginsList, _threadTemplatesGet,
   _projectsCreate, _sessionsCreate, _sessionsSend, _sessionsCompact, _sessionsSetProfile, _threadsCancel, _executionsCancel,
   _schedulesPause, _schedulesResume, _schedulesRemove, _schedulesAdd, _schedulesUpdate, _tasksClaim,
+  _commissionsList, _commissionsGet, _commissionsDecisions, _commissionsClose,
   _tasksUnclaim, _tasksComplete, _tasksBlock, _tasksUnblock,
   _approvalsApprove, _approvalsReject, _approvalsRequest, _issuesList, _issuesHandle, _issuesDelete,
   _notesAdd, _notesUpdate, _notesSetCompleted, _notesDelete, _notesClearCompleted,

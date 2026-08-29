@@ -692,6 +692,9 @@ function createWebhookHandler(_options: {
           const result = await registerPlanApproval(requestId, channel, sessionId, resolvedPlan, toolInput || {}, dryRun === true, threadId);
           const approved = (result as { approved?: boolean } | undefined)?.approved === true;
           const finalized = commissionArgs && approved ? await finalizeCommission(commissionArgs) : null;
+          if (finalized && finalized.ok === true) {
+            jobCtx.bus?.publish({ type: 'commission.updated', commissionId: finalized.commissionId, projectId: finalized.projectId });
+          }
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify(finalized ? { ...result, commission: finalized } : result));
         } catch (e) {

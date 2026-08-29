@@ -6,6 +6,7 @@
 import * as fsp from 'node:fs/promises';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { commissionRepo } from '@store/commission-repo.js';
+import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
 import type { RawDecisionItem } from '@store/conversation-history-repo.js';
 import { commissionDecisionsFile } from './commission-paths.js';
 
@@ -21,9 +22,14 @@ export interface DecisionProjectionDeps {
   findCommission?: (id: string) => Promise<{ projectId: string; slug: string } | null>;
   resolveFile?: (projectId: string, slug: string) => string | null;
   appendLine?: (filePath: string, line: string) => Promise<void>;
+  /** SSE hint after a successful append (an open board refetches commissions.decisions).
+   *  Defaults to a `commission.updated` publish on the shared bus; no-op when the bus is absent. */
+  publishUpdated?: (commissionId: string, projectId: string) => void;
 }
 
-async function resolveTarget(sessionId: string, deps: DecisionProjectionDeps): Promise<string | null> {
+interface ProjectionTarget { filePath: string; commissionId: string; projectId: string }
+
+async function resolveTarget(sessionId: string, deps: DecisionProjectionDeps): Promise<ProjectionTarget | null> {
   const getSession = deps.getSession ?? ((id: string) => sessionStore.getById(id));
   const findCommission = deps.findCommission ?? ((id: string) => commissionRepo.find(id));
   const resolveFile = deps.resolveFile ?? commissionDecisionsFile;
@@ -31,14 +37,19 @@ async function resolveTarget(sessionId: string, deps: DecisionProjectionDeps): P
   if (!session?.commissionId) return null;
   const commission = await findCommission(session.commissionId);
   if (!commission) return null;
-  return resolveFile(commission.projectId, commission.slug);
+  const filePath = resolveFile(commission.projectId, commission.slug);
+  if (!filePath) return null;
+  return { filePath, commissionId: session.commissionId, projectId: commission.projectId };
 }
 
 async function appendProjection(sessionId: string, line: CommissionDecisionLine, deps: DecisionProjectionDeps): Promise<boolean> {
-  const filePath = await resolveTarget(sessionId, deps);
-  if (!filePath) return false;
+  const target = await resolveTarget(sessionId, deps);
+  if (!target) return false;
   const append = deps.appendLine ?? ((file: string, text: string) => fsp.appendFile(file, text, 'utf8'));
-  await append(filePath, `${JSON.stringify(line)}\n`);
+  await append(target.filePath, `${JSON.stringify(line)}\n`);
+  const publish = deps.publishUpdated
+    ?? ((commissionId: string, projectId: string) => { jobCtx.bus?.publish({ type: 'commission.updated', commissionId, projectId }); });
+  publish(target.commissionId, target.projectId);
   return true;
 }
 

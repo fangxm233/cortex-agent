@@ -23,6 +23,9 @@ import {
   tasksListInput,
   taskVerificationInput,
   schedulesListInput,
+  commissionsListInput,
+  commissionsGetInput,
+  commissionsDecisionsInput,
   executionsListInput,
   executionsGetInput,
   memoryTreeInput,
@@ -42,6 +45,9 @@ export {
   tasksListInput,
   taskVerificationInput,
   schedulesListInput,
+  commissionsListInput,
+  commissionsGetInput,
+  commissionsDecisionsInput,
   executionsListInput,
   executionsGetInput,
   memoryTreeInput,
@@ -289,6 +295,13 @@ export const scheduleAddInput = z
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['delay'], message: 'delay is required for type=once' });
     }
   });
+
+// commissions.close — the user's 完成/放弃 action from the board UI (the only close path, DR-0037).
+export const commissionCloseInput = z.object({
+  commissionId: z.string(),
+  status: z.enum(['done', 'abandoned']),
+  note: z.string().optional(),
+});
 
 // schedules.update — a partial patch; per-type field-allowedness needs the persisted task, so it
 // lives in the handler (handleUpdateSchedule), not here. Value shapes mirror scheduleAddInput.
@@ -723,6 +736,9 @@ export const queryInputSchemas = {
   'tasks.list': tasksListInput,
   'tasks.verification': taskVerificationInput,
   'schedules.list': schedulesListInput,
+  'commissions.list': commissionsListInput,
+  'commissions.get': commissionsGetInput,
+  'commissions.decisions': commissionsDecisionsInput,
   'executions.list': executionsListInput,
   'executions.get': executionsGetInput,
   'memory.tree': memoryTreeInput,
@@ -768,6 +784,7 @@ export const mutateInputSchemas = {
   'schedules.remove': scheduleActionInput,
   'schedules.add': scheduleAddInput,
   'schedules.update': scheduleUpdateInput,
+  'commissions.close': commissionCloseInput,
   'tasks.claim': taskActionInput,
   'tasks.unclaim': taskActionInput,
   'tasks.complete': taskCompleteInput,

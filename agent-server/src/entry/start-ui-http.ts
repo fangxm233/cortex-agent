@@ -26,6 +26,8 @@ import { getClientToken } from '@core/auth.js';
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
 import { WORKSPACE_DIR, resolveWorkspaceRelPath } from '@core/paths.js';
+import { projectStore } from '@domain/projects/project-store.js';
+import { resolveMemoryFilePath } from '@domain/ui-service/query/memory.js';
 
 const log = createLogger('ui-http');
 
@@ -280,7 +282,11 @@ async function handleDownload(req: IncomingMessage, res: ServerResponse): Promis
     jsonReply(res, 403, { ok: false, code: 'forbidden', message: 'Path escapes the workspace root' });
     return;
   }
+  await streamFile(res, target, disposition);
+}
 
+/** Stat + stream an already-validated absolute file path with download headers. */
+async function streamFile(res: ServerResponse, target: string, disposition: 'inline' | 'attachment'): Promise<void> {
   let size: number;
   try {
     const stat = await fs.promises.stat(target);
@@ -302,6 +308,47 @@ async function handleDownload(req: IncomingMessage, res: ServerResponse): Promis
   const stream = createReadStream(target);
   stream.on('error', () => { if (!res.headersSent) res.writeHead(500); res.end(); });
   stream.pipe(res);
+}
+
+// ── Commission asset route (DR-0037 board) ────────────────────────────────────
+// Serves binary assets from a project's commissions/ tree (ledger-referenced images etc.) by
+// projectId + project-root-relative path. Confinement: the rel path must start with `commissions/`
+// and passes the same absolute/`..`/symlink guard as memory.file (resolveMemoryFilePath). Sandbox
+// contract unchanged: .html assets are FETCHED by the parent page and rendered via srcdoc — an
+// iframe never points at this URL. Same auth gate as every custom route.
+
+const COMMISSION_ASSET_PATH = '/api/commissions/asset';
+
+/** GET /api/commissions/asset?projectId=…&path=commissions/<slug>/assets/…&disposition=… */
+async function handleCommissionAsset(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  let url: URL;
+  try {
+    url = new URL(req.url ?? '', 'http://localhost');
+  } catch {
+    jsonReply(res, 400, { ok: false, code: 'bad-request', message: 'Malformed URL' });
+    return;
+  }
+  const projectId = (url.searchParams.get('projectId') ?? '').trim();
+  const rel = (url.searchParams.get('path') ?? '').trim();
+  const disposition = url.searchParams.get('disposition') === 'attachment' ? 'attachment' : 'inline';
+  if (!projectId || !rel) {
+    jsonReply(res, 400, { ok: false, code: 'missing-params', message: 'projectId and path query params required' });
+    return;
+  }
+  if (!rel.startsWith('commissions/')) {
+    jsonReply(res, 403, { ok: false, code: 'forbidden', message: 'path must be under commissions/' });
+    return;
+  }
+  const contextDir = projectStore.get(projectId)?.contextDir;
+  let target: string;
+  try {
+    if (!contextDir) throw new Error('unknown project');
+    target = resolveMemoryFilePath(fs.realpathSync(contextDir), rel);
+  } catch {
+    jsonReply(res, 404, { ok: false, code: 'not-found', message: 'File not found' });
+    return;
+  }
+  await streamFile(res, target, disposition);
 }
 
 /**
@@ -339,6 +386,8 @@ export function startUiHttpServer(opts: StartUiHttpOptions): UiHttpServer | null
     customRoutes: {
       [UPLOAD_PATH]: handleUpload,
       [DOWNLOAD_PATH]: handleDownload,
+      // Commission board assets (ledger-referenced images/html) — guarded per handler doc above.
+      [COMMISSION_ASSET_PATH]: handleCommissionAsset,
       // Frontend OTA: serves the built SPA as a manifest + ZIP bundle so the desktop shell can
       // self-update its frontend. Empty (disabled) when the SPA is not built. Same auth gate as tRPC.
       ...createOtaRoutes(spaDir),

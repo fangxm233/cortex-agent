@@ -45,6 +45,7 @@ import type { HookApplyTime, HookMountTarget } from '@domain/hooks/hook-view.js'
 export type { HookApplyTime, HookMountTarget } from '@domain/hooks/hook-view.js';
 import type { Session } from '@store/session-registry-repo.js';
 import type { ScheduleTask, ScheduleTarget } from '@store/schedule-repo.js';
+import type { CommissionRecord } from '@store/commission-repo.js';
 import type { LogLocation } from '@domain/executions/log-tailer.js';
 import type { SessionHistory } from '@store/conversation-history-repo.js';
 import type { Backend } from '../../agent-adapter/types.js';
@@ -108,6 +109,9 @@ export type QueryScope =
   | 'tasks.list'
   | 'tasks.verification'
   | 'schedules.list'
+  | 'commissions.list'
+  | 'commissions.get'
+  | 'commissions.decisions'
   | 'executions.list'
   | 'executions.get'
   | 'memory.tree'
@@ -154,6 +158,7 @@ export type MutateOp =
   | 'schedules.remove'
   | 'schedules.add'
   | 'schedules.update'
+  | 'commissions.close'
   | 'tasks.claim'
   | 'tasks.unclaim'
   | 'tasks.complete'
@@ -282,6 +287,19 @@ export interface TaskVerificationParams {
 export interface SchedulesListParams {
   projectId?: string;
   paused?: boolean;
+}
+
+export interface CommissionsListParams {
+  projectId?: string;
+  status?: 'active' | 'done' | 'abandoned';
+}
+
+export interface CommissionsGetParams {
+  commissionId: string;
+}
+
+export interface CommissionsDecisionsParams {
+  commissionId: string;
 }
 
 export interface ExecutionsListParams {
@@ -558,6 +576,14 @@ export interface ScheduleActionArgs {
   scheduleId: string;
 }
 
+// Args for `commissions.close` — the ONLY path that ends a commission (a user action in the
+// board UI; agents never close their own commission, per DR-0037).
+export interface CommissionCloseArgs {
+  commissionId: string;
+  status: 'done' | 'abandoned';
+  note?: string;
+}
+
 // Args for `schedules.add` (DR-0018 §2.1 7c). Per-type required fields are enforced by the zod
 // `scheduleAddInput` schema at the router boundary AND re-checked in the handler (so a direct
 // facade/unit call is rejected too). intervalMs/delay are raw ms numbers; dayOfWeek is 0..6.
@@ -766,6 +792,10 @@ export interface SessionInfo {
    *  per-schedule run grouping and the chat trigger card. Survives a reply converting the run to
    *  a direct session (provenance). Null for sessions with no schedule origin / legacy records. */
   scheduleId: string | null;
+  /** The commission (CommissionInfo.id) this session is bound to — drives the left rail's
+   *  commission grouping and the chat header banner. Bound at contract approval time
+   *  (commission plan-exit); null for sessions outside any commission. */
+  commissionId: string | null;
   createdAt: string;
   lastUsedAt: string;
   resumable: boolean;
@@ -1188,6 +1218,34 @@ export interface ScheduleInfo {
   /** Persisted dispatch target / fallback; null when the record predates them (never fabricated). */
   target: ScheduleTarget | null;
   fallback: 'fresh' | 'skip' | 'wait' | null;
+}
+
+// ── Commission DTOs (DR-0037) ─────────────────────────────────────
+// Registry facts only. The contract/ledger TEXT is not part of this DTO — clients read those via
+// the existing `memory.file` query (`commissions/<slug>/ledger.md` relative to the project root),
+// and gate state is derived live from member sessions' awaitingInput, never stored.
+
+export interface CommissionInfo {
+  id: string;
+  projectId: string;
+  /** Final directory name under `<project context>/commissions/` — fixed at approval time. */
+  slug: string;
+  title: string;
+  status: 'active' | 'done' | 'abandoned';
+  createdAt: string;   // ISO; approval time
+  updatedAt: string;   // ISO
+  closedAt: string | null;
+  closeNote: string | null;
+}
+
+/** One decision card in the commission board's stream: a projected send_decision item with its
+ *  user responses merged in (same DecisionItem shape the transcript renders), plus provenance. */
+export interface CommissionDecisionEntry {
+  /** ISO ts of the send_decision call — the stream's ordering key. */
+  ts: string;
+  /** The session that announced the decision (source row on the board card). */
+  sessionId: string;
+  item: DecisionItem;
 }
 
 export interface ExecutionInfo {
@@ -2078,6 +2136,9 @@ export interface QueryParamMap {
   'tasks.list': TasksListParams;
   'tasks.verification': TaskVerificationParams;
   'schedules.list': SchedulesListParams;
+  'commissions.list': CommissionsListParams;
+  'commissions.get': CommissionsGetParams;
+  'commissions.decisions': CommissionsDecisionsParams;
   'executions.list': ExecutionsListParams;
   'executions.get': ExecutionsGetParams;
   'memory.tree': MemoryTreeParams;
@@ -2114,6 +2175,9 @@ export interface QueryReturnMap {
   'tasks.list': TaskInfo[];
   'tasks.verification': TaskVerificationInfo;
   'schedules.list': ScheduleInfo[];
+  'commissions.list': CommissionInfo[];
+  'commissions.get': CommissionInfo;
+  'commissions.decisions': CommissionDecisionEntry[];
   'executions.list': ExecutionInfo[];
   'executions.get': ExecutionDetailInfo;
   'memory.tree': MemoryTree;
@@ -2159,6 +2223,7 @@ export interface MutateArgsMap {
   'schedules.remove': ScheduleActionArgs;
   'schedules.add': ScheduleAddArgs;
   'schedules.update': ScheduleUpdateArgs;
+  'commissions.close': CommissionCloseArgs;
   'tasks.claim': TaskActionArgs;
   'tasks.unclaim': TaskActionArgs;
   'tasks.complete': TaskCompleteArgs;
@@ -2221,6 +2286,7 @@ export interface MutateReturnMap {
   'schedules.remove': void;
   'schedules.add': ScheduleInfo;
   'schedules.update': ScheduleInfo;
+  'commissions.close': CommissionInfo;
   'tasks.claim': void;
   'tasks.unclaim': void;
   'tasks.complete': void;
@@ -2447,6 +2513,14 @@ export interface UiServiceDeps {
     getExecution(id: string): any | null;
     getAll(): any[];
     cancelExecution(id: string, metrics?: any): any | null;
+  };
+  /** Commission registry seam (commissions.* ops). Optional — handlers fall back to the
+   *  commissionRepo singleton when absent, so existing fixtures/entry wiring need no change;
+   *  tests inject it for determinism. */
+  commissionStore?: {
+    list(projectId?: string): Promise<CommissionRecord[]>;
+    find(id: string): Promise<CommissionRecord | null>;
+    update(id: string, fn: (record: CommissionRecord) => void): Promise<CommissionRecord | null>;
   };
   /** Absolute path to PENDING_APPROVALS.md (the approval-center 7a markdown queue). */
   approvalsPath: string;

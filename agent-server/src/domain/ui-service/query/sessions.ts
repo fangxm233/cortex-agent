@@ -116,6 +116,7 @@ export async function handleSessionsList(
       kind: s.kind,
       origin: s.origin ?? 'direct',
       scheduleId: s.scheduleId ?? null,
+      commissionId: s.commissionId ?? null,
       createdAt: s.createdAt,
       lastUsedAt: s.lastUsedAt,
       resumable: s.kind !== 'scheduled',

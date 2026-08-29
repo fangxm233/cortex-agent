@@ -30,7 +30,8 @@ function invalidArgs(message: string): Error {
 }
 
 // Resolve the project's real (symlink-canonical) root directory, or throw not-found.
-function resolveProjectRoot(deps: UiServiceDeps, projectId: string): string {
+// Exported for reuse by query/commissions.ts (decisions.jsonl lives under the project root).
+export function resolveProjectRoot(deps: UiServiceDeps, projectId: string): string {
   const project = deps.projectStore.get(projectId);
   if (!project) throw notFound(`project not found: ${projectId}`);
   try {
@@ -47,7 +48,8 @@ function isWithin(root: string, child: string): boolean {
 
 // Resolve a project-root-relative file path to an absolute path, rejecting absolute inputs,
 // `..` traversal, non-files, and symlink escape (via realpath re-check). Read-only.
-function resolveMemoryFilePath(realRoot: string, relPath: string): string {
+// Exported for reuse by query/commissions.ts and the commission assets download route.
+export function resolveMemoryFilePath(realRoot: string, relPath: string): string {
   if (path.isAbsolute(relPath)) throw invalidArgs(`absolute path not allowed: ${relPath}`);
 
   const resolved = path.resolve(realRoot, relPath);

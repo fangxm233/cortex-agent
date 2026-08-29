@@ -16,6 +16,7 @@ Write side of the UI service — one handler module per domain area the UI is al
 | plugins.ts | mutate | assigns plugins to agents and template slots |
 | thread-templates.ts | mutate | validates, saves and removes thread-template entities |
 | schedules.ts | mutate | adds, updates, pauses, resumes, removes schedules |
+| commissions.ts | mutate | closes a commission as done or abandoned |
 | tasks.ts | mutate | claims, completes, and blocks tasks |
 | threads.ts | mutate | cancels a running thread |
 | executions.ts | mutate | cancels a running execution |

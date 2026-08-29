@@ -87,6 +87,11 @@ export type CortexEvent =
   | { type: 'thread.completed';       ts: string; threadId: string }
   | { type: 'thread.failed';          ts: string; threadId: string; error: string }
 
+  // Commission (DR-0037). Content-free change hint — published on approval landing, close, and
+  // decision projection. Clients refetch commissions.* queries; `projectId` feeds the subscribe
+  // post-filter so project-scoped streams only see their own commissions.
+  | { type: 'commission.updated';     ts: string; commissionId: string; projectId: string }
+
   // Task
   | { type: 'task.claimed';           ts: string; taskId: string; by: string }
   | { type: 'task.unclaimed';         ts: string; taskId: string }
