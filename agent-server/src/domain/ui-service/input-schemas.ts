@@ -167,9 +167,17 @@ export const sessionBrowserInput = z.object({
   device: z.string(),
 });
 
+/** Commission mode, chosen at creation like the browser opt-in. `new` makes the server create the
+ *  draft directory; `join` attaches this session to a commission that already landed. */
+export const sessionCommissionInput = z.discriminatedUnion('mode', [
+  z.object({ mode: z.literal('new') }),
+  z.object({ mode: z.literal('join'), commissionId: z.string() }),
+]);
+
 export const sessionsCreateInput = z.object({
   projectId: z.string().optional(),
   browser: sessionBrowserInput.nullish(),
+  commission: sessionCommissionInput.nullish(),
 });
 
 export const sessionsSendInput = z.object({
@@ -235,6 +243,7 @@ export const sessionsCreateAndSendInput = z.object({
   projectId: z.string(),
   profileName: z.string().optional(),
   browser: sessionBrowserInput.nullish(),
+  commission: sessionCommissionInput.nullish(),
   text: z.string(),
   draftUploadId: z.string().uuid().optional(),
   attachments: z.array(z.object({

@@ -52,6 +52,10 @@ export interface SessionRecord {
   /** Commission (long-task) membership — drives board grouping and [Commission] prompt injection.
    *  Bound once at commission finalize (DR-0037); absent/null for ordinary sessions. */
   commissionId?: string | null;
+  /** Draft directory name (`_draft-<session name>`) while commission mode is on but the contract
+   *  has not been named yet. Cleared at finalize, when commissionId is filled in. Mode is ON when
+   *  either this or commissionId is set. */
+  commissionDraft?: string | null;
   contextUsage?: unknown;
   browser?: SessionBrowserOption | null;
 }
@@ -369,6 +373,7 @@ function assertSessionRecord(raw: unknown, expectedId: string): SessionRecord {
     lastReadAt: toOptionalNullableString(row?.lastReadAt),
     scheduleId: toOptionalNullableString(row?.scheduleId),
     commissionId: toOptionalNullableString(row?.commissionId),
+    commissionDraft: toOptionalNullableString(row?.commissionDraft),
     contextUsage: row?.contextUsage,
     browser: toOptionalBrowserValue(row?.browser),
   } satisfies SessionRecord;
@@ -395,6 +400,7 @@ function assertNewFormatRecord(raw: unknown, expectedId: string): SessionRecord 
     lastReadAt: toOptionalNullableString(row?.lastReadAt),
     scheduleId: toOptionalNullableString(row?.scheduleId),
     commissionId: toOptionalNullableString(row?.commissionId),
+    commissionDraft: toOptionalNullableString(row?.commissionDraft),
     contextUsage: row?.contextUsage,
     browser: toOptionalBrowserValue(row?.browser),
   } satisfies SessionRecord;

@@ -45,7 +45,9 @@ export async function handleCreateSession(
   args: SessionsCreateArgs,
 ): Promise<Result<SessionsCreateReturn>> {
   const projectId = args.projectId ?? deps.projectStore.getDefault().id;
-  const { sessionId } = await deps.createDirectSession({ projectId, browser: args.browser ?? null });
+  const { sessionId } = await deps.createDirectSession({
+    projectId, browser: args.browser ?? null, commission: args.commission ?? null,
+  });
   return { ok: true, data: { sessionId } };
 }
 
@@ -163,6 +165,7 @@ export async function handleCreateAndSend(
     projectId: args.projectId,
     profileName: args.profileName ?? null,
     browser: args.browser ?? null,
+    commission: args.commission ?? null,
   });
 
   // If the client uploaded files under a draft upload id, move them to the real

@@ -435,6 +435,9 @@ export interface SessionsCreateArgs {
   projectId?: string;
   /** Opt in to browser control for this session. Omitted → no browser tools are loaded. */
   browser?: { device: string } | null;
+  /** Commission mode for this session, chosen at creation like the browser opt-in. `new` has the
+   *  server create the draft directory; `join` attaches the session to a landed commission. */
+  commission?: { mode: 'new' } | { mode: 'join'; commissionId: string } | null;
 }
 
 // ── Attachment metadata (S4 chat file attachments, 15a) ──────────────────
@@ -555,6 +558,9 @@ export interface SessionsCreateAndSendArgs {
   profileName?: string;
   /** Opt in to browser control for this session. Omitted → no browser tools are loaded. */
   browser?: { device: string } | null;
+  /** Commission mode for this session, chosen at creation like the browser opt-in. `new` has the
+   *  server create the draft directory; `join` attaches the session to a landed commission. */
+  commission?: { mode: 'new' } | { mode: 'join'; commissionId: string } | null;
   /** First user message text. */
   text: string;
   /** Optional file attachments. */
@@ -796,6 +802,9 @@ export interface SessionInfo {
    *  commission grouping and the chat header banner. Bound at contract approval time
    *  (commission plan-exit); null for sessions outside any commission. */
   commissionId: string | null;
+  /** Draft directory name while this session is in commission mode but its contract has not been
+   *  named yet. Null once the contract lands (commissionId takes over) or outside the mode. */
+  commissionDraft?: string | null;
   createdAt: string;
   lastUsedAt: string;
   resumable: boolean;
@@ -2443,7 +2452,7 @@ export interface UiServiceDeps {
    * id. Injected in the entry layer (app.ts) to the domain `createDirectSession` primitive with the
    * real session/ledger singletons, so the ui-service domain never imports store internals.
    */
-  createDirectSession: (opts: { projectId: string; sessionId?: string; profileName?: string | null; browser?: { device: string } | null }) => Promise<{ sessionId: string; sessionName: string; channel: string }>;
+  createDirectSession: (opts: { projectId: string; sessionId?: string; profileName?: string | null; browser?: { device: string } | null; commission?: { mode: 'new' } | { mode: 'join'; commissionId: string } | null }) => Promise<{ sessionId: string; sessionName: string; channel: string }>;
   /**
    * Convert a scheduled run's session into a normal direct web session before a reply is sent
    * (design 27b: replying adopts the run — it leaves the schedule grouping and becomes a normal

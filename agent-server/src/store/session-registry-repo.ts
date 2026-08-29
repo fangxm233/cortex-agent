@@ -127,6 +127,8 @@ export class SessionRegistryRepo {
     backendSessionId?: string | null;
     scheduleId?: string | null;
     browser?: SessionBrowserOption | null;
+    commissionId?: string | null;
+    commissionDraft?: string | null;
   }): Promise<void> {
     const now = new Date().toISOString();
     return this.appendPut({
@@ -144,6 +146,8 @@ export class SessionRegistryRepo {
       backendSessionId: opts.backendSessionId ?? null,
       scheduleId: opts.scheduleId ?? null,
       browser: opts.browser ?? null,
+      commissionId: opts.commissionId ?? null,
+      commissionDraft: opts.commissionDraft ?? null,
     });
   }
 
@@ -264,12 +268,14 @@ export class SessionRegistryRepo {
     }));
   }
 
-  /** Bind (or unbind with null) a session to a commission. Called once by the commission
-   *  finalize path (DR-0037) — ordinary sessions never carry commissionId. */
+  /** Bind (or unbind with null) a session to a commission. Called by the commission finalize path
+   *  (DR-0037) and by commission-mode session creation. Binding also clears commissionDraft: once
+   *  the contract is named, the draft directory no longer exists under that name. */
   async bindCommission(sessionId: string, commissionId: string | null): Promise<Session | null> {
     return this.updateById(sessionId, (record) => ({
       ...record,
       commissionId,
+      commissionDraft: commissionId ? null : record.commissionDraft,
     }));
   }
 

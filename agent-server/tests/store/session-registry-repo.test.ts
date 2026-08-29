@@ -373,3 +373,27 @@ test('session registry replays commissionId and browser opt-in from the journal'
   assert.equal(replayed?.commissionId, 'comm-1');
   assert.deepEqual(replayed?.browser, { device: 'server' });
 });
+
+test('session registry replays commissionDraft and clears it when the commission lands', async () => {
+  const { filePath } = nextPaths();
+  const repo = new SessionRegistryRepo(filePath);
+  await repo.registerSession('cortex-draft', registerOpts('sess-draft', { commissionDraft: '_draft-cortex-draft' }));
+
+  // Survives a cold replay — the field must be whitelisted in BOTH journal asserts or every
+  // restart silently drops commission mode (the bug the browser opt-in originally had).
+  const reopened = new SessionRegistryRepo(filePath);
+  const replayed = await reopened.getById('sess-draft');
+  assert.equal(replayed?.commissionDraft, '_draft-cortex-draft');
+  assert.equal(replayed?.commissionId ?? null, null);
+
+  // Landing the contract binds the id and retires the draft name.
+  await reopened.bindCommission('sess-draft', 'comm-9');
+  const landed = await reopened.getById('sess-draft');
+  assert.equal(landed?.commissionId, 'comm-9');
+  assert.equal(landed?.commissionDraft, null);
+
+  const again = new SessionRegistryRepo(filePath);
+  const afterRestart = await again.getById('sess-draft');
+  assert.equal(afterRestart?.commissionId, 'comm-9');
+  assert.equal(afterRestart?.commissionDraft, null);
+});

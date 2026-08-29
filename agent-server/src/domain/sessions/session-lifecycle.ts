@@ -11,6 +11,7 @@ import { resolveProfileConfig } from '@domain/agents/profile-manager.js';
 import * as sessionBackup from './session-backup.js';
 import type { SessionOrigin } from '@store/session-registry-repo.js';
 import type { SessionBrowserOption } from '@store/session-registry-journal.js';
+import { resolveCommissionCreate, type CommissionCreateRequest } from '@domain/commissions/commission-draft.js';
 
 export const SESSION_BACKENDS = ['claude', 'pi'] as const;
 
@@ -20,6 +21,7 @@ export interface SessionRegistryWriter {
     sessionId: string; channel: string; backend: string;
     kind: 'local' | 'scheduled'; origin?: SessionOrigin; projectId: string;
     label?: string | null; profileName?: string | null; browser?: SessionBrowserOption | null;
+    commissionId?: string | null; commissionDraft?: string | null;
   }): Promise<void>;
 }
 
@@ -36,6 +38,12 @@ export interface RegisterNamedSessionOpts {
   profileName?: string | null;
   /** Opt-in browser access for this session; null/absent means no browser tools at all. */
   browser?: SessionBrowserOption | null;
+  /** Commission membership, fixed at creation (DR-0037 v2). */
+  commissionId?: string | null;
+  commissionDraft?: string | null;
+  /** Resolve commission fields from the freshly generated session name. Needed because a new
+   *  commission's draft directory is named after the session, which is not known until here. */
+  commissionFor?: (sessionName: string) => Promise<{ commissionId?: string | null; commissionDraft?: string | null }>;
 }
 
 /** Generate a fresh session name and register a registry record for sessionId. Returns the name.
@@ -43,6 +51,9 @@ export interface RegisterNamedSessionOpts {
  *  creation (agent-runner) and TUI fresh-session creation. */
 export async function registerNamedSession(store: SessionRegistryWriter, opts: RegisterNamedSessionOpts): Promise<string> {
   const name = await store.generateSessionName();
+  // Resolved AFTER the name exists: a new commission's draft dir is `_draft-<session name>`, and a
+  // failure here must abort creation rather than quietly produce an ordinary session.
+  const commission = opts.commissionFor ? await opts.commissionFor(name) : null;
   await store.registerSession(name, {
     sessionId: opts.sessionId,
     channel: opts.channel,
@@ -53,6 +64,8 @@ export async function registerNamedSession(store: SessionRegistryWriter, opts: R
     label: opts.label ?? null,
     profileName: opts.profileName ?? null,
     browser: opts.browser ?? null,
+    commissionId: commission?.commissionId ?? opts.commissionId ?? null,
+    commissionDraft: commission?.commissionDraft ?? opts.commissionDraft ?? null,
   });
   return name;
 }
@@ -79,7 +92,10 @@ export interface CreateDirectSessionDeps {
  *  resumes THIS session rather than spawning a new one. */
 export async function createDirectSession(
   deps: CreateDirectSessionDeps,
-  opts: { projectId: string; sessionId?: string; profileName?: string | null; browser?: SessionBrowserOption | null },
+  opts: {
+    projectId: string; sessionId?: string; profileName?: string | null;
+    browser?: SessionBrowserOption | null; commission?: CommissionCreateRequest | null;
+  },
 ): Promise<{ sessionId: string; sessionName: string; channel: string }> {
   const sessionId = opts.sessionId ?? crypto.randomUUID();
   const channel = `web:${sessionId}`;
@@ -100,6 +116,9 @@ export async function createDirectSession(
     origin: 'direct',
     profileName: opts.profileName ?? null,
     browser: opts.browser ?? null,
+    commissionFor: opts.commission
+      ? (name) => resolveCommissionCreate(opts.projectId, name, opts.commission!)
+      : undefined,
   });
   await deps.setChannelSession(channel, sessionId, backend);
   await deps.initConversation(channel, { sessionId, sessionName, backend });
