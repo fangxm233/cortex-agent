@@ -20,7 +20,7 @@ export const MCP_TOOLS_BY_SERVER: Readonly<Record<string, readonly string[]>> = 
     'cortex_schedule_list', 'cortex_schedule_get', 'cortex_schedule_remove',
     'cortex_schedule_pause', 'cortex_schedule_resume',
   ],
-  'cortex-interaction-bridge': ['cortex_plan_enter', 'cortex_plan_exit', 'cortex_ask_user'],
+  'cortex-interaction-bridge': ['cortex_plan_enter', 'cortex_plan_exit', 'cortex_commission_plan_exit', 'cortex_ask_user'],
   'cortex-slack': ['slack_send_file'],
   'cortex-feishu': ['feishu_send_file'],
   'cortex-web': ['send_file', 'send_view', 'send_decision'],

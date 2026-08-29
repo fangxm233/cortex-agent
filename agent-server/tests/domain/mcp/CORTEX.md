@@ -12,3 +12,4 @@ MCP server and tool registration regression tests.
 | time-tool.test.ts | test | Verifies time tool output |
 | tools-registration.test.ts | test | Verifies remote operation boundary contracts |
 | interaction-tools.test.ts | test | Verifies shared interaction MCP tools |
+| commission-plan.test.ts | test | Verifies commission plan-exit payload and outcomes |

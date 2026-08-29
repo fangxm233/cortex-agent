@@ -16,6 +16,7 @@ import { registerDispatchExecution } from '@domain/executions/registry.js';
 import { registerAskQuestion, registerPlanApproval } from './hook-bridge.js';
 import { normalizeAskLevel } from '@platform/index.js';
 import { sessionStore } from '@store/session-registry-repo.js';
+import { validateCommissionFinalize, finalizeCommission } from '@domain/commissions/commission-finalize.js';
 import { getCurrentPlanFilePath } from '@domain/agents/index.js';
 import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
 import { createThread, cancelThread, readArtifact, listTemplates, listAgents, checkSpawnGuards, getRootThreadId, registerChildSpawn, buildThreadTree, getTreeThreads, buildContractPrompt, buildMissionChain, isArtifactUnchangedSinceStepStart } from '@domain/threads/index.js';
@@ -660,7 +661,7 @@ function createWebhookHandler(_options: {
     if (req.method === 'POST' && req.url === '/hook/exit-plan-mode') {
       readJsonBody(req, async (error, _body, data) => {
         if (error) { res.writeHead(400); res.end('Bad JSON'); return; }
-        const { sessionId, channel, planContent, toolInput, dryRun, threadId } = data;
+        const { sessionId, channel, planContent, toolInput, dryRun, threadId, commission } = data;
         if (!channel) {
           res.writeHead(400); res.end(JSON.stringify({ error: 'channel required' }));
           return;
@@ -674,10 +675,25 @@ function createWebhookHandler(_options: {
               catch (readErr) { log.warn(`failed to read plan file ${planFilePath}: ${(readErr as Error).message}`); }
             }
           }
+          // Commission plan-exit (DR-0037): pre-validate BEFORE asking the human so a bad
+          // name/draft dir fails fast without burning an approval; land it only on approval.
+          const commissionArgs = commission && typeof commission === 'object'
+            ? { sessionId, name: commission.name, title: commission.title, contractPath: commission.contractPath }
+            : null;
+          if (commissionArgs) {
+            const check = await validateCommissionFinalize(commissionArgs);
+            if (check.ok === false) {
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'commission-invalid', message: check.error }));
+              return;
+            }
+          }
           const requestId = crypto.randomUUID();
           const result = await registerPlanApproval(requestId, channel, sessionId, resolvedPlan, toolInput || {}, dryRun === true, threadId);
+          const approved = (result as { approved?: boolean } | undefined)?.approved === true;
+          const finalized = commissionArgs && approved ? await finalizeCommission(commissionArgs) : null;
           res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify(result));
+          res.end(JSON.stringify(finalized ? { ...result, commission: finalized } : result));
         } catch (e) {
           res.writeHead(500); res.end(JSON.stringify({ error: (e as Error).message }));
         }

@@ -65,6 +65,7 @@ export const DEFAULT_TOOLS = 'Agent,AskUserQuestion,Bash,Edit,EnterPlanMode,Exit
 export const INTERACTION_BRIDGE_TOOLS: readonly string[] = [
   'mcp__cortex-core__cortex_plan_enter',
   'mcp__cortex-core__cortex_plan_exit',
+  'mcp__cortex-core__cortex_commission_plan_exit',
   'mcp__cortex-core__cortex_ask_user',
 ];
 

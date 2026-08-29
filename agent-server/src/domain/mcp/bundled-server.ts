@@ -62,8 +62,8 @@ function interactionPost(url: string, body: any): Promise<{ status: number; body
 }
 
 const interactionLoader: RegistrarLoader = async () => {
-  const [{ registerInteractionPlanTools }, { registerInteractionAskTools }] = await Promise.all([
-    import('./tools/interaction-plan.js'), import('./tools/interaction-ask.js'),
+  const [{ registerInteractionPlanTools }, { registerCommissionPlanTools }, { registerInteractionAskTools }] = await Promise.all([
+    import('./tools/interaction-plan.js'), import('./tools/commission-plan.js'), import('./tools/interaction-ask.js'),
   ]);
   const port = parseInt(process.env.WEBHOOK_PORT || '3001', 10);
   const deps = {
@@ -73,7 +73,11 @@ const interactionLoader: RegistrarLoader = async () => {
     webhookBaseUrl: `http://127.0.0.1:${port}`,
     httpPost: interactionPost,
   };
-  return server => { registerInteractionPlanTools(server, deps); registerInteractionAskTools(server, deps); };
+  return server => {
+    registerInteractionPlanTools(server, deps);
+    registerCommissionPlanTools(server, deps);
+    registerInteractionAskTools(server, deps);
+  };
 };
 
 const slackLoader: RegistrarLoader = async () => {
