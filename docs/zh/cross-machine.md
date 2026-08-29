@@ -72,14 +72,14 @@ Cortex 可以将工作分发到远程机器：运行命令、读写文件、搜�
 └── previous/   # 上一个版本，保留用于手动回滚
 ```
 
-设备上不经由 npm 安装任何东西；唯一要求是 Node.js。服务器的 bootstrap CLI 端到端部署一台设备——检查 SSH 与 Node.js、把 bundle 传到 `~/.cortex/client/current/`、写入客户端配置，并设置 systemd user service（Linux）或启动脚本：
+设备上不经由 npm 安装任何东西；唯一要求是 Node.js。服务器的 bootstrap CLI 只安装设备文件——检查 SSH 与 Node.js、把 bundle 传到 `~/.cortex/client/current/` 并写入客户端配置。它不会启动 client，也不会创建设备侧 service：
 
 ```bash
 node --import tsx src/domain/remote/client-bootstrap.ts \
   --host user@machine --device-name lab --server-host 10.18.108.245
 ```
 
-当设备的托管安装损坏或被清空时，bootstrap 也是救援路径。手动管理的场景可以 `npm i -g @cortex-agent/client` 获得同一 daemon 的 `cortex-client` 命令；这样的客户端首次连接时会被服务器收编进托管布局（见下方客户端更新）。
+当设备的托管安装损坏或被清空时，bootstrap 也是救援路径。先在 server 的 `machines.json` 注册设备，运行 bootstrap，再启动或重启 agent-server。Client 的启动与恢复由 server 独占管理；不要在 client 设备上创建 systemd、launchd、计划任务、tmux 或 screen 自启动项。
 
 ### 配置 {#configuration}
 
@@ -96,16 +96,10 @@ node --import tsx src/domain/remote/client-bootstrap.ts \
 - `serverHost` — agent-server 机器的 IP 或主机名，从该远程机器可达
 - `serverPort` — WebSocket 端口（默认 3002）
 - `serverUrl`（可选）— 客户端拨号的完整 WebSocket URL，优先级高于 `serverHost`/`serverPort`。用于 Cloudflare Tunnel 或任何反向代理路由，例如 `"wss://cortex.example.com"`——这让客户端能连到没有公网 IP 的服务器（见下方 Cloudflare Tunnel）
-- `clientToken` — 服务器的 `CORTEX_CLIENT_TOKEN` 共享密钥；没有它 WS 升级会被 `401` 拒绝。服务器通过 SSH 启动客户端时会自动注入，因此仅在手动启动或 systemd 托管的客户端上才需在此设置
+- `clientToken` — 服务器的 `CORTEX_CLIENT_TOKEN` 共享密钥；没有它 WS 升级会被 `401` 拒绝。服务器启动 client 时会自动注入，因此仅在临时手动诊断进程中才需在此设置
 - `deviceName` — 此机器的唯一名称，匹配服务器 `machines.json` 中的键
 
-启动客户端：
-
-```bash
-cortex-client
-```
-
-它在前台运行。对于生产环境，将其包装在进程监督器中（systemd、launchd、tmux、screen）。
+诊断时可以在环境中提供 token 后以前台方式运行 `cortex-client`。生产 client 由 agent-server 启动和监督；不要再配置第二个设备侧 supervisor，以免形成相互竞争的 lifecycle owner。
 
 ## 在服务器上注册机器 {#registering-machines-on-the-server}
 
@@ -292,11 +286,11 @@ agent-server 和 cortex-client 之间的协议是 WebSocket 上的 JSON 消息�
 
 agent-server 中的 `client-manager.ts` 模块管理远程客户端生命周期：
 
-1. **启动时** — `startAllRemoteClients()` 遍历 `machines.json` 并在每台机器上启动客户端。对于本地机器（无 `ssh` 字段），直接生成 `node ~/.cortex/client/current/client.mjs`。对于远程机器，通过 SSH 以 `nohup`/`echo $!`（Linux）或 WMI（Windows）运行启动命令。`ssh-reverse` 机器会先建立受监督的反向隧道；启动和自动重启共用同一个 route-aware launcher 与远程 PID 追踪。
+1. **启动时** — `startAllRemoteClients()` 遍历 `machines.json` 并在每台机器上启动客户端。对于本地机器（无 `ssh` 字段），直接生成 `node ~/.cortex/client/current/client.mjs`。对于远程机器，通过 SSH 以 `nohup`/`echo $!`（Linux）或 WMI（Windows）运行启动命令。`ssh-reverse` 机器会先建立受监督的反向隧道；启动和自动重启共用同一个 route-aware launcher 与远程 PID 追踪。如果启动命令已经返回 PID 但 client 尚未发送 `hello`，server 会保持该设备的恢复 timer，直到连接建立。
 
 2. **心跳监控** — 每 5 秒，服务器检查每个连接的设备是否在最近 15 秒内发送了心跳。错过的心跳触发断开连接和自动重启尝试。
 
-3. **自动重启** — 在断开连接或心跳超时时，服务器在 60 秒延迟后安排重启。它重试直到客户端重新连接。每设备定时器防止重复的重启尝试。
+3. **自动重启** — 首次启动后、断开连接或心跳超时时，只要设备仍离线，服务器就在 60 秒延迟后再次尝试启动，直到 client 连上。每设备定时器防止重复的重启尝试。
 
 4. **PID 追踪** — 对于通过 SSH 启动的客户端，服务器在 `~/.cortex/data/client-pids.json` 中记录远程 PID，以便在尝试重启前检查进程是否仍然存活。
 

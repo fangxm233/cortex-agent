@@ -23,6 +23,7 @@ import {
   buildRemoteSpawnCommand,
   clientPids,
   startRemoteClient,
+  startAllRemoteClients,
   _setSshExecForTesting,
   _setMachineRegistryProviderForTesting,
   _setTunnelSupervisorForTesting,
@@ -415,6 +416,19 @@ test('SSH-routed client waits for its tunnel and launches with the loopback URL'
   const launch = ssh.mock.calls.find(([, command]) => command.includes('nohup'))?.[1] ?? '';
   assert.match(launch, /CORTEX_SERVER_URL='ws:\/\/127\.0\.0\.1:13002'/);
   assert.equal(clientPids.get('worker'), 4321);
+});
+
+test('startAllRemoteClients keeps recovery armed until a launched client connects', async (t) => {
+  t.onTestFinished(() => _testReset());
+  _setMachineRegistryProviderForTesting(() => ({
+    worker: { cortexPath: '/home/worker', gpuCount: 1, ssh: 'user@worker' },
+  }));
+  _setSshExecForTesting(async () => '4321');
+
+  await startAllRemoteClients();
+
+  assert.equal(clientPids.get('worker'), 4321);
+  assert.equal(_getRestartTimerCount(), 1, 'expected recovery while the launched client has not said hello');
 });
 
 test('startRemoteClient schedules a retry when remote returns empty PID', async (t) => {

@@ -40,7 +40,7 @@ cortex-agent-server ──SSH──► starts cortex-client on remote device
 
 The server's WebSocket gate is fail-closed: every client must present `CORTEX_CLIENT_TOKEN` (sent as the `x-cortex-token` upgrade header) or the upgrade is rejected with `401`. The server auto-generates the token into its `.env` (`CORTEX_CLIENT_TOKEN`) on first start; read it from the server with `grep CORTEX_CLIENT_TOKEN ~/.cortex/config/.env`.
 
-A remote client gets the token automatically when the server spawns it over SSH (the token is injected into the launch command). For systemd-managed clients (the bootstrap path), pass `--client-token <token>` to `client-bootstrap` so it is written into the unit's `Environment=`. If you start a client by hand, export `CORTEX_CLIENT_TOKEN=<token>` in its environment first. Rotating the token means updating the server `.env` and every remote client, then restarting.
+A remote client gets the token automatically when the server spawns it over SSH (the token is injected into the launch command). Bootstrap only installs files and config; it never creates a device-side service or starts the process. If you start a temporary diagnostic client by hand, export `CORTEX_CLIENT_TOKEN=<token>` in its environment first. Rotating the token means updating the server `.env` and restarting the server-managed clients.
 
 ## Config File
 
@@ -119,7 +119,7 @@ Edit `machines.json` on the server to add the device entry.
 
 ### 2. Deploy the client bundle
 
-The client is two self-contained files under `~/.cortex/client/current/` on the device — no npm install. Either run the bootstrap CLI (does steps 2-3 plus systemd setup):
+The client is two self-contained files under `~/.cortex/client/current/` on the device — no npm install. Either run the install-only bootstrap CLI (it does not start the client or create systemd/launchd/scheduled-task entries):
 
 ```bash
 cd <cortex-repo>/agent-server && node --import tsx src/domain/remote/client-bootstrap.ts \
@@ -159,13 +159,9 @@ Or use `mcp__cortex-core__remote_write` if the device is already reachable via a
 ssh user@host "timeout 3 bash -c 'echo > /dev/tcp/<serverHost>/3002' 2>&1 && echo REACHABLE || echo UNREACHABLE"
 ```
 
-### 5. Restart the server
+### 5. Start or restart the server
 
-```bash
-touch <cortex-repo>/agent-server/.restart
-```
-
-The server will pick up the new device and start the client automatically.
+The agent-server is the sole lifecycle owner. Once it starts with the device registered in `machines.json`, it launches the installed client and keeps retrying until the client connects. Do not configure systemd, launchd, scheduled tasks, tmux, or screen to start cortex-client on the device.
 
 ## Maintenance
 

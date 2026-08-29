@@ -87,9 +87,9 @@ device under the managed layout:
 ```
 
 Nothing is installed through npm on the device; the only requirement is Node.js.
-The server's bootstrap CLI deploys a device end to end — it checks SSH and
-Node.js, ships the bundle into `~/.cortex/client/current/`, writes the client
-config, and sets up a systemd user service (Linux) or a start script:
+The server's bootstrap CLI installs the device files — it checks SSH and Node.js,
+ships the bundle into `~/.cortex/client/current/`, and writes the client config.
+It does not start the client or create a device-side service:
 
 ```bash
 node --import tsx src/domain/remote/client-bootstrap.ts \
@@ -97,9 +97,10 @@ node --import tsx src/domain/remote/client-bootstrap.ts \
 ```
 
 Bootstrap is also the rescue path when a device's managed install is broken
-or wiped. For a hand-managed setup, `npm i -g @cortex-agent/client` provides
-the same daemon as a `cortex-client` binary; the server adopts such a client
-into the managed layout the first time it connects (see client updates below).
+or wiped. Register the device in the server's `machines.json`, run bootstrap,
+then start or restart the agent-server. The server owns client startup and
+recovery; do not create a systemd, launchd, scheduled-task, tmux, or screen
+autostart entry on the client device.
 
 ### Configuration
 
@@ -122,19 +123,15 @@ Create `~/.cortex/config/cortex-client.json` on the remote machine:
   client reach a server that has no public IP (see Cloudflare Tunnel below)
 - `clientToken` — the server's `CORTEX_CLIENT_TOKEN` shared secret; the WS
   upgrade is rejected with `401` without it. The server injects this
-  automatically when it launches the client over SSH, so set it here only for
-  hand-started or systemd-managed clients
+  automatically when it launches the client, so set it here only for a
+  temporary hand-started diagnostic process
 - `deviceName` — a unique name for this machine, matching the key in the
   server's `machines.json`
 
-Start the client:
-
-```bash
-cortex-client
-```
-
-It runs in the foreground. For production, wrap it in a process supervisor
-(systemd, launchd, tmux, screen).
+For diagnostics, `cortex-client` can be run in the foreground with the token in
+its environment. Production clients are started and supervised by the
+agent-server; a second device-side supervisor creates competing lifecycle
+owners and must not be configured.
 
 ## Registering machines on the server
 
@@ -375,15 +372,18 @@ lifecycle:
    directly. For remote machines, it runs the launch command over SSH with
    `nohup`/`echo $!` (Linux) or WMI (Windows). An `ssh-reverse` machine first
    gets a supervised reverse tunnel; startup and automatic restart share the
-   same route-aware launcher and remote PID tracking.
+   same route-aware launcher and remote PID tracking. If the launch returns a
+   PID but the client has not yet sent `hello`, the server keeps the per-device
+   recovery timer armed until that connection arrives.
 
 2. **Heartbeat monitoring** — every 5 seconds, the server checks that each
    connected device has sent a heartbeat within the last 15 seconds.
    Missed heartbeats trigger a disconnect and automatic restart attempt.
 
-3. **Automatic restart** — on disconnect or heartbeat timeout, the server
-   schedules a restart after a 60-second delay. It retries until the client
-   reconnects. A per-device timer prevents duplicate restart attempts.
+3. **Automatic restart** — after initial launch, disconnect, or heartbeat
+   timeout, an offline device gets another start attempt after a 60-second
+   delay. The server retries until the client connects. A per-device timer
+   prevents duplicate restart attempts.
 
 4. **PID tracking** — for SSH-launched clients, the server records the remote
    PID in `~/.cortex/data/client-pids.json` so it can check if the process is

@@ -637,13 +637,15 @@ function scheduleRestart(device: string): void {
   restartTimers.set(device, timer);
 }
 
-/** Start clients on all registered devices */
+/** Start clients on all registered devices and keep recovery armed until they connect. */
 async function startAllRemoteClients(): Promise<void> {
   for (const [device] of Object.entries(_getRegistryImpl())) {
     try {
       await startRemoteClient(device);
+      if (!devices.has(device)) scheduleRestart(device);
     } catch (err) {
       log.error(`Failed to start ${device}: ${(err as Error).message}`);
+      scheduleRestart(device);
     }
   }
 }
