@@ -14,6 +14,7 @@ import { waitForPendingUserInputs } from './pending-user-inputs.js';
 import type {
   AgentDefinition, AgentSlot, AgentSlotConfig, AgentSlotId, AgentStep, TemplateAgentRef, ThreadRecord, ThreadTemplate,
 } from '@core/types/thread-types.js';
+import type { CommissionPromptContext } from '../commissions/commission-context.js';
 
 /** Resolve the `__active__` agent ref placeholder to the currently active default agent
  *  (set by `!agent`). Falls back to `'main'` when no default is configured. Other names
@@ -312,14 +313,21 @@ function appendPendingMessages(
  *  - prepends a [Session Project] block when opts.project is given — the caller (conversation-runner
  *    via resolveConversationProject) passes it only on the FIRST turn of a Web UI direct session
  *    bound to a user project, so the agent knows which project the session belongs to;
+ *  - prepends a [Commission] block when opts.commission is given (fresh commission-bound sessions
+ *    only — see resolveConversationCommission): contract text, ledger digest, and the execution
+ *    protocol (DR-0037). Pure text assembly; all file I/O stays in the commissions domain loader;
  *  - NEVER injects THREAD_PROTOCOL_PREAMBLE (no artifact, no [ABORT] protocol for conversations).
  */
 export function buildConversationPrompt(
   agentConfig: AgentSlotConfig,
   input: string,
-  opts: { includeUserContext?: boolean; project?: { id: string; contextDir: string } | null } = {},
+  opts: {
+    includeUserContext?: boolean;
+    project?: { id: string; contextDir: string } | null;
+    commission?: CommissionPromptContext | null;
+  } = {},
 ): string {
-  const { includeUserContext = true, project = null } = opts;
+  const { includeUserContext = true, project = null, commission = null } = opts;
   const { template: templateStr } = pickStepTemplate(agentConfig, null);
   const vars: Record<string, string> = {
     input,
@@ -342,7 +350,33 @@ export function buildConversationPrompt(
       + `and record project-related findings and status updates there.`,
     );
   }
+  if (commission) prefixes.push(buildCommissionBlock(commission));
   if (prefixes.length > 0) prompt = prefixes.join('\n\n') + '\n\n' + prompt;
 
   return prompt.trim();
+}
+
+/** Execution protocol for commission-bound sessions (DR-0037). Deliberately compact: the four
+ *  rules the agent must not lose mid-run — surprise triage, evidence, checkpoints, gates. */
+const COMMISSION_PROTOCOL = `Commission protocol:
+1. Surprises are three kinds: an obstacle you route around; a fork you align on (send_decision for low-stakes picks, a blocking question for high-stakes ones); a discovery that invalidates a contract premise. A discovery MUST be surfaced against the contract — never silently absorbed.
+2. Completion claims need evidence pointers (file paths, command outputs, EXP ids) in ledger.md. Scope cuts and deferrals go in the plan section's 缩小/推迟 fields.
+3. Before this session ends, and at each stage boundary, append a checkpoint CP-N to ledger.md with three diffs — plan vs done, contract vs current direction, assumptions vs reality — graded ok / attention / gate. Re-read contract.md (including 修订记录) before writing it.
+4. Contract gates are blocking: ask the user and wait. A streak of approvals never downgrades a gate.`;
+
+function buildCommissionBlock(c: CommissionPromptContext): string {
+  return [
+    `[Commission] This session belongs to the commission "${c.title}" (${c.id}).`,
+    `Commission directory: ${c.dir}`,
+    `contract.md is the binding intent reference; ledger.md is your state record. Snapshots below — `
+    + `re-read the files on disk at every checkpoint, the user may have edited the contract.`,
+    '',
+    '--- contract.md ---',
+    c.contractText.trim(),
+    '',
+    '--- ledger digest ---',
+    c.ledgerDigest.trim() || '(ledger not started yet — create ledger.md from the contract before working)',
+    '',
+    COMMISSION_PROTOCOL,
+  ].join('\n');
 }

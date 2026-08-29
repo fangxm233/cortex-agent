@@ -13,8 +13,10 @@ import assert from 'node:assert/strict';
 import { buildConversationPrompt, THREAD_PROTOCOL_PREAMBLE } from '../src/domain/threads/prompt-builder.js';
 import {
   registerConversationHandle,
+  resolveConversationCommission,
   resolveConversationProject,
 } from '../src/orchestration/conversation-runner.js';
+import type { CommissionPromptContext } from '../src/domain/commissions/commission-context.js';
 import type { AgentSlotConfig } from '../src/core/types/thread-types.js';
 import type { Project } from '../src/domain/projects/project-types.js';
 
@@ -130,4 +132,52 @@ test('resolveConversationProject returns null when the project is unknown to the
     channel: 'web:abc123', projectId: 'deleted-proj', isFreshSession: true, store: makeStore([userProject]),
   });
   assert.equal(p, null);
+});
+
+// ── [Commission] block ──────────────────────────────────────────────────────
+
+const commissionCtx: CommissionPromptContext = {
+  id: 'comm-1',
+  title: 'Ship the parser',
+  dir: '/ctx/projects/proj-a/commissions/ship-the-parser',
+  contractText: 'CONTRACT BODY',
+  ledgerDigest: 'LEDGER DIGEST',
+};
+
+test('buildConversationPrompt injects the commission block with contract, ledger and protocol', () => {
+  const prompt = buildConversationPrompt(makeAgentConfig({ directive: '' }), 'hello', {
+    project: { id: 'proj-a', contextDir: '/ctx/projects/proj-a' },
+    commission: commissionCtx,
+  });
+  assert.match(prompt, /\[Commission\] This session belongs to the commission "Ship the parser" \(comm-1\)/);
+  assert.match(prompt, /CONTRACT BODY/);
+  assert.match(prompt, /LEDGER DIGEST/);
+  assert.match(prompt, /Commission protocol:/);
+  assert.ok(prompt.indexOf('[Session Project]') < prompt.indexOf('[Commission]'), 'commission block follows the project block');
+  assert.ok(prompt.endsWith('hello'));
+});
+
+test('buildConversationPrompt with an empty ledger digest points the agent at creating ledger.md', () => {
+  const prompt = buildConversationPrompt(makeAgentConfig({ directive: '' }), 'hi', {
+    commission: { ...commissionCtx, ledgerDigest: '' },
+  });
+  assert.match(prompt, /ledger not started yet/);
+});
+
+test('resolveConversationCommission loads the context only for commission-bound sessions', async () => {
+  const load = (async (id: string) => ({ ...commissionCtx, id })) as typeof import('../src/domain/commissions/commission-context.js').loadCommissionPromptContext;
+  const bound = await resolveConversationCommission('sess-1', {
+    getSession: async () => ({ commissionId: 'comm-9' }), load,
+  });
+  assert.equal(bound?.id, 'comm-9');
+
+  const unbound = await resolveConversationCommission('sess-1', {
+    getSession: async () => ({ commissionId: null }), load,
+  });
+  assert.equal(unbound, null);
+
+  const failing = await resolveConversationCommission('sess-1', {
+    getSession: async () => { throw new Error('registry down'); }, load,
+  });
+  assert.equal(failing, null, 'injection is best-effort — failures inject nothing');
 });

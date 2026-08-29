@@ -20,6 +20,7 @@ import { resolveAgentSlotConfigByName, resolveSystemVars, buildConversationPromp
 import { projectStore } from '@domain/projects/index.js';
 import type { Project } from '@domain/projects/index.js';
 import * as executionRegistry from '@domain/executions/registry.js';
+import { loadCommissionPromptContext, type CommissionPromptContext } from '@domain/commissions/commission-context.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { runningExecutions } from '../core/running-executions.js';
 import { buildPrompt as buildAgentPrompt } from '../agent-adapter/normalize/prompt-builder.js';
@@ -117,6 +118,29 @@ export function resolveConversationProject(args: {
 }
 
 /**
+ * Load the [Commission] injection payload for a fresh commission-bound session, or null for
+ * ordinary sessions. Same first-turn-only economics as USER.md / [Session Project]: resume keeps
+ * the block in backend history, and mid-run contract edits reach the agent through the checkpoint
+ * protocol's mandatory re-read, not through re-injection. Best-effort: any failure injects nothing.
+ */
+export async function resolveConversationCommission(
+  trackSessionId: string,
+  deps: {
+    getSession?: (id: string) => Promise<{ commissionId?: string | null } | null>;
+    load?: typeof loadCommissionPromptContext;
+  } = {},
+): Promise<CommissionPromptContext | null> {
+  try {
+    const getSession = deps.getSession ?? ((id: string) => sessionStore.getById(id));
+    const session = await getSession(trackSessionId);
+    if (!session?.commissionId) return null;
+    return await (deps.load ?? loadCommissionPromptContext)(session.commissionId);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Execute a single plain user-conversation turn against the active default agent — no thread,
  * no workspace, no artifact. Mirrors the legacy default-thread branch of runThread() exactly
  * (channel session reuse, useCoreMcp:false, isUserInitiated:true, single step) and the
@@ -140,6 +164,9 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
     // Web UI direct sessions are bound to a project at create time; tell the agent which one
     // on the session's first turn (see resolveConversationProject for the exact gating).
     project: resolveConversationProject({ channel: opts.channel, projectId: opts.projectId, isFreshSession }),
+    // Commission-bound sessions additionally get the contract + ledger digest + protocol block
+    // on their first turn (see resolveConversationCommission).
+    commission: isFreshSession ? await resolveConversationCommission(opts.trackSessionId) : null,
   });
   opts.onPromptBuilt?.(buildBackendPrompt(prompt, opts.files));
   // Attribute cost/execution to the session's bound project (from the registry record), NOT a
