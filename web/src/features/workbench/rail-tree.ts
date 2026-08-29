@@ -1,10 +1,13 @@
-// input:  project/session/schedule/thread DTOs plus rail UI state
-// output: one flat list of project folder nodes with their session and schedule rows
+// input:  project/session/schedule/commission/thread DTOs plus rail UI state
+// output: one flat list of project folder nodes with their session, schedule and commission rows
 // pos:    Pure view model behind the left rail's project folder tree
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import type { ProjectConduitInfo, ScheduleInfo, SessionInfo, ThreadInfo } from '@cortex-agent/ui-contract';
+import type {
+  CommissionInfo, ProjectConduitInfo, ScheduleInfo, SessionInfo, ThreadInfo,
+} from '@cortex-agent/ui-contract';
 import { buildScheduleRows, unreadScheduleCount, type ScheduleRow } from './schedule-rail';
+import { buildCommissionRows, commissionSessionIds, unreadCommissionCount } from './commission-rail';
 import { lastActivityByProject, relativeAge, sortProjectsByActivity } from './left-rail-projects';
 import {
   awaitingInputCountByProject,
@@ -38,6 +41,21 @@ export interface RailSessionRow {
   selected: boolean;
 }
 
+/** A commission folder: one long-horizon task, expanding in place to the sessions working on it. */
+export interface RailCommissionRow {
+  commissionId: string;
+  projectId: string;
+  title: string;
+  status: 'active' | 'done' | 'abandoned';
+  expanded: boolean;
+  /** Any member session running / unread / blocked on the user — rolled up onto the folder row. */
+  running: boolean;
+  unread: boolean;
+  awaitingInput: boolean;
+  sessions: RailSessionRow[];
+  totalSessions: number;
+}
+
 export interface RailProjectNode {
   id: string;
   /** The project holding the selected session — the rail's only notion of "current". */
@@ -64,6 +82,9 @@ export interface RailProjectNode {
   schedules: ScheduleRow[];
   schedulesExpanded: boolean;
   scheduleUnread: number;
+  commissions: RailCommissionRow[];
+  commissionsExpanded: boolean;
+  commissionUnread: number;
   /** Sessions matching the active filter; null when no filter is active. */
   matchCount: number | null;
 }
@@ -73,12 +94,17 @@ export interface RailTreeInput {
   directSessions: SessionInfo[];
   scheduledSessions: SessionInfo[];
   schedules: ScheduleInfo[];
+  commissions: CommissionInfo[];
   threads: ThreadInfo[];
   selectedSessionId: string | null;
   /** Project to call current while the selection owns none — a draft session, or none at all. */
   fallbackProjectId: string | null;
   expanded: ReadonlySet<string>;
   schedulesExpanded: ReadonlySet<string>;
+  /** Projects whose COMMISSION group section is open — keyed by project id. */
+  commissionsExpanded: ReadonlySet<string>;
+  /** Individual commission folders that are open — keyed by commission id. */
+  expandedCommissions: ReadonlySet<string>;
   showAll: ReadonlySet<string>;
   /** Free-text session filter; empty string means no filter. */
   filter: string;
@@ -163,10 +189,22 @@ export function projectOfSession(
 
 export function buildRailTree(input: RailTreeInput): RailTree {
   const {
-    projects, directSessions, scheduledSessions, schedules, threads,
-    selectedSessionId, fallbackProjectId, expanded, schedulesExpanded, showAll,
+    projects, directSessions, scheduledSessions, schedules, commissions, threads,
+    selectedSessionId, fallbackProjectId, expanded, schedulesExpanded,
+    commissionsExpanded, expandedCommissions, showAll,
     sort, manualOrder, dragged, now,
   } = input;
+  const toSessionRow = (s: SessionInfo): RailSessionRow => ({
+    sessionId: s.sessionId,
+    projectId: s.projectId,
+    title: sessionTitle(s),
+    age: relativeAge(effectiveMs(s), now),
+    stamp: sessionTooltipStamp(s),
+    running: !!s.running,
+    awaitingInput: !!s.awaitingInput,
+    unread: !!s.unread,
+    selected: s.sessionId === selectedSessionId,
+  });
   const cap = input.cap ?? FOLDER_SESSION_CAP;
   const filter = input.filter.trim();
   const filtering = filter.length > 0;
@@ -186,6 +224,12 @@ export function buildRailTree(input: RailTreeInput): RailTree {
     if (list) list.push(schedule);
     else schedulesByProject.set(schedule.projectId, [schedule]);
   }
+  const commissionsByProject = new Map<string, CommissionInfo[]>();
+  for (const commission of commissions) {
+    const list = commissionsByProject.get(commission.projectId);
+    if (list) list.push(commission);
+    else commissionsByProject.set(commission.projectId, [commission]);
+  }
 
   const activityOrder = sortProjectsByActivity(projects, lastActivity).map((p) => p.id);
   const order = resolveRailOrder(sort, activityOrder, manualOrder, dragged);
@@ -201,7 +245,12 @@ export function buildRailTree(input: RailTreeInput): RailTree {
   let hotkeyIndex = 0;
   let totalMatches = 0;
   const nodes: RailProjectNode[] = orderedProjects.map((project) => {
-    const own = sessionsByProject.get(project.id) ?? [];
+    const allOwn = sessionsByProject.get(project.id) ?? [];
+    // A commission owns its sessions outright: they hang under the commission folder and are gone
+    // from the project's flat list, so no session renders in two places at once.
+    const commissionRows = buildCommissionRows(commissionsByProject.get(project.id) ?? [], allOwn);
+    const claimed = commissionSessionIds(commissionRows);
+    const own = claimed.size ? allOwn.filter((s) => !claimed.has(s.sessionId)) : allOwn;
     const scheduleRows = buildScheduleRows(
       schedulesByProject.get(project.id) ?? [],
       scheduledByProject.get(project.id) ?? [],
@@ -213,10 +262,37 @@ export function buildRailTree(input: RailTreeInput): RailTree {
     // one alarm colour makes the real asks stop registering.
     const badge = projectAttentionBadge(unreadCounts[project.id] ?? 0, actionCounts[project.id] ?? 0);
     const attention = badge.count;
-    const empty = own.length === 0 && scheduleRows.length === 0 && running === 0;
+    const empty =
+      own.length === 0 && scheduleRows.length === 0 && commissionRows.length === 0 && running === 0;
 
     const matching = filtering ? own.filter((s) => sessionMatchesFilter(s, filter)) : own;
-    if (filtering) totalMatches += matching.length;
+
+    // Commission folders filter on their own sessions and, while filtering, open themselves to the
+    // hits — a match hidden two levels down is a match the user cannot see.
+    let commissionMatches = 0;
+    const railCommissions: RailCommissionRow[] = [];
+    for (const row of commissionRows) {
+      const members = filtering
+        ? row.sessions.filter((s) => sessionMatchesFilter(s, filter))
+        : row.sessions;
+      if (filtering) {
+        commissionMatches += members.length;
+        if (members.length === 0) continue;
+      }
+      railCommissions.push({
+        commissionId: row.commissionId,
+        projectId: row.projectId,
+        title: row.title,
+        status: row.status,
+        expanded: filtering ? true : expandedCommissions.has(row.commissionId),
+        running: row.running,
+        unread: row.unread,
+        awaitingInput: row.awaitingInput,
+        sessions: orderSessions(members).map(toSessionRow),
+        totalSessions: row.sessions.length,
+      });
+    }
+    if (filtering) totalMatches += matching.length + commissionMatches;
 
     // A filter expands every folder that has a hit and shows all of them — capping a search result
     // would hide the very row the user is looking for.
@@ -231,7 +307,9 @@ export function buildRailTree(input: RailTreeInput): RailTree {
     return {
       id: project.id,
       current: project.id === currentProjectId,
-      expanded: filtering ? matching.length > 0 : expanded.has(project.id),
+      expanded: filtering
+        ? matching.length + commissionMatches > 0
+        : expanded.has(project.id),
       empty,
       running,
       attention,
@@ -239,17 +317,7 @@ export function buildRailTree(input: RailTreeInput): RailTree {
       hotkey,
       idleAge:
         !hasSignal && typeof activityMs === 'number' ? relativeAge(activityMs, now) : null,
-      sessions: visible.map((s) => ({
-        sessionId: s.sessionId,
-        projectId: s.projectId,
-        title: sessionTitle(s),
-        age: relativeAge(effectiveMs(s), now),
-        stamp: sessionTooltipStamp(s),
-        running: !!s.running,
-        awaitingInput: !!s.awaitingInput,
-        unread: !!s.unread,
-        selected: s.sessionId === selectedSessionId,
-      })),
+      sessions: visible.map(toSessionRow),
       hiddenSessions: Math.max(0, rows.length - visible.length),
       // A filter uncaps the folder on its own, so it offers no "show fewer" — closing the search is
       // the way back from that one.
@@ -258,7 +326,12 @@ export function buildRailTree(input: RailTreeInput): RailTree {
       schedules: scheduleRows,
       schedulesExpanded: schedulesExpanded.has(project.id),
       scheduleUnread: unreadScheduleCount(scheduleRows),
-      matchCount: filtering ? matching.length : null,
+      commissions: railCommissions,
+      commissionsExpanded: filtering
+        ? commissionMatches > 0
+        : commissionsExpanded.has(project.id),
+      commissionUnread: unreadCommissionCount(commissionRows),
+      matchCount: filtering ? matching.length + commissionMatches : null,
     };
   });
 

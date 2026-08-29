@@ -1,5 +1,5 @@
-// input:  workspace paths, authenticated HTTP config, and typed native download capabilities
-// output: URL builder, blob fetch, download, clipboard, open, and reveal helpers
+// input:  workspace/commission paths, authenticated HTTP config, and typed native download capabilities
+// output: URL builders, blob fetch, download, clipboard, open, and reveal helpers
 // pos:    Cross-runtime file transport for chat cards and native download-complete actions
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -7,6 +7,7 @@ import { apiBase, authHeaders, isNativeShell, isMobileShell } from './desktop-co
 import { hasNativeCapability, safeInvoke, type NativeInvokeResult } from './native-bridge';
 
 const DOWNLOAD_PATH = '/api/files/download';
+const COMMISSION_ASSET_PATH = '/api/commissions/asset';
 
 // A plain browser download is a no-op inside native WebViews, so shell modes use native commands.
 // The canonical bridge keeps missing/older shell capabilities observable without touching globals.
@@ -15,6 +16,27 @@ const DOWNLOAD_PATH = '/api/files/download';
 export function fileDownloadUrl(relPath: string, disposition: 'inline' | 'attachment' = 'attachment'): string {
   const qs = new URLSearchParams({ path: relPath, disposition });
   return `${apiBase()}${DOWNLOAD_PATH}?${qs.toString()}`;
+}
+
+/** Build the URL for a commission asset. `relPath` is project-root relative and must stay inside
+ *  `commissions/` — the server enforces that; this only builds the query. */
+export function commissionAssetUrl(
+  projectId: string,
+  relPath: string,
+  disposition: 'inline' | 'attachment' = 'inline',
+): string {
+  const qs = new URLSearchParams({ projectId, path: relPath, disposition });
+  return `${apiBase()}${COMMISSION_ASSET_PATH}?${qs.toString()}`;
+}
+
+/** Fetch a commission asset's bytes (authenticated) and return an object URL. Caller revokes it. */
+export async function fetchCommissionAssetObjectUrl(
+  projectId: string,
+  relPath: string,
+): Promise<string> {
+  const res = await fetch(commissionAssetUrl(projectId, relPath, 'inline'), { headers: authHeaders() });
+  if (!res.ok) throw new Error(`commission asset failed: ${res.status}`);
+  return URL.createObjectURL(await res.blob());
 }
 
 /** Fetch a workspace file's bytes (authenticated) and return an object URL. Caller revokes it. */

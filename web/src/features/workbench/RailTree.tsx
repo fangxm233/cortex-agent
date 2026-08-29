@@ -5,7 +5,7 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { useVocab } from '@/i18n';
 import { ProjectFolderIcon } from './ProjectFolderIcon';
-import type { RailProjectNode, RailSessionRow } from './rail-tree';
+import type { RailCommissionRow, RailProjectNode, RailSessionRow } from './rail-tree';
 import type { RailSortMode } from './rail-order';
 import { scheduleSubline, type ScheduleRow } from './schedule-rail';
 
@@ -71,6 +71,29 @@ function ClockIcon({ size = 11 }: { size?: number }): JSX.Element {
   );
 }
 
+/** A commission is a standing contract, not a clock — the pennant keeps it visually apart from the
+ *  schedule rows it shares an indent with. */
+function CommissionIcon({ size = 11 }: { size?: number }): JSX.Element {
+  return (
+    <svg width={size} height={size} viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flex: 'none' }}>
+      <path d="M3.7 1.9v10.2" />
+      <path d="M3.7 2.7h6.8L9.1 5l1.4 2.3H3.7z" />
+    </svg>
+  );
+}
+
+function CaretIcon({ open, size = 9 }: { open: boolean; size?: number }): JSX.Element {
+  return (
+    <svg
+      width={size} height={size} viewBox="0 0 12 12" fill="none" stroke="currentColor"
+      strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+      style={{ flex: 'none', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 120ms ease' }}
+    >
+      <path d="M4.5 2.5L8.5 6l-4 3.5" />
+    </svg>
+  );
+}
+
 function IconButton({ label, active, onClick, children }: {
   label: string;
   active?: boolean;
@@ -118,6 +141,12 @@ export interface RailTreeProps {
   onNewProject: () => void;
   onToggleProject: (id: string) => void;
   onToggleSchedules: (id: string) => void;
+  /** Opens/closes a project's COMMISSION section. */
+  onToggleCommissions: (id: string) => void;
+  /** Opens/closes one commission folder's session list. */
+  onToggleCommission: (commissionId: string) => void;
+  /** Opens the commission board — the row is a board entry point, not a route. */
+  onOpenCommission: (commissionId: string) => void;
   onShowAll: (id: string) => void;
   onShowFewer: (id: string) => void;
   onOpenSession: (row: RailSessionRow) => void;
@@ -262,7 +291,10 @@ export function RailTree(props: RailTreeProps): JSX.Element {
     );
   };
 
-  const renderSession = (row: RailSessionRow) => {
+  // `indent` is the title's left edge; the selection spine and the status dot ride 16px and 11px
+  // to its left, so a session nested under a commission keeps the same internal geometry one level
+  // deeper rather than re-deriving three magic numbers.
+  const renderSession = (row: RailSessionRow, indent = 28) => {
     const key = 'sess:' + row.sessionId;
     return (
       <div
@@ -279,7 +311,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
           minHeight: 28,
           // 28 = the folder glyph's 4 + its 17 + the row gap: every session title starts exactly
           // under its project's name.
-          padding: '5px 8px 5px 28px',
+          padding: `5px 8px 5px ${indent}px`,
           borderRadius: 7,
           cursor: 'pointer',
           background: row.selected
@@ -292,7 +324,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
         {row.selected && (
           <span
             aria-hidden="true"
-            style={{ position: 'absolute', left: 12, top: 5, bottom: 5, width: 2, borderRadius: 1, background: 'var(--proto-accent)' }}
+            style={{ position: 'absolute', left: indent - 16, top: 5, bottom: 5, width: 2, borderRadius: 1, background: 'var(--proto-accent)' }}
           />
         )}
         {(row.running || row.awaitingInput) && (
@@ -301,7 +333,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
           <span
             style={{
               position: 'absolute',
-              left: 17,
+              left: indent - 11,
               width: 6,
               height: 6,
               borderRadius: '50%',
@@ -370,6 +402,85 @@ export function RailTree(props: RailTreeProps): JSX.Element {
         <span style={{ font: `500 9px ${mono}`, color: 'var(--proto-muted-3)', flex: 'none' }}>
           {row.kind === 'repeat' ? `×${row.runs.length}` : L.wbSchedOnce}
         </span>
+      </div>
+    );
+  };
+
+  // The caret and the row body do different things on purpose: the caret unfolds the sessions in
+  // place, the body opens the board. A commission's own state lives on the board, so making the
+  // whole row a disclosure would leave the board with no entry point from the tree.
+  const renderCommissionRow = (row: RailCommissionRow) => {
+    const key = 'comm:' + row.commissionId;
+    const closed = row.status !== 'active';
+    return (
+      <div key={key}>
+        <div
+          {...hp(key)}
+          data-commission-row={row.commissionId}
+          title={row.title}
+          onClick={() => props.onOpenCommission(row.commissionId)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5,
+            minHeight: 26,
+            padding: '4px 8px 4px 28px',
+            borderRadius: 7,
+            cursor: 'pointer',
+            fontSize: 12.5,
+            opacity: closed ? 0.6 : 1,
+            color: row.unread ? 'var(--proto-ink)' : 'var(--proto-muted)',
+            fontWeight: row.unread ? 600 : 400,
+            background: isHover(key) ? 'var(--proto-gray)' : 'transparent',
+          }}
+        >
+          <span
+            role="button"
+            aria-label={row.expanded ? L.wbCommissionCollapse : L.wbCommissionExpand}
+            onClick={(e) => {
+              e.stopPropagation();
+              props.onToggleCommission(row.commissionId);
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              flex: 'none',
+              width: 12,
+              color: 'var(--proto-muted-3)',
+              visibility: row.totalSessions > 0 ? 'visible' : 'hidden',
+            }}
+          >
+            <CaretIcon open={row.expanded} />
+          </span>
+          <span
+            style={{
+              color: row.awaitingInput
+                ? 'var(--proto-amber)'
+                : row.running
+                  ? 'var(--proto-accent)'
+                  : 'var(--proto-muted-3)',
+              display: 'flex',
+              flex: 'none',
+            }}
+          >
+            <CommissionIcon />
+          </span>
+          <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {row.title}
+          </span>
+          {closed ? (
+            <span style={{ font: `500 9px ${mono}`, color: 'var(--proto-muted-3)', flex: 'none' }}>
+              {row.status === 'done' ? L.wbCommissionDone : L.wbCommissionAbandoned}
+            </span>
+          ) : (
+            row.totalSessions > 0 && (
+              <span style={{ font: `500 9px ${mono}`, color: 'var(--proto-muted-3)', flex: 'none' }}>
+                ×{row.totalSessions}
+              </span>
+            )
+          )}
+        </div>
+        {row.expanded && row.sessions.map((s) => renderSession(s, 52))}
       </div>
     );
   };
@@ -552,7 +663,41 @@ export function RailTree(props: RailTreeProps): JSX.Element {
               aria-hidden="true"
               style={{ position: 'absolute', left: 12, top: -2, bottom: 5, width: 1, background: 'var(--proto-line)' }}
             />
-            {node.sessions.map(renderSession)}
+            {/* Commissions sit ABOVE the loose sessions: they are the standing work of the project,
+                and a long task that scrolls under eight ad-hoc chats stops being an anchor. */}
+            {node.commissions.length > 0 && (
+              <>
+                <div
+                  {...hp('commhead:' + node.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    props.onToggleCommissions(node.id);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '4px 8px 5px 28px',
+                    fontSize: 11.5,
+                    cursor: 'pointer',
+                    color: isHover('commhead:' + node.id) ? 'var(--proto-ink-2)' : 'var(--proto-muted-2)',
+                  }}
+                >
+                  <CommissionIcon />
+                  {L.wbCommissionGroup}
+                  <span style={{ font: `500 9.5px ${mono}`, color: 'var(--proto-muted-3)' }}>
+                    · {node.commissions.length}
+                  </span>
+                  {node.commissionUnread > 0 && !node.commissionsExpanded && (
+                    <span style={{ marginLeft: 'auto', font: `500 9.5px ${mono}`, color: 'var(--proto-accent)' }}>
+                      {L.wbSchedUnread.replace('{n}', String(node.commissionUnread))}
+                    </span>
+                  )}
+                </div>
+                {node.commissionsExpanded && node.commissions.map(renderCommissionRow)}
+              </>
+            )}
+            {node.sessions.map((s) => renderSession(s))}
             {/* The cap has two directions and only ever one link: open the rest, or take it back.
                 Without the second the folder would stay uncapped for the rest of the visit. */}
             {(node.hiddenSessions > 0 || node.showingAll) && (

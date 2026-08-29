@@ -10,6 +10,7 @@ import {
   isProfileConfigChanged,
   matchesLiveEvent,
   ASSISTANT_DELTA_EVENTS,
+  COMMISSION_LIVE_EVENTS,
   CONFIG_LIVE_EVENTS,
   RATE_LIMIT_LIVE_EVENTS,
   LIVE_EVENT_TYPES,
@@ -25,7 +26,7 @@ const ev = (type: string, payload?: Record<string, unknown>): LiveEvent => ({ ty
 
 describe('LIVE_EVENT_TYPES', () => {
   it('is the union of every consumer group — a group event missing here would never reach its hook', () => {
-    for (const t of [...SESSION_LIVE_EVENTS, ...THREAD_LIVE_EVENTS, ...TASK_LIVE_EVENTS, ...SYSTEM_LIVE_EVENTS, ...CONFIG_LIVE_EVENTS, ...RATE_LIMIT_LIVE_EVENTS]) {
+    for (const t of [...SESSION_LIVE_EVENTS, ...THREAD_LIVE_EVENTS, ...TASK_LIVE_EVENTS, ...SYSTEM_LIVE_EVENTS, ...CONFIG_LIVE_EVENTS, ...RATE_LIMIT_LIVE_EVENTS, ...COMMISSION_LIVE_EVENTS]) {
       expect(LIVE_EVENT_TYPES).toContain(t);
     }
   });
@@ -59,6 +60,12 @@ describe('RATE_LIMIT_LIVE_EVENTS', () => {
   it('carries the content-free throttle refresh hint on the shared stream', () => {
     expect(RATE_LIMIT_LIVE_EVENTS).toEqual(['rate-limit.changed']);
     expect(LIVE_EVENT_TYPES).toContain('rate-limit.changed');
+  });
+});
+
+describe('COMMISSION_LIVE_EVENTS', () => {
+  it('carries the registry-changed hint the board and rail refetch on', () => {
+    expect(COMMISSION_LIVE_EVENTS).toEqual(['commission.updated']);
   });
 });
 

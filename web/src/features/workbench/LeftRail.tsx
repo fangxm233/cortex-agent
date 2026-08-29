@@ -30,6 +30,8 @@ import { PaneToggle } from './PaneToggle';
 import { useApprovals } from '@/features/approvals/ApprovalsProvider';
 import { useSettings } from '@/features/settings/SettingsProvider';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
+import { useCommissionBoard } from '@/features/commission/CommissionBoardModalProvider';
+import { useCommissionLiveSync } from '@/features/commission/useCommissionLiveSync';
 import { useSelectedSession } from './SelectedSessionProvider';
 import { isNewSessionShortcut } from './selected-session';
 import { useVocab } from '@/i18n';
@@ -50,6 +52,8 @@ const RAIL_COLLAPSED_WIDTH = 42;
 const RAIL_COLLAPSED_KEY = 'cortex:left-rail-collapsed';
 const EXPANDED_KEY = 'cortex.railExpanded';
 const SCHED_EXPANDED_KEY = 'cortex.railSchedExpanded';
+const COMM_EXPANDED_KEY = 'cortex.railCommExpanded';
+const COMM_OPEN_KEY = 'cortex.railCommOpen';
 
 function loadIdSet(key: string): Set<string> {
   try {
@@ -210,10 +214,14 @@ export function LeftRail(): JSX.Element {
   const directSessionsQuery = useAllSessions('direct');
   const scheduledSessionsQuery = useAllSessions('scheduled');
   const schedulesQuery = useQuery(trpc.schedules.list.queryOptions({}));
+  const commissionsQuery = useQuery(trpc.commissions.list.queryOptions({}));
   const threadsQuery = useQuery(trpc.threads.list.queryOptions({}));
   const scheduleModal = useScheduleModal();
+  const commissionBoard = useCommissionBoard();
   // Keep every row's running dot live: one unscoped session.status subscription → refetch the list.
   useSessionsLiveSync();
+  // Keep commission rows current: approval landings, decision projections and closes.
+  useCommissionLiveSync();
 
   const { currentProjectId, setCurrentProject, setProjectOrder } = useCurrentProject();
   const { selectedSessionId, setSelectedSession } = useSelectedSession();
@@ -229,6 +237,8 @@ export function LeftRail(): JSX.Element {
   // an uncapped folder is a deliberate act for one look, not a standing preference.
   const [expanded, setExpanded] = useState<Set<string>>(() => loadIdSet(EXPANDED_KEY));
   const [schedExpanded, setSchedExpanded] = useState<Set<string>>(() => loadIdSet(SCHED_EXPANDED_KEY));
+  const [commExpanded, setCommExpanded] = useState<Set<string>>(() => loadIdSet(COMM_EXPANDED_KEY));
+  const [openCommissions, setOpenCommissions] = useState<Set<string>>(() => loadIdSet(COMM_OPEN_KEY));
   const [showAll, setShowAll] = useState<Set<string>>(() => new Set());
   const [searchOpen, setSearchOpen] = useState(false);
   const [filter, setFilter] = useState('');
@@ -265,6 +275,8 @@ export function LeftRail(): JSX.Element {
   // Closing a folder also forgets that it was uncapped, so re-opening it starts at the cap again
   // rather than dumping every session back into the rail.
   const toggleSchedules = toggleId(setSchedExpanded, SCHED_EXPANDED_KEY);
+  const toggleCommissions = toggleId(setCommExpanded, COMM_EXPANDED_KEY);
+  const toggleCommission = toggleId(setOpenCommissions, COMM_OPEN_KEY);
   const toggleProjectExpansion = toggleId(setExpanded, EXPANDED_KEY);
   const toggleProject = (id: string) => {
     if (expanded.has(id)) showFewer(id);
@@ -289,11 +301,14 @@ export function LeftRail(): JSX.Element {
         directSessions,
         scheduledSessions,
         schedules: schedulesQuery.data ?? [],
+        commissions: commissionsQuery.data ?? [],
         threads: threadsQuery.data ?? [],
         selectedSessionId,
         fallbackProjectId: currentProjectId,
         expanded,
         schedulesExpanded: schedExpanded,
+        commissionsExpanded: commExpanded,
+        expandedCommissions: openCommissions,
         showAll,
         filter,
         sort,
@@ -303,9 +318,9 @@ export function LeftRail(): JSX.Element {
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
-      projects, directSessions, scheduledSessions, schedulesQuery.data, threadsQuery.data,
-      selectedSessionId, currentProjectId, expanded, schedExpanded, showAll, filter, sort,
-      manualOrder, dragged,
+      projects, directSessions, scheduledSessions, schedulesQuery.data, commissionsQuery.data,
+      threadsQuery.data, selectedSessionId, currentProjectId, expanded, schedExpanded,
+      commExpanded, openCommissions, showAll, filter, sort, manualOrder, dragged,
     ],
   );
 
@@ -618,6 +633,9 @@ export function LeftRail(): JSX.Element {
           onNewProject={() => setNewProjOpen(true)}
           onToggleProject={toggleProject}
           onToggleSchedules={toggleSchedules}
+          onToggleCommissions={toggleCommissions}
+          onToggleCommission={toggleCommission}
+          onOpenCommission={commissionBoard.openCommission}
           onShowAll={(id) => setShowAll((prev) => new Set(prev).add(id))}
           onShowFewer={showFewer}
           onOpenSession={onOpenSession}

@@ -98,6 +98,9 @@ export const CONFIG_LIVE_EVENTS = ['config.changed'] as const;
 /** Provider rate-limit state changed; consumers refetch the authoritative snapshot. */
 export const RATE_LIMIT_LIVE_EVENTS = ['rate-limit.changed'] as const;
 
+/** Commission registry changed: approval landing, decision projection, or close. */
+export const COMMISSION_LIVE_EVENTS = ['commission.updated'] as const;
+
 /**
  * The FIXED union the shared stream subscribes to. Fixed rather than reference-counted over the
  * mounted listeners: the union is small and known, and a dynamic one would tear down and re-open the
@@ -112,6 +115,7 @@ export const LIVE_EVENT_TYPES: readonly string[] = [
   ...SYSTEM_LIVE_EVENTS,
   ...CONFIG_LIVE_EVENTS,
   ...RATE_LIMIT_LIVE_EVENTS,
+  ...COMMISSION_LIVE_EVENTS,
 ];
 
 /** True only for the structured hint emitted after profiles.json reloads successfully. */

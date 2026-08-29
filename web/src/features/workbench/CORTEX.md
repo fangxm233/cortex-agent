@@ -7,9 +7,9 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 |---|---|---|
 | WorkbenchPage.tsx | entry | Composes panes and global workbench actions |
 | LeftRail.tsx | view | Frames the project tree and publishes its rendered project order |
-| RailTree.tsx | view | Renders project folders with their sessions and schedules |
-| rail-tree.ts | vm | Builds project folder nodes with session and schedule rows |
-| rail-tree.test.ts | test | Tests folder ordering, capping, filtering and badges |
+| RailTree.tsx | view | Renders project folders with their sessions, schedules and commission folders |
+| rail-tree.ts | vm | Builds project folder nodes with session, schedule and commission rows |
+| rail-tree.test.ts | test | Tests folder ordering, capping, filtering, commission grouping and badges |
 | rail-order.ts | vm | Persists the rail's manual and activity project order |
 | rail-order.test.ts | test | Tests order reconciliation, moves and mode resolution |
 | ProjectFolderIcon.tsx | view | Draws the open or closed project folder glyph |
@@ -20,6 +20,8 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | NewProjectModal.tsx | view | Presents desktop creation in the shared accessible bare dialog through the projects controller |
 | session-groups.ts | vm | Day-groups sessions with meta and stamp helpers |
 | session-groups.test.ts | test | Tests SessionInfo-aware day grouping |
+| commission-rail.ts | vm | Builds COMMISSION rows with member sessions, signal rollup and open-first ordering |
+| commission-rail.test.ts | test | Tests commission membership, rollup, ordering and title fallback |
 | schedule-rail.ts | vm | Builds SCHEDULED rows, shared-USD costs, run ordinals and real ScheduleInfo edit actions |
 | schedule-rail.test.ts | test | Tests SessionInfo grouping, ordinals and edit routing |
 | RunListModal.tsx | view | Accessible bare run-list dialog with canonical USD costs and schedule-manage handoff |

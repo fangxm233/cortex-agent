@@ -1,10 +1,11 @@
-// input:  project, session, schedule and thread fixtures with rail UI state
-// output: folder-tree bucketing, capping, ordering and filter tests
+// input:  project, session, schedule, commission and thread fixtures with rail UI state
+// output: folder-tree bucketing, capping, ordering, commission grouping and filter tests
 // pos:    Verifies the left rail's project folder tree view model
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { describe, it, expect } from 'vitest';
 import type {
+  CommissionInfo,
   ProjectConduitInfo,
   ScheduleInfo,
   SessionInfo,
@@ -73,16 +74,37 @@ const schedule = (id: string, projectId: string): ScheduleInfo =>
     fallback: null,
   }) as ScheduleInfo;
 
+const commission = (
+  id: string,
+  projectId: string,
+  overrides: Partial<CommissionInfo> = {},
+): CommissionInfo =>
+  ({
+    id,
+    projectId,
+    slug: 'slug-' + id,
+    title: 'commission ' + id,
+    status: 'active',
+    createdAt: ago(DAY),
+    updatedAt: ago(HOUR),
+    closedAt: null,
+    closeNote: null,
+    ...overrides,
+  }) as CommissionInfo;
+
 const input = (over: Partial<RailTreeInput> = {}): RailTreeInput => ({
   projects: [],
   directSessions: [],
   scheduledSessions: [],
   schedules: [],
+  commissions: [],
   threads: [],
   selectedSessionId: null,
   fallbackProjectId: null,
   expanded: new Set<string>(),
   schedulesExpanded: new Set<string>(),
+  commissionsExpanded: new Set<string>(),
+  expandedCommissions: new Set<string>(),
   showAll: new Set<string>(),
   filter: '',
   sort: 'activity',
@@ -508,5 +530,120 @@ describe('buildRailTree ordering modes', () => {
       input({ ...base, sort: 'manual', manualOrder: ['atlas', 'nimbus'] }),
     );
     expect(tree.projects.map((p) => p.id)).toEqual(['atlas', 'nimbus', 'orchard']);
+  });
+});
+
+describe('buildRailTree commission grouping', () => {
+  it('moves a commission session under its folder and out of the flat list', () => {
+    const bound = session('atlas', { commissionId: 'c1', label: 'drilling' });
+    const loose = session('atlas', { label: 'unrelated' });
+    const tree = buildRailTree(
+      input({
+        projects: [project('atlas')],
+        directSessions: [bound, loose],
+        commissions: [commission('c1', 'atlas')],
+        expanded: new Set(['atlas']),
+        commissionsExpanded: new Set(['atlas']),
+        expandedCommissions: new Set(['c1']),
+      }),
+    );
+
+    const node = tree.projects[0];
+    expect(node.sessions.map((s) => s.sessionId)).toEqual([loose.sessionId]);
+    expect(node.commissions.map((c) => c.commissionId)).toEqual(['c1']);
+    expect(node.commissions[0].sessions.map((s) => s.sessionId)).toEqual([bound.sessionId]);
+    expect(node.commissions[0].totalSessions).toBe(1);
+  });
+
+  it('keeps a session whose commission id resolves to nothing in the flat list', () => {
+    const orphan = session('atlas', { commissionId: 'gone' });
+    const tree = buildRailTree(
+      input({
+        projects: [project('atlas')],
+        directSessions: [orphan],
+        commissions: [],
+        expanded: new Set(['atlas']),
+      }),
+    );
+
+    expect(tree.projects[0].sessions.map((s) => s.sessionId)).toEqual([orphan.sessionId]);
+    expect(tree.projects[0].commissions).toEqual([]);
+  });
+
+  it('rolls member signal up onto the folder row', () => {
+    const tree = buildRailTree(
+      input({
+        projects: [project('atlas')],
+        directSessions: [
+          session('atlas', { commissionId: 'c1', unread: true }),
+          session('atlas', { commissionId: 'c1', awaitingInput: true, running: true }),
+        ],
+        commissions: [commission('c1', 'atlas')],
+      }),
+    );
+
+    const row = tree.projects[0].commissions[0];
+    expect(row.unread).toBe(true);
+    expect(row.awaitingInput).toBe(true);
+    expect(row.running).toBe(true);
+    expect(tree.projects[0].commissionUnread).toBe(1);
+  });
+
+  it('sorts open commissions above closed ones', () => {
+    const tree = buildRailTree(
+      input({
+        projects: [project('atlas')],
+        commissions: [
+          commission('closed', 'atlas', { status: 'done', updatedAt: ago(MIN) }),
+          commission('open', 'atlas', { status: 'active', updatedAt: ago(DAY) }),
+        ],
+      }),
+    );
+
+    expect(tree.projects[0].commissions.map((c) => c.commissionId)).toEqual(['open', 'closed']);
+  });
+
+  it('a project whose only life is a commission is not empty', () => {
+    const tree = buildRailTree(
+      input({ projects: [project('atlas')], commissions: [commission('c1', 'atlas')] }),
+    );
+    expect(tree.projects[0].empty).toBe(false);
+  });
+
+  it('a filter opens commission folders to their hits and counts them as matches', () => {
+    const hit = session('atlas', { commissionId: 'c1', label: 'ledger rendering' });
+    const tree = buildRailTree(
+      input({
+        projects: [project('atlas')],
+        directSessions: [hit, session('atlas', { commissionId: 'c1', label: 'other work' })],
+        commissions: [commission('c1', 'atlas')],
+        filter: 'ledger',
+      }),
+    );
+
+    const node = tree.projects[0];
+    expect(node.commissions[0].expanded).toBe(true);
+    expect(node.commissionsExpanded).toBe(true);
+    expect(node.commissions[0].sessions.map((s) => s.sessionId)).toEqual([hit.sessionId]);
+    expect(node.matchCount).toBe(1);
+    expect(tree.totalMatches).toBe(1);
+  });
+
+  it('a filter drops commission folders with no hit but keeps the project for a flat-list hit', () => {
+    const tree = buildRailTree(
+      input({
+        projects: [project('atlas')],
+        directSessions: [
+          session('atlas', { label: 'ledger work' }),
+          session('atlas', { commissionId: 'c1', label: 'unrelated' }),
+        ],
+        commissions: [commission('c1', 'atlas')],
+        filter: 'ledger',
+      }),
+    );
+
+    expect(tree.projects).toHaveLength(1);
+    expect(tree.projects[0].commissions).toEqual([]);
+    expect(tree.projects[0].matchCount).toBe(1);
   });
 });

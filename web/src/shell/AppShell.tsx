@@ -21,6 +21,7 @@ import { ConnectionStatusProvider } from '@/features/connection/ConnectionStatus
 import { LiveEventsProvider } from '@/features/live/LiveEventsProvider';
 import { ThreadDetailModalProvider } from '@/features/thread/ThreadDetailModal';
 import { TaskModalProvider } from '@/features/tasks/TaskModalProvider';
+import { CommissionBoardModalProvider } from '@/features/commission/CommissionBoardModalProvider';
 import { NotesProvider } from '@/features/notes/NotesProvider';
 
 // App shell (Stage-R RB, task f528): a pass-through layout. The prototype is a single full-screen
@@ -39,14 +40,14 @@ export function AppShell() {
       <CurrentProjectProvider><SelectedSessionProvider><NotesProvider>
         <ExecutionLogDrawerProvider><ScheduleModalProvider>
           <ApprovalsProvider><SettingsProvider><IssuesProvider>
-            <ThreadDetailModalProvider><TaskModalProvider><PinnedPreviewProvider>
+            <ThreadDetailModalProvider><TaskModalProvider><CommissionBoardModalProvider><PinnedPreviewProvider>
               <MediaViewerProvider><DocViewerProvider>
                 <Outlet />
                 <CommandPalette open={open} onOpenChange={setOpen} />
                 <NotificationProvider />
                 <UpdateProvider />
               </DocViewerProvider></MediaViewerProvider>
-            </PinnedPreviewProvider></TaskModalProvider></ThreadDetailModalProvider>
+            </PinnedPreviewProvider></CommissionBoardModalProvider></TaskModalProvider></ThreadDetailModalProvider>
           </IssuesProvider></SettingsProvider></ApprovalsProvider>
         </ScheduleModalProvider></ExecutionLogDrawerProvider>
       </NotesProvider></SelectedSessionProvider></CurrentProjectProvider>

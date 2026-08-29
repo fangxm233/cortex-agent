@@ -10,6 +10,7 @@ Native-facing features consume `lib/native-bridge.ts`; they do not redeclare or 
 | projects/ | subdir | Neutral project selection and creation infrastructure |
 | workbench/ | subdir | Three-pane workbench frame, chat and panels |
 | tasks/ | subdir | Lifecycle-grouped task list and detail modal |
+| commission/ | subdir | Commission board overlay: contract, ledger, decisions and gates |
 | thread/ | subdir | Thread detail modal, pipeline, and artifact view |
 | overview/ | subdir | Project dashboard of cost, schedules and runs |
 | memory/ | subdir | Project memory file browser |
