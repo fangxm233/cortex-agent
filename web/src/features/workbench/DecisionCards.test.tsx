@@ -1,5 +1,5 @@
 // input:  decision items, fake respondDecision actions, EN vocab
-// output: disclosure behavior, approve wiring, and composed-message contracts
+// output: disclosure-only actions, approve wiring, and message contracts
 // pos:    Behavior tests for the desktop decision cards
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -69,6 +69,20 @@ describe('DecisionCard disclosure', () => {
     expect(text(tree)).toContain('storage choice');
     toggle(tree);
     expect(text(tree)).not.toContain('storage choice');
+  });
+
+  it('keeps all response buttons hidden while collapsed, including on hover', () => {
+    const tree = mount(dec(), fakeActions());
+    const header = tree.root.findByProps({ 'data-decision-toggle': 'ab12cd34' });
+    expect(header.props.onMouseEnter).toBeUndefined();
+    expect(findButtons(tree.root, '✓ Approve')).toHaveLength(0);
+    expect(findButtons(tree.root, 'Explain')).toHaveLength(0);
+    expect(findButtons(tree.root, 'Revise')).toHaveLength(0);
+
+    toggle(tree);
+    expect(findButtons(tree.root, '✓ Approve')).toHaveLength(1);
+    expect(findButtons(tree.root, 'Explain')).toHaveLength(1);
+    expect(findButtons(tree.root, 'Revise')).toHaveLength(1);
   });
 });
 

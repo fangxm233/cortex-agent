@@ -1,5 +1,5 @@
 // input:  decision items, vocab copy, and the respondDecision mutation
-// output: Desktop decision cards that expand in place, with approve/explain/revise
+// output: Desktop decision cards with expansion-gated response actions
 // pos:    Transcript-inline presentation of agent-announced decisions
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -76,19 +76,6 @@ function Chip({ chip }: { chip: { label: string; fg: string; bg: string } }): JS
   );
 }
 
-/** Small worded hover-action button (同意 / 解释 / 修改). */
-function TextBtn({ onClick, accent, children }: { onClick: () => void; accent?: boolean; children: React.ReactNode }): JSX.Element {
-  return (
-    <span
-      role="button"
-      onClick={onClick}
-      style={{ height: 22, borderRadius: 7, border: `1px solid ${accent ? 'var(--proto-accent-border)' : 'var(--proto-line)'}`, background: 'var(--proto-rail)', color: accent ? 'var(--proto-accent)' : 'var(--proto-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', font: `500 10px ${mono}`, padding: '0 8px', cursor: 'pointer', flex: 'none', whiteSpace: 'nowrap' }}
-    >
-      {children}
-    </span>
-  );
-}
-
 // ── the card ─────────────────────────────────────────────────────────────────────────────────────
 
 type Mode = 'view' | 'explain' | 'revise';
@@ -121,7 +108,6 @@ function Caret({ open }: { open: boolean }): JSX.Element {
  *  the response row. Nothing overlays the transcript, so no portal or stacking games are needed. */
 export function DecisionCard({ d, actions }: { d: DecisionItem; actions?: DecisionActions }): JSX.Element {
   const L = useVocab();
-  const [hover, setHover] = useState(false);
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<Mode>('view');
   const [text, setText] = useState('');
@@ -140,7 +126,7 @@ export function DecisionCard({ d, actions }: { d: DecisionItem; actions?: Decisi
 
   const collapse = (): void => { setOpen(false); setMode('view'); setText(''); };
   const toggle = (): void => { if (open) collapse(); else setOpen(true); };
-  /** Hover shortcut and in-card toggle share this: land in the mode with the card already open. */
+  /** Switch the expanded card between its response modes. */
   const into = (m: Mode): void => { setOpen(true); setMode(mode === m ? 'view' : m); };
 
   const approve = (): void => {
@@ -155,25 +141,16 @@ export function DecisionCard({ d, actions }: { d: DecisionItem; actions?: Decisi
 
   return (
     <div style={{ width: '100%', border: '1px solid var(--proto-line)', background: 'var(--proto-card)', borderRadius: 10, boxShadow: 'var(--shadow-card-subtle)', boxSizing: 'border-box' }}>
-      {/* header — the whole row toggles; the hover shortcuts stop the toggle and set a mode */}
+      {/* Header toggles disclosure; response actions live only in the expanded body. */}
       <div
         role="button"
         data-decision-toggle={d.id}
-        onMouseEnter={() => setHover(true)}
-        onMouseLeave={() => setHover(false)}
         onClick={toggle}
         style={{ display: 'flex', alignItems: 'center', gap: 9, minHeight: 38, padding: '6px 11px', boxSizing: 'border-box', cursor: 'pointer' }}
       >
         <DecBadge L={L} />
         <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--proto-ink)', minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.title}</span>
         {chip && <Chip chip={chip} />}
-        {hover && !open && actions && !approved && (
-          <span style={{ display: 'flex', gap: 5, flex: 'none' }} onClick={(e) => e.stopPropagation()}>
-            <TextBtn onClick={approve}>✓ {L.wbDecApprove}</TextBtn>
-            <TextBtn onClick={() => into('explain')}>{L.wbDecExplain}</TextBtn>
-            <TextBtn onClick={() => into('revise')}>{L.wbDecRevise}</TextBtn>
-          </span>
-        )}
         <Caret open={open} />
       </div>
 
