@@ -23,6 +23,7 @@ and the persisted registries for sessions, tasks, schedules, providers and costs
 | prompt-migrations.test.ts | test | Covers coder, reviewer and manager prompt migrations |
 | provider-state-repo.test.ts | test | Covers provider state defaults, writes and migration |
 | schedule-repo.test.ts | test | Covers scheduled tasks and channel migration |
+| commission-repo.test.ts | test | Covers commission registry CRUD and fallback |
 | retention-candidate-repo.test.ts | test | Covers orphan candidate persistence and clearing |
 | session-hook-migration.test.ts | test | Covers legacy migration and destination collisions |
 | session-registry-repo.test.ts | test | Covers session JSONL journal replay, delete-intent guards, malformed-line fail-closed behavior, and append rollback |

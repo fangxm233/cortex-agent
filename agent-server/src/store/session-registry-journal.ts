@@ -49,6 +49,9 @@ export interface SessionRecord {
   backendSessionId?: string | null;
   lastReadAt?: string | null;
   scheduleId?: string | null;
+  /** Commission (long-task) membership — drives board grouping and [Commission] prompt injection.
+   *  Bound once at commission finalize (DR-0037); absent/null for ordinary sessions. */
+  commissionId?: string | null;
   contextUsage?: unknown;
   browser?: SessionBrowserOption | null;
 }
@@ -365,7 +368,9 @@ function assertSessionRecord(raw: unknown, expectedId: string): SessionRecord {
     backendSessionId: toOptionalNullableString(row?.backendSessionId),
     lastReadAt: toOptionalNullableString(row?.lastReadAt),
     scheduleId: toOptionalNullableString(row?.scheduleId),
+    commissionId: toOptionalNullableString(row?.commissionId),
     contextUsage: row?.contextUsage,
+    browser: toOptionalBrowserValue(row?.browser),
   } satisfies SessionRecord;
   return assertRecordId(record, expectedId);
 }
@@ -389,7 +394,9 @@ function assertNewFormatRecord(raw: unknown, expectedId: string): SessionRecord 
     backendSessionId: toOptionalNullableString(row?.backendSessionId),
     lastReadAt: toOptionalNullableString(row?.lastReadAt),
     scheduleId: toOptionalNullableString(row?.scheduleId),
+    commissionId: toOptionalNullableString(row?.commissionId),
     contextUsage: row?.contextUsage,
+    browser: toOptionalBrowserValue(row?.browser),
   } satisfies SessionRecord;
   return assertRecordId(record, expectedId);
 }
@@ -413,6 +420,16 @@ function toNullableString(value: unknown): string | null {
 function toOptionalNullableString(value: unknown): string | null | undefined {
   if (value === undefined) return undefined;
   return toNullableString(value);
+}
+
+/** Replay guard for the browser opt-in. Was missing from both asserts (fields not whitelisted
+ *  here are silently dropped on replay), so every restart lost per-session browser opt-ins. */
+function toOptionalBrowserValue(value: unknown): SessionBrowserOption | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  const device = (value as Record<string, unknown>).device;
+  if (typeof device !== 'string' || !device) throw new Error('Invalid session registry browser option');
+  return { device };
 }
 
 function toKindValue(value: unknown): SessionKind {

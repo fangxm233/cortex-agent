@@ -264,6 +264,15 @@ export class SessionRegistryRepo {
     }));
   }
 
+  /** Bind (or unbind with null) a session to a commission. Called once by the commission
+   *  finalize path (DR-0037) — ordinary sessions never carry commissionId. */
+  async bindCommission(sessionId: string, commissionId: string | null): Promise<Session | null> {
+    return this.updateById(sessionId, (record) => ({
+      ...record,
+      commissionId,
+    }));
+  }
+
   async listPendingDeletions(): Promise<PendingDeletion[]> {
     return this.withState(async (state) => sortPending(state.pending.values()));
   }

@@ -356,3 +356,20 @@ test('session registry preserves explicit origin, markRead, and name index after
   assert.equal(record?.scheduleId, 'sched-1');
   assert.ok(record?.lastReadAt);
 });
+
+test('session registry replays commissionId and browser opt-in from the journal', async () => {
+  const { filePath } = nextPaths();
+  const repo = new SessionRegistryRepo(filePath);
+  await repo.registerSession('cortex-comm', registerOpts('sess-comm', { browser: { device: 'server' } }));
+  await repo.bindCommission('sess-comm', 'comm-1');
+
+  repo.invalidate();
+  const record = await repo.lookupSession('cortex-comm');
+  assert.equal(record?.commissionId, 'comm-1');
+  assert.deepEqual(record?.browser, { device: 'server' });
+
+  const reopened = new SessionRegistryRepo(filePath);
+  const replayed = await reopened.getById('sess-comm');
+  assert.equal(replayed?.commissionId, 'comm-1');
+  assert.deepEqual(replayed?.browser, { device: 'server' });
+});
