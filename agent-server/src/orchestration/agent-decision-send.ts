@@ -1,11 +1,15 @@
-// input:  decision args from the send_decision MCP tool, conversation history, session events
+// input:  send_decision args, conversation history, commission projection
 // output: sendAgentDecisions + the decision field limits shared with the MCP tool
-// pos:    records agent-announced decisions on Web chat transcripts
+// pos:    records agent decisions on transcripts, mirrored to commissions
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { randomBytes } from 'node:crypto';
+import { createLogger } from '@core/log.js';
 import { conversationHistory, type RawDecisionItem } from '@store/conversation-history-repo.js';
+import { projectCommissionDecisions } from '@domain/commissions/decision-projection.js';
 import { publishSessionMessage, type SessionMessagePayload } from './session-events.js';
+
+const log = createLogger('agent-decision-send');
 
 /** Field ceilings — deliberately tight: the tool's contract asks for short, plain decisions the
  *  user can read in one pass, so an oversize field is a wrong call, not a storage problem. */
@@ -30,6 +34,7 @@ export interface SendAgentDecisionsDeps {
   publish?: (p: SessionMessagePayload) => void;
   now?: () => string;
   newId?: () => string;
+  projectDecisions?: (args: { sessionId: string; ts: string; items: RawDecisionItem[] }) => Promise<boolean>;
 }
 
 function requireField(value: unknown, name: string, index: number, max: number): string {
@@ -79,5 +84,10 @@ export async function sendAgentDecisions(args: SendAgentDecisionsArgs, deps: Sen
     sessionId: args.sessionId, channel, role: 'assistant', text: '', ts,
     decisions: items.map(d => ({ ...d, actions: [] })),
   });
+  // Commission projection is best-effort by design (DR-0037): the chat card is the
+  // authoritative record; a projection failure must never fail the tool call.
+  const project = deps.projectDecisions ?? projectCommissionDecisions;
+  await project({ sessionId: args.sessionId, ts, items })
+    .catch((err) => log.warn('commission decision projection failed:', (err as Error)?.message ?? err));
   return items;
 }

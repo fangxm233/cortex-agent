@@ -34,6 +34,7 @@ import type {
   SessionsCancelResumeReturn,
 } from '../types.js';
 import { removeDirectResume } from '@domain/costs/resume-registry.js';
+import { projectCommissionDecisionAction } from '@domain/commissions/decision-projection.js';
 
 // Create a fresh, live direct session for the workbench "+ New session" control. Resolves the target
 // project (falling back to the default project when omitted), delegates the real creation to the
@@ -335,6 +336,11 @@ export async function handleRespondDecision(
     ...(args.action !== 'approve' ? { message } : {}),
     ts,
   });
+  // Best-effort commission projection (DR-0037): never fails the response itself.
+  void projectCommissionDecisionAction({
+    sessionId: args.sessionId, ts, decisionId: args.decisionId, action: args.action,
+    ...(args.action !== 'approve' ? { message } : {}),
+  }).catch(() => {});
   if (args.action !== 'approve') {
     deps.sendSessionMessage({ sessionId: args.sessionId, channel: session.channel, text: message });
   }

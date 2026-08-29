@@ -9,6 +9,7 @@ Consumed by orchestration and platform surfaces.
 | agents/ | subdir | Backend, model and profile selection per channel |
 | auth/ | subdir | Tracks provider auth, lifecycle, and notices |
 | benchmark/ | subdir | Production benchmark evidence projection |
+| commissions/ | subdir | Commission (long-task) paths and decision projection |
 | costs/ | subdir | Spend, provider usage, budgets and rate-limit throttle |
 | executions/ | subdir | Lifecycle and live output of dispatched runs |
 | hooks/ | subdir | Derived view of hook declarations for the UI |

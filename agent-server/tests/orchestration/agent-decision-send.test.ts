@@ -14,17 +14,19 @@ import {
 } from '../../src/orchestration/agent-decision-send.js';
 import type { SessionMessagePayload } from '../../src/orchestration/session-events.js';
 
-function harness(): { deps: SendAgentDecisionsDeps; appended: any[]; published: SessionMessagePayload[] } {
+function harness(): { deps: SendAgentDecisionsDeps; appended: any[]; published: SessionMessagePayload[]; projected: any[] } {
   const appended: any[] = [];
   const published: SessionMessagePayload[] = [];
+  const projected: any[] = [];
   let n = 0;
   return {
-    appended, published,
+    appended, published, projected,
     deps: {
       appendAssistant: async (sid, o) => { appended.push({ sid, ...o }); },
       publish: (p) => { published.push(p); },
       now: () => '2026-08-27T00:00:00.000Z',
       newId: () => `d${++n}`,
+      projectDecisions: async (args) => { projected.push(args); return true; },
     },
   };
 }
@@ -62,6 +64,18 @@ test('history and bus share one ts; the event carries empty action logs', async 
   assert.equal(h.published[0].channel, 'web:sess-1');
   assert.equal(h.published[0].role, 'assistant');
   assert.deepEqual(h.published[0].decisions![0].actions, [], 'the live event mirrors the DTO shape');
+});
+
+test('commission projection sees the shared ts and items; its failure never rejects the call', async () => {
+  const h = harness();
+  await sendAgentDecisions({ sessionId: 'sess-1', decisions: [DECISION] }, h.deps);
+  assert.equal(h.projected.length, 1);
+  assert.equal(h.projected[0].ts, '2026-08-27T00:00:00.000Z', 'projection shares the transcript ts');
+  assert.equal(h.projected[0].items[0].id, 'd1');
+
+  const failing = { ...h.deps, projectDecisions: async () => { throw new Error('disk full'); } };
+  const items = await sendAgentDecisions({ sessionId: 'sess-1', decisions: [DECISION] }, failing);
+  assert.equal(items.length, 1, 'projection failure is best-effort — the tool call still succeeds');
 });
 
 test('every field is required and whitespace-only values are refused', async () => {
