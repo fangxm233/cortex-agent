@@ -79,6 +79,13 @@ function CommissionBoardController({ commissionId, onClose }: {
     [sessionsQuery.data, commissionId],
   );
 
+  // Decisions carry only a sessionId; the board shows a human label so provenance is readable
+  // without cross-referencing the rail.
+  const sessionLabel = (sessionId: string) => {
+    const hit = (sessionsQuery.data ?? []).find((s) => s.sessionId === sessionId);
+    return hit?.label ?? hit?.name ?? sessionId;
+  };
+
   if (!commission) return null;
 
   const openSession = (session: SessionInfo) => {
@@ -95,6 +102,7 @@ function CommissionBoardController({ commissionId, onClose }: {
       contract={contractQuery.data?.content ?? null}
       decisions={decisionsQuery.data ?? []}
       gates={gates}
+      sessionLabel={sessionLabel}
       pending={close.isPending}
       onOpenSession={openSession}
       onClose={(status, note) => {

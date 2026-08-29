@@ -100,6 +100,8 @@ export interface CommissionBoardModalProps {
   decisions: CommissionDecisionEntry[];
   /** Member sessions currently blocked on the user. */
   gates: SessionInfo[];
+  /** Display name for a decision's source session; the raw id when the session is unknown. */
+  sessionLabel: (sessionId: string) => string;
   pending: boolean;
   onOpenSession: (session: SessionInfo) => void;
   onClose: (status: 'done' | 'abandoned', note: string) => void;
@@ -281,8 +283,17 @@ export function CommissionBoardModal(props: CommissionBoardModalProps): JSX.Elem
             ) : (
               // Read-only on purpose: no sessionId is passed, so the cards render without their
               // approve/revise controls. The board is a record; acting on a decision happens in the
-              // session that raised it.
-              <DecisionCardGroup decisions={props.decisions.map((d) => d.item)} />
+              // session that raised it — which is why each card carries its source.
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {props.decisions.map((entry, i) => (
+                  <div key={`${entry.ts}:${entry.item.id}:${i}`}>
+                    <div style={{ font: `400 9.5px ${mono}`, color: 'var(--proto-muted-3)', marginTop: 10 }}>
+                      {props.sessionLabel(entry.sessionId)}
+                    </div>
+                    <DecisionCardGroup decisions={[entry.item]} />
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </div>
