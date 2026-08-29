@@ -2,7 +2,7 @@
 name: client-manage
 description: "Use when creating, deploying, updating, or troubleshooting cortex-client instances on remote devices"
 author: Cortex
-version: 1.3.0
+version: 1.4.0
 allowed-tools:
   - Read
   - Write
