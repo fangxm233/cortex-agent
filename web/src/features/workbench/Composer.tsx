@@ -25,7 +25,11 @@ import { ComposerSendFailure } from './ComposerSendFailure';
 import { ComposerAttachmentChip } from './ComposerAttachmentChip';
 import { browserStartupHint, browserStartupPending } from './browser-status';
 import { TodoRail } from './TodoRail';
-import { ComposerActionRow, ComposerSlashMenu, type ComposerBrowserControl } from './ComposerActionRow';
+import {
+  ComposerActionRow, ComposerSlashMenu,
+  type ComposerBrowserControl, type ComposerCommissionControl,
+} from './ComposerActionRow';
+import { commissionRequestOf } from './CommissionOptIn';
 import { SessionProfileSelectorView, useSessionProfileSelection } from './SessionProfileSelector';
 import type { ContextCompactAction } from './ContextUsageControl';
 import type { TodoSnapshot } from '@cortex-agent/ui-contract';
@@ -57,6 +61,7 @@ export function Composer({
   elapsed,
   isDraft = false,
   sessionBrowser = null,
+  sessionCommission = null,
   currentProfile,
   hasHistory,
   draftProfile = null,
@@ -88,6 +93,9 @@ export function Composer({
   isDraft?: boolean;
   /** Browser control an EXISTING session was created with. Read-only — fixed at spawn. */
   sessionBrowser?: { device: string } | null;
+  /** Commission mode an EXISTING session was created in. Read-only for the same reason. `label` is
+   *  the commission title once one has landed; a session still drilling has no title yet. */
+  sessionCommission?: { value: string; label: string | null } | null;
   currentProfile: string | null;
   hasHistory: boolean;
   draftProfile?: string | null;
@@ -118,6 +126,9 @@ export function Composer({
   // Draft-only: the browser tool set is fixed when the agent process spawns, so this is a
   // creation-time choice, not a session setting.
   const [browserDevice, setBrowserDevice] = useState<string | null>(null);
+  // Draft-only for the same reason as the browser, and deliberately NOT persisted into the
+  // localStorage composer draft: reopening a tab must not silently re-arm commission mode.
+  const [commissionChoice, setCommissionChoice] = useState<null | 'new' | string>(null);
   const sendMut = useMutation(trpc.sessions.send.mutationOptions());
   const cancelMut = useMutation(trpc.sessions.cancel.mutationOptions());
   const createAndSendMut = useMutation(trpc.sessions.createAndSend.mutationOptions());
@@ -363,6 +374,8 @@ export function Composer({
         ? createAndSendMut.mutateAsync({
             projectId, profileName: draftProfile ?? undefined, text,
             ...(browserDevice ? { browser: { device: browserDevice } } : {}),
+            ...(commissionRequestOf(commissionChoice)
+              ? { commission: commissionRequestOf(commissionChoice) } : {}),
             draftUploadId: sent.draftUploadId,
             ...(metas.length > 0 ? { attachments: metas } : {}),
           } as any)
@@ -577,6 +590,11 @@ export function Composer({
                     // be changed now.
                     : sessionBrowser
                       ? { device: sessionBrowser.device }
+                      : null}
+                  commission={isDraft
+                    ? { value: commissionChoice, onChange: setCommissionChoice } satisfies ComposerCommissionControl
+                    : sessionCommission
+                      ? { value: sessionCommission.value, label: sessionCommission.label }
                       : null}
                   onAttach={() => fileInputRef.current?.click()}
                   onCommands={() => { setComposer('/'); setSlashOpen(true); }}

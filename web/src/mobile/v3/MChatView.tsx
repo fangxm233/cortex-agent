@@ -35,17 +35,17 @@ import { MDecisionCardGroup } from './MDecisionCards';
 import { AttachmentGroup } from './MChatAttachments';
 import { AssistantTurnCopyAction, longPressHandlers, MsgActionMenu } from './MChatMessageActions';
 import {
-  AttachMenu, BrowserChip, ComposerAbove, ComposerLeading, ComposerTools, MobileSlashMenu,
+  AttachMenu, BrowserChip, CommissionChip, ComposerAbove, ComposerLeading, ComposerTools, MobileSlashMenu,
 } from './MChatComposerPresentation';
-import { BrowserSheet, ContextUsageSheet, MoreMenu, ProfileSheet, SessionIdSheet } from './MChatSheets';
+import { BrowserSheet, CommissionSheet, ContextUsageSheet, MoreMenu, ProfileSheet, SessionIdSheet } from './MChatSheets';
 import type { ChatHeaderStatus } from './m-chat-vm';
 import type { MChatEditCopy, MChatInteractions, MChatViewProps, MEditMode } from './MChatView.types';
 
-export { BrowserSheet, ContextUsageSheet, MoreMenu, ProfileSheet, SessionIdSheet } from './MChatSheets';
+export { BrowserSheet, CommissionSheet, ContextUsageSheet, MoreMenu, ProfileSheet, SessionIdSheet } from './MChatSheets';
 export { AttachMenu } from './MChatComposerPresentation';
 export { EditBar, MsgActionMenu } from './MChatMessageActions';
 export type {
-  BrowserSheetItem, MChatCopy, MChatEditCopy, MChatInteractions, MChatViewProps,
+  BrowserSheetItem, CommissionSheetItem, MChatCopy, MChatEditCopy, MChatInteractions, MChatViewProps,
   MEditMode, MMsgMenu, MRejectBar,
 } from './MChatView.types';
 
@@ -589,6 +589,9 @@ export function MChatView(props: MChatViewProps): JSX.Element {
               <ComposerLeading onClick={props.onPlus} />
               {props.browserDevice && <BrowserChip device={props.browserDevice}
                 label={copy.attachBrowser} onClick={props.onOpenBrowser} />}
+              {props.commissionValue && <CommissionChip value={props.commissionValue}
+                text={props.commissionLabel || copy.attachCommission}
+                label={copy.attachCommission} onClick={props.onOpenCommission} />}
             </>
           )}
           tools={<ComposerTools props={props} />}
@@ -641,6 +644,7 @@ export function MChatView(props: MChatViewProps): JSX.Element {
           onLibrary={props.onLibrary}
           onFile={props.onFile}
           browser={(props.onOpenBrowser || props.browserDevice) ? { device: props.browserDevice ?? null, onOpen: props.onOpenBrowser } : undefined}
+          commission={(props.onOpenCommission || props.commissionValue) ? { label: props.commissionLabel ?? props.commissionValue ?? null, onOpen: props.onOpenCommission } : undefined}
           onCommands={() => props.onComposerChange('/')}
         />
       )}
@@ -651,6 +655,15 @@ export function MChatView(props: MChatViewProps): JSX.Element {
           current={props.browserDevice ?? null}
           onClose={props.browserSheet.onClose}
           onPick={props.browserSheet.onPick}
+        />
+      )}
+      {props.commissionSheet && (
+        <CommissionSheet
+          items={props.commissionSheet.items}
+          title={props.commissionSheet.title}
+          current={props.commissionValue ?? null}
+          onClose={props.commissionSheet.onClose}
+          onPick={props.commissionSheet.onPick}
         />
       )}
       {props.profileSheet && (

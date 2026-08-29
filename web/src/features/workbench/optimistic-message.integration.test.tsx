@@ -45,6 +45,9 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
           : { data: harness.sessions, isPending: false };
       }
       if (options.__kind === 'schedules.list') return { data: [], isPending: false };
+      // No commissions in these scenarios; the composer registers both queries either way.
+      if (options.__kind === 'commissions.list') return { data: [], isPending: false };
+      if (options.__kind === 'commissions.get') return { data: undefined, isPending: false };
       if (options.__kind === 'sessions.transcript') {
         const sessionId = options.input.sessionId as string;
         if (sessionId && !harness.transcripts[sessionId]) {
@@ -92,6 +95,10 @@ vi.mock('@/lib/trpc', () => ({
       },
       schedules: {
         list: query('schedules.list'),
+      },
+      commissions: {
+        list: query('commissions.list'),
+        get: query('commissions.get'),
       },
     };
   },

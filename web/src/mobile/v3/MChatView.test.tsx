@@ -66,6 +66,7 @@ const copy: MChatCopy = {
   attachLibrary: 'library',
   attachFile: 'file',
   attachBrowser: 'browser',
+  attachCommission: 'commission',
   attachCommands: 'commands',
   attachPlaceholder: 'attachment',
   profileTitle: 'profile',

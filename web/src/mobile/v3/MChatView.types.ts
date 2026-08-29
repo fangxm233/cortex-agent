@@ -29,6 +29,7 @@ export interface MChatCopy {
   attachLibrary: string;
   attachFile: string;
   attachBrowser: string;
+  attachCommission: string;
   attachCommands: string;
   attachPlaceholder: string;
   profileTitle: string;
@@ -94,6 +95,13 @@ export interface BrowserSheetItem {
   sub: string;
 }
 
+/** A commission-mode option: null is off, 'new' drills a fresh contract, anything else is an id. */
+export interface CommissionSheetItem {
+  value: string | null;
+  label: string;
+  sub: string;
+}
+
 export interface MChatViewProps {
   title: string;
   status: ChatHeaderStatus;
@@ -136,6 +144,12 @@ export interface MChatViewProps {
   browserDevice?: string | null;
   onOpenBrowser?: () => void;
   browserSheet?: { items: BrowserSheetItem[]; title: string; onClose: () => void; onPick: (device: string | null) => void };
+  /** Commission mode: the value on a draft, or on a live session what it was created with. `label`
+   *  is the commission title once one has landed; a session still drilling has none. */
+  commissionValue?: string | null;
+  commissionLabel?: string | null;
+  onOpenCommission?: () => void;
+  commissionSheet?: { items: CommissionSheetItem[]; title: string; onClose: () => void; onPick: (value: string | null) => void };
   contextUsage?: SessionContextUsage | null;
   contextUsageSupported?: boolean;
   contextUsageLang?: 'en' | 'zh';

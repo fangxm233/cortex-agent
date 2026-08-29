@@ -22,6 +22,7 @@ import { useOptimisticUserMessages } from './useOptimisticUserMessages';
 import { scheduledRunTitle } from './schedule-rail';
 import { useProjectSessions } from '@/features/projects/useProjectSessions';
 import { CommissionBanner } from '@/features/commission/CommissionBanner';
+import { useSessionCommission } from './CommissionOptIn';
 
 // CENTER CHAT pane — 1:1 rebuild from prototype.dc.html L103–395 (workspace-chat view). Task aba0
 // (S4 chat) makes the transcript body + composer send REAL, replacing 89e7's GAP-A (static transcript)
@@ -64,6 +65,10 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
     const list = [...(sessionsQuery.data ?? []), ...(scheduledSessionsQuery.data ?? [])];
     return list.find((s) => s.sessionId === selectedSessionId) ?? null;
   }, [sessionsQuery.data, scheduledSessionsQuery.data, selectedSessionId]);
+
+  // Commission mode is invisible in the transcript, so the composer keeps a capsule saying which
+  // commission this session serves — read-only, because the choice was made when it was created.
+  const sessionCommission = useSessionCommission(active);
 
   // Schedule context (design 30c): the chat is identical to a normal conversation — the only
   // scheduled affordances left are the title annotation「schedule 名 · run #n」on an un-adopted
@@ -234,6 +239,7 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
           isDraft={isDraft}
           currentProfile={active?.profileName ?? null}
           sessionBrowser={active?.browser ?? null}
+          sessionCommission={sessionCommission}
           hasHistory={hasHistory}
           draftProfile={draftProfile}
           draftReloadToken={draftReloadToken}

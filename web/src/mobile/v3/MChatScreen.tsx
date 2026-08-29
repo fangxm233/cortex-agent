@@ -59,6 +59,9 @@ import {
 import { MChatView, type MChatCopy, type MChatInteractions, type MRejectBar, type MChatEditCopy, type MMsgMenu, type MEditMode } from './MChatView';
 import { MChatInlineThreadCard } from './MChatInlineThreadCard';
 import { DEFAULT_BROWSER_DEVICE } from '@/features/workbench/BrowserOptIn';
+import {
+  commissionRequestOf, useCommissionOptions, useSessionCommission,
+} from '@/features/workbench/CommissionOptIn';
 import { listForwardDevices, type ForwardDevice } from '@/features/browser/forward';
 import { M_INT_COPY } from './MInteractionCards';
 import type { RejectPlanNavState } from './MPlanReadScreen';
@@ -94,6 +97,7 @@ const COPY: { en: MChatCopy; zh: MChatCopy } = {
     attachLibrary: '照片图库',
     attachFile: '选择文件',
     attachBrowser: '浏览器',
+    attachCommission: '委托',
     attachCommands: '命令',
 
     attachPlaceholder: '补充说明…',
@@ -120,6 +124,7 @@ const COPY: { en: MChatCopy; zh: MChatCopy } = {
     attachLibrary: 'Photo library',
     attachFile: 'Choose file',
     attachBrowser: 'Browser',
+    attachCommission: 'Commission',
     attachCommands: 'Commands',
 
     attachPlaceholder: 'Add a note…',
@@ -310,6 +315,12 @@ export function MChatScreen(): JSX.Element {
     listForwardDevices().then((d) => { if (alive) setBrowserDevices(d); }).catch(() => { if (alive) setBrowserDevices([]); });
     return () => { alive = false; };
   }, [browserSheetOpen]);
+  // Commission mode, same creation-time rule as the browser and for the same reason: it decides
+  // which plan tools and which skill the process spawns with.
+  const [draftCommission, setDraftCommission] = useState<null | 'new' | string>(null);
+  const [commissionSheetOpen, setCommissionSheetOpen] = useState(false);
+  const commissionOptions = useCommissionOptions(commissionSheetOpen);
+  const sessionCommission = useSessionCommission(active);
   const [pendingCreatedSession, setPendingCreatedSession] = useState<PendingCreatedSession | null>(null);
   const transitionProfile = resolveTransitionProfile(
     active?.profileName,
@@ -570,6 +581,8 @@ export function MChatScreen(): JSX.Element {
             text: t,
             draftUploadId: sent.draftUploadId,
             ...(draftBrowserDevice ? { browser: { device: draftBrowserDevice } } : {}),
+            ...(commissionRequestOf(draftCommission)
+              ? { commission: commissionRequestOf(draftCommission) } : {}),
             ...(doneMetas.length > 0 ? { attachments: doneMetas } : {}),
           } as never)
         : sendMut.mutateAsync({ sessionId, text: t, ...(doneMetas.length > 0 ? { attachments: doneMetas } : {}) } as never),
@@ -763,6 +776,17 @@ export function MChatScreen(): JSX.Element {
           title: vocab.wbBrowser,
           onClose: () => setBrowserSheetOpen(false),
           onPick: (device: string | null) => { setDraftBrowserDevice(device); setBrowserSheetOpen(false); },
+        } : undefined}
+        commissionValue={isDraft ? draftCommission : (sessionCommission?.value ?? null)}
+        commissionLabel={isDraft
+          ? (draftCommission === 'new' ? vocab.wbCommissionNewOption : null)
+          : (sessionCommission?.label ?? (sessionCommission ? vocab.wbCommissionUnnamed : null))}
+        onOpenCommission={isDraft ? () => setCommissionSheetOpen(true) : undefined}
+        commissionSheet={commissionSheetOpen ? {
+          items: commissionOptions.map((o) => ({ value: o.value, label: o.label, sub: o.sub })),
+          title: vocab.wbCommissionMode,
+          onClose: () => setCommissionSheetOpen(false),
+          onPick: (value: string | null) => { setDraftCommission(value); setCommissionSheetOpen(false); },
         } : undefined}
         onOpenProfile={() => setProfileOpen(true)}
         contextUsage={contextUsage}

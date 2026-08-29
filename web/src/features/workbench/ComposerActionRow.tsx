@@ -1,5 +1,5 @@
-// input:  ＋ menu actions, browser control, profile/context/send nodes
-// output: Desktop composer toolbar row (＋ menu · browser capsule left, send cluster right) and slash menu
+// input:  ＋ menu actions, browser and commission controls, profile/context/send nodes
+// output: Desktop composer toolbar row (＋ menu · mode capsules left, send cluster right) and slash menu
 // pos:    Groups composer shortcuts and controls under the input
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
@@ -7,6 +7,7 @@ import { PlusGlyph } from '@/design';
 import { useVocab } from '@/i18n';
 import type { SlashSuggestion } from './composer-slash';
 import { useBrowserDeviceOptions, type BrowserDeviceOption } from './BrowserOptIn';
+import { useCommissionOptions, type CommissionOption } from './CommissionOptIn';
 
 const MONO = "'IBM Plex Mono',monospace";
 
@@ -61,6 +62,17 @@ export interface ComposerBrowserControl {
   onChange?: (device: string | null) => void;
 }
 
+/** Commission mode, chosen the same way and for the same reason as the browser: it decides which
+ *  plan tools and which skill the agent process spawns with, so it is fixed once the session exists.
+ *  `value` is null (off), 'new' (drill a contract) or a commission id; `label` is what the capsule
+ *  shows on a live session, where the id alone would say nothing. */
+export interface ComposerCommissionControl {
+  value: null | 'new' | string;
+  label?: string | null;
+  /** Present only while composing a draft; absent means the capsule only REPORTS. */
+  onChange?: (value: null | 'new' | string) => void;
+}
+
 const MENU_ROW_STYLE: CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 9, minHeight: 32, padding: '0 13px',
   cursor: 'pointer', fontSize: 12, color: 'var(--proto-ink)',
@@ -69,7 +81,7 @@ const MENU_ROW_STYLE: CSSProperties = {
 /** Row glyphs for the ＋ menu — same 16-unit line-art family the mobile attach menu uses, so the
  *  two surfaces read as one menu. Muted stroke: the label carries the row, the icon only anchors it. */
 function MenuIcon({ kind, size = 14, color = 'var(--proto-muted-2)' }: {
-  kind: 'attach' | 'browser' | 'commands';
+  kind: 'attach' | 'browser' | 'commission' | 'commands';
   size?: number;
   color?: string;
 }): JSX.Element {
@@ -86,6 +98,15 @@ function MenuIcon({ kind, size = 14, color = 'var(--proto-muted-2)' }: {
       <svg {...common} strokeWidth={1.4}>
         <circle cx="8" cy="8" r="6.3" />
         <path d="M1.7 8h12.6M8 1.7c-1.8 1.8-2.7 4-2.7 6.3s.9 4.5 2.7 6.3c1.8-1.8 2.7-4 2.7-6.3S9.8 3.5 8 1.7z" />
+      </svg>
+    );
+  }
+  if (kind === 'commission') {
+    // A pennant on a staff — the same mark the rail and the board use for a commission.
+    return (
+      <svg {...common} strokeWidth={1.4} strokeLinejoin="round" strokeLinecap="round">
+        <path d="M4.2 2.2v11.6" />
+        <path d="M4.2 3.1h7.8L10.4 5.7l1.6 2.6H4.2z" />
       </svg>
     );
   }
@@ -118,6 +139,37 @@ function BrowserDeviceRows({ options, current, onPick }: {
           <span style={{ font: `600 10.5px ${MONO}`, color: 'var(--proto-ink)' }}>{o.label}</span>
           <span style={{ font: `400 9px ${MONO}`, color: 'var(--proto-muted-3)' }}>{o.sub}</span>
           {o.device === current && (
+            <span style={{ marginLeft: 'auto', color: 'var(--proto-accent)', fontSize: 9, fontWeight: 700 }}>✓</span>
+          )}
+        </span>
+      ))}
+    </>
+  );
+}
+
+/** The commission list, shared by the ＋ menu's commission page and the capsule's own menu, for the
+ *  same reason as BrowserDeviceRows: two entry points, one list. The off row is how the mode is
+ *  turned back off before the session exists. */
+function CommissionOptionRows({ options, current, onPick }: {
+  options: CommissionOption[];
+  current: null | 'new' | string;
+  onPick: (value: null | 'new' | string) => void;
+}): JSX.Element {
+  return (
+    <>
+      {options.map((o) => (
+        <span
+          key={o.value ?? '__off__'}
+          data-commission-option={o.value ?? '__off__'}
+          onClick={(e) => { e.stopPropagation(); onPick(o.value); }}
+          style={{
+            ...MENU_ROW_STYLE, gap: 5,
+            background: o.value === current ? 'var(--proto-accent-bg)' : 'transparent',
+          }}
+        >
+          <span style={{ font: `600 10.5px ${MONO}`, color: 'var(--proto-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 150 }}>{o.label}</span>
+          <span style={{ font: `400 9px ${MONO}`, color: 'var(--proto-muted-3)' }}>{o.sub}</span>
+          {o.value === current && (
             <span style={{ marginLeft: 'auto', color: 'var(--proto-accent)', fontSize: 9, fontWeight: 700 }}>✓</span>
           )}
         </span>
@@ -198,24 +250,104 @@ function ComposerBrowserChip({ browser }: { browser: ComposerBrowserControl }): 
 }
 
 /**
+ * The commission capsule, standing beside the browser one.
+ *
+ * The mode is the whole difference between "a conversation" and "a commitment with a contract
+ * behind it", and after the ＋ menu closes there would otherwise be nothing on screen saying which
+ * one this is. On a draft the capsule is also the control — clicking it reopens the same list,
+ * where another commission is a switch and the off row backs out. On a live session it only
+ * reports: the choice was made when the process spawned.
+ */
+function ComposerCommissionChip({ commission }: {
+  commission: ComposerCommissionControl;
+}): JSX.Element | null {
+  const L = useVocab();
+  const [open, setOpen] = useState(false);
+  const [hover, setHover] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
+  useDismissMenu(open, close);
+  const options = useCommissionOptions(open);
+  const value = commission.value;
+  const editable = !!commission.onChange;
+  if (value === null) return null;
+  const lit = open || hover;
+  // A draft that has not been named yet has no title to show, on either surface.
+  const text = commission.label
+    || (value === 'new' ? L.wbCommissionNewOption : L.wbCommissionUnnamed);
+
+  return (
+    <span style={{ position: 'relative', flex: 'none', display: 'inline-flex' }}>
+      <button
+        type="button"
+        data-chip="commission"
+        data-commission-value={value}
+        data-editable={editable ? 'true' : 'false'}
+        aria-label={`${L.wbCommissionMode} · ${text}`}
+        aria-expanded={editable ? open : undefined}
+        onClick={editable ? (e) => { e.stopPropagation(); setOpen((o) => !o); } : undefined}
+        onMouseEnter={() => { if (editable) setHover(true); }}
+        onMouseLeave={() => setHover(false)}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 5, flex: 'none',
+          height: 30, maxWidth: 180, padding: '0 10px', boxSizing: 'border-box',
+          borderRadius: 999,
+          border: `1.5px solid ${lit ? 'var(--proto-accent)' : 'var(--proto-accent-border)'}`,
+          background: 'var(--proto-accent-bg)',
+          color: 'var(--proto-accent)',
+          font: `500 10.5px ${MONO}`,
+          cursor: editable ? 'pointer' : 'default',
+        }}
+      >
+        <MenuIcon kind="commission" size={12} color="currentColor" />
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{text}</span>
+        {editable && <span style={{ fontSize: 7.5, opacity: 0.75 }}>▾</span>}
+      </button>
+      {open && editable && (
+        <span
+          data-menu="commission"
+          style={{
+            position: 'absolute', left: 0, bottom: 36, minWidth: 190,
+            background: 'var(--proto-card)', border: '1px solid var(--proto-line)',
+            borderRadius: 10, boxShadow: 'var(--shadow-menu)', zIndex: 59,
+            overflow: 'hidden', display: 'block',
+          }}
+        >
+          <CommissionOptionRows
+            options={options}
+            current={value}
+            onPick={(picked) => { close(); commission.onChange!(picked); }}
+          />
+        </span>
+      )}
+    </span>
+  );
+}
+
+/**
  * The ＋ button and its menu — the single left-side entry point of the composer toolbar. Rarely-used
  * controls (attach, browser opt-in, local slash commands) fold in here so the toolbar itself stays
  * three elements: ＋, profile, send. The browser row opens a second menu page listing devices.
  */
-function ComposerPlusMenu({ browser, onAttach, onCommands }: {
+function ComposerPlusMenu({ browser, commission, onAttach, onCommands }: {
   browser: ComposerBrowserControl | null;
+  commission: ComposerCommissionControl | null;
   onAttach: () => void;
   onCommands: () => void;
 }): JSX.Element {
   const L = useVocab();
   const [open, setOpen] = useState(false);
-  const [page, setPage] = useState<'root' | 'browser'>('root');
+  const [page, setPage] = useState<'root' | 'browser' | 'commission'>('root');
   const [hover, setHover] = useState(false);
   const close = useCallback(() => { setOpen(false); setPage('root'); }, []);
   useDismissMenu(open, close);
   const browserEditable = !!browser?.onChange;
+  const commissionEditable = !!commission?.onChange;
   const options = useBrowserDeviceOptions(open && page === 'browser');
+  const commissionOptions = useCommissionOptions(open && page === 'commission');
   const active = open || hover;
+  const commissionLabel = commission?.label
+    || (commission?.value === 'new' ? L.wbCommissionNewOption : null)
+    || (commission?.value ? L.wbCommissionUnnamed : L.wbCommissionOffOption);
 
   return (
     <span style={{ position: 'relative', flex: 'none', display: 'inline-flex' }}>
@@ -274,6 +406,23 @@ function ComposerPlusMenu({ browser, onAttach, onCommands }: {
                   </span>
                 </span>
               )}
+              {commission && (
+                <span
+                  data-plus-item="commission"
+                  data-editable={commissionEditable ? 'true' : 'false'}
+                  onClick={commissionEditable ? (e) => { e.stopPropagation(); setPage('commission'); } : undefined}
+                  style={{ ...MENU_ROW_STYLE, cursor: commissionEditable ? 'pointer' : 'default', opacity: commissionEditable ? 1 : 0.6 }}
+                >
+                  <MenuIcon kind="commission" />
+                  {L.wbCommissionMode}
+                  <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5, font: `500 10px ${MONO}`, color: commission.value ? 'var(--proto-accent)' : 'var(--proto-muted-3)', overflow: 'hidden' }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 110 }}>{commissionLabel}</span>
+                    {commissionEditable
+                      ? <span style={{ fontSize: 8, color: 'var(--proto-muted)' }}>▸</span>
+                      : <span style={{ font: `400 9px ${MONO}`, color: 'var(--proto-muted-3)' }}>{L.wbCommissionModeHint}</span>}
+                  </span>
+                </span>
+              )}
               <span
                 data-plus-item="commands"
                 onClick={(e) => { e.stopPropagation(); close(); onCommands(); }}
@@ -283,7 +432,7 @@ function ComposerPlusMenu({ browser, onAttach, onCommands }: {
                 {L.commands}
               </span>
             </>
-          ) : (
+          ) : page === 'browser' ? (
             <>
               <span
                 data-plus-back
@@ -298,6 +447,21 @@ function ComposerPlusMenu({ browser, onAttach, onCommands }: {
                 onPick={(device) => { close(); browser!.onChange!(device); }}
               />
             </>
+          ) : (
+            <>
+              <span
+                data-plus-back
+                onClick={(e) => { e.stopPropagation(); setPage('root'); }}
+                style={{ ...MENU_ROW_STYLE, minHeight: 28, borderBottom: '1px solid var(--proto-line-2)', color: 'var(--proto-muted)', fontSize: 11 }}
+              >
+                ‹ {L.wbCommissionMode}
+              </span>
+              <CommissionOptionRows
+                options={commissionOptions}
+                current={commission!.value}
+                onPick={(value) => { close(); commission!.onChange!(value); }}
+              />
+            </>
           )}
         </span>
       )}
@@ -306,14 +470,16 @@ function ComposerPlusMenu({ browser, onAttach, onCommands }: {
 }
 
 /**
- * The composer toolbar: the full-width row under the input. ＋ (attach / browser / commands) sits
- * left, with the browser capsule beside it once a browser is on; profile, context ring and the
- * send/stop cluster sit right, so every affordance shares one row and the input above keeps the
- * card's full width.
+ * The composer toolbar: the full-width row under the input. ＋ (attach / browser / commission /
+ * commands) sits left, with the mode capsules beside it once a browser or commission is on;
+ * profile, context ring and the send/stop cluster sit right, so every affordance shares one row and
+ * the input above keeps the card's full width.
  */
-export function ComposerActionRow({ browser, onAttach, onCommands, profileControl, contextControl, sendControl }: {
+export function ComposerActionRow({ browser, commission, onAttach, onCommands, profileControl, contextControl, sendControl }: {
   /** null hides the browser row entirely — a live session that never opted in has nothing to show. */
   browser: ComposerBrowserControl | null;
+  /** null hides the commission row — a live session outside the mode has nothing to show. */
+  commission: ComposerCommissionControl | null;
   onAttach: () => void;
   onCommands: () => void;
   profileControl: ReactNode;
@@ -322,8 +488,9 @@ export function ComposerActionRow({ browser, onAttach, onCommands, profileContro
 }): JSX.Element {
   return (
     <div data-composer-actions style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-      <ComposerPlusMenu browser={browser} onAttach={onAttach} onCommands={onCommands} />
+      <ComposerPlusMenu browser={browser} commission={commission} onAttach={onAttach} onCommands={onCommands} />
       {browser && <ComposerBrowserChip browser={browser} />}
+      {commission && <ComposerCommissionChip commission={commission} />}
       <span style={{ marginLeft: 'auto' }} />
       {profileControl}
       {contextControl}

@@ -78,6 +78,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | Composer.test.tsx | test | Tests shortcuts, browser/background status and rejected sends |
 | ComposerActionRow.tsx | view | Toolbar row: ＋ menu and browser capsule left, profile/context/send right |
 | BrowserOptIn.tsx | model | Browser device options for the composer ＋ menu |
+| CommissionOptIn.tsx | model | Commission-mode options for the composer ＋ menu, and the live session's capsule |
 | browser-status.ts | model | Phrases browser takeover and turn-start hints |
 | browser-status.test.ts | test | Tests takeover and startup hint states |
 | ComposerActionRow.test.tsx | test | Tests ＋-menu actions, browser page/capsule and slash menu |

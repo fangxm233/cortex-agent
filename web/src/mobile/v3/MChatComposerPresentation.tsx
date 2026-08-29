@@ -45,21 +45,23 @@ interface AttachMenuItemProps {
 
 function AttachMenuItem(props: AttachMenuItemProps): JSX.Element {
   const tap = props.onTap ? (): void => { props.onTap?.(); props.onClose(); } : undefined;
+  const reportsOnly = props.itemKey === 'browser' || props.itemKey === 'commission';
   return (
-    <div data-plus-item={props.itemKey} data-editable={props.itemKey === 'browser' ? (props.onTap ? 'true' : 'false') : undefined} onClick={tap} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '11px 14px', borderBottom: props.last ? undefined : '1px solid var(--proto-line-2)', cursor: props.onTap ? 'pointer' : 'default', opacity: props.onTap ? 1 : 0.6 }}>
+    <div data-plus-item={props.itemKey} data-editable={reportsOnly ? (props.onTap ? 'true' : 'false') : undefined} onClick={tap} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '11px 14px', borderBottom: props.last ? undefined : '1px solid var(--proto-line-2)', cursor: props.onTap ? 'pointer' : 'default', opacity: props.onTap ? 1 : 0.6 }}>
       {props.icon}<span style={{ fontSize: 13, color: MC.ink }}>{props.label}</span>
       {props.value != null && <span style={{ marginLeft: 'auto', font: `500 10px ${MONO}`, color: MC.run }}>{props.value}</span>}
     </div>
   );
 }
 
-export function AttachMenu({ copy, onClose, onCamera, onLibrary, onFile, browser, onCommands }: {
+export function AttachMenu({ copy, onClose, onCamera, onLibrary, onFile, browser, commission, onCommands }: {
   copy: MChatCopy;
   onClose: () => void;
   onCamera: () => void;
   onLibrary: () => void;
   onFile: () => void;
   browser?: { device: string | null; onOpen?: () => void };
+  commission?: { label: string | null; onOpen?: () => void };
   onCommands: () => void;
 }): JSX.Element {
   return (
@@ -68,6 +70,7 @@ export function AttachMenu({ copy, onClose, onCamera, onLibrary, onFile, browser
       <AttachMenuItem label={copy.attachLibrary} onTap={onLibrary} onClose={onClose} icon={<LibraryIcon />} />
       <AttachMenuItem label={copy.attachFile} onTap={onFile} onClose={onClose} icon={<FileIcon />} />
       {browser && <AttachMenuItem label={copy.attachBrowser} onTap={browser.onOpen} onClose={onClose} icon={<BrowserIcon />} itemKey="browser" value={browser.device ?? undefined} />}
+      {commission && <AttachMenuItem label={copy.attachCommission} onTap={commission.onOpen} onClose={onClose} icon={<CommissionIcon />} itemKey="commission" value={commission.label ?? undefined} />}
       <AttachMenuItem label={copy.attachCommands} onTap={onCommands} onClose={onClose} icon={<CommandsIcon />} itemKey="commands" last />
     </div></>
   );
@@ -103,6 +106,43 @@ function ProfileChip({ label, onClick }: { label: string; onClick: () => void })
     <button type="button" onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 6, border: `1.5px solid ${MC.runBorder}`, background: MC.card, borderRadius: 999, height: 34, padding: '0 13px', boxSizing: 'border-box', flex: '0 1 auto', minWidth: 0, overflow: 'hidden', cursor: 'pointer' }}>
       <span style={{ width: 5, height: 5, borderRadius: '50%', background: MC.run, flex: 'none' }} />
       <span style={{ minWidth: 0, font: `600 11.5px ${MONO}`, color: MC.run, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+    </button>
+  );
+}
+
+/** The pennant mark a commission carries everywhere in the UI — rail, board, banner, capsule. */
+function CommissionIcon(): JSX.Element {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke={MC.muted} strokeWidth="1.4"
+      strokeLinejoin="round" strokeLinecap="round" style={{ flex: 'none' }}>
+      <path d="M4.2 2.2v11.6" />
+      <path d="M4.2 3.1h7.8L10.4 5.7l1.6 2.6H4.2z" />
+    </svg>
+  );
+}
+
+/** Same capsule as the browser's, for the same reason: after the sheet closes there would otherwise
+ *  be nothing on screen saying this conversation is a commitment with a contract behind it. */
+export function CommissionChip({ value, text, label, onClick }: {
+  value: string;
+  text: string;
+  label: string;
+  onClick?: () => void;
+}): JSX.Element {
+  return (
+    <button type="button" data-chip="commission" data-commission-value={value}
+      data-editable={onClick ? 'true' : 'false'} aria-label={`${label} · ${text}`}
+      onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 5, flex: '0 1 auto',
+        minWidth: 0, maxWidth: 150, height: 34, padding: '0 11px', boxSizing: 'border-box',
+        borderRadius: 999, border: `1.5px solid ${MC.runBorder}`, background: MC.runBg,
+        color: MC.run, font: `500 11px ${MONO}`, overflow: 'hidden',
+        cursor: onClick ? 'pointer' : 'default' }}>
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+        strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" style={{ flex: 'none' }}>
+        <path d="M4.2 2.2v11.6" />
+        <path d="M4.2 3.1h7.8L10.4 5.7l1.6 2.6H4.2z" />
+      </svg>
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{text}</span>
     </button>
   );
 }

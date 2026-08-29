@@ -25,6 +25,9 @@ vi.mock('@tanstack/react-query', () => ({
       ? { mutateAsync: harness.send, isPending: harness.createPending }
       : { mutateAsync: harness.send, isPending: false },
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+  // The composer's commission control reads the active-commission list; no commissions is the
+  // ordinary case here, and nothing in this suite depends on the list's contents.
+  useQuery: () => ({ data: undefined, isPending: false }),
 }));
 
 vi.mock('@/lib/trpc', () => ({
@@ -34,6 +37,10 @@ vi.mock('@/lib/trpc', () => ({
       cancel: { mutationOptions: () => ({ __kind: 'cancel' }) },
       createAndSend: { mutationOptions: () => ({ __kind: 'create' }) },
       list: { queryFilter: () => ({}) },
+    },
+    commissions: {
+      list: { queryOptions: () => ({ queryKey: ['commissions.list'] }) },
+      get: { queryOptions: () => ({ queryKey: ['commissions.get'] }) },
     },
   }),
 }));

@@ -8,7 +8,7 @@ import { ContextCompactFooter, ContextUsageDetails, contextUsageTitle, type Cont
 import { buildSessionIdRows } from '@/features/workbench/session-id';
 import { MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
 import type { ProfileSheetItem } from './m-chat-vm';
-import type { BrowserSheetItem, MChatCopy } from './MChatView.types';
+import type { BrowserSheetItem, CommissionSheetItem, MChatCopy } from './MChatView.types';
 import { useClipboardFeedback } from '@/design/useClipboardFeedback';
 
 export function MoreMenu({ copy, onClose, onSessionId }: {
@@ -113,17 +113,36 @@ export function ProfileSheet({ items, copy, onClose, onPick }: {
   );
 }
 
-function BrowserRow({ item, last, current, onPick }: {
-  item: BrowserSheetItem;
+/** One creation-time option (a browser device, a commission). `attr` is the test/selector hook, kept
+ *  per-surface so the two sheets stay individually addressable while sharing this markup. */
+function OptionRow({ item, attr, last, current, onPick }: {
+  item: { value: string | null; label: string; sub: string };
+  attr: 'data-device' | 'data-commission-option';
   last: boolean;
   current: string | null;
-  onPick: (device: string | null) => void;
+  onPick: (value: string | null) => void;
 }): JSX.Element {
   return (
-    <div data-device={item.device ?? '__off__'} onClick={() => onPick(item.device)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 13px', borderBottom: last ? undefined : '1px solid var(--proto-line-soft)', cursor: 'pointer' }}>
+    <div {...{ [attr]: item.value ?? '__off__' }} onClick={() => onPick(item.value)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 13px', borderBottom: last ? undefined : '1px solid var(--proto-line-soft)', cursor: 'pointer' }}>
       <div style={{ minWidth: 0, flex: 1 }}><span style={{ font: `600 13px ${MONO}`, color: MC.ink }}>{item.label}</span>{item.sub && <div style={{ font: `400 10px ${MONO}`, color: MC.muted, marginTop: 3 }}>{item.sub}</div>}</div>
-      {item.device === current && <span style={{ fontSize: 15, fontWeight: 700, color: MC.run, flex: 'none' }}>✓</span>}
+      {item.value === current && <span style={{ fontSize: 15, fontWeight: 700, color: MC.run, flex: 'none' }}>✓</span>}
     </div>
+  );
+}
+
+function OptionSheet({ items, attr, title, current, onClose, onPick }: {
+  items: Array<{ value: string | null; label: string; sub: string }>;
+  attr: 'data-device' | 'data-commission-option';
+  title: string;
+  current: string | null;
+  onClose: () => void;
+  onPick: (value: string | null) => void;
+}): JSX.Element {
+  return (
+    <MBottomSheet onClose={onClose}>
+      <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 10px' }}><span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>{title}</span></div>
+      <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 13, overflow: 'hidden' }}>{items.map((item, index) => <OptionRow key={item.value ?? '__off__'} item={item} attr={attr} last={index === items.length - 1} current={current} onPick={onPick} />)}</div>
+    </MBottomSheet>
   );
 }
 
@@ -135,9 +154,24 @@ export function BrowserSheet({ items, title, current, onClose, onPick }: {
   onPick: (device: string | null) => void;
 }): JSX.Element {
   return (
-    <MBottomSheet onClose={onClose}>
-      <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 10px' }}><span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>{title}</span></div>
-      <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 13, overflow: 'hidden' }}>{items.map((item, index) => <BrowserRow key={item.device ?? '__off__'} item={item} last={index === items.length - 1} current={current} onPick={onPick} />)}</div>
-    </MBottomSheet>
+    <OptionSheet
+      items={items.map((i) => ({ value: i.device, label: i.label, sub: i.sub }))}
+      attr="data-device" title={title} current={current} onClose={onClose} onPick={onPick}
+    />
+  );
+}
+
+export function CommissionSheet({ items, title, current, onClose, onPick }: {
+  items: CommissionSheetItem[];
+  title: string;
+  current: string | null;
+  onClose: () => void;
+  onPick: (value: string | null) => void;
+}): JSX.Element {
+  return (
+    <OptionSheet
+      items={items} attr="data-commission-option"
+      title={title} current={current} onClose={onClose} onPick={onPick}
+    />
   );
 }
