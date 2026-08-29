@@ -23,8 +23,8 @@ import { createLogger } from '@core/log.js';
 import { MCP_INFRASTRUCTURE_TIMEOUT_MS } from '@core/mcp-timeout.js';
 import { encodeMcpBundles, MCP_BUNDLES_ENV, parseMcpBundles, type McpBundleName } from '@core/mcp-bundles.js';
 import {
-  MCP_TOOL_ALLOWLIST_ENV, MCP_TOOLS_BY_SERVER, parseMcpToolAllowlist,
-  validateMcpToolAllowlist,
+  applyPlanToolVariant, MCP_TOOL_ALLOWLIST_ENV, MCP_TOOLS_BY_SERVER, parseMcpToolAllowlist,
+  validateMcpToolAllowlist, type PlanToolVariant,
 } from '@core/mcp-tool-gate.js';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -37,7 +37,9 @@ import {
   shouldLoadThreadControl,
   shouldLoadWeb,
 } from './mcp-bridge-logic.js';
-import { PI_INTERACTION_BRIDGE_ENV, PI_MCP_COMPOSITION_ENV } from './spawn-args.js';
+import {
+  PI_INTERACTION_BRIDGE_ENV, PI_MCP_COMPOSITION_ENV, PI_PLAN_TOOL_VARIANT_ENV,
+} from './spawn-args.js';
 import {
   PI_PLUGIN_MCP_CONFIG_ENV,
   loadPiPluginMcpConfig,
@@ -113,6 +115,31 @@ function builtinEnv(env: NodeJS.ProcessEnv): Record<string, string> {
   } as Record<string, string>;
 }
 
+function readPlanToolVariant(env: NodeJS.ProcessEnv): PlanToolVariant | null {
+  const raw = env[PI_PLAN_TOOL_VARIANT_ENV];
+  return raw === 'standard' || raw === 'commission' ? raw : null;
+}
+
+/**
+ * The plan-tool variant is applied here rather than in the adapter because this is the first place
+ * that knows PI's bundle set — and the gate is fail-open, so excluding a tool means writing an
+ * allowlist that spans every selected bundle, not just the interaction bridge. Only the commission
+ * variant is narrowed: PI has no `--tools` equivalent for MCP tools, so this is the only lever that
+ * can keep cortex_plan_exit away from a session whose whole point is the contract gate.
+ */
+function variantGatedEnv(
+  bundles: readonly McpBundleName[], env: NodeJS.ProcessEnv,
+): Record<string, string> {
+  const childEnv = { ...builtinEnv(env), [MCP_BUNDLES_ENV]: encodeMcpBundles(bundles) };
+  const variant = readPlanToolVariant(env);
+  if (variant !== 'commission' || !bundles.includes('cortex-interaction-bridge')) return childEnv;
+  const declared = parseMcpToolAllowlist(env[MCP_TOOL_ALLOWLIST_ENV]);
+  childEnv[MCP_TOOL_ALLOWLIST_ENV] = JSON.stringify(
+    applyPlanToolVariant(declared ? [...declared] : undefined, variant, bundles),
+  );
+  return childEnv;
+}
+
 function bundledServerConfig(
   bundles: readonly McpBundleName[], env: NodeJS.ProcessEnv,
 ): McpServerConfig {
@@ -121,7 +148,7 @@ function bundledServerConfig(
     type: 'stdio',
     command: 'node',
     args: [BUNDLED_SERVER_PATH],
-    env: { ...builtinEnv(env), [MCP_BUNDLES_ENV]: encodeMcpBundles(bundles) },
+    env: variantGatedEnv(bundles, env),
     cwd: process.cwd(),
   };
 }

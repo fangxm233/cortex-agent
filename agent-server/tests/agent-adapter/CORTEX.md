@@ -21,6 +21,7 @@ Agent adapter tests: Claude and PI streams normalized into shared events, plus s
 | claude-tmux-control.test.ts | test | tmux argv, secure buffers, and tempfiles |
 | claude-tui-resume.test.ts | test | TUI first-turn resume guard |
 | fixtures/ | subdir | recorded backend streams and golden outputs |
+| plan-tool-variant.test.ts | test | commission vs standard plan-tool swap on both backends |
 | normalize-assistant-delta.test.ts | test | delta event union and backend capability |
 | normalize.test.ts | test | normalized event parser edge cases |
 | pi-adapter.test.ts | test | PI RPC to normalized event replay |

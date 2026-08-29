@@ -69,6 +69,7 @@ const interactionLoader: RegistrarLoader = async () => {
   const deps = {
     channel: process.env.SLACK_CHANNEL ?? null,
     sessionId: process.env.CORTEX_SESSION_ID ?? null,
+    sessionName: process.env.CORTEX_SESSION_NAME ?? null,
     threadId: process.env.CORTEX_THREAD_ID ?? null,
     webhookBaseUrl: `http://127.0.0.1:${port}`,
     httpPost: interactionPost,

@@ -20,6 +20,7 @@ const log = createLogger('mcp-interaction');
 
 const channel = process.env.SLACK_CHANNEL ?? null;
 const sessionId = process.env.CORTEX_SESSION_ID ?? null;
+const sessionName = process.env.CORTEX_SESSION_NAME ?? null;
 const threadId = process.env.CORTEX_THREAD_ID ?? null;
 const webhookPort = parseInt(process.env.WEBHOOK_PORT || '3001', 10);
 const webhookBaseUrl = `http://127.0.0.1:${webhookPort}`;
@@ -35,6 +36,7 @@ async function defaultHttpPost(url: string, body: any): Promise<{ status: number
 const deps: InteractionToolDeps = {
   channel,
   sessionId,
+  sessionName,
   threadId,
   webhookBaseUrl,
   httpPost: defaultHttpPost,

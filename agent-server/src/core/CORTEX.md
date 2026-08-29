@@ -24,7 +24,7 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | loopback-http.ts | transport | Runs bounded MCP-to-daemon JSON requests |
 | mcp-bundles.ts | policy | defines validated built-in MCP compositions |
 | mcp-timeout.ts | config | Defines the shared MCP infrastructure deadline |
-| mcp-tool-gate.ts | policy | canonicalizes and enforces MCP tool allowlists |
+| mcp-tool-gate.ts | policy | canonicalizes and enforces MCP tool allowlists, and the plan-tool variant |
 | paths.ts | config | defines install, data, and config paths |
 | pi-session-filename.ts | util | parses and selects PI transcript filenames |
 | profile-generator.ts | config | generates the agent profiles file |

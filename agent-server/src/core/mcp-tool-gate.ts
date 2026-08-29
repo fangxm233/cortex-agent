@@ -1,5 +1,5 @@
 // input:  MCP tool declarations and CORTEX_MCP_TOOL_ALLOWLIST
-// output: canonical allowlists and gated registrar execution
+// output: canonical allowlists, plan-tool variants and gated registrar execution
 // pos:    Fail-closed MCP tool allowlist policy
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -20,7 +20,11 @@ export const MCP_TOOLS_BY_SERVER: Readonly<Record<string, readonly string[]>> = 
     'cortex_schedule_list', 'cortex_schedule_get', 'cortex_schedule_remove',
     'cortex_schedule_pause', 'cortex_schedule_resume',
   ],
-  'cortex-interaction-bridge': ['cortex_plan_enter', 'cortex_plan_exit', 'cortex_commission_plan_exit', 'cortex_ask_user'],
+  'cortex-interaction-bridge': [
+    'cortex_plan_enter', 'cortex_plan_exit',
+    'cortex_commission_plan_enter', 'cortex_commission_plan_exit',
+    'cortex_ask_user',
+  ],
   'cortex-slack': ['slack_send_file'],
   'cortex-feishu': ['feishu_send_file'],
   'cortex-web': ['send_file', 'send_view', 'send_decision'],
@@ -28,6 +32,46 @@ export const MCP_TOOLS_BY_SERVER: Readonly<Record<string, readonly string[]>> = 
 };
 
 const ALL_MCP_TOOLS = new Set(Object.values(MCP_TOOLS_BY_SERVER).flat());
+
+/**
+ * Which pair of plan tools a session gets. A session in commission mode is drilling a contract, so
+ * `cortex_commission_plan_exit` must be the only way out of plan mode; every other session must not
+ * even see the commission tools. Hence a binary swap rather than an additive flag (DR-0037 v2).
+ */
+export type PlanToolVariant = 'standard' | 'commission';
+
+const PLAN_TOOLS_BY_VARIANT: Readonly<Record<PlanToolVariant, readonly string[]>> = {
+  standard: ['cortex_plan_enter', 'cortex_plan_exit'],
+  commission: ['cortex_commission_plan_enter', 'cortex_commission_plan_exit'],
+};
+
+/** Bare tool names this variant enables. */
+export function planToolsFor(variant: PlanToolVariant): readonly string[] {
+  return PLAN_TOOLS_BY_VARIANT[variant];
+}
+
+/** Bare tool names this variant must NOT see — i.e. the other variant's pair. */
+export function excludedPlanTools(variant: PlanToolVariant): readonly string[] {
+  return PLAN_TOOLS_BY_VARIANT[variant === 'commission' ? 'standard' : 'commission'];
+}
+
+/**
+ * Narrow a per-spawn allowlist down to one plan-tool variant.
+ *
+ * The gate is fail-OPEN (see {@link parseMcpToolAllowlist}: absent env ⇒ everything registers), so a
+ * variant can never be expressed by *withholding* an allowlist. When the caller has none of its own
+ * we therefore synthesize one from the selected bundles' full surface and subtract the wrong
+ * variant's pair — the allowlist has to be present for the exclusion to mean anything.
+ */
+export function applyPlanToolVariant(
+  allowlist: readonly string[] | undefined,
+  variant: PlanToolVariant,
+  selectedBundles: readonly string[],
+): string[] {
+  const base = allowlist ?? selectedBundles.flatMap(bundle => MCP_TOOLS_BY_SERVER[bundle] ?? []);
+  const drop = new Set(excludedPlanTools(variant));
+  return canonicalizeMcpToolAllowlist(base.filter(name => !drop.has(name)));
+}
 
 type MutableMcpServer = {
   tool: (...args: any[]) => any;

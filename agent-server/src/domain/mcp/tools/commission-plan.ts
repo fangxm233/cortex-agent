@@ -1,6 +1,6 @@
 // input:  fs, zod, InteractionToolDeps, exit-plan-mode webhook
-// output: registerCommissionPlanTools + runCommissionPlanExit
-// pos:    Commission contract approval that names + lands the commission
+// output: registerCommissionPlanTools + runCommissionPlanEnter/Exit
+// pos:    Commission drill entry and the contract approval that names + lands the commission
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import * as fs from 'fs';
@@ -21,6 +21,58 @@ function errorResult(text: string): CallToolResultShape {
 
 function okResult(text: string): CallToolResultShape {
   return { content: [{ type: 'text', text }] };
+}
+
+// =====================================================================================
+//  cortex_commission_plan_enter — pure (no I/O), the commission-mode replacement for
+//                                 cortex_plan_enter. Carries the drill protocol and points at
+//                                 the draft directory the server already made for this session.
+// =====================================================================================
+
+const COMMISSION_ENTER_REMINDER = `\
+Commission mode is active. The native plan tools and cortex_plan_exit are gone: a commission leaves
+plan mode only through cortex_commission_plan_exit, because that call is what names the commission
+and lands its directory.
+
+Phase A is drill, then contract. Implement nothing; investigation is read-only and the only thing
+you write is the contract draft.
+
+Drill protocol:
+- Context first. Never ask what you can look up. Read the repo / project context until you know what
+  exists, then use findings to sharpen questions and to challenge premises the code contradicts.
+- Depth-first. Map the decision branches, then take ONE to resolution — or to the user explicitly
+  deferring it — before moving to the next. Do not scatter questions across branches.
+- Ask through cortex_ask_user, at most 4 questions per call and usually 1-2, all from the branch
+  being drilled. Every question carries concrete options, your recommendation marked as such, and an
+  escape meaning "go with the recommendation".
+- Summarize every 5-8 exchanges: resolved / open branches / currently drilling.
+- Never smooth over a contradiction; re-ask instead. Deferred branches land in the contract as
+  exclusions or gates, never silently dropped.
+
+Then write contract.md (goal in the user's own words, inferences tagged with their basis, testable
+acceptance criteria, exclusions, gates, empty revision log) and submit it with
+cortex_commission_plan_exit. Denial returns feedback and the draft survives; approval renames the
+draft to the approved slug, registers the commission and binds this session.`;
+
+function draftLocationLine(deps: InteractionToolDeps): string {
+  const dir = deps.sessionName
+    ? `commissions/_draft-${deps.sessionName}/`
+    : 'the commissions/_draft-* directory';
+  return `Draft directory (already created by the server, under this project's context directory): ${dir}\n`
+    + 'Write contract.md there. Do not create or rename that directory yourself.';
+}
+
+export function runCommissionPlanEnter(
+  args: { reasoning?: string },
+  deps: InteractionToolDeps,
+): CallToolResultShape {
+  const reasoning = (args.reasoning && args.reasoning.trim()) || null;
+  const text = [
+    COMMISSION_ENTER_REMINDER,
+    draftLocationLine(deps),
+    reasoning ? `(Reasoning recorded: ${reasoning})` : null,
+  ].filter(Boolean).join('\n\n');
+  return okResult(text);
 }
 
 function validateArgs(args: CommissionPlanExitArgs, deps: InteractionToolDeps): CallToolResultShape | null {
@@ -97,6 +149,13 @@ export async function runCommissionPlanExit(
 }
 
 export function registerCommissionPlanTools(server: McpServer, deps: InteractionToolDeps): void {
+  server.tool(
+    'cortex_commission_plan_enter',
+    'Enter commission drill mode (commission-mode replacement for cortex_plan_enter). Use this FIRST when the session is in commission mode: it returns the drill protocol and the draft directory this session must write contract.md into. Investigation is read-only until the contract is approved via cortex_commission_plan_exit. Optional `reasoning` is recorded for the audit trail.',
+    { reasoning: z.string().optional() },
+    async (args) => runCommissionPlanEnter(args ?? {}, deps) as any,
+  );
+
   server.tool(
     'cortex_commission_plan_exit',
     'Submit a commission contract for human approval and land the commission on approval (commission-mode replacement for cortex_plan_exit). Reads contract.md at `contract_file_path` — it must live in a `commissions/_draft-*/` directory of this session\'s project — and BLOCKS until the human decides. On approval the draft directory is renamed to the slug of `name`, the commission is registered, and this session is bound to it; the final directory is returned. On denial, revise the contract and call again.',
