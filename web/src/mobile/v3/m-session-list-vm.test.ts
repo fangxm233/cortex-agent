@@ -25,6 +25,7 @@ function sess(over: Partial<SessionInfo>): SessionInfo {
     unread: false,
     scheduleId: null,
     ...over,
+    commissionId: over.commissionId ?? null,
   };
 }
 

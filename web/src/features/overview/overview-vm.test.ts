@@ -76,6 +76,7 @@ describe('deriveActiveProjectId', () => {
     costUsd: null,
     unread: false,
     scheduleId: null,
+    commissionId: null,
   });
   it('picks the most-recently-used session project', () => {
     const sessions = [

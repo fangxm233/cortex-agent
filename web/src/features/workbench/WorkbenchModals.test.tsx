@@ -62,6 +62,7 @@ function run(sessionId: string): SessionInfo {
     createdAt: '2030-01-01T00:00:00.000Z', lastUsedAt: '2030-01-01T00:00:00.000Z',
     resumable: true, label: null, profileName: null, running: false,
     backgroundRunning: false, awaitingInput: false, numTurns: null, costUsd: 1, unread: false,
+    commissionId: null,
   };
 }
 

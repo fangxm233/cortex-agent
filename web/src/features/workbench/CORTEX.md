@@ -19,11 +19,11 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | project-menu.test.ts | test | Unit tests for project menu counts |
 | NewProjectModal.tsx | view | Presents desktop creation in the shared accessible bare dialog through the projects controller |
 | session-groups.ts | vm | Day-groups sessions with meta and stamp helpers |
-| session-groups.test.ts | test | Unit tests for session day grouping |
+| session-groups.test.ts | test | Tests SessionInfo-aware day grouping |
 | schedule-rail.ts | vm | Builds SCHEDULED rows, shared-USD costs, run ordinals and real ScheduleInfo edit actions |
-| schedule-rail.test.ts | test | Tests SCHEDULED grouping, ordinals and DTO-carrying edit routing |
+| schedule-rail.test.ts | test | Tests SessionInfo grouping, ordinals and edit routing |
 | RunListModal.tsx | view | Accessible bare run-list dialog with canonical USD costs and schedule-manage handoff |
-| WorkbenchModals.test.tsx | test | Guards bare-shell dismissal, Enter, copy, run-open and manage behavior |
+| WorkbenchModals.test.tsx | test | Guards SessionInfo-backed modal actions and dismissal |
 | ProfileMenu.tsx | view | Lists compact profiles above or below its anchor |
 | profile-menu.ts | vm | Filters live profile options and switch gates |
 | profile-menu.test.ts | test | Tests live profile filtering and switch gates |
@@ -122,7 +122,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | useSessionsLiveSync.ts | hook | Refreshes the session list on lifecycle events |
 | SelectedSessionProvider.tsx | provider | Shares sessions and external draft prefill |
 | selected-session.ts | vm | Resolves selected session and transition profile |
-| selected-session.test.ts | test | Unit tests for session selection |
+| selected-session.test.ts | test | Tests SessionInfo selection and transitions |
 
 | DebugDetailsModal.tsx | view | Inspector dialog with scoped hover controls |
 | debug-inspector.test.tsx | test | Tests hover scope, counting and debug formatting |

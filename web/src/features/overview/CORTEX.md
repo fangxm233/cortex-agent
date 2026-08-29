@@ -10,4 +10,4 @@ Project scope and fallback derivation come from the neutral projects feature.
 | OverviewView.tsx | view | Center pane with cost, notes and project cards |
 | OverviewView.test.tsx | test | Tests schedule edit, delete and resume actions |
 | overview-vm.ts | vm | Derives canonical USD money, schedule and execution display |
-| overview-vm.test.ts | test | Tests shared project fallback, execution duration and budget arithmetic |
+| overview-vm.test.ts | test | Tests session project fallback, duration and budget arithmetic |

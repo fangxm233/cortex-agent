@@ -24,11 +24,11 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 | MSessionListView.tsx | view | Day-grouped session rows with clock entry |
 | MScheduleSheet.tsx | view | One compact list/runs/editor bottom-sheet state machine with level-aware back |
 | MScheduleSheetLevels.tsx | view | Presents canonical-USD Scheduled list/run levels as DOM-stable components |
-| MScheduleSheet.test.tsx | test | Tests real-DTO edits, one-sheet levels and pending-safe Escape/hardware-back reopen |
+| MScheduleSheet.test.tsx | test | Tests SessionInfo runs, edits and nested sheet behavior |
 | MScheduleEditor.tsx | view | Composes shared-controller fields and honest once-edit limitations in-sheet |
 | MScheduleEditorFields.tsx | view | Presents mobile schedule field groups as small DOM-stable components |
 | m-session-list-vm.ts | vm | Groups sessions by day and derives status lines |
-| m-session-list-vm.test.ts | test | Unit tests for the session list view model |
+| m-session-list-vm.test.ts | test | Tests SessionInfo grouping and status projection |
 | MThreadsScreen.tsx | screen | Loads active and historical thread sections |
 | MThreadsView.tsx | view | Grouped thread sections and wrapped pipelines |
 | m-threads-vm.ts | vm | Derives canonical-USD budget, steps and task-linked card meta |
