@@ -7,15 +7,27 @@ import * as fsp from 'node:fs/promises';
 import * as path from 'node:path';
 import { commissionRepo } from '@store/commission-repo.js';
 import type { CommissionStatus } from '@store/commission-repo.js';
-import { commissionDir } from './commission-paths.js';
+import { commissionDir, commissionsRoot } from './commission-paths.js';
 
-export interface CommissionPromptContext {
+/** A session bound to a commission that has landed: contract approved, ledger in progress. */
+export interface ActiveCommissionContext {
+  phase: 'active';
   id: string;
   title: string;
   dir: string;
   /** False when ledger.md is missing or empty — the block then tells the agent to create it. */
   hasLedger: boolean;
 }
+
+/** A session created to START a commission. There is no contract and no registry entry yet, only
+ *  the draft directory the server made — but the session still has to be told that, or the first
+ *  session of every commission is the one session that never learns it is in commission mode. */
+export interface DraftCommissionContext {
+  phase: 'draft';
+  dir: string;
+}
+
+export type CommissionPromptContext = ActiveCommissionContext | DraftCommissionContext;
 
 export interface CommissionContextDeps {
   findCommission?: (id: string) => Promise<{ projectId: string; slug: string; title: string; status: CommissionStatus } | null>;
@@ -37,7 +49,7 @@ export interface CommissionContextDeps {
 export async function loadCommissionPromptContext(
   commissionId: string,
   deps: CommissionContextDeps = {},
-): Promise<CommissionPromptContext | null> {
+): Promise<ActiveCommissionContext | null> {
   const find = deps.findCommission ?? ((id: string) => commissionRepo.find(id));
   const resolveDir = deps.resolveDir ?? commissionDir;
   const read = deps.readFile ?? ((filePath: string) => fsp.readFile(filePath, 'utf8'));
@@ -51,9 +63,22 @@ export async function loadCommissionPromptContext(
   if (!contractRaw.trim()) return null;
   const ledgerRaw = await read(path.join(dir, 'ledger.md')).catch(() => '');
   return {
+    phase: 'active',
     id: commissionId,
     title: commission.title,
     dir,
     hasLedger: ledgerRaw.trim().length > 0,
   };
+}
+
+/** Locate the draft directory the server created at session-creation time. Best-effort like its
+ *  sibling: a draft whose directory has gone missing injects nothing rather than failing the turn. */
+export function loadCommissionDraftContext(
+  projectId: string,
+  draftDir: string,
+  deps: { resolveRoot?: (projectId: string) => string | null } = {},
+): DraftCommissionContext | null {
+  const root = (deps.resolveRoot ?? commissionsRoot)(projectId);
+  if (!root) return null;
+  return { phase: 'draft', dir: path.join(root, draftDir) };
 }

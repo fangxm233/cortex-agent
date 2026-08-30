@@ -14,7 +14,9 @@ import { waitForPendingUserInputs } from './pending-user-inputs.js';
 import type {
   AgentDefinition, AgentSlot, AgentSlotConfig, AgentSlotId, AgentStep, TemplateAgentRef, ThreadRecord, ThreadTemplate,
 } from '@core/types/thread-types.js';
-import type { CommissionPromptContext } from '../commissions/commission-context.js';
+import type {
+  ActiveCommissionContext, CommissionPromptContext, DraftCommissionContext,
+} from '../commissions/commission-context.js';
 
 /** Resolve the `__active__` agent ref placeholder to the currently active default agent
  *  (set by `!agent`). Falls back to `'main'` when no default is configured. Other names
@@ -365,10 +367,26 @@ const COMMISSION_PROTOCOL = `Commission protocol:
 3. Before this session ends, and at each stage boundary, append a checkpoint CP-N to ledger.md with three diffs — plan vs done, contract vs current direction, assumptions vs reality — graded ok / attention / gate. Re-read contract.md (including 修订记录) before writing it.
 4. Contract gates are blocking: ask the user and wait. A streak of approvals never downgrades a gate.`;
 
+/** A session that is about to CREATE a commission. It has no contract and no ledger yet, so the
+ *  block's whole job is to say so and hand the agent to cortex_commission_start, which carries the
+ *  drill protocol. Without this the first session of every commission is the one that is told
+ *  nothing (DR-0037 v3). */
+function buildDraftCommissionBlock(c: DraftCommissionContext): string {
+  return [
+    '[Commission] This session was created to START a new commission (委托): a long task anchored by '
+    + 'a contract the user approves before any work begins.',
+    `Draft directory (already created by the server): ${c.dir}`,
+    '',
+    'Call cortex_commission_start now, before investigating or asking anything — it carries the '
+    + 'drill protocol and the contract structure. Implement nothing until the contract is approved '
+    + 'through cortex_commission_submit.',
+  ].join('\n');
+}
+
 /** Index, not snapshot: the block names the two files and tells the agent to read them. Their
  *  contents are deliberately NOT pasted in — they grow without bound and the user may edit
  *  contract.md at any time, so a snapshot is both expensive and potentially stale. */
-function buildCommissionBlock(c: CommissionPromptContext): string {
+function buildActiveCommissionBlock(c: ActiveCommissionContext): string {
   const ledgerLine = c.hasLedger
     ? `  ledger.md   — your state record: 状态 line, 计划 items, checkpoints CP-N, log entries L-NNN`
     : `  ledger.md   — NOT created yet. Derive it from the contract's acceptance criteria before working`;
@@ -385,4 +403,8 @@ function buildCommissionBlock(c: CommissionPromptContext): string {
     '',
     COMMISSION_PROTOCOL,
   ].join('\n');
+}
+
+function buildCommissionBlock(c: CommissionPromptContext): string {
+  return c.phase === 'draft' ? buildDraftCommissionBlock(c) : buildActiveCommissionBlock(c);
 }

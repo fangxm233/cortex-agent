@@ -16,7 +16,7 @@ import {
   resolveConversationCommission,
   resolveConversationProject,
 } from '../src/orchestration/conversation-runner.js';
-import type { CommissionPromptContext } from '../src/domain/commissions/commission-context.js';
+import type { ActiveCommissionContext } from '../src/domain/commissions/commission-context.js';
 import type { AgentSlotConfig } from '../src/core/types/thread-types.js';
 import type { Project } from '../src/domain/projects/project-types.js';
 
@@ -136,7 +136,8 @@ test('resolveConversationProject returns null when the project is unknown to the
 
 // ── [Commission] block ──────────────────────────────────────────────────────
 
-const commissionCtx: CommissionPromptContext = {
+const commissionCtx: ActiveCommissionContext = {
+  phase: 'active',
   id: 'comm-1',
   title: 'Ship the parser',
   dir: '/ctx/projects/proj-a/commissions/ship-the-parser',
@@ -173,17 +174,36 @@ test('buildConversationPrompt tells the agent to create ledger.md when it does n
   assert.match(prompt, /ledger\.md   — NOT created yet/);
 });
 
+test('a session still drafting its contract is told so, and pointed at cortex_commission_start', () => {
+  const prompt = buildConversationPrompt(makeAgentConfig({ directive: '' }), 'go', {
+    commission: { phase: 'draft', dir: '/ctx/projects/proj-a/commissions/_draft-cortex-4c80d3' },
+  });
+  assert.match(prompt, /\[Commission\] This session was created to START a new commission/);
+  assert.match(prompt, /_draft-cortex-4c80d3/);
+  assert.match(prompt, /Call cortex_commission_start now/);
+  // No contract exists yet, so the maintenance protocol would be noise.
+  assert.ok(!prompt.includes('Commission protocol:'), 'no execution protocol before a contract');
+});
+
 test('resolveConversationCommission loads the context only for commission-bound sessions', async () => {
   const load = (async (id: string) => ({ ...commissionCtx, id })) as typeof import('../src/domain/commissions/commission-context.js').loadCommissionPromptContext;
   const bound = await resolveConversationCommission('sess-1', {
     getSession: async () => ({ commissionId: 'comm-9' }), load,
   });
-  assert.equal(bound?.id, 'comm-9');
+  assert.equal(bound?.phase === 'active' ? bound.id : null, 'comm-9');
 
   const unbound = await resolveConversationCommission('sess-1', {
     getSession: async () => ({ commissionId: null }), load,
   });
   assert.equal(unbound, null);
+
+  // The drafting window: no commission id exists yet, so the draft directory is what gets injected.
+  const drafting = await resolveConversationCommission('sess-1', {
+    getSession: async () => ({ commissionId: null, commissionDraft: '_draft-cortex-4c80d3', projectId: 'proj-a' }),
+    load,
+    loadDraft: (projectId, draft) => ({ phase: 'draft', dir: `/ctx/${projectId}/commissions/${draft}` }),
+  });
+  assert.deepEqual(drafting, { phase: 'draft', dir: '/ctx/proj-a/commissions/_draft-cortex-4c80d3' });
 
   const failing = await resolveConversationCommission('sess-1', {
     getSession: async () => { throw new Error('registry down'); }, load,

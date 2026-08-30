@@ -20,7 +20,10 @@ import { resolveAgentSlotConfigByName, resolveSystemVars, buildConversationPromp
 import { projectStore } from '@domain/projects/index.js';
 import type { Project } from '@domain/projects/index.js';
 import * as executionRegistry from '@domain/executions/registry.js';
-import { loadCommissionPromptContext, type CommissionPromptContext } from '@domain/commissions/commission-context.js';
+import {
+  loadCommissionDraftContext, loadCommissionPromptContext,
+  type CommissionPromptContext,
+} from '@domain/commissions/commission-context.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { runningExecutions } from '../core/running-executions.js';
 import { buildPrompt as buildAgentPrompt } from '../agent-adapter/normalize/prompt-builder.js';
@@ -131,15 +134,25 @@ export function resolveConversationProject(args: {
 export async function resolveConversationCommission(
   trackSessionId: string,
   deps: {
-    getSession?: (id: string) => Promise<{ commissionId?: string | null } | null>;
+    getSession?: (id: string) => Promise<{
+      commissionId?: string | null; commissionDraft?: string | null; projectId?: string | null;
+    } | null>;
     load?: typeof loadCommissionPromptContext;
+    loadDraft?: typeof loadCommissionDraftContext;
   } = {},
 ): Promise<CommissionPromptContext | null> {
   try {
     const getSession = deps.getSession ?? ((id: string) => sessionStore.getById(id));
     const session = await getSession(trackSessionId);
-    if (!session?.commissionId) return null;
-    return await (deps.load ?? loadCommissionPromptContext)(session.commissionId);
+    if (session?.commissionId) {
+      return await (deps.load ?? loadCommissionPromptContext)(session.commissionId);
+    }
+    // A session still drafting its contract has no commission id yet — it is the FIRST session of
+    // the commission, and the one that most needs to be told what it is here to do.
+    if (session?.commissionDraft && session.projectId) {
+      return (deps.loadDraft ?? loadCommissionDraftContext)(session.projectId, session.commissionDraft);
+    }
+    return null;
   } catch {
     return null;
   }

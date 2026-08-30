@@ -33,7 +33,17 @@ test('resolves identity and directory for an active commission, without carrying
   assert.equal(ctx?.dir, '/ctx/proj/commissions/my-task');
   assert.equal(ctx?.hasLedger, true);
   // The context is an index — no snapshot fields, no matter how large the files are.
-  assert.deepEqual(Object.keys(ctx!).sort(), ['dir', 'hasLedger', 'id', 'title']);
+  assert.deepEqual(Object.keys(ctx!).sort(), ['dir', 'hasLedger', 'id', 'phase', 'title']);
+});
+
+test('a drafting session resolves to its draft directory, with no contract or ledger yet', async () => {
+  const { loadCommissionDraftContext } = await import('../../../src/domain/commissions/commission-context.js');
+  assert.deepEqual(
+    loadCommissionDraftContext('proj', '_draft-cortex-4c80d3', { resolveRoot: () => '/ctx/proj/commissions' }),
+    { phase: 'draft', dir: '/ctx/proj/commissions/_draft-cortex-4c80d3' },
+  );
+  // A project with no context directory cannot hold a commission — inject nothing rather than throw.
+  assert.equal(loadCommissionDraftContext('proj', '_draft-x', { resolveRoot: () => null }), null);
 });
 
 test('a missing or empty ledger is reported as absent, not fatal', async () => {
