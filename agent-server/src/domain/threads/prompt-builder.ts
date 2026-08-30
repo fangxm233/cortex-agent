@@ -363,8 +363,8 @@ export function buildConversationPrompt(
  *  rules the agent must not lose mid-run — surprise triage, evidence, checkpoints, gates. */
 const COMMISSION_PROTOCOL = `Commission protocol:
 1. Surprises are three kinds: an obstacle you route around; a fork you align on (send_decision for low-stakes picks, a blocking question for high-stakes ones); a discovery that invalidates a contract premise. A discovery MUST be surfaced against the contract — never silently absorbed.
-2. Completion claims need evidence pointers (file paths, command outputs, EXP ids) in ledger.md. Scope cuts and deferrals go in the plan section's 缩小/推迟 fields.
-3. Before this session ends, and at each stage boundary, append a checkpoint CP-N to ledger.md with three diffs — plan vs done, contract vs current direction, assumptions vs reality — graded ok / attention / gate. Re-read contract.md (including 修订记录) before writing it.
+2. Completion claims need evidence pointers (file paths, command outputs, EXP ids) in ledger.md. Scope cuts and deferrals go in the plan section's "Cuts and deferrals" note.
+3. Before this session ends, and at each stage boundary, append a checkpoint CP-N to ledger.md with three diffs — plan vs done, contract vs current direction, assumptions vs reality — graded ok / attention / gate. Re-read contract.md (including its Revisions section) before writing it.
 4. Contract gates are blocking: ask the user and wait. A streak of approvals never downgrades a gate.`;
 
 /** A session that is about to CREATE a commission. It has no contract and no ledger yet, so the
@@ -388,18 +388,18 @@ function buildDraftCommissionBlock(c: DraftCommissionContext): string {
  *  contract.md at any time, so a snapshot is both expensive and potentially stale. */
 function buildActiveCommissionBlock(c: ActiveCommissionContext): string {
   const ledgerLine = c.hasLedger
-    ? `  ledger.md   — your state record: 状态 line, 计划 items, checkpoints CP-N, log entries L-NNN`
+    ? `  ledger.md   — your state record: Status line, Plan items, checkpoints CP-N, log entries L-NNN`
     : `  ledger.md   — NOT created yet. Derive it from the contract's acceptance criteria before working`;
   return [
     `[Commission] This session belongs to the commission "${c.title}" (${c.id}).`,
     `Commission directory: ${c.dir}`,
-    `  contract.md — the binding intent reference: goal, inferences, acceptance criteria, exclusions, gates, 修订记录`,
+    `  contract.md — the binding intent reference: goal, inferences, acceptance criteria, exclusions, gates, revisions`,
     ledgerLine,
     `  assets/     — rich content you generate; decisions.jsonl — server-written, never touch it`,
     '',
     `Read both files now, before anything else — their contents are not reproduced here, and the `
-    + `copies on disk are the only source of truth. Re-read contract.md (including 修订记录) at every `
-    + `checkpoint; the user may have edited it since you last looked.`,
+    + `copies on disk are the only source of truth. Re-read contract.md (including its Revisions `
+    + `section) at every checkpoint; the user may have edited it since you last looked.`,
     '',
     COMMISSION_PROTOCOL,
   ].join('\n');

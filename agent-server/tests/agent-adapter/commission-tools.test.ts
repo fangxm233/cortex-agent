@@ -126,9 +126,14 @@ describe('cortex_commission_start', () => {
 
   it('carries the whole creation protocol, since the skill no longer covers it', () => {
     const text = runCommissionStart({}, deps('cortex-a1b2')).content[0].text;
-    for (const section of ['## 目标（用户原话）', '## 推断', '## 验收条件', '## 不做', '## 闸门', '## 修订记录']) {
+    for (const section of [
+      '## Goal (user\'s words)', '## Inferences', '## Acceptance criteria',
+      '## Out of scope', '## Gates', '## Revisions',
+    ]) {
       expect(text).toContain(section);
     }
+    // The whole feature is English-only: no Chinese leaks into anything the agent reads.
+    expect(text).not.toMatch(/[\u4e00-\u9fff]/);
     expect(text).toContain('Depth-first');
     expect(text).toContain('cortex_ask_user');
   });

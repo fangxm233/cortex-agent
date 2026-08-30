@@ -33,7 +33,7 @@ const COMMISSION_START_PROTOCOL = `\
 You are starting a commission: a long task anchored by two files the user can read at any time.
 
   contract.md — the binding statement of intent. Written once, here, through the drill below.
-                Changed afterwards only by appending to 修订记录.
+                Changed afterwards only by appending to its Revisions section.
   ledger.md   — your state record, written after the contract is approved.
 
 Phase 1 — drill. Implement nothing. Investigation is read-only; the only thing you write is the
@@ -50,31 +50,31 @@ BEFORE any work starts.
 - Summarize every 5-8 exchanges: resolved / open branches / currently drilling.
 - Never smooth over a contradiction; re-ask instead.
 - Stop when every branch is resolved or explicitly deferred, or the user says enough. Deferred
-  branches land in the contract as 不做 items or 闸门, never silently dropped.
+  branches land in the contract as Out-of-scope items or Gates, never silently dropped.
 
 Phase 2 — write contract.md in the draft directory, with these sections in order:
 
-  # 合约: <title>
+  # Contract: <title>
 
-  ## 目标（用户原话）
+  ## Goal (user's words)
   Quote the user's request verbatim. Do not paraphrase.
 
-  ## 推断
+  ## Inferences
   What you filled in beyond the user's words. Tag each line with its basis:
-  （用户答复：…）for drill answers, （repo 事实：path:line）for code findings.
+  (user: …) for drill answers, (repo: path:line) for code findings.
 
-  ## 验收条件
+  ## Acceptance criteria
   A-1, A-2, … — testable, each checkable by a command, a file, or a user look.
 
-  ## 不做
+  ## Out of scope
   Explicit exclusions and deferred branches, with one-line reasons.
 
-  ## 闸门
+  ## Gates
   The few points where execution MUST block on user confirmation (before touching shared state,
   before an irreversible step). Keep this list short.
 
-  ## 修订记录
-  （追加式，初始为空）
+  ## Revisions
+  (append-only; starts empty)
 
 Phase 3 — submit it with cortex_commission_submit. That call blocks until the user decides. On
 denial the feedback comes back and the draft survives, so revise and call again. On approval the
@@ -138,19 +138,19 @@ function formatOutcome(body: any): CallToolResultShape {
 const LEDGER_INIT = `\
 Now create ledger.md in that directory, derived from the contract:
 
-  # 账本: <title>
+  # Ledger: <title>
 
-  状态：<one line, overwritten on each update>
+  Status: <one line, overwritten on each update>
 
-  ## 计划
-  P-1 … — one item per 验收条件, each with a status (todo/doing/done/cut/deferred).
-  缩小/推迟：mandatory note whenever an item is cut or deferred — what was dropped and why.
+  ## Plan
+  P-1 … — one item per acceptance criterion, each with a status (todo/doing/done/cut/deferred).
+  Cuts and deferrals: mandatory note whenever an item is cut or deferred — what was dropped and why.
 
-  ## 检查点
-  （CP-N entries, appended）
+  ## Checkpoints
+  (CP-N entries, appended)
 
-  ## 记录
-  （L-NNN entries, appended）
+  ## Log
+  (L-NNN entries, appended)
 
 Then start executing. The commission skill describes the checkpoint discipline from here on.`;
 
