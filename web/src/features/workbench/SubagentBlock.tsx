@@ -1,6 +1,6 @@
 // input:  one subagent's identity, complete prompt, and grouped rows
-// output: prompt block with a right-aligned tool-call count
-// pos:    desktop workbench subagent presentation
+// output: sticky prompt block with a right-aligned tool-call count
+// pos:    desktop workbench subagent card presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { useState, type CSSProperties, type ReactNode } from 'react';
@@ -58,8 +58,10 @@ const promptLabelStyle: CSSProperties = {
 
 function headerStyle(hover: boolean): CSSProperties {
   return {
+    position: 'sticky', top: 0, zIndex: 1,
     display: 'flex', alignItems: 'center', gap: 7, fontSize: 11.5,
     color: hover ? 'var(--proto-muted)' : 'var(--proto-muted-3)',
+    background: 'var(--proto-rail)',
     padding: '6px 13px', cursor: 'pointer', minWidth: 0,
   };
 }

@@ -52,9 +52,9 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | transcript-vm.ts | vm | Builds compact decision-aware rows over neutral attachments and turn-copy targets |
 | transcript-vm.test.ts | test | Tests compact rows, turn tails, auth actions and decisions |
 | ToolCallsRow.tsx | view | Expands tool chips with row-scoped debug actions |
-| SubagentBlock.tsx | view | Shows prompt rows with a right-aligned tool count |
+| SubagentBlock.tsx | view | Shows sticky subagent headers and tool counts |
 | SubagentTranscriptDetail.tsx | view | Lazily loads one subagent transcript with minimal retry UI |
-| SubagentBlock.test.tsx | test | Tests prompt disclosure and nested copy isolation |
+| SubagentBlock.test.tsx | test | Tests sticky headers, prompts and copy isolation |
 | SubagentTranscriptDetail.test.tsx | test | Tests expansion-gated detail queries and retry states |
 | tool-call-overflow.ts | util | Computes bounded visible and hidden tool counts |
 | tool-call-overflow.test.ts | test | Tests counts beyond the measured chip prefix |

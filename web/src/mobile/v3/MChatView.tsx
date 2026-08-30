@@ -1,6 +1,6 @@
-// input:  Mobile chat rows, lazy subagent detail, decisions, Todo, and presentation modules
-// output: Mobile chat stream with lazy details, decision cards, turn-tail actions, and stable exports
-// pos:    Mobile chat presentation facade and message-stream renderer
+// input:  mobile chat rows, lazy detail, decisions, Todo, modules
+// output: Mobile chat with sticky subagents, decisions, and actions
+// pos:    Mobile chat presentation facade and stream renderer
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 // @ds-adherence-ignore -- mobile v3 chat surface, chrome extracted 1:1 from scheme-mobile.dc.html
@@ -193,7 +193,7 @@ function MSubagentBlock({ row, unit, sessionId }: {
         onClick={() => setExpanded(!expanded)}
         role="button"
         aria-expanded={expanded}
-        style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '6px 11px', fontSize: 11.5, color: MC.faint, minWidth: 0 }}
+        style={{ position: 'sticky', top: 0, zIndex: 1, display: 'flex', alignItems: 'center', gap: 7, padding: '6px 11px', fontSize: 11.5, color: MC.faint, background: 'var(--proto-rail)', minWidth: 0 }}
       >
         <MDot
           color={row.status === 'running' ? 'var(--proto-accent)' : 'var(--proto-success)'}

@@ -1,5 +1,5 @@
-// input:  mobile rows, lazy subagent detail, Todo snapshots, slash, send and profile state
-// output: Mobile turn-copy, lazy detail, Todo, message, and composer contracts
+// input:  mobile rows, lazy detail, Todo, composer and profiles
+// output: Sticky subagent and mobile chat interaction contracts
 // pos:    Mobile chat interaction behavior tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -356,7 +356,11 @@ describe('MChatStream subagent prompt', () => {
     expect(JSON.stringify(renderer.toJSON())).not.toContain(prompt);
     const count = renderer.root.findAll((node) => node.type === 'span' && node.children.join('') === '0 tools')[0];
     expect(count.props.style.marginLeft).toBe('auto');
-    act(() => renderer.root.findByProps({ role: 'button' }).props.onClick());
+    const header = renderer.root.findByProps({ role: 'button' });
+    expect(header.props.style).toMatchObject({
+      position: 'sticky', top: 0, zIndex: 1, background: 'var(--proto-rail)',
+    });
+    act(() => header.props.onClick());
     const rendered = JSON.stringify(renderer.toJSON());
     expect(rendered).toContain(prompt.replace(/\n/g, '\\n'));
     expect(rendered).toContain('child output');
