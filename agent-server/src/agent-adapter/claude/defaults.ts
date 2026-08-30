@@ -6,7 +6,7 @@
 import * as path from 'path';
 import * as os from 'os';
 import { DATA_DIR, CONFIG_DIR, HOOKS_DIR } from '../../core/utils.js';
-import { excludedPlanTools, planToolsFor, type PlanToolVariant } from '../../core/mcp-tool-gate.js';
+import { COMMISSION_TOOLS } from '../../core/mcp-tool-gate.js';
 
 export const IDLE_SESSION_TIMEOUT = 65 * 60 * 1000;
 export const TURN_IDLE_TIMEOUT = 60 * 60 * 1000;
@@ -60,25 +60,24 @@ export const DEFAULT_TOOLS = 'Agent,AskUserQuestion,Bash,Edit,EnterPlanMode,Exit
  *  The bundled server is exposed under the `cortex-core` name regardless of which bundles it loads. */
 const MCP_PREFIX = 'mcp__cortex-core__';
 
-/** The plan tools a variant must not carry — i.e. the other variant's pair, prefixed. Stripping
- *  only these (rather than all plan tools) keeps the standard tool list byte-identical to before. */
-export function excludedPlanBridgeTools(variant: PlanToolVariant): ReadonlySet<string> {
-  return new Set(excludedPlanTools(variant).map(name => MCP_PREFIX + name));
-}
-
 /**
  * The cortex-interaction-bridge MCP tools that replace the native EnterPlanMode / ExitPlanMode /
  * AskUserQuestion. Shared by direct Claude TUI, user-initiated Claude print, and user-initiated PI
- * sessions. The plan pair depends on the variant: a commission-mode session gets the commission
- * pair and nothing else, so the ordinary plan tools cannot bypass contract approval and the
- * commission tools stay invisible to every ordinary session (DR-0037 v2).
+ * sessions. `commissionTools` appends the two standalone commission-creation tools — they are
+ * additive, not a swap: a session drafting a commission keeps the ordinary plan tools too. Every
+ * other session simply never lists them, which is what keeps them invisible (DR-0037 v3).
  */
-export function interactionBridgeTools(variant: PlanToolVariant = 'standard'): string[] {
-  return [...planToolsFor(variant).map(name => MCP_PREFIX + name), `${MCP_PREFIX}cortex_ask_user`];
+export function interactionBridgeTools(commissionTools = false): string[] {
+  return [
+    `${MCP_PREFIX}cortex_plan_enter`,
+    `${MCP_PREFIX}cortex_plan_exit`,
+    `${MCP_PREFIX}cortex_ask_user`,
+    ...(commissionTools ? COMMISSION_TOOLS.map(name => MCP_PREFIX + name) : []),
+  ];
 }
 
 /** Default (non-commission) bridge surface, used as the TUI tool-list baseline. */
-export const INTERACTION_BRIDGE_TOOLS: readonly string[] = interactionBridgeTools('standard');
+export const INTERACTION_BRIDGE_TOOLS: readonly string[] = interactionBridgeTools();
 
 /**
  * DR-0012: Tool whitelist for TUI mode. Removes the three interaction tools that conflict with

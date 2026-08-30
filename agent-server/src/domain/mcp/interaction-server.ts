@@ -11,7 +11,7 @@ import { CORTEX_VERSION } from '@core/version.js';
 import { registerGatedMcpTools } from '@core/mcp-tool-gate.js';
 import { requestLoopbackJson } from '@core/loopback-http.js';
 import { registerInteractionPlanTools, type InteractionToolDeps } from './tools/interaction-plan.js';
-import { registerCommissionPlanTools } from './tools/commission-plan.js';
+import { registerCommissionTools } from './tools/commission-tools.js';
 import { registerInteractionAskTools } from './tools/interaction-ask.js';
 
 const log = createLogger('mcp-interaction');
@@ -48,7 +48,7 @@ const server = new McpServer({ name: 'cortex-interaction-bridge', version: CORTE
 
 registerGatedMcpTools(server, (target) => {
   registerInteractionPlanTools(target, deps);
-  registerCommissionPlanTools(target, deps);
+  registerCommissionTools(target, deps);
   registerInteractionAskTools(target, deps);
 });
 

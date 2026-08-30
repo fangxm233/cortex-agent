@@ -1010,7 +1010,7 @@ function buildSpawnEnvironment(
     enableInteractionBridge: composition === 'direct'
       && config.isUserInitiated === true
       && subagentMarker === undefined,
-    planToolVariant: config.planToolVariant ?? null,
+    commissionTools: config.commissionTools === true,
     subagentMarker,
   }, config.pinnedEnv);
 }

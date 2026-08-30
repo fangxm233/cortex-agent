@@ -5,13 +5,14 @@
 
 import type { AgentSpawnConfig, McpComposition } from '../types.js';
 import { PI_PLUGIN_MCP_CONFIG_ENV } from './mcp-config.js';
-import { MCP_TOOL_ALLOWLIST_ENV, type PlanToolVariant } from '@core/mcp-tool-gate.js';
+import { MCP_TOOL_ALLOWLIST_ENV } from '@core/mcp-tool-gate.js';
 
 export const PI_MCP_COMPOSITION_ENV = 'CORTEX_PI_MCP_COMPOSITION';
 export const PI_INTERACTION_BRIDGE_ENV = 'CORTEX_PI_INTERACTION_BRIDGE';
-/** Commission-mode plan-tool swap. Read by the MCP bridge, which is where PI knows its bundle set
- *  and can therefore narrow the tool allowlist down to one variant (DR-0037 v2). */
-export const PI_PLAN_TOOL_VARIANT_ENV = 'CORTEX_PI_PLAN_TOOL_VARIANT';
+/** Set while a NEW commission is being drafted. Read by the MCP bridge, which is where PI knows its
+ *  bundle set and can therefore write the allowlist that hides the commission tools from every other
+ *  session — PI has no `--tools` equivalent (DR-0037 v3). */
+export const PI_COMMISSION_TOOLS_ENV = 'CORTEX_PI_COMMISSION_TOOLS';
 
 export interface PISpawnOptions {
   sessionDir: string;
@@ -103,8 +104,8 @@ export interface PIEnvOptions {
   pluginMcpConfigPath?: string | null;
   /** Trusted marker enabling the shared interaction MCP bridge. */
   enableInteractionBridge?: boolean;
-  /** Which plan tools the bridge exposes; ignored when the bridge is off. */
-  planToolVariant?: PlanToolVariant | null;
+  /** Expose the commission-creation tools; ignored when the bridge is off. */
+  commissionTools?: boolean;
   /** Explicit marker for the restricted PI subagent surface. */
   subagentMarker?: string | null;
 }
@@ -121,7 +122,7 @@ const RESET_CONTEXT_KEYS = [
   'CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE',
   'CORTEX_PRODUCTION_BENCHMARK_EVIDENCE_CONTEXT_FILE',
   'CORTEX_PI_ALLOWED_TOOLS', 'CORTEX_PI_SUBAGENT', PI_PLUGIN_MCP_CONFIG_ENV,
-  PI_MCP_COMPOSITION_ENV, PI_INTERACTION_BRIDGE_ENV, PI_PLAN_TOOL_VARIANT_ENV,
+  PI_MCP_COMPOSITION_ENV, PI_INTERACTION_BRIDGE_ENV, PI_COMMISSION_TOOLS_ENV,
   MCP_TOOL_ALLOWLIST_ENV,
 ] as const;
 
@@ -166,7 +167,7 @@ export function buildPiEnv(
   }
   setOptional(env, PI_PLUGIN_MCP_CONFIG_ENV, options.pluginMcpConfigPath);
   if (options.enableInteractionBridge === true) env[PI_INTERACTION_BRIDGE_ENV] = '1';
-  setOptional(env, PI_PLAN_TOOL_VARIANT_ENV, options.planToolVariant);
+  if (options.commissionTools === true) env[PI_COMMISSION_TOOLS_ENV] = '1';
   setOptional(env, 'CORTEX_PI_SUBAGENT', options.subagentMarker);
   applyContext(env, options);
   return env;

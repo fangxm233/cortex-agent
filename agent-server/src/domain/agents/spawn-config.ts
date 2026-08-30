@@ -4,7 +4,7 @@
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { resolveMcpComposition } from '../../agent-adapter/types.js';
-import { canonicalizeMcpToolAllowlist, type PlanToolVariant } from '@core/mcp-tool-gate.js';
+import { canonicalizeMcpToolAllowlist } from '@core/mcp-tool-gate.js';
 import type {
   AgentProcessSpawner, AgentSpawnConfig, Backend, McpComposition,
 } from '../../agent-adapter/types.js';
@@ -115,10 +115,10 @@ export interface RunAgentOptions {
   mcpComposition?: McpComposition;
   /** Optional resolved per-tool MCP allowlist. */
   mcpToolAllowlist?: string[];
-  /** Commission-mode plan-tool swap for this turn, resolved from the session record. */
-  planToolVariant?: PlanToolVariant;
+  /** Expose the commission-creation tools this turn. True only while a contract is being drafted. */
+  commissionTools?: boolean;
   /** True while the session is in commission mode (drafting a contract or bound to a landed one).
-   *  Gates the commission skill bundle; broader than {@link planToolVariant}, which only covers the
+   *  Gates the commission skill bundle; broader than {@link commissionTools}, which only covers the
    *  drafting window. */
   commissionMode?: boolean;
   /** Legacy thread-surface selector. Accepted for existing callers and resolved when the explicit
@@ -276,7 +276,7 @@ function spawnPolicy(options: RunAgentOptions): Partial<AgentSpawnConfig> {
     mcpConfigPaths: options.mcpConfigPaths,
     mcpToolAllowlist: options.mcpToolAllowlist === undefined
       ? undefined : canonicalizeMcpToolAllowlist(options.mcpToolAllowlist),
-    planToolVariant: options.planToolVariant,
+    commissionTools: options.commissionTools,
     disableHooks: options.disableHooks,
     streamDeltas: options.streamDeltas,
     captureTranscriptLogs: options.captureTranscriptLogs,

@@ -296,7 +296,7 @@ export class AgentRunner {
     /** Opt-in browser access, read off the session record (plan/embedded-browser.md §17). */
     let sessionBrowser: { device: string } | null = null;
     /** Set while the session is in commission mode but its contract has not been named yet; that
-     *  is exactly the window in which the plan tools must be the commission pair (DR-0037 v2). */
+     *  is exactly the window in which the commission-creation tools are injected (DR-0037 v3). */
     let sessionCommissionDraft: string | null = null;
     /** Set once a contract has landed. Either field means the session is in commission mode. */
     let sessionCommissionId: string | null = null;
@@ -454,7 +454,7 @@ export class AgentRunner {
       const convResult = await runConversation({
         adapter, channel,
         browserCdpEndpoint,
-        planToolVariant: sessionCommissionDraft ? 'commission' : 'standard',
+        commissionTools: !!sessionCommissionDraft,
         commissionMode: !!(sessionCommissionDraft || sessionCommissionId),
         userMessage: agentMessage,
         trackSessionId: sessionId,

@@ -1,4 +1,4 @@
-// input:  Vitest, commission-plan tool, mock HTTP transport, tmp contract files
+// input:  Vitest, commission-tools tool, mock HTTP transport, tmp contract files
 // output: commission plan-exit payload and outcome-mapping regressions
 // pos:    Tests the commission contract approval tool
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as crypto from 'crypto';
-import { runCommissionPlanExit } from '../../../src/domain/mcp/tools/commission-plan.js';
+import { runCommissionSubmit } from '../../../src/domain/mcp/tools/commission-tools.js';
 import type { InteractionToolDeps } from '../../../src/domain/mcp/tools/interaction-plan.js';
 
 interface RecordedCall { url: string; body: any }
@@ -46,7 +46,7 @@ function writeContract(t: { onTestFinished: (fn: () => void) => void }): string 
 test('posts contract content plus the commission payload to /hook/exit-plan-mode', async (t) => {
   const contractPath = writeContract(t);
   const { post, calls } = makeMockHttp([{ body: { approved: false, reason: '' } }]);
-  await runCommissionPlanExit(
+  await runCommissionSubmit(
     { contract_file_path: contractPath, name: 'Ship It', summary: 'sum' },
     makeDeps({ httpPost: post }),
   );
@@ -61,7 +61,7 @@ test('approval with a successful finalize reports the final directory and bindin
   const { post } = makeMockHttp([{
     body: { approved: true, reason: '', commission: { ok: true, commissionId: 'c1', slug: 'ship-it', dir: '/ctx/commissions/ship-it' } },
   }]);
-  const result = await runCommissionPlanExit(
+  const result = await runCommissionSubmit(
     { contract_file_path: contractPath, name: 'Ship It' },
     makeDeps({ httpPost: post }),
   );
@@ -74,7 +74,7 @@ test('approval with a successful finalize reports the final directory and bindin
 test('denial and pre-validation failure map to revise-and-retry outcomes', async (t) => {
   const contractPath = writeContract(t);
   const denied = makeMockHttp([{ body: { approved: false, reason: 'scope too big' } }]);
-  const deniedResult = await runCommissionPlanExit(
+  const deniedResult = await runCommissionSubmit(
     { contract_file_path: contractPath, name: 'x' }, makeDeps({ httpPost: denied.post }),
   );
   assert.ok(!deniedResult.isError, 'denial is an outcome, not a tool error');
@@ -82,7 +82,7 @@ test('denial and pre-validation failure map to revise-and-retry outcomes', async
   assert.match(deniedResult.content[0].text, /scope too big/);
 
   const invalid = makeMockHttp([{ body: { error: 'commission-invalid', message: 'bad draft dir' } }]);
-  const invalidResult = await runCommissionPlanExit(
+  const invalidResult = await runCommissionSubmit(
     { contract_file_path: contractPath, name: 'x' }, makeDeps({ httpPost: invalid.post }),
   );
   assert.ok(invalidResult.isError);
@@ -92,7 +92,7 @@ test('denial and pre-validation failure map to revise-and-retry outcomes', async
 test('approval with a failed finalize surfaces the error as a tool error', async (t) => {
   const contractPath = writeContract(t);
   const { post } = makeMockHttp([{ body: { approved: true, commission: { ok: false, error: 'rename blew up' } } }]);
-  const result = await runCommissionPlanExit(
+  const result = await runCommissionSubmit(
     { contract_file_path: contractPath, name: 'x' }, makeDeps({ httpPost: post }),
   );
   assert.ok(result.isError);
@@ -102,13 +102,13 @@ test('approval with a failed finalize surfaces the error as a tool error', async
 test('missing channel, name, or contract file fail before any webhook call', async (t) => {
   const contractPath = writeContract(t);
   const { post, calls } = makeMockHttp([]);
-  const noChannel = await runCommissionPlanExit(
+  const noChannel = await runCommissionSubmit(
     { contract_file_path: contractPath, name: 'x' }, makeDeps({ channel: null, httpPost: post }),
   );
-  const noName = await runCommissionPlanExit(
+  const noName = await runCommissionSubmit(
     { contract_file_path: contractPath, name: '  ' }, makeDeps({ httpPost: post }),
   );
-  const noFile = await runCommissionPlanExit(
+  const noFile = await runCommissionSubmit(
     { contract_file_path: '/nonexistent/contract.md', name: 'x' }, makeDeps({ httpPost: post }),
   );
   assert.ok(noChannel.isError && noName.isError && noFile.isError);

@@ -62,8 +62,8 @@ function interactionPost(url: string, body: any): Promise<{ status: number; body
 }
 
 const interactionLoader: RegistrarLoader = async () => {
-  const [{ registerInteractionPlanTools }, { registerCommissionPlanTools }, { registerInteractionAskTools }] = await Promise.all([
-    import('./tools/interaction-plan.js'), import('./tools/commission-plan.js'), import('./tools/interaction-ask.js'),
+  const [{ registerInteractionPlanTools }, { registerCommissionTools }, { registerInteractionAskTools }] = await Promise.all([
+    import('./tools/interaction-plan.js'), import('./tools/commission-tools.js'), import('./tools/interaction-ask.js'),
   ]);
   const port = parseInt(process.env.WEBHOOK_PORT || '3001', 10);
   const deps = {
@@ -76,7 +76,7 @@ const interactionLoader: RegistrarLoader = async () => {
   };
   return server => {
     registerInteractionPlanTools(server, deps);
-    registerCommissionPlanTools(server, deps);
+    registerCommissionTools(server, deps);
     registerInteractionAskTools(server, deps);
   };
 };

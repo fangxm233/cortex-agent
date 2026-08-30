@@ -30,7 +30,6 @@ import {
   type ClaudeSpawnOptions, type CortexAgentContext,
 } from './spawn-args.js';
 import { encodeMcpBundles, MCP_BUNDLES_ENV } from '@core/mcp-bundles.js';
-import type { PlanToolVariant } from '@core/mcp-tool-gate.js';
 import { validateClaudeSupplementalMcpConfig } from './mcp-config.js';
 import { buildPrompt, mergeSubstantialOutput } from './event-parser.js';
 import { SUBAGENT_SPAWN_TOOLS, type NormalizedEvent } from '../normalize/event-types.js';
@@ -98,8 +97,8 @@ export interface ClaudeTuiSessionConfig {
   mcpComposition?: McpComposition;
   mcpConfigPaths?: string[] | null;
   mcpToolAllowlist?: string[] | null;
-  /** Commission-mode plan-tool swap; absent behaves as 'standard'. */
-  planToolVariant?: PlanToolVariant | null;
+  /** Expose the commission-creation tools; set only while a contract is being drafted. */
+  commissionTools?: boolean;
   supplementalMcpConfigPath?: string | null;
   disableHooks?: boolean;
   pluginCapabilityFingerprint?: string | null;
@@ -190,7 +189,7 @@ export class ClaudeTuiSession {
   readonly tools: string | null;
   readonly mcpConfigPaths: string[];
   readonly mcpToolAllowlist: string[] | null;
-  readonly planToolVariant: PlanToolVariant | null;
+  readonly commissionTools: boolean;
 
   private readonly tmux: TmuxControl;
   private readonly tailFactory: (p: string) => JsonlTailLike;
@@ -242,7 +241,7 @@ export class ClaudeTuiSession {
     this.mcpConfigPaths = [...(config.mcpConfigPaths ?? [])];
     this.mcpToolAllowlist = config.mcpToolAllowlist === undefined
       || config.mcpToolAllowlist === null ? null : [...config.mcpToolAllowlist];
-    this.planToolVariant = config.planToolVariant ?? null;
+    this.commissionTools = config.commissionTools === true;
   }
 
   isAlive(): boolean {
@@ -291,7 +290,7 @@ export class ClaudeTuiSession {
       mcpComposition: this.mcpComposition,
       mcpConfigPaths: this.config.mcpConfigPaths ?? null,
       mcpToolAllowlist: this.config.mcpToolAllowlist ?? null,
-      planToolVariant: this.config.planToolVariant ?? null,
+      commissionTools: this.config.commissionTools === true,
       supplementalMcpConfigPath: this.config.supplementalMcpConfigPath ?? null,
       browserMcpConfigPath: this.config.browserMcpConfigPath ?? null,
       disableHooks: this.config.disableHooks,

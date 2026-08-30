@@ -9,14 +9,12 @@ import {
   EMPTY_MCP_CONFIG,
   MCP_CONFIG,
   THREAD_MCP_CONFIG,
-  excludedPlanBridgeTools,
   interactionBridgeTools,
   TUI_STRIP_TOOLS,
   TUI_TOOLS,
 } from './defaults.js';
 import { getSettings } from '@core/settings.js';
 import { materializeMcpToolAllowlistConfigs } from '@core/config-generator.js';
-import { applyPlanToolVariant, type PlanToolVariant } from '@core/mcp-tool-gate.js';
 import { MCP_INFRASTRUCTURE_TIMEOUT_MS } from '@core/mcp-timeout.js';
 import type { McpBundleName } from '@core/mcp-bundles.js';
 import type { McpComposition } from '../types.js';
@@ -44,9 +42,9 @@ export interface ClaudeSpawnOptions {
   mcpConfigPaths?: string[] | null;
   /** Canonical per-tool MCP allowlist. */
   mcpToolAllowlist?: string[] | null;
-  /** Which plan tools this spawn gets. Only meaningful when the interaction bridge is on; absent
-   *  behaves as 'standard'. A commission-mode session swaps in the commission pair (DR-0037 v2). */
-  planToolVariant?: PlanToolVariant | null;
+  /** Add the two standalone commission-creation tools. Only meaningful when the interaction bridge
+   *  is on, and set only while a NEW commission is being drafted (DR-0037 v3). */
+  commissionTools?: boolean;
   /** Supplemental Claude MCP config written from portable runtime servers. */
   supplementalMcpConfigPath?: string | null;
   /** Omit all configured ambient hooks. */
@@ -96,7 +94,6 @@ function appendBrowserMcpConfig(
 function resolveMcpConfigs(
   options: ClaudeSpawnOptions,
   composition: McpComposition,
-  variant: PlanToolVariant | null,
 ): string[] {
   const configs = options.mcpConfigPaths
     ? [...options.mcpConfigPaths]
@@ -107,14 +104,10 @@ function resolveMcpConfigs(
   }
   appendBrowserMcpConfig(configs, options, composition === 'direct');
   const bundles = resolveClaudeMcpBundles(options);
-  // Only the commission variant is enforced at the MCP layer too. `--tools` already keeps the
-  // commission tools out of an ordinary session, and synthesizing an allowlist for every ordinary
-  // session would make each spawn depend on the *content* of the MCP config files rather than just
-  // their paths. The commission direction is the one worth double-locking: the contract gate is the
-  // point of the mode, so cortex_plan_exit must not merely be un-listed but unregistered.
-  const allowlist = variant === 'commission'
-    ? applyPlanToolVariant(options.mcpToolAllowlist ?? undefined, variant, bundles)
-    : options.mcpToolAllowlist ?? undefined;
+  // The commission tools need no MCP-layer gate: `--tools` is what decides which tools this spawn
+  // can call, and an ordinary session simply does not list them. Synthesizing an allowlist here
+  // would make every spawn depend on the *content* of the MCP config files rather than their paths.
+  const allowlist = options.mcpToolAllowlist ?? undefined;
   return materializeMcpToolAllowlistConfigs(configs, allowlist, undefined, bundles);
 }
 
@@ -153,16 +146,14 @@ export function resolveClaudeMcpBundles(options: ClaudeSpawnOptions): McpBundleN
   return bundles;
 }
 
-/** `variant` null means "strip the natives, add nothing back" (TUI without the bridge). Otherwise the
- *  OTHER variant's plan tools are stripped as well: TUI_TOOLS bakes the standard pair into its
- *  baseline, so without the removal the swap would be additive and a commission session would still
- *  be holding cortex_plan_exit. */
-function replaceInteractionTools(tools: string, variant: PlanToolVariant | null): string {
-  const excluded = variant ? excludedPlanBridgeTools(variant) : null;
-  const filtered = tools.split(',').filter(tool => tool
-    && !TUI_STRIP_TOOLS.has(tool)
-    && !excluded?.has(tool));
-  const resolved = variant ? [...filtered, ...interactionBridgeTools(variant)] : filtered;
+/** `commissionTools` null means "strip the natives, add nothing back" (TUI without the bridge).
+ *  Otherwise the bridge tools are appended; the commission pair is purely additive on top of the
+ *  standard three, so the ordinary tool list stays byte-identical to a pre-commission build. */
+function replaceInteractionTools(tools: string, commissionTools: boolean | null): string {
+  const filtered = tools.split(',').filter(tool => tool && !TUI_STRIP_TOOLS.has(tool));
+  const resolved = commissionTools === null
+    ? filtered
+    : [...filtered, ...interactionBridgeTools(commissionTools)];
   return [...new Set(resolved)].join(',');
 }
 
@@ -170,11 +161,11 @@ function resolveEffectiveTools(
   options: ClaudeSpawnOptions,
   mode: ClaudeSpawnMode,
   isDirect: boolean,
-  variant: PlanToolVariant | null,
+  commissionTools: boolean | null,
 ): string {
   const toolsDefault = mode === 'tui' && isDirect ? TUI_TOOLS : DEFAULT_TOOLS;
   const tools = options.tools || toolsDefault;
-  if (variant) return replaceInteractionTools(tools, variant);
+  if (commissionTools !== null) return replaceInteractionTools(tools, commissionTools);
   return mode === 'tui' ? replaceInteractionTools(tools, null) : tools;
 }
 
@@ -249,12 +240,12 @@ export function buildSpawnArgs(options: ClaudeSpawnOptions): string[] {
   const isDirect = composition === 'direct';
   const wantsInteractionBridge = isDirect
     && (mode === 'tui' || (mode === 'print' && !!options.isUserInitiated));
-  const variant: PlanToolVariant | null = wantsInteractionBridge
-    ? options.planToolVariant ?? 'standard'
+  const commissionTools: boolean | null = wantsInteractionBridge
+    ? !!options.commissionTools
     : null;
-  const configs = resolveMcpConfigs(options, composition, variant);
+  const configs = resolveMcpConfigs(options, composition);
   const args = printModeArgs(options, mode);
-  const tools = resolveEffectiveTools(options, mode, isDirect, variant);
+  const tools = resolveEffectiveTools(options, mode, isDirect, commissionTools);
   appendCoreArgs(args, configs, composition, tools);
   appendPromptOptions(args, options);
   appendRepeatedOption(args, '--plugin-dir', options.pluginDirs);

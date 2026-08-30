@@ -22,7 +22,6 @@ import type {
 } from '../types.js';
 import type { AgentResult, ContextUsage, ReportedAccountingSnapshot } from '@core/types/agent-types.js';
 import { encodeMcpBundles, MCP_BUNDLES_ENV } from '@core/mcp-bundles.js';
-import type { PlanToolVariant } from '@core/mcp-tool-gate.js';
 import type { NormalizedEvent, ToolUseSubagent } from '../normalize/event-types.js';
 import { parseTodoWrite } from '../normalize/todo.js';
 import { createEventStream } from '../normalize/event-stream.js';
@@ -188,8 +187,8 @@ interface ClaudeSessionOptions {
   needsResume: boolean;
   model?: string | null;
   isUserInitiated?: boolean;
-  /** Commission-mode plan-tool swap; absent behaves as 'standard'. */
-  planToolVariant?: PlanToolVariant | null;
+  /** Expose the commission-creation tools; set only while a contract is being drafted. */
+  commissionTools?: boolean;
   callbackSource?: string | null;
   scheduleTaskId?: string | null;
   sessionKey?: string | null;
@@ -270,9 +269,9 @@ interface ClaudeSpawnCompatibility {
   routeIdentity: string;
   composition: McpComposition;
   interactionBridge: boolean;
-  /** Swapping the plan tools rewrites both `--tools` and the MCP gate, neither of which a live
-   *  process can be re-pointed at, so a change must force a fresh spawn + `--resume`. */
-  planToolVariant: PlanToolVariant | null;
+  /** Adding the commission tools rewrites `--tools`, which a live process cannot be re-pointed
+   *  at, so a change must force a fresh spawn + `--resume`. */
+  commissionTools: boolean;
   tools: string | null;
   pluginCapabilityFingerprint: string | null;
   pluginDirs: string[];
@@ -311,7 +310,7 @@ function sameClaudeSpawnCompatibility(
     && left.routeIdentity === right.routeIdentity
     && left.composition === right.composition
     && left.interactionBridge === right.interactionBridge
-    && left.planToolVariant === right.planToolVariant
+    && left.commissionTools === right.commissionTools
     && left.tools === right.tools
     && left.pluginCapabilityFingerprint === right.pluginCapabilityFingerprint
     && left.supplementalMcpConfigIdentity === right.supplementalMcpConfigIdentity
@@ -328,7 +327,7 @@ function compatibilityFromOptions(options: ClaudeSessionOptions): ClaudeSpawnCom
     routeIdentity: claudeRouteIdentity(options),
     composition,
     interactionBridge: composition === 'direct' && options.isUserInitiated === true,
-    planToolVariant: options.planToolVariant ?? null,
+    commissionTools: options.commissionTools === true,
     tools: options.tools ?? null,
     pluginCapabilityFingerprint: options.pluginCapabilityFingerprint ?? null,
     pluginDirs: cloneTextArray(options.pluginDirs),
@@ -375,7 +374,7 @@ class ClaudeSession {
   /** Model name requested via --model CLI arg (used as fallback for cost_record). */
   modelName: string | null;
   private isUserInitiated: boolean;
-  private planToolVariant: PlanToolVariant | null;
+  private commissionTools: boolean;
   private callbackSource: string | null;
   private scheduleTaskId: string | null;
   private claudeAgent: string | null;
@@ -447,7 +446,7 @@ class ClaudeSession {
     this.cwd = options.cwd ?? DATA_DIR;
     this.contextUsageTracker = createContextUsageTracker(this.modelName, this.cwd, options);
     this.isUserInitiated = options.isUserInitiated || false;
-    this.planToolVariant = options.planToolVariant ?? null;
+    this.commissionTools = options.commissionTools === true;
     this.callbackSource = options.callbackSource || null;
     this.scheduleTaskId = options.scheduleTaskId || null;
     this.claudeAgent = options.claudeAgent || null;
@@ -581,7 +580,7 @@ class ClaudeSession {
     options.loadFeishuMcp = this.channel.startsWith('feishu:');
     options.loadWebMcp = this.channel.startsWith('web:');
     options.isUserInitiated = this.isUserInitiated;
-    options.planToolVariant = this.planToolVariant;
+    options.commissionTools = this.commissionTools;
     const env = buildClaudeEnv(
       this.channel, this.sessionId, this.callbackSource, this.scheduleTaskId,
       this.anthropicBaseUrl, this.extraEnv, this.context, this.pinnedEnv, this.unsetEnv,
@@ -1406,7 +1405,7 @@ function matchesTuiSession(
     && session.tools === (options.tools ?? null)
     && sameTextArray(session.pluginDirs, cloneTextArray(options.pluginDirs))
     && sameTextArray(session.mcpConfigPaths, cloneTextArray(options.mcpConfigPaths))
-    && session.planToolVariant === (options.planToolVariant ?? null)
+    && session.commissionTools === (options.commissionTools === true)
     && sameOptionalTextArray(session.mcpToolAllowlist, optionalTextArray(options.mcpToolAllowlist));
 }
 
@@ -1439,7 +1438,7 @@ function tuiSessionConfig(
     mcpComposition: composition,
     mcpConfigPaths: options.mcpConfigPaths ?? null,
     mcpToolAllowlist: options.mcpToolAllowlist ?? null,
-    planToolVariant: options.planToolVariant ?? null,
+    commissionTools: options.commissionTools === true,
     supplementalMcpConfigPath: options.supplementalMcpConfigPath ?? null,
     disableHooks: options.disableHooks,
     pluginCapabilityFingerprint: options.pluginCapabilityFingerprint ?? null,
@@ -1549,7 +1548,7 @@ function sessionRuntimeOptions(
     mcpComposition: composition,
     mcpConfigPaths: config.mcpConfigPaths,
     mcpToolAllowlist: config.mcpToolAllowlist,
-    planToolVariant: config.planToolVariant ?? null,
+    commissionTools: config.commissionTools === true,
     supplementalMcpConfigPath: supplemental?.path ?? null,
     supplementalMcpConfigIdentity: supplemental?.identity ?? null,
     browserMcpConfigPath: browser?.path ?? null,
@@ -1607,7 +1606,7 @@ function computeSpawnArgsForConfig(config: AgentSpawnConfig): string[] {
     streamDeltas: opts.streamDeltas,
   });
   spawnOptions.isUserInitiated = config.isUserInitiated;
-  spawnOptions.planToolVariant = config.planToolVariant ?? null;
+  spawnOptions.commissionTools = config.commissionTools === true;
   return buildSpawnArgs(spawnOptions);
 }
 

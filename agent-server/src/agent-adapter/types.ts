@@ -9,7 +9,6 @@ import type { Capability } from './capabilities.js';
 import type { NormalizedEvent, ToolUseSubagent } from './normalize/event-types.js';
 import type { NormalizedHookSpec } from './normalize/hooks.js';
 import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
-import type { PlanToolVariant } from '@core/mcp-tool-gate.js';
 
 export type Backend = 'claude' | 'pi';
 export type McpComposition = 'direct' | 'thread-control' | 'none';
@@ -101,9 +100,9 @@ export interface AgentSpawnConfig {
   mcpConfigPaths?: string[];
   /** Canonical per-tool MCP allowlist; absent preserves the composition's full surface. */
   mcpToolAllowlist?: string[];
-  /** Which plan tools the interaction bridge exposes: 'commission' swaps in the commission pair for
-   *  a session drilling a contract, everything else stays 'standard'. Ignored when the bridge is off. */
-  planToolVariant?: PlanToolVariant;
+  /** Add the two standalone commission-creation tools to the interaction bridge. Set only while a
+   *  NEW commission is being drafted; ignored when the bridge is off. */
+  commissionTools?: boolean;
   /** Suppress ambient lifecycle hooks for an isolated one-shot role. */
   disableHooks?: boolean;
   /** Explicit delta policy avoids loading watched daemon settings in one-shot mode. */

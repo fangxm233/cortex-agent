@@ -22,7 +22,6 @@ import type { Project } from '@domain/projects/index.js';
 import * as executionRegistry from '@domain/executions/registry.js';
 import { loadCommissionPromptContext, type CommissionPromptContext } from '@domain/commissions/commission-context.js';
 import { sessionStore } from '@store/session-registry-repo.js';
-import type { PlanToolVariant } from '@core/mcp-tool-gate.js';
 import { runningExecutions } from '../core/running-executions.js';
 import { buildPrompt as buildAgentPrompt } from '../agent-adapter/normalize/prompt-builder.js';
 
@@ -51,9 +50,9 @@ export interface RunConversationOptions {
   /** CDP endpoint of the browser this session opted into, or null for the usual no-browser session.
    *  Non-null is what turns the Playwright MCP server on for this spawn. */
   browserCdpEndpoint?: string | null;
-  /** Plan-tool variant for this turn. 'commission' swaps cortex_plan_enter/exit for their
-   *  commission counterparts; absent behaves as 'standard'. */
-  planToolVariant?: PlanToolVariant | null;
+  /** Expose the commission-creation tools this turn — true only while a contract is being
+   *  drafted. They are additive; the ordinary plan tools stay available either way. */
+  commissionTools?: boolean;
   /** True while the session is in commission mode; loads the commission skill bundle. */
   commissionMode?: boolean;
   /** Fired once the execution record is created, before the agent starts — lets the caller
@@ -220,7 +219,7 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
     useCoreMcp: false,
     // Only a session that opted in carries an endpoint, so only it gets browser tools.
     browserCdpEndpoint: opts.browserCdpEndpoint ?? null,
-    planToolVariant: opts.planToolVariant ?? undefined,
+    commissionTools: opts.commissionTools ?? false,
     commissionMode: opts.commissionMode ?? false,
     mcpToolAllowlist: agentConfig.mcpToolAllowlist,
     sessionName: opts.sessionName,
