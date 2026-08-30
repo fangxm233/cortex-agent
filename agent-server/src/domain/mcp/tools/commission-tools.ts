@@ -200,7 +200,7 @@ export async function runCommissionSubmit(
 export function registerCommissionTools(server: McpServer, deps: InteractionToolDeps): void {
   server.tool(
     'cortex_commission_start',
-    'Start creating a commission (委托) — a long task anchored by a user-approved contract. Call this FIRST, before any investigation or questions: it returns the complete creation protocol (drill rules, contract.md structure) and the draft directory to write the contract into. Unrelated to plan mode; cortex_plan_enter/exit still exist and are for ordinary implementation planning. Optional `reasoning` is recorded for the audit trail.',
+    'Start creating a commission — a long task anchored by a user-approved contract. Call this FIRST, before any investigation or questions: it returns the complete creation protocol (drill rules, contract.md structure) and the draft directory to write the contract into. Unrelated to plan mode; cortex_plan_enter/exit still exist and are for ordinary implementation planning. Optional `reasoning` is recorded for the audit trail.',
     { reasoning: z.string().optional() },
     async (args) => runCommissionStart(args ?? {}, deps) as any,
   );

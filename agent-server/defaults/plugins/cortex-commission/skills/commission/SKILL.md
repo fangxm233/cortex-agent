@@ -1,6 +1,6 @@
 ---
 name: commission
-description: "How to work inside a commission (委托/长任务) — a contract-anchored long task. Loaded whenever this session is in commission mode. Covers maintenance: ledger entries, surprise triage, checkpoint discipline, gates. Creating a commission is not covered here — that protocol lives in the cortex_commission_start tool."
+description: "How to work inside a commission — a contract-anchored long task. Loaded whenever this session is in commission mode. Covers maintenance: ledger entries, surprise triage, checkpoint discipline, gates. Creating a commission is not covered here — that protocol lives in the cortex_commission_start tool."
 author: Cortex
 version: 3.0.0
 allowed-tools:

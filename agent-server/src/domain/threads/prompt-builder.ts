@@ -373,7 +373,7 @@ const COMMISSION_PROTOCOL = `Commission protocol:
  *  nothing (DR-0037 v3). */
 function buildDraftCommissionBlock(c: DraftCommissionContext): string {
   return [
-    '[Commission] This session was created to START a new commission (委托): a long task anchored by '
+    '[Commission] This session was created to START a new commission: a long task anchored by '
     + 'a contract the user approves before any work begins.',
     `Draft directory (already created by the server): ${c.dir}`,
     '',
