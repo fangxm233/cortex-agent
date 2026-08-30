@@ -379,8 +379,8 @@ export function MPlanCard({ model, copy, dimmed = false, onApprove, onRejectStar
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, padding: '0 14px 12px' }}>
-          <button type="button" onClick={onApprove} style={{ flex: 1.3, height: 44, borderRadius: 11, background: MC.ink, color: 'var(--ink-solid-fg)', border: 'none', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>{copy.approve}</button>
           <button type="button" onClick={onRejectStart} style={{ flex: 1, height: 44, borderRadius: 11, border: '1.5px solid var(--proto-line-3)', background: 'var(--proto-card)', color: MC.ink, fontSize: 14, fontWeight: 600, boxSizing: 'border-box', cursor: 'pointer' }}>{copy.reject}</button>
+          <button type="button" onClick={onApprove} style={{ flex: 1.3, height: 44, borderRadius: 11, background: MC.ink, color: 'var(--ink-solid-fg)', border: 'none', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>{copy.approve}</button>
         </div>
         {/* footer — `来自 X` source has no entity field → left slot omitted (GAP) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderTop: '1px solid var(--proto-line-2)', font: `400 10px ${MONO}`, color: 'var(--proto-muted-3)' }}>
