@@ -2315,8 +2315,9 @@ def test_the_committed_zero_paid_campaign_is_accepted_by_the_real_admission_buil
 
 
 def test_the_pi_stream_diagnosis_campaign_admits_exactly_one_trial(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    stub_pinned_image(monkeypatch)
     config = load_campaign_config(PI_STREAM_DIAGNOSIS_CONFIG)
 
     admitted = admit_every_trial(config, tmp_path)
