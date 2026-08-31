@@ -9,7 +9,7 @@ import { createInterface, Interface } from 'readline';
 import { Writable } from 'stream';
 import * as path from 'path';
 import * as crypto from 'crypto';
-import { DATA_DIR, readableTimestamp } from '@core/utils.js';
+import { AGENT_CWD, resolveSpawnCwd, readableTimestamp } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
 import { handleRateLimitEvent } from '@domain/costs/rate-limit-throttle.js';
 import { fromCanonical } from '../normalize/tool-names.js';
@@ -323,7 +323,7 @@ function sameClaudeSpawnCompatibility(
 function compatibilityFromOptions(options: ClaudeSessionOptions): ClaudeSpawnCompatibility {
   const composition = resolveMcpComposition(options.mcpComposition, options.context?.useCoreMcp);
   return {
-    cwd: options.cwd ?? DATA_DIR,
+    cwd: resolveSpawnCwd(options.cwd),
     routeIdentity: claudeRouteIdentity(options),
     composition,
     interactionBridge: composition === 'direct' && options.isUserInitiated === true,
@@ -443,7 +443,7 @@ class ClaudeSession {
     this.sessionKey = options.sessionKey || channel;
     this.needsResume = options.needsResume;
     this.modelName = options.model || null;
-    this.cwd = options.cwd ?? DATA_DIR;
+    this.cwd = resolveSpawnCwd(options.cwd);
     this.contextUsageTracker = createContextUsageTracker(this.modelName, this.cwd, options);
     this.isUserInitiated = options.isUserInitiated || false;
     this.commissionTools = options.commissionTools === true;
@@ -1337,7 +1337,7 @@ export interface RunClaudeOptions {
 /**
  * Decide whether a print-mode ClaudeSession should spawn with `--resume <id>`.
  *
- * Print sessions default to `DATA_DIR` and may receive an explicit cwd, so transcript lookup uses
+ * Print sessions default to `AGENT_CWD` and may receive an explicit cwd, so transcript lookup uses
  * the same resolved cwd as the process spawn. A *fresh* session (notably the `cortex tui`
  * frontend) pre-registers its sessionId BEFORE the first Claude turn, so callers ask to
  * resume an id that has no transcript yet — Claude then exits with
@@ -1350,7 +1350,7 @@ export function resolveResumeForPrint(
   requestedResume: boolean,
   sessionId: string,
   exists?: (p: string) => boolean,
-  cwd: string = DATA_DIR,
+  cwd: string = AGENT_CWD,
 ): boolean {
   return resolveTuiResume(requestedResume, computeJsonlPath(cwd, sessionId), exists);
 }
@@ -1429,7 +1429,7 @@ function tuiSessionConfig(
   options: ClaudeSessionOptions,
   composition: McpComposition,
 ): ClaudeTuiSessionConfig {
-  const cwd = options.cwd ?? DATA_DIR;
+  const cwd = resolveSpawnCwd(options.cwd);
   return {
     channel: config.channel ?? config.env?.SLACK_CHANNEL ?? config.sessionKey,
     sessionId, sessionKey: config.sessionKey, cwd,
@@ -1544,7 +1544,7 @@ function sessionRuntimeOptions(
     anthropicBaseUrl: config.anthropicBaseUrl,
     extraEnv: config.env,
     unsetEnv: config.unsetEnv,
-    cwd: config.cwd ?? DATA_DIR,
+    cwd: resolveSpawnCwd(config.cwd),
     mcpComposition: composition,
     mcpConfigPaths: config.mcpConfigPaths,
     mcpToolAllowlist: config.mcpToolAllowlist,

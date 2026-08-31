@@ -126,6 +126,7 @@ class FakeExecutor:
         dispatch_never_runs: bool = False, dispatch_error_once: Exception | None = None,
         dispatch_error_always: bool = False, result_timeout_once: bool = False,
         result_never_terminal: bool = False, result_status: str = "completed",
+        journal_cwd: str | None = "/app",
     ) -> None:
         self.logs_dir = logs_dir
         self.export_failure = export_failure
@@ -137,6 +138,8 @@ class FakeExecutor:
         self.result_timeout_once = result_timeout_once
         self.result_never_terminal = result_never_terminal
         self.result_status = result_status
+        # What the exported trajectory says each attempt ran in. None omits the header entirely.
+        self.journal_cwd = journal_cwd
         self.calls: list[tuple[str, dict[str, str] | None, str | None]] = []
         self.timeouts: list[int | None] = []
         self.payloads: dict[str, object] = {}
@@ -230,6 +233,12 @@ class FakeExecutor:
             }
             (trajectory / "run-root-direct.terminal.json").write_text(json.dumps(terminal))
             (trajectory / "composite-manifest.json").write_text(json.dumps(composite))
+            header = [] if self.journal_cwd is None else [json.dumps({
+                "schema_version": "cortex-bench-journal/1", "type": "run_header",
+                "root_run_id": "root-direct", "agent_slot": "direct", "seq": 0,
+                "resolved_cwd": self.journal_cwd,
+            })]
+            (trajectory / "events.jsonl").write_text("\n".join(header))
             if self.malformed_evidence:
                 return SimpleNamespace(stdout="{not json", stderr="")
             return self._reply({
@@ -441,6 +450,35 @@ def test_session_still_stops_the_server_when_export_refuses(tmp_path: Path) -> N
 
     assert runner.calls[-1][0].startswith("kill -TERM -- -4242")
     assert production.stopped_cleanly is True
+
+
+def test_session_refuses_a_trial_whose_attempt_ran_outside_the_task_workdir(
+    tmp_path: Path,
+) -> None:
+    """A journal that names a different directory than the task workdir voids the trial.
+
+    The evidence used to be free to disagree with the backend about where the model ran, and
+    nothing compared them, so an attempt could work in the sealed home while its own header
+    claimed the task workdir. Scoring that is scoring the wrong container state.
+    """
+    runner = FakeExecutor(tmp_path, journal_cwd="/logs/agent/production-cortex-home")
+    production = session(tmp_path)
+
+    with pytest.raises(ProductionSessionError, match="but the task workdir is"):
+        asyncio.run(production.run("Solve only this task.", runner))
+
+    assert runner.calls[-1][0].startswith("kill -TERM -- -4242")
+    assert production.stopped_cleanly is True
+
+
+def test_session_refuses_a_trial_whose_journal_carries_no_attempt_header(
+    tmp_path: Path,
+) -> None:
+    runner = FakeExecutor(tmp_path, journal_cwd=None)
+    production = session(tmp_path)
+
+    with pytest.raises(ProductionSessionError, match="carries no run header"):
+        asyncio.run(production.run("Solve only this task.", runner))
 
 
 def test_audit_retry_session_injects_its_own_template_and_evidence_shape(

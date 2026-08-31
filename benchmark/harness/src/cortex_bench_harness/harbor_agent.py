@@ -478,7 +478,7 @@ class CortexBenchAgent(BaseInstalledAgent):
                 f"{binary} backend, whose CLI is neither mounted nor guaranteed by the task "
                 f"image; add {binary!r} to this arm's runtime_mounts")
 
-    def _materialize_production_home(self) -> MaterializedProductionHome:
+    def _materialize_production_home(self, workspace_cwd: str) -> MaterializedProductionHome:
         assert self._npm_artifact is not None
         assert self._installed_server is not None
         assert self._proxy_session is not None
@@ -492,6 +492,7 @@ class CortexBenchAgent(BaseInstalledAgent):
             proxy_base_url=str(credential["proxy_base_url"]),
             dummy_token_ref=str(credential["dummy_token_ref"]),
             model_alias_policy=self._trial_seed.model_alias_policy,
+            workspace_cwd=workspace_cwd,
             max_output_tokens=int(self._trial_seed.arm["limits"]["max_output_tokens"]),
         )
         return materialize_production_home(
@@ -527,7 +528,7 @@ class CortexBenchAgent(BaseInstalledAgent):
         )
         if self._proxy_session is not None:
             fill_proxy_manifest(manifest_path, self._proxy_session.handle)
-        self._materialized_home = self._materialize_production_home()
+        self._materialized_home = self._materialize_production_home(resolved_cwd.realpath)
         self._resolved_cwd = resolved_cwd
 
     @override

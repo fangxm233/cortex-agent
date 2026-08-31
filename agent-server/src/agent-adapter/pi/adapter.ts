@@ -6,7 +6,7 @@
 import { type ChildProcess } from 'child_process';
 import { existsSync, mkdirSync } from 'fs';
 import * as path from 'path';
-import { DATA_DIR } from '@core/utils.js';
+import { resolveSpawnCwd } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../capabilities.js';
@@ -1180,7 +1180,7 @@ export class PIAdapter implements AgentAdapter {
     const cliArgs = buildSpawnArgs(piSpawnOptions(config, sessionDir, sessionPath));
     this.syncGatewayConfig(config, agentDir);
     const env = buildSpawnEnvironment(config, agentDir, composition);
-    const cwd = config.cwd ?? DATA_DIR;
+    const cwd = resolveSpawnCwd(config.cwd);
     return { sessionDir, cliArgs, cwd, env };
   }
 

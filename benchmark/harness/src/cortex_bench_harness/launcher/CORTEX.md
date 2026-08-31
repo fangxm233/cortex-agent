@@ -18,7 +18,7 @@ Host launcher modules materialize production arms and record bounded trials.
 | network_policy.py | boundary | Resolves a campaign's declared trial network |
 | production_arms.py | registry | Resolves bundles and pinned profile metadata |
 | production_home.py | boundary | Materializes sealed production homes |
-| production_session.py | lifecycle | Runs server sessions and records non-success terminals |
+| production_session.py | lifecycle | Runs server sessions, proves the attempt workdir contract, records non-success terminals |
 | runtime_mounts.py | policy | Maps staged runtime names to their fixed read-only container targets |
 | trial_admission.py | boundary | Seals trial launch inputs, admits what a pinned image declares for itself, and discards trial scratch |
 | trial_admission_io.py | io | Writes admission records atomically |

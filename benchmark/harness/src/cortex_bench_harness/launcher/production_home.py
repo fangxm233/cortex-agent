@@ -1,5 +1,5 @@
-# input:  the arm's committed bundle, launcher facts, host and runtime paths
-# output: sealed home, auth, attestations, committed bundle inventory
+# input:  the arm's committed bundle, launcher facts, host and runtime paths, task workdir
+# output: sealed home, auth, attestations, committed bundle inventory, agent working directory
 # pos:    Builds sealed production arm homes
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -11,7 +11,7 @@ import secrets
 import tempfile
 from collections.abc import Mapping
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
 
 from .production_arms import (
@@ -69,6 +69,11 @@ class ProductionArmLaunchFacts:
     proxy_base_url: str
     dummy_token_ref: str
     model_alias_policy: object
+    # The container-resolved task workdir. The server is launched from it, but a backend process
+    # defaults to CORTEX_HOME unless something states otherwise, so the agent would work in the
+    # sealed home while every relative path the task asks for belongs here. Stating it is what
+    # makes the trial's own system prompt ("act inside the working directory") true.
+    workspace_cwd: str
     max_output_tokens: int = MAX_OUTPUT_TOKENS
 
 
@@ -137,6 +142,9 @@ def _validate_facts(facts: ProductionArmLaunchFacts) -> str:
     token = _required_text(facts.dummy_token_ref, "dummy_token_ref")
     if not SAFE_DUMMY_TOKEN.fullmatch(token):
         raise ProductionHomeError("dummy_token_ref contains unsupported YAML characters")
+    workspace_cwd = _required_text(facts.workspace_cwd, "workspace_cwd")
+    if not PurePosixPath(workspace_cwd).is_absolute():
+        raise ProductionHomeError("workspace_cwd must be one absolute container path")
     _canonical_sha256(facts.model_alias_policy)
     if (
         isinstance(facts.max_output_tokens, bool)
@@ -287,6 +295,9 @@ def _sealed_environment(
     environment.update({
         "CORTEX_HOME": str(runtime_home),
         "CORTEX_PROJECTS_DIR": str(runtime_home / "context/projects"),
+        # Where the model's own tools run. Without it the backend falls back to CORTEX_HOME and
+        # the task's relative outputs land in the sealed home instead of the task workdir.
+        "CORTEX_AGENT_CWD": facts.workspace_cwd,
         "HOME": str(runtime_home / CONTAINER_HOME_DIR),
         "XDG_CACHE_HOME": str(runtime_home / f"{CONTAINER_HOME_DIR}/.cache"),
         "XDG_CONFIG_HOME": str(runtime_home / f"{CONTAINER_HOME_DIR}/.config"),

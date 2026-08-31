@@ -1,9 +1,10 @@
 // input:  nothing (leaf module)
-// output: INSTALL_ROOT / DEFAULTS_DIR / DATA_DIR / CONFIG_DIR / STORE_DIR / CONTEXT_DIR / PROJECTS_DIR / WORKSPACE_DIR / PLUGINS_DIR / PROMPTS_DIR / HOOKS_DIR / LOGS_DIR / resolveWorkspaceRelPath()
+// output: INSTALL_ROOT / DEFAULTS_DIR / DATA_DIR / AGENT_CWD / resolveSpawnCwd() / CONFIG_DIR / STORE_DIR / CONTEXT_DIR / PROJECTS_DIR / WORKSPACE_DIR / PLUGINS_DIR / PROMPTS_DIR / HOOKS_DIR / LOGS_DIR / resolveWorkspaceRelPath()
 //         (deprecated aliases: PACKAGE_ROOT, SERVER_ROOT, REPO_ROOT — all map to INSTALL_ROOT for migration period)
 // pos:    canonical path constants — install root (immutable code/assets) + user data/config/store/context/tmp
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
+import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { fileURLToPath } from 'url';
@@ -35,6 +36,33 @@ export const REPO_ROOT = INSTALL_ROOT;
 export const DATA_DIR = process.env.CORTEX_HOME
   ? path.resolve(process.env.CORTEX_HOME)
   : path.join(os.homedir(), '.cortex');
+
+/** Default working directory for model-controlled backend processes. Reads $CORTEX_AGENT_CWD,
+ *  falls back to DATA_DIR (ordinary Cortex sessions work inside the Cortex home).
+ *
+ *  A benchmark trial is the case that needs the override: the whole server exists to run one
+ *  task whose workspace is elsewhere (`/app`), and the launcher states that directory here.
+ *  Fail-closed on a bad value — a silently wrong agent cwd is exactly the defect this replaced:
+ *  the attempt journal recorded one directory while the backend actually ran in another. */
+function resolveAgentCwdEnv(): string {
+  const declared = process.env.CORTEX_AGENT_CWD;
+  if (!declared) return DATA_DIR;
+  const resolved = path.resolve(declared);
+  if (!path.isAbsolute(declared) || !fs.existsSync(resolved) || !fs.statSync(resolved).isDirectory()) {
+    throw new Error(
+      `CORTEX_AGENT_CWD must be an absolute path to an existing directory: ${declared}`);
+  }
+  return resolved;
+}
+
+export const AGENT_CWD = resolveAgentCwdEnv();
+
+/** The single resolution of "where does this backend process run". Every spawn site and the
+ *  production attempt journal call this one function, so the recorded cwd cannot drift from the
+ *  spawned cwd — they are the same expression, not two fallbacks that happen to agree. */
+export function resolveSpawnCwd(cwd?: string): string {
+  return path.resolve(cwd ?? AGENT_CWD);
+}
 
 /** Configuration files — .env, budget, mode, profiles, templates, etc. (DATA_DIR/config/). */
 export const CONFIG_DIR = path.join(DATA_DIR, 'config');

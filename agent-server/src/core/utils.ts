@@ -1,5 +1,5 @@
 // input:  nothing (leaf module)
-// output: INSTALL_ROOT / DEFAULTS_DIR / DATA_DIR / CONFIG_DIR / STORE_DIR / CONTEXT_DIR / PROJECTS_DIR / WORKSPACE_DIR / resolveWorkspaceRelPath / PLUGINS_DIR / PROMPTS_DIR / HOOKS_DIR
+// output: INSTALL_ROOT / DEFAULTS_DIR / DATA_DIR / AGENT_CWD / resolveSpawnCwd / CONFIG_DIR / STORE_DIR / CONTEXT_DIR / PROJECTS_DIR / WORKSPACE_DIR / resolveWorkspaceRelPath / PLUGINS_DIR / PROMPTS_DIR / HOOKS_DIR
 //         (deprecated re-exports: PACKAGE_ROOT, SERVER_ROOT, REPO_ROOT) + moduleDir + utility helpers
 //         + resolveNpmGlobalPrefix / withNpmPrefix (npm global prefix for self-update)
 // pos:    cross-module shared constants and ESM/time/path utilities
@@ -15,6 +15,8 @@ import {
   SERVER_ROOT,
   REPO_ROOT,
   DATA_DIR,
+  AGENT_CWD,
+  resolveSpawnCwd,
   CONFIG_DIR,
   STORE_DIR,
   CONTEXT_DIR,
@@ -158,4 +160,4 @@ function withNpmPrefix(args: string[], binName: string): string[] {
  */
 const GATEWAY_MANAGED_KEY_PLACEHOLDER = 'cortex-gateway-managed';
 
-export { INSTALL_ROOT, DEFAULTS_DIR, PACKAGE_ROOT, SERVER_ROOT, REPO_ROOT, DATA_DIR, CONFIG_DIR, STORE_DIR, CONTEXT_DIR, PROJECTS_DIR, WORKSPACE_DIR, resolveWorkspaceRelPath, PLUGINS_DIR, PROMPTS_DIR, HOOKS_DIR, SKIP_DIRS, GATEWAY_MANAGED_KEY_PLACEHOLDER, moduleDir, isMainModule, readableTimestamp, chunkText, formatDurationCompact, todayISO, listProjectDirs, resolveNpmGlobalPrefix, withNpmPrefix };
+export { INSTALL_ROOT, DEFAULTS_DIR, PACKAGE_ROOT, SERVER_ROOT, REPO_ROOT, DATA_DIR, AGENT_CWD, resolveSpawnCwd, CONFIG_DIR, STORE_DIR, CONTEXT_DIR, PROJECTS_DIR, WORKSPACE_DIR, resolveWorkspaceRelPath, PLUGINS_DIR, PROMPTS_DIR, HOOKS_DIR, SKIP_DIRS, GATEWAY_MANAGED_KEY_PLACEHOLDER, moduleDir, isMainModule, readableTimestamp, chunkText, formatDurationCompact, todayISO, listProjectDirs, resolveNpmGlobalPrefix, withNpmPrefix };

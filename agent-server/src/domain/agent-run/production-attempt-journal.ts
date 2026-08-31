@@ -6,7 +6,7 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { STORE_DIR } from '../../core/paths.js';
+import { STORE_DIR, resolveSpawnCwd } from '../../core/paths.js';
 import type { AgentSpawnConfig } from '../../agent-adapter/types.js';
 import type { NormalizedEvent } from '../../agent-adapter/normalize/event-types.js';
 import type { EventObserver } from '../../agent-adapter/event-tee.js';
@@ -223,7 +223,7 @@ function journalHeader(input: ProductionAttemptJournalInput) {
     rootRunId: identity.root_run_id,
     threadId: identity.thread_id,
     agentSlot: identity.role,
-    resolvedCwd: path.resolve(spawnConfig.cwd ?? process.cwd()),
+    resolvedCwd: resolveSpawnCwd(spawnConfig.cwd),
     ...promptHashes(input),
     modelExecutionIdentityHash: identity.model_execution_identity_hash,
     roleToolSurfaceHash: identity.role_tool_surface_hash,

@@ -1246,6 +1246,7 @@ def finalize_production_trial(
             backend_cli_version="0.82.1",
             proxy_base_url=f"http://{TRIAL_ID}.proxy.invalid:49152",
             dummy_token_ref="trial-dummy-token", model_alias_policy={"policy": "exact"},
+            workspace_cwd="/app",
         ),
         inherited_environment={"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"},
     )

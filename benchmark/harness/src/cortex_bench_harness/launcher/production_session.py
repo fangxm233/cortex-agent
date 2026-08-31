@@ -1,5 +1,5 @@
 # input:  installed server, sealed home, production arm and instruction
-# output: terminal production result and emitted evidence files
+# output: terminal production result, emitted evidence files, workdir contract proof
 # pos:    Owns one production arm server lifecycle
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -188,6 +188,7 @@ class ProductionServerSession:
                 self._write_terminal_outcome(result)
             if result.status != DEADLINE_EXHAUSTED:
                 await self._export_evidence(execute)
+                self._require_workspace_contract()
             return result
         finally:
             try:
@@ -483,6 +484,38 @@ class ProductionServerSession:
                 ["cortex-evidence-export", "--input-file", str(path)]),
             cwd=self._spec.workspace_cwd, timeout_sec=EVIDENCE_EXPORT_TIMEOUT_SECONDS,
         )
+
+    def _require_workspace_contract(self) -> None:
+        """Every attempt must report the workdir this launcher resolved, or the trial is void.
+
+        The journal header and the backend spawn used to answer "where does the model run" from
+        two separate fallbacks, so the evidence could name the task workdir while the model's own
+        tools ran inside the sealed home -- a disagreement no artifact stated and no score could
+        reveal. The two are one expression now; this reads the published header back and refuses
+        the trial if they ever part again, because a trial whose evidence names the wrong
+        directory is a harness defect, not an agent failure.
+        """
+        journal = self._spec.logs_dir / "trajectory" / "events.jsonl"
+        if not journal.is_file():
+            raise ProductionSessionError("production trajectory journal was not exported")
+        headers = 0
+        for line in journal.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError as error:
+                raise ProductionSessionError("production trajectory journal is malformed") from error
+            if not isinstance(record, Mapping) or record.get("type") != "run_header":
+                continue
+            headers += 1
+            reported = record.get("resolved_cwd")
+            if reported != self._spec.workspace_cwd:
+                raise ProductionSessionError(
+                    f"attempt {record.get('agent_slot')!r} reports cwd {reported!r}, "
+                    f"but the task workdir is {self._spec.workspace_cwd!r}")
+        if headers == 0:
+            raise ProductionSessionError("production trajectory journal carries no run header")
 
     async def _stop_server(self, pid: int, execute: Executor) -> None:
         command = (

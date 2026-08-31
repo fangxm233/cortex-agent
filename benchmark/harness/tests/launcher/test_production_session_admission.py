@@ -216,6 +216,14 @@ class ContainerDouble:
                          "terminal": True, "artifact": None, "finalOutput": "done"},
             })
         if "cortex-evidence-export" in command:
+            # The real exporter writes the attempt journal the session's workdir contract reads.
+            trajectory = self.logs_dir / "trajectory"
+            trajectory.mkdir(exist_ok=True)
+            (trajectory / "events.jsonl").write_text(json.dumps({
+                "schema_version": "cortex-bench-journal/1", "type": "run_header",
+                "root_run_id": f"{TRIAL_ID}.sealed", "agent_slot": "direct", "seq": 0,
+                "resolved_cwd": WORKSPACE_CWD,
+            }) + "\n", encoding="utf-8")
             return ""
         if "kill -TERM" in command:
             return ""
@@ -256,6 +264,7 @@ def production_session(
             proxy_base_url=f"http://{PROXY_HOST}:4317",
             dummy_token_ref="zero-paid-dummy-token",
             model_alias_policy={"kind": "exact"},
+            workspace_cwd=WORKSPACE_CWD,
         ),
         inherited_environment={"PATH": "/usr/bin:/bin", "TZ": "UTC"},
     )

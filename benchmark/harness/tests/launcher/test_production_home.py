@@ -140,7 +140,7 @@ HOST_REDIRECT_ENVIRONMENT = {
     "GITHUB_WEBHOOK_SECRET": "host-github-secret",
 }
 SEALED_ENVIRONMENT_KEYS = {
-    "PATH", "LANG", "CORTEX_HOME", "CORTEX_PROJECTS_DIR", "HOME",
+    "PATH", "LANG", "CORTEX_HOME", "CORTEX_PROJECTS_DIR", "CORTEX_AGENT_CWD", "HOME",
     "XDG_CACHE_HOME", "XDG_CONFIG_HOME", "CORTEX_CONFIG_IMMUTABLE",
     "WEBHOOK_PORT", "CORTEX_TUI", "CORTEX_TUI_PORT",
     "CORTEX_WEBHOOK_THREAD_OP_ONLY", "CORTEX_WEBHOOK_SINGLE_ROOT",
@@ -182,6 +182,7 @@ def facts(
             DUMMY_OAUTH_JWT if bundle.provider == "openai-codex" else "trial-dummy-token"
         ),
         model_alias_policy={"policy": "exact"},
+        workspace_cwd="/app",
     )
 
 
@@ -428,6 +429,10 @@ def test_seals_out_host_state_redirects_and_secrets_the_server_itself_reads(tmp_
     assert set(environment) == SEALED_ENVIRONMENT_KEYS
     assert environment["PATH"] == "/usr/bin:/bin"
     assert environment["LANG"] == "C.UTF-8"
+    # The task workdir, not the sealed home: a backend that defaults to CORTEX_HOME would write
+    # the task's relative outputs into the home the trial collects instead of the task workspace.
+    assert environment["CORTEX_AGENT_CWD"] == "/app"
+    assert environment["CORTEX_AGENT_CWD"] != environment["CORTEX_HOME"]
     serialized = json.dumps(environment)
     assert not any(
         marker in serialized

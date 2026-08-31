@@ -47,6 +47,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | command-interactive.test.ts | test | interactive command router and handlers |
 | composite-adapter-noop-fallback.test.ts | test | unknown conduit operations stay no-op |
 | conversation-runner.test.ts | test | thread-free conversation prompt assembly |
+| core-agent-cwd.test.ts | test | agent working-directory resolution and fail-closed refusals |
 | core/ | subdir | core primitives, auth and generator tests |
 | cortex-client-config.test.ts | test | client server URL and access header rules |
 | cortex-md-injector-hook.test.ts | test | CORTEX.md hook injection subprocess |

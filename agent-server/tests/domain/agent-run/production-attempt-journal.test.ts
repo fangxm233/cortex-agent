@@ -28,6 +28,7 @@ import {
   resetProductionAttemptJournals,
 } from '../../../src/domain/agent-run/production-attempt-journal.js';
 import { canonicalJsonSha256 } from '../../../src/domain/agent-run/identity.js';
+import { AGENT_CWD, resolveSpawnCwd } from '../../../src/core/paths.js';
 import type { ResolvedProfileConfig } from '../../../src/domain/agents/profile-manager.js';
 import { _test as facadeTest } from '../../../src/domain/agents/facade.js';
 
@@ -169,6 +170,7 @@ function runAttempt(
   topology: AttemptTopology = {
     threadId: `thr-${executionId}`, rootThreadId: `thr-${executionId}`, parentThreadId: null,
   },
+  cwd?: string,
 ) {
   const resolved = profile(backend);
   return facadeTest.runWithAdapter(adapter(backend, factory), 'do work', {
@@ -181,7 +183,7 @@ function runAttempt(
     productionBenchmarkEvidenceContext: evidenceContext,
     identityDirective: `Directive for ${pathCase.role}`, systemPrompt: 'System prompt',
     tools: 'Read,Write', pluginDirs: [], mcpComposition: 'none', disableHooks: true,
-    loadCortexRules: false, recordCost: false,
+    loadCortexRules: false, recordCost: false, cwd,
   }, {
     model: resolved.model, backend, mode: resolved.mode, provider: resolved.provider,
     extraEnv: resolved.extraEnv, extraOption: resolved.extraOption,
@@ -208,6 +210,36 @@ test('records the exact model-visible role asset witnesses used by host finaliza
   assert.equal(header.plugin_manifest_sha256, canonicalJsonSha256({
     plugin_dirs: [], skills: [],
   }));
+});
+
+test('records the cwd the backend was actually spawned with, not the server process cwd', async () => {
+  initialize('pi');
+  const spawned: string[] = [];
+  await runAttempt('pi', PATHS[0], 'exec-resolved-cwd', (spawnConfig) => {
+    spawned.push(resolveSpawnCwd(spawnConfig.cwd));
+    return eventProcess(EVENTS);
+  }).promise;
+  const evidence = getProductionAttemptJournal('exec-resolved-cwd');
+  assert.ok(evidence);
+  const header = readJournal(evidence.journal_path)[0];
+  // The header and the adapter resolve the same expression, so a spawn that inherits the default
+  // cannot be journalled as some other directory. Recording `process.cwd()` here would name the
+  // directory the server was launched from, which is not where the model's tools run.
+  assert.equal(spawned.length, 1);
+  assert.equal(header.resolved_cwd, spawned[0]);
+  assert.equal(header.resolved_cwd, AGENT_CWD);
+});
+
+test('journals an explicitly requested cwd verbatim', async () => {
+  initialize('pi');
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'attempt-cwd-'));
+  await runAttempt('pi', PATHS[0], 'exec-explicit-cwd', () => eventProcess(EVENTS), {
+    threadId: 'thr-exec-explicit-cwd', rootThreadId: 'thr-exec-explicit-cwd', parentThreadId: null,
+  }, workspace).promise;
+  const evidence = getProductionAttemptJournal('exec-explicit-cwd');
+  assert.ok(evidence);
+  assert.equal(readJournal(evidence.journal_path)[0].resolved_cwd, workspace);
+  fs.rmSync(workspace, { recursive: true, force: true });
 });
 
 for (const backend of ['claude', 'pi'] as const) {
