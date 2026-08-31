@@ -1,0 +1,230 @@
+# input:  the 34 Terminal-Bench 2.1 tasks any r2 arm failed, and the pinned runtimes they mount
+# output: 170 paid gpt-5.6-sol xhigh trials on unmodified upstream images
+# pos:    lab-ksu r3 re-run segment 2: five Cortex orchestrations on the r2 failure set
+# >>> If I am updated, update my header and folder CORTEX.md <<<
+#
+# Segment 2 of the r3 re-run: all five Cortex orchestrations over 34 tasks each, against the
+# baselines segment 1 records. Each arm's model and thinking come from its committed bundle
+# rather than from this document, which is why no arm here declares `thinking`.
+#
+# WHY r3 EXISTS AND WHAT IT IS NOT. r2 produced 110 zero-reward trials across 34 tasks. Four
+# harness changes since then answer part of that: the agent's PATH is derived from the pinned
+# image instead of a hand-written list, the verifier phase runs unsealed in the environment the
+# image ships, the agent's spawn cwd and the cwd its journal records are one expression, and each
+# trial is pinned to the eight host cores its concurrency slot owns. This campaign re-runs every
+# arm over the union of the 34 tasks that any arm failed.
+#
+# THESE SCORES DO NOT MERGE WITH r2's. Deriving the agent's PATH from the image CHANGES THE
+# ENVIRONMENT THE AGENT WORKS IN, so an r3 arm is not the same treatment as its r2 namesake.
+# Splicing r3 re-runs into r2's passes would also hide any regression on a task r2 passed, since
+# no such task is re-run here. Read r3 as its own 34-task measurement of the fixed harness, and
+# compare it to the same 34 tasks in r2 -- not to r2's 89-task totals.
+#
+# WHY THE UNION AND NOT EACH ARM'S OWN FAILURES. A campaign selects tasks once for all its arms,
+# so per-arm selection would need one document per arm. The union costs more trials and buys a
+# partial regression check: within these 34, an arm that passed in r2 and fails in r3 is visible.
+#
+# SEGMENTED ON PURPOSE. 238 trials is many hours, and the ceiling is subscription quota rather
+# than wall clock. Each segment is its own campaign with its own trials_dir, so a segment that
+# stops can be re-run and will resume from the trial roots it already produced; the run-level
+# `progress.json` beside those roots says what is done, running, pending and why anything failed.
+#
+# BEFORE LAUNCH, on lab-ksu:
+#   benchmark/harness/scripts/bench --config ../campaigns/terminal-bench-2.1-full-xhigh-cortex-r3.yaml --run
+# Both the access and refresh tokens are read from ~/.codex/auth.json at execution time. The paths
+# below are lab-ksu's.
+
+schema_version: cortex-bench-campaign/1
+campaign: tb21-full-cx-r3
+paid: true
+trials_dir: /home/xinmin/cortex-benchmark/runs/tb21-full-xhigh-cortex-r3
+cli_version: "2026.8.6"
+concurrency: 8
+
+timeouts:
+  agent_seconds: 4200
+  verifier_seconds: 3600
+
+manifest:
+  wheel_path: ../harness/dist/cortex_bench_harness-0.1.0-py3-none-any.whl
+  npm_artifact_path: ../harness/dist/cortex-agent-server-2026.8.6.tgz
+  lockfile_path: ../harness/uv.lock
+  lockfile_manifest_path: benchmark/harness/uv.lock
+
+credential:
+  upstream_base_url: https://chatgpt.com/backend-api
+  route_identity_host: chatgpt.com
+  proxy_host_suffix: proxy.invalid
+  dummy_token_ref: paid-codex-dummy-token
+
+host_scan_policy:
+  secret_environment:
+    provider_credential: CORTEX_BENCH_CODEX_CREDENTIAL
+  forbidden_environment:
+    host_forbidden: CORTEX_BENCH_PAID_FORBIDDEN
+  forbidden_argv_environment:
+    host_argv: CORTEX_BENCH_PAID_FORBIDDEN_ARGV
+  repository_checkout_environment: CORTEX_BENCH_PAID_CHECKOUT
+  host_identity_environment:
+    machine: CORTEX_BENCH_PAID_IDENTITY
+
+docker_network:
+  subnet_pool: 172.31.112.0/20
+  subnet_prefix: 24
+
+# Without these three fields this campaign would be bounded by one access token's lifetime, which
+# no 89-task segment fits inside. The refresh token is named here and read from the auth file at
+# execution time; refreshing happens in the host proxy process and the container still sees only
+# a dummy.
+proxy:
+  credential_env: CORTEX_BENCH_CODEX_CREDENTIAL
+  refresh_credential_env: CORTEX_BENCH_CODEX_REFRESH
+  token_endpoint_url: https://auth.openai.com/oauth/token
+  oauth_client_id: app_EMoamEEZ73f0CkXaXp7hrann
+  request_body_limit_bytes: 67108864
+  response_body_limit_bytes: 67108864
+  listen_host: 0.0.0.0
+
+# No `verifier` here on purpose. The staged verifier tree is an OFFLINE substitute: its uvx shim
+# drops the `-p`/`-w` arguments an upstream tests/test.sh uses to install that task's own
+# dependencies, and its apt-get and curl land ahead of the real ones on PATH. In a trial that can
+# reach the internet -- which `network: mode: open` below means this one can -- mounting it
+# replaces a verifier that installs numpy, torch or mteb with one that has only pytest, and the
+# resulting import failure is scored as a failed agent. The task image's own test.sh does this
+# correctly on its own; the harness refuses the combination outright.
+runtimes:
+  node: /home/xinmin/cortex-benchmark/runtimes/node
+  pi: /home/xinmin/cortex-benchmark/runtimes/pi
+
+arms:
+  - name: cx-dir
+    kind: cortex
+    backend: pi
+    provider: openai-codex
+    model: gpt-5.6-sol
+    credential_capability: pi-openai-codex-oauth
+    runtime_mounts: [node, pi]
+    orchestration:
+      mode: direct
+      ask_manager: false
+    limits:
+      max_provider_requests: 1000
+      max_cost_usd: "10.00"
+      deadline_seconds: 3600
+      max_output_tokens: 131072
+
+  - name: cx-cr-audit
+    kind: cortex
+    backend: pi
+    provider: openai-codex
+    model: gpt-5.6-sol
+    credential_capability: pi-openai-codex-oauth
+    runtime_mounts: [node, pi]
+    orchestration:
+      mode: coder-review
+      coder_review_variant: audit-retry
+      ask_manager: false
+    limits:
+      max_provider_requests: 1000
+      max_cost_usd: "10.00"
+      deadline_seconds: 3600
+      max_output_tokens: 131072
+
+  - name: cx-cr-fix
+    kind: cortex
+    backend: pi
+    provider: openai-codex
+    model: gpt-5.6-sol
+    credential_capability: pi-openai-codex-oauth
+    runtime_mounts: [node, pi]
+    orchestration:
+      mode: coder-review
+      coder_review_variant: reviewer-fix
+      ask_manager: false
+    limits:
+      max_provider_requests: 1000
+      max_cost_usd: "10.00"
+      deadline_seconds: 3600
+      max_output_tokens: 131072
+
+  - name: cx-mgr-off
+    kind: cortex
+    backend: pi
+    provider: openai-codex
+    model: gpt-5.6-sol
+    credential_capability: pi-openai-codex-oauth
+    runtime_mounts: [node, pi]
+    orchestration:
+      mode: manager
+      ask_manager: false
+    limits:
+      max_provider_requests: 1000
+      max_cost_usd: "10.00"
+      deadline_seconds: 3600
+      max_output_tokens: 131072
+
+  - name: cx-mgr-on
+    kind: cortex
+    backend: pi
+    provider: openai-codex
+    model: gpt-5.6-sol
+    credential_capability: pi-openai-codex-oauth
+    runtime_mounts: [node, pi]
+    orchestration:
+      mode: manager
+      ask_manager: true
+    limits:
+      max_provider_requests: 1000
+      max_cost_usd: "10.00"
+      deadline_seconds: 3600
+      max_output_tokens: 131072
+
+
+# `open`, matching every campaign whose scores these are compared against. See campaigns/CORTEX.md
+# for what that costs a score.
+network:
+  mode: open
+
+task_source:
+  kind: external
+  root: /home/xinmin/cortex-benchmark/assets/terminal-bench-2.1-7131e437/tasks
+  inventory: ../external-suites/terminal-bench-2.1-7131e437-images.json
+  select:
+    mode: include
+    ids:
+      - break-filter-js-from-html
+      - cancel-async-tasks
+      - configure-git-webserver
+      - db-wal-recovery
+      - dna-assembly
+      - dna-insert
+      - extract-elf
+      - extract-moves-from-video
+      - filter-js-from-html
+      - financial-document-processor
+      - gcode-to-text
+      - hf-model-inference
+      - kv-store-grpc
+      - largest-eigenval
+      - mailman
+      - make-doom-for-mips
+      - model-extraction-relu-logits
+      - nginx-request-logging
+      - overfull-hbox
+      - path-tracing
+      - path-tracing-reverse
+      - polyglot-rust-c
+      - pypi-server
+      - pytorch-model-recovery
+      - qemu-alpine-ssh
+      - raman-fitting
+      - sam-cell-seg
+      - sanitize-git-repo
+      - schemelike-metacircular-eval
+      - torch-pipeline-parallelism
+      - train-fasttext
+      - video-processing
+      - vulnerable-secret
+      - winning-avg-corewars
+
+comparisons: []

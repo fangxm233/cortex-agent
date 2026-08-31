@@ -18,6 +18,9 @@ Committed campaign documents declare the trials one `cortex-bench run` executes.
 | terminal-bench-2.1-tmpdir-gate.yaml | campaign | Declares lab-ksu's one-trial gate re-running the task whose output volume exposed the unmade TMPDIR, before 623 trials depend on the fix |
 | terminal-bench-2.1-full-xhigh-baselines.yaml | campaign | Declares lab-ksu's 89-task gpt-5.6-sol xhigh segment for the two vendor baselines |
 | terminal-bench-2.1-full-xhigh-cortex.yaml | campaign | Declares lab-ksu's 89-task gpt-5.6-sol xhigh segment for the five Cortex orchestrations |
+| terminal-bench-2.1-verifier-environment-smoke.yaml | campaign | Proves in a real trial that the scorer sees the image's own PATH before r3 spends quota |
+| terminal-bench-2.1-full-xhigh-baselines-r3.yaml | campaign | Re-runs the two vendor baselines over the 34 tasks any r2 arm failed |
+| terminal-bench-2.1-full-xhigh-cortex-r3.yaml | campaign | Re-runs the five Cortex orchestrations over the 34 tasks any r2 arm failed |
 | terminal-bench-2.1-cortex-direct-codex-xhigh-recovery.yaml | campaign | Recovers the direct xhigh constraints trial that failed before provider execution |
 | terminal-bench-2.1-cortex-direct-codex-xhigh-db-recovery.yaml | campaign | Recovers the direct xhigh db-wal trial that failed before provider execution |
 | terminal-bench-2.1-vendor-pi.yaml | campaign | Declares the paid three-task PI vendor baseline against the host DeepSeek relay |

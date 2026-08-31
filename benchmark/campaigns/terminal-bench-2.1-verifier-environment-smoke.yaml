@@ -1,0 +1,116 @@
+# input:  the three corpus tasks whose scorer needed a binary our seal hid, and the pinned runtimes
+# output: 3 paid gpt-5.6-sol xhigh trials that say whether the scorer can now see /usr/sbin
+# pos:    Verifier-environment fix gate, ahead of the r3 re-run
+# >>> If I am updated, update my header and folder CORTEX.md <<<
+#
+# WHAT THIS PROVES. The r2 suite scored zero on path-tracing, path-tracing-reverse and
+# nginx-request-logging in all seven arms. An oracle run of the same images, through upstream's
+# own environment, passed all three: the tasks are not environmentally invalid. What differed is
+# that our launcher sealed the trial with `env -i` and a PATH we wrote by hand, and that seal
+# reached harbor's VERIFIER phase too. The images declare `/usr/local/sbin:/usr/sbin:/sbin`; our
+# PATH did not, so `/usr/sbin/chroot` and `/usr/sbin/nginx` did not exist as far as the scorer
+# was concerned. Two changes answer it -- the agent's PATH is now derived from the pinned image's
+# own PATH, and the verifier phase runs unsealed, in the environment the image ships -- and both
+# are so far only unit-tested. This campaign is the first time either runs in a real trial.
+#
+# WHAT IT DOES NOT PROVE. Nothing about scores at suite scale, and nothing about the other
+# failure categories. One arm, three tasks, one sample each. Read it for whether the verifier
+# reaches its own assertions, not for the reward.
+#
+# READ THIS BEFORE THE r3 RE-RUN. If a trial here still ends with `chroot: command not found` or
+# `nginx: command not found` in the verifier stdout, the fix is not landed and the 238-trial
+# re-run would burn quota reproducing a known bug.
+#
+# BEFORE LAUNCH, on lab-ksu:
+#   benchmark/harness/scripts/bench --config \
+#     ../campaigns/terminal-bench-2.1-verifier-environment-smoke.yaml --run
+# Both the access and refresh tokens are read from ~/.codex/auth.json at execution time. The paths
+# below are lab-ksu's.
+
+schema_version: cortex-bench-campaign/1
+campaign: tb21-vfix-smoke
+paid: true
+trials_dir: /home/xinmin/cortex-benchmark/runs/tb21-verifier-environment-smoke
+cli_version: "2026.8.6"
+concurrency: 3
+
+timeouts:
+  agent_seconds: 4200
+  verifier_seconds: 3600
+
+manifest:
+  wheel_path: ../harness/dist/cortex_bench_harness-0.1.0-py3-none-any.whl
+  npm_artifact_path: ../harness/dist/cortex-agent-server-2026.8.6.tgz
+  lockfile_path: ../harness/uv.lock
+  lockfile_manifest_path: benchmark/harness/uv.lock
+
+credential:
+  upstream_base_url: https://chatgpt.com/backend-api
+  route_identity_host: chatgpt.com
+  proxy_host_suffix: proxy.invalid
+  dummy_token_ref: paid-codex-dummy-token
+
+host_scan_policy:
+  secret_environment:
+    provider_credential: CORTEX_BENCH_CODEX_CREDENTIAL
+  forbidden_environment:
+    host_forbidden: CORTEX_BENCH_PAID_FORBIDDEN
+  forbidden_argv_environment:
+    host_argv: CORTEX_BENCH_PAID_FORBIDDEN_ARGV
+  repository_checkout_environment: CORTEX_BENCH_PAID_CHECKOUT
+  host_identity_environment:
+    machine: CORTEX_BENCH_PAID_IDENTITY
+
+docker_network:
+  subnet_pool: 172.27.32.0/20
+  subnet_prefix: 24
+
+proxy:
+  credential_env: CORTEX_BENCH_CODEX_CREDENTIAL
+  refresh_credential_env: CORTEX_BENCH_CODEX_REFRESH
+  token_endpoint_url: https://auth.openai.com/oauth/token
+  oauth_client_id: app_EMoamEEZ73f0CkXaXp7hrann
+  request_body_limit_bytes: 67108864
+  response_body_limit_bytes: 67108864
+  listen_host: 0.0.0.0
+
+# No `verifier` runtime, for the reason the full-suite documents give at length: its offline shim
+# lands ahead of the real apt-get and curl and strips the `-w` closure an upstream test.sh needs.
+runtimes:
+  node: /home/xinmin/cortex-benchmark/runtimes/node
+  pi: /home/xinmin/cortex-benchmark/runtimes/pi
+
+# One arm. cx-dir is the cheapest Cortex orchestration and it failed all three tasks in r2, so it
+# is the shortest path from "the fix is landed" to evidence.
+arms:
+  - name: cx-dir
+    kind: cortex
+    backend: pi
+    provider: openai-codex
+    model: gpt-5.6-sol
+    credential_capability: pi-openai-codex-oauth
+    runtime_mounts: [node, pi]
+    orchestration:
+      mode: direct
+      ask_manager: false
+    limits:
+      max_provider_requests: 1000
+      max_cost_usd: "10.00"
+      deadline_seconds: 3600
+      max_output_tokens: 131072
+
+network:
+  mode: open
+
+task_source:
+  kind: external
+  root: /home/xinmin/cortex-benchmark/assets/terminal-bench-2.1-7131e437/tasks
+  inventory: ../external-suites/terminal-bench-2.1-7131e437-images.json
+  select:
+    mode: include
+    ids:
+      - nginx-request-logging
+      - path-tracing
+      - path-tracing-reverse
+
+comparisons: []
