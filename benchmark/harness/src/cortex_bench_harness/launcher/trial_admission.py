@@ -4,6 +4,7 @@
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import asyncio
+import contextlib
 import ipaddress
 import json
 import os
@@ -87,10 +88,11 @@ IMAGE_ENVIRONMENT_DENYLIST = frozenset({
     "LD_PRELOAD", "NODE_OPTIONS", "NO_PROXY",
 })
 ADMISSION_ENVIRONMENT_IMPORT_PATH = "cortex_bench_harness.launcher.trial_admission:AdmittedDockerEnvironment"
+ADMISSION_VERIFIER_IMPORT_PATH = "cortex_bench_harness.launcher.trial_verifier:AdmittedVerifier"
 TRIAL_ROOT = PurePosixPath("/logs/agent/trial-home")
 VERIFIER_UVX_ALIAS = TRIAL_ROOT / "home/.local/bin/uvx"
 VERIFIER_UVX_TARGET = PurePosixPath("/opt/terminal-bench-verifier/bin/uvx")
-FIXED_PATH = "/installed-agent/npm/bin:/usr/local/bin:/usr/bin:/bin"
+INSTALLED_AGENT_BIN = "/installed-agent/npm/bin"
 TRIAL_ID_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 PROVIDER_ENV_KEYS = {
     "anthropic": frozenset({"ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL"}),
@@ -237,20 +239,37 @@ def trial_scratch_discard_command(
     return f"set -u; {survey}; rm -rf -- {targets}"
 
 
-def sealed_trial_environment(trial_id: str) -> dict[str, str]:
-    """The environment every phase of a trial starts from, the verifier's included.
+def agent_search_path(image_path: str) -> str:
+    """The agent's PATH: the pinned image's own, with the installed agent runtime in front.
 
-    Public because the verifier phase is measurable outside a trial and has to be measured under
-    exactly this: `HOME` decides where an upstream test.sh's `source $HOME/.local/bin/env` looks
-    for the uv it just installed, and `PATH` -- which carries no /sbin -- decides which apt-get and
-    curl that script finds. A probe that used the image's own environment would be answering a
-    different question from the one the trial asks.
+    A task is designed against the environment its image ships, and a Debian image keeps
+    nginx, chroot and the rest of the system binaries on `/usr/sbin` and `/sbin`. A PATH of
+    our own invention that drops them does not isolate anything -- it quietly changes what the
+    task is, and the agent has no way to know a directory it can read is missing from its PATH.
+    """
+    entries = [INSTALLED_AGENT_BIN, *(entry for entry in image_path.split(":") if entry)]
+    if len(entries) == 1:
+        raise HarborTrialAdmissionError("pinned image declares no PATH")
+    ordered: list[str] = []
+    for entry in entries:
+        if entry not in ordered:
+            ordered.append(entry)
+    return ":".join(ordered)
+
+
+def sealed_trial_environment(trial_id: str, search_path: str) -> dict[str, str]:
+    """The environment the agent phase runs in, and nothing else runs in.
+
+    Sealing exists to keep the credential and the host out of the model's reach and to give
+    every arm a byte-identical surface. Both are properties of the phase being measured, so the
+    verifier phase is deliberately not included: it scores the answer and belongs in the
+    environment the image ships (see `trial_verifier.AdmittedVerifier`).
     """
     root = TRIAL_ROOT
     return {
         "HOME": str(root / "home"), "HOSTNAME": trial_id,
         "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
-        "NODE_DISABLE_COMPILE_CACHE": "1", "PATH": FIXED_PATH,
+        "NODE_DISABLE_COMPILE_CACHE": "1", "PATH": search_path,
         "TEMP": str(root / "tmp"), "TMP": str(root / "tmp"),
         "TMPDIR": str(root / "tmp"), "TZ": "UTC",
         "XDG_CACHE_HOME": str(root / "xdg-cache"),
@@ -258,8 +277,15 @@ def sealed_trial_environment(trial_id: str) -> dict[str, str]:
     }
 
 
+def image_search_path(image_ref: str) -> str:
+    """The PATH the pinned image declares for itself."""
+    environment, _ = inspect_image_configuration(image_ref)
+    return environment.get("PATH", "")
+
+
 def _common_trial_environment(seed: TrialSeed) -> dict[str, str]:
-    return sealed_trial_environment(seed.trial_id)
+    return sealed_trial_environment(
+        seed.trial_id, agent_search_path(image_search_path(_task_image(seed)[0])))
 
 
 def _trial_environment(seed: TrialSeed, backend: str) -> dict[str, str]:
@@ -532,12 +558,17 @@ def _trial_environment_config(
 
 
 def _verifier_config(verifier_timeout_seconds: int | None) -> dict[str, object]:
-    """An undeclared verifier timeout leaves the task's own `[verifier] timeout_sec` in force."""
-    if verifier_timeout_seconds is None:
-        return {}
-    seconds = float(verifier_timeout_seconds)
-    return {"verifier": VerifierConfig(
-        override_timeout_sec=seconds, max_timeout_sec=seconds)}
+    """An undeclared verifier timeout leaves the task's own `[verifier] timeout_sec` in force.
+
+    The import path is not optional: harbor's stock verifier would run the task's tests through
+    the environment sealed for the agent, and that sealing is what made three tasks unscoreable
+    for every arm. Naming the phase-aware verifier here is what keeps the two apart.
+    """
+    fields: dict[str, object] = {"import_path": ADMISSION_VERIFIER_IMPORT_PATH}
+    if verifier_timeout_seconds is not None:
+        seconds = float(verifier_timeout_seconds)
+        fields.update(override_timeout_sec=seconds, max_timeout_sec=seconds)
+    return {"verifier": VerifierConfig(**fields)}
 
 
 async def create_harbor_trial(
@@ -562,6 +593,7 @@ async def create_harbor_trial(
             network=network, runtime_mounts=runtime_mounts, cpuset=cpuset,
         )
         _validate_no_extra_allowed_hosts(config)
+        _validate_admitted_verifier(config)
         trial = await Trial.create(config)
         if type(trial.agent_environment) is not AdmittedDockerEnvironment:
             raise HarborTrialAdmissionError("Harbor did not construct the admitted environment")
@@ -570,6 +602,14 @@ async def create_harbor_trial(
     finally:
         if credential_handle is not None:
             HOST_CREDENTIAL_VAULT.purge(credential_handle)
+
+
+def _validate_admitted_verifier(config: TrialConfig) -> None:
+    """The verifier phase must be the one that knows it is not the agent phase."""
+    if config.verifier.import_path != ADMISSION_VERIFIER_IMPORT_PATH:
+        raise HarborTrialAdmissionError(
+            "trial config must name the admitted verifier; harbor's own would score the task "
+            "through the environment sealed for the agent")
 
 
 def _validate_no_extra_allowed_hosts(config: TrialConfig) -> None:
@@ -1060,6 +1100,8 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
         self._sealed_mounts = [dict(mount) for mount in mounts]
         self._evidence_path = trial_paths.artifacts_dir / ADMISSION_EVIDENCE_FILENAME
         self._proxy_controller: Any | None = None
+        # False for every phase but the one `AdmittedVerifier` opens. See `verifier_phase`.
+        self._verifier_phase = False
         # Filled by `_validate_image_configuration`, which runs before anything is armed. Empty
         # until then, and empty for an image that declares no environment of its own.
         self._image_environment: dict[str, str] = {}
@@ -1096,6 +1138,15 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
                 f"image environment steers the container out of the sealed environment: {steering}"
             )
         self._image_environment = dict(sorted(environment.items()))
+        declared = self._persistent_env.get("PATH")
+        if declared is not None and declared != agent_search_path(
+            self._image_environment.get("PATH", "")
+        ):
+            # The image is pinned by digest, so this cannot drift without the pin changing --
+            # which is exactly why a mismatch means the sealed PATH was built from something
+            # other than this image, and the agent would be searching the wrong directories.
+            raise HarborTrialAdmissionError(
+                "sealed PATH was not derived from the admitted image")
 
     def _arm_proxy_route(
         self, contract: Mapping[str, object],
@@ -1328,13 +1379,29 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
         arguable. Evidence only -- a trial that never wrote evidence has already failed for a
         reason this would only obscure.
         """
-        if not self._evidence_path.is_file():
-            return
-        document = json.loads(self._evidence_path.read_text())
+        self._amend_evidence(host_load=self._both_ends_of_host_load())
+
+    def _both_ends_of_host_load(self) -> dict[str, object]:
+        document = self._read_evidence()
         load = document.get("host_load")
-        started = load if isinstance(load, dict) else {}
-        document["host_load"] = {**started, "verified": host_load()}
-        atomic_write_json(self._evidence_path, document)
+        return {**(load if isinstance(load, dict) else {}), "verified": host_load()}
+
+    def _read_evidence(self) -> dict[str, object]:
+        if not self._evidence_path.is_file():
+            return {}
+        document = json.loads(self._evidence_path.read_text())
+        return document if isinstance(document, dict) else {}
+
+    def _amend_evidence(self, **fields: object) -> None:
+        """Add to the launch evidence after it was written, or do nothing if there is none.
+
+        A trial whose start failed unlinked its evidence on the way out; resurrecting a stub of
+        it would only obscure why.
+        """
+        document = self._read_evidence()
+        if not document:
+            return
+        atomic_write_json(self._evidence_path, {**document, **fields})
 
     async def _finalize_after_container_stop(self) -> None:
         self._record_verified_host_load()
@@ -1377,12 +1444,37 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
         if failure is not None:
             raise failure
 
+    @contextlib.contextmanager
+    def verifier_phase(self):
+        """Run the enclosed commands the way harbor would, in the image's own environment.
+
+        The agent phase is what sealing protects, and the verifier is not the agent: it scores
+        the answer, spends no credential, and its result is only meaningful if the container it
+        inspects behaves the way the task author's image does. Inside this block `exec` stops
+        replacing the environment, so the task's tests see the image's PATH, HOME and locale,
+        plus whatever the task's own `[verifier.env]` declares.
+        """
+        if self._verifier_phase:
+            raise HarborTrialAdmissionError("the verifier phase is already open")
+        self._verifier_phase = True
+        self._amend_evidence(verifier_phase={"sealed": False})
+        try:
+            yield
+        finally:
+            self._verifier_phase = False
+
     @override
     async def exec(
         self, command: str, cwd: str | None = None,
         env: dict[str, str] | None = None, timeout_sec: int | None = None,
         user: str | int | None = None,
     ) -> ExecResult:
+        if self._verifier_phase:
+            return await self._compose_exec(
+                command, service="main", cwd=cwd or self.task_env_config.workdir,
+                env=dict(env) if env else None,
+                timeout_sec=timeout_sec, user=self._resolve_user(user),
+            )
         merged = self._merge_env(env) or {}
         keys_match = set(merged) == self._admitted_environment_keys
         values_match = environment_digest(merged) == self._admitted_environment_digest

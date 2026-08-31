@@ -209,6 +209,24 @@ def test_the_corpus_is_mounted_where_harbor_copies_from_never_at_tests(tmp_path:
     assert "--pull never" in " ".join(arguments)
 
 
+def test_the_probe_runs_the_verifier_in_the_images_own_environment(tmp_path: Path) -> None:
+    """The gate has to measure what the trial measures, and the trial no longer seals this phase.
+
+    Under the sealed PATH `which nginx` and `chroot` do not resolve, so a gate that kept it would
+    pass tasks the trial then scores zero for reasons that have nothing to do with the agent.
+    """
+    plan = ProbePlan(
+        task_id="a-task", image_ref="image@sha256:abc", tests_dir=tmp_path / "tests",
+        script=UPSTREAM_SCRIPT, network="bridge",
+    )
+
+    command = docker_arguments(plan)[-1]
+
+    assert "env -i" not in command
+    assert "/installed-agent/npm/bin" not in command
+    assert f"({CONTAINER_TESTS}/test.sh)" in command
+
+
 def test_every_reader_after_the_runtime_setup_survives_a_verifier_that_wrote_nothing() -> None:
     """The staged runtime's setup command opens with `set -eu`, which used to leak.
 

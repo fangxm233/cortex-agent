@@ -50,8 +50,7 @@ from .launcher.runtime_mounts import (
     runtime_agent_command,
     runtime_link_command,
 )
-from .launcher.trial_admission import sealed_trial_environment
-from .launcher.trial_admission_io import atomic_write_json, isolated_command
+from .launcher.trial_admission_io import atomic_write_json
 
 GATE_SCHEMA_VERSION = "cortex-bench-verifier-gate/1"
 GATE_REPORT_NAME = "verifier-gate.json"
@@ -228,11 +227,13 @@ def classify(
 
 
 def probe_command(plan: ProbePlan) -> str:
-    """The one shell command a probe container runs, prelude and sealed phase together.
+    """The one shell command a probe container runs, prelude and verifier phase together.
 
     The prelude is root work the trial's own launch path does for it -- the log roots Harbor
     creates, the executable bit Harbor sets, and the PATH links a mounted runtime owes. Everything
-    after it runs under the sealed environment, because that is what the verifier phase runs under.
+    after it runs in the image's own environment, because that is what the verifier phase runs
+    in: the agent's sealed environment stops at the phase it protects, and a probe that used it
+    would be answering a different question from the one the trial asks.
     """
     scratch = " ".join(
         f"{CONTAINER_AGENT_LOGS}/trial-home/{name}"
@@ -249,15 +250,15 @@ def probe_command(plan: ProbePlan) -> str:
     link = runtime_link_command(names)
     if link:
         prelude.append(link)
-    sealed: list[str] = []
+    phase: list[str] = []
     agent_setup = runtime_agent_command(names)
     if agent_setup:
         # Parenthesised because that command opens with `set -eu`, which would otherwise stay in
         # force for everything below it: the first `cat` of a report a failing verifier never
         # wrote would kill the shell, and the probe would lose the very output that says why. It
         # cost a run to notice, so it is a subshell and every reader below is non-fatal.
-        sealed.append(f"( {agent_setup} )")
-    sealed += [
+        phase.append(f"( {agent_setup} )")
+    phase += [
         f"({CONTAINER_TESTS}/test.sh) > {CONTAINER_VERIFIER_LOGS}/{STDOUT_NAME} 2>&1",
         "status=$?",
         f"printf '\\n{_EXIT_MARKER} %s===\\n' \"$status\"",
@@ -269,11 +270,7 @@ def probe_command(plan: ProbePlan) -> str:
     # The markers travel on the container's stdout rather than a host mount on purpose: a probe
     # that wrote its evidence into a bind mount would leave root-owned trees behind on every host
     # it ran on, and this command runs 89 times.
-    return "; ".join([*prelude, isolated_command("\n".join(sealed), _probe_environment(plan))])
-
-
-def _probe_environment(plan: ProbePlan) -> dict[str, str]:
-    return sealed_trial_environment(f"verifier-gate-{plan.task_id}")
+    return "; ".join([*prelude, "\n".join(phase)])
 
 
 def docker_arguments(plan: ProbePlan) -> list[str]:

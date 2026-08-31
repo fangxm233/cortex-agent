@@ -29,7 +29,13 @@ from cortex_bench_harness.launcher.trial_admission import (
     build_harbor_trial_config,
 )
 from test_campaign import arm_document, campaign_document, vendor_arm_document, write_campaign
-from test_trial_admission import launch_kwargs
+from test_trial_admission import DIGEST, IMAGE_REF, launch_kwargs, stub_pinned_image
+
+@pytest.fixture(autouse=True)
+def pinned_image(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The sealed PATH is the image's own, so building a config asks docker about it."""
+    stub_pinned_image(monkeypatch)
+
 
 NODE_TARGET = "/opt/cortex-bench-node"
 PI_TARGET = "/opt/cortex-bench-pi-runtime"
@@ -241,7 +247,11 @@ def test_the_sealed_environment_only_names_directories_the_trial_creates() -> No
         _common_trial_environment,
     )
 
-    seed = SimpleNamespace(trial_id="camp-01-task-one-cortex-a")
+    # The sealed PATH is the pinned image's own, so the seed has to name an image.
+    seed = SimpleNamespace(
+        trial_id="camp-01-task-one-cortex-a",
+        task={"image_ref": IMAGE_REF, "image_digest": DIGEST},
+    )
     named = {
         value for key, value in _common_trial_environment(seed).items()
         if key in ("HOME", "TEMP", "TMP", "TMPDIR", "XDG_CACHE_HOME", "XDG_CONFIG_HOME")

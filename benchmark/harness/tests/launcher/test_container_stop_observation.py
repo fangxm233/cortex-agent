@@ -253,7 +253,7 @@ def test_real_pull_disabled_container_stop_is_observed_from_host() -> None:
 
 
 def test_admitted_environment_finalizes_between_stop_wait_and_container_removal(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
 ) -> None:
     events: list[object] = []
     observation = ContainerBoundaryObservation(
@@ -280,6 +280,9 @@ def test_admitted_environment_finalizes_between_stop_wait_and_container_removal(
             return observation
 
     environment = object.__new__(AdmittedDockerEnvironment)
+    # Stopping also notes the host load into the launch evidence; a trial that wrote none gets
+    # none, which is the case this partial object stands for.
+    environment._evidence_path = tmp_path / "harbor-launch-admission.json"
     environment._proxy_controller = Controller()
 
     async def compose(command: list[str], **_kwargs: object) -> ExecResult:
@@ -305,7 +308,7 @@ def test_admitted_environment_finalizes_between_stop_wait_and_container_removal(
 
 
 def test_unobservable_stop_census_is_recorded_after_stop_and_container_is_removed(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
 ) -> None:
     events: list[object] = []
 
@@ -326,6 +329,9 @@ def test_unobservable_stop_census_is_recorded_after_stop_and_container_is_remove
             raise ContainerBoundaryUnproven("namespace census unavailable")
 
     environment = object.__new__(AdmittedDockerEnvironment)
+    # Stopping also notes the host load into the launch evidence; a trial that wrote none gets
+    # none, which is the case this partial object stands for.
+    environment._evidence_path = tmp_path / "harbor-launch-admission.json"
     environment._proxy_controller = Controller()
 
     async def compose(command: list[str], **_kwargs: object) -> ExecResult:
@@ -350,7 +356,7 @@ def test_unobservable_stop_census_is_recorded_after_stop_and_container_is_remove
 
 
 def test_capture_failure_still_stops_before_recording_unavailable(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
 ) -> None:
     events: list[object] = []
 
@@ -368,6 +374,9 @@ def test_capture_failure_still_stops_before_recording_unavailable(
             raise ContainerBoundaryUnproven("capture unavailable")
 
     environment = object.__new__(AdmittedDockerEnvironment)
+    # Stopping also notes the host load into the launch evidence; a trial that wrote none gets
+    # none, which is the case this partial object stands for.
+    environment._evidence_path = tmp_path / "harbor-launch-admission.json"
     environment._proxy_controller = Controller()
 
     async def compose(command: list[str], **_kwargs: object) -> ExecResult:

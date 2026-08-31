@@ -46,6 +46,7 @@ from cortex_bench_harness.launcher.trial_proxy import (
     validate_paid_envelope,
 )
 from cortex_bench_harness.proxy.adapters.openai_codex_responses import JWT_ACCOUNT_CLAIM
+from test_trial_admission import stub_pinned_image
 
 DIGEST = f"sha256:{'a' * 64}"
 IMAGE_REF = f"registry.invalid/task@{DIGEST}"
@@ -2283,7 +2284,11 @@ def admit_every_trial(config: object, workspace: Path) -> list[str]:
     return names
 
 
-def test_every_planned_trial_is_accepted_by_the_real_admission_builder(tmp_path: Path) -> None:
+def test_every_planned_trial_is_accepted_by_the_real_admission_builder(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The sealed PATH is the pinned image's own, so admission asks docker what it declares.
+    stub_pinned_image(monkeypatch)
     document = campaign_document(tmp_path)
     for index, name in enumerate(("one", "two")):
         harbor_task_dir(tmp_path / "tasks", name, IMAGE_REF)
@@ -2298,8 +2303,9 @@ def test_every_planned_trial_is_accepted_by_the_real_admission_builder(tmp_path:
 
 
 def test_the_committed_zero_paid_campaign_is_accepted_by_the_real_admission_builder(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    stub_pinned_image(monkeypatch)
     config = load_campaign_config(COMMITTED_ZERO_PAID_CONFIG)
 
     admitted = admit_every_trial(config, tmp_path)

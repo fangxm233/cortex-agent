@@ -31,11 +31,13 @@ from cortex_bench_harness.launcher.trial_admission_io import cpuset_for_slot
 from cortex_bench_harness.launcher.trial_admission import (
     ADMISSION_EVIDENCE_FILENAME,
     ADMISSION_ENVIRONMENT_IMPORT_PATH,
+    ADMISSION_VERIFIER_IMPORT_PATH,
     TRIAL_SCRATCH_CENSUS_SCHEMA,
     TRIAL_SCRATCH_DIRECTORIES,
     AdmittedDockerEnvironment,
     HarborTrialAdmissionError,
     VendorRuntimeProjection,
+    agent_search_path,
     build_harbor_trial_config,
     create_harbor_trial,
     trial_scratch_discard_command,
@@ -55,7 +57,8 @@ EXPECTED_ENVIRONMENT = {
     "HOME": "/logs/agent/trial-home/home",
     "HOSTNAME": "trial-one",
     "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8", "NODE_DISABLE_COMPILE_CACHE": "1",
-    "PATH": "/installed-agent/npm/bin:/usr/local/bin:/usr/bin:/bin",
+    # Derived from the pinned image, which the fixture below reports as PATH=/image/path.
+    "PATH": "/installed-agent/npm/bin:/image/path",
     "TEMP": "/logs/agent/trial-home/tmp", "TMP": "/logs/agent/trial-home/tmp",
     "TMPDIR": "/logs/agent/trial-home/tmp", "TZ": "UTC",
     "XDG_CACHE_HOME": "/logs/agent/trial-home/xdg-cache",
@@ -81,6 +84,24 @@ VENDOR_PROJECTIONS = {
 LIVE_PROXY_HANDLES: list[object] = []
 
 
+def stub_pinned_image(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Answer `docker image inspect` for a pinned image no test ever pulls.
+
+    Public because the sealed environment's PATH is derived from the image, so every module that
+    builds a trial config now asks docker what that image declares.
+    """
+    result = subprocess.CompletedProcess(
+        args=["docker", "image", "inspect"], returncode=0,
+        stdout=json.dumps({"Env": ["PATH=/image/path", "LANG=C"], "Volumes": None}) + "\n",
+        stderr="",
+    )
+    module = importlib.import_module("cortex_bench_harness.launcher.trial_admission_io")
+    monkeypatch.setattr(
+        module, "subprocess",
+        SimpleNamespace(run=lambda *args, **kwargs: result), raising=False,
+    )
+
+
 @pytest.fixture(autouse=True)
 def admitted_fake_proxy(monkeypatch: pytest.MonkeyPatch):
     admit_capability(monkeypatch, "pi-deepseek-api-key")
@@ -92,19 +113,7 @@ def admitted_fake_proxy(monkeypatch: pytest.MonkeyPatch):
         "CORTEX_BENCH_TEST_IDENTITY": "private-machine-id",
     }.items():
         monkeypatch.setenv(name, value)
-    result = subprocess.CompletedProcess(
-        args=["docker", "image", "inspect"], returncode=0,
-        stdout=json.dumps({
-            "Env": ["PATH=/image/path", "LANG=C"], "Volumes": None,
-        }) + "\n", stderr="",
-    )
-    module = importlib.import_module(
-        "cortex_bench_harness.launcher.trial_admission_io",
-    )
-    monkeypatch.setattr(
-        module, "subprocess",
-        SimpleNamespace(run=lambda *args, **kwargs: result), raising=False,
-    )
+    stub_pinned_image(monkeypatch)
     monkeypatch.setattr(DockerEnvironment, "start", AsyncMock())
     monkeypatch.setattr(
         AdmittedDockerEnvironment, "_install_proxy_endpoint_filter", AsyncMock(),
@@ -775,6 +784,101 @@ def test_a_host_too_small_for_its_declared_concurrency_is_refused() -> None:
         cpuset_for_slot(0, 8, cores=4)
     with pytest.raises(HarborTrialAdmissionError):
         cpuset_for_slot(8, 8, cores=64)
+
+
+def test_the_agent_searches_the_directories_its_image_declares() -> None:
+    """A task is designed against the PATH its image ships, `/usr/sbin` and `/sbin` included.
+
+    A fixed PATH of our own invention isolates nothing and quietly changes what the task is:
+    `which nginx` and `chroot` resolve under `/usr/sbin`, so dropping it made three tasks
+    unscoreable for every arm while the upstream oracle solution passes them.
+    """
+    image = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+    assert agent_search_path(image) == f"/installed-agent/npm/bin:{image}"
+    # The agent runtime stays first and appears once, whatever the image says.
+    assert agent_search_path(f"/installed-agent/npm/bin:{image}") == (
+        f"/installed-agent/npm/bin:{image}")
+    assert agent_search_path("/usr/bin:/usr/bin:/bin") == (
+        "/installed-agent/npm/bin:/usr/bin:/bin")
+
+
+def test_an_image_that_declares_no_path_is_refused() -> None:
+    with pytest.raises(HarborTrialAdmissionError, match="no PATH"):
+        agent_search_path("")
+
+
+def test_a_sealed_path_that_is_not_the_images_refuses_the_trial(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Fail closed: a PATH built from another image means the agent searches the wrong tree."""
+    environment = create_trial(tmp_path).agent_environment
+    monkeypatch.setitem(environment._persistent_env, "PATH", "/usr/local/bin:/usr/bin:/bin")
+
+    with pytest.raises(HarborTrialAdmissionError, match="sealed PATH"):
+        environment._validate_image_configuration()
+
+
+def test_the_trial_config_names_the_phase_aware_verifier(tmp_path: Path) -> None:
+    """Harbor's own verifier would score the task through the agent's sealed environment."""
+    config = build_harbor_trial_config(**launch_kwargs(tmp_path))
+
+    assert config.verifier.import_path == ADMISSION_VERIFIER_IMPORT_PATH
+
+
+def test_a_config_with_harbors_own_verifier_is_refused(tmp_path: Path) -> None:
+    config = build_harbor_trial_config(**launch_kwargs(tmp_path))
+    config.verifier.import_path = None
+
+    with pytest.raises(HarborTrialAdmissionError, match="admitted verifier"):
+        trial_admission._validate_admitted_verifier(config)
+
+
+def test_the_verifier_phase_runs_in_the_images_own_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The task's tests must see the container the task author built, not the agent's costume."""
+    environment = create_trial(tmp_path).agent_environment
+    calls: list[dict[str, object]] = []
+
+    async def compose_exec(command: str, **kwargs: object) -> ExecResult:
+        calls.append({"command": command, **kwargs})
+        return ExecResult(return_code=0)
+
+    monkeypatch.setattr(environment, "_compose_exec", compose_exec)
+    with environment.verifier_phase():
+        asyncio.run(environment.exec("bash /tests/test.sh", env={"TASK_KEY": "value"}))
+
+    assert calls[0]["command"] == "bash /tests/test.sh"
+    # No `env -i`: the container's own environment is the one the upstream verifier gets, and
+    # the task's declared `[verifier.env]` rides along as a plain override.
+    assert calls[0]["env"] == {"TASK_KEY": "value"}
+
+
+def test_the_agent_phase_is_still_sealed_after_the_verifier_ran(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    environment = create_trial(tmp_path).agent_environment
+    monkeypatch.setattr(
+        environment, "_compose_exec", AsyncMock(return_value=ExecResult(return_code=0)),
+    )
+    with environment.verifier_phase():
+        pass
+
+    asyncio.run(environment.exec("echo hello"))
+
+    command = environment._compose_exec.await_args.args[0]
+    assert command.startswith("exec env -i ")
+    assert "HOME=/logs/agent/trial-home/home" in command
+
+
+def test_a_second_verifier_phase_inside_the_first_is_refused(tmp_path: Path) -> None:
+    environment = create_trial(tmp_path).agent_environment
+
+    with environment.verifier_phase():
+        with pytest.raises(HarborTrialAdmissionError, match="already open"):
+            with environment.verifier_phase():
+                pass
 
 
 def test_the_admitted_container_address_is_the_proxy_source_binding(
