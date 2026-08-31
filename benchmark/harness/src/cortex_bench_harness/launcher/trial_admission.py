@@ -5,6 +5,7 @@
 
 import asyncio
 import ipaddress
+import json
 import os
 import re
 import stat
@@ -1004,6 +1005,15 @@ def _prepare_admitted_environment(
     return access, denylist, admitted_policy, admitted_phases, contract, canonical_mounts
 
 
+def host_load() -> dict[str, object]:
+    """The host's run-queue pressure right now, next to the CPU count it is spread over."""
+    one, five, fifteen = os.getloadavg()
+    return {
+        "loadavg_1m": round(one, 2), "loadavg_5m": round(five, 2),
+        "loadavg_15m": round(fifteen, 2), "host_cpus": os.cpu_count(),
+    }
+
+
 class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
     def __init__(
         self, environment_dir: Path, environment_name: str, session_id: str,
@@ -1217,6 +1227,7 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
                 atomic_write_json(self._evidence_path, document)
             await super().start(force_build=False)
             document["cpuset"] = await self._require_pinned_cpus()
+            document["host_load"] = {"started": host_load()}
             await self._enforce_admitted_network(
                 _required_text(contract, "proxy_host"), int(route["port"]))
             atomic_write_json(self._evidence_path, document)
@@ -1308,7 +1319,25 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
         if result.return_code != 0:
             raise HarborTrialAdmissionError("trial scratch discard failed")
 
+    def _record_verified_host_load(self) -> None:
+        """State what the rest of the host was doing when this trial's verifier finished.
+
+        The CPU pin fixes how much machine a trial gets, not how loud its neighbours are, and a
+        task whose test asserts a wall-clock threshold is sensitive to the difference. Recording
+        both ends of the trial makes a timing failure answerable after the fact instead of
+        arguable. Evidence only -- a trial that never wrote evidence has already failed for a
+        reason this would only obscure.
+        """
+        if not self._evidence_path.is_file():
+            return
+        document = json.loads(self._evidence_path.read_text())
+        load = document.get("host_load")
+        started = load if isinstance(load, dict) else {}
+        document["host_load"] = {**started, "verified": host_load()}
+        atomic_write_json(self._evidence_path, document)
+
     async def _finalize_after_container_stop(self) -> None:
+        self._record_verified_host_load()
         controller = self._proxy_controller
         if controller is None or not getattr(controller, "post_stop_finalization_pending", False):
             return

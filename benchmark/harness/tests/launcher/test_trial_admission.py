@@ -697,6 +697,79 @@ def test_concurrency_slots_divide_the_host_into_equal_disjoint_shares() -> None:
     ]
 
 
+def test_a_started_trial_states_the_cpus_it_got_and_the_load_it_started_under(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The pin is only worth something if it can be shown to have survived to the container."""
+    trial = create_trial(tmp_path, cpuset="8-15")
+    monkeypatch.setattr(
+        AdmittedDockerEnvironment, "_main_container_id", AsyncMock(return_value="container"),
+    )
+    monkeypatch.setattr(
+        trial_admission, "subprocess",
+        SimpleNamespace(run=lambda *args, **kwargs: subprocess.CompletedProcess(
+            args=args, returncode=0, stdout="8-15\n", stderr="")),
+        raising=False,
+    )
+
+    start_trial(trial)
+
+    document = json.loads(evidence_path(trial).read_text())
+    assert document["cpuset"] == {"declared": "8-15", "applied": "8-15"}
+    assert document["host_load"]["started"]["host_cpus"] == os.cpu_count()
+
+
+def test_a_container_that_lost_its_cpu_pin_refuses_the_trial(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A Compose overlay that was ignored looks exactly like one that worked."""
+    environment = create_trial(tmp_path, cpuset="8-15").agent_environment
+    monkeypatch.setattr(
+        AdmittedDockerEnvironment, "_main_container_id", AsyncMock(return_value="container"),
+    )
+    monkeypatch.setattr(
+        trial_admission, "subprocess",
+        SimpleNamespace(run=lambda *args, **kwargs: subprocess.CompletedProcess(
+            args=args, returncode=0, stdout="\n", stderr="")),
+        raising=False,
+    )
+
+    with pytest.raises(HarborTrialAdmissionError, match="the whole host"):
+        asyncio.run(environment._require_pinned_cpus())
+
+
+def test_the_host_load_when_the_verifier_finished_joins_the_load_it_started_under(
+    tmp_path: Path,
+) -> None:
+    """A pinned trial owns its cores, not the memory bandwidth or disk under them.
+
+    So a task that scores a wall-clock threshold can still be answered after the fact: both ends
+    of the trial state what else the host was carrying.
+    """
+    trial = create_trial(tmp_path)
+    path = evidence_path(trial)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"host_load": {"started": {"loadavg_1m": 0.5}}}))
+
+    asyncio.run(trial.agent_environment._finalize_after_container_stop())
+
+    load = json.loads(path.read_text())["host_load"]
+    assert load["started"] == {"loadavg_1m": 0.5}
+    assert set(load["verified"]) == {
+        "loadavg_1m", "loadavg_5m", "loadavg_15m", "host_cpus",
+    }
+
+
+def test_a_trial_that_never_wrote_evidence_is_not_given_any_at_the_end(tmp_path: Path) -> None:
+    """A trial whose start failed already unlinked its evidence; do not resurrect a stub of it."""
+    trial = create_trial(tmp_path)
+    evidence_path(trial).unlink(missing_ok=True)
+
+    asyncio.run(trial.agent_environment._finalize_after_container_stop())
+
+    assert not evidence_path(trial).exists()
+
+
 def test_a_host_too_small_for_its_declared_concurrency_is_refused() -> None:
     with pytest.raises(HarborTrialAdmissionError):
         cpuset_for_slot(0, 8, cores=4)

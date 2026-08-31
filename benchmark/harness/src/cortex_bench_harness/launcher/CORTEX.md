@@ -20,7 +20,7 @@ Host launcher modules materialize production arms and record bounded trials.
 | production_home.py | boundary | Materializes sealed production homes |
 | production_session.py | lifecycle | Runs server sessions, proves the attempt workdir contract, records non-success terminals |
 | runtime_mounts.py | policy | Maps staged runtime names to their fixed read-only container targets |
-| trial_admission.py | boundary | Seals trial launch inputs, admits what a pinned image declares for itself, proves the container kept its CPU pin, and discards trial scratch |
+| trial_admission.py | boundary | Seals trial launch inputs, admits what a pinned image declares for itself, proves the container kept its CPU pin, records host load at both ends, and discards trial scratch |
 | trial_admission_io.py | io | Writes admission records atomically and pins each trial to its concurrency slot's CPUs |
 | trial_proxy.py | core | Arms and revokes trial proxy routes |
 | trial_seed.py | boundary | Parses immutable trial seed facts |
