@@ -215,6 +215,18 @@ class ContainerDouble:
                 "data": {"threadId": "thr_sealed", "status": "completed",
                          "terminal": True, "artifact": None, "finalOutput": "done"},
             })
+        if "events.jsonl" in command:
+            # The workspace-contract reader. The real one is a node script in the container;
+            # this answers the same report from the journal the exporter above wrote.
+            journal = self.logs_dir / "trajectory" / "events.jsonl"
+            rows = [
+                json.loads(line)
+                for line in journal.read_text(encoding="utf-8").splitlines() if line.strip()
+            ]
+            return json.dumps({"journal": "read", "headers": [
+                {"slot": row.get("agent_slot"), "cwd": row.get("resolved_cwd")}
+                for row in rows if row.get("type") == "run_header"
+            ]})
         if "cortex-evidence-export" in command:
             # The real exporter writes the attempt journal the session's workdir contract reads.
             trajectory = self.logs_dir / "trajectory"

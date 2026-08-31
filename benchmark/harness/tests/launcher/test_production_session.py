@@ -127,6 +127,8 @@ class FakeExecutor:
         dispatch_error_always: bool = False, result_timeout_once: bool = False,
         result_never_terminal: bool = False, result_status: str = "completed",
         journal_cwd: str | None = "/app",
+        export_journal: bool = True,
+        malformed_journal: bool = False,
     ) -> None:
         self.logs_dir = logs_dir
         self.export_failure = export_failure
@@ -140,6 +142,8 @@ class FakeExecutor:
         self.result_status = result_status
         # What the exported trajectory says each attempt ran in. None omits the header entirely.
         self.journal_cwd = journal_cwd
+        self.export_journal = export_journal
+        self.malformed_journal = malformed_journal
         self.calls: list[tuple[str, dict[str, str] | None, str | None]] = []
         self.timeouts: list[int | None] = []
         self.payloads: dict[str, object] = {}
@@ -215,6 +219,23 @@ class FakeExecutor:
                     "terminal": terminal, "artifact": None, "finalOutput": "done" if terminal else None,
                 },
             })
+        if "events.jsonl" in command:
+            # The workspace-contract reader, answering from the container side of the mount.
+            journal = self.logs_dir / "trajectory" / "events.jsonl"
+            if not journal.is_file():
+                return self._reply({"journal": "absent"})
+            try:
+                rows = [
+                    json.loads(line)
+                    for line in journal.read_text(encoding="utf-8").splitlines() if line.strip()
+                ]
+            except json.JSONDecodeError:
+                return self._reply({"journal": "malformed"})
+            return self._reply({"journal": "read", "headers": [
+                {"slot": row.get("agent_slot"), "cwd": row.get("resolved_cwd")}
+                for row in rows
+                if isinstance(row, dict) and row.get("type") == "run_header"
+            ]})
         if "cortex-evidence-export" in command:
             self._capture("production-evidence-input.json")
             if self.export_failure:
@@ -238,7 +259,10 @@ class FakeExecutor:
                 "root_run_id": "root-direct", "agent_slot": "direct", "seq": 0,
                 "resolved_cwd": self.journal_cwd,
             })]
-            (trajectory / "events.jsonl").write_text("\n".join(header))
+            if self.malformed_journal:
+                (trajectory / "events.jsonl").write_text("{not json")
+            elif self.export_journal:
+                (trajectory / "events.jsonl").write_text("\n".join(header))
             if self.malformed_evidence:
                 return SimpleNamespace(stdout="{not json", stderr="")
             return self._reply({
@@ -320,9 +344,10 @@ def test_session_boots_real_server_injects_only_webhook_exports_and_stops(tmp_pa
     for command, timeout in zip(commands, runner.timeouts, strict=True):
         if "/webhook/thread-op" in command or "127.0.0.1:9880/status" in command:
             assert timeout == 10
-    assert commands[-2].endswith(
+    assert commands[-3].endswith(
         "cortex-evidence-export --input-file /logs/agent/production-evidence-input.json"
     )
+    assert commands[-2].endswith("/logs/agent/trajectory/events.jsonl")
     assert commands[-1].startswith("kill -TERM -- -4242")
     assert (tmp_path / "trajectory/run-root-direct.terminal.json").is_file()
     assert (tmp_path / "trajectory/composite-manifest.json").is_file()
@@ -478,6 +503,46 @@ def test_session_refuses_a_trial_whose_journal_carries_no_attempt_header(
     production = session(tmp_path)
 
     with pytest.raises(ProductionSessionError, match="carries no run header"):
+        asyncio.run(production.run("Solve only this task.", runner))
+
+
+def test_the_workspace_contract_is_read_where_the_exporter_writes_it(
+    tmp_path: Path,
+) -> None:
+    """The journal is read through the container, on the container's own path.
+
+    The exporter runs as root and gives its output directory mode 700, so the launcher -- an
+    ordinary user on the host -- cannot stat the journal across the mount while the trial is
+    still live, and by the time the tree is chowned the trial has already been scored. Reading
+    it on the side that owns it is what keeps the check able to void the trial at all.
+    """
+    runner = FakeExecutor(tmp_path)
+    production = session(tmp_path)
+
+    asyncio.run(production.run("Solve only this task.", runner))
+
+    reads = [command for command, _, _ in runner.calls if "events.jsonl" in command]
+    assert len(reads) == 1
+    assert "/logs/agent/trajectory/events.jsonl" in reads[0]
+
+
+def test_session_refuses_a_trial_whose_journal_was_never_exported(
+    tmp_path: Path,
+) -> None:
+    runner = FakeExecutor(tmp_path, export_journal=False)
+    production = session(tmp_path)
+
+    with pytest.raises(ProductionSessionError, match="was not exported"):
+        asyncio.run(production.run("Solve only this task.", runner))
+
+
+def test_session_refuses_a_trial_whose_journal_is_not_the_json_it_claims_to_be(
+    tmp_path: Path,
+) -> None:
+    runner = FakeExecutor(tmp_path, malformed_journal=True)
+    production = session(tmp_path)
+
+    with pytest.raises(ProductionSessionError, match="journal is malformed"):
         asyncio.run(production.run("Solve only this task.", runner))
 
 

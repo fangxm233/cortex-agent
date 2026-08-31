@@ -23,6 +23,7 @@ SESSION_POLL_SECONDS = 1.0
 HTTP_REQUEST_TIMEOUT_SECONDS = 10
 TASK_CLI_TIMEOUT_SECONDS = 30
 EVIDENCE_EXPORT_TIMEOUT_SECONDS = 120
+WORKSPACE_CONTRACT_TIMEOUT_SECONDS = 30
 SERVER_STOP_TIMEOUT_SECONDS = 30
 GATEWAY_STATUS_URL = "http://127.0.0.1:9880/status"
 SERVER_AUTH_FILENAME = "production-server-auth.json"
@@ -54,6 +55,32 @@ const response = await fetch(url, {
 const body = await response.text();
 if (!response.ok) throw new Error(`HTTP ${response.status}: ${body}`);
 process.stdout.write(body);
+""".strip()
+
+
+# The workspace-contract reader. It answers three states the host must tell apart -- the journal
+# was never exported, it exists but is not the newline-delimited JSON it claims to be, or it is
+# readable -- and returns nothing else. Reducing it to the run headers here rather than shipping
+# the whole journal back through stdout keeps a 700 KB trajectory out of an exec result.
+WORKSPACE_CONTRACT_READER = """
+import fs from 'node:fs';
+const [journal] = process.argv.slice(1);
+let report = { journal: 'absent' };
+if (fs.existsSync(journal)) {
+  try {
+    const rows = fs.readFileSync(journal, 'utf8')
+      .split('\\n').filter((line) => line.trim()).map((line) => JSON.parse(line));
+    report = {
+      journal: 'read',
+      headers: rows
+        .filter((row) => row && row.type === 'run_header')
+        .map((row) => ({ slot: row.agent_slot ?? null, cwd: row.resolved_cwd ?? null })),
+    };
+  } catch {
+    report = { journal: 'malformed' };
+  }
+}
+process.stdout.write(JSON.stringify(report));
 """.strip()
 
 
@@ -188,7 +215,7 @@ class ProductionServerSession:
                 self._write_terminal_outcome(result)
             if result.status != DEADLINE_EXHAUSTED:
                 await self._export_evidence(execute)
-                self._require_workspace_contract()
+                await self._require_workspace_contract(execute)
             return result
         finally:
             try:
@@ -485,7 +512,7 @@ class ProductionServerSession:
             cwd=self._spec.workspace_cwd, timeout_sec=EVIDENCE_EXPORT_TIMEOUT_SECONDS,
         )
 
-    def _require_workspace_contract(self) -> None:
+    async def _require_workspace_contract(self, execute: Executor) -> None:
         """Every attempt must report the workdir this launcher resolved, or the trial is void.
 
         The journal header and the backend spawn used to answer "where does the model run" from
@@ -494,27 +521,45 @@ class ProductionServerSession:
         reveal. The two are one expression now; this reads the published header back and refuses
         the trial if they ever part again, because a trial whose evidence names the wrong
         directory is a harness defect, not an agent failure.
+
+        READ IN THE CONTAINER, NOT ACROSS THE MOUNT. The exporter runs as root and gives its
+        output directory mode 700, so on the host -- where the launcher is an ordinary user --
+        even stat() of the journal fails until the container is gone and the tree is chowned. By
+        then the trial is scored and it is too late to void it. The bytes are the same bytes;
+        this reads them on the side that owns them.
         """
-        journal = self._spec.logs_dir / "trajectory" / "events.jsonl"
-        if not journal.is_file():
+        script = shlex.join([
+            "node", "--input-type=module", "--eval", WORKSPACE_CONTRACT_READER,
+            str(self._container_path("trajectory") / "events.jsonl"),
+        ])
+        try:
+            result = await execute(
+                script, cwd=self._spec.workspace_cwd,
+                timeout_sec=WORKSPACE_CONTRACT_TIMEOUT_SECONDS,
+            )
+        except Exception as error:
+            raise ProductionSessionError(
+                "production trajectory journal could not be read") from error
+        try:
+            report = json.loads(result.stdout or "")
+        except json.JSONDecodeError as error:
+            raise ProductionSessionError(
+                "production trajectory journal reader returned malformed JSON") from error
+        state = _required_mapping(report, "workspace contract report").get("journal")
+        if state == "absent":
             raise ProductionSessionError("production trajectory journal was not exported")
-        headers = 0
-        for line in journal.read_text(encoding="utf-8").splitlines():
-            if not line.strip():
-                continue
-            try:
-                record = json.loads(line)
-            except json.JSONDecodeError as error:
-                raise ProductionSessionError("production trajectory journal is malformed") from error
-            if not isinstance(record, Mapping) or record.get("type") != "run_header":
-                continue
-            headers += 1
-            reported = record.get("resolved_cwd")
+        if state != "read":
+            raise ProductionSessionError("production trajectory journal is malformed")
+        headers = report.get("headers")
+        if not isinstance(headers, list):
+            raise ProductionSessionError("workspace contract report carries no header list")
+        for header in headers:
+            reported = _required_mapping(header, "workspace contract header").get("cwd")
             if reported != self._spec.workspace_cwd:
                 raise ProductionSessionError(
-                    f"attempt {record.get('agent_slot')!r} reports cwd {reported!r}, "
+                    f"attempt {header.get('slot')!r} reports cwd {reported!r}, "
                     f"but the task workdir is {self._spec.workspace_cwd!r}")
-        if headers == 0:
+        if not headers:
             raise ProductionSessionError("production trajectory journal carries no run header")
 
     async def _stop_server(self, pid: int, execute: Executor) -> None:
