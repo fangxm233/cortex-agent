@@ -21,6 +21,12 @@
 # `nginx: command not found` in the verifier stdout, the fix is not landed and the 238-trial
 # re-run would burn quota reproducing a known bug.
 #
+# r2 OF THIS GATE. The first run voided all three trials before the verifier ever ran: the
+# workspace-contract check read the exported journal from the host, where the container's
+# root-owned mode-700 export is unreadable until the container is gone. That is fixed; the
+# directory is suffixed because a campaign resumes from the trial roots it already produced and,
+# pointed at the old one, this would re-run nothing.
+#
 # BEFORE LAUNCH, on lab-ksu:
 #   benchmark/harness/scripts/bench --config \
 #     ../campaigns/terminal-bench-2.1-verifier-environment-smoke.yaml --run
@@ -30,7 +36,7 @@
 schema_version: cortex-bench-campaign/1
 campaign: tb21-vfix-smoke
 paid: true
-trials_dir: /home/xinmin/cortex-benchmark/runs/tb21-verifier-environment-smoke
+trials_dir: /home/xinmin/cortex-benchmark/runs/tb21-verifier-environment-smoke-r2
 cli_version: "2026.8.6"
 concurrency: 3
 
