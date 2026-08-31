@@ -27,6 +27,7 @@ from cortex_bench_harness.harbor_agent import CortexBenchAgent
 from cortex_bench_harness.launcher.host_credential_vault import HOST_CREDENTIAL_VAULT
 from cortex_bench_harness.launcher import trial_admission
 from cortex_bench_harness.launcher.network_policy import NetworkAccess
+from cortex_bench_harness.launcher.trial_admission_io import cpuset_for_slot
 from cortex_bench_harness.launcher.trial_admission import (
     ADMISSION_EVIDENCE_FILENAME,
     ADMISSION_ENVIRONMENT_IMPORT_PATH,
@@ -240,6 +241,7 @@ def host_scan_policy() -> dict[str, object]:
 
 def launch_kwargs(
     root: Path, task: Path | None = None, network: NetworkAccess | None = None,
+    cpuset: str | None = None,
 ) -> dict[str, object]:
     manifest = {
         "root_run_id": "trial-one.cortex-direct",
@@ -256,6 +258,7 @@ def launch_kwargs(
         "cli_version": "2026.8.10", "host_scan_policy": host_scan_policy(),
         "trial_proxy": trial_proxy_spec(),
         "network": network,
+        "cpuset": cpuset,
     }
 
 
@@ -317,8 +320,9 @@ def create_vendor_trial(
 
 def create_trial(
     root: Path, task: Path | None = None, network: NetworkAccess | None = None,
+    cpuset: str | None = None,
 ) -> Trial:
-    trial = asyncio.run(create_harbor_trial(**launch_kwargs(root, task, network)))
+    trial = asyncio.run(create_harbor_trial(**launch_kwargs(root, task, network, cpuset)))
     assert isinstance(trial.agent, CortexBenchAgent)
     assert trial.agent.proxy_session is None
     return trial
@@ -651,6 +655,53 @@ def test_admitted_environment_pins_the_container_to_its_admitted_address(
     # Last wins in Compose merge order, and Harbor's own files come first.
     paths = environment._docker_compose_paths
     assert paths.index(environment._container_address_path) == len(paths) - 1
+
+
+def test_a_trial_runs_on_the_cpus_its_concurrency_slot_owns(tmp_path: Path) -> None:
+    """Harbor exports the task's declared `cpus` to Compose and no shipped template reads it.
+
+    So every trial on a prebuilt image got the whole host, and a task that asserts a wall-clock
+    threshold was scoring host contention. The overlay below is what makes a trial's machine a
+    fixed machine.
+    """
+    environment = create_trial(tmp_path, cpuset="8-15").agent_environment
+
+    document = json.loads(environment._cpuset_path.read_text())
+
+    assert document == {"services": {"main": {"cpuset": "8-15"}}}
+    assert environment._cpuset_path in environment._docker_compose_paths
+    assert environment.declared_cpuset() == "8-15"
+
+
+def test_an_unpinned_trial_adds_no_cpuset_overlay(tmp_path: Path) -> None:
+    environment = create_trial(tmp_path).agent_environment
+
+    assert not environment._cpuset_path.exists()
+    assert environment._cpuset_path not in environment._docker_compose_paths
+    assert environment.declared_cpuset() is None
+
+
+def test_a_cpuset_that_is_not_a_cpu_list_is_refused(tmp_path: Path) -> None:
+    with pytest.raises(HarborTrialAdmissionError):
+        create_trial(tmp_path, cpuset="all of them")
+
+
+def test_concurrency_slots_divide_the_host_into_equal_disjoint_shares() -> None:
+    assert [cpuset_for_slot(index, 8, cores=64) for index in range(8)] == [
+        "0-7", "8-15", "16-23", "24-31", "32-39", "40-47", "48-55", "56-63",
+    ]
+    # A host that does not divide evenly leaves the remainder idle rather than handing it to one
+    # lucky slot: equal slots are the point, and the numbers being compared are wall-clock.
+    assert [cpuset_for_slot(index, 4, cores=10) for index in range(4)] == [
+        "0-1", "2-3", "4-5", "6-7",
+    ]
+
+
+def test_a_host_too_small_for_its_declared_concurrency_is_refused() -> None:
+    with pytest.raises(HarborTrialAdmissionError):
+        cpuset_for_slot(0, 8, cores=4)
+    with pytest.raises(HarborTrialAdmissionError):
+        cpuset_for_slot(8, 8, cores=64)
 
 
 def test_the_admitted_container_address_is_the_proxy_source_binding(

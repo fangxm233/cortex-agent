@@ -1,11 +1,12 @@
 # input:  image metadata, env values, egress options, Docker runtime
-# output: isolated commands and sealed Docker policy overlays
+# output: isolated commands, sealed Docker policy overlays, per-slot CPU pin overlay
 # pos:    Admission IO and deterministic serialization primitives
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import hashlib
 import json
 import os
+import re
 import shlex
 import subprocess
 import tempfile
@@ -24,16 +25,38 @@ ENDPOINT_FILTER_TABLE = "cortex_proxy_endpoint"
 # makes a denylist-only trial possible at all.
 DENYLIST_FILTER_TABLE = "cortex_network_denylist"
 MAIN_SERVICE_NAME = "main"
+# Docker's cpuset syntax: single cores and ranges, comma separated ("0-7", "0,2,4").
+CPUSET_PATTERN = re.compile(r"\d+(-\d+)?(,\d+(-\d+)?)*")
 
 
 class HarborTrialAdmissionError(ValueError):
     """The final Harbor construction cannot enforce the standalone boundary."""
 
 
+def cpuset_for_slot(index: int, slots: int, *, cores: int | None = None) -> str:
+    """The fixed host CPU range that concurrency slot `index` owns.
+
+    The host is divided once, evenly, and a slot keeps its share whether or not its neighbours
+    are busy -- so a trial's machine is the same machine on a quiet host and a saturated one.
+    Cores past the last whole share stay idle on purpose: identical slots are worth more here
+    than the last few percent of the host, because the numbers being compared are wall-clock.
+    """
+    if slots < 1 or not 0 <= index < slots:
+        raise HarborTrialAdmissionError(f"concurrency slot {index} is outside {slots} slots")
+    total = (os.cpu_count() or 0) if cores is None else cores
+    width = total // slots
+    if width < 1:
+        raise HarborTrialAdmissionError(
+            f"host has {total} CPUs, too few to give each of {slots} concurrent trials one")
+    start = index * width
+    return f"{start}-{start + width - 1}"
+
+
 class PullDisabledDockerEnvironment(DockerEnvironment):
     def __init__(
         self, *args: object, external_network_name: str | None = None,
-        proxy_host: str | None = None, container_ipv4: str | None = None, **kwargs: Any,
+        proxy_host: str | None = None, container_ipv4: str | None = None,
+        cpuset: str | None = None, **kwargs: Any,
     ) -> None:
         self._pull_policy_directory = tempfile.TemporaryDirectory()
         root = Path(self._pull_policy_directory.name)
@@ -41,10 +64,12 @@ class PullDisabledDockerEnvironment(DockerEnvironment):
         self._external_network_path = root / "external-network.json"
         self._proxy_host_path = root / "proxy-host.json"
         self._container_address_path = root / "container-address.json"
+        self._cpuset_path = root / "cpuset.json"
         # Harbor decides in its own `__init__` whether an egress sidecar exists, and that decision
         # is what every overlay below has to address. So construct first, then write.
         super().__init__(*args, **kwargs)
         self._write_network_overlays(external_network_name, proxy_host, container_ipv4)
+        self._write_cpuset_overlay(cpuset)
 
     def _network_namespace_service(self) -> str:
         """The service that holds this trial's network namespace.
@@ -92,13 +117,39 @@ class PullDisabledDockerEnvironment(DockerEnvironment):
                 }},
             }))
 
+    def declared_cpuset(self) -> str | None:
+        """The host CPU range this trial owns, or None when it was launched unpinned."""
+        return self._cpuset
+
+    def _write_cpuset_overlay(self, cpuset: str | None) -> None:
+        """Pin this trial to the host cores its concurrency slot owns.
+
+        Harbor exports the task's declared `cpus` to Compose and then no shipped template reads
+        it, so a prebuilt-image trial gets the whole host. Several tasks assert against a
+        wall-clock threshold measured inside the container; run several unbounded containers at
+        once and that assertion measures how busy the host was, not what the agent wrote.
+
+        The pin is per slot rather than per task, so every trial of every arm on a given host gets
+        the same machine no matter which task it drew -- a comparison stays a comparison. It also
+        makes `nproc` inside the container tell the truth, which is what build parallelism reads.
+        """
+        self._cpuset = cpuset
+        if cpuset is None:
+            return
+        if not CPUSET_PATTERN.fullmatch(cpuset):
+            raise HarborTrialAdmissionError(f"trial cpuset is not a CPU list: {cpuset!r}")
+        # Service-level `cpuset`, not `deploy.resources`: the latter is only honored under swarm,
+        # and silently doing nothing is the failure mode being removed here.
+        self._cpuset_path.write_text(
+            json.dumps({"services": {MAIN_SERVICE_NAME: {"cpuset": cpuset}}}))
+
     @property
     @override
     def _docker_compose_paths(self) -> list[Path]:
         paths = [*super()._docker_compose_paths, self._pull_policy_path]
         for overlay in (
             self._external_network_path, self._proxy_host_path,
-            self._container_address_path,
+            self._container_address_path, self._cpuset_path,
         ):
             if overlay.is_file():
                 paths.append(overlay)

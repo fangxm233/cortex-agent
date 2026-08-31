@@ -8,6 +8,7 @@ import ipaddress
 import os
 import re
 import stat
+import subprocess
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -465,7 +466,7 @@ def build_harbor_trial_config(
     host_scan_policy: Mapping[str, object], trial_proxy: Mapping[str, object] | None = None,
     credential_handle: str | None = None, agent_timeout_seconds: int | None = None,
     verifier_timeout_seconds: int | None = None, network: NetworkAccess | None = None,
-    runtime_mounts: Mapping[str, str] | None = None,
+    runtime_mounts: Mapping[str, str] | None = None, cpuset: str | None = None,
 ) -> TrialConfig:
     seed = parse_trial_seed(trial_seed)
     if seed.arm != arm:
@@ -487,7 +488,7 @@ def build_harbor_trial_config(
         agent_timeout_seconds or _deadline_seconds(seed.arm),
     )
     trial_environment = _trial_environment_config(
-        environment, contract, _vendor_agent(seed.arm),
+        environment, contract, _vendor_agent(seed.arm), cpuset,
     )
 
     return _reserve_trial_config(
@@ -511,10 +512,13 @@ def _reserve_trial_config(
 
 def _trial_environment_config(
     environment: Mapping[str, str], contract: Mapping[str, object], vendor_agent: str | None,
+    cpuset: str | None,
 ) -> TrialEnvironmentConfig:
     kwargs: dict[str, object] = {"admission": contract}
     if vendor_agent is not None:
         kwargs["vendor_agent"] = vendor_agent
+    if cpuset is not None:
+        kwargs["cpuset"] = cpuset
     runtime = _contract_runtime_mounts(contract)
     return TrialEnvironmentConfig(
         import_path=ADMISSION_ENVIRONMENT_IMPORT_PATH,
@@ -544,7 +548,7 @@ async def create_harbor_trial(
     agent_timeout_seconds: int | None = None,
     verifier_timeout_seconds: int | None = None,
     network: NetworkAccess | None = None,
-    runtime_mounts: Mapping[str, str] | None = None,
+    runtime_mounts: Mapping[str, str] | None = None, cpuset: str | None = None,
 ) -> Trial:
     try:
         config = build_harbor_trial_config(
@@ -554,7 +558,7 @@ async def create_harbor_trial(
             credential_handle=credential_handle,
             agent_timeout_seconds=agent_timeout_seconds,
             verifier_timeout_seconds=verifier_timeout_seconds,
-            network=network, runtime_mounts=runtime_mounts,
+            network=network, runtime_mounts=runtime_mounts, cpuset=cpuset,
         )
         _validate_no_extra_allowed_hosts(config)
         trial = await Trial.create(config)
@@ -1212,6 +1216,7 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
             if projection is not None:
                 atomic_write_json(self._evidence_path, document)
             await super().start(force_build=False)
+            document["cpuset"] = await self._require_pinned_cpus()
             await self._enforce_admitted_network(
                 _required_text(contract, "proxy_host"), int(route["port"]))
             atomic_write_json(self._evidence_path, document)
@@ -1219,6 +1224,32 @@ class AdmittedDockerEnvironment(PullDisabledDockerEnvironment):
             self._evidence_path.unlink(missing_ok=True)
             self._revoke_proxy()
             raise
+
+    async def _require_pinned_cpus(self) -> dict[str, object]:
+        """Read the started container's CPU pin back and refuse a trial that lost it.
+
+        A Compose overlay that was ignored looks exactly like one that worked, and the whole point
+        of the pin is that a wall-clock threshold means the same thing in every trial. So the
+        applied `CpusetCpus` is read from the running container and stated in the evidence rather
+        than assumed from the file that asked for it.
+        """
+        declared = self.declared_cpuset()
+        if declared is None:
+            return {"declared": None, "applied": None}
+        result = await asyncio.to_thread(
+            subprocess.run,
+            ["docker", "inspect", "--format", "{{.HostConfig.CpusetCpus}}",
+             await self._main_container_id()],
+            check=False, capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode != 0:
+            raise HarborTrialAdmissionError("trial container CPU pin is unobservable")
+        applied = (result.stdout or "").strip()
+        if applied != declared:
+            raise HarborTrialAdmissionError(
+                f"trial was pinned to CPUs {declared} but the container was granted "
+                f"{applied or 'the whole host'}")
+        return {"declared": declared, "applied": applied}
 
     async def _enforce_admitted_network(self, proxy_host: str, proxy_port: int) -> None:
         """Narrow the started container from its deny-all baseline to the declared policy.

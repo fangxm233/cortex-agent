@@ -57,6 +57,7 @@ from .launcher.credential_capabilities import (
 )
 from .launcher.lease_bound import SETUP_TIMEOUT_MS, TEARDOWN_GRACE_MS
 from .launcher.trial_admission import create_harbor_trial
+from .launcher.trial_admission_io import cpuset_for_slot
 from .proxy.adapters.openai_codex_responses import extract_access_expiry_ms
 from .result_summary import (
     RESULT_SUMMARY_FILENAME,
@@ -603,6 +604,7 @@ async def _arm_trial(
             verifier_timeout_seconds=config.timeouts.get("verifier_seconds"),
             network=config.network,
             runtime_mounts=config.arm_runtime_mounts(plan.arm),
+            cpuset=cpuset_for_slot(slot.index, config.concurrency),
         )
         await trial.run()
     except HostFaultError:

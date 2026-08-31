@@ -13,6 +13,7 @@ from pathlib import Path
 
 from cortex_bench_harness.proxy import SharedRequestLimit
 
+from ..launcher.trial_admission_io import cpuset_for_slot
 from .config import HostInputs, SuiteSpec
 from .network import NetworkSlot, create_networks, network_slots, remove_networks
 from .processes import ProcessRegistry
@@ -128,6 +129,7 @@ class FullSuiteRunner:
             task_path=self.inputs.tasks_dir / task_id, task_root=root,
             pi_config=config_root, proxy_host=self.inputs.proxy_advertised_host,
             network_name=slot.name, container_ipv4=slot.container_ipv4,
+            cpuset=cpuset_for_slot(slot.index, self.spec.concurrency),
         )
         job_path = root / "control/job.json"
         write_job(job_path, job)

@@ -41,7 +41,7 @@ def write_pi_config(
 def build_task_job(
     spec: SuiteSpec, inputs: HostInputs, *, task_id: str, task_path: Path,
     task_root: Path, pi_config: Path, proxy_host: str, network_name: str,
-    container_ipv4: str,
+    container_ipv4: str, cpuset: str | None = None,
 ) -> dict[str, object]:
     return {
         "job_name": f"{spec.suite}-{task_id}",
@@ -51,7 +51,7 @@ def build_task_job(
         "quiet": True,
         "retry": {"max_retries": spec.harbor_retries},
         "environment": _environment(
-            inputs, pi_config, proxy_host, network_name, container_ipv4),
+            inputs, pi_config, proxy_host, network_name, container_ipv4, cpuset),
         "agents": [_agent(spec, proxy_host)],
         "tasks": [{"path": str(task_path)}],
     }
@@ -79,8 +79,15 @@ def harbor_command(harbor: Path, job_path: Path) -> list[str]:
 
 def _environment(
     inputs: HostInputs, pi_config: Path, proxy_host: str,
-    network_name: str, container_ipv4: str,
+    network_name: str, container_ipv4: str, cpuset: str | None,
 ) -> dict[str, object]:
+    kwargs: dict[str, object] = {
+        "external_network_name": network_name,
+        "proxy_host": proxy_host,
+        "container_ipv4": container_ipv4,
+    }
+    if cpuset is not None:
+        kwargs["cpuset"] = cpuset
     return {
         "import_path": (
             "cortex_bench_harness.launcher.trial_admission_io:"
@@ -88,11 +95,7 @@ def _environment(
         ),
         "mounts": _mounts(inputs, pi_config),
         "extra_allowed_hosts": [proxy_host],
-        "kwargs": {
-            "external_network_name": network_name,
-            "proxy_host": proxy_host,
-            "container_ipv4": container_ipv4,
-        },
+        "kwargs": kwargs,
     }
 
 
