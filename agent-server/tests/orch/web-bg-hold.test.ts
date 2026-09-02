@@ -1,5 +1,5 @@
-// input:  web background hold with context sink and injected timers
-// output: status/context, guard-balance, chain, timeout, and seal regressions
+// input:  web background hold, resume callback, injected timers
+// output: status, resume, guard, timeout, and seal regressions
 // pos:    Web background-task hold unit tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -16,6 +16,7 @@ function makeHarness() {
   const assistants: Array<{ text: string; subagent: any }> = [];
   const tools: Array<{ name: string; input: any; subagent: any }> = [];
   const contexts: number[] = [];
+  const rateLimits: any[] = [];
   const track: number[] = [];
   let sink: ContinuationSink | null = null;
 
@@ -38,11 +39,12 @@ function makeHarness() {
       publishAssistant: (text, subagent) => assistants.push({ text, subagent }),
       publishTool: (name, input, _id, subagent) => tools.push({ name, input, subagent }),
       publishContextUsage: (usage) => contexts.push(usage.contextWindow),
+      onRateLimited: (continuation) => rateLimits.push(continuation),
       guardTimers: timers,
     });
 
   return {
-    statuses, assistants, tools, contexts, track,
+    statuses, assistants, tools, contexts, rateLimits, track,
     install,
     get sink() { return sink!; },
     get abort() { return abort; },
@@ -131,10 +133,13 @@ test('holdWebForBg: interrupted continuation → seal idle (never leaves the ses
   assert.deepEqual(h.track, [+1, -1]);
 });
 
-test('holdWebForBg: rate-limited continuation → seal idle', () => {
+test('holdWebForBg: rate-limited continuation → request resume once, then seal idle', () => {
   const h = makeHarness();
   h.install({ pendingBackgroundTasks: 1 });
-  h.sink.onResult({ rateLimited: true, pendingBackgroundTasks: 1 } as any);
+  const continuation = { rateLimited: true, pendingBackgroundTasks: 1 } as any;
+  h.sink.onResult(continuation);
+  h.sink.onResult(continuation);
+  assert.deepEqual(h.rateLimits, [continuation]);
   assert.deepEqual(h.statuses.at(-1), { running: false, backgroundRunning: false });
   assert.deepEqual(h.track, [+1, -1]);
 });

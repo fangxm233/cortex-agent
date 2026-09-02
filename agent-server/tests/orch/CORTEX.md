@@ -41,4 +41,4 @@ queueing, mid-turn injection, background holds and execution lifecycle.
 | thread-executor.test.ts | test | Covers queueing, file buffering and eviction |
 | turn-notify.test.ts | test | Covers reset-isolated notification gating |
 | turn-tracking.test.ts | test | Covers snapshot barriers and turn mutation locks |
-| web-bg-hold.test.ts | test | Covers Web background hold status and seal |
+| web-bg-hold.test.ts | test | Covers Web background hold status, resume and seal |

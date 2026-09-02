@@ -9,7 +9,7 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | agent-view-send.ts | chat | delivers agent-rendered HTML views with size and height limits |
 | agent-decision-send.ts | chat | records agent-announced decisions on Web chat transcripts |
 | outputs-store.ts | core | shared workspace outputs placement and filename discipline |
-| agent-runner.ts | core | routes turns, tool traces and generic dialogs |
+| agent-runner.ts | core | routes turns, tool traces, resumes and dialogs |
 | bg-continuation.ts | helper | forwards background continuation output |
 | bg-wait-guard.ts | guard | bounds the background task waiting window |
 | busy-tracker.ts | tracker | counts active LLM runs and signals busy state |
@@ -36,6 +36,6 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | thread-executor.ts | core | routes threads and buffers downloaded user files |
 | turn-mutation-lock.ts | guard | grants per-channel mutation leases |
 | turn-notify.ts | notify | applies settings and notifies completed long turns |
-| web-bg-hold.ts | helper | holds web turns until background work seals |
+| web-bg-hold.ts | helper | holds Web turns and forwards continuation limits |
 | interactions/ | subdir | approvals, prompts, and user interaction handling |
 | routing/ | subdir | message, edit, file, and webhook routing |

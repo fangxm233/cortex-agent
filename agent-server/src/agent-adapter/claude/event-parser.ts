@@ -1,5 +1,5 @@
 // input:  Claude complete and partial stream events
-// output: prompt, stream, and fallback parsers
+// output: prompt, stream, result, and fallback parsers
 // pos:    Claude stream event parser
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -198,6 +198,19 @@ export type ExtractResultOutcome =
   | { resolved: true; value: any; error?: undefined }
   | { resolved: false; error: Error; value?: undefined };
 
+function rateLimitResultMessage(resultData: any): string | null {
+  if (!resultData?.is_error || typeof resultData.result !== 'string') return null;
+  const message = resultData.result;
+  const normalized = message.toLowerCase();
+  return normalized.includes('hit your limit')
+    || normalized.includes('rate limit')
+    || normalized.includes('rate_limit')
+    || normalized.includes('too many requests')
+    || normalized.includes('temporarily limiting requests')
+    ? message
+    : null;
+}
+
 export function extractResult(
   resultData: any,
   effectiveSessionId: string,
@@ -218,9 +231,10 @@ export function extractResult(
   if (resultData) {
     if (resultData.total_cost_usd != null) total_cost_usd = resultData.total_cost_usd;
     if (resultData.num_turns != null) num_turns = resultData.num_turns;
-    if (resultData.is_error && typeof resultData.result === 'string' && resultData.result.includes('hit your limit')) {
+    const detectedRateLimit = rateLimitResultMessage(resultData);
+    if (detectedRateLimit) {
       rateLimited = true;
-      rateLimitMessage = resultData.result;
+      rateLimitMessage = detectedRateLimit;
     }
     // Capture the actual session_id Claude used (may differ from requested on --resume failure)
     if (typeof resultData.session_id === 'string' && resultData.session_id !== effectiveSessionId) {

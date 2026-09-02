@@ -1,5 +1,5 @@
-// input:  User turns, files, mutation leases, callbacks
-// output: Provider runs, attributed transcripts, traces, dialogs
+// input:  User turns, files, provider limits, callbacks
+// output: Provider runs, transcripts, traces, dialogs, resumes
 // pos:    Runs plain user messages and injections
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -582,6 +582,14 @@ export class AgentRunner {
           publishTool: persistToolUse,
           publishToolResult: persistToolResult ?? undefined,
           publishContextUsage: persistContinuationContext,
+          onRateLimited: (continuation) => {
+            const provider = continuation.rateLimitProvider ?? convResult.result.rateLimitProvider ?? null;
+            if (!isProviderRateLimited(provider)) return;
+            recordResume({
+              kind: 'direct', provider, channel, trackSessionId: sid,
+              userMessage, recordedAt: Date.now(),
+            });
+          },
         });
       }
     } catch (error) {

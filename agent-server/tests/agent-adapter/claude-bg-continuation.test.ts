@@ -1,5 +1,5 @@
-// input:  ClaudeSession lines, cumulative costs, late sinks
-// output: continuation routing, cursor, and compaction specs
+// input:  ClaudeSession lines, costs, rate limits, late sinks
+// output: continuation routing, cursor, limit, and compaction specs
 // pos:    Claude print spontaneous-continuation wiring tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -32,6 +32,9 @@ const ASSISTANT_CONT = JSON.stringify({ type: 'assistant', message: { content: [
 const CONTEXT_START = JSON.stringify({ type: 'stream_event', event: { type: 'message_start', message: { model: 'claude-opus-5', usage: { input_tokens: 100, cache_creation_input_tokens: 20, cache_read_input_tokens: 300 } } } });
 const CONTEXT_DELTA = JSON.stringify({ type: 'stream_event', event: { type: 'message_delta', usage: { output_tokens: 80 } } });
 const RESULT_CONT = JSON.stringify({ type: 'result', subtype: 'success', is_error: false, origin: { kind: 'task-notification' }, total_cost_usd: 0.01, num_turns: 1, session_id: 'test-session', usage: { iterations: [{ input_tokens: 100, cache_creation_input_tokens: 20, cache_read_input_tokens: 300, output_tokens: 80 }] }, modelUsage: { 'claude-opus-5[1m]': { canonicalModel: 'claude-opus-5', contextWindow: 900000 } } });
+const RATE_LIMIT_MESSAGE = "API Error: Server is temporarily limiting requests (not your usage limit) · This request would exceed your account's rate limit. Please try again later.";
+const ASSISTANT_RATE_LIMIT = JSON.stringify({ type: 'assistant', message: { model: '<synthetic>', content: [{ type: 'text', text: RATE_LIMIT_MESSAGE }] } });
+const RESULT_CONT_RATE_LIMIT = JSON.stringify({ type: 'result', subtype: 'error_during_execution', is_error: true, result: RATE_LIMIT_MESSAGE, session_id: 'test-session', total_cost_usd: 0, num_turns: 1 });
 
 test('handleLine: normal turn result carries pendingBackgroundTasks count', (t) => {
   const s: any = _test.makeSessionForTest();
@@ -133,6 +136,29 @@ test('handleLine: spontaneous continuation routes assistant text + final result 
   assert.deepEqual(texts, ['Background task done: DONE'], 'assistant text routed to sink');
   assert.ok(finalResult, 'sink received continuation result');
   assert.equal(finalResult.pendingBackgroundTasks, 0, 'no background tasks remain at continuation end');
+});
+
+test('handleLine: spontaneous continuation normalizes a temporary 429 into a rate-limited sink result', (t) => {
+  const s: any = _test.makeSessionForTest();
+  s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
+  t.onTestFinished(() => s.close());
+
+  const texts: string[] = [];
+  const results: any[] = [];
+  s.setContinuationSink({
+    onAssistantText: (text: string) => texts.push(text),
+    onResult: (result: any) => results.push(result),
+  });
+
+  s.handleLine(TASK_STARTED);
+  s.handleLine(TASK_NOTIFICATION);
+  s.handleLine(ASSISTANT_RATE_LIMIT);
+  s.handleLine(RESULT_CONT_RATE_LIMIT);
+
+  assert.deepEqual(texts, [RATE_LIMIT_MESSAGE]);
+  assert.equal(results.length, 1, 'rate-limited continuation reaches the sink');
+  assert.equal(results[0].rateLimited, true);
+  assert.equal(results[0].rateLimitMessage, RATE_LIMIT_MESSAGE);
 });
 
 test('handleLine: spontaneous continuation forwards final and reconciled context snapshots', (t) => {

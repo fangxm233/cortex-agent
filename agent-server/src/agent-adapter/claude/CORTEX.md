@@ -13,7 +13,7 @@ Translates Claude stream and transcript events into the normalized event schema.
 | remote-mcp-proxy.ts | core | Proxies remote MCP without redirects |
 | defaults.ts | config | Claude timeout, config paths and tool constants |
 | hooks-builder.ts | core | selects and compiles Claude hooks from settings |
-| event-parser.ts | parser | parses stream blocks and model fallbacks |
+| event-parser.ts | parser | parses stream blocks, results and model fallbacks |
 | jsonl-tail.ts | core | normalizes transcript, plans and accounting |
 | subagent-jsonl-mux.ts | core | multiplexes attributed TUI subagent sidecars |
 | tmux-control.ts | util | Runs tmux with secure paste buffers and launchers |

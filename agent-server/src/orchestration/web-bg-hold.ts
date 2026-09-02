@@ -1,5 +1,5 @@
-// input:  result, continuation registrar, message/tool/context publishers
-// output: web background hold forwarding continuation state before seal
+// input:  result, continuation registrar, status/resume publishers
+// output: web background hold forwarding and rate-limit callbacks
 // pos:    Web session background-continuation hold
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
@@ -38,6 +38,8 @@ export interface WebBgHoldDeps {
   publishToolResult?: (toolUseId: string, content: string, isError: boolean) => void;
   /** Persist and publish an exact continuation context snapshot. */
   publishContextUsage?: (usage: ContextUsage) => void;
+  /** Register the interrupted turn for provider-reset auto-resume. */
+  onRateLimited: (result: AgentResult) => void;
   /** Busy bracket (trackPendingTask). +1 for the whole wait window so a deferred daemon restart
    *  does not fire and kill the Claude child (F1); -1 when the guard settles. */
   track: (delta: number) => void;
@@ -116,8 +118,13 @@ export function holdWebForBg(deps: WebBgHoldDeps): boolean {
     onToolResult: (toolUseId: string, content: string, isError: boolean) => deps.publishToolResult?.(toolUseId, content, isError),
     onContextUsage: (usage: ContextUsage) => deps.publishContextUsage?.(usage),
     onResult: (cont: AgentResult) => {
-      // Process died mid-wait, or rate-limited: seal honestly (never leave the session "running").
-      if (cont.backgroundInterrupted || cont.rateLimited) { seal(); return; }
+      // Process death seals the hold; provider limits also preserve the interrupted turn for reset.
+      if (cont.backgroundInterrupted) { seal(); return; }
+      if (cont.rateLimited) {
+        if (!sealed) deps.onRateLimited(cont);
+        seal();
+        return;
+      }
       const running = cont.pendingBackgroundTasks ?? 0;
       const undelivered = cont.undeliveredBackgroundTasks ?? 0;
       if (running + undelivered > 0) {
