@@ -24,6 +24,11 @@ import { DebugDetailsModal, DebugInspectButton, type DebugDetail } from './Debug
 import { M_EDIT_COPY, MessageActions, EditBox, RewindNote, RewindTail, EditedBadge, RegenNote, type MEditCopy } from './MessageEdit';
 import { ChatNotice } from './ChatNotice';
 
+/** Readable prose column, and the gutter between it and the pane edge. The gutter doubles as the
+ *  breathing room a pane-wide block keeps, so a wide table lines up with the column's own padding. */
+const COLUMN_W = 756;
+const GUTTER = 32;
+
 /** Edit+rewind context passed from CenterChat (sessions.rewind). Absent → chat is read-only
  *  w.r.t. editing (the thread step chat), hover copy still works. */
 export interface MessageEditCtx {
@@ -201,7 +206,7 @@ function AssistantBlock({ text, attachments, decisions, editCopy, copyText, rege
       {/* Token-level streaming carries NO caret here: the text visibly extends itself and the
           composer already reports the running turn, so a blinking block only adds noise. The
           mobile stream keeps its own caret (smaller viewport, no persistent status line). */}
-      {shown.trim() && <ChatMarkdown text={shown} renderMath />}
+      {shown.trim() && <ChatMarkdown text={shown} renderMath wideTables />}
       {hasAttachments && <AgentFileGroup attachments={attachments!} />}
       {!!decisions && decisions.length > 0 && <DecisionCardGroup decisions={decisions} sessionId={streamKey} />}
       <TurnCopyAction text={copyText} copy={editCopy} />
@@ -480,9 +485,27 @@ export function MessageStream({ rows, loading, inlineThreadCard, interactionActi
     return () => ro.disconnect();
   }, []);
 
+  // Publish the pane's usable width so a block that should not obey the prose column can break out
+  // of it (today: tables — see ChatMarkdown's TableBlock). The column is centred, so a block that
+  // takes this width and pulls back half the difference lands centred on the pane. Written straight
+  // to the node rather than through state: a pane resize must not re-render the whole transcript.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const publish = (): void => {
+      el.style.setProperty('--chat-bleed-w', `${Math.max(0, el.clientWidth - GUTTER * 2)}px`);
+    };
+    publish();
+    if (typeof ResizeObserver === 'undefined') return;
+    // Content-box observation, so the shrink when the vertical scrollbar appears counts too.
+    const ro = new ResizeObserver(publish);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   return (
     <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-      <div ref={contentRef} style={{ width: '100%', maxWidth: 756, margin: '0 auto', padding: '22px 32px 12px' }}>
+      <div ref={contentRef} style={{ width: '100%', maxWidth: COLUMN_W, margin: '0 auto', padding: `22px ${GUTTER}px 12px` }}>
         <ChatRows rows={rows} interactionActions={interactionActions} edit={edit} streamKey={streamKey} />
         {inlineThreadCard && <div style={{ marginTop: 16 }}>{inlineThreadCard}</div>}
       </div>

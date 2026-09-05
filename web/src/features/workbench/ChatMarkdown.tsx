@@ -1,5 +1,5 @@
 // input:  Markdown AST and optional KaTeX
-// output: Width-bounded chat Markdown with safe formula rendering
+// output: Chat Markdown with safe formula rendering and opt-in pane-wide tables
 // pos:    Shared assistant Markdown renderer
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -54,7 +54,9 @@ function Inline({ nodes }: { nodes: InlineNode[] }): JSX.Element {
 }
 
 type BlockOf<T extends Block['type']> = Extract<Block, { type: T }>;
-type BlockRenderer = (block: Block) => JSX.Element | null;
+/** Render options a block may consult. Renderers that ignore them simply omit the parameter. */
+type RenderCtx = { wideTables: boolean };
+type BlockRenderer = (block: Block, ctx: RenderCtx) => JSX.Element | null;
 
 function HeadingBlock({ block }: { block: BlockOf<'heading'> }): JSX.Element {
   const size = block.level <= 1 ? 17 : block.level === 2 ? 15.5 : 14.5;
@@ -120,10 +122,16 @@ function TableBody({ rows }: { rows: InlineNode[][][] }): JSX.Element {
   );
 }
 
-function TableBlock({ block }: { block: BlockOf<'table'> }): JSX.Element {
+/** Prose is capped to a readable column, but a table is data: folding it into that column costs
+ *  far more than the extra width does. When the host opts in AND publishes `--chat-bleed-w` (the
+ *  desktop transcript measures its own pane), the block breaks symmetrically out of the column and
+ *  centres the table on the whole pane; anything wider than that still scrolls inside the block.
+ *  Without the variable the calc collapses to zero, so every other host keeps the old box. */
+function TableBlock({ block, wide }: { block: BlockOf<'table'>; wide: boolean }): JSX.Element {
+  const width = wide ? 'var(--chat-bleed-w, 100%)' : '100%';
   return (
-    <div style={{ overflowX: 'auto', maxWidth: '100%' }}>
-      <table style={{ borderCollapse: 'collapse', fontSize: 13 }}>
+    <div style={{ width, marginLeft: wide ? `calc((100% - ${width}) / 2)` : undefined, overflowX: 'auto' }}>
+      <table style={{ borderCollapse: 'collapse', fontSize: 13, margin: '0 auto' }}>
         <TableHead header={block.header} />
         <TableBody rows={block.rows} />
       </table>
@@ -138,18 +146,22 @@ const BLOCK_RENDERERS: Record<Block['type'], BlockRenderer> = {
   code: (block) => <CodeBlock block={block as BlockOf<'code'>} />,
   math: (block) => <MathMarkup text={(block as BlockOf<'math'>).text} display />,
   blockquote: (block) => <div style={{ borderLeft: '3px solid var(--proto-line)', paddingLeft: 12, color: 'var(--proto-muted)' }}><Inline nodes={(block as BlockOf<'blockquote'>).inline} /></div>,
-  table: (block) => <TableBlock block={block as BlockOf<'table'>} />,
+  table: (block, ctx) => <TableBlock block={block as BlockOf<'table'>} wide={ctx.wideTables} />,
   hr: () => <div style={{ height: 1, background: 'var(--proto-line-2)', margin: '4px 0' }} />,
 };
 
-function BlockView({ block }: { block: Block }): JSX.Element | null {
-  return BLOCK_RENDERERS[block.type](block);
+function BlockView({ block, ctx }: { block: Block; ctx: RenderCtx }): JSX.Element | null {
+  return BLOCK_RENDERERS[block.type](block, ctx);
 }
 
-export function ChatMarkdown({ text, dropTrailingHr = false, renderMath = false }: {
+export function ChatMarkdown({ text, dropTrailingHr = false, renderMath = false, wideTables = false }: {
   text: string;
   dropTrailingHr?: boolean;
   renderMath?: boolean;
+  /** Opt-in (desktop transcript): let tables span the chat pane instead of the prose column. Off by
+   *  default so hosts that own a narrow box of their own — decision cards, the plan reader, the
+   *  mobile stream — are unaffected. */
+  wideTables?: boolean;
 }): JSX.Element {
   let blocks = parseBlocks(text, { math: renderMath });
   // Opt-in (mobile chat): assistant messages often close with a `---` separator, which renders as a
@@ -163,7 +175,7 @@ export function ChatMarkdown({ text, dropTrailingHr = false, renderMath = false 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {blocks.map((b, i) => (
-        <BlockView key={i} block={b} />
+        <BlockView key={i} block={b} ctx={{ wideTables }} />
       ))}
     </div>
   );

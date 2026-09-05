@@ -36,15 +36,15 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | CenterChat.tsx | view | Reconciles compact chat state, startup progress and composer placement |
 | scheduled-chat.ts | vm | Cadence label and next-run delta helpers |
 | ChatHeader.tsx | view | Session title, command, browser, notes and session menu |
-| MessageStream.tsx | view | Renders transcript rows, controls and scroll pinning |
+| MessageStream.tsx | view | Renders transcript rows, controls, scroll pinning and the published pane width |
 | MessageAttachmentCards.tsx | view | Renders user and agent attachment, media, file and HTML-view cards |
 | DecisionCards.tsx | view | Gates decision response actions behind in-place expansion |
 | DecisionCards.test.tsx | test | Tests disclosure-only actions and composed response messages |
 | decision-vm.ts | vm | Derives decision status and composes the explain and revise messages |
 | decision-vm.test.ts | test | Tests status precedence and message templating |
 | attachment-presentation.ts | util | Adapts canonical byte labels plus attachment extension and semantic colors |
-| ChatMarkdown.tsx | view | Renders Markdown with width-bounded KaTeX formulas |
-| ChatMarkdown.test.tsx | test | Tests formula parsing, opt-in behavior and untrusted-input safety |
+| ChatMarkdown.tsx | view | Renders Markdown with width-bounded KaTeX formulas and opt-in pane-wide tables |
+| ChatMarkdown.test.tsx | test | Tests formula parsing, opt-in behavior, table widening and untrusted-input safety |
 | ChatNotice.tsx | view | Localized semantic notices with optional actions |
 | ChatNotice.test.tsx | test | Tests semantic roles, action gating and safe auth activation |
 | MessageEdit.tsx | view | Bare message actions with success-only clipboard feedback, edit box and rewind |

@@ -1,5 +1,5 @@
-// input:  Assistant Markdown containing valid, invalid, and untrusted math
-// output: KaTeX behavior and safety regression coverage
+// input:  Assistant Markdown containing valid, invalid, and untrusted math, plus tables
+// output: KaTeX behavior, safety regression, and table-width opt-in coverage
 // pos:    Component tests for assistant Markdown rendering
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -48,5 +48,24 @@ describe('ChatMarkdown math', () => {
     expect(html).not.toContain('width="1000000em"');
     expect(html).not.toContain('border-right-width:1000000em');
     expect(html).toContain('width="50em"');
+  });
+});
+
+describe('ChatMarkdown tables', () => {
+  const table = '| a | b |\n| --- | --- |\n| 1 | 2 |';
+
+  it('stays inside the prose column unless the host opts in', () => {
+    const html = renderToStaticMarkup(<ChatMarkdown text={table} />);
+
+    expect(html).toContain('<table');
+    expect(html).not.toContain('--chat-bleed-w');
+  });
+
+  it('breaks out of the column and stays centred when tables are widened', () => {
+    const html = renderToStaticMarkup(<ChatMarkdown text={table} wideTables />);
+
+    expect(html).toContain('width:var(--chat-bleed-w, 100%)');
+    expect(html).toContain('margin-left:calc((100% - var(--chat-bleed-w, 100%)) / 2)');
+    expect(html).toContain('margin:0 auto');
   });
 });
