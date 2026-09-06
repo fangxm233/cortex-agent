@@ -1,11 +1,12 @@
 Please update me when files in this folder change
 
-The desktop workbench route: a three-pane frame of project rail, center chat and right work panel.
+The desktop workbench route: a three-pane frame of project rail, center chat and right work panel,
+plus the dock (`features/dock`) as an optional fourth pane.
 Views stay presentational, pure view models derive every row, and hooks bind live events and mutations.
 
 | filename | role | function |
 |---|---|---|
-| WorkbenchPage.tsx | entry | Composes panes and global workbench actions |
+| WorkbenchPage.tsx | entry | Composes panes, hosts the dock and global workbench actions |
 | LeftRail.tsx | view | Frames the project tree and publishes its rendered project order |
 | RailTree.tsx | view | Renders project folders with their sessions, schedules and commission folders |
 | rail-tree.ts | vm | Builds project folder nodes with session, schedule and commission rows |

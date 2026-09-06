@@ -16,7 +16,7 @@ import { NotificationProvider } from '@/features/notifications/NotificationProvi
 import { UpdateProvider } from '@/features/update/UpdateProvider';
 import { MediaViewerProvider } from '@/features/media/MediaViewer';
 import { DocViewerProvider } from '@/features/media/DocViewer';
-import { PinnedPreviewProvider } from '@/features/media/PinnedPreviewProvider';
+import { DockProvider } from '@/features/dock/DockProvider';
 import { ConnectionStatusProvider } from '@/features/connection/ConnectionStatusProvider';
 import { LiveEventsProvider } from '@/features/live/LiveEventsProvider';
 import { ThreadDetailModalProvider } from '@/features/thread/ThreadDetailModal';
@@ -29,9 +29,9 @@ import { NotesProvider } from '@/features/notes/NotesProvider';
 // frame including its own left rail; other routes render full-bleed. The old token-summary nav
 // LeftRail was removed (superseded). The global ⌘K command palette (design 6c), the execution
 // log drawer, thread detail, Settings, New-schedule and approval overlays stay mounted here so any
-// surface can open them without route navigation. PinnedPreviewProvider wraps both previewers: while a preview is
-// pinned (docked beside the chat on the workbench) `openMedia`/`openDoc` swap that pane instead of
-// raising their modal. LiveEventsProvider is OUTERMOST: it owns the app's single SSE stream, which
+// surface can open them without route navigation. DockProvider wraps both previewers: while the dock
+// is open (the tabbed pane beside the chat on the workbench) `openMedia`/`openDoc` open a tab in it
+// instead of raising their modal. LiveEventsProvider is OUTERMOST: it owns the app's single SSE stream, which
 // every live surface (and the connectivity badge) reads through — see features/live/CORTEX.md.
 export function AppShell() {
   const { open, setOpen } = useCommandPalette();
@@ -40,14 +40,14 @@ export function AppShell() {
       <CurrentProjectProvider><SelectedSessionProvider><NotesProvider>
         <ExecutionLogDrawerProvider><ScheduleModalProvider>
           <ApprovalsProvider><SettingsProvider><IssuesProvider>
-            <ThreadDetailModalProvider><TaskModalProvider><CommissionBoardModalProvider><PinnedPreviewProvider>
+            <ThreadDetailModalProvider><TaskModalProvider><CommissionBoardModalProvider><DockProvider>
               <MediaViewerProvider><DocViewerProvider>
                 <Outlet />
                 <CommandPalette open={open} onOpenChange={setOpen} />
                 <NotificationProvider />
                 <UpdateProvider />
               </DocViewerProvider></MediaViewerProvider>
-            </PinnedPreviewProvider></CommissionBoardModalProvider></TaskModalProvider></ThreadDetailModalProvider>
+            </DockProvider></CommissionBoardModalProvider></TaskModalProvider></ThreadDetailModalProvider>
           </IssuesProvider></SettingsProvider></ApprovalsProvider>
         </ScheduleModalProvider></ExecutionLogDrawerProvider>
       </NotesProvider></SelectedSessionProvider></CurrentProjectProvider>

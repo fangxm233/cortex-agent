@@ -13,7 +13,7 @@ import { mediaKindOf } from '@/features/media/media-kind';
 import { VideoThumb } from '@/features/media/VideoThumb';
 import { docKindOfAttachment } from '@/features/media/doc-kind';
 import { HtmlBody } from '@/features/media/HtmlBody';
-import { usePinnedPreview } from '@/features/media/PinnedPreviewProvider';
+import { useDock } from '@/features/dock/DockProvider';
 import type { AttachmentMeta, AttachmentMeta as Attachment } from '@/features/attachments/types';
 import { attachmentFileExt, attachmentTypeColor, formatAttachmentSize } from './attachment-presentation';
 
@@ -209,17 +209,17 @@ function ViewHeader({ a, source, download, dock, expand, canPin }: {
 function AgentViewCard({ a }: { a: Attachment }): JSX.Element {
   const dl = useDownloadFile();
   const { openDoc } = useDocViewer();
-  const pinned = usePinnedPreview();
+  const dock = useDock();
   const hostRef = useRef<HTMLDivElement>(null);
   const visible = useNearViewport(hostRef);
   const item = { kind: 'html' as const, name: a.name, path: a.path, mimeType: a.mimeType };
   const expand = (): void => openDoc(item);
-  const dock = (): void => pinned.pin(item);
+  const toDock = (): void => dock.openFile(item);
   const source = (): void => openDoc({ kind: 'text', name: a.name, path: a.path, mimeType: 'text/plain' });
   const download = (): void => dl(a.path, a.name.toLowerCase().endsWith('.html') ? a.name : `${a.name}.html`);
   return (
     <div ref={hostRef} style={{ width: '100%', border: '1px solid var(--proto-line)', background: 'var(--proto-card)', borderRadius: 10, overflow: 'hidden', boxShadow: 'var(--shadow-card-subtle)', boxSizing: 'border-box' }}>
-      <ViewHeader a={a} source={source} download={download} dock={dock} expand={expand} canPin={pinned.canPin} />
+      <ViewHeader a={a} source={source} download={download} dock={toDock} expand={expand} canPin={dock.canDock} />
       <div style={{ background: 'var(--proto-card)' }}>
         {visible ? <HtmlBody item={item} mode="inline" /> : <div style={{ height: 160 }} />}
       </div>

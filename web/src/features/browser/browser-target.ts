@@ -1,6 +1,6 @@
-// input:  address text, origins, navigation and tab intents
+// input:  address text, origins, navigation intents and one tab's state
 // output: URL guards, history, title/forward tab state and viewports
-// pos:    Pure browser-pane and tab-workspace model
+// pos:    Pure model of a single web tab; the dock owns the tab list
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 // The docked browser pane previews HTTP services that are reachable from THIS machine — a local
@@ -8,15 +8,6 @@
 // Everything here is pure so the pane itself stays a thin view.
 
 import type { FrameTitlePhase } from './frame-title';
-
-/** A web page docked in the preview pane. Joins `PreviewItem` alongside MediaItem / DocItem. */
-export interface WebItem {
-  kind: 'web';
-  /** Display label in the pane header (host:port + path). */
-  name: string;
-  /** Absolute http(s) URL, or '' for the empty pane (address bar waiting for input). */
-  url: string;
-}
 
 /** Only http(s) is previewable. `javascript:` / `data:` / `file:` must never reach an iframe src. */
 const ALLOWED_PROTOCOLS = ['http:', 'https:'];
@@ -67,11 +58,6 @@ function browserHostPath(url: string): string {
   } catch {
     return url;
   }
-}
-
-/** Build the docked item for a URL (already normalized). */
-export function webItem(url: string): WebItem {
-  return { kind: 'web', name: url === '' ? 'Browser' : browserItemName(url), url };
 }
 
 /**
@@ -199,6 +185,8 @@ export type BrowserForwardState =
   | { status: 'ready'; device: string; originalPort: number; targetUrl: string };
 
 export interface BrowserTabState {
+  /** The dock discriminant: a browser tab IS a dock tab (see `features/dock/dock-tabs.ts`). */
+  kind: 'web';
   id: string;
   history: BrowserHistory;
   draft: string;
@@ -212,13 +200,9 @@ export interface BrowserTabState {
   refused: boolean;
 }
 
-export interface BrowserTabsState {
-  tabs: BrowserTabState[];
-  activeId: string;
-}
-
 export function createBrowserTab(id: string): BrowserTabState {
   return {
+    kind: 'web',
     id,
     history: EMPTY_HISTORY,
     draft: '',
@@ -231,6 +215,11 @@ export function createBrowserTab(id: string): BrowserTabState {
     rejected: null,
     refused: false,
   };
+}
+
+/** A tab that has never navigated — its body is the address bar, which is the browser's empty state. */
+export function isBlankWebTab(tab: BrowserTabState): boolean {
+  return currentUrl(tab.history) === null;
 }
 
 /** Tab label: the page title, else the address without the port the chip already carries. */
@@ -285,54 +274,4 @@ export function browserTabChip(tab: BrowserTabState): BrowserTabChip | null {
   } catch {
     return null;
   }
-}
-
-export function createBrowserTabs(id: string): BrowserTabsState {
-  return { tabs: [createBrowserTab(id)], activeId: id };
-}
-
-export function activeBrowserTab(state: BrowserTabsState): BrowserTabState {
-  return state.tabs.find((tab) => tab.id === state.activeId) ?? state.tabs[0]!;
-}
-
-export function addBrowserTab(state: BrowserTabsState, tab: BrowserTabState): BrowserTabsState {
-  return { tabs: [...state.tabs, tab], activeId: tab.id };
-}
-
-export function selectBrowserTab(state: BrowserTabsState, id: string): BrowserTabsState {
-  if (id === state.activeId || !state.tabs.some((tab) => tab.id === id)) return state;
-  return { ...state, activeId: id };
-}
-
-export function reorderBrowserTabs(state: BrowserTabsState, orderedIds: string[]): BrowserTabsState {
-  const tabsById = new Map(state.tabs.map((tab) => [tab.id, tab]));
-  const valid = orderedIds.length === state.tabs.length
-    && new Set(orderedIds).size === orderedIds.length
-    && orderedIds.every((id) => tabsById.has(id));
-  if (!valid) return state;
-  const tabs = orderedIds.map((id) => tabsById.get(id)!);
-  if (tabs.every((tab, index) => tab === state.tabs[index])) return state;
-  return { ...state, tabs };
-}
-
-export function updateBrowserTab(
-  state: BrowserTabsState,
-  id: string,
-  update: (tab: BrowserTabState) => BrowserTabState,
-): BrowserTabsState {
-  if (!state.tabs.some((tab) => tab.id === id)) return state;
-  return { ...state, tabs: state.tabs.map((tab) => (tab.id === id ? update(tab) : tab)) };
-}
-
-export function closeBrowserTab(
-  state: BrowserTabsState,
-  id: string,
-  replacement: BrowserTabState,
-): BrowserTabsState {
-  const index = state.tabs.findIndex((tab) => tab.id === id);
-  if (index < 0) return state;
-  if (state.tabs.length === 1) return createBrowserTabs(replacement.id);
-  const tabs = state.tabs.filter((tab) => tab.id !== id);
-  if (state.activeId !== id) return { ...state, tabs };
-  return { tabs, activeId: tabs[Math.min(index, tabs.length - 1)]!.id };
 }

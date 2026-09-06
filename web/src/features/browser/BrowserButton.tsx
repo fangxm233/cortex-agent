@@ -1,12 +1,10 @@
-// input:  pinned-preview dock state
-// output: the chat-header control that docks the browser pane
-// pos:    desktop entry point for the browser pane
+// input:  dock state
+// output: the chat-header control that opens a web tab in the dock
+// pos:    desktop entry point for the browser
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { CSSProperties } from 'react';
-import { usePinnedPreview } from '@/features/media/PinnedPreviewProvider';
-import { isWebPreviewItem } from '@/features/media/pinned-preview';
-import { webItem } from './browser-target';
+import { useDock } from '@/features/dock/DockProvider';
 
 function buttonStyle(active: boolean): CSSProperties {
   return {
@@ -33,23 +31,23 @@ function GlobeIcon() {
 }
 
 /**
- * Docks the browser pane. Hidden where nothing can dock (mobile shell, routes with no dock host) —
- * same gate the preview modals use for their ◧ button.
+ * Opens a web tab in the dock. Hidden where nothing can dock (mobile shell, routes with no dock
+ * host) — the same gate the preview modals use for their ◧ button.
  *
- * Toggling off unpins the whole dock, which is the same thing the pane's × does; a file preview
- * that happens to be docked is swapped for the browser instead of being closed.
+ * It ADDS to the dock rather than taking it over: a docked file preview keeps its own tab, and a
+ * blank web tab that is already open is focused instead of duplicated. The dock's × closes it.
  */
 export function BrowserButton(): JSX.Element | null {
-  const { canPin, active, item, pin, unpin } = usePinnedPreview();
-  if (!canPin) return null;
-  const showing = active && !!item && isWebPreviewItem(item);
+  const { canDock, active, activeTab, openWeb } = useDock();
+  if (!canDock) return null;
+  const showing = active && activeTab?.kind === 'web';
   return (
     <button
       type="button"
       data-browser-button=""
       aria-pressed={showing}
-      title="Preview a web page in the docked pane"
-      onClick={() => (showing ? unpin() : pin(webItem('')))}
+      title="Open a web page in the dock"
+      onClick={openWeb}
       style={buttonStyle(showing)}
     >
       <GlobeIcon />

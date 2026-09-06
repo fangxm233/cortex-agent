@@ -27,7 +27,8 @@ Native-facing features consume `lib/native-bridge.ts`; they do not redeclare or 
 | command-palette/ | subdir | Global search and command overlay |
 | notifications/ | subdir | In-app toasts for replies and notices |
 | media/ | subdir | Image, video and document previewers |
-| browser/ | subdir | Docked web preview pane, address bar and typed native port-forward adapter |
+| dock/ | subdir | Tabbed docked pane mixing file previews and web pages |
+| browser/ | subdir | One web tab's body, address bar and typed native port-forward adapter |
 | live/ | subdir | The single live event stream and fan-out |
 | connection/ | subdir | Connectivity status for the daemon badge |
 | rate-limit/ | subdir | Provider throttle times and waiting counts |

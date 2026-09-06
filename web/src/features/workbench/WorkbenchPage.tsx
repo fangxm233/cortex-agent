@@ -2,8 +2,8 @@
 // output: Desktop workbench frame with global UI actions
 // pos:    Workbench route composition root
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-import { PinnedPreviewPane } from '@/features/media/PinnedPreviewPane';
-import { usePinnedPreview } from '@/features/media/PinnedPreviewProvider';
+import { DockPane } from '@/features/dock/DockPane';
+import { useDock } from '@/features/dock/DockProvider';
 import { LeftRail } from './LeftRail';
 import { CenterChat } from './CenterChat';
 import { RightPanel } from './RightPanel';
@@ -16,14 +16,14 @@ import { useSettings } from '@/features/settings/SettingsProvider';
 // CurrentProjectProvider (task 569c) holds the cross-pane current-project state written by the
 // LeftRail switcher and read by the RightPanel cost bar.
 //
-// PINNED PREVIEW: the workbench is the dock host for the preview panes (`features/media`). While a
-// preview is pinned, `PinnedPreviewPane` renders as a fourth pane and the fluid center region is
-// SPLIT between chat and preview — the chat keeps `1 - split` of the grow share (it narrows and
-// shifts left), the preview takes `split`. Unpinned, the pane renders nothing (but stays mounted as
-// the dock host, which is what makes the modals' ◧ pin button appear on this route only) and the
-// chat is fluid exactly as before.
+// THE DOCK: the workbench is the host for `features/dock`. While the dock is open, `DockPane`
+// renders as a fourth pane holding one tab strip of file previews and web pages, and the fluid
+// center region is SPLIT between chat and dock — the chat keeps `1 - split` of the grow share (it
+// narrows and shifts left), the dock takes `split`. Closed, the pane renders nothing (but stays
+// mounted as the dock host, which is what makes the modals' ◧ button appear on this route only)
+// and the chat is fluid exactly as before.
 export function WorkbenchPage(): JSX.Element {
-  const { active, split } = usePinnedPreview();
+  const { active, split } = useDock();
   const { open: openSettings } = useSettings();
   return (
     <div
@@ -38,7 +38,7 @@ export function WorkbenchPage(): JSX.Element {
     >
       <LeftRail />
       <CenterChat grow={active ? 1 - split : 1} onOpenSettings={openSettings} />
-      <PinnedPreviewPane />
+      <DockPane />
       <RightPanel />
     </div>
   );

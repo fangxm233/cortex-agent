@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { fetchFileObjectUrl } from '@/lib/files';
 
-// Resolve a media item's displayable source, shared by the full-screen `Lightbox` and the docked
-// `PinnedPreviewPanel` (both show the SAME image/video at full size, so they resolve it the same
+// Resolve a media item's displayable source, shared by the full-screen `Lightbox` and the dock's
+// `DockFileBody` (both show the SAME image/video at full size, so they resolve it the same
 // way): a local composer preview already carries an object `url`; a workspace `path` is fetched with
 // auth into one (revoked on close / change). Unlike `useWorkspaceObjectUrl` (thumbnails, which just
 // render nothing on error) this reports `failed`, so a full-size viewer can say so instead of

@@ -1,14 +1,11 @@
-// input:  browser tabs, frame titles, app origins and port forwarding
-// output: sortable live tabs with titles and forward provenance
-// pos:    Desktop browser workspace view
+// input:  one web tab's state, frame titles, app origins and port forwarding
+// output: that tab's toolbar, port picker and live frame
+// pos:    Desktop body for a single web tab; the dock owns the tab list
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, MotionConfig, Reorder, motion, useIsPresent, useReducedMotion } from 'motion/react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiBase } from '@/lib/desktop-config';
-import { useMotionMode, type MotionMode } from '@/theme';
 import { openExternalUrl } from '@/lib/external-navigation';
-import { usePinnedPreview } from '@/features/media/PinnedPreviewProvider';
 import {
   canForward, listDeviceRemotePorts, listForwardDevices, listRemotePorts, openDeviceForward,
   startForward, type ForwardDevice, type ListeningPort,
@@ -17,18 +14,11 @@ import {
   FRAME_REFUSED_HINT,
   VIEWPORT_PRESETS,
   WEB_SANDBOX,
-  activeBrowserTab,
-  addBrowserTab,
   applyBrowserTitle,
   browserItemName,
-  browserTabChip,
   browserTabForwardSource,
-  browserTabLabel,
   canGoBack,
   canGoForward,
-  closeBrowserTab,
-  createBrowserTab,
-  createBrowserTabs,
   currentUrl,
   frameRefusedEmbedding,
   goBack,
@@ -36,15 +26,8 @@ import {
   normalizeBrowserUrl,
   previewOriginConflict,
   pushHistory,
-  reorderBrowserTabs,
-  selectBrowserTab,
-  updateBrowserTab,
-  webItem,
-  type BrowserTabChip,
   type BrowserTabState,
-  type BrowserTabsState,
   type ViewportPreset,
-  type WebItem,
 } from './browser-target';
 import { matchFrameTitleMessage } from './frame-title';
 
@@ -63,125 +46,77 @@ interface PortPickerState {
 
 const EMPTY_PORTS: PortPickerState = { open: false, ports: null, error: null, device: '', devices: [] };
 
-/** One browser workspace. Tabs and their iframe documents live until their explicit close action. */
-export function WebBody({ item }: { item: WebItem }): JSX.Element {
-  const { show } = usePinnedPreview();
-  const [tabs, setTabs] = useState<BrowserTabsState>(() => createBrowserTabs('browser-tab-0'));
+/**
+ * ONE web tab. Its state lives in the dock (`features/dock`), which mounts one of these per web tab
+ * and keeps them all alive across tab switches — so every mutation goes back through `onUpdate`
+ * rather than into local state, and the iframe below survives being hidden.
+ */
+export function WebBody({ tab, active, onUpdate }: {
+  tab: BrowserTabState;
+  active: boolean;
+  onUpdate: (update: (tab: BrowserTabState) => BrowserTabState) => void;
+}): JSX.Element {
   const [ports, setPorts] = useState<PortPickerState>(EMPTY_PORTS);
-  const nextTab = useRef(1);
-  const nextForwardOperation = useRef(1);
-  const forwardOperations = useRef(new Map<string, number>());
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const frameRefs = useRef(new Map<string, HTMLIFrameElement>());
-  const frameOrder = useRef(['browser-tab-0']);
-  const tabsRef = useRef(tabs);
-  const active = activeBrowserTab(tabs);
-  const url = currentUrl(active.history);
+  const frameRef = useRef<HTMLIFrameElement | null>(null);
+  const nextForwardOperation = useRef(1);
+  /** The forward operation this tab is currently waiting on; 0 = none. Any navigation cancels it. */
+  const forwardOperation = useRef(0);
+  const url = currentUrl(tab.history);
   const forbiddenOrigins = useMemo(
     () => [typeof window === 'undefined' ? '' : window.location.origin, apiBase()],
     [],
   );
 
-  const updateTab = (id: string, update: (tab: BrowserTabState) => BrowserTabState): void => {
-    setTabs((state) => updateBrowserTab(state, id, update));
-  };
-
-  const navigate = (raw: string, id = tabsRef.current.activeId): void => {
+  const navigate = (raw: string): void => {
     const next = normalizeBrowserUrl(raw);
-    if (next === null) return updateTab(id, (tab) => rejectNavigation(tab, INVALID_ADDRESS));
+    if (next === null) return onUpdate((entry) => rejectNavigation(entry, INVALID_ADDRESS));
     if (previewOriginConflict(next, forbiddenOrigins)) {
-      return updateTab(id, (tab) => rejectNavigation(tab, ORIGIN_CONFLICT));
+      return onUpdate((entry) => rejectNavigation(entry, ORIGIN_CONFLICT));
     }
-    forwardOperations.current.delete(id);
-    updateTab(id, (tab) => navigateTab(tab, next));
-    if (id === tabsRef.current.activeId) show(webItem(next));
+    forwardOperation.current = 0;
+    onUpdate((entry) => navigateTab(entry, next));
   };
-
-  useEffect(() => {
-    tabsRef.current = tabs;
-  }, [tabs]);
-
-  useEffect(() => {
-    if (item.url === '') return;
-    const current = activeBrowserTab(tabsRef.current);
-    if (item.url === currentUrl(current.history)) return;
-    forwardOperations.current.delete(current.id);
-    setTabs((state) => {
-      const tab = activeBrowserTab(state);
-      if (item.url === currentUrl(tab.history)) return state;
-      return updateBrowserTab(state, tab.id, (entry) => navigateTab(entry, item.url));
-    });
-  }, [item.url]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const onMessage = (event: MessageEvent): void => {
-      const message = matchFrameTitleMessage(frameRefs.current, event.source, event.data, event.origin);
+      const frame = frameRef.current;
+      if (!frame) return;
+      const message = matchFrameTitleMessage(new Map([[tab.id, frame]]), event.source, event.data, event.origin);
       if (!message) return;
-      updateTab(message.tabId, (tab) => applyBrowserTitle(
-        tab, message.title, message.timeOrigin, message.phase,
-      ));
+      onUpdate((entry) => applyBrowserTitle(entry, message.title, message.timeOrigin, message.phase));
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, []);
+  }, [tab.id, onUpdate]);
 
   useEffect(() => {
-    if (url === null) inputRef.current?.focus();
-  }, [tabs.activeId, url]);
-
-  const addTab = (): void => {
-    const tab = createBrowserTab(`browser-tab-${nextTab.current++}`);
-    setTabs((state) => {
-      const next = addBrowserTab(state, tab);
-      frameOrder.current = syncFrameOrder(frameOrder.current, next.tabs);
-      return next;
-    });
-    show(webItem(''));
-  };
-
-  const pickTab = (id: string): void => {
-    const tab = tabs.tabs.find((candidate) => candidate.id === id);
-    if (!tab) return;
-    setTabs((state) => selectBrowserTab(state, id));
-    show(webItem(currentUrl(tab.history) ?? ''));
-  };
-
-  const removeTab = (id: string): void => {
-    forwardOperations.current.delete(id);
-    const replacement = createBrowserTab(`browser-tab-${nextTab.current++}`);
-    const next = closeBrowserTab(tabs, id, replacement);
-    frameOrder.current = syncFrameOrder(frameOrder.current, next.tabs);
-    setTabs(next);
-    if (id === tabs.activeId) show(webItem(currentUrl(activeBrowserTab(next).history) ?? ''));
-  };
-
-  const reorderTabs = (orderedIds: string[]): void => {
-    setTabs((state) => reorderBrowserTabs(state, orderedIds));
-  };
+    if (active && url === null) inputRef.current?.focus();
+  }, [active, url]);
 
   const step = (dir: 'back' | 'forward'): void => {
-    forwardOperations.current.delete(active.id);
-    const history = dir === 'back' ? goBack(active.history) : goForward(active.history);
-    const target = currentUrl(history);
-    updateTab(active.id, (tab) => openDocument(tab, { history, draft: target ?? '' }));
-    if (target) show(webItem(target));
+    forwardOperation.current = 0;
+    onUpdate((entry) => {
+      const history = dir === 'back' ? goBack(entry.history) : goForward(entry.history);
+      return openDocument(entry, { history, draft: currentUrl(history) ?? '' });
+    });
   };
 
   const reload = (): void => {
-    forwardOperations.current.delete(active.id);
-    updateTab(active.id, (tab) => openDocument(tab, { reloadNonce: tab.reloadNonce + 1 }));
+    forwardOperation.current = 0;
+    onUpdate((entry) => openDocument(entry, { reloadNonce: entry.reloadNonce + 1 }));
   };
 
-  const onFrameLoad = (id: string): void => {
+  const onFrameLoad = (): void => {
     let reachable = false;
     try {
-      reachable = !!frameRefs.current.get(id)?.contentDocument;
+      reachable = !!frameRef.current?.contentDocument;
     } catch {
       reachable = false;
     }
     const refused = frameRefusedEmbedding({ loaded: true, documentReachable: reachable });
-    updateTab(id, (tab) => ({ ...tab, refused }));
+    onUpdate((entry) => ({ ...entry, refused }));
   };
 
   const loadPorts = (device: string): void => {
@@ -210,54 +145,66 @@ export function WebBody({ item }: { item: WebItem }): JSX.Element {
   };
 
   const openPort = async (port: number): Promise<void> => {
-    const tabId = tabsRef.current.activeId;
     const device = ports.device;
     const operationId = nextForwardOperation.current++;
-    forwardOperations.current.set(tabId, operationId);
+    forwardOperation.current = operationId;
     setPorts((state) => ({ ...state, open: false }));
-    updateTab(tabId, (tab) => ({
-      ...tab,
+    onUpdate((entry) => ({
+      ...entry,
       pageTitle: null,
       forward: { status: 'connecting', operationId, device, originalPort: port },
       rejected: null,
     }));
     try {
       const serverPort = device === '' ? port : (await openDeviceForward(device, port)).localPort;
-      if (forwardOperations.current.get(tabId) !== operationId) return;
+      if (forwardOperation.current !== operationId) return;
       const rawTarget = canForward() ? (await startForward(serverPort)).url : `http://127.0.0.1:${serverPort}/`;
-      if (forwardOperations.current.get(tabId) !== operationId) return;
+      if (forwardOperation.current !== operationId) return;
       const target = normalizeBrowserUrl(rawTarget);
       if (!target) throw new Error(INVALID_ADDRESS);
       if (previewOriginConflict(target, forbiddenOrigins)) throw new Error(ORIGIN_CONFLICT);
-      forwardOperations.current.delete(tabId);
-      updateTab(tabId, (tab) => completeForward(tab, operationId, device, port, target));
-      if (tabId === tabsRef.current.activeId) show(webItem(target));
+      forwardOperation.current = 0;
+      onUpdate((entry) => completeForward(entry, operationId, device, port, target));
     } catch (error) {
-      if (forwardOperations.current.get(tabId) !== operationId) return;
-      forwardOperations.current.delete(tabId);
-      updateTab(tabId, (tab) => failForward(tab, operationId, (error as Error).message));
+      if (forwardOperation.current !== operationId) return;
+      forwardOperation.current = 0;
+      onUpdate((entry) => failForward(entry, operationId, (error as Error).message));
     }
   };
 
+  const viewport = VIEWPORT_PRESETS.find((preset) => preset.id === tab.viewportId) ?? VIEWPORT_PRESETS[0]!;
+
   return (
-    <div data-browser-workspace="" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-      <TabStrip state={tabs} onAdd={addTab} onSelect={pickTab} onClose={removeTab} onReorder={reorderTabs} />
+    <div data-browser-workspace={tab.id} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       <BrowserToolbar
-        tab={active}
+        tab={tab}
         url={url}
         inputRef={inputRef}
         portsOpen={ports.open}
         onStep={step}
         onReload={reload}
-        onDraft={(draft) => updateTab(active.id, (tab) => ({ ...tab, draft }))}
-        onNavigate={() => navigate(active.draft)}
-        onResetDraft={() => updateTab(active.id, (tab) => ({ ...tab, draft: url ?? '' }))}
-        onViewport={(viewportId) => updateTab(active.id, (tab) => ({ ...tab, viewportId }))}
+        onDraft={(draft) => onUpdate((entry) => ({ ...entry, draft }))}
+        onNavigate={() => navigate(tab.draft)}
+        onResetDraft={() => onUpdate((entry) => ({ ...entry, draft: url ?? '' }))}
+        onViewport={(viewportId) => onUpdate((entry) => ({ ...entry, viewportId }))}
         onTogglePorts={togglePorts}
       />
       {ports.open && <PortsPanel state={ports} onDevice={pickDevice} onPort={openPort} />}
-      <BrowserNotice tab={active} url={url} />
-      <BrowserFrames state={tabs} order={frameOrder.current} frameRefs={frameRefs.current} onLoad={onFrameLoad} />
+      <BrowserNotice tab={tab} url={url} />
+      <div style={{ flex: 1, minHeight: 0, overflow: 'auto', background: 'var(--proto-gray)', display: 'flex', justifyContent: 'center' }}>
+        {url === null ? <div style={EMPTY_STYLE}>{EMPTY_HINT}</div> : (
+          <iframe
+            key={`${tab.documentGeneration}:${tab.reloadNonce}`}
+            ref={(node) => { frameRef.current = node; }}
+            data-browser-frame={tab.id}
+            onLoad={onFrameLoad}
+            src={url}
+            title={browserItemName(url)}
+            sandbox={WEB_SANDBOX}
+            style={{ border: 'none', width: viewport.width ?? '100%', flex: viewport.width ? 'none' : 1, minHeight: '100%', background: 'var(--proto-card)' }}
+          />
+        )}
+      </div>
     </div>
   );
 }
@@ -308,82 +255,6 @@ function completeForward(
 function failForward(tab: BrowserTabState, operationId: number, message: string): BrowserTabState {
   if (tab.forward?.status !== 'connecting' || tab.forward.operationId !== operationId) return tab;
   return { ...tab, forward: null, rejected: message };
-}
-
-function TabStrip({ state, onAdd, onSelect, onClose, onReorder }: {
-  state: BrowserTabsState;
-  onAdd: () => void;
-  onSelect: (id: string) => void;
-  onClose: (id: string) => void;
-  onReorder: (orderedIds: string[]) => void;
-}): JSX.Element {
-  const motionMode = useMotionMode();
-  const systemReduced = useReducedMotion();
-  const reduceMotion = motionMode === 'reduced' || (motionMode === 'system' && systemReduced === true);
-  return (
-    <MotionConfig reducedMotion={motionReduction(motionMode)}>
-      <Reorder.Group as="div" axis="x" values={state.tabs.map((tab) => tab.id)} onReorder={onReorder} layoutScroll style={TAB_STRIP_STYLE}>
-        <AnimatePresence initial={false} mode="popLayout">
-          {state.tabs.map((tab) => <BrowserTab key={tab.id} tab={tab} active={tab.id === state.activeId} draggable={state.tabs.length > 1} reduceMotion={reduceMotion} onSelect={onSelect} onClose={onClose} />)}
-        </AnimatePresence>
-        <motion.button layout type="button" data-add-tab="" title="New tab" onClick={onAdd} style={{ ...SMALL_BUTTON, alignSelf: 'flex-end', borderRadius: '7px 7px 0 0' }}>+</motion.button>
-      </Reorder.Group>
-    </MotionConfig>
-  );
-}
-
-interface BrowserTabProps {
-  tab: BrowserTabState;
-  active: boolean;
-  draggable: boolean;
-  reduceMotion: boolean;
-  onSelect: (id: string) => void;
-  onClose: (id: string) => void;
-}
-
-const BrowserTab = forwardRef<HTMLDivElement, BrowserTabProps>(function BrowserTab(
-  { tab, active, draggable, reduceMotion, onSelect, onClose }, ref,
-): JSX.Element {
-  const url = currentUrl(tab.history);
-  const label = browserTabLabel(tab);
-  const source = browserTabForwardSource(tab);
-  const chip = browserTabChip(tab);
-  const tooltip = source ? `${label}\nForwarded from ${source}` : (url ?? label);
-  const isPresent = useIsPresent();
-  return (
-    <Reorder.Item ref={ref} as="div" value={tab.id} dragListener={draggable && isPresent} dragElastic={0.08} initial={reduceMotion ? false : { opacity: 0, scale: 0.94 }} animate={reduceMotion ? undefined : { opacity: 1, scale: 1 }} exit={reduceMotion ? undefined : { opacity: 0, scale: 0.94, transition: { duration: 0.12, ease: 'easeIn' } }} transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 500, damping: 40, opacity: { duration: 0.12 }, scale: { duration: 0.14 } }} whileDrag={reduceMotion ? undefined : { scale: 1.03 }} style={{ ...TAB_ITEM_STYLE, pointerEvents: isPresent ? 'auto' : 'none', borderBottomColor: active ? 'var(--proto-card)' : 'var(--proto-line)', background: active ? 'var(--proto-card)' : 'var(--proto-gray)' }}>
-      <button type="button" aria-pressed={active} data-browser-tab={tab.id} data-active={active ? 'true' : 'false'} onClick={() => onSelect(tab.id)} title={tooltip} style={{ ...TAB_SELECT_STYLE, color: active ? 'var(--proto-ink)' : 'var(--proto-muted)' }}>
-        {chip && <TabChip chip={chip} source={source} />}
-        <span style={TAB_LABEL_STYLE}>{label}</span>
-      </button>
-      <button type="button" disabled={!isPresent} data-close-tab={tab.id} title="Close tab" aria-label="Close tab" onPointerDown={(event) => event.stopPropagation()} onClick={() => onClose(tab.id)} style={TAB_CLOSE_STYLE}>×</button>
-    </Reorder.Item>
-  );
-});
-
-/** The forward chip keeps `data-forward-source` — provenance the address bar cannot show. */
-function TabChip({ chip, source }: { chip: BrowserTabChip; source: string | null }): JSX.Element {
-  const forwarded = chip.kind === 'forward' && source !== null;
-  return (
-    <span
-      {...(forwarded ? { 'data-forward-source': source } : {})}
-      title={forwarded ? `Forwarded from ${source}` : undefined}
-      style={forwarded ? TAB_CHIP_FORWARD_STYLE : TAB_CHIP_PLAIN_STYLE}
-    >{chip.text}</span>
-  );
-}
-
-function motionReduction(mode: MotionMode): 'always' | 'never' | 'user' {
-  if (mode === 'reduced') return 'always';
-  if (mode === 'full') return 'never';
-  return 'user';
-}
-
-function syncFrameOrder(current: string[], tabs: BrowserTabState[]): string[] {
-  const liveIds = new Set(tabs.map((tab) => tab.id));
-  const kept = current.filter((id) => liveIds.has(id));
-  const known = new Set(kept);
-  return [...kept, ...tabs.map((tab) => tab.id).filter((id) => !known.has(id))];
 }
 
 function BrowserToolbar({ tab, url, inputRef, portsOpen, onStep, onReload, onDraft, onNavigate, onResetDraft, onViewport, onTogglePorts }: {
@@ -468,73 +339,30 @@ function BrowserNotice({ tab, url }: { tab: BrowserTabState; url: string | null 
   return <div style={{ ...NOTICE_STYLE, color: 'var(--proto-danger)' }}>{tab.rejected}</div>;
 }
 
-function BrowserFrames({ state, order, frameRefs, onLoad }: {
-  state: BrowserTabsState;
-  order: string[];
-  frameRefs: Map<string, HTMLIFrameElement>;
-  onLoad: (id: string) => void;
-}): JSX.Element {
-  const tabsById = new Map(state.tabs.map((tab) => [tab.id, tab]));
-  const renderTabs = order.map((id) => tabsById.get(id)).filter((tab): tab is BrowserTabState => tab !== undefined);
-  return (
-    <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', background: 'var(--proto-gray)', position: 'relative' }}>
-      {renderTabs.map((tab) => {
-        const active = tab.id === state.activeId;
-        const url = currentUrl(tab.history);
-        const viewport = VIEWPORT_PRESETS.find((preset) => preset.id === tab.viewportId) ?? VIEWPORT_PRESETS[0];
-        return (
-          <div key={tab.id} data-browser-tab-body={tab.id} style={{ display: active ? 'flex' : 'none', position: 'absolute', inset: 0, overflow: 'auto', justifyContent: 'center' }}>
-            {url === null ? <div style={EMPTY_STYLE}>{EMPTY_HINT}</div> : (
-              <iframe
-                key={`${tab.documentGeneration}:${tab.reloadNonce}`}
-                ref={(node) => { if (node) frameRefs.set(tab.id, node); else frameRefs.delete(tab.id); }}
-                data-browser-frame={tab.id}
-                onLoad={() => onLoad(tab.id)}
-                src={url}
-                title={browserItemName(url)}
-                sandbox={WEB_SANDBOX}
-                style={{ border: 'none', width: viewport.width ?? '100%', flex: viewport.width ? 'none' : 1, minHeight: '100%', background: 'var(--proto-card)' }}
-              />
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 function PortRow({ port, onClick }: { port: ListeningPort; onClick: () => void }): JSX.Element {
   return (
     <button type="button" onClick={onClick} style={PORT_ROW_STYLE}>
-      <span style={{ fontWeight: 600 }}>{port.port}</span>
-      <span style={{ color: 'var(--proto-muted-2)' }}>{port.process ?? '—'}</span>
-      <span style={{ marginLeft: 'auto', color: 'var(--proto-faint)' }}>{port.address}</span>
+      <span style={{ flex: 'none', width: 54, color: 'var(--proto-accent)' }}>{port.port}</span>
+      <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--proto-muted)' }}>{port.process ?? ''}</span>
+      <span style={{ flex: 'none', color: 'var(--proto-muted-2)' }}>{port.address}</span>
     </button>
   );
 }
 
 function DeviceTab({ children, active, onClick }: { children: React.ReactNode; active: boolean; onClick: () => void }): JSX.Element {
-  return <button type="button" onClick={onClick} style={{ ...DEVICE_BUTTON, border: active ? '1.5px solid var(--proto-accent)' : '1px solid var(--proto-line)', background: active ? 'var(--proto-accent-bg)' : 'transparent', color: active ? 'var(--proto-accent)' : 'var(--proto-muted)' }}>{children}</button>;
+  return <button type="button" onClick={onClick} style={{ ...DEVICE_BUTTON, border: active ? '1.5px solid var(--proto-accent)' : '1px solid var(--proto-line)', background: active ? 'var(--proto-accent-bg)' : 'var(--proto-card)', color: active ? 'var(--proto-accent)' : 'var(--proto-muted)' }}>{children}</button>;
 }
 
 function PortsNote({ children }: { children: React.ReactNode }): JSX.Element {
-  return <div style={{ padding: '8px 12px', color: 'var(--proto-muted-2)', font: `500 10.5px ${MONO}` }}>{children}</div>;
+  return <div style={{ padding: '10px 12px', color: 'var(--proto-muted-2)', font: `500 10.5px ${MONO}` }}>{children}</div>;
 }
 
 function NavBtn({ children, title, disabled, onClick }: { children: React.ReactNode; title: string; disabled?: boolean; onClick: () => void }): JSX.Element {
-  return <button type="button" title={title} disabled={disabled} onClick={onClick} style={{ ...SMALL_BUTTON, color: disabled ? 'var(--proto-faint)' : 'var(--proto-muted)', cursor: disabled ? 'default' : 'pointer' }}>{children}</button>;
+  return <button type="button" title={title} disabled={disabled} onClick={onClick} style={{ ...SMALL_BUTTON, opacity: disabled ? 0.4 : 1, cursor: disabled ? 'default' : 'pointer' }}>{children}</button>;
 }
 
-const TAB_STRIP_STYLE: React.CSSProperties = { display: 'flex', gap: 3, padding: '5px 7px 0', background: 'var(--proto-gray)', overflowX: 'auto', flex: 'none', position: 'relative' };
-const TAB_ITEM_STYLE: React.CSSProperties = { display: 'flex', alignItems: 'center', flex: 'none', minWidth: 96, maxWidth: 210, height: 30, border: '1px solid var(--proto-line)', borderRadius: '7px 7px 0 0', position: 'relative', cursor: 'grab', overflow: 'hidden', transition: 'background-color 140ms ease, border-color 140ms ease' };
-const TAB_SELECT_STYLE: React.CSSProperties = { display: 'flex', alignItems: 'center', minWidth: 0, height: '100%', flex: 1, padding: '0 2px 0 7px', border: 'none', background: 'transparent', font: `500 10px ${MONO}`, cursor: 'inherit', transition: 'color 140ms ease', textAlign: 'left' };
-const TAB_LABEL_STYLE: React.CSSProperties = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: '13px' };
-const TAB_CHIP_STYLE: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', flex: 'none', maxWidth: 98, height: 16, padding: '0 5px', marginRight: 6, borderRadius: 5, font: `600 9px ${MONO}`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
-const TAB_CHIP_FORWARD_STYLE: React.CSSProperties = { ...TAB_CHIP_STYLE, background: 'var(--proto-accent-bg)', color: 'var(--proto-accent)' };
-const TAB_CHIP_PLAIN_STYLE: React.CSSProperties = { ...TAB_CHIP_STYLE, border: '1px solid var(--proto-line)', color: 'var(--proto-muted-2)' };
 const ADDRESS_FIELD_STYLE: React.CSSProperties = { flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, height: 26, padding: '0 8px', borderRadius: 7, border: '1px solid var(--proto-line)', background: 'var(--proto-gray)' };
 const ADDRESS_BADGE_STYLE: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none', maxWidth: '45%', height: 16, padding: '0 6px', borderRadius: 5, background: 'var(--proto-accent-bg)', color: 'var(--proto-accent)', font: `600 9px ${MONO}`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
-const TAB_CLOSE_STYLE: React.CSSProperties = { width: 24, height: '100%', flex: 'none', border: 'none', background: 'transparent', color: 'var(--proto-muted-2)', font: `500 13px ${MONO}`, lineHeight: 1, cursor: 'pointer', padding: 0 };
 const SMALL_BUTTON: React.CSSProperties = { width: 26, height: 26, flex: 'none', borderRadius: 7, border: '1px solid var(--proto-line)', background: 'var(--proto-card)', color: 'var(--proto-muted)', font: `500 13px ${MONO}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 };
 const SELECT_STYLE: React.CSSProperties = { height: 26, borderRadius: 7, border: '1px solid var(--proto-line)', background: 'var(--proto-card)', color: 'var(--proto-muted)', font: `500 10.5px ${MONO}`, cursor: 'pointer' };
 const PORT_BUTTON: React.CSSProperties = { height: 26, flex: 'none', padding: '0 8px', borderRadius: 7, font: `600 10.5px ${MONO}`, cursor: 'pointer' };

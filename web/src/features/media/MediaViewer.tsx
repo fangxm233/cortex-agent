@@ -1,11 +1,11 @@
-// input:  image/video items, source/download/zoom hooks, and pinned-preview state
+// input:  image/video items, source/download/zoom hooks, and dock state
 // output: media-viewer context plus mounted full-screen preview behavior
 // pos:    shared desktop/mobile modal; Lightbox chrome stays module-internal
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useBackDismiss } from '@/mobile/use-back-dismiss';
-import { usePinnedPreview } from './PinnedPreviewProvider';
+import { useDock } from '@/features/dock/DockProvider';
 import { useDownloadFile } from './useDownloadFile';
 import { useMediaSrc } from './useMediaSrc';
 import { useZoom } from './useZoom';
@@ -18,9 +18,9 @@ import type { MediaKind } from './media-kind';
 // and opened from anywhere via `useMediaViewer().openMedia(item)`.
 //
 // The modal is the DEFAULT mode. Where a dock host exists (the desktop workbench — see
-// `PinnedPreviewProvider`), the lightbox also offers ◧ "pin": the preview leaves the modal and docks
-// to the right of the chat, and from then on `openMedia` swaps the docked pane's content instead of
-// raising this modal. Unpinning (the pane's ×) restores the modal mode.
+// `features/dock`), the lightbox also offers ◧: the preview leaves the modal and opens as a TAB in
+// the dock beside the chat, and from then on `openMedia` opens (or focuses) a tab instead of raising
+// this modal. Closing the dock (its ×) restores the modal mode.
 
 export interface MediaItem {
   kind: MediaKind;
@@ -215,24 +215,24 @@ function Lightbox({ item, onClose, onPin }: { item: MediaItem; onClose: () => vo
 
 export function MediaViewerProvider({ children }: { children: ReactNode }): JSX.Element {
   const [item, setItem] = useState<MediaItem | null>(null);
-  const pinnedPreview = usePinnedPreview();
-  // While a docked preview is active, a preview click swaps the pane's content — no modal.
+  const dock = useDock();
+  // While the dock is open, a preview click opens (or focuses) its tab — no modal.
   const openMedia = useCallback(
     (next: MediaItem) => {
-      if (pinnedPreview.active) {
-        pinnedPreview.show(next);
+      if (dock.active) {
+        dock.openFile(next);
         return;
       }
       setItem(next);
     },
-    [pinnedPreview],
+    [dock],
   );
   const close = useCallback(() => setItem(null), []);
   const value = useMemo(() => ({ openMedia, close }), [openMedia, close]);
-  // Pinning hands the open item over to the docked pane and dismisses the modal.
-  const onPin = pinnedPreview.canPin
+  // Docking hands the open item over to a dock tab and dismisses the modal.
+  const onPin = dock.canDock
     ? () => {
-        pinnedPreview.pin(item);
+        if (item) dock.openFile(item);
         setItem(null);
       }
     : undefined;

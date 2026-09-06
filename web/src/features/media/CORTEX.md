@@ -2,7 +2,7 @@ Please update me when files in this folder change
 
 In-app previewers for attachments on desktop and mobile: image and video lightbox, PDF and text document modal,
 and the sandboxed frame that renders agent-authored HTML views.
-Non-previewable types fall back to an authenticated download; also owns the docked pinned-preview pane.
+Non-previewable types fall back to an authenticated download; the docked pane itself lives in `features/dock`.
 
 | filename | role | function |
 |---|---|---|
@@ -12,11 +12,6 @@ Non-previewable types fall back to an authenticated download; also owns the dock
 | html-sandbox.ts | core | Sandbox tokens, injected CSP, srcdoc wrapper and frame protocol |
 | html-sandbox.test.ts | test | Pins the view isolation boundary and the wrapper |
 | useViewHeight.ts | hook | Content height a view frame reports, source-checked |
-| PinnedPreviewProvider.tsx | provider | Holds pinned split-preview state and dock gating |
-| PinnedPreviewPane.tsx | view | Hosts dock content and keeps browser tabs alive |
-| PinnedPreviewPane.test.tsx | test | Tests browser lifetime in the themed dock |
-| pinned-preview.ts | core | Parses pin state and routes preview items (file or web) |
-| pinned-preview.test.ts | test | Unit tests for the pinned preview model |
 | media-kind.ts | util | Maps an attachment type to image, video or none |
 | doc-kind.ts | util | Classifies a name or attachment as pdf, text, html or none |
 | doc-kind.test.ts | test | Unit tests for the document kind classifier |

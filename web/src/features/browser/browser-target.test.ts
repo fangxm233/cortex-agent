@@ -1,23 +1,18 @@
 // input:  browser URL, history, title and forward helpers
-// output: regressions for guards, history and tab identity
-// pos:    Unit tests for the browser workspace model
+// output: regressions for guards, history and one tab's identity
+// pos:    Unit tests for the single web tab model
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import {
   EMPTY_HISTORY,
   WEB_SANDBOX,
-  activeBrowserTab,
-  addBrowserTab,
   applyBrowserTitle,
   browserItemName,
   browserTabChip,
   browserTabForwardSource,
   browserTabLabel,
-  closeBrowserTab,
   createBrowserTab,
-  createBrowserTabs,
-  selectBrowserTab,
-  updateBrowserTab,
+  isBlankWebTab,
   canGoBack,
   canGoForward,
   currentUrl,
@@ -26,7 +21,6 @@ import {
   normalizeBrowserUrl,
   previewOriginConflict,
   pushHistory,
-  reorderBrowserTabs,
   frameRefusedEmbedding,
   FRAME_REFUSED_HINT,
 } from './browser-target';
@@ -146,12 +140,13 @@ describe('browserItemName', () => {
 });
 
 describe('browser tabs', () => {
-  it('creates one blank active tab', () => {
-    const state = createBrowserTabs('tab-a');
-    expect(state.activeId).toBe('tab-a');
-    expect(state.tabs).toEqual([createBrowserTab('tab-a')]);
-    expect(currentUrl(activeBrowserTab(state).history)).toBeNull();
-    expect(activeBrowserTab(state)).toMatchObject({ pageTitle: null, titleTimeOrigin: 0, documentGeneration: 0, forward: null });
+  it('creates a blank tab that reads as a dock tab of kind web', () => {
+    const tab = createBrowserTab('tab-a');
+    expect(tab.kind).toBe('web');
+    expect(isBlankWebTab(tab)).toBe(true);
+    expect(currentUrl(tab.history)).toBeNull();
+    expect(tab).toMatchObject({ pageTitle: null, titleTimeOrigin: 0, documentGeneration: 0, forward: null });
+    expect(isBlankWebTab({ ...tab, history: pushHistory(tab.history, 'http://127.0.0.1:5173/') })).toBe(false);
   });
 
   it('keeps the page title and forwarded source as separate tab labels', () => {
@@ -220,73 +215,6 @@ describe('browser tabs', () => {
     expect(applyBrowserTitle(newest, 'Wrong document', 1000, 'update')).toBe(newest);
   });
 
-  it('keeps every tab pane state independent', () => {
-    let state = createBrowserTabs('tab-a');
-    state = updateBrowserTab(state, 'tab-a', (tab) => ({
-      ...tab,
-      history: pushHistory(tab.history, 'http://a/'),
-      draft: 'draft-a',
-      viewportId: 'phone',
-      reloadNonce: 2,
-      rejected: 'error-a',
-      refused: true,
-    }));
-    state = addBrowserTab(state, createBrowserTab('tab-b'));
-    state = updateBrowserTab(state, 'tab-b', (tab) => ({
-      ...tab,
-      history: pushHistory(tab.history, 'http://b/'),
-      draft: 'draft-b',
-      viewportId: 'desktop',
-    }));
-
-    const a = state.tabs.find((tab) => tab.id === 'tab-a');
-    const b = state.tabs.find((tab) => tab.id === 'tab-b');
-    expect(a).toMatchObject({ draft: 'draft-a', viewportId: 'phone', reloadNonce: 2, rejected: 'error-a', refused: true });
-    expect(currentUrl(a!.history)).toBe('http://a/');
-    expect(b).toMatchObject({ draft: 'draft-b', viewportId: 'desktop', reloadNonce: 0, rejected: null, refused: false });
-    expect(currentUrl(b!.history)).toBe('http://b/');
-  });
-
-  it('selects tabs without changing their contents', () => {
-    const original = addBrowserTab(createBrowserTabs('tab-a'), createBrowserTab('tab-b'));
-    const selected = selectBrowserTab(original, 'tab-a');
-    expect(selected.activeId).toBe('tab-a');
-    expect(selected.tabs).toBe(original.tabs);
-  });
-
-  it('reorders tabs without changing active or per-tab state', () => {
-    let state = addBrowserTab(createBrowserTabs('tab-a'), createBrowserTab('tab-b'));
-    state = addBrowserTab(state, createBrowserTab('tab-c'));
-    const originalTabs = [...state.tabs];
-
-    const reordered = reorderBrowserTabs(state, ['tab-c', 'tab-a', 'tab-b']);
-
-    expect(reordered.activeId).toBe('tab-c');
-    expect(reordered.tabs.map((tab) => tab.id)).toEqual(['tab-c', 'tab-a', 'tab-b']);
-    expect(reordered.tabs).toEqual([originalTabs[2], originalTabs[0], originalTabs[1]]);
-    expect(reordered.tabs[0]).toBe(originalTabs[2]);
-  });
-
-  it('ignores invalid tab reorder permutations', () => {
-    const state = addBrowserTab(createBrowserTabs('tab-a'), createBrowserTab('tab-b'));
-    expect(reorderBrowserTabs(state, ['tab-a'])).toBe(state);
-    expect(reorderBrowserTabs(state, ['tab-a', 'tab-a'])).toBe(state);
-    expect(reorderBrowserTabs(state, ['tab-a', 'tab-c'])).toBe(state);
-  });
-
-  it('selects an adjacent tab after close and replaces the final tab with blank', () => {
-    let state = addBrowserTab(createBrowserTabs('tab-a'), createBrowserTab('tab-b'));
-    state = addBrowserTab(state, createBrowserTab('tab-c'));
-    state = selectBrowserTab(state, 'tab-b');
-    state = closeBrowserTab(state, 'tab-b', createBrowserTab('unused'));
-    expect(state.activeId).toBe('tab-c');
-    expect(state.tabs.map((tab) => tab.id)).toEqual(['tab-a', 'tab-c']);
-
-    state = closeBrowserTab(selectBrowserTab(state, 'tab-a'), 'tab-a', createBrowserTab('unused-2'));
-    expect(state.activeId).toBe('tab-c');
-    state = closeBrowserTab(state, 'tab-c', createBrowserTab('tab-new'));
-    expect(state).toEqual(createBrowserTabs('tab-new'));
-  });
 });
 
 describe('frameRefusedEmbedding', () => {

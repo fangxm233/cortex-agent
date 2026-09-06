@@ -10,7 +10,7 @@ import { useDownloadFile } from './useDownloadFile';
 import { useZoom } from './useZoom';
 import { authHeaders } from '@/lib/desktop-config';
 import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
-import { usePinnedPreview } from './PinnedPreviewProvider';
+import { useDock } from '@/features/dock/DockProvider';
 import { isMarkdownName, type DocKind } from './doc-kind';
 import { HtmlBody } from './HtmlBody';
 import { clampPage, pageAtScroll, parseJump, type PageBox } from './pdf-pager';
@@ -22,6 +22,10 @@ import { clampPage, pageAtScroll, parseJump, type PageBox } from './pdf-pager';
 // - pdf: pdf.js renders each page to a <canvas> (reliable in webkit2gtk / Android System WebView, which
 //   have NO built-in PDF viewer — an <iframe src=blob:pdf> would silently blank there).
 // One instance is mounted per shell (AppShell / MobileShell) and opened via useDocViewer().openDoc(item).
+//
+// The modal is the DEFAULT mode. Where a dock host exists (the desktop workbench — see
+// `features/dock`), the modal also offers ◧: the document leaves the modal and opens as a TAB in the
+// dock beside the chat, and from then on `openDoc` opens (or focuses) a tab instead of a modal.
 
 const TEXT_PREVIEW_LIMIT = 2 * 1024 * 1024; // 2 MB — beyond this, prompt to download instead.
 const mono = "'IBM Plex Mono',monospace";
@@ -43,7 +47,7 @@ interface DocViewerContextValue {
 const DocViewerContext = createContext<DocViewerContextValue>({ openDoc: () => {}, close: () => {} });
 
 /** Text/Markdown body — fetch the file's text (authenticated) and render it.
- *  Exported so the docked `PinnedPreviewPanel` renders the SAME document body as this modal. */
+ *  Exported so the dock's `DockFileBody` renders the SAME document body as this modal. */
 export function TextBody({ item }: { item: DocItem }): JSX.Element {
   const [text, setText] = useState<string | null>(null);
   const [state, setState] = useState<'loading' | 'ok' | 'toolarge' | 'failed'>('loading');
@@ -95,7 +99,7 @@ export function TextBody({ item }: { item: DocItem }): JSX.Element {
 
 /** PDF body — pdf.js renders each page to a canvas. Loads pdf.js lazily on first PDF open.
  *  A page pager (counter + prev/next + jump-to-page) tracks the page under the viewport center.
- *  Exported so the docked `PinnedPreviewPanel` renders the SAME document body as this modal. */
+ *  Exported so the dock's `DockFileBody` renders the SAME document body as this modal. */
 export function PdfBody({ item }: { item: DocItem }): JSX.Element {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -422,24 +426,24 @@ const btnStyle: React.CSSProperties = {
 
 export function DocViewerProvider({ children }: { children: ReactNode }): JSX.Element {
   const [item, setItem] = useState<DocItem | null>(null);
-  const pinnedPreview = usePinnedPreview();
-  // While a docked preview is active, opening a document swaps the pane's content — no modal.
+  const dock = useDock();
+  // While the dock is open, opening a document opens (or focuses) its tab — no modal.
   const openDoc = useCallback(
     (next: DocItem) => {
-      if (pinnedPreview.active) {
-        pinnedPreview.show(next);
+      if (dock.active) {
+        dock.openFile(next);
         return;
       }
       setItem(next);
     },
-    [pinnedPreview],
+    [dock],
   );
   const close = useCallback(() => setItem(null), []);
   const value = useMemo(() => ({ openDoc, close }), [openDoc, close]);
-  // Pinning hands the open document over to the docked pane and dismisses the modal.
-  const onPin = pinnedPreview.canPin
+  // Docking hands the open document over to a dock tab and dismisses the modal.
+  const onPin = dock.canDock
     ? () => {
-        pinnedPreview.pin(item);
+        if (item) dock.openFile(item);
         setItem(null);
       }
     : undefined;
