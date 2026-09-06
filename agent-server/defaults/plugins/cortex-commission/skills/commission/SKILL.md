@@ -1,18 +1,10 @@
 ---
 name: commission
 description: "How to work inside a commission — a contract-anchored long task. Loaded whenever this session is in commission mode. Covers maintenance: ledger entries, surprise triage, checkpoint discipline, gates. Creating a commission is not covered here — that protocol lives in the cortex_commission_start tool."
-author: Cortex
-version: 3.1.0
-allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
-  - Grep
-  - Glob
-  - mcp__cortex-core__cortex_context
-  - mcp__cortex-core__cortex_ask_user
-  - mcp__cortex-core__send_decision
+allowed-tools: Read, Write, Edit, Bash, Grep, Glob, mcp__cortex-core__cortex_context, mcp__cortex-core__cortex_ask_user, mcp__cortex-core__send_decision
+metadata:
+  author: "Cortex"
+  version: "3.1.0"
 ---
 
 # Working inside a commission

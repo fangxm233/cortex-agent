@@ -1,15 +1,9 @@
 ---
 name: reorient
 description: "Use when a project undergoes a direction change — reorientation, scope redefine, approach revert, or major pivot. This skill ensures that ALL context files are updated consistently, not just the obvious ones. Invoke this skill proactively whenever you find yourself changing a project's current phase in STATUS.md, redefining milestones in roadmap.md, deprecating experiments, or reverting an approach. Also use when the user says 'pivot', 'redefine scope', 'revert approach', 'change direction', or 'direction has changed'. The reason this skill exists: context files must be consistent because each session starts fresh with no memory. If you update STATUS.md but forget to update mission.md, CORTEX.md index, or existing TASKS entries, the next session will execute based on stale information — potentially wasting hours of GPU time on the wrong configuration."
-allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
-  - Grep
-  - Glob
-  - Agent
-argument-hint: "<project-name>"
+allowed-tools: Read, Write, Edit, Bash, Grep, Glob, Agent
+metadata:
+  argument-hint: "<project-name>"
 ---
 
 # Reorient

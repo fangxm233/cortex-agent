@@ -1,8 +1,9 @@
 ---
 name: code-standards
 description: "Use when writing, editing, refactoring, or reviewing code, or when creating CORTEX.md index files for code directories"
-author: Cortex
-version: 2.0.0
+metadata:
+  author: "Cortex"
+  version: "2.0.0"
 ---
 
 # Code Standards

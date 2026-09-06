@@ -1,11 +1,7 @@
 ---
 name: manager-method
 description: "Use when a Manager owns a composite task node and must (Phase A) decompose it into children or (Phase B) verify, accept, or rework a finished/blocked child. Covers judging decomposability, mapping seams before cutting, the Cut-at-the-Seam decomposition rules, template selection by residual reasoning, the per-child self-audit gate, acceptance-before-trust verification (incl. independent verifier children), and the pass/fail/blocked/direction-wrong branch logic plus rework discipline. Invoke when decomposing in Phase A and when handling a failed or blocked child in Phase B. This skill is control-protocol-neutral — the exact suspend/wait/complete mechanism lives in your directive."
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
-  - Bash
+allowed-tools: Read, Grep, Glob, Bash
 ---
 
 # /manager-method — Decomposition & Acceptance Methodology

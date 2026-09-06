@@ -1,10 +1,7 @@
 ---
 name: director-method
 description: "Use when a Director (or any gate role) is synthesizing a Proceed / Iterate / Pivot / Abort verdict for a stage or milestone gate. Covers the fact-vs-assumption labeling method, the Done Guard completion walk-through (walk every roadmap criterion before Proceed), the verdict-synthesis procedure, and the drift patterns to avoid. Invoke before writing any verdict; complete the Done Guard before writing Proceed."
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
+allowed-tools: Read, Grep, Glob
 ---
 
 # /director-method — Verdict Synthesis Methodology

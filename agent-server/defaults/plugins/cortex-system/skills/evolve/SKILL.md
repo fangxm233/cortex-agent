@@ -1,17 +1,11 @@
 ---
 name: evolve
 description: "Use when Cortex needs a self-audit of its capabilities, when skill gaps are suspected, or when the last evolve was >7 days ago"
-author: Cortex
-version: 1.0.0
-allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Grep
-  - Glob
-  - Bash
-  - Agent
-date: 2026-02-28
+allowed-tools: Read, Write, Edit, Grep, Glob, Bash, Agent
+metadata:
+  author: "Cortex"
+  version: "1.0.0"
+  date: "2026-02-28"
 ---
 
 # Evolve

@@ -1,14 +1,9 @@
 ---
 name: develop
 description: "Use when implementing features, fixing bugs, or modifying code. Guides scoped implementation, risk-based testing, verification, and handoff."
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
-  - Edit
-  - Write
-  - Bash
-argument-hint: "[feature description] or [fix <bug description>]"
+allowed-tools: Read, Grep, Glob, Edit, Write, Bash
+metadata:
+  argument-hint: "[feature description] or [fix <bug description>]"
 ---
 
 # /develop <task>

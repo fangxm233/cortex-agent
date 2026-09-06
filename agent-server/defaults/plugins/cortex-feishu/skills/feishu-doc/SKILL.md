@@ -1,14 +1,11 @@
 ---
 name: feishu-doc
 description: "Use when creating, reading, or editing Feishu/Lark cloud documents (docx/wiki), especially inserting or batch-updating native tables, callouts, whiteboards, or other rich blocks, or converting markdown ↔ Feishu docs. Also use for Feishu spreadsheets (sheets) and multi-dimensional tables (bitable/base). Cortex drives all Feishu rich-text work through the official lark-cli — NOT through MCP tools (the docx MCP was removed because its table support was structurally weak). Trigger on a feishu.cn/larksuite.com docx/wiki/sheets/base URL or token, or any request to write/update a Feishu document."
-author: Cortex
-version: 1.0.0
-allowed-tools:
-  - Bash
-  - Read
-  - Write
-  - Edit
-date: 2026-06-23
+allowed-tools: Bash, Read, Write, Edit
+metadata:
+  author: "Cortex"
+  version: "1.0.0"
+  date: "2026-06-23"
 ---
 
 # feishu-doc — Feishu rich-text via the official lark-cli

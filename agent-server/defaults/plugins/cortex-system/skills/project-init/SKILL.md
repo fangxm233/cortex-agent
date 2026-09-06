@@ -1,17 +1,11 @@
 ---
 name: project-init
 description: "Use when onboarding a new project into Cortex's tracking system, or when asked to initialize or set up context for a project"
-author: Cortex
-version: 2.0.0
-allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
-  - Grep
-  - Glob
-  - Agent
-date: 2026-03-05
+allowed-tools: Read, Write, Edit, Bash, Grep, Glob, Agent
+metadata:
+  author: "Cortex"
+  version: "2.0.0"
+  date: "2026-03-05"
 ---
 
 # Project Init

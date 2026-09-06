@@ -1,15 +1,11 @@
 ---
 name: user-learn
 description: "Use when the user states a personal preference, communication style, or working habit that should persist across sessions. Also trigger when /feedback identifies a user-personal directive or tuning request. Examples: 'speak Chinese', 'no emoji', 'I prefer bullet points', 'call me X'."
-author: Cortex
-version: 1.0.0
-allowed-tools:
-  - Read
-  - Edit
-  - Bash
-  - Grep
-  - Glob
-date: 2026-04-27
+allowed-tools: Read, Edit, Bash, Grep, Glob
+metadata:
+  author: "Cortex"
+  version: "1.0.0"
+  date: "2026-04-27"
 ---
 
 # User-Learn

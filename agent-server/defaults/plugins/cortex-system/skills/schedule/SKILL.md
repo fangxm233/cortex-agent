@@ -1,21 +1,11 @@
 ---
 name: schedule
 description: "Use when create, list, or manage scheduled or recurring tasks"
-author: Cortex
-version: 1.1.0
-allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
-  - mcp__cortex__cortex_context
-  - mcp__cortex__cortex_schedule_add
-  - mcp__cortex__cortex_schedule_list
-  - mcp__cortex__cortex_schedule_get
-  - mcp__cortex__cortex_schedule_remove
-  - mcp__cortex__cortex_schedule_pause
-  - mcp__cortex__cortex_schedule_resume
-date: 2026-04-27
+allowed-tools: Read, Write, Edit, Bash, mcp__cortex__cortex_context, mcp__cortex__cortex_schedule_add, mcp__cortex__cortex_schedule_list, mcp__cortex__cortex_schedule_get, mcp__cortex__cortex_schedule_remove, mcp__cortex__cortex_schedule_pause, mcp__cortex__cortex_schedule_resume
+metadata:
+  author: "Cortex"
+  version: "1.1.0"
+  date: "2026-04-27"
 ---
 
 # Schedule

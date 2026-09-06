@@ -1,9 +1,10 @@
 ---
 name: cli-standards
 description: "Use when designing, implementing, reviewing, or auditing CLI tools. Provides 7 mandatory design rules for all Cortex CLIs (TypeScript and Python). Reference this skill from /develop when building CLI features."
-author: Cortex
-version: 1.0.0
-date: 2026-03-29
+metadata:
+  author: "Cortex"
+  version: "1.0.0"
+  date: "2026-03-29"
 ---
 
 # CLI Standards

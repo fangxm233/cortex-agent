@@ -1,14 +1,11 @@
 ---
 name: task
 description: "MUST Use when adding, editing, querying, or managing cortex tasks — includes the execution-form triage (inline vs Agent-tool subagent vs task vs manager), task creation conventions (format, tagging, decomposition rules). MUST use before using cortex-task CLI."
-author: Cortex
-version: 2.1.2
-allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
-date: 2026-07-31
+allowed-tools: Read, Write, Edit, Bash
+metadata:
+  author: "Cortex"
+  version: "2.1.2"
+  date: "2026-07-31"
 ---
 
 # Task

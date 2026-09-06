@@ -1,20 +1,11 @@
 ---
 name: client-manage
 description: "Use when creating, deploying, updating, or troubleshooting cortex-client instances on remote devices"
-author: Cortex
-version: 1.4.0
-allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
-  - mcp__cortex-core__remote_bash
-  - mcp__cortex-core__remote_read
-  - mcp__cortex-core__remote_write
-  - mcp__cortex-core__remote_edit
-  - mcp__cortex-core__remote_glob
-  - mcp__cortex-core__remote_grep
-date: 2026-05-03
+allowed-tools: Read, Write, Edit, Bash, mcp__cortex-core__remote_bash, mcp__cortex-core__remote_read, mcp__cortex-core__remote_write, mcp__cortex-core__remote_edit, mcp__cortex-core__remote_glob, mcp__cortex-core__remote_grep
+metadata:
+  author: "Cortex"
+  version: "1.4.0"
+  date: "2026-05-03"
 ---
 
 # Client Manage

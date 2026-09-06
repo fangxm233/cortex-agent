@@ -1,16 +1,11 @@
 ---
 name: thread
 description: "Use when working with the Cortex thread system — understanding thread architecture, writing or modifying thread config (the per-entity JSON files under config/thread-templates/ — agents, templates, shells; plus transitions and hooks fields within templates), debugging thread execution, or when the user asks about multi-agent pipelines, agent orchestration, or the !thread command. Also trigger when modifying prompts/directives/, prompts/systemPrompts/, or prompts/promptTemplates/ files that feed into threads."
-author: Cortex
-version: 1.0.1
-allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
-  - Grep
-  - Glob
-date: 2026-07-28
+allowed-tools: Read, Write, Edit, Bash, Grep, Glob
+metadata:
+  author: "Cortex"
+  version: "1.0.1"
+  date: "2026-07-28"
 ---
 
 # Thread System

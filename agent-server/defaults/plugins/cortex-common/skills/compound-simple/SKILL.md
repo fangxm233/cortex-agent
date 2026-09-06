@@ -1,13 +1,7 @@
 ---
 name: compound-simple
 description: "Use when completing a task and need lightweight post-task reflection"
-allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
-  - Grep
-  - Glob
+allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
 # compound-simple

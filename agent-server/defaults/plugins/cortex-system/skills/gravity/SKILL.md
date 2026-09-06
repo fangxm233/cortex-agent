@@ -1,11 +1,9 @@
 ---
 name: gravity
 description: "Use when a manual fix or workaround keeps recurring and might need to be formalized into a convention, skill, or code"
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
-argument-hint: "[pattern description or 'scan']"
+allowed-tools: Read, Grep, Glob
+metadata:
+  argument-hint: "[pattern description or 'scan']"
 ---
 
 # /gravity <pattern description or "scan">

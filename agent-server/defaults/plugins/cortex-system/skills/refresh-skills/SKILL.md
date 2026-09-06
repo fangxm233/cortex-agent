@@ -1,13 +1,9 @@
 ---
 name: refresh-skills
 description: "Use when skills may be out of date with CORTEX.md conventions, after significant system changes, or for periodic skill health audits"
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
-  - Edit
-  - Write
-argument-hint: "[skill name, 'all', or 'report']"
+allowed-tools: Read, Grep, Glob, Edit, Write
+metadata:
+  argument-hint: "[skill name, 'all', or 'report']"
 ---
 
 # /refresh-skills <target>

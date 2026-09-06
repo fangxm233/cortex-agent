@@ -1,18 +1,11 @@
 ---
 name: feedback
 description: "Use when the user provides feedback, corrections, or critique about Cortex's behavior or capabilities"
-author: Cortex
-version: 2.0.0
-allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Grep
-  - Glob
-  - Bash
-  - WebSearch
-  - WebFetch
-date: 2026-03-10
+allowed-tools: Read, Write, Edit, Grep, Glob, Bash, WebSearch, WebFetch
+metadata:
+  author: "Cortex"
+  version: "2.0.0"
+  date: "2026-03-10"
 ---
 
 # Feedback

@@ -1,13 +1,11 @@
 ---
 name: need-approval
 description: "Use when Cortex is about to perform a potentially high-privilege operation and needs to check whether user approval is required"
-author: Cortex
-version: 1.0.0
-allowed-tools:
-  - Read
-  - Write
-  - Edit
-date: 2026-02-28
+allowed-tools: Read, Write, Edit
+metadata:
+  author: "Cortex"
+  version: "1.0.0"
+  date: "2026-02-28"
 ---
 
 # Need Approval

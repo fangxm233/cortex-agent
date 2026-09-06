@@ -1,11 +1,9 @@
 ---
 name: critique
 description: "Adversarial review of plans, findings, or designs before committing. Use before: multi-file plans, experiment conclusions (experiments/EXP-NNN.md) that others will cite, or architecture changes from /solution-design. Prioritize when irreversible or consumed by fleet workers."
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
-argument-hint: "[file path or description of artifact to review]"
+allowed-tools: Read, Grep, Glob
+metadata:
+  argument-hint: "[file path or description of artifact to review]"
 ---
 
 # /critique <path or description>

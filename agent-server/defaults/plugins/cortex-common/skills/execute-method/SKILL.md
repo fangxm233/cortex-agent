@@ -1,13 +1,7 @@
 ---
 name: execute-method
 description: "Use when producing or updating a document under a project (status updates, digests, decision records, reports, knowledge entries, scoping memos), OR when executing any scoped actionable task (code changes, file edits, config updates, script runs, data processing). Trigger whenever Doc Writer is about to produce a document deliverable, or Executor is about to carry out a scoped work item. Covers the read → produce → index → summarize discipline for both modes."
-allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
-  - Grep
-  - Glob
+allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
 # /execute-method — Production & Execution Methodology

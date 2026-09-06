@@ -1,11 +1,7 @@
 ---
 name: execute-review-rubric
 description: "Use when reviewing or auditing a Doc Writer or Executor deliverable before clearing it. Trigger whenever Doc Reviewer is about to issue a verdict on a document change (status update, digest, decision record, report, knowledge entry), or Executor Reviewer is about to issue a verdict on an executed task (code changes, file edits, config updates, script runs). Covers the per-dimension rubric, the specific-not-generic standard, Blocker vs Nice-to-have, the review procedure, and the drift patterns for both artifact types."
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
-  - Bash
+allowed-tools: Read, Grep, Glob, Bash
 ---
 
 # /execute-review-rubric — Document & Execution Review Rubric

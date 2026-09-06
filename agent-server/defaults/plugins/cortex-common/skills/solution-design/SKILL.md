@@ -1,9 +1,10 @@
 ---
 name: solution-design
 description: "Use before implementing any non-trivial code change — especially when modifying architecture, adding components, or choosing between multiple technical approaches"
-author: Cortex
-version: 1.0.0
-date: 2026-03-06
+metadata:
+  author: "Cortex"
+  version: "1.0.0"
+  date: "2026-03-06"
 ---
 
 # Solution Design Protocol

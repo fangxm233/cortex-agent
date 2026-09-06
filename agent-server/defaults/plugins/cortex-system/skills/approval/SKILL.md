@@ -1,15 +1,11 @@
 ---
 name: approval
 description: "Use when the user wants to review, approve, or reject queued operations"
-author: Cortex
-version: 1.0.0
-allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
-  - Grep
-date: 2026-02-28
+allowed-tools: Read, Write, Edit, Bash, Grep
+metadata:
+  author: "Cortex"
+  version: "1.0.0"
+  date: "2026-02-28"
 ---
 
 # Approval

@@ -1,11 +1,9 @@
 ---
 name: synthesize
 description: "Use when multiple experiments or analyses have accumulated and their findings need to be interpreted together — cross-experiment patterns, contradictions, and gaps"
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
-argument-hint: "[project name, time range, topic, or file paths]"
+allowed-tools: Read, Grep, Glob
+metadata:
+  argument-hint: "[project name, time range, topic, or file paths]"
 ---
 
 # /synthesize <scope>

@@ -1,14 +1,7 @@
 ---
 name: deep-retrospective
 description: Use when reviewing multi-day work across past Claude Code sessions, extracting reusable patterns from historical logs, or asking what was learned about a topic over time.
-allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
-  - Grep
-  - Glob
-  - Agent
+allowed-tools: Read, Write, Edit, Bash, Grep, Glob, Agent
 ---
 
 # Deep Retrospective

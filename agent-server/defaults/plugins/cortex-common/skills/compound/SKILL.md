@@ -1,15 +1,9 @@
 ---
 name: compound
 description: "Use at the end of a work session, or when accumulated findings need to be embedded into conventions, skills, or patterns"
-argument-hint: "[optional: 'fast', 'full', 'deep', or no argument for auto-detect]"
-allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash
-  - Grep
-  - Glob
-  - Agent
+allowed-tools: Read, Write, Edit, Bash, Grep, Glob, Agent
+metadata:
+  argument-hint: "[optional: 'fast', 'full', 'deep', or no argument for auto-detect]"
 ---
 
 # /compound [tier]

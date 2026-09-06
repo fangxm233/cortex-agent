@@ -1,11 +1,9 @@
 ---
 name: postmortem
 description: "Use when an agent or pipeline produced a flawed output that was presented as correct — the question is 'why wasn't this caught?'"
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
-argument-hint: "[file path, log entry, or description of the failure]"
+allowed-tools: Read, Grep, Glob
+metadata:
+  argument-hint: "[file path, log entry, or description of the failure]"
 ---
 
 # /postmortem <path or failure description>

@@ -1,12 +1,9 @@
 ---
 name: diagnose
 description: "Use when experimental results are unexpected, confusing, or need interpretation — error patterns, root-cause hypotheses, validity assessment"
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
-  - Bash
-argument-hint: "[results path, experiment ID, or description of what to examine]"
+allowed-tools: Read, Grep, Glob, Bash
+metadata:
+  argument-hint: "[results path, experiment ID, or description of what to examine]"
 ---
 
 # /diagnose <results path or description>

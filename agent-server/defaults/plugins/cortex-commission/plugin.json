@@ -1,0 +1,6 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "cortex-commission",
+  "version": "0.3.0",
+  "description": "Commission mode skill bundle — how to work inside a contract-anchored long task: ledger entries, surprise triage, checkpoint discipline. Loaded only for sessions in commission mode. Creating a commission is not covered here; that protocol lives in the cortex_commission_start tool."
+}

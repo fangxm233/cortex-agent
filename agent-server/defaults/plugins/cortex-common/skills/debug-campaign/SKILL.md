@@ -1,8 +1,9 @@
 ---
 name: debug-campaign
 description: "Use when debugging multi-round issues on pipelines, services, or complex systems, when a fix-test cycle has gone through 3+ iterations without convergence, or when encountering bugs that resist simple fixes"
-author: Cortex
-version: 2.0.0
+metadata:
+  author: "Cortex"
+  version: "2.0.0"
 ---
 
 # Debug Campaign Protocol
