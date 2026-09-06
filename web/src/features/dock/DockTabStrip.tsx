@@ -15,9 +15,13 @@ import {
 import { attachmentFileExt } from '@/features/workbench/attachment-presentation';
 import { dockTabLabel, isFileTab, type DockState, type DockTab } from './dock-tabs';
 
-// The strip is 50px tall so it lines up with the chat header across the divider, and its tabs hang
-// off the bottom edge: the active tab's own bottom border is painted in the body colour and pulled
-// 1px down over the strip's rule, which is what makes it read as continuous with its body.
+// The strip is 50px tall so it lines up with the chat header across the divider, and its tabs sit
+// flush on its bottom edge: the active tab is painted in the body colour, bottom border included,
+// so it reads as continuous with the body beneath it while the others stay closed chips.
+//
+// The scroller pins `overflowY: hidden` on purpose. `overflow-x: auto` alone makes the used value of
+// `overflow-y` `auto` as well, and then anything that reaches the strip's bottom edge — a tab, or a
+// tab momentarily scaled up by a drag — raises a vertical scrollbar over the chrome.
 
 const MONO = "'IBM Plex Mono',monospace";
 
@@ -161,10 +165,10 @@ function motionReduction(mode: MotionMode): 'always' | 'never' | 'user' {
   return 'user';
 }
 
-const STRIP_ROW_STYLE: CSSProperties = { height: 50, flex: 'none', display: 'flex', alignItems: 'stretch', background: 'var(--proto-gray)', borderBottom: '1px solid var(--proto-line)' };
-const STRIP_SCROLL_STYLE: CSSProperties = { flex: 1, minWidth: 0, display: 'flex', alignItems: 'flex-end', gap: 3, padding: '0 0 0 8px', overflowX: 'auto', position: 'relative' };
+const STRIP_ROW_STYLE: CSSProperties = { height: 50, flex: 'none', display: 'flex', alignItems: 'stretch', background: 'var(--proto-gray)' };
+const STRIP_SCROLL_STYLE: CSSProperties = { flex: 1, minWidth: 0, display: 'flex', alignItems: 'flex-end', gap: 3, padding: '0 0 0 8px', overflowX: 'auto', overflowY: 'hidden', position: 'relative' };
 const ACTIONS_STYLE: CSSProperties = { flex: 'none', display: 'flex', alignItems: 'center', gap: 6, padding: '0 10px' };
-const TAB_ITEM_STYLE: CSSProperties = { display: 'flex', alignItems: 'center', flex: 'none', minWidth: 96, maxWidth: 210, height: 34, marginBottom: -1, border: '1px solid var(--proto-line)', borderRadius: '7px 7px 0 0', position: 'relative', cursor: 'grab', overflow: 'hidden', transition: 'background-color 140ms ease, border-color 140ms ease' };
+const TAB_ITEM_STYLE: CSSProperties = { display: 'flex', alignItems: 'center', flex: 'none', minWidth: 96, maxWidth: 210, height: 35, border: '1px solid var(--proto-line)', borderRadius: '7px 7px 0 0', position: 'relative', cursor: 'grab', overflow: 'hidden', transition: 'background-color 140ms ease, border-color 140ms ease' };
 const TAB_SELECT_STYLE: CSSProperties = { display: 'flex', alignItems: 'center', minWidth: 0, height: '100%', flex: 1, padding: '0 2px 0 7px', border: 'none', background: 'transparent', font: `500 10px ${MONO}`, cursor: 'inherit', transition: 'color 140ms ease', textAlign: 'left' };
 const TAB_LABEL_STYLE: CSSProperties = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: '13px' };
 const TAB_CHIP_STYLE: CSSProperties = { display: 'inline-flex', alignItems: 'center', flex: 'none', maxWidth: 98, height: 16, padding: '0 5px', marginRight: 6, borderRadius: 5, font: `600 9px ${MONO}`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
