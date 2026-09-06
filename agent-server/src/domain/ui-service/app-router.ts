@@ -88,6 +88,16 @@ import {
   skillsListInput,
   pluginsListInput,
   pluginsAssignInput,
+  pluginsSkillFileInput,
+  pluginsSkillWriteInput,
+  pluginsSkillCreateInput,
+  pluginsSkillMoveInput,
+  pluginsSkillRemoveInput,
+  pluginsCreateInput,
+  pluginsRemoveInput,
+  pluginsConvertInput,
+  pluginsMcpReadInput,
+  pluginsMcpWriteInput,
   threadTemplatesGetInput,
   threadTemplatesDetailInput,
   threadTemplatesValidateInput,
@@ -386,6 +396,16 @@ function pluginsRouter(service: UiService) {
   return router({
     list: makeQuery(service, 'plugins.list', pluginsListInput),
     assign: makeMutation(service, 'plugins.assign', pluginsAssignInput),
+    skillFile: makeQuery(service, 'plugins.skillFile', pluginsSkillFileInput),
+    skillWrite: makeMutation(service, 'plugins.skillWrite', pluginsSkillWriteInput),
+    skillCreate: makeMutation(service, 'plugins.skillCreate', pluginsSkillCreateInput),
+    skillMove: makeMutation(service, 'plugins.skillMove', pluginsSkillMoveInput),
+    skillRemove: makeMutation(service, 'plugins.skillRemove', pluginsSkillRemoveInput),
+    create: makeMutation(service, 'plugins.create', pluginsCreateInput),
+    remove: makeMutation(service, 'plugins.remove', pluginsRemoveInput),
+    convertToPortable: makeMutation(service, 'plugins.convertToPortable', pluginsConvertInput),
+    mcpRead: makeQuery(service, 'plugins.mcpRead', pluginsMcpReadInput),
+    mcpWrite: makeMutation(service, 'plugins.mcpWrite', pluginsMcpWriteInput),
   });
 }
 

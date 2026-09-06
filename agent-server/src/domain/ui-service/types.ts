@@ -129,6 +129,8 @@ export type QueryScope =
   | 'machines.detail'
   | 'skills.list'
   | 'plugins.list'
+  | 'plugins.skillFile'
+  | 'plugins.mcpRead'
   | 'threadTemplates.get'
   | 'threadTemplates.detail'
   | 'system.daemonStatus'
@@ -192,6 +194,14 @@ export type MutateOp =
   | 'profiles.update'
   | 'profiles.remove'
   | 'plugins.assign'
+  | 'plugins.skillWrite'
+  | 'plugins.skillCreate'
+  | 'plugins.skillMove'
+  | 'plugins.skillRemove'
+  | 'plugins.create'
+  | 'plugins.remove'
+  | 'plugins.convertToPortable'
+  | 'plugins.mcpWrite'
   | 'threadTemplates.validate'
   | 'threadTemplates.save'
   | 'threadTemplates.remove'
@@ -1727,6 +1737,11 @@ export interface UiPluginManifest {
 
 export interface UiPluginSkill {
   name: string;
+  /** Frontmatter description, '' when a legacy skill has none. */
+  description: string;
+  /** True when Cortex ships this skill. plugin-sync overwrites every shipped file on the next
+   *  version bump, so an edit here is temporary — the UI has to say so before the edit is made. */
+  managed: boolean;
 }
 
 export interface UiPluginMcpStdioSummary {
@@ -1752,6 +1767,9 @@ export interface UiPluginCatalogEntry {
   scope: 'always' | 'commission' | 'channel';
   /** Channel prefix a 'channel'-scoped plugin requires, e.g. 'feishu:'. */
   scopePrefix?: string;
+  /** 'managed' when Cortex ships this plugin id, so plugin-sync owns its shipped files and can
+   *  refresh them; 'local' when it exists only on this machine and nothing will ever rewrite it. */
+  origin: 'managed' | 'local';
   rootDir: string;
   valid: boolean;
   assignable: boolean;
@@ -1825,6 +1843,114 @@ export interface PluginsAssignArgs {
 export interface PluginsAssignReturn {
   changed: boolean;
   baseHash: string;
+}
+
+// ── plugin authoring DTOs ───────────────────────────────────────────────────
+// The write side of the plugin catalog: SKILL.md editing, skill and plugin lifecycle, and the
+// MCP server form. Every op names its plugin by catalog id; the server re-resolves the path.
+
+export interface PluginsSkillFileParams {
+  pluginId: string;
+  skill: string;
+}
+
+export interface PluginsSkillFile {
+  pluginId: string;
+  skill: string;
+  /** Plugins-root-relative path, for display only. */
+  path: string;
+  content: string;
+  /** Shipped by Cortex: an edit here is reverted at the next plugin version bump. */
+  managed: boolean;
+  baseHash: string;
+}
+
+/** One MCP server as the editor needs it. Unlike the catalog summary this carries the real command,
+ *  args, cwd and url — a form cannot round-trip a value it never received. Secrets stay behind:
+ *  env and header VALUES are never sent, only their key names. */
+export type UiPluginMcpDraft =
+  | { name: string; type: 'stdio'; command: string; args: string[]; cwd?: string; envKeys: string[] }
+  | { name: string; type: 'streamable-http' | 'sse'; url: string; headerKeys: string[] };
+
+export interface PluginsMcpReadParams {
+  pluginId: string;
+}
+
+export interface PluginsMcpRead {
+  pluginId: string;
+  /** False when the plugin is legacy, where mcp.json is never loaded however it is written. */
+  supported: boolean;
+  servers: UiPluginMcpDraft[];
+}
+
+/** Secret maps are patches, not replacements: `null` keeps whatever is on disk under that key, a
+ *  string sets a new value, and an omitted key is dropped. That is what lets the browser edit a
+ *  server without ever having been told its current token. */
+export interface PluginsMcpServerInput {
+  name: string;
+  type: 'stdio' | 'streamable-http' | 'sse';
+  command?: string;
+  args?: string[];
+  cwd?: string;
+  url?: string;
+  env?: Record<string, string | null>;
+  headers?: Record<string, string | null>;
+}
+
+export interface PluginsMcpWriteArgs {
+  pluginId: string;
+  servers: PluginsMcpServerInput[];
+}
+
+export interface PluginsSkillWriteArgs {
+  pluginId: string;
+  skill: string;
+  content: string;
+  baseHash: string;
+}
+
+export interface PluginsSkillWriteReturn {
+  baseHash: string;
+}
+
+export interface PluginsSkillCreateArgs {
+  pluginId: string;
+  skill: string;
+  description: string;
+}
+
+export interface PluginsSkillMoveArgs {
+  pluginId: string;
+  skill: string;
+  toPluginId: string;
+  toSkill: string;
+}
+
+export interface PluginsSkillRemoveArgs {
+  pluginId: string;
+  skill: string;
+}
+
+export interface PluginsSkillReturn {
+  pluginId: string;
+  skill: string;
+}
+
+export interface PluginsCreateArgs {
+  id: string;
+  description?: string;
+}
+
+export interface PluginsRemoveArgs {
+  id: string;
+}
+
+export interface PluginsConvertArgs {
+  id: string;
+}
+
+export interface PluginsPackageReturn {
+  id: string;
 }
 
 // ── memory read-only fs DTOs (DR-0018 §6 Stage-6 memory viewer 7b) ─────────
@@ -2170,6 +2296,8 @@ export interface QueryParamMap {
   'machines.detail': MachineDetailParams;
   'skills.list': SkillsListParams;
   'plugins.list': PluginsListParams;
+  'plugins.skillFile': PluginsSkillFileParams;
+  'plugins.mcpRead': PluginsMcpReadParams;
   'threadTemplates.get': ThreadTemplatesGetParams;
   'threadTemplates.detail': ThreadTemplateDetailParams;
   'system.daemonStatus': SystemDaemonStatusParams;
@@ -2209,6 +2337,8 @@ export interface QueryReturnMap {
   'machines.detail': MachineDetail;
   'skills.list': SkillGroup[];
   'plugins.list': PluginsListReturn;
+  'plugins.skillFile': PluginsSkillFile;
+  'plugins.mcpRead': PluginsMcpRead;
   'threadTemplates.get': ThreadTemplateEntry[];
   'threadTemplates.detail': ThreadTemplateDetail;
   'system.daemonStatus': SystemDaemonStatus;
@@ -2271,6 +2401,14 @@ export interface MutateArgsMap {
   'profiles.update': ProfilesUpdateArgs;
   'profiles.remove': ProfilesRemoveArgs;
   'plugins.assign': PluginsAssignArgs;
+  'plugins.skillWrite': PluginsSkillWriteArgs;
+  'plugins.skillCreate': PluginsSkillCreateArgs;
+  'plugins.skillMove': PluginsSkillMoveArgs;
+  'plugins.skillRemove': PluginsSkillRemoveArgs;
+  'plugins.create': PluginsCreateArgs;
+  'plugins.remove': PluginsRemoveArgs;
+  'plugins.convertToPortable': PluginsConvertArgs;
+  'plugins.mcpWrite': PluginsMcpWriteArgs;
   'threadTemplates.validate': ThreadTemplatesValidateArgs;
   'threadTemplates.save': ThreadTemplatesSaveArgs;
   'threadTemplates.remove': ThreadTemplatesRemoveArgs;
@@ -2334,6 +2472,14 @@ export interface MutateReturnMap {
   'profiles.update': ProfilesUpdateReturn;
   'profiles.remove': ProfilesRemoveReturn;
   'plugins.assign': PluginsAssignReturn;
+  'plugins.skillWrite': PluginsSkillWriteReturn;
+  'plugins.skillCreate': PluginsSkillReturn;
+  'plugins.skillMove': PluginsSkillReturn;
+  'plugins.skillRemove': PluginsSkillReturn;
+  'plugins.create': PluginsPackageReturn;
+  'plugins.remove': PluginsPackageReturn;
+  'plugins.convertToPortable': PluginsPackageReturn;
+  'plugins.mcpWrite': PluginsMcpRead;
   'threadTemplates.validate': ThreadTemplatesValidateReturn;
   'threadTemplates.save': ThreadTemplatesSaveReturn;
   'threadTemplates.remove': ThreadTemplatesRemoveReturn;

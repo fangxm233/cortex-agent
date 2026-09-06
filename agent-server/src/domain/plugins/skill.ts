@@ -140,6 +140,17 @@ function advisoryIssues(name: string, meta: Record<string, unknown>): PluginCata
   return [...shapeIssues(name, meta), ...optionalFieldIssues(name, meta), ...unknownFieldIssues(name, meta)];
 }
 
+/** Legacy discovery does not validate frontmatter, but the description is still worth listing.
+ *  Best effort: an unreadable file or absent frontmatter yields '', never an issue. */
+export function readSkillDescription(filePath: string): string {
+  try {
+    const meta = frontmatter(fs.readFileSync(filePath, 'utf8'));
+    return typeof meta?.description === 'string' ? meta.description.trim() : '';
+  } catch {
+    return '';
+  }
+}
+
 export function loadSkillFile(name: string, filePath: string): SkillLoadResult {
   let text: string;
   try {
@@ -150,5 +161,8 @@ export function loadSkillFile(name: string, filePath: string): SkillLoadResult {
   const meta = frontmatter(text);
   const fatal = fatalIssues(name, meta);
   if (fatal.length > 0 || !meta) return { issues: fatal };
-  return { skill: { name, dir: path.join('skills', name) }, issues: advisoryIssues(name, meta) };
+  return {
+    skill: { name, dir: path.join('skills', name), description: String(meta.description).trim() },
+    issues: advisoryIssues(name, meta),
+  };
 }

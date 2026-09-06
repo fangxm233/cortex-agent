@@ -631,6 +631,61 @@ export const pluginsAssignInput = z.object({
   acknowledgeMcp: z.boolean().optional(),
 });
 
+// plugins.skill* / plugins.create|remove|convertToPortable / plugins.mcp* — the authoring surface.
+// The canonical Agent Skills name is the only accepted shape for both plugin ids and skill names:
+// it is a single path component by construction, so nothing here can address a sibling directory.
+const pluginCanonicalName = z.string().min(1).max(64).regex(/^(?!.*--)[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/);
+const pluginSkillTarget = { pluginId: pluginCanonicalName, skill: pluginCanonicalName };
+
+export const pluginsSkillFileInput = z.object(pluginSkillTarget);
+
+export const pluginsSkillWriteInput = z.object({
+  ...pluginSkillTarget,
+  content: z.string().max(512 * 1024),
+  baseHash: sha256HashInput,
+});
+
+export const pluginsSkillCreateInput = z.object({
+  ...pluginSkillTarget,
+  description: z.string().min(1).max(1024),
+});
+
+export const pluginsSkillMoveInput = z.object({
+  ...pluginSkillTarget,
+  toPluginId: pluginCanonicalName,
+  toSkill: pluginCanonicalName,
+});
+
+export const pluginsSkillRemoveInput = z.object(pluginSkillTarget);
+
+export const pluginsCreateInput = z.object({
+  id: pluginCanonicalName,
+  description: z.string().max(1024).optional(),
+});
+
+export const pluginsRemoveInput = z.object({ id: pluginCanonicalName });
+
+export const pluginsConvertInput = z.object({ id: pluginCanonicalName });
+
+export const pluginsMcpReadInput = z.object({ pluginId: pluginCanonicalName });
+
+/** A `null` secret means "keep what is on disk" — the browser never held the value to send back. */
+const pluginSecretPatch = z.record(z.string().min(1).max(200), z.string().max(4096).nullable());
+
+export const pluginsMcpWriteInput = z.object({
+  pluginId: pluginCanonicalName,
+  servers: z.array(z.object({
+    name: z.string().min(1).max(64).regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/),
+    type: z.enum(['stdio', 'streamable-http', 'sse']),
+    command: z.string().max(1024).optional(),
+    args: z.array(z.string().max(1024)).max(64).optional(),
+    cwd: z.string().max(1024).optional(),
+    url: z.string().max(2048).optional(),
+    env: pluginSecretPatch.optional(),
+    headers: pluginSecretPatch.optional(),
+  })).max(32),
+});
+
 // threadTemplates.detail / validate / save / remove — the thread-template editing surface.
 // The name pattern mirrors template-writer's: the filename IS the entity identity, so anything
 // that could escape the config directory is rejected before it reaches the writer.
@@ -765,6 +820,8 @@ export const queryInputSchemas = {
   'machines.detail': machineDetailInput,
   'skills.list': skillsListInput,
   'plugins.list': pluginsListInput,
+  'plugins.skillFile': pluginsSkillFileInput,
+  'plugins.mcpRead': pluginsMcpReadInput,
   'threadTemplates.get': threadTemplatesGetInput,
   'threadTemplates.detail': threadTemplatesDetailInput,
   'system.daemonStatus': systemDaemonStatusInput,
@@ -827,6 +884,14 @@ export const mutateInputSchemas = {
   'profiles.update': profilesUpdateInput,
   'profiles.remove': profilesRemoveInput,
   'plugins.assign': pluginsAssignInput,
+  'plugins.skillWrite': pluginsSkillWriteInput,
+  'plugins.skillCreate': pluginsSkillCreateInput,
+  'plugins.skillMove': pluginsSkillMoveInput,
+  'plugins.skillRemove': pluginsSkillRemoveInput,
+  'plugins.create': pluginsCreateInput,
+  'plugins.remove': pluginsRemoveInput,
+  'plugins.convertToPortable': pluginsConvertInput,
+  'plugins.mcpWrite': pluginsMcpWriteInput,
   'threadTemplates.validate': threadTemplatesValidateInput,
   'threadTemplates.save': threadTemplatesSaveInput,
   'threadTemplates.remove': threadTemplatesRemoveInput,

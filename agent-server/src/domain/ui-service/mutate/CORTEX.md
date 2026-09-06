@@ -14,6 +14,7 @@ Write side of the UI service — one handler module per domain area the UI is al
 | profiles.ts | mutate | creates, edits and removes profiles.json entries |
 | hooks.ts | mutate | creates, edits, toggles, removes and tests hooks |
 | plugins.ts | mutate | assigns plugins to agents and template slots |
+| plugin-packages.ts | mutate | edits skills, plugin lifecycle and MCP servers |
 | thread-templates.ts | mutate | validates, saves and removes thread-template entities |
 | schedules.ts | mutate | adds, updates, pauses, resumes, removes schedules |
 | commissions.ts | mutate | closes a commission as done or abandoned |

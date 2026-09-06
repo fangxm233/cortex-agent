@@ -20,7 +20,7 @@ import {
   resolveContainedAbsolutePath,
 } from './fs-helpers.js';
 import { loadPortableMcpCatalog } from './mcp.js';
-import { loadSkillFile } from './skill.js';
+import { loadSkillFile, readSkillDescription } from './skill.js';
 import { buildProjectedSkillTree } from './skill-projection.js';
 import type {
   PluginCatalogEntry,
@@ -289,7 +289,12 @@ function loadContainedSkill(
       'SKILL.md must remain inside the plugin root',
     )] };
   }
-  if (format === 'legacy') return { skill: { name, dir: path.join('skills', name) }, issues: [] };
+  if (format === 'legacy') {
+    return {
+      skill: { name, dir: path.join('skills', name), description: readSkillDescription(contained) },
+      issues: [],
+    };
+  }
   return loadPortableContainedSkill(pluginRoot, name, contained);
 }
 

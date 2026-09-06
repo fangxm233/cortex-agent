@@ -5,7 +5,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { DATA_DIR, PLUGINS_DIR } from '@core/paths.js';
+import { DATA_DIR, DEFAULTS_DIR, PLUGINS_DIR } from '@core/paths.js';
 import { CHANNEL_SCOPED_PLUGINS, COMMISSION_SCOPED_PLUGINS } from '@domain/agents/spawn-config.js';
 import { loadPluginCatalog } from '@domain/plugins/catalog.js';
 import type { PluginCatalogEntry } from '@domain/plugins/catalog-types.js';
@@ -127,16 +127,46 @@ function pluginScope(id: string): Pick<UiPluginCatalogEntry, 'scope' | 'scopePre
   return rule ? { scope: 'channel', scopePrefix: rule.channelPrefix } : { scope: 'always' };
 }
 
+function shippedPluginDir(id: string): string {
+  return path.join(DEFAULTS_DIR, 'plugins', id);
+}
+
+function isDirectory(filePath: string): boolean {
+  try {
+    return fs.statSync(filePath).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/** Whether Cortex ships this plugin id. Shipped files are rewritten by plugin-sync on the next
+ *  version bump (`copyPluginTree` walks the source tree), so an edit to one is temporary while an
+ *  edit to a local plugin is permanent. That difference has to reach the operator before they type. */
+export function pluginOrigin(id: string): 'managed' | 'local' {
+  return isDirectory(shippedPluginDir(id)) ? 'managed' : 'local';
+}
+
+/** A skill is managed when the shipped tree has a directory of the same name: plugin-sync copies
+ *  per relative path, so that is exactly the set of skill directories it will overwrite. */
+export function isManagedSkill(pluginId: string, skillName: string): boolean {
+  return isDirectory(path.join(shippedPluginDir(pluginId), 'skills', skillName));
+}
+
 export function sanitizePluginEntry(entry: PluginCatalogEntry): UiPluginCatalogEntry {
   return {
     ...pluginScope(entry.id),
     id: entry.id,
     kind: entry.kind,
+    origin: pluginOrigin(entry.id),
     rootDir: entry.rootDir,
     valid: entry.valid,
     assignable: isAssignable(entry),
     manifest: { ...entry.manifest },
-    skills: entry.skills.map((skill) => ({ name: skill.name })),
+    skills: entry.skills.map((skill) => ({
+      name: skill.name,
+      description: skill.description,
+      managed: isManagedSkill(entry.id, skill.name),
+    })),
     mcp: {
       status: entry.mcp.status,
       servers: entry.mcp.servers.map((server) => safeServerSummary(server)),

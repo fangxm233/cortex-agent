@@ -151,6 +151,7 @@ function plugin(id: string, over: Partial<UiPluginCatalogEntry> = {}): UiPluginC
     id,
     kind: 'portable',
     scope: 'always',
+    origin: 'local',
     rootDir: `plugins/${id}`,
     valid: true,
     assignable: true,

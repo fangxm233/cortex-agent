@@ -39,6 +39,9 @@ export interface PluginCatalogManifest {
 export interface PluginCatalogSkill {
   name: string;
   dir: string;
+  /** The frontmatter `description`, trimmed. Always present: an empty description is fatal, so a
+   *  loaded skill always has one. Carried here so a UI can list skills without re-reading each file. */
+  description: string;
 }
 
 export interface PluginMcpStdioSummary {

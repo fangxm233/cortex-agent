@@ -26,6 +26,7 @@ Handlers return DTOs only and never change state.
 | machine-detail.ts | query | probes one machine and joins its running runs |
 | machine-probe.ts | 工具 | builds and parses the machine telemetry probe |
 | skills.ts | query | lists available skill groups |
+| plugin-source.ts | query | Reads one SKILL.md and the redacted MCP server drafts |
 | plugins.ts | query | lists plugins and assignment targets |
 | thread-templates.ts | query | lists thread template definitions with validity and origin |
 | thread-template-detail.ts | query | returns one entity's raw body, hash, issues and references |

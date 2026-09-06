@@ -5,6 +5,7 @@ Plugin catalog and spawn runtime for skills, MCP, and backend projections.
 | filename | role | function |
 |---|---|---|
 | agent-plugins-v1.ts | schema | Define Agent Plugins v1 Zod schemas |
+| authoring.ts | core | Create, edit, move and remove plugins and skills |
 | catalog-types.ts | type | Define catalog DTOs and MCP runtime carriers |
 | catalog.ts | core | Load entries and validate portable skill trees |
 | fs-helpers.ts | util | Guard plugin path containment and child listing |

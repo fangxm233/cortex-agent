@@ -24,6 +24,7 @@ function plugin(): UiPluginCatalogEntry {
     id: 'alpha',
     kind: 'portable',
     scope: 'always',
+    origin: 'local',
     rootDir: 'plugins/alpha',
     valid: true,
     assignable: true,

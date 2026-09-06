@@ -35,6 +35,7 @@ import { handleMachinesList } from './query/machines.js';
 import { handleMachineDetail } from './query/machine-detail.js';
 import { handleSkillsList } from './query/skills.js';
 import { handlePluginsList } from './query/plugins.js';
+import { handlePluginsSkillFile, handlePluginsMcpRead } from './query/plugin-source.js';
 import { handleThreadTemplatesGet } from './query/thread-templates.js';
 import { handleThreadTemplatesDetail } from './query/thread-template-detail.js';
 import {
@@ -64,6 +65,16 @@ import {
   handleThreadTemplatesRemove,
 } from './mutate/thread-templates.js';
 import { handlePluginsAssign } from './mutate/plugins.js';
+import {
+  handlePluginsSkillWrite,
+  handlePluginsSkillCreate,
+  handlePluginsSkillMove,
+  handlePluginsSkillRemove,
+  handlePluginsCreate,
+  handlePluginsRemove,
+  handlePluginsConvertToPortable,
+  handlePluginsMcpWrite,
+} from './mutate/plugin-packages.js';
 import { handleCreateProject } from './mutate/projects.js';
 import { handleCreateSession, handleSendSession, handleCancelSession, handleCompactSession, handleSetProfile, handleCreateAndSend, handleMarkReadSession, handleAnswerQuestion, handleRespondPlan, handleRespondDecision, handleCancelResume, handleRewindSession } from './mutate/sessions.js';
 import { handleCancelThread } from './mutate/threads.js';
@@ -146,6 +157,8 @@ const queryHandlers: Record<string, QueryHandler> = {
   'machines.detail': (deps, params) => handleMachineDetail(deps, params),
   'skills.list': (deps, params) => handleSkillsList(deps, params),
   'plugins.list': (deps, params) => handlePluginsList(deps, params),
+  'plugins.skillFile': (deps, params) => handlePluginsSkillFile(deps, params),
+  'plugins.mcpRead': (deps, params) => handlePluginsMcpRead(deps, params),
   'threadTemplates.get': (deps, params) => handleThreadTemplatesGet(deps, params),
   'threadTemplates.detail': (deps, params) => handleThreadTemplatesDetail(deps, params),
   'system.daemonStatus': (_deps, params) => handleSystemDaemonStatus(params),
@@ -208,6 +221,14 @@ const mutateHandlers: Record<string, MutateHandler> = {
   'profiles.update': (deps, args) => handleProfilesUpdate(deps, args),
   'profiles.remove': (deps, args) => handleProfilesRemove(deps, args),
   'plugins.assign': (deps, args) => handlePluginsAssign(deps, args),
+  'plugins.skillWrite': (deps, args) => handlePluginsSkillWrite(deps, args),
+  'plugins.skillCreate': (deps, args) => handlePluginsSkillCreate(deps, args),
+  'plugins.skillMove': (deps, args) => handlePluginsSkillMove(deps, args),
+  'plugins.skillRemove': (deps, args) => handlePluginsSkillRemove(deps, args),
+  'plugins.create': (deps, args) => handlePluginsCreate(deps, args),
+  'plugins.remove': (deps, args) => handlePluginsRemove(deps, args),
+  'plugins.convertToPortable': (deps, args) => handlePluginsConvertToPortable(deps, args),
+  'plugins.mcpWrite': (deps, args) => handlePluginsMcpWrite(deps, args),
   'threadTemplates.validate': (deps, args) => handleThreadTemplatesValidate(deps, args),
   'threadTemplates.save': (deps, args) => handleThreadTemplatesSave(deps, args),
   'threadTemplates.remove': (deps, args) => handleThreadTemplatesRemove(deps, args),
