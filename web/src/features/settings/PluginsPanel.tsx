@@ -6,18 +6,23 @@
 import { useMemo, useState, type CSSProperties } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { PluginAssignmentTarget, PluginsListReturn, UiPluginCatalogEntry } from '@cortex-agent/ui-contract';
+import { Modal } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
-import { SCard, SCardHeader, S_CONTROL_STYLE } from './settings-ui';
+import { SButton, SCard, SCardHeader, SFieldRow, S_CONTROL_STYLE } from './settings-ui';
 import {
-  EmptyMessage, IssueList, McpServerSummary, MetaBlock, MetaSection,
-  NOTICE, PILL, ROW,
+  EmptyMessage, IssueList, MetaBlock, MetaSection,
+  NOTICE, PILL,
   manifestSourceText, pluginKindText, pluginTitle, scopeNoticeText,
 } from './plugin-ui';
 import {
-  PLUGIN_TABS, filterPlugins, pluginUsage, resolvePluginSelection, supportsMcp,
+  PLUGIN_TABS, filterPlugins, pluginUsage, resolvePluginSelection,
   type PluginTab, type PluginUsage,
 } from './plugins-panel-vm';
+import { isCanonicalName } from './plugin-authoring-vm';
+import { PluginSkillsTab } from './PluginSkillsTab';
+import { PluginMcpTab } from './PluginMcpTab';
+import { usePluginAuthoring, type PluginAuthoringActions } from './usePluginAuthoring';
 
 const MONO = "'IBM Plex Mono',monospace";
 const LIST_WIDTH = 232;
@@ -75,22 +80,92 @@ function PluginListRow(props: {
   );
 }
 
+function CreatePluginModal(props: { actions: PluginAuthoringActions; onClose: () => void }) {
+  const L = useVocab();
+  const [id, setId] = useState('');
+  const [description, setDescription] = useState('');
+  const bad = id.length > 0 && !isCanonicalName(id);
+  return (
+    <Modal open layer="nested" title={L.plNewPluginTitle}
+      onOpenChange={(next) => { if (!next) props.onClose(); }}
+      footer={(
+        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+          <SButton tone="neutral" onClick={props.onClose}>{L.plCancel}</SButton>
+          <SButton tone="accent" data-action="plugin-create-confirm"
+            disabled={props.actions.busy || !isCanonicalName(id)}
+            onClick={async () => {
+              const done = await props.actions.pluginCreate({ id, description: description.trim() || undefined });
+              if (done) props.onClose();
+            }}>
+            {L.plCreate}
+          </SButton>
+        </div>
+      )}>
+      <SFieldRow label={L.plNewPluginId} hint={bad ? L.plNameInvalid : undefined} hintTone="danger">
+        <input data-field="plugin-id" value={id} onChange={(event) => setId(event.target.value)}
+          style={S_CONTROL_STYLE} />
+      </SFieldRow>
+      <SFieldRow label={L.plNewPluginDesc}>
+        <input data-field="plugin-description" value={description}
+          onChange={(event) => setDescription(event.target.value)} style={S_CONTROL_STYLE} />
+      </SFieldRow>
+    </Modal>
+  );
+}
+
+function DeletePluginModal(props: {
+  plugin: UiPluginCatalogEntry;
+  actions: PluginAuthoringActions;
+  onClose: () => void;
+}) {
+  const L = useVocab();
+  const managed = props.plugin.origin === 'managed';
+  return (
+    <Modal open layer="nested" title={L.plDeletePluginTitle.replace('{name}', props.plugin.id)}
+      onOpenChange={(next) => { if (!next) props.onClose(); }}
+      footer={(
+        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+          <SButton tone="neutral" onClick={props.onClose}>{L.plCancel}</SButton>
+          <SButton tone="danger" data-action="plugin-delete-confirm" disabled={props.actions.busy || managed}
+            onClick={async () => {
+              const done = await props.actions.pluginRemove({ id: props.plugin.id });
+              if (done) props.onClose();
+            }}>
+            {L.plConfirmDelete}
+          </SButton>
+        </div>
+      )}>
+      <div style={{ fontSize: 11, color: 'var(--proto-muted-2)' }}>{L.plDeletePluginDesc}</div>
+      {managed
+        ? <div data-plugin-delete-managed="" style={{ ...NOTICE, marginTop: 8 }}>{L.plDeletePluginManaged}</div>
+        : null}
+    </Modal>
+  );
+}
+
 function PluginList(props: {
   plugins: readonly UiPluginCatalogEntry[];
   visible: readonly UiPluginCatalogEntry[];
   search: string;
   selectedId: string | null;
+  actions: PluginAuthoringActions;
   onSearch: (value: string) => void;
   onSelect: (id: string) => void;
 }) {
   const L = useVocab();
+  const [creating, setCreating] = useState(false);
   return (
     <SCard style={LIST_CARD}>
       <SCardHeader title={L.plCatalogTitle} right={`${props.plugins.length}`} />
-      <div style={{ padding: '8px 10px', flex: 'none' }}>
+      <div style={{ padding: '8px 10px', flex: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
         <input data-plugin-search="" value={props.search} placeholder={L.plSearchPh}
           onChange={(event) => props.onSearch(event.target.value)}
           style={{ ...S_CONTROL_STYLE, width: '100%', boxSizing: 'border-box', padding: '4px 8px' }} />
+        <SButton tone="neutral" data-action="plugin-create" disabled={props.actions.busy}
+          onClick={() => setCreating(true)} style={{ width: '100%' }}>
+          {L.plNewPlugin}
+        </SButton>
+        {creating ? <CreatePluginModal actions={props.actions} onClose={() => setCreating(false)} /> : null}
       </div>
       <div style={{ flex: 1, overflow: 'auto', minHeight: 0, padding: '0 6px 8px' }}>
         {props.visible.length > 0
@@ -135,33 +210,6 @@ function OverviewTab({ plugin, usage }: { plugin: UiPluginCatalogEntry; usage: r
   );
 }
 
-function SkillsTab({ plugin }: { plugin: UiPluginCatalogEntry }) {
-  const L = useVocab();
-  if (plugin.skills.length === 0) return <EmptyMessage text={L.plNoSkills} dataAttr="data-plugin-skills-empty" />;
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {plugin.skills.map((skill) => (
-        <div key={skill.name} data-plugin-skill={skill.name} style={ROW}>
-          <div style={{ font: `600 11.5px ${MONO}`, color: 'var(--proto-ink)' }}>{skill.name}</div>
-          <div style={{ fontSize: 10, color: 'var(--proto-faint)', marginTop: 3 }}>
-            {`${plugin.rootDir}/skills/${skill.name}/SKILL.md`}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function McpTab({ plugin }: { plugin: UiPluginCatalogEntry }) {
-  const L = useVocab();
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {supportsMcp(plugin) ? null : <div data-plugin-mcp-unsupported="" style={NOTICE}>{L.plMcpLegacyNote}</div>}
-      <McpServerSummary plugin={plugin} />
-    </div>
-  );
-}
-
 function PluginTabs(props: { tab: PluginTab; onTab: (tab: PluginTab) => void }) {
   const L = useVocab();
   return (
@@ -187,11 +235,14 @@ function PluginTabs(props: { tab: PluginTab; onTab: (tab: PluginTab) => void }) 
 
 function PluginDetail(props: {
   plugin: UiPluginCatalogEntry | null;
+  plugins: readonly UiPluginCatalogEntry[];
   targets: readonly PluginAssignmentTarget[];
   tab: PluginTab;
+  actions: PluginAuthoringActions;
   onTab: (tab: PluginTab) => void;
 }) {
   const L = useVocab();
+  const [deleting, setDeleting] = useState(false);
   const usage = useMemo(
     () => (props.plugin ? pluginUsage(props.targets, props.plugin.id) : []),
     [props.targets, props.plugin],
@@ -211,17 +262,29 @@ function PluginDetail(props: {
           <span style={{ fontSize: 12.5, fontWeight: 650, color: 'var(--proto-ink)' }}>{pluginTitle(plugin)}</span>
           <span style={PILL}>{plugin.manifest.version ?? L.plUnknownValue}</span>
           <span style={PILL}>{pluginKindText(plugin.kind, L)}</span>
+          <span data-plugin-origin={plugin.origin} style={PILL}>
+            {plugin.origin === 'managed' ? L.plOriginManaged : L.plOriginLocal}
+          </span>
           <span style={{ ...PILL, color: plugin.valid ? 'var(--proto-muted-2)' : 'var(--proto-danger)' }}>
             {plugin.valid ? L.plValid : L.plInvalid}
           </span>
+          <SButton tone="danger" data-action="plugin-delete" disabled={props.actions.busy}
+            style={{ marginLeft: 'auto' }} onClick={() => setDeleting(true)}>
+            {L.plDeletePlugin}
+          </SButton>
         </div>
         <PluginTabs tab={props.tab} onTab={props.onTab} />
       </div>
       <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '12px 14px' }}>
         {props.tab === 'overview' ? <OverviewTab plugin={plugin} usage={usage} /> : null}
-        {props.tab === 'skills' ? <SkillsTab plugin={plugin} /> : null}
-        {props.tab === 'mcp' ? <McpTab plugin={plugin} /> : null}
+        {props.tab === 'skills'
+          ? <PluginSkillsTab plugin={plugin} plugins={props.plugins} actions={props.actions} />
+          : null}
+        {props.tab === 'mcp' ? <PluginMcpTab plugin={plugin} actions={props.actions} /> : null}
       </div>
+      {deleting
+        ? <DeletePluginModal plugin={plugin} actions={props.actions} onClose={() => setDeleting(false)} />
+        : null}
     </SCard>
   );
 }
@@ -234,6 +297,7 @@ export interface PluginsPanelViewProps {
   search: string;
   selectedId: string | null;
   tab: PluginTab;
+  actions: PluginAuthoringActions;
   onSearch: (value: string) => void;
   onSelect: (id: string) => void;
   onTab: (tab: PluginTab) => void;
@@ -252,8 +316,10 @@ export function PluginsPanelView(props: PluginsPanelViewProps) {
       {props.state === 'ready' ? (
         <div data-plugin-cards="" style={CARDS}>
           <PluginList plugins={props.plugins} visible={visible} search={props.search}
-            selectedId={selected?.id ?? null} onSearch={props.onSearch} onSelect={props.onSelect} />
-          <PluginDetail plugin={selected} targets={props.targets} tab={props.tab} onTab={props.onTab} />
+            selectedId={selected?.id ?? null} actions={props.actions}
+            onSearch={props.onSearch} onSelect={props.onSelect} />
+          <PluginDetail plugin={selected} plugins={props.plugins} targets={props.targets}
+            tab={props.tab} actions={props.actions} onTab={props.onTab} />
         </div>
       ) : null}
     </div>
@@ -263,6 +329,7 @@ export function PluginsPanelView(props: PluginsPanelViewProps) {
 export function PluginsPanel() {
   const trpc = useTRPC();
   const listQuery = useQuery<PluginsListReturn>(trpc.plugins.list.queryOptions({}) as never);
+  const actions = usePluginAuthoring();
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tab, setTab] = useState<PluginTab>('overview');
@@ -275,6 +342,7 @@ export function PluginsPanel() {
       search={search}
       selectedId={selectedId}
       tab={tab}
+      actions={actions}
       onSearch={setSearch}
       onSelect={setSelectedId}
       onTab={setTab}

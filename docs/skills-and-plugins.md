@@ -103,7 +103,15 @@ The detailed transport and isolation rules come from the [Agent Plugins MCP runt
 
 The desktop and browser workbench expose the catalog at **Settings → Plugins**. The page reads the connected Cortex server, so its entries belong to that server rather than to the local desktop installation. It lists every installed package and opens each one on three tabs.
 
-Overview carries the package's identity and health: format, manifest source and metadata, on-disk location, validation issues, and any spawn-time scope restriction. It also lists which agents and template slots currently reference the plugin, so the relationship stays discoverable from the package side without the page owning it. Skills lists the skills the package ships and where each `SKILL.md` lives. MCP shows the sanitized server summary, and states plainly when a legacy package cannot declare MCP servers at all.
+Overview carries the package's identity and health: format, manifest source and metadata, on-disk location, validation issues, and any spawn-time scope restriction. It also lists which agents and template slots currently reference the plugin, so the relationship stays discoverable from the package side without the page owning it.
+
+## Managing a plugin's contents
+
+The Skills tab lists what the package ships, each with its description and its path, and edits it. A skill opens into its `SKILL.md`, which saves against the hash it was opened with, so a file changed underneath the editor produces a conflict rather than a silent overwrite. New skills are created from a name and a description, existing ones can be renamed or moved to another plugin, and moving rewrites the frontmatter `name` so it keeps agreeing with the directory. Deleting removes the skill directory and everything under it.
+
+The MCP tab edits `mcp.json` as a form. Command, arguments, working directory and URL round-trip normally, but environment values and headers do not: this page is never told them. Each stored key shows as kept, and replacing one is an explicit action; keys you leave alone are merged back server-side from what is already on disk. A legacy package cannot declare MCP servers at all, so its MCP tab offers the conversion instead — writing a root `plugin.json` while leaving `.claude-plugin/plugin.json` in place so updates keep working.
+
+Two things about a plugin are worth reading before editing it. A package Cortex ships is marked as such, and so is each shipped skill inside it: the update mechanism rewrites every shipped file at the next version bump, so an edit there lasts until then, while skills you add yourself are never touched. A shipped package also cannot be deleted, because the next update would redeploy it. A local package can be deleted once no agent or template slot still references it.
 
 ## Assigning plugins
 
@@ -179,4 +187,7 @@ When the `Skill` tool invokes a skill, Cortex's hook bridge records the activity
 | Agent and template assignment persistence | `agent-server/src/domain/ui-service/mutate/plugins.ts:84-242` |
 | Connected-server catalog and target inventory | `agent-server/src/domain/ui-service/query/plugins.ts:32-172` |
 | Settings plugin package manager | `web/src/features/settings/PluginsPanel.tsx` |
+| Skill and plugin writes, containment-checked | `agent-server/src/domain/plugins/authoring.ts` |
+| Authoring ops and MCP secret merging | `agent-server/src/domain/ui-service/mutate/plugin-packages.ts` |
+| Settings skill and MCP editors | `web/src/features/settings/PluginSkillsTab.tsx`, `web/src/features/settings/PluginMcpTab.tsx` |
 | Settings assignment and MCP acknowledgment | `web/src/features/settings/PluginAssignPanel.tsx` |

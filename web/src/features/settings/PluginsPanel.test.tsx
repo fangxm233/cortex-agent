@@ -8,6 +8,20 @@ import { describe, expect, it } from 'vitest';
 import type { PluginAssignmentTarget, UiPluginCatalogEntry } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
 import { PluginsPanelView, type PluginsPanelViewProps } from './PluginsPanel';
+import type { PluginAuthoringActions } from './usePluginAuthoring';
+
+/** The static view never fires a write; the container test owns that path. */
+const IDLE_ACTIONS = {
+  busy: false,
+  skillWrite: async () => null,
+  skillCreate: async () => false,
+  skillMove: async () => false,
+  skillRemove: async () => false,
+  pluginCreate: async () => false,
+  pluginRemove: async () => false,
+  convertToPortable: async () => false,
+  mcpWrite: async () => false,
+} satisfies PluginAuthoringActions;
 
 function plugin(over: Partial<UiPluginCatalogEntry> = {}): UiPluginCatalogEntry {
   return {
@@ -69,6 +83,7 @@ function render(over: Partial<PluginsPanelViewProps> = {}): string {
     search: '',
     selectedId: 'alpha',
     tab: 'overview',
+    actions: IDLE_ACTIONS,
     onSearch: () => {},
     onSelect: () => {},
     onTab: () => {},
@@ -126,6 +141,11 @@ describe('PluginsPanelView overview tab', () => {
     expect(html).toContain('Not assigned to any agent or template slot');
   });
 
+  it('says whether Cortex ships the package or it is local to this machine', () => {
+    expect(render()).toContain('data-plugin-origin="local"');
+    expect(render({ plugins: [plugin({ origin: 'managed' })] })).toContain('data-plugin-origin="managed"');
+  });
+
   it('surfaces spawn-time scope gating', () => {
     const scoped = plugin({ id: 'delta', scope: 'commission' });
     const html = render({ plugins: [scoped], selectedId: 'delta' });
@@ -136,37 +156,36 @@ describe('PluginsPanelView overview tab', () => {
 });
 
 describe('PluginsPanelView skills tab', () => {
-  it('shows each skill and where it lives on disk', () => {
+  it('shows each skill, its description, and where it lives on disk', () => {
     const html = render({ tab: 'skills' });
 
     expect(html).toContain('data-plugin-skill="review"');
+    expect(html).toContain('Review a change.');
     expect(html).toContain('plugins/alpha/skills/review/SKILL.md');
   });
 
-  it('states when a plugin ships no skills', () => {
-    expect(render({ tab: 'skills', selectedId: 'broken' })).toContain('This plugin ships no skills');
+  it('states when a plugin ships no skills, and still offers to add one', () => {
+    const html = render({ tab: 'skills', selectedId: 'broken' });
+
+    expect(html).toContain('This plugin ships no skills');
+    expect(html).toContain('data-plugin-skill-create');
+  });
+
+  it('warns that a shipped plugin is rewritten by the next update', () => {
+    const managed = plugin({ id: 'shipped', origin: 'managed' });
+    const html = render({ plugins: [managed], selectedId: 'shipped', tab: 'skills' });
+
+    expect(html).toContain('data-plugin-managed-note');
   });
 });
 
 describe('PluginsPanelView mcp tab', () => {
-  it('shows sanitized summaries and never the underlying values', () => {
-    const html = render({ tab: 'mcp' });
-
-    expect(html).toContain('./bin/private-server');
-    expect(html).toContain('SECRET_TOKEN');
-    expect(html).toContain('https://api.example.com/mcp');
-    expect(html).not.toContain('Bearer secret');
-  });
-
-  it('explains why a legacy package can never declare MCP servers', () => {
+  it('offers the portable conversion instead of a form for a legacy package', () => {
     const html = render({ tab: 'mcp', selectedId: 'broken' });
 
     expect(html).toContain('data-plugin-mcp-unsupported');
     expect(html).toContain('Legacy plugins cannot declare MCP servers');
-  });
-
-  it('omits the legacy note for a portable package', () => {
-    expect(render({ tab: 'mcp' })).not.toContain('data-plugin-mcp-unsupported');
+    expect(html).toContain('data-action="mcp-convert"');
   });
 });
 

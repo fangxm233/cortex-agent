@@ -63,9 +63,3 @@ export function pluginUsage(
       }
   ));
 }
-
-/** MCP servers only load from a portable plugin: the catalog reads mcp.json on the portable branch
- *  alone, so a legacy package silently has none however the file is written. */
-export function supportsMcp(plugin: UiPluginCatalogEntry): boolean {
-  return plugin.kind === 'portable';
-}

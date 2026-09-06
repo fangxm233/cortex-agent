@@ -103,7 +103,15 @@ Remote server 除 loopback HTTP 外必须使用 HTTPS。包含 credentials 或 f
 
 桌面与浏览器工作台通过 **Settings → Plugins** 提供 catalog。页面读取当前连接的 Cortex server，因此清单属于该 server，而不是本机 desktop 安装。页面列出全部已安装 package，每个 package 有三个 tab。
 
-Overview 给出身份与健康状态：格式、manifest 来源与 metadata、磁盘位置、validation issues，以及 spawn 时的 scope 限制。它同时列出当前引用该插件的 agent 与 template slot，让这层关系从 package 一侧可见，但不由本页面负责编辑。Skills 列出 package 携带的 skill 及每个 `SKILL.md` 的位置。MCP 显示 sanitized server summary，并在 legacy package 根本无法声明 MCP server 时直接说明。
+Overview 给出身份与健康状态：格式、manifest 来源与 metadata、磁盘位置、validation issues，以及 spawn 时的 scope 限制。它同时列出当前引用该插件的 agent 与 template slot，让这层关系从 package 一侧可见，但不由本页面负责编辑。
+
+## 管理插件内容 {#managing-plugin-contents}
+
+Skills tab 列出 package 携带的 skill，包含描述与路径，并可直接编辑。展开一个 skill 会打开它的 `SKILL.md`；保存时携带打开那一刻的哈希，因此文件若在编辑期间被改动，会得到冲突提示而不是被静默覆盖。新建 skill 需要名称与描述；已有的 skill 可以重命名或移动到另一个插件，移动时会同步改写 frontmatter 的 `name`，使其继续与目录一致。删除会移除整个 skill 目录及其下所有内容。
+
+MCP tab 以表单方式编辑 `mcp.json`。命令、参数、工作目录和 URL 会正常往返，但环境变量的值和请求头不会：这个页面从来不会收到它们。每个已存储的键显示为“保持不变”，替换是一个明确动作；未被改动的键由服务端从磁盘上已有的内容合并回去。Legacy package 根本无法声明 MCP server，因此它的 MCP tab 提供的是转换动作 —— 写入根目录 `plugin.json`，同时保留 `.claude-plugin/plugin.json`，让更新机制继续工作。
+
+编辑前有两件事值得先看清。随 Cortex 发布的 package 会被标注，其中随发布的每个 skill 也会被标注：更新机制会在下一次版本号提升时重写所有随发布的文件，因此那里的修改只维持到那时为止，而你自己新增的 skill 不会被触碰。随发布的 package 也不能删除，因为下次更新会把它重新部署回来。本机 package 在没有任何 agent 或 template slot 引用它之后可以删除。
 
 ## 分配插件 {#assigning-plugins}
 
@@ -179,4 +187,7 @@ Plugins 页面只管理 inventory 与 assignment。其 MCP inventory 与 acknowl
 | Agent 与 template assignment persistence | `agent-server/src/domain/ui-service/mutate/plugins.ts:84-242` |
 | Connected-server catalog 与 target inventory | `agent-server/src/domain/ui-service/query/plugins.ts:32-172` |
 | Settings 插件包管理页 | `web/src/features/settings/PluginsPanel.tsx` |
+| Skill 与插件写入（路径包含校验） | `agent-server/src/domain/plugins/authoring.ts` |
+| 编辑类操作与 MCP 密钥合并 | `agent-server/src/domain/ui-service/mutate/plugin-packages.ts` |
+| Settings 中的 skill 与 MCP 编辑器 | `web/src/features/settings/PluginSkillsTab.tsx`、`web/src/features/settings/PluginMcpTab.tsx` |
 | Settings assignment 与 MCP acknowledgment | `web/src/features/settings/PluginAssignPanel.tsx` |

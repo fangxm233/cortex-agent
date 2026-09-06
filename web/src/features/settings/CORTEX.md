@@ -48,9 +48,15 @@ Panels keep their presentation while canonical controllers and VMs in this folde
 | TemplatesPanel.test.tsx | test | Tests parse errors, mutation guards, validation and path safety |
 | templates-panel-vm.ts | vm | Filters, parses editor JSON and builds template mutation args |
 | templates-panel-vm.test.ts | test | Unit tests for the templates panel view model |
-| PluginsPanel.tsx | view | Master-detail package manager: what each plugin contains and who uses it |
-| PluginsPanel.test.tsx | test | Covers plugin list, detail tabs, usage and MCP redaction |
+| PluginsPanel.tsx | view | Master-detail package manager: what each plugin contains, who uses it, and its lifecycle |
+| PluginsPanel.test.tsx | test | Covers plugin list, detail tabs, origin badge and usage |
+| PluginsPanel.container.test.tsx | test | Covers skill editing, plugin lifecycle and MCP secret patches |
 | plugins-panel-vm.ts | vm | Filters, selects and groups plugin usage for the package manager |
+| PluginSkillsTab.tsx | view | Skill list, SKILL.md editor, create, move and delete |
+| PluginMcpTab.tsx | view | MCP server forms with write-only secrets, plus portable conversion |
+| plugin-authoring-vm.ts | vm | Validates names and turns redacted MCP reads into an editable draft |
+| plugin-authoring-vm.test.ts | test | Covers name rules, MCP payloads, secret patches and dirty detection |
+| usePluginAuthoring.ts | controller | One busy gate, toast policy and catalog refresh for every plugin write |
 | PluginAssignPanel.tsx | view | Assignment control embedded in the templates editor |
 | PluginAssignPanel.test.tsx | test | Covers assignment gating, modes, acknowledgement and stale states |
 | PluginAssignPanel.keyboard.test.tsx | test | Covers assignment mode keyboard access |

@@ -84,9 +84,21 @@ vi.mock('@/lib/trpc', () => ({
       save: staticMutation(),
       remove: staticMutation(),
     },
-    plugins: { list: pluginListQuery(), assign: {
-      mutationOptions: () => ({ mutationFn: (args: PluginsAssignArgs) => adapter.assignImpl(args) }),
-    } },
+    plugins: {
+      list: pluginListQuery(),
+      assign: { mutationOptions: () => ({ mutationFn: (args: PluginsAssignArgs) => adapter.assignImpl(args) }) },
+      // The Plugins page mounts the whole authoring surface; this test only exercises assignment.
+      skillFile: staticQuery('plugins.skillFile'),
+      mcpRead: staticQuery('plugins.mcpRead'),
+      skillWrite: staticMutation(),
+      skillCreate: staticMutation(),
+      skillMove: staticMutation(),
+      skillRemove: staticMutation(),
+      create: staticMutation(),
+      remove: staticMutation(),
+      convertToPortable: staticMutation(),
+      mcpWrite: staticMutation(),
+    },
   }),
 }));
 
