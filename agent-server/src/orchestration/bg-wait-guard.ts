@@ -21,6 +21,9 @@ export interface BgWaitGuard {
   /** Re-arm timers after a chained continuation reported new remaining counts.
    *  rearm(0, 0) settles immediately. No-op once settled. */
   rearm(running: number, undelivered: number): void;
+  /** The continuation turn opened: stop the wait watchdogs but keep the busy bracket. The turn's
+   *  own result re-arms (rearm) or settles; process death seals through the sink. No-op once settled. */
+  pause(): void;
   /** Idempotent: clears timers and releases the busy bracket exactly once. */
   settle(): void;
   readonly settled: boolean;
@@ -88,6 +91,11 @@ export function startBgWaitGuard(opts: BgWaitGuardOpts): BgWaitGuard {
     rearm(running: number, undelivered: number): void {
       if (settled) return;
       arm(running, undelivered);
+    },
+    pause(): void {
+      if (settled || handle === null) return;
+      timers.clear(handle);
+      handle = null;
     },
     settle,
     get settled(): boolean { return settled; },

@@ -209,6 +209,12 @@ class BackgroundContinuationWait {
     catch (error) { this.settle(() => this.reject(error)); return false; }
   }
 
+  private pause(): void {
+    if (this.settled || this.handle === null) return;
+    this.timers.clear(this.handle);
+    this.handle = null;
+  }
+
   private arm(running: number, undelivered: number): void {
     if (this.handle !== null) this.timers.clear(this.handle);
     this.handle = null;
@@ -233,6 +239,9 @@ class BackgroundContinuationWait {
 
   private sink(): ContinuationSink {
     return {
+      // The continuation opened: its length is unbounded, so the ambient grace/cap timers stop
+      // and its result re-arms (chained work) or finishes the wait.
+      onTurnOpen: () => this.pause(),
       onAssistantText: (text, model, subagent) => this.assistantText(text, model, subagent),
       onToolUse: (name, input, id, subagent) => this.toolUse(name, input, id, subagent),
       onToolResult: (id, content, isError, subagent) => this.toolResult(id, content, isError, subagent),

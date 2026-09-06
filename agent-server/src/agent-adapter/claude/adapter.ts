@@ -57,7 +57,7 @@ import {
   type ModelFallbackEvent,
   type StreamDeltaState,
 } from './event-parser.js';
-import { BgTaskTracker, routeLine } from './bg-task-tracker.js';
+import { BgTaskTracker, isContinuationResult, routeLine } from './bg-task-tracker.js';
 import { ClaudeContextUsageTracker } from './context-usage.js';
 import { activeClaudeCaptureRegistry } from './active-capture-registry.js';
 import { resolveAutoCompactWindow } from './compact-window.js';
@@ -778,6 +778,9 @@ class ClaudeSession {
   private openContinuationTurn(label = '[background-task continuation]'): void {
     this.bgTracker.disarmContinuation();
     const streams = this.createTurnStreams(label);
+    // The hold's watchdogs bound the WAIT for this turn, not the turn itself: a continuation
+    // that runs longer than the grace/max-wait window must not be sealed idle mid-stream.
+    this.deliverContinuation(sink => sink.onTurnOpen?.());
     this.currentTurn = {
       ...this.continuationCallbacks(),
       resultData: null, planFilePath: null,
@@ -953,7 +956,12 @@ class ClaudeSession {
         value.costReported = data.total_cost_usd != null;
       }
       value.pendingBackgroundTasks = this.bgTracker.pendingCount;
-      value.undeliveredBackgroundTasks = this.bgTracker.undeliveredCount;
+      // A background notification observed during this turn whose own turn has not opened yet
+      // (it landed while the model was producing this turn's final text) is one more delivery
+      // still owed: the CLI opens that turn right after this result. Count it as undelivered so
+      // the hold waits (grace-bounded) instead of sealing idle between the two turns.
+      value.undeliveredBackgroundTasks = this.bgTracker.undeliveredCount
+        + (this.bgTracker.continuationArmed ? 1 : 0);
     }
     this.currentTurn = null;
     if (this.turnIdleTimer) clearTimeout(this.turnIdleTimer);
@@ -1165,6 +1173,16 @@ class ClaudeSession {
         this.openContinuationTurn(fromInjection ? '[injected-message continuation]' : '[background-task continuation]');
       }
       if (data.type === 'result' && this.currentTurn) {
+        // A task-notification turn's result can only settle a spontaneous turn. When it lands on
+        // a user turn it is the CLI closing a notification turn of its own — on `--resume` it
+        // reports background work orphaned by the previous process and emits a 0-turn result
+        // BEFORE reading the prompt on stdin. Settling here resolved the user turn empty in ~2s
+        // and dropped the minutes of real work that followed (2026-09-06 investigation).
+        if (isContinuationResult(data) && !this.currentTurn.spontaneous) {
+          log.info(`Ignoring notification-turn result on user turn ${this.sessionId.substring(0, 8)} (num_turns=${data.num_turns ?? '?'})`);
+          this.currentTurn.txtStream.write('[notification-turn result ignored — user turn still open]\n');
+          return;
+        }
         this.emitContextUsage(data);
         this.handleResultEvent(this.currentTurn, data);
         return;

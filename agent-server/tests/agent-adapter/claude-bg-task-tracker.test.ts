@@ -181,6 +181,83 @@ test('routeLine: non-assistant lines with no active turn → ignore', () => {
   assert.equal(routeLine(t, RESULT_CONTINUATION, false), 'ignore');
 });
 
+// CC ≥ 2026-08-24 emits task_started{is_backgrounded:false} + task_notification for every
+// FOREGROUND Bash call (captured 2026-09-05 23-56-35: 60 such pairs in one turn). Those
+// complete as the turn's own tool_result and never re-invoke the model.
+test('BgTaskTracker: foreground task (is_backgrounded:false) never counts as running nor arms', () => {
+  const t = new BgTaskTracker();
+  t.observe({ type: 'system', subtype: 'task_started', task_id: 'fg1', task_type: 'local_bash', is_backgrounded: false });
+  assert.equal(t.pendingCount, 0, 'foreground work is not background work');
+  t.observe({ type: 'system', subtype: 'task_updated', task_id: 'fg1', patch: { status: 'completed' } });
+  assert.equal(t.undeliveredCount, 0, 'foreground completion owes no notification');
+  t.observe({ type: 'system', subtype: 'task_notification', task_id: 'fg1', status: 'completed', summary: 'ls' });
+  assert.equal(t.continuationArmed, false, 'delivered as tool_result — no continuation turn follows');
+  assert.equal(t.hasPending(), false);
+});
+
+test('BgTaskTracker: task_started with is_backgrounded:true behaves as background', () => {
+  const t = new BgTaskTracker();
+  t.observe({ type: 'system', subtype: 'task_started', task_id: 'bg1', is_backgrounded: true });
+  assert.equal(t.pendingCount, 1);
+  t.observe({ type: 'system', subtype: 'task_notification', task_id: 'bg1', status: 'completed' });
+  assert.equal(t.pendingCount, 0);
+  assert.equal(t.continuationArmed, true);
+});
+
+// The CLI auto-backgrounds a long foreground command: task_updated{patch:{is_backgrounded:true}}
+// (captured: bayw7ch6d "Typecheck agent-server" 2026-09-05 23-56-35 lines 249-277).
+test('BgTaskTracker: task_updated{is_backgrounded:true} promotes a foreground task to background', () => {
+  const t = new BgTaskTracker();
+  t.observe({ type: 'system', subtype: 'task_started', task_id: 'auto1', is_backgrounded: false });
+  t.observe({ type: 'system', subtype: 'task_updated', task_id: 'auto1', patch: { is_backgrounded: true } });
+  assert.equal(t.pendingCount, 1, 'now running in the background');
+  t.observe({ type: 'system', subtype: 'task_updated', task_id: 'auto1', patch: { status: 'failed', end_time: 1 } });
+  assert.equal(t.undeliveredCount, 1);
+  t.observe({ type: 'system', subtype: 'task_notification', task_id: 'auto1', status: 'failed' });
+  assert.equal(t.undeliveredCount, 0);
+  assert.equal(t.continuationArmed, true, 'a background completion re-invokes the model');
+});
+
+// On `--resume` the CLI reports background work orphaned by the previous process as
+// task_notification{status:'stopped'} for tasks this process never started, then closes that
+// notification turn with a 0-turn result and folds the notice into the next user turn
+// (captured 2026-09-06 11-50-50). Nothing will re-invoke the model on its own.
+test('BgTaskTracker: orphan notification (unknown task, status stopped) does not arm', () => {
+  const t = new BgTaskTracker();
+  t.observe({ type: 'system', subtype: 'task_notification', task_id: 'bk8lu504b', status: 'stopped', summary: 'Orphaned by a previous Claude Code process exit and reported in an aggregate summary.' });
+  assert.equal(t.continuationArmed, false);
+  assert.equal(t.hasPending(), false);
+});
+
+test('BgTaskTracker: unknown task with a completed notification still arms (legacy safety)', () => {
+  const t = new BgTaskTracker();
+  t.observe({ type: 'system', subtype: 'task_notification', task_id: 'late', status: 'completed' });
+  assert.equal(t.continuationArmed, true);
+});
+
+// A notification the CLI folds into the ACTIVE turn (tool-result boundary) is echoed back as a
+// `--replay-user-messages` user line; that notification will not open a turn of its own.
+test('BgTaskTracker: replay echo of a folded <task-notification> un-arms that task only', () => {
+  const t = new BgTaskTracker();
+  t.observe({ type: 'system', subtype: 'task_started', task_id: 'a1' });
+  t.observe({ type: 'system', subtype: 'task_started', task_id: 'a2' });
+  t.observe({ type: 'system', subtype: 'task_notification', task_id: 'a1', status: 'completed' });
+  t.observe({ type: 'system', subtype: 'task_notification', task_id: 'a2', status: 'completed' });
+  assert.equal(t.continuationArmed, true);
+  t.observe({ type: 'user', isReplay: true, message: { role: 'user', content: '<task-notification>\n<task-id>a1</task-id>\n<status>completed</status>\n</task-notification>' } });
+  assert.equal(t.continuationArmed, true, 'a2 still owes a turn');
+  t.observe({ type: 'user', isReplay: true, message: { role: 'user', content: [{ type: 'text', text: '<task-notification>\n<task-id>a2</task-id>\n</task-notification>' }] } });
+  assert.equal(t.continuationArmed, false, 'both folded — no continuation turn is coming');
+});
+
+test('BgTaskTracker: non-notification replay echoes and non-replay user lines are ignored', () => {
+  const t = new BgTaskTracker();
+  t.observe({ type: 'system', subtype: 'task_notification', task_id: 'a1', status: 'completed' });
+  t.observe({ type: 'user', isReplay: true, message: { role: 'user', content: 'hello' } });
+  t.observe({ type: 'user', message: { role: 'user', content: '<task-notification><task-id>a1</task-id></task-notification>' } });
+  assert.equal(t.continuationArmed, true);
+});
+
 test('isContinuationResult: true only for result with origin.kind=task-notification', () => {
   assert.equal(isContinuationResult(RESULT_CONTINUATION), true);
   assert.equal(isContinuationResult(RESULT_FIRST), false);

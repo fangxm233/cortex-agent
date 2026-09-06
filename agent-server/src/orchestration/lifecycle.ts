@@ -112,6 +112,9 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
       onToolUse: onToolUse || null,
       onToolResult: onToolResult || null,
       onContextUsage: onContextUsage || null,
+      // The continuation is streaming: its length is unbounded, so the wait watchdogs stop here
+      // and the turn's own result re-arms (onWaiting) or seals (onComplete).
+      onTurnOpen: () => guard.pause(),
       onWaiting: (remaining, split) => {
         guard.rearm(split?.running ?? remaining, split?.undelivered ?? 0);
         void writeStatus(adapter, statusMsg, waitingText(remaining));

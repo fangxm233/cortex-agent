@@ -20,6 +20,8 @@ export interface ContinuationSinkDeps {
   onToolResult?: ((toolUseId: string, content: string, isError: boolean) => void) | null;
   /** Optional context snapshot callback for the spontaneous provider call. */
   onContextUsage?: ((usage: ContextUsage) => void) | null;
+  /** Optional: the continuation turn opened — the caller pauses its wait watchdogs. */
+  onTurnOpen?: (() => void) | null;
   /** Called when the continuation result still has background work remaining (chained /
    *  undelivered tasks): keep the status waiting with the combined remaining count. The
    *  split lets the caller re-arm the bg-wait-guard (grace vs max-wait). */
@@ -48,6 +50,7 @@ export function buildContinuationSink(deps: ContinuationSinkDeps): ContinuationS
     // parent, so it is withheld here exactly as it is during a normal turn (agent-runner only
     // calls onAssistantMsg for untagged text); the trace line still counts its work.
     onAssistantText: (text: string, _model, subagent) => { if (!subagent) deps.stream.emitText(text); },
+    onTurnOpen: deps.onTurnOpen || undefined,
     onToolUse: deps.onToolUse || undefined,
     onToolResult: deps.onToolResult || undefined,
     onContextUsage: deps.onContextUsage || undefined,

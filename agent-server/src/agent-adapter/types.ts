@@ -192,6 +192,9 @@ export interface AgentSpawnConfig {
  * background tasks are done. Only the Claude backend implements this (capability-gated).
  */
 export interface ContinuationSink {
+  /** Optional: the continuation turn has opened (first assistant line arrived). The wait is over;
+   *  holders pause their grace/max-wait watchdogs until `onResult` reports what remains. */
+  onTurnOpen?: () => void;
   /** Assistant text from the continuation turn (append to the original reply). `subagent` is set
    *  only when a native subagent produced it (see ToolUseSubagent). */
   onAssistantText: (text: string, model?: string | null, subagent?: ToolUseSubagent) => void;

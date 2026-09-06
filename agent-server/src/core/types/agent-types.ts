@@ -104,7 +104,9 @@ export interface AgentResult {
   /** Number of background tasks whose WORK finished (task_updated terminal status) but whose
    *  task_notification has not been observed. The CLI may deliver it seconds later — or never
    *  (old-CLI same-turn completions; 2026-07-10 investigation). Orchestration holds the status
-   *  but arms a grace watchdog for these instead of waiting forever. */
+   *  but arms a grace watchdog for these instead of waiting forever. Also +1 when a notification
+   *  WAS observed during this turn but its own continuation turn has not opened yet — the CLI
+   *  opens it right after this result (2026-09-06 investigation). */
   undeliveredBackgroundTasks?: number;
   /** Set on a synthetic continuation result produced when the Claude process died while
    *  background tasks were pending — the waiting status must seal as "interrupted". */

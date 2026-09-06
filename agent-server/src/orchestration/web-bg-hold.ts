@@ -109,6 +109,9 @@ export function holdWebForBg(deps: WebBgHoldDeps): boolean {
   });
 
   const sink: ContinuationSink = {
+    // The wait is over once the continuation turn opens; its length is unbounded (a 93-minute
+    // continuation was observed 2026-09-06), so the watchdogs must not fire mid-turn.
+    onTurnOpen: () => guard.pause(),
     // A background subagent finishes AFTER the turn that spawned it has ended, so its output
     // arrives here rather than through the in-turn path. Dropping the attribution at this seam
     // published the subagent's final report as the agent's own prose, in the NEXT turn.
@@ -128,7 +131,11 @@ export function holdWebForBg(deps: WebBgHoldDeps): boolean {
       const running = cont.pendingBackgroundTasks ?? 0;
       const undelivered = cont.undeliveredBackgroundTasks ?? 0;
       if (running + undelivered > 0) {
-        // Chained background work: re-arm the guard and keep holding.
+        // Chained background work: re-arm the guard and keep holding. Once the guard has settled
+        // (sealed, or released at the max-wait cap) it cannot re-arm, so publishing running:true
+        // here would leave the session "running" with nothing left to seal it (observed
+        // 2026-09-06); the sink still streams and a final 0-remaining result re-seals.
+        if (guard.settled) return;
         guard.rearm(running, undelivered);
         deps.publishStatus({ running: true, backgroundRunning: true });
       } else {

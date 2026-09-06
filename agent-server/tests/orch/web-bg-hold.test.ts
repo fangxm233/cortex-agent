@@ -191,6 +191,39 @@ test('holdWebForBg: abort after a max-wait release still seals only once', () =>
   assert.deepEqual(h.track, [+1, -1], 'bracket not double-released');
 });
 
+// The wait watchdogs bound the WAIT for the continuation, not the continuation: a turn that
+// opens and then runs longer than the grace/max-wait window must not be sealed idle mid-stream
+// (2026-09-06: a 93-minute continuation streamed into a session already flipped to idle).
+test('holdWebForBg: continuation turn opening pauses the watchdog; its result re-arms or seals', () => {
+  const h = makeHarness();
+  h.install({ pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 1 });
+  assert.equal(h.pendingMs, 90_000, 'grace armed while waiting for the turn');
+  h.sink.onTurnOpen!();
+  assert.equal(h.pendingMs, null, 'no watchdog while the continuation streams');
+  assert.deepEqual(h.track, [+1], 'busy bracket still held');
+  h.sink.onAssistantText('working…');
+  h.sink.onResult({ pendingBackgroundTasks: 1 } as any);
+  assert.equal(h.pendingMs, 1_800_000, 'chained work re-arms the cap');
+  assert.deepEqual(h.statuses.at(-1), { running: true, backgroundRunning: true });
+  h.sink.onTurnOpen!();
+  h.sink.onResult({ pendingBackgroundTasks: 0 } as any);
+  assert.deepEqual(h.statuses.at(-1), { running: false, backgroundRunning: false }, 'sealed by the final result');
+  assert.deepEqual(h.track, [+1, -1]);
+});
+
+test('holdWebForBg: after a seal, a late continuation reporting more work does not flip running back on', () => {
+  const h = makeHarness();
+  h.install({ pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 1 });
+  h.fire(); // grace seal
+  assert.deepEqual(h.statuses.at(-1), { running: false, backgroundRunning: false });
+  const after = h.statuses.length;
+  h.sink.onAssistantText('late');
+  h.sink.onResult({ pendingBackgroundTasks: 3 } as any);
+  assert.equal(h.statuses.length, after, 'no running:true with nothing left to seal it');
+  assert.deepEqual(h.track, [+1, -1], 'bracket not re-taken');
+  assert.deepEqual(h.assistants.map((a) => a.text), ['late'], 'output still streams');
+});
+
 test('holdWebForBg: a background subagent\'s output keeps its attribution', () => {
   // The subagent that a turn spawned in the background finishes AFTER that turn ends, so its
   // output arrives through the continuation sink rather than the in-turn path. When this seam

@@ -126,3 +126,26 @@ test('bg-wait-guard: env-tunable durations with sane defaults', () => {
     if (prevMax === undefined) delete process.env.CORTEX_BG_WAIT_MAX_S; else process.env.CORTEX_BG_WAIT_MAX_S = prevMax;
   }
 });
+
+
+test('bg-wait-guard: pause clears the live timer but keeps the bracket; rearm re-arms; settle still releases', () => {
+  const ft = fakeTimers();
+  const tr = trackRecorder();
+  let graced = 0;
+  const g = startBgWaitGuard({ running: 0, undelivered: 1, track: tr.track, onGraceTimeout: () => { graced++; }, onMaxWait: noop, graceMs: 1000, maxWaitMs: 5000, timers: ft.timers });
+  assert.equal(ft.live().length, 1);
+  g.pause();
+  assert.equal(ft.live().length, 0, 'watchdog cleared');
+  assert.equal(g.settled, false, 'not settled');
+  assert.deepEqual(tr.deltas, [1], 'bracket still held');
+  g.pause();
+  g.rearm(1, 0);
+  assert.equal(ft.live().length, 1, 're-armed after the continuation reported chained work');
+  assert.equal(ft.live()[0].ms, 5000);
+  g.settle();
+  assert.equal(ft.live().length, 0);
+  assert.deepEqual(tr.deltas, [1, -1]);
+  assert.equal(graced, 0, 'the paused watchdog never fired');
+  g.pause();
+  assert.equal(g.settled, true, 'pause after settle is a no-op');
+});

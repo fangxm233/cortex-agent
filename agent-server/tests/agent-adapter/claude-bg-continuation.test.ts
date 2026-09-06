@@ -300,6 +300,102 @@ test('handleProcessClose: crash mid-continuation (spontaneous turn open) → sin
   assert.equal(results[0].backgroundInterrupted, true);
 });
 
+// 2026-09-06 investigation (cortex-self K-070): on `--resume` with background work orphaned by
+// the previous process, the CLI emits the orphan notifications, `init`, and a 0-turn
+// result{origin:task-notification} BEFORE reading the prompt on stdin. Treating that result as
+// the user turn's resolved it empty in ~2s; the minutes of real work that followed were dropped.
+test('handleLine: notification-turn result on resume does not settle the user turn', (t) => {
+  const s: any = _test.makeSessionForTest();
+  s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
+  t.onTestFinished(() => s.close());
+
+  const cap: { value?: any } = {};
+  const texts: string[] = [];
+  const turn: any = fakeTurn(cap);
+  turn.onAssistantMessage = (text: string) => texts.push(text);
+  s.currentTurn = turn;
+
+  for (const id of ['bk8lu504b', 'bgacwz2nc', 'bzxqeqq9u']) {
+    s.handleLine(JSON.stringify({ type: 'system', subtype: 'task_notification', task_id: id, status: 'stopped', output_file: '', summary: 'Orphaned by a previous Claude Code process exit and reported in an aggregate summary.' }));
+  }
+  s.handleLine(JSON.stringify({ type: 'system', subtype: 'init', session_id: 'test-session' }));
+  s.handleLine(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, num_turns: 0, duration_ms: 59, result: '', total_cost_usd: 0, origin: { kind: 'task-notification' }, session_id: 'test-session' }));
+  assert.equal(cap.value, undefined, 'user turn still open after the notification-turn result');
+
+  s.handleLine(JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: '转换完成，两棵树都提交了' }] } }));
+  s.handleLine(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, num_turns: 12, result: '转换完成，两棵树都提交了', total_cost_usd: 0.9, session_id: 'test-session' }));
+
+  assert.ok(cap.value, 'user turn resolved by its own result');
+  assert.equal(cap.value.finalOutput, '转换完成，两棵树都提交了');
+  assert.equal(cap.value.num_turns, 12);
+  assert.deepEqual(texts, ['转换完成，两棵树都提交了'], 'the real reply reached the turn callbacks');
+  assert.equal(cap.value.undeliveredBackgroundTasks, 0, 'orphan notices owe no continuation');
+});
+
+test('handleLine: a spontaneous turn is still settled by its notification-turn result', (t) => {
+  const s: any = _test.makeSessionForTest();
+  s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
+  t.onTestFinished(() => s.close());
+
+  const results: any[] = [];
+  s.setContinuationSink({ onAssistantText: () => {}, onResult: (r: any) => results.push(r) });
+  s.handleLine(TASK_STARTED);
+  s.handleLine(TASK_NOTIFICATION);
+  s.handleLine(ASSISTANT_CONT);
+  s.handleLine(RESULT_CONT);
+  assert.equal(results.length, 1, 'continuation result delivered');
+});
+
+// Two background completions seconds apart: A's notification opens turn A; B's lands while the
+// model is producing turn A's final text, so the CLI queues turn B. At turn A's result both
+// notifications have been observed (counts 0) — the hold used to seal idle there, and turn B
+// (93 minutes, 114 turns on 2026-09-06) streamed into an "idle" session.
+test('handleLine: notification observed mid-turn without its own turn yet → result owes one delivery', (t) => {
+  const s: any = _test.makeSessionForTest();
+  s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
+  t.onTestFinished(() => s.close());
+
+  const results: any[] = [];
+  const opens: number[] = [];
+  s.setContinuationSink({
+    onTurnOpen: () => opens.push(results.length),
+    onAssistantText: () => {},
+    onResult: (r: any) => results.push(r),
+  });
+
+  s.handleLine(JSON.stringify({ type: 'system', subtype: 'task_started', task_id: 'a', is_backgrounded: true, task_type: 'local_agent' }));
+  s.handleLine(JSON.stringify({ type: 'system', subtype: 'task_started', task_id: 'b', is_backgrounded: true, task_type: 'local_agent' }));
+  s.handleLine(JSON.stringify({ type: 'system', subtype: 'task_notification', task_id: 'a', status: 'completed' }));
+  s.handleLine(ASSISTANT_CONT); // turn A opens
+  s.handleLine(JSON.stringify({ type: 'system', subtype: 'task_notification', task_id: 'b', status: 'completed' }));
+  s.handleLine(RESULT_CONT);    // turn A ends; turn B is queued inside the CLI
+  assert.equal(results.length, 1);
+  assert.equal(results[0].pendingBackgroundTasks, 0);
+  assert.equal(results[0].undeliveredBackgroundTasks, 1, 'B\'s turn has not opened yet — hold must wait');
+
+  s.handleLine(ASSISTANT_CONT); // turn B opens
+  s.handleLine(RESULT_CONT);
+  assert.equal(results.length, 2);
+  assert.equal(results[1].undeliveredBackgroundTasks, 0, 'nothing owed after turn B');
+  assert.deepEqual(opens, [0, 1], 'sink told when each continuation turn opened');
+});
+
+test('handleLine: notification folded into the active turn (replay echo) owes nothing at result', (t) => {
+  const s: any = _test.makeSessionForTest();
+  s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
+  t.onTestFinished(() => s.close());
+
+  const cap: { value?: any } = {};
+  s.currentTurn = fakeTurn(cap);
+  s.handleLine(JSON.stringify({ type: 'system', subtype: 'task_started', task_id: 'bg', is_backgrounded: true }));
+  s.handleLine(JSON.stringify({ type: 'system', subtype: 'task_updated', task_id: 'bg', patch: { status: 'completed' } }));
+  s.handleLine(JSON.stringify({ type: 'system', subtype: 'task_notification', task_id: 'bg', status: 'completed' }));
+  s.handleLine(JSON.stringify({ type: 'user', isReplay: true, message: { role: 'user', content: '<task-notification>\n<task-id>bg</task-id>\n<status>completed</status>\n</task-notification>' } }));
+  s.handleLine(RESULT_FIRST);
+  assert.ok(cap.value);
+  assert.equal(cap.value.undeliveredBackgroundTasks, 0, 'folded notification was delivered inside the turn');
+});
+
 test('handleLine: compact_boundary fires onCompact with trigger + preTokens', (t) => {
   const s: any = _test.makeSessionForTest();
   s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
