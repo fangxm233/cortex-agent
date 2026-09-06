@@ -19,6 +19,8 @@ Read the complete artifact, preserve evidence links, and report the main result.
 
 目录名必须与 frontmatter 的 `name` 一致。Portable skill 名称使用小写字母、数字和单个连字符；Cortex 只发现插件 `skills/` 目录的直接子目录。脚本、参考资料等支持文件可以放在各自 skill 目录之下。
 
+加载器有意保持宽松。只有完全不可用的 skill 才会被丢弃：frontmatter 无法解析、`name` 与目录名冲突、`description` 为空。其余情况——缺少 `name`、名称不规范、`description` 过长、可选字段格式有误、`allowed-tools` 写成 YAML 列表、出现规范之外的键——都会正常加载，并在插件详情页作为提示性问题列出。因为一个多余的 frontmatter 键就让可用的 skill 消失，是更糟糕也更难察觉的失败。
+
 Cortex 也会扫描 `$CORTEX_HOME/.claude/skills/` 中的 standalone user skills。这些独立技能不进入插件清单，也不参与 plugin assignment。
 
 ## 支持的插件格式 {#supported-plugin-formats}

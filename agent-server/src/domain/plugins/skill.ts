@@ -1,6 +1,6 @@
 // input:  contained SKILL.md files, yaml
-// output: valid skill entries plus frontmatter issues
-// pos:    Agent Skills frontmatter validator
+// output: skill entries plus fatal/advisory frontmatter issues
+// pos:    Agent Skills frontmatter validator (lenient: only unusable skills are dropped)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import fs from 'node:fs';
@@ -38,6 +38,18 @@ function makeIssue(name: string, message: string): PluginCatalogIssue {
   };
 }
 
+/** Reported but not disqualifying. Spec deviations here cost nothing at runtime: Cortex keeps only
+ *  the skill's name and directory, and the backend reads SKILL.md itself. Dropping a working skill
+ *  over a stray frontmatter key is a worse failure than tolerating the key, and it is a silent one. */
+function makeAdvisory(name: string, message: string): PluginCatalogIssue {
+  return {
+    code: 'skill_frontmatter_ignored',
+    scope: 'skill',
+    path: issuePath(name),
+    message,
+  };
+}
+
 function frontmatter(text: string): Record<string, unknown> | null {
   const match = FRONTMATTER_RE.exec(text);
   if (!match) return null;
@@ -49,27 +61,37 @@ function frontmatter(text: string): Record<string, unknown> | null {
   }
 }
 
-function validName(name: unknown, expected: string): boolean {
-  return typeof name === 'string'
-    && name === expected
-    && name.length <= 64
-    && SKILL_NAME_RE.test(name);
+/** Fatal: a name that disagrees with its directory makes the skill's identity ambiguous, since
+ *  Cortex addresses it by directory while the backend reads the frontmatter. An absent name is
+ *  merely advisory — the directory answers it. */
+function conflictingName(name: unknown, expected: string): boolean {
+  return name !== undefined && !(typeof name === 'string' && name === expected);
 }
 
 function validDescription(description: unknown): boolean {
-  return typeof description === 'string'
-    && description.trim().length > 0
-    && description.length <= 1024;
+  return typeof description === 'string' && description.trim().length > 0;
 }
 
 function stringIssue(name: string, field: string, message: string): PluginCatalogIssue[] {
-  return [makeIssue(name, `SKILL.md frontmatter ${field} ${message}`)];
+  return [makeAdvisory(name, `SKILL.md frontmatter ${field} ${message}`)];
 }
 
 function unknownFieldIssues(name: string, meta: Record<string, unknown>): PluginCatalogIssue[] {
   const keys = Object.keys(meta).filter((key) => !SKILL_FIELDS.has(key)).sort();
   if (keys.length === 0) return [];
-  return [makeIssue(name, `SKILL.md frontmatter contains unknown fields: ${keys.join(', ')}`)];
+  return [makeAdvisory(name, `SKILL.md frontmatter has fields outside the spec, ignored: ${keys.join(', ')}`)];
+}
+
+function shapeIssues(name: string, meta: Record<string, unknown>): PluginCatalogIssue[] {
+  const issues: PluginCatalogIssue[] = [];
+  if (meta.name === undefined) issues.push(...stringIssue(name, 'name', 'is absent; the directory name is used'));
+  else if (typeof meta.name === 'string' && (meta.name.length > 64 || !SKILL_NAME_RE.test(meta.name))) {
+    issues.push(...stringIssue(name, 'name', 'is not a canonical Agent Skills name'));
+  }
+  if (typeof meta.description === 'string' && meta.description.length > 1024) {
+    issues.push(...stringIssue(name, 'description', 'exceeds the 1024-character guidance'));
+  }
+  return issues;
 }
 
 function metadataStrings(value: unknown): boolean {
@@ -92,29 +114,41 @@ function optionalFieldIssues(name: string, meta: Record<string, unknown>): Plugi
   pushOptionalIssue(issues, name, meta.license !== undefined && typeof meta.license !== 'string', 'license', 'must be a string when present');
   pushOptionalIssue(issues, name, meta.compatibility !== undefined && (!validDescription(meta.compatibility) || String(meta.compatibility).length > 500), 'compatibility', 'must be 1-500 characters when present');
   pushOptionalIssue(issues, name, meta.metadata !== undefined && !metadataStrings(meta.metadata), 'metadata', 'must be a string-to-string map when present');
-  pushOptionalIssue(issues, name, meta['allowed-tools'] !== undefined && typeof meta['allowed-tools'] !== 'string', 'allowed-tools', 'must be a string when present');
+  pushOptionalIssue(issues, name, meta['allowed-tools'] !== undefined && !isToolList(meta['allowed-tools']), 'allowed-tools', 'should be a comma-separated string');
   return issues;
 }
 
-function validateSkill(name: string, text: string): PluginCatalogIssue[] {
-  const meta = frontmatter(text);
+/** A YAML list is the shape everyone writes by hand; accept it alongside the spec's string. */
+function isToolList(value: unknown): boolean {
+  return typeof value === 'string'
+    || (Array.isArray(value) && value.every((item) => typeof item === 'string'));
+}
+
+/** Fatal issues only. Everything survivable is reported by {@link advisoryIssues} instead. */
+function fatalIssues(name: string, meta: Record<string, unknown> | null): PluginCatalogIssue[] {
   if (!meta) return [makeIssue(name, 'SKILL.md must start with YAML frontmatter')];
-  if (!validName(meta.name, name)) {
+  if (conflictingName(meta.name, name)) {
     return [makeIssue(name, 'SKILL.md frontmatter name must match the skill directory')];
   }
   if (!validDescription(meta.description)) {
     return [makeIssue(name, 'SKILL.md frontmatter description must be non-empty')];
   }
-  return [...optionalFieldIssues(name, meta), ...unknownFieldIssues(name, meta)];
+  return [];
+}
+
+function advisoryIssues(name: string, meta: Record<string, unknown>): PluginCatalogIssue[] {
+  return [...shapeIssues(name, meta), ...optionalFieldIssues(name, meta), ...unknownFieldIssues(name, meta)];
 }
 
 export function loadSkillFile(name: string, filePath: string): SkillLoadResult {
+  let text: string;
   try {
-    const text = fs.readFileSync(filePath, 'utf8');
-    const issues = validateSkill(name, text);
-    if (issues.length > 0) return { issues };
-    return { skill: { name, dir: path.join('skills', name) }, issues: [] };
+    text = fs.readFileSync(filePath, 'utf8');
   } catch {
     return { issues: [makeIssue(name, 'SKILL.md could not be read')] };
   }
+  const meta = frontmatter(text);
+  const fatal = fatalIssues(name, meta);
+  if (fatal.length > 0 || !meta) return { issues: fatal };
+  return { skill: { name, dir: path.join('skills', name) }, issues: advisoryIssues(name, meta) };
 }

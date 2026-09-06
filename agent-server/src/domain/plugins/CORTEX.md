@@ -13,4 +13,4 @@ Plugin catalog and spawn runtime for skills, MCP, and backend projections.
 | runtime.ts | core | Isolate projected skills and MCP runtimes |
 | resources/ | asset | Store Agent Plugins 1.0.0 schema files |
 | skill-projection.ts | core | Snapshot and verify private skill copies |
-| skill.ts | core | Validate skill frontmatter and file loading |
+| skill.ts | core | Load skills, dropping only unusable ones and advising on the rest |

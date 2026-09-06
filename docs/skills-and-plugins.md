@@ -19,6 +19,8 @@ Read the complete artifact, preserve evidence links, and report the main result.
 
 The directory name and frontmatter `name` must match. Portable skills use lowercase letters, digits, and single hyphens, and Cortex discovers only immediate children of the plugin's `skills/` directory. A skill can keep supporting files such as scripts and references below its own directory.
 
+The loader is deliberately lenient. A skill is dropped only when it cannot be used at all: no parseable frontmatter, a `name` that contradicts its directory, or an empty `description`. Everything else — an absent `name`, a non-canonical one, an over-long `description`, a malformed optional field, an `allowed-tools` list written as YAML, or a key outside the spec — is loaded and reported as an advisory issue on the plugin's detail page. Losing a working skill to a stray frontmatter key is a worse and quieter failure than tolerating the key.
+
 Cortex also scans `$CORTEX_HOME/.claude/skills/` for standalone user skills. Those standalone skills remain separate from the plugin catalog and from plugin assignment.
 
 ## Supported plugin formats

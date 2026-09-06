@@ -17,6 +17,7 @@ export type PluginCatalogIssueCode =
   | 'mcp_server_invalid'
   | 'plugin_root_not_directory'
   | 'plugin_root_outside_plugins_dir'
+  | 'skill_frontmatter_ignored'
   | 'skill_invalid'
   | 'skill_outside_plugin_root';
 

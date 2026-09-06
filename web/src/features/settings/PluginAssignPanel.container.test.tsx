@@ -308,7 +308,9 @@ describe('Settings dirty guard', () => {
     await click(renderer.root.findByProps({ 'data-template-row': 'agent:writer' }));
     await vi.waitFor(() => expect(renderer.root.findAllByProps({ 'data-template-tab': 'plugins' })).toHaveLength(1));
     await click(renderer.root.findByProps({ 'data-template-tab': 'plugins' }));
-    await ready(renderer);
+    // The templates editor owns a `data-action="save"` of its own, so `ready()` would resolve
+    // before the embedded assignment control has any rows. Wait on a row instead.
+    await vi.waitFor(() => expect(renderer.root.findAllByProps({ 'data-plugin-row': 'beta' })).not.toHaveLength(0));
 
     await click(pluginToggle(renderer, 'beta'));
 

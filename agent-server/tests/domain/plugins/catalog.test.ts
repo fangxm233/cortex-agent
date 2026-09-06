@@ -68,8 +68,7 @@ const OPTIONAL_SKILL_MESSAGES = [
   'SKILL.md frontmatter license must be a string when present',
   'SKILL.md frontmatter compatibility must be 1-500 characters when present',
   'SKILL.md frontmatter metadata must be a string-to-string map when present',
-  'SKILL.md frontmatter allowed-tools must be a string when present',
-  'SKILL.md frontmatter contains unknown fields: category',
+  'SKILL.md frontmatter has fields outside the spec, ignored: category',
 ] as const;
 
 afterEach(() => {
@@ -341,7 +340,7 @@ it('falls back to .claude-plugin/plugin.json only when root plugin.json is absen
   expect(entry.mcp.status).toBe('missing');
 });
 
-it('keeps legacy .claude-plugin skills discoverable while portable plugins stay on strict Agent Skills validation', () => {
+it('keeps a portable skill whose frontmatter deviates from the spec, reporting the deviation instead of dropping it', () => {
   const legacyDir = makePlugin('legacy-retains-skills');
   writeJson(path.join(legacyDir, '.claude-plugin', 'plugin.json'), {
     name: 'legacy-retains-skills',
@@ -364,10 +363,29 @@ it('keeps legacy .claude-plugin skills discoverable while portable plugins stay 
   expect(issueCodes(legacy)).toEqual([]);
 
   expect(portable.kind).toBe('portable');
-  expect(portable.skills).toEqual([]);
-  expect(issueMessages(portable, 'skill_invalid')).toEqual(expect.arrayContaining([
-    'SKILL.md frontmatter allowed-tools must be a string when present',
-    'SKILL.md frontmatter contains unknown fields: argument-hint, author, date, version',
+  expect(portable.valid).toBe(true);
+  expect(portable.skills.map((skill) => skill.name)).toEqual(['ship-legacy']);
+  expect(issueMessages(portable, 'skill_invalid')).toEqual([]);
+  expect(issueMessages(portable, 'skill_frontmatter_ignored')).toEqual(expect.arrayContaining([
+    'SKILL.md frontmatter has fields outside the spec, ignored: argument-hint, author, date, version',
+  ]));
+});
+
+it('still drops a skill that cannot be identified or described', () => {
+  const dir = makePlugin('portable-unusable-skills');
+  writePortableManifest(dir, { ...OFFICIAL_VALID_MANIFEST, name: 'portable-unusable-skills' });
+  makeSkill(dir, 'wrong-name', '---\nname: something-else\ndescription: Mismatched identity\n---\n');
+  makeSkill(dir, 'no-description', '---\nname: no-description\n---\n');
+  makeSkill(dir, 'no-frontmatter', 'Just a body, no frontmatter at all.\n');
+  makeSkill(dir, 'named-by-directory', '---\ndescription: Name omitted on purpose\n---\n');
+
+  const entry = loadEntry('portable-unusable-skills');
+
+  expect(entry.skills.map((skill) => skill.name)).toEqual(['named-by-directory']);
+  expect(issueMessages(entry, 'skill_invalid')).toEqual(expect.arrayContaining([
+    'SKILL.md frontmatter name must match the skill directory',
+    'SKILL.md frontmatter description must be non-empty',
+    'SKILL.md must start with YAML frontmatter',
   ]));
 });
 
@@ -474,13 +492,20 @@ it('skips malformed skills per Agent Skills frontmatter rules', () => {
   expect(issueCodes(entry)).toContain('skill_invalid');
 });
 
-it('rejects malformed optional skill frontmatter fields and unknown keys', () => {
+it('keeps skills with malformed optional frontmatter fields and unknown keys, reporting each', () => {
   const entry = createOptionalSkillFrontmatterEntry();
 
-  expect(entry.skills.map((skill) => skill.name)).toEqual(['good-optional']);
-  expect(issueMessages(entry, 'skill_invalid')).toEqual(
-    expect.arrayContaining([...OPTIONAL_SKILL_MESSAGES]),
-  );
+  expect(entry.skills.map((skill) => skill.name)).toEqual([
+    'bad-compatibility', 'bad-license', 'bad-metadata', 'bad-tools', 'good-optional', 'unknown-field',
+  ]);
+  expect(issueMessages(entry, 'skill_invalid')).toEqual([]);
+  expect(issueMessages(entry, 'skill_frontmatter_ignored')).toEqual([...OPTIONAL_SKILL_MESSAGES].sort());
+});
+
+it('accepts allowed-tools written as a YAML list as well as the spec string', () => {
+  const entry = createOptionalSkillFrontmatterEntry();
+
+  expect(issueMessages(entry, 'skill_frontmatter_ignored').join('\n')).not.toContain('allowed-tools');
 });
 
 it('rejects PLUGIN_DATA symlink escapes after physical containment checks', () => {

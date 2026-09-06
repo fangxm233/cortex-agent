@@ -1,6 +1,6 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "cortex-feishu",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Feishu/Lark rich-text skill bundle — drive Feishu documents, native tables, spreadsheets, and base through the official lark-cli (feishu-doc skill). Separate from the cortex-feishu MCP server, which only sends files."
 }

@@ -1,6 +1,6 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "cortex-system",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Cortex system skill bundle — orient / evolve / schedule / compound / approval and other system-level skills. The commission skill moved to cortex-commission, which loads only in commission mode."
 }

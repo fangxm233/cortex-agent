@@ -111,18 +111,23 @@ export function McpServerSummary({ plugin }: { plugin: UiPluginCatalogEntry }) {
   );
 }
 
+/** Advisory codes describe something the loader ignored, not something it refused. Painting them
+ *  danger-red would re-create the very alarm the lenient validator exists to avoid. */
+const ADVISORY_ISSUE_CODES = new Set(['skill_frontmatter_ignored']);
+
 function IssueLine({ plugin, index }: { plugin: UiPluginCatalogEntry; index: number }) {
   const L = useVocab();
   const issue = plugin.issues[index];
+  const advisory = ADVISORY_ISSUE_CODES.has(issue.code);
   const meta = [
     `${L.plIssueScopeLabel} ${issue.scope}`,
     `${L.plIssueCodeLabel} ${issue.code}`,
     `${L.plIssuePathLabel} ${issue.path ?? L.plUnknownValue}`,
   ].join(' · ');
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <div data-plugin-issue={advisory ? 'advisory' : 'error'} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <div style={{ fontSize: 10, color: 'var(--proto-muted-2)' }}>{meta}</div>
-      <div style={{ fontSize: 10.5, color: 'var(--proto-danger)' }}>{issue.message}</div>
+      <div style={{ fontSize: 10.5, color: advisory ? 'var(--proto-muted-2)' : 'var(--proto-danger)' }}>{issue.message}</div>
     </div>
   );
 }

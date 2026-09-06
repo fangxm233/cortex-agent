@@ -1,6 +1,6 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "cortex-common",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "description": "Cortex cross-role skill bundle — critique / diagnosis / synthesis / design / debug primitives shared by multiple agents"
 }
