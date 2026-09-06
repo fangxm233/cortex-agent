@@ -5,13 +5,11 @@
 
 import { useCallback, useEffect, useRef, type CSSProperties } from 'react';
 import { WebBody } from '@/features/browser/WebBody';
-import { useDownloadFile } from '@/features/media/useDownloadFile';
 import { splitFromDrag } from './dock-split';
-import { DockCentered, DockFileBody, dockFileBodyStyle } from './DockFileBody';
+import { DockCentered, DockFileBody, dockFileBackground } from './DockFileBody';
 import { DockTabStrip } from './DockTabStrip';
 import { useDock } from './DockProvider';
 import {
-  dockDownloadPath,
   isFileTab,
   syncBodyOrder,
   type DockState,
@@ -28,6 +26,10 @@ import {
 // file tab keeps its PDF page and image zoom. Bodies are rendered in their own insertion order
 // (`syncBodyOrder`), never the strip's display order, so dragging a tab moves only its chrome:
 // re-parenting an iframe would tear its document down.
+//
+// The strip carries NO per-tab actions: with one strip over two kinds of body, a download or a
+// source toggle up there would belong to whatever happened to be active. Each body owns its own
+// row instead (`FileBar`, or a PDF's page pager); the strip keeps only the dock-wide close.
 
 const EMPTY_HINT = 'Click a file to preview it here, or open a web page with ＋.';
 
@@ -35,7 +37,6 @@ export function DockPane(): JSX.Element | null {
   const { open, state, split, closeDock, select, close, reorder, openWeb, updateWeb, setSplit, registerHost } = useDock();
   const paneRef = useRef<HTMLDivElement | null>(null);
   const bodyOrder = useRef<string[]>([]);
-  const dl = useDownloadFile();
 
   useEffect(() => registerHost(), [registerHost]);
 
@@ -72,9 +73,6 @@ export function DockPane(): JSX.Element | null {
   // The pane therefore stays mounted while it holds tabs, and only disappears once it holds none.
   if (!open && state === null) return null;
 
-  const activeTab = state === null ? null : state.tabs.find((tab) => tab.id === state.activeId) ?? null;
-  const downloadPath = activeTab ? dockDownloadPath(activeTab) : null;
-
   return (
     <div ref={paneRef} data-pane="dock" style={{ ...PANE_STYLE, flexGrow: split, display: open ? 'flex' : 'none' }}>
       {/* Divider — drag to re-balance chat vs dock. */}
@@ -93,12 +91,7 @@ export function DockPane(): JSX.Element | null {
         onClose={close}
         onReorder={reorder}
         actions={
-          <>
-            {downloadPath && activeTab && isFileTab(activeTab) && (
-              <span role="button" title="Download" onClick={() => dl(downloadPath, activeTab.item.name)} style={ACTION_STYLE}>↓</span>
-            )}
-            <span role="button" data-close-dock="" title="Close the dock" onClick={closeDock} style={{ ...ACTION_STYLE, fontSize: 16 }}>×</span>
-          </>
+          <span role="button" data-close-dock="" title="Close the dock" onClick={closeDock} style={ACTION_STYLE}>×</span>
         }
       />
 
@@ -129,7 +122,8 @@ function DockTabBody({ state, id, onUpdateWeb }: {
     inset: 0,
     flexDirection: 'column',
     minHeight: 0,
-    ...(isFileTab(tab) ? dockFileBodyStyle(tab.item) : {}),
+    overflow: 'hidden',
+    background: isFileTab(tab) ? dockFileBackground(tab.item) : 'var(--proto-card)',
     display: active ? 'flex' : 'none',
   };
   return (
@@ -160,7 +154,7 @@ const ACTION_STYLE: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  fontSize: 13,
+  fontSize: 16,
   cursor: 'pointer',
   flex: 'none',
   userSelect: 'none',

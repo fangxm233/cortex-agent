@@ -47,8 +47,10 @@ interface DocViewerContextValue {
 const DocViewerContext = createContext<DocViewerContextValue>({ openDoc: () => {}, close: () => {} });
 
 /** Text/Markdown body — fetch the file's text (authenticated) and render it.
+ *  `source` forces the raw text for a Markdown file, which is what the dock's "Source" toggle asks
+ *  for; every other kind already renders as raw text and ignores it.
  *  Exported so the dock's `DockFileBody` renders the SAME document body as this modal. */
-export function TextBody({ item }: { item: DocItem }): JSX.Element {
+export function TextBody({ item, source = false }: { item: DocItem; source?: boolean }): JSX.Element {
   const [text, setText] = useState<string | null>(null);
   const [state, setState] = useState<'loading' | 'ok' | 'toolarge' | 'failed'>('loading');
 
@@ -74,7 +76,7 @@ export function TextBody({ item }: { item: DocItem }): JSX.Element {
   if (state === 'failed') return <Centered failed>Failed to load {item.name}</Centered>;
   if (state === 'toolarge') return <Centered>File too large to preview — download to view.</Centered>;
 
-  if (isMarkdownName(item.name)) {
+  if (!source && isMarkdownName(item.name)) {
     return (
       <div style={{ padding: '22px 26px', color: 'var(--proto-ink)', fontSize: 13.5, lineHeight: 1.6 }}>
         <ChatMarkdown text={text ?? ''} />
@@ -99,8 +101,11 @@ export function TextBody({ item }: { item: DocItem }): JSX.Element {
 
 /** PDF body — pdf.js renders each page to a canvas. Loads pdf.js lazily on first PDF open.
  *  A page pager (counter + prev/next + jump-to-page) tracks the page under the viewport center.
+ *  `actions` are host controls (the dock hangs its download there, since a docked tab has no header
+ *  of its own); they keep the bar alive even before the pages exist, so a PDF that fails to render
+ *  can still be downloaded.
  *  Exported so the dock's `DockFileBody` renders the SAME document body as this modal. */
-export function PdfBody({ item }: { item: DocItem }): JSX.Element {
+export function PdfBody({ item, actions }: { item: DocItem; actions?: ReactNode }): JSX.Element {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const pagesRef = useRef<HTMLDivElement[]>([]);
@@ -189,8 +194,17 @@ export function PdfBody({ item }: { item: DocItem }): JSX.Element {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%' }}>
-      {numPages > 0 && state !== 'failed' && (
-        <PdfPager current={currentPage} total={numPages} onJump={goToPage} scale={zoom.scale} onZoomIn={zoomIn} onZoomOut={zoomOut} onZoomReset={resetZoom} />
+      {((numPages > 0 && state !== 'failed') || actions) && (
+        <PdfPager
+          current={currentPage}
+          total={state === 'failed' ? 0 : numPages}
+          onJump={goToPage}
+          scale={zoom.scale}
+          onZoomIn={zoomIn}
+          onZoomOut={zoomOut}
+          onZoomReset={resetZoom}
+          actions={actions}
+        />
       )}
       <div
         ref={(el) => { scrollRef.current = el; zoomRef(el); }}
@@ -205,10 +219,12 @@ export function PdfBody({ item }: { item: DocItem }): JSX.Element {
   );
 }
 
-/** Page pager toolbar — prev/next + an editable "N / total" jump field + zoom controls. */
-function PdfPager({ current, total, onJump, scale, onZoomIn, onZoomOut, onZoomReset }: {
+/** Page pager toolbar — prev/next + an editable "N / total" jump field + zoom controls, plus any
+ *  host actions. With no pages yet it collapses to just those actions. */
+function PdfPager({ current, total, onJump, scale, onZoomIn, onZoomOut, onZoomReset, actions }: {
   current: number; total: number; onJump: (n: number) => void;
   scale: number; onZoomIn: () => void; onZoomOut: () => void; onZoomReset: () => void;
+  actions?: ReactNode;
 }): JSX.Element {
   const [draft, setDraft] = useState(String(current));
   useEffect(() => { setDraft(String(current)); }, [current]);
@@ -232,6 +248,7 @@ function PdfPager({ current, total, onJump, scale, onZoomIn, onZoomOut, onZoomRe
         flex: 'none',
       }}
     >
+      {total > 0 && (
       <span
         role="button"
         title="Previous page"
@@ -241,6 +258,8 @@ function PdfPager({ current, total, onJump, scale, onZoomIn, onZoomOut, onZoomRe
       >
         ↑
       </span>
+      )}
+      {total > 0 && (
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, font: `600 11.5px ${mono}`, color: 'var(--proto-ink)' }}>
         <input
           value={draft}
@@ -263,6 +282,8 @@ function PdfPager({ current, total, onJump, scale, onZoomIn, onZoomOut, onZoomRe
         />
         <span style={{ color: 'var(--proto-muted)' }}>/ {total}</span>
       </div>
+      )}
+      {total > 0 && (
       <span
         role="button"
         title="Next page"
@@ -272,8 +293,10 @@ function PdfPager({ current, total, onJump, scale, onZoomIn, onZoomOut, onZoomRe
       >
         ↓
       </span>
+      )}
 
       {/* Zoom controls */}
+      {total > 0 && (
       <div style={{ marginLeft: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
         <span role="button" title="Zoom out" onClick={onZoomOut} style={pagerBtnStyle(scale <= 1)}>−</span>
         <span
@@ -286,6 +309,8 @@ function PdfPager({ current, total, onJump, scale, onZoomIn, onZoomOut, onZoomRe
         </span>
         <span role="button" title="Zoom in" onClick={onZoomIn} style={pagerBtnStyle(scale >= 5)}>+</span>
       </div>
+      )}
+      {actions && <div style={{ marginLeft: total > 0 ? 12 : 0, display: 'flex', alignItems: 'center', gap: 4 }}>{actions}</div>}
     </div>
   );
 }

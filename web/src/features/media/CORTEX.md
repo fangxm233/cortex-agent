@@ -7,7 +7,7 @@ Non-previewable types fall back to an authenticated download; the docked pane it
 | filename | role | function |
 |---|---|---|
 | MediaViewer.tsx | provider | Full-screen image and video lightbox context |
-| DocViewer.tsx | provider | PDF, text and view preview modal with open context |
+| DocViewer.tsx | provider | PDF, text and view preview modal, plus the bodies the dock reuses |
 | HtmlBody.tsx | view | Sandboxed frame rendering an agent-authored HTML view |
 | html-sandbox.ts | core | Sandbox tokens, injected CSP, srcdoc wrapper and frame protocol |
 | html-sandbox.test.ts | test | Pins the view isolation boundary and the wrapper |
