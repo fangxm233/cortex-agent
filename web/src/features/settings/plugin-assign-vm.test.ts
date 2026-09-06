@@ -17,12 +17,13 @@ import {
   setPluginDraftMode,
   syncPluginDraft,
   togglePluginDraftId,
-} from './plugins-panel-vm';
+} from './plugin-assign-vm';
 
 function plugin(over: Partial<UiPluginCatalogEntry> = {}): UiPluginCatalogEntry {
   return {
     id: 'alpha',
     kind: 'portable',
+    scope: 'always',
     rootDir: 'plugins/alpha',
     valid: true,
     assignable: true,

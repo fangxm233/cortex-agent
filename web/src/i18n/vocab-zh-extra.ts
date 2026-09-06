@@ -33,6 +33,7 @@ export const zhExtra = {
   ttTabBody: '内容',
   ttTabValidation: '校验',
   ttTabReferences: '引用',
+  ttTabPlugins: '插件',
   ttOriginStock: '原版',
   ttOriginModified: '已改',
   ttOriginCustom: '自建',

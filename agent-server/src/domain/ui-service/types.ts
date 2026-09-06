@@ -1747,6 +1747,11 @@ export type UiPluginMcpServer =
 export interface UiPluginCatalogEntry {
   id: string;
   kind: 'portable' | 'legacy' | 'unknown';
+  /** Whether spawn-time filtering restricts this plugin to some sessions. 'always' means assignment
+   *  is the only gate; 'commission' and 'channel' mirror filterScopedPlugins. */
+  scope: 'always' | 'commission' | 'channel';
+  /** Channel prefix a 'channel'-scoped plugin requires, e.g. 'feishu:'. */
+  scopePrefix?: string;
   rootDir: string;
   valid: boolean;
   assignable: boolean;

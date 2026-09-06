@@ -97,15 +97,21 @@ Remote servers require HTTPS except for loopback HTTP. URLs containing credentia
 
 The detailed transport and isolation rules come from the [Agent Plugins MCP runtime contract](https://agent-plugins.org/client-implementers/mcp-runtime). Cortex implements all three declared transports for Claude and PI.
 
+## Inspecting a plugin
+
+The desktop and browser workbench expose the catalog at **Settings → Plugins**. The page reads the connected Cortex server, so its entries belong to that server rather than to the local desktop installation. It lists every installed package and opens each one on three tabs.
+
+Overview carries the package's identity and health: format, manifest source and metadata, on-disk location, validation issues, and any spawn-time scope restriction. It also lists which agents and template slots currently reference the plugin, so the relationship stays discoverable from the package side without the page owning it. Skills lists the skills the package ships and where each `SKILL.md` lives. MCP shows the sanitized server summary, and states plainly when a legacy package cannot declare MCP servers at all.
+
 ## Assigning plugins
 
-The desktop and browser workbench expose the catalog at **Settings → Plugins**. The page reads the connected Cortex server, so its entries and assignments belong to that server rather than to the local desktop installation. It shows each package's format, manifest metadata, validation state, skills, sanitized MCP summary, and issues.
-
-The target selector covers agent definitions, ordinary template slots, shell bindings, and `__active__` slots. Agent targets store a complete managed plugin set. An ordinary template slot can either use the referenced agent's defaults or customize a complete snapshot. A custom snapshot does not track later agent changes; switching back to agent defaults removes the slot-level `pluginDirs` override. Shell bindings and `__active__` slots are read-only because they do not provide a stable writable assignment location.
+Assignment is a field of an agent or a template slot rather than a property of the plugin, so it is edited on the entity that owns it: **Settings → Templates**, select an agent or template, then the Plugins tab. Agent entities expose a single plugin set. Template entities expose one target per `agents[]` slot, chosen from a slot picker, and cover ordinary slots, shell bindings, and `__active__` slots. Agent targets store a complete managed plugin set. An ordinary template slot can either use the referenced agent's defaults or customize a complete snapshot. A custom snapshot does not track later agent changes; switching back to agent defaults removes the slot-level `pluginDirs` override. Shell bindings and `__active__` slots are read-only because they do not provide a stable writable assignment location.
 
 Saving uses the entity content hash as an optimistic concurrency guard. If the agent or template changes on disk, Cortex refreshes the target instead of overwriting the newer file. Existing plugin paths that are outside the managed catalog remain preserved and are reported as unmanaged. An already selected invalid catalog entry can be removed, but a new invalid entry cannot be assigned.
 
-Adding a portable plugin with at least one valid root `mcp.json` server opens a confirmation that explains the local-code and network trust surface. The acknowledgment is required for that portable MCP addition, but it is not a sandbox or an independent authorization boundary. Reset discards the local draft, while Save persists it through `plugins.assign`. The Settings modal blocks target navigation and closing while a plugin assignment draft is dirty. If a background refetch reports a different assignment hash, the page preserves the user's draft, marks it stale, disables Save, and requires Reset instead of silently replacing the edits (`web/src/features/settings/plugins-panel-vm.ts:143-164,199-210`).
+Adding a portable plugin with at least one valid root `mcp.json` server opens a confirmation that explains the local-code and network trust surface. The acknowledgment is required for that portable MCP addition, but it is not a sandbox or an independent authorization boundary. Reset discards the local draft, while Save persists it through `plugins.assign`. The Settings modal blocks section navigation and closing while an assignment draft is dirty. If a background refetch reports a different assignment hash, the page preserves the user's draft, marks it stale, disables Save, and requires Reset instead of silently replacing the edits (`web/src/features/settings/plugin-assign-vm.ts:143-164,199-210`).
+
+The assignment tab and the JSON body editor write the same file, so only one of them may hold a draft at a time: the tab is frozen while the body has unsaved edits. Assignment is also not the last word on whether a plugin loads. Scoped plugins are filtered again at spawn time, so a commission-scoped or channel-scoped package shows an inline note saying it will not load outside that scope however it is assigned.
 
 Assignments continue to use `pluginDirs` in the agent and template JSON files. An agent can be configured directly as follows:
 
@@ -170,4 +176,5 @@ When the `Skill` tool invokes a skill, Cortex's hook bridge records the activity
 | Spawn-time projection, normalization, and fingerprinting | `agent-server/src/domain/plugins/runtime.ts:143-688` |
 | Agent and template assignment persistence | `agent-server/src/domain/ui-service/mutate/plugins.ts:84-242` |
 | Connected-server catalog and target inventory | `agent-server/src/domain/ui-service/query/plugins.ts:32-172` |
-| Settings assignment and MCP acknowledgment | `web/src/features/settings/PluginsPanel.tsx:365-800` |
+| Settings plugin package manager | `web/src/features/settings/PluginsPanel.tsx` |
+| Settings assignment and MCP acknowledgment | `web/src/features/settings/PluginAssignPanel.tsx` |

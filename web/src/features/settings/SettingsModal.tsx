@@ -86,7 +86,7 @@ function panelContentStyle(section: SettingsSectionKey): CSSProperties {
   };
 }
 
-function resetPluginsDirty(open: boolean, setDirty: (dirty: boolean) => void): void {
+function resetDirty(open: boolean, setDirty: (dirty: boolean) => void): void {
   if (!open) setDirty(false);
 }
 
@@ -106,17 +106,19 @@ function OpenSettingsBody(props: SettingsBodyProps & { open: boolean }) {
 
 export function SettingsModal({ open, onClose }: SettingsModalProps) {
   const L = useVocab();
-  const [pluginsDirty, setPluginsDirty] = useState(false);
-  useEffect(() => resetPluginsDirty(open, setPluginsDirty), [open]);
-  const requestClose = () => requestSettingsClose(pluginsDirty, onClose);
+  // A panel holding an unsaved committed-on-save draft blocks nav and close. Today that is the
+  // plugin assignment form, which lives in the templates editor.
+  const [dirty, setDirty] = useState(false);
+  useEffect(() => resetDirty(open, setDirty), [open]);
+  const requestClose = () => requestSettingsClose(dirty, onClose);
   return (
     <RadixDialog.Root open={open} onOpenChange={(next) => dialogOpenChanged(next, requestClose)}>
       <RadixDialog.Portal>
         <RadixDialog.Overlay style={BACKDROP_STYLE} className="animate-cxfade motion-reduce:animate-none" />
         <RadixDialog.Content aria-describedby={undefined} style={MODAL_STYLE} className="animate-cxmodal focus:outline-none motion-reduce:animate-none">
           <RadixDialog.Title style={SR_ONLY}>{L.settings}</RadixDialog.Title>
-          <OpenSettingsBody open={open} onClose={requestClose} pluginsDirty={pluginsDirty}
-            onPluginDirtyChange={setPluginsDirty} />
+          <OpenSettingsBody open={open} onClose={requestClose} panelDirty={dirty}
+            onPanelDirtyChange={setDirty} />
         </RadixDialog.Content>
       </RadixDialog.Portal>
     </RadixDialog.Root>
@@ -178,12 +180,12 @@ interface SectionContentProps {
   configLoading: boolean;
   configError: { message: string } | null;
   onReconnect: (platform: 'slack' | 'feishu') => void;
-  onPluginDirtyChange: (dirty: boolean) => void;
+  onPanelDirtyChange: (dirty: boolean) => void;
 }
 
 type IndependentPanelProps = Pick<
   SectionContentProps,
-  'section' | 'onClose' | 'onPluginDirtyChange'
+  'section' | 'onClose' | 'onPanelDirtyChange'
 >;
 
 type IndependentPanelRenderer = (props: IndependentPanelProps) => JSX.Element;
@@ -191,7 +193,7 @@ type IndependentPanelRenderer = (props: IndependentPanelProps) => JSX.Element;
 const INDEPENDENT_PANEL_RENDERERS: Partial<Record<SettingsSectionKey, IndependentPanelRenderer>> = {
   appearance: () => <AppearancePanel />,
   usage: () => <UsagePanel />,
-  plugins: (props) => <PluginsPanel onDirtyChange={props.onPluginDirtyChange} />,
+  plugins: () => <PluginsPanel />,
 };
 
 function IndependentSettingsPanel(props: IndependentPanelProps) {
@@ -239,8 +241,8 @@ function useSettingsActions() {
 
 interface SettingsBodyProps {
   onClose: () => void;
-  pluginsDirty: boolean;
-  onPluginDirtyChange: (dirty: boolean) => void;
+  panelDirty: boolean;
+  onPanelDirtyChange: (dirty: boolean) => void;
 }
 
 function SettingsBody(props: SettingsBodyProps) {
@@ -252,15 +254,15 @@ function SettingsBody(props: SettingsBodyProps) {
   const content = {
     section, onClose: props.onClose, snapshot: config.data, cost: cost.data,
     configLoading: config.isLoading,
-    onPluginDirtyChange: props.onPluginDirtyChange,
+    onPanelDirtyChange: props.onPanelDirtyChange,
     configError: config.isError ? config.error : null,
     onReconnect: (platform: 'slack' | 'feishu') => actions.requestApproval.mutate({ kind: 'reconnect-platform', platform }),
   };
   return (
     <>
-      <SettingsHeader onClose={props.onClose} closeBlocked={props.pluginsDirty} />
+      <SettingsHeader onClose={props.onClose} closeBlocked={props.panelDirty} />
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
-        <SettingsNav section={section} blocked={props.pluginsDirty} onSelect={setSection} />
+        <SettingsNav section={section} blocked={props.panelDirty} onSelect={setSection} />
         <div style={panelContentStyle(section)}>
           <SettingsSectionTitle section={section} />
           <SettingsSectionContent {...content} />
@@ -281,7 +283,7 @@ const PANEL_RENDERERS: Partial<Record<SettingsSectionKey, PanelRenderer>> = {
   profiles: (props) => <ProfilesPanel snapshot={props.snapshot} />,
   budget: (props) => <BudgetPanel snapshot={props.snapshot} cost={props.cost} />,
   machines: () => <MachinesPanel />,
-  templates: () => <TemplatesPanel />,
+  templates: (props) => <TemplatesPanel onDirtyChange={props.onPanelDirtyChange} />,
   mcp: (props) => <McpPanel snapshot={props.snapshot} />,
   notifications: (props) => <NotificationsPanel snapshot={props.snapshot} />,
   hooks: () => <HooksPanel />,

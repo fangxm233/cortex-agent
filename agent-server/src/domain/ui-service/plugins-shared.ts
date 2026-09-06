@@ -6,6 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { DATA_DIR, PLUGINS_DIR } from '@core/paths.js';
+import { CHANNEL_SCOPED_PLUGINS, COMMISSION_SCOPED_PLUGINS } from '@domain/agents/spawn-config.js';
 import { loadPluginCatalog } from '@domain/plugins/catalog.js';
 import type { PluginCatalogEntry } from '@domain/plugins/catalog-types.js';
 import type { UiPluginCatalogEntry } from './types.js';
@@ -117,8 +118,18 @@ export function readPluginCatalogSnapshot(): PluginCatalogSnapshot {
   return { entries, byId, realpathToId };
 }
 
+/** Assignment is not the last word on whether a plugin loads: `filterScopedPlugins` drops scoped
+ *  plugins again at spawn time. Surfacing the rule here keeps that second gate from being invisible
+ *  knowledge the operator has to rediscover by debugging a session that silently lacks a skill. */
+function pluginScope(id: string): Pick<UiPluginCatalogEntry, 'scope' | 'scopePrefix'> {
+  if (COMMISSION_SCOPED_PLUGINS.includes(id)) return { scope: 'commission' };
+  const rule = CHANNEL_SCOPED_PLUGINS.find((candidate) => candidate.plugin === id);
+  return rule ? { scope: 'channel', scopePrefix: rule.channelPrefix } : { scope: 'always' };
+}
+
 export function sanitizePluginEntry(entry: PluginCatalogEntry): UiPluginCatalogEntry {
   return {
+    ...pluginScope(entry.id),
     id: entry.id,
     kind: entry.kind,
     rootDir: entry.rootDir,

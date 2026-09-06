@@ -33,6 +33,7 @@ export const enExtra = {
   ttTabBody: 'Body',
   ttTabValidation: 'Validation',
   ttTabReferences: 'References',
+  ttTabPlugins: 'Plugins',
   ttOriginStock: 'stock',
   ttOriginModified: 'modified',
   ttOriginCustom: 'custom',

@@ -48,12 +48,16 @@ Panels keep their presentation while canonical controllers and VMs in this folde
 | TemplatesPanel.test.tsx | test | Tests parse errors, mutation guards, validation and path safety |
 | templates-panel-vm.ts | vm | Filters, parses editor JSON and builds template mutation args |
 | templates-panel-vm.test.ts | test | Unit tests for the templates panel view model |
-| PluginsPanel.tsx | view | Bounds plugin cards and edits assignments |
-| PluginsPanel.test.tsx | test | Covers plugin view and stale states |
-| PluginsPanel.keyboard.test.tsx | test | Covers plugin mode keyboard access |
-| PluginsPanel.container.test.tsx | test | Covers query failures, dirty guards, refresh and conflict handling |
-| plugins-panel-vm.ts | vm | Syncs drafts and detects conflicts |
-| plugins-panel-vm.test.ts | test | Covers plugin VM conflict rules |
+| PluginsPanel.tsx | view | Master-detail package manager: what each plugin contains and who uses it |
+| PluginsPanel.test.tsx | test | Covers plugin list, detail tabs, usage and MCP redaction |
+| plugins-panel-vm.ts | vm | Filters, selects and groups plugin usage for the package manager |
+| PluginAssignPanel.tsx | view | Assignment control embedded in the templates editor |
+| PluginAssignPanel.test.tsx | test | Covers assignment gating, modes, acknowledgement and stale states |
+| PluginAssignPanel.keyboard.test.tsx | test | Covers assignment mode keyboard access |
+| PluginAssignPanel.container.test.tsx | test | Covers query failures, dirty guards, refresh and conflict handling |
+| plugin-assign-vm.ts | vm | Scopes targets to one entity, syncs drafts and detects conflicts |
+| plugin-assign-vm.test.ts | test | Covers assignment VM scoping and conflict rules |
+| plugin-ui.tsx | view | Plugin styles, labels and read-only pieces shared by both plugin surfaces |
 | platform-env.ts | vm | Defines env indexes, writable descriptors, safe whole numbers and durations |
 | platform-env.test.ts | test | Tests env redaction, setting lookup, whole-number parsing, duration bounds and retention limits |
 | settings-nav.ts | vm | Lists settings sections and descriptions |

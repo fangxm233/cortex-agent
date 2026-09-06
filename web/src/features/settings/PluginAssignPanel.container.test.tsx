@@ -1,16 +1,19 @@
-// input:  mounted plugin panel, tRPC mocks, toast capture
-// output: plugin MCP ack, refresh, dirty-guard, and conflict tests
-// pos:    Plugin panel React Query integration regressions
+// input:  mounted assignment control, tRPC mocks, toast capture
+// output: MCP ack, refresh, dirty-guard, and conflict tests for assignment
+// pos:    Plugin assignment React Query integration regressions
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PluginsAssignArgs, PluginsListReturn, UiPluginCatalogEntry } from '@cortex-agent/ui-contract';
+import type {
+  PluginsAssignArgs, PluginsListReturn, ThreadTemplateDetail, ThreadTemplateEntry, UiPluginCatalogEntry,
+} from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
 import { ThemeProvider } from '@/theme';
 
 const adapter = vi.hoisted(() => ({
+  configFails: true,
   currentData: null as PluginsListReturn | null,
   failRefresh: false,
   refreshGate: null as Promise<void> | null,
@@ -71,14 +74,56 @@ function staticQuery(key: string, value?: unknown, error?: string) {
 
 vi.mock('@/lib/trpc', () => ({
   useTRPC: () => ({
-    config: { get: staticQuery('config.get', undefined, 'config unavailable'), set: staticMutation() },
+    config: { get: configQuery(), set: staticMutation() },
     cost: { summary: staticQuery('cost.summary', {}) },
     approvals: { request: staticMutation() },
+    threadTemplates: {
+      get: staticQuery('threadTemplates.get', templateEntries()),
+      detail: templateDetailQuery(),
+      validate: staticMutation(),
+      save: staticMutation(),
+      remove: staticMutation(),
+    },
     plugins: { list: pluginListQuery(), assign: {
       mutationOptions: () => ({ mutationFn: (args: PluginsAssignArgs) => adapter.assignImpl(args) }),
     } },
   }),
 }));
+
+function configQuery() {
+  return {
+    queryOptions: () => ({
+      queryKey: ['config.get', {}],
+      queryFn: async () => {
+        if (adapter.configFails) throw new Error('config unavailable');
+        return {} as never;
+      },
+    }),
+    queryFilter: () => ({ queryKey: ['config.get', {}] }),
+  };
+}
+
+function templateEntries(): ThreadTemplateEntry[] {
+  return [{ kind: 'agent', name: 'writer', description: null, body: { name: 'writer' }, valid: true, errorCount: 0, origin: 'custom' }];
+}
+
+function templateDetail(): ThreadTemplateDetail {
+  return {
+    kind: 'agent', name: 'writer', description: null, body: { name: 'writer' },
+    filePath: '/tmp/writer.json', origin: 'custom', sha256: 'hash-agent',
+    errors: [], warnings: [], usedByTemplates: [], runningThreads: 0, referencingTasks: 0, expanded: null,
+  };
+}
+
+function templateDetailQuery() {
+  return {
+    queryOptions: (params: unknown) => ({
+      queryKey: ['threadTemplates.detail', params],
+      queryFn: async () => templateDetail(),
+    }),
+    queryFilter: (params: unknown) => ({ queryKey: ['threadTemplates.detail', params] }),
+  };
+}
 
 function staticMutation() {
   return { mutationOptions: () => ({ mutationFn: async () => ({}) }) };
@@ -98,13 +143,14 @@ async function readPluginData(): Promise<PluginsListReturn> {
   return adapter.currentData;
 }
 
-import { PluginsPanel } from './PluginsPanel';
+import { PluginAssignPanel } from './PluginAssignPanel';
 import { SettingsModal } from './SettingsModal';
 
 function plugin(id: string, over: Partial<UiPluginCatalogEntry> = {}): UiPluginCatalogEntry {
   return {
     id,
     kind: 'portable',
+    scope: 'always',
     rootDir: `plugins/${id}`,
     valid: true,
     assignable: true,
@@ -140,7 +186,7 @@ function listData(): PluginsListReturn {
 function mount(queryClient: QueryClient): ReactTestRenderer {
   return create(
     <QueryClientProvider client={queryClient}>
-      <LangProvider><PluginsPanel /></LangProvider>
+      <LangProvider><PluginAssignPanel scope={{ kind: 'agent', name: 'writer' }} /></LangProvider>
     </QueryClientProvider>,
   );
 }
@@ -185,6 +231,7 @@ async function cleanup(
 }
 
 beforeEach(() => {
+  adapter.configFails = true;
   adapter.currentData = listData();
   adapter.failRefresh = false;
   adapter.refreshGate = null;
@@ -247,13 +294,20 @@ describe('Plugins Settings shell integration', () => {
 
 });
 
-describe('Plugins Settings dirty guard', () => {
-  it('uses native nav buttons and blocks leaving while plugin edits are dirty', async () => {
+describe('Settings dirty guard', () => {
+  it('blocks leaving while an assignment draft is dirty inside the templates editor', async () => {
+    adapter.configFails = false;
     const queryClient = testQueryClient();
     const renderer = mountSettings(queryClient);
-    const pluginsNav = renderer.root.findByProps({ 'data-settings-nav': 'plugins' });
-    expect(pluginsNav.type).toBe('button');
-    await act(async () => { pluginsNav.props.onClick(); });
+
+    const templatesNav = renderer.root.findByProps({ 'data-settings-nav': 'templates' });
+    expect(templatesNav.type).toBe('button');
+    await act(async () => { templatesNav.props.onClick(); });
+
+    await vi.waitFor(() => expect(renderer.root.findAllByProps({ 'data-template-row': 'agent:writer' })).toHaveLength(1));
+    await click(renderer.root.findByProps({ 'data-template-row': 'agent:writer' }));
+    await vi.waitFor(() => expect(renderer.root.findAllByProps({ 'data-template-tab': 'plugins' })).toHaveLength(1));
+    await click(renderer.root.findByProps({ 'data-template-tab': 'plugins' }));
     await ready(renderer);
 
     await click(pluginToggle(renderer, 'beta'));
@@ -267,7 +321,7 @@ describe('Plugins Settings dirty guard', () => {
   });
 });
 
-describe('PluginsPanel container', () => {
+describe('PluginAssignPanel container', () => {
   it('runs add-MCP through ack, assignment, invalidation, and refresh', async () => {
     prepareAssignedData();
     const queryClient = testQueryClient();
@@ -281,7 +335,7 @@ describe('PluginsPanel container', () => {
 
 });
 
-describe('PluginsPanel refresh lock', () => {
+describe('PluginAssignPanel refresh lock', () => {
   it('keeps controls disabled until the post-save refresh settles', async () => {
     let release!: () => void;
     const gate = new Promise<void>((resolve) => { release = resolve; });
@@ -304,7 +358,7 @@ describe('PluginsPanel refresh lock', () => {
 
 });
 
-describe('PluginsPanel conflict refresh', () => {
+describe('PluginAssignPanel conflict refresh', () => {
   it('preserves the dirty draft as stale after an assignment conflict', async () => {
     const fresh = listData();
     fresh.targets[0] = { ...fresh.targets[0], baseHash: 'hash-next' } as PluginsListReturn['targets'][number];
@@ -325,7 +379,7 @@ describe('PluginsPanel conflict refresh', () => {
   });
 });
 
-describe('PluginsPanel conflict refresh errors', () => {
+describe('PluginAssignPanel conflict refresh errors', () => {
   it('toasts a localized refresh failure when a conflict refresh also fails', async () => {
     adapter.assignImpl.mockRejectedValue(new Error('changed on disk'));
     const queryClient = testQueryClient();

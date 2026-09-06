@@ -1,14 +1,14 @@
-// input:  mounted plugin view and design mocks
+// input:  mounted assignment view and design mocks
 // output: native mode-control accessibility tests
-// pos:    Plugin mode control interaction regressions
+// pos:    Plugin assignment mode control interaction regressions
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type { PluginAssignmentTarget, UiPluginCatalogEntry } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
-import { PluginsPanelView, type PluginsPanelViewProps } from './PluginsPanel';
-import { createPluginDraft } from './plugins-panel-vm';
+import { PluginAssignView, type PluginAssignViewProps } from './PluginAssignPanel';
+import { createPluginDraft } from './plugin-assign-vm';
 
 vi.mock('@/design', async importOriginal => {
   const actual = await importOriginal<typeof import('@/design')>();
@@ -23,6 +23,7 @@ function plugin(): UiPluginCatalogEntry {
   return {
     id: 'alpha',
     kind: 'portable',
+    scope: 'always',
     rootDir: 'plugins/alpha',
     valid: true,
     assignable: true,
@@ -60,17 +61,21 @@ function slot(): Extract<PluginAssignmentTarget, { kind: 'template-slot' }> {
 
 function mount(onModeChange: (mode: 'inherit' | 'custom') => void) {
   const targets = [agent(), slot()];
-  const props: PluginsPanelViewProps = {
+  const props: PluginAssignViewProps = {
     state: 'ready',
     errorMessage: null,
+    locked: false,
     plugins: [plugin()],
-    targets,
+    scopedTargets: [targets[1]],
     selectedKey: 'template-slot:workflow:1:writer',
+    target: targets[1],
     draft: createPluginDraft(targets[1], targets),
+    unmanagedCount: 0,
     pending: false,
+    busy: false,
     ackOpen: false,
     ackPlugins: [],
-    onTargetChange: () => {},
+    onSelectTarget: () => {},
     onModeChange,
     onTogglePlugin: () => {},
     onReset: () => {},
@@ -78,10 +83,10 @@ function mount(onModeChange: (mode: 'inherit' | 'custom') => void) {
     onAckOpenChange: () => {},
     onAckConfirm: () => {},
   };
-  return create(<LangProvider><PluginsPanelView {...props} /></LangProvider>);
+  return create(<LangProvider><PluginAssignView {...props} /></LangProvider>);
 }
 
-describe('PluginsPanelView keyboard access', () => {
+describe('PluginAssignView keyboard access', () => {
   it('uses a native button for each enabled mode choice', () => {
     const onModeChange = vi.fn();
     const renderer = mount(onModeChange);

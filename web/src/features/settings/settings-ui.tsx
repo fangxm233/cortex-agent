@@ -14,8 +14,14 @@ export const CARD_STYLE: CSSProperties = {
   boxShadow: 'var(--shadow-card-subtle)',
 };
 
-export function SCard({ children, style }: { children: ReactNode; style?: CSSProperties }) {
-  return <div style={{ ...CARD_STYLE, ...style }}>{children}</div>;
+// Rest props are forwarded so callers can hang `data-*` hooks off the card. TypeScript does not
+// type-check hyphenated JSX attributes, so without this they would be dropped silently.
+export function SCard({
+  children,
+  style,
+  ...rest
+}: { children: ReactNode; style?: CSSProperties } & Record<string, unknown>) {
+  return <div {...rest} style={{ ...CARD_STYLE, ...style }}>{children}</div>;
 }
 
 export function SCardHeader({ title, right }: { title: ReactNode; right?: ReactNode }) {

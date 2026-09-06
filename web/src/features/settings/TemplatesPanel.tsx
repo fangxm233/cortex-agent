@@ -14,6 +14,7 @@ import { useTRPC } from '@/lib/trpc';
 import { useToast } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
 import { SButton, SCard, S_CONTROL_STYLE } from './settings-ui';
+import { PluginAssignPanel } from './PluginAssignPanel';
 import {
   TEMPLATE_FILTER_KEYS,
   buildSaveArgs,
@@ -62,7 +63,14 @@ const ORIGIN_TITLE: Record<ThreadTemplateDetail['origin'], keyof Vocab> = {
   custom: 'ttOriginCustomTitle',
 };
 
-type Tab = 'body' | 'validation' | 'references';
+type Tab = 'body' | 'validation' | 'references' | 'plugins';
+
+/** Plugin assignment is a field of an agent or a template slot, so it is edited here, on the
+ *  entity that owns it. Shells have no pluginDirs, and a not-yet-created entity has no file to
+ *  assign against. */
+function showsPluginTab(kind: TemplateKind | null, creating: boolean): boolean {
+  return !creating && (kind === 'agent' || kind === 'template');
+}
 
 // ── small pieces ──────────────────────────────────────────────────────────────────────────────
 
@@ -347,6 +355,8 @@ export interface TemplateDetailPaneProps {
   onDuplicate: () => void;
   onCancelCreate: () => void;
   onFormat: () => void;
+  onPluginDirtyChange?: (dirty: boolean) => void;
+  onPluginSaved?: () => void;
 }
 
 export function TemplateDetailPane(props: TemplateDetailPaneProps) {
@@ -384,6 +394,7 @@ export function TemplateDetailPane(props: TemplateDetailPaneProps) {
     { key: 'body', label: L.ttTabBody },
     { key: 'validation', label: L.ttTabValidation, badge: issues.errors.length + issues.warnings.length },
     { key: 'references', label: L.ttTabReferences },
+    ...(showsPluginTab(kind, creating !== null) ? [{ key: 'plugins' as Tab, label: L.ttTabPlugins }] : []),
   ];
 
   return (
@@ -501,6 +512,15 @@ export function TemplateDetailPane(props: TemplateDetailPaneProps) {
             </div>
             <Muted>{L.ttErrorsBlock}</Muted>
           </div>
+        ) : null}
+
+        {props.tab === 'plugins' && showsPluginTab(kind, creating !== null) ? (
+          <PluginAssignPanel
+            scope={{ kind: kind as 'agent' | 'template', name }}
+            locked={dirty}
+            onDirtyChange={props.onPluginDirtyChange}
+            onSaved={props.onPluginSaved}
+          />
         ) : null}
 
         {props.tab === 'references' ? (
@@ -629,7 +649,7 @@ function Muted({ children, style }: { children: ReactNode; style?: CSSProperties
 
 // ── container ─────────────────────────────────────────────────────────────────────────────────
 
-export function TemplatesPanel() {
+export function TemplatesPanel({ onDirtyChange }: { onDirtyChange?: (dirty: boolean) => void } = {}) {
   const L = useVocab();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -650,6 +670,7 @@ export function TemplatesPanel() {
   const [armedSave, setArmedSave] = useState(false);
   const [armedDelete, setArmedDelete] = useState(false);
   const [createText, setCreateText] = useState('');
+  const [pluginDirty, setPluginDirty] = useState(false);
 
   const visible = useMemo(() => filterEntries(entries, filter, search), [entries, filter, search]);
   const selection = creating ? null : resolveSelection(visible, requested);
@@ -671,7 +692,14 @@ export function TemplatesPanel() {
     setLiveIssues(null);
     setArmedSave(false);
     setArmedDelete(false);
-  }, [selection?.kind, selection?.name, creating?.kind]);
+    // The plugins tab does not exist for shells or while creating; fall back rather than blank out.
+    setTab((current) => (current === 'plugins' && !showsPluginTab(selection?.kind ?? null, creating !== null) ? 'body' : current));
+  }, [selection?.kind, selection?.name, creating?.kind, creating]);
+
+  // Only the assignment draft blocks navigation: it is a committed-on-save form, whereas the JSON
+  // buffer has always been free to abandon.
+  useEffect(() => { onDirtyChange?.(pluginDirty); }, [pluginDirty, onDirtyChange]);
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
 
   const invalidate = () => {
     queryClient.invalidateQueries(trpc.threadTemplates.get.queryFilter({}));
@@ -833,6 +861,8 @@ export function TemplatesPanel() {
           onDelete={onDelete}
           onDuplicate={onDuplicate}
           onCancelCreate={() => setCreating(null)}
+          onPluginDirtyChange={setPluginDirty}
+          onPluginSaved={invalidate}
           onFormat={() => {
             const parsed = parseEditor(currentText);
             if (parsed.body === null) {

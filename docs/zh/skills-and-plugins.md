@@ -97,15 +97,21 @@ Remote server 除 loopback HTTP 外必须使用 HTTPS。包含 credentials 或 f
 
 详细 transport 与隔离规则来自 [Agent Plugins MCP runtime contract](https://agent-plugins.org/client-implementers/mcp-runtime)。Cortex 在 Claude 与 PI 中实现三种声明式 transport。
 
+## 查看插件 {#inspecting-plugins}
+
+桌面与浏览器工作台通过 **Settings → Plugins** 提供 catalog。页面读取当前连接的 Cortex server，因此清单属于该 server，而不是本机 desktop 安装。页面列出全部已安装 package，每个 package 有三个 tab。
+
+Overview 给出身份与健康状态：格式、manifest 来源与 metadata、磁盘位置、validation issues，以及 spawn 时的 scope 限制。它同时列出当前引用该插件的 agent 与 template slot，让这层关系从 package 一侧可见，但不由本页面负责编辑。Skills 列出 package 携带的 skill 及每个 `SKILL.md` 的位置。MCP 显示 sanitized server summary，并在 legacy package 根本无法声明 MCP server 时直接说明。
+
 ## 分配插件 {#assigning-plugins}
 
-桌面与浏览器工作台通过 **Settings → Plugins** 提供 catalog。页面读取当前连接的 Cortex server，因此清单和分配属于该 server，而不是本机 desktop 安装。页面显示每个 package 的格式、manifest metadata、validation state、skills、sanitized MCP summary 与 issues。
-
-Target selector 覆盖 agent definition、普通 template slot、shell binding 与 `__active__` slot。Agent target 保存完整 managed plugin set。普通 template slot 可以使用所引用 agent 的 defaults，也可以自定义一个完整 snapshot。Custom snapshot 不会追踪 agent 后续变化；切回 agent defaults 会删除 slot-level `pluginDirs` override。Shell binding 与 `__active__` slot 没有稳定可写的 assignment location，因此是只读的。
+Assignment 是 agent 或 template slot 的字段，而不是插件自身的属性，因此在拥有该字段的实体上编辑：**Settings → Templates**，选中 agent 或 template，再切到 Plugins tab。Agent 实体只有一个 plugin set。Template 实体按 `agents[]` 的每个 slot 提供一个 target，通过 slot 选择器切换，覆盖普通 slot、shell binding 与 `__active__` slot。Agent target 保存完整 managed plugin set。普通 template slot 可以使用所引用 agent 的 defaults，也可以自定义一个完整 snapshot。Custom snapshot 不会追踪 agent 后续变化；切回 agent defaults 会删除 slot-level `pluginDirs` override。Shell binding 与 `__active__` slot 没有稳定可写的 assignment location，因此是只读的。
 
 保存时使用 entity content hash 做 optimistic concurrency guard。如果 agent 或 template 已在磁盘上变化，Cortex 会刷新 target，而不是覆盖新内容。Managed catalog 之外的既有 plugin path 会被保留，并显示为 unmanaged。已经选中的无效 catalog entry 可以移除，但不能新分配无效 entry。
 
-加入至少含一个有效 root `mcp.json` server 的 portable plugin 时，会弹出确认，说明本地代码执行与网络访问的信任面。该 portable MCP assignment 必须确认，但确认不是 sandbox，也不是独立 authorization boundary。Reset 会丢弃本地草稿，Save 则通过 `plugins.assign` 持久化。Plugin assignment 草稿为 dirty 时，Settings modal 会阻止切换 target 或关闭。如果后台 refetch 返回不同的 assignment hash，页面会保留用户草稿、标记 stale、禁用 Save，并要求 Reset，而不是静默替换编辑（`web/src/features/settings/plugins-panel-vm.ts:143-164,199-210`）。
+加入至少含一个有效 root `mcp.json` server 的 portable plugin 时，会弹出确认，说明本地代码执行与网络访问的信任面。该 portable MCP assignment 必须确认，但确认不是 sandbox，也不是独立 authorization boundary。Reset 会丢弃本地草稿，Save 则通过 `plugins.assign` 持久化。Assignment 草稿为 dirty 时，Settings modal 会阻止切换分区或关闭。如果后台 refetch 返回不同的 assignment hash，页面会保留用户草稿、标记 stale、禁用 Save，并要求 Reset，而不是静默替换编辑（`web/src/features/settings/plugin-assign-vm.ts:143-164,199-210`）。
+
+Assignment tab 与 JSON 正文编辑器写的是同一个文件，因此同一时刻只能有一个持有草稿：正文有未保存修改时，该 tab 会被冻结。另外，assignment 并不等于最终会加载：scoped plugin 在 spawn 时还会被再次过滤，因此 commission-scoped 或 channel-scoped 的 package 会内联提示——无论怎么分配，超出该 scope 都不会加载。
 
 Assignment 继续写入 agent 和 template JSON 的 `pluginDirs`，不引入第二套字段。Agent 可直接配置为：
 
@@ -170,4 +176,5 @@ Plugins 页面只管理 inventory 与 assignment。其 MCP inventory 与 acknowl
 | Spawn-time projection、normalization 与 fingerprint | `agent-server/src/domain/plugins/runtime.ts:143-688` |
 | Agent 与 template assignment persistence | `agent-server/src/domain/ui-service/mutate/plugins.ts:84-242` |
 | Connected-server catalog 与 target inventory | `agent-server/src/domain/ui-service/query/plugins.ts:32-172` |
-| Settings assignment 与 MCP acknowledgment | `web/src/features/settings/PluginsPanel.tsx:365-800` |
+| Settings 插件包管理页 | `web/src/features/settings/PluginsPanel.tsx` |
+| Settings assignment 与 MCP acknowledgment | `web/src/features/settings/PluginAssignPanel.tsx` |
