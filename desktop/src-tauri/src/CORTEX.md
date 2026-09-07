@@ -17,4 +17,4 @@ Provides SPA commands, native plugins, frontend delivery, and updates.
 | setup_process.rs | util | Probes CLI versions and streams token-safe progress |
 | forward.rs | core | forwards a server loopback port to a local port (desktop) |
 | forward_stub.rs | core | refusing stand-in for the forward on Android |
-| seed.rs | util | Materialize frontend on first run and APK upgrade |
+| seed.rs | util | Restore compatible frontend on APK or legacy OTA |

@@ -1,5 +1,5 @@
 // input:  Embedded frontend files and app-private frontend directory
-// output: First-run and APK-upgrade frontend materialization
+// output: Upgrade-safe frontend with native notification support
 // pos:    Android bundled frontend lifecycle
 // >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
 
@@ -8,6 +8,7 @@ use sha2::{Digest, Sha256};
 use std::{io, path::Path};
 
 static SEED: Dir = include_dir!("$CARGO_MANIFEST_DIR/../../web/dist");
+const BRIDGE_MARKER: &str = "name=\"cortex-native-notifications\"";
 
 pub fn ensure_seed(dest: &Path) -> io::Result<bool> {
     let index = SEED.get_file("index.html")
@@ -20,8 +21,11 @@ pub fn ensure_seed(dest: &Path) -> io::Result<bool> {
 
 fn ensure_version(dest: &Path, version: &str, extract: impl FnOnce() -> io::Result<()>) -> io::Result<bool> {
     let marker = dest.with_extension("seed-version");
-    if dest.join("index.html").is_file()
-        && std::fs::read_to_string(&marker).ok().as_deref() == Some(version) {
+    // Older servers may cache a frontend without the native action consumer.
+    // Preserve compatible OTA builds, but never strand taps behind a legacy page.
+    let compatible = std::fs::read_to_string(dest.join("index.html"))
+        .map(|html| html.contains(BRIDGE_MARKER)).unwrap_or(false);
+    if compatible && std::fs::read_to_string(&marker).ok().as_deref() == Some(version) {
         return Ok(false);
     }
     std::fs::create_dir_all(dest)?;
@@ -40,7 +44,7 @@ mod tests {
         std::env::temp_dir().join(format!("cortex-seed-{}-{unique}", std::process::id())).join("current")
     }
     fn install(dest: &Path, version: &str) -> io::Result<bool> {
-        ensure_version(dest, version, || std::fs::write(dest.join("index.html"), version))
+        ensure_version(dest, version, || std::fs::write(dest.join("index.html"), format!("{version}{BRIDGE_MARKER}")))
     }
     #[test]
     fn installs_first_run_and_apk_upgrade() {
@@ -48,17 +52,25 @@ mod tests {
         assert!(install(&dest, "first").unwrap());
         assert!(!install(&dest, "first").unwrap());
         assert!(install(&dest, "second").unwrap());
-        assert_eq!(std::fs::read_to_string(dest.join("index.html")).unwrap(), "second");
+        assert_eq!(std::fs::read_to_string(dest.join("index.html")).unwrap(), format!("second{BRIDGE_MARKER}"));
         std::fs::remove_dir_all(dest.parent().unwrap()).unwrap();
     }
     #[test]
     fn preserves_ota_until_bundled_frontend_changes() {
         let dest = sandbox();
         install(&dest, "seed").unwrap();
-        std::fs::write(dest.join("index.html"), "ota").unwrap();
+        std::fs::write(dest.join("index.html"), format!("ota{BRIDGE_MARKER}")).unwrap();
         assert!(!install(&dest, "seed").unwrap());
-        assert_eq!(std::fs::read_to_string(dest.join("index.html")).unwrap(), "ota");
+        assert_eq!(std::fs::read_to_string(dest.join("index.html")).unwrap(), format!("ota{BRIDGE_MARKER}"));
         std::fs::remove_file(dest.join("index.html")).unwrap();
+        assert!(install(&dest, "seed").unwrap());
+        std::fs::remove_dir_all(dest.parent().unwrap()).unwrap();
+    }
+    #[test]
+    fn restores_notification_bridge_after_legacy_ota() {
+        let dest = sandbox();
+        install(&dest, "seed").unwrap();
+        std::fs::write(dest.join("index.html"), "legacy-ota").unwrap();
         assert!(install(&dest, "seed").unwrap());
         std::fs::remove_dir_all(dest.parent().unwrap()).unwrap();
     }
