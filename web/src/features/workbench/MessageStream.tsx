@@ -3,9 +3,11 @@
 // pos:    Desktop workbench message presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLang } from '@/i18n';
 import type { ChatRow } from './transcript-vm';
+import { ChatNavRail } from './ChatNavRail';
+import { activeNavRow, buildNavMarks } from './chat-nav';
 import { ToolCallsRow } from './ToolCallsRow';
 import { SubagentBlock } from './SubagentBlock';
 import { SubagentTranscriptDetail } from './SubagentTranscriptDetail';
@@ -28,6 +30,12 @@ import { ChatNotice } from './ChatNotice';
  *  breathing room a pane-wide block keeps, so a wide table lines up with the column's own padding. */
 const COLUMN_W = 756;
 const GUTTER = 32;
+
+/** How far below the viewport's top edge a message counts as the one being read, and where a jump
+ *  parks its target — the column's own top padding, so the message lands where a fresh screen of
+ *  transcript would start. */
+const READING_LINE = 96;
+const JUMP_MARGIN = 22;
 
 /** Edit+rewind context passed from CenterChat (sessions.rewind). Absent → chat is read-only
  *  w.r.t. editing (the thread step chat), hover copy still works. */
@@ -70,10 +78,13 @@ function Divider({ text }: { text: string }): JSX.Element {
   );
 }
 
-function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, editDisabled, pending, debug }: {
+function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, editDisabled, pending, debug, anchor }: {
   text: string;
   attachments?: AttachmentMeta[];
   ts?: string;
+  /** Row index this bubble sits at, published to the DOM so the nav rail can scroll back to it.
+   *  Absent in nested (subagent) and embedded (thread step) transcripts, which have no rail. */
+  anchor?: number;
   edited?: { originalText: string; originalTs: string };
   /** Present → the sec-23 hover copy/edit affordances render. */
   editCopy?: MEditCopy;
@@ -93,6 +104,7 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
   return (
     <div
       className="group"
+      data-chat-anchor={anchor}
       style={{
         position: 'relative',
         alignSelf: 'flex-end',
@@ -293,7 +305,7 @@ export function InteractionRowCard({ row, actions }: {
   return <InteractionSummaryRow tone={v.tone} label={v.label} text={v.text} />;
 }
 
-function Row({ row, interactionActions, editCopy, assistantCopyText, onStartEdit, editDisabled, regen, streamKey }: {
+function Row({ row, interactionActions, editCopy, assistantCopyText, onStartEdit, editDisabled, regen, streamKey, anchor }: {
   row: ChatRow;
   interactionActions?: InteractionActions;
   editCopy?: MEditCopy;
@@ -303,12 +315,14 @@ function Row({ row, interactionActions, editCopy, assistantCopyText, onStartEdit
   regen?: boolean;
   /** Identity of the live stream these rows belong to — see AssistantBlock. */
   streamKey?: string;
+  /** Nav-rail anchor for a user row — see UserBubble. */
+  anchor?: number;
 }): JSX.Element | null {
   switch (row.kind) {
     case 'divider':
       return <Divider text={row.text} />;
     case 'user':
-      return <UserBubble text={row.text} attachments={row.attachments} ts={row.ts} edited={row.edited} editCopy={editCopy} onStartEdit={onStartEdit} editDisabled={editDisabled} pending={row.pending} debug={row.debug} />;
+      return <UserBubble text={row.text} attachments={row.attachments} ts={row.ts} edited={row.edited} editCopy={editCopy} onStartEdit={onStartEdit} editDisabled={editDisabled} pending={row.pending} debug={row.debug} anchor={anchor} />;
     case 'tools':
       return (
         <div className="group">
@@ -378,7 +392,11 @@ function Row({ row, interactionActions, editCopy, assistantCopyText, onStartEdit
  *  sec-23 message-edit state when an `edit` context is passed (the workbench center chat): the edited
  *  bubble becomes an in-place EditBox, later rows dim under a「将被回退」badge, and submit fires
  *  the rewind. */
-export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy = true }: { rows: ChatRow[]; interactionActions?: InteractionActions; edit?: MessageEditCtx; streamKey?: string; turnCopy?: boolean }): JSX.Element {
+export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy = true, anchors = false }: { rows: ChatRow[]; interactionActions?: InteractionActions; edit?: MessageEditCtx; streamKey?: string; turnCopy?: boolean;
+  /** True → user rows publish their index as a `data-chat-anchor`, which is what the nav rail
+   *  scrolls to. Only the top-level workbench transcript sets it: a nested subagent transcript
+   *  renders through this same component and its rows are not session-level destinations. */
+  anchors?: boolean }): JSX.Element {
   const lang = useLang();
   const editCopy = lang === 'zh' ? M_EDIT_COPY.zh : M_EDIT_COPY.en;
   // The row currently being edited (a user row with a turnIndex). Reset when the row set changes
@@ -398,6 +416,8 @@ export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy =
     return i;
   };
 
+  const anchorOf = (row: ChatRow, i: number): number | undefined => (anchors && row.kind === 'user' ? i : undefined);
+
   if (editingValid) {
     const er = editingRow as Extract<ChatRow, { kind: 'user' }>;
     const before = rows.slice(0, editingIdx!);
@@ -405,7 +425,7 @@ export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy =
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {before.map((row, i) => (
-          <Row key={rowKey(row, i)} row={row} interactionActions={interactionActions} streamKey={streamKey} />
+          <Row key={rowKey(row, i)} row={row} interactionActions={interactionActions} streamKey={streamKey} anchor={anchorOf(row, i)} />
         ))}
         <EditBox
           initialText={er.text}
@@ -421,7 +441,7 @@ export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy =
         {after.length > 0 && (
           <RewindTail copy={editCopy}>
             {after.map((row, i) => (
-              <Row key={rowKey(row, editingIdx! + 1 + i)} row={row} interactionActions={interactionActions} streamKey={streamKey} />
+              <Row key={rowKey(row, editingIdx! + 1 + i)} row={row} interactionActions={interactionActions} streamKey={streamKey} anchor={anchorOf(row, editingIdx! + 1 + i)} />
             ))}
           </RewindTail>
         )}
@@ -442,6 +462,7 @@ export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy =
           onStartEdit={edit && row.kind === 'user' && row.turnIndex !== undefined ? () => setEditingIdx(i) : undefined}
           editDisabled={edit?.running || edit?.busy}
           streamKey={streamKey}
+          anchor={anchorOf(row, i)}
         />
       ))}
     </div>
@@ -455,18 +476,73 @@ export function MessageStream({ rows, loading, inlineThreadCard, interactionActi
   // scrolling back to the bottom re-pins it.
   const stickRef = useRef(true);
 
+  // The session's own table of contents — one mark per prompt (see ChatNavRail).
+  const marks = useMemo(() => buildNavMarks(rows), [rows]);
+  const [activeRow, setActiveRow] = useState<number | null>(null);
+  const syncRaf = useRef(0);
+
+  // Which mark the view is sitting on. Measured from live rects rather than stored offsets: the
+  // transcript's rows change height constantly (streamed text, images, expanding tool rows), so any
+  // cached geometry would be wrong by the next frame. Coalesced to one read per frame.
+  const syncActive = useCallback((): void => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const base = el.getBoundingClientRect().top;
+    const tops = Array.from(el.querySelectorAll<HTMLElement>('[data-chat-anchor]')).map((node) => ({
+      row: Number(node.dataset.chatAnchor),
+      top: node.getBoundingClientRect().top - base,
+    }));
+    const next = activeNavRow(tops, READING_LINE);
+    setActiveRow((prev) => (prev === next ? prev : next));
+  }, []);
+
+  const scheduleSync = useCallback((): void => {
+    if (typeof requestAnimationFrame === 'undefined') {
+      syncActive();
+      return;
+    }
+    if (syncRaf.current) return;
+    syncRaf.current = requestAnimationFrame(() => {
+      syncRaf.current = 0;
+      syncActive();
+    });
+  }, [syncActive]);
+
   const onScroll = (): void => {
     const el = scrollRef.current;
     if (!el) return;
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
     stickRef.current = distanceFromBottom < 40;
+    scheduleSync();
   };
+
+  // Jump to a prompt: put it just under the top edge, where the eye expects the thing it asked for.
+  // Releasing the pin first matters — without it the next streamed frame would yank the view back
+  // to the bottom mid-scroll.
+  const jumpTo = useCallback((row: number): void => {
+    const el = scrollRef.current;
+    const node = el?.querySelector<HTMLElement>(`[data-chat-anchor="${row}"]`);
+    if (!el || !node) return;
+    stickRef.current = false;
+    const top = el.scrollTop + (node.getBoundingClientRect().top - el.getBoundingClientRect().top) - JUMP_MARGIN;
+    if (typeof el.scrollTo === 'function') el.scrollTo({ top, behavior: 'smooth' });
+    else el.scrollTop = top;
+  }, []);
 
   // After every content change, keep the view pinned to the bottom IF the user hasn't scrolled up.
   useEffect(() => {
     const el = scrollRef.current;
     if (el && stickRef.current) el.scrollTop = el.scrollHeight;
   }, [rows, loading]);
+
+  // New rows move every mark below them, so the active one is re-read after each change too.
+  useEffect(() => {
+    scheduleSync();
+  }, [rows, loading, scheduleSync]);
+
+  useEffect(() => () => {
+    if (syncRaf.current && typeof cancelAnimationFrame !== 'undefined') cancelAnimationFrame(syncRaf.current);
+  }, []);
 
   // …and keep it pinned while the content GROWS between row changes. The streamed reply is revealed
   // character by character, so the block gets taller many times per row change; without this the
@@ -503,12 +579,17 @@ export function MessageStream({ rows, loading, inlineThreadCard, interactionActi
     return () => ro.disconnect();
   }, []);
 
+  // The rail is a sibling of the scroll box, not a child: it marks the transcript's whole length, so
+  // it must not travel with the part of it that happens to be on screen.
   return (
-    <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-      <div ref={contentRef} style={{ width: '100%', maxWidth: COLUMN_W, margin: '0 auto', padding: `22px ${GUTTER}px 12px` }}>
-        <ChatRows rows={rows} interactionActions={interactionActions} edit={edit} streamKey={streamKey} />
-        {inlineThreadCard && <div style={{ marginTop: 16 }}>{inlineThreadCard}</div>}
+    <div style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+        <div ref={contentRef} style={{ width: '100%', maxWidth: COLUMN_W, margin: '0 auto', padding: `${JUMP_MARGIN}px ${GUTTER}px 12px` }}>
+          <ChatRows rows={rows} interactionActions={interactionActions} edit={edit} streamKey={streamKey} anchors />
+          {inlineThreadCard && <div style={{ marginTop: 16 }}>{inlineThreadCard}</div>}
+        </div>
       </div>
+      <ChatNavRail marks={marks} activeRow={activeRow} onJump={jumpTo} />
     </div>
   );
 }
