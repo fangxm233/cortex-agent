@@ -100,25 +100,25 @@ test('normalizePiInput: read without path field passes through', () => {
 // Test 3: handlePreToolUse — non-sensitive path → no block
 // ---------------------------------------------------------------------------
 
-test('handlePreToolUse: non-.claude/ path exits 0 → returns undefined (no block)', () => {
+test('handlePreToolUse: non-.claude/ path exits 0 → returns undefined (no block)', async () => {
   const ctx = makeCtx();
   const event = {
     toolName: 'edit',
     toolCallId: 'tc-001',
     input: { path: '/tmp/hook-bridge-test-regular.ts', old_string: 'x', new_string: 'y' },
   };
-  const result = handlePreToolUse(event, ctx);
+  const result = await handlePreToolUse(event, ctx);
   assert.equal(result, undefined);
 });
 
-test('handlePreToolUse: write to non-.claude/ path → returns undefined (no block)', () => {
+test('handlePreToolUse: write to non-.claude/ path → returns undefined (no block)', async () => {
   const ctx = makeCtx();
   const event = {
     toolName: 'write',
     toolCallId: 'tc-002',
     input: { path: '/tmp/hook-bridge-test-write.ts', content: 'hello' },
   };
-  const result = handlePreToolUse(event, ctx);
+  const result = await handlePreToolUse(event, ctx);
   assert.equal(result, undefined);
 });
 
@@ -151,9 +151,9 @@ test('handlePostToolUse integration: session-activity-tracker writes read_file t
     isError: false,
   };
 
-  handlePostToolUse(event, ctx);
+  await handlePostToolUse(event, ctx);
 
-  // Give the subprocess time to finish (spawnSync is synchronous, so file should already be written)
+  // The handler resolves once the hook script exited, so the file is already written.
   assert.ok(fs.existsSync(logFile), `expected log file at ${logFile}`);
 
   const lines = fs.readFileSync(logFile, 'utf8').trim().split('\n').filter(Boolean);
@@ -173,7 +173,7 @@ test('handlePostToolUse integration: session-activity-tracker writes read_file t
 // Test 6: handlePostToolUse — Edit receives CORTEX.md context parity
 // ---------------------------------------------------------------------------
 
-test('handlePostToolUse: Edit injects unseen CORTEX.md ancestor context', (t) => {
+test('handlePostToolUse: Edit injects unseen CORTEX.md ancestor context', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-edit-cortex-'));
   const cortexHome = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-edit-cortex-home-'));
   const previousHome = process.env.CORTEX_HOME;
@@ -189,7 +189,7 @@ test('handlePostToolUse: Edit injects unseen CORTEX.md ancestor context', (t) =>
   fs.writeFileSync(path.join(root, 'CORTEX.md'), 'pi-edit-ancestor-rule');
   fs.writeFileSync(target, 'after edit');
 
-  const result = handlePostToolUse({
+  const result = await handlePostToolUse({
     toolName: 'edit',
     toolCallId: 'tc-edit-cortex',
     input: { path: target, old_string: 'before', new_string: 'after' },
@@ -207,7 +207,7 @@ test('handlePostToolUse: Edit injects unseen CORTEX.md ancestor context', (t) =>
 // Test 7: PI child hook preserves the stable Cortex cache session identity
 // ---------------------------------------------------------------------------
 
-test('runHookScript keeps CORTEX.md cache on the parent stable session id', (t) => {
+test('runHookScript keeps CORTEX.md cache on the parent stable session id', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-stable-cache-'));
   const cortexHome = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-stable-cache-home-'));
   const previousHome = process.env.CORTEX_HOME;
@@ -230,7 +230,7 @@ test('runHookScript keeps CORTEX.md cache on the parent stable session id', (t) 
   fs.writeFileSync(target, 'dummy');
   const hooksDir = path.resolve(_dirname, '../defaults/hooks');
 
-  runHookScript(path.join(hooksDir, 'cortex-md-injector.mjs'), {
+  await runHookScript(path.join(hooksDir, 'cortex-md-injector.mjs'), {
     hook_event_name: 'PostToolUse',
     session_id: backendSessionId,
     tool_name: 'Read',
@@ -279,7 +279,7 @@ test('before_agent_start: runHookScript with cortex-md-injector appends CORTEX.m
     cwd: tmpDir,
   };
 
-  const result = runHookScript(path.join(HOOKS_DIR, 'cortex-md-injector.mjs'), payload);
+  const result = await runHookScript(path.join(HOOKS_DIR, 'cortex-md-injector.mjs'), payload);
   const ctxText = (result as any)?.hookSpecificOutput?.additionalContext;
 
   assert.ok(ctxText, 'additionalContext should be present from before_agent_start call');

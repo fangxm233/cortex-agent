@@ -1,68 +1,19 @@
-// input:  PIAdapter, stub process, events, runtime settings
+// input:  PIAdapter, fake PI runtime, events, runtime settings
 // output: delta, buffered text, and settings reset tests
 // pos:    Covers the PI token streaming contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { EventEmitter } from 'node:events';
-import { PassThrough } from 'node:stream';
-import type {
-  ChildProcess, ChildProcessWithoutNullStreams, SpawnOptions,
-} from 'node:child_process';
-import type { AgentProcessSpawner } from '../src/agent-adapter/types.js';
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
 import { encodeSubagentNotice } from '../src/agent-adapter/pi/subagent-notice.js';
 import type { NormalizedEvent } from '../src/agent-adapter/normalize/event-types.js';
 import { resetSettingsForTests } from '../src/core/settings.js';
-
-// --- Stub child process infrastructure (mirrors agent-adapter-pi.test.ts) ---
-
-interface StubChild extends EventEmitter {
-  stdin: PassThrough;
-  stdout: PassThrough;
-  stderr: PassThrough;
-  kill: (signal?: NodeJS.Signals | number) => boolean;
-  __killed: boolean;
-}
-
-function makeStubChild(): StubChild {
-  const emitter = new EventEmitter() as StubChild;
-  emitter.stdin = new PassThrough();
-  emitter.stdout = new PassThrough();
-  emitter.stderr = new PassThrough();
-  emitter.__killed = false;
-  emitter.kill = (_signal?: NodeJS.Signals | number) => {
-    if (emitter.__killed) return false;
-    emitter.__killed = true;
-    return true;
-  };
-  return emitter;
-}
-
-function makeStubSpawner(): {
-  spawn: AgentProcessSpawner;
-  children: StubChild[];
-} {
-  const children: StubChild[] = [];
-  return {
-    children,
-    spawn: (_cmd, _args, _opts) => {
-      const child = makeStubChild();
-      children.push(child);
-      return { process: child as unknown as ChildProcessWithoutNullStreams };
-    },
-  };
-}
-
-/** Feed one raw PI rpc stdout line (JSONL) into the session. */
-function pushLine(child: StubChild, obj: unknown): void {
-  child.stdout.emit('data', Buffer.from(`${JSON.stringify(obj)}\n`));
-}
+import { makeFakeRuntimeFactory, type FakeRuntime } from './agent-adapter/pi-fake-runtime.js';
 
 /** A message_update carrying one assistant text delta. `id` omitted → no message object. */
-function textDelta(delta: string, id?: string): unknown {
-  const ev: Record<string, unknown> = {
+function textDelta(delta: string, id?: string): Record<string, unknown> & { type: string } {
+  const ev: Record<string, unknown> & { type: string } = {
     type: 'message_update',
     assistantMessageEvent: { type: 'text_delta', delta },
   };
@@ -70,22 +21,33 @@ function textDelta(delta: string, id?: string): unknown {
   return ev;
 }
 
-/** Drain exactly `n` events from the (already-buffered) queue. */
+/** Drain exactly `n` events from the (already-buffered) queue, skipping the opening session_started. */
 async function collect(proc: { events: AsyncIterable<NormalizedEvent> }, n: number): Promise<NormalizedEvent[]> {
   const iter = proc.events[Symbol.asyncIterator]();
   const out: NormalizedEvent[] = [];
-  for (let i = 0; i < n; i++) {
+  while (out.length < n) {
     const r = await iter.next();
     if (r.done) break;
+    if (r.value.type === 'session_started') continue;
     out.push(r.value);
   }
   return out;
 }
 
+async function spawnStreaming(sessionKey: string): Promise<{
+  proc: ReturnType<PIAdapter['spawn']>; runtime: FakeRuntime;
+}> {
+  const fake = makeFakeRuntimeFactory();
+  const adapter = new PIAdapter(fake.factory);
+  const proc = adapter.spawn({ sessionId: null, sessionKey, resume: false });
+  const runtime = await fake.runtime();
+  return { proc, runtime };
+}
+
 /**
  * Drive one assistant block: three text deltas then message_end (a non-text event, which
  * forces the adapter's whole-message flush). Returns every event produced.
- * `deltasEmitted` controls how many assistant_delta events to expect ahead of the flush.
+ * `expectedCount` is how many events to wait for (deltas + flush + turn_progress).
  */
 async function runBlock(
   streamEnv: string | undefined,
@@ -97,19 +59,14 @@ async function runBlock(
   else process.env['CORTEX_STREAM_DELTAS'] = streamEnv;
   try {
     resetSettingsForTests();
-    const stub = makeStubSpawner();
-    const adapter = new PIAdapter(stub.spawn);
-    const proc = adapter.spawn({ sessionId: null, sessionKey: `stream-${id ?? 'noid'}-${streamEnv ?? 'on'}`, resume: false });
-    await Promise.resolve();
-    const child = stub.children[0]!;
+    const { proc, runtime } = await spawnStreaming(`stream-${id ?? 'noid'}-${streamEnv ?? 'on'}`);
 
-    pushLine(child, textDelta('Hel', id));
-    pushLine(child, textDelta('lo ', id));
-    pushLine(child, textDelta('world', id));
-    pushLine(child, { type: 'message_end' });
+    runtime.emit(textDelta('Hel', id));
+    runtime.emit(textDelta('lo ', id));
+    runtime.emit(textDelta('world', id));
+    runtime.emit({ type: 'message_end' });
 
     const events = await collect(proc, expectedCount);
-    child.emit('close', 0, null);
     await proc.close();
     return events;
   } finally {
@@ -120,23 +77,18 @@ async function runBlock(
 }
 
 test('PI keeps attribution on a subagent assistant message instead of merging it into main text', async () => {
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn);
-  const proc = adapter.spawn({ sessionId: null, sessionKey: 'stream-subagent-text', resume: false });
-  await Promise.resolve();
-  const child = stub.children[0]!;
+  const { proc, runtime } = await spawnStreaming('stream-subagent-text');
 
-  pushLine(child, {
+  runtime.emit({
     type: 'extension_ui_request', id: 'ui-subagent', method: 'notify',
     message: encodeSubagentNotice({
       ref: 'agent-call#0', type: 'explore', description: 'Inspect adapter',
       model: 'gpt-5.4-mini', kind: 'assistant_text', text: 'child report',
     }),
   });
-  pushLine(child, { type: 'message_end' });
+  runtime.emit({ type: 'message_end' });
 
   const events = await collect(proc, 2);
-  child.emit('close', 0, null);
   await proc.close();
 
   const text = events.find((event) => event.type === 'assistant_text');
@@ -213,15 +165,11 @@ test('a text_delta without a message id yields no assistant_delta but still flus
 // --- the real PI wire shape (no message.id; responseId is the stable per-message field) ---
 
 test('a genuine PI message_update (responseId, contentIndex, partial) streams with a stable blockId', async () => {
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn);
-  const proc = adapter.spawn({ sessionId: null, sessionKey: 'stream-real-shape', resume: false });
-  await Promise.resolve();
-  const child = stub.children[0]!;
+  const { proc, runtime } = await spawnStreaming('stream-real-shape');
 
   // Shape taken from the PI SDK: MessageUpdateEvent.message is an AssistantMessage, which has
   // role/content/api/provider/model/responseId/usage/stopReason/timestamp — and no `id`.
-  const realDelta = (delta: string, partialText: string): unknown => ({
+  const realDelta = (delta: string, partialText: string): Record<string, unknown> & { type: string } => ({
     type: 'message_update',
     message: {
       role: 'assistant',
@@ -237,13 +185,12 @@ test('a genuine PI message_update (responseId, contentIndex, partial) streams wi
     assistantMessageEvent: { type: 'text_delta', delta, contentIndex: 0, partial: { text: partialText } },
   });
 
-  pushLine(child, realDelta('Hel', 'Hel'));
-  pushLine(child, realDelta('lo', 'Hello'));
-  pushLine(child, { type: 'message_end' });
+  runtime.emit(realDelta('Hel', 'Hel'));
+  runtime.emit(realDelta('lo', 'Hello'));
+  runtime.emit({ type: 'message_end' });
 
   // 2 deltas + flushed assistant_text + turn_progress = 4
   const events = await collect(proc, 4);
-  child.emit('close', 0, null);
   await proc.close();
 
   const deltas = events.filter((e) => e.type === 'assistant_delta') as Extract<NormalizedEvent, { type: 'assistant_delta' }>[];
@@ -258,19 +205,14 @@ test('a genuine PI message_update (responseId, contentIndex, partial) streams wi
 // --- edge: a new block id starts a new block, so a flush never mixes two blocks ---
 
 test('a delta from a new message id flushes the previous block, keeping blockId 1:1 with its text', async () => {
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn);
-  const proc = adapter.spawn({ sessionId: null, sessionKey: 'stream-two-blocks', resume: false });
-  await Promise.resolve();
-  const child = stub.children[0]!;
+  const { proc, runtime } = await spawnStreaming('stream-two-blocks');
 
-  pushLine(child, textDelta('alpha', 'm1'));
-  pushLine(child, textDelta('beta', 'm2'));
-  pushLine(child, { type: 'message_end' });
+  runtime.emit(textDelta('alpha', 'm1'));
+  runtime.emit(textDelta('beta', 'm2'));
+  runtime.emit({ type: 'message_end' });
 
   // delta(m1) + flush(m1) + delta(m2) + flush(m2) + turn_progress = 5
   const events = await collect(proc, 5);
-  child.emit('close', 0, null);
   await proc.close();
 
   const texts = events.filter((e) => e.type === 'assistant_text') as Extract<NormalizedEvent, { type: 'assistant_text' }>[];

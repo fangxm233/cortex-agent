@@ -1,72 +1,62 @@
-// input:  AgentSpawnConfig with and without a browser CDP endpoint, on the PI spawn path
+// input:  AgentSpawnConfig with and without a browser CDP endpoint, on the PI session path
 // output: pinned opt-in behaviour of the Playwright MCP layer for the PI backend
 // pos:    tests for per-session browser control on the backend that has no --mcp-config
 // >>> If I am updated, update CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
-import * as fs from 'node:fs';
-import { _test as piTest } from '../../src/agent-adapter/pi/adapter.js';
+import {
+  buildSessionRequest, sessionIdentity, type PiSessionRequest,
+} from '../../src/agent-adapter/pi/session-options.js';
+import type { AgentSpawnConfig, McpComposition } from '../../src/agent-adapter/types.js';
 import { browserMcpServer, BROWSER_MCP_SERVER_NAME } from '../../src/agent-adapter/browser-mcp-server.js';
 
 const ENDPOINT = 'http://127.0.0.1:9222';
-const ENV_VAR = 'CORTEX_PI_PLUGIN_MCP_CONFIG_PATH';
 
-function envelope(env: NodeJS.ProcessEnv): { mcpServers: Array<{ name: string; args?: string[] }> } | null {
-  const p = env[ENV_VAR];
-  if (!p || !fs.existsSync(p)) return null;
-  return JSON.parse(fs.readFileSync(p, 'utf8'));
-}
-
-function spawnEnv(extra: Record<string, unknown>): NodeJS.ProcessEnv {
-  return piTest.buildSpawnEnvironment(
-    { sessionId: 's', sessionKey: 'k', resume: false, ...extra } as never,
-    '/tmp',
-    'direct',
+function request(extra: Partial<AgentSpawnConfig>, composition: McpComposition = 'direct'): PiSessionRequest {
+  return buildSessionRequest(
+    { sessionId: 's', sessionKey: 'k', resume: false, mcpComposition: composition, ...extra },
+    { agentDir: '/tmp/pi-agent', sessionDir: '/tmp/pi-sessions', sessionPath: null, cwd: '/tmp', streamDeltas: true },
   );
 }
 
 describe('browser MCP on the PI backend', () => {
-  it('writes no plugin envelope at all when nothing asked for one', () => {
-    // PI has no --mcp-config; the envelope IS the mechanism, so its absence is the off state.
-    expect(envelope(spawnEnv({}))).toBeNull();
+  it('hands the session no plugin server at all when nothing asked for one', () => {
+    // PI has no --mcp-config; the plugin server list IS the mechanism, so an empty list is the
+    // off state.
+    expect(request({}).pluginMcpServers).toEqual([]);
   });
 
-  it('writes an envelope holding only the browser when that is the only server', () => {
-    // The pre-existing guard skipped the file when the plugin list was empty; a browser-only
+  it('hands the session only the browser when that is the only server', () => {
+    // An earlier guard skipped the plugin handoff when the plugin list was empty; a browser-only
     // session has exactly that shape, so it would have silently got no tools.
-    const parsed = envelope(spawnEnv({ browserCdpEndpoint: ENDPOINT }));
-    expect(parsed?.mcpServers.map((s) => s.name)).toEqual([BROWSER_MCP_SERVER_NAME]);
-    expect(parsed?.mcpServers[0].args).toContain(ENDPOINT);
+    const servers = request({ browserCdpEndpoint: ENDPOINT }).pluginMcpServers;
+    expect(servers.map((s) => s.name)).toEqual([BROWSER_MCP_SERVER_NAME]);
+    expect(servers[0].type === 'stdio' ? servers[0].args : []).toContain(ENDPOINT);
   });
 
   it('appends the browser after the plugin servers rather than replacing them', () => {
-    const plugin = { name: 'other', type: 'stdio', command: 'true', args: [], env: {}, cwd: '/tmp' };
-    const parsed = envelope(spawnEnv({ browserCdpEndpoint: ENDPOINT, mcpServers: [plugin] }));
-    expect(parsed?.mcpServers.map((s) => s.name)).toEqual(['other', BROWSER_MCP_SERVER_NAME]);
+    const plugin = { name: 'other', type: 'stdio' as const, command: 'true', args: [], env: {}, cwd: '/tmp' };
+    const servers = request({ browserCdpEndpoint: ENDPOINT, mcpServers: [plugin] }).pluginMcpServers;
+    expect(servers.map((s) => s.name)).toEqual(['other', BROWSER_MCP_SERVER_NAME]);
   });
 
   it('refuses the browser outside a direct session', () => {
     // An unattended worker sharing one browser is a cross-run side channel, not a feature — the
     // same reason the Claude path gates on `direct`.
-    const env = piTest.buildSpawnEnvironment(
-      { sessionId: 's', sessionKey: 'k', resume: false, browserCdpEndpoint: ENDPOINT } as never,
-      '/tmp',
-      'thread-control',
-    );
-    const parsed = envelope(env);
-    expect(parsed?.mcpServers.some((s) => s.name === BROWSER_MCP_SERVER_NAME) ?? false).toBe(false);
+    const servers = request({ browserCdpEndpoint: ENDPOINT }, 'thread-control').pluginMcpServers;
+    expect(servers.some((s) => s.name === BROWSER_MCP_SERVER_NAME)).toBe(false);
   });
 
-  it('changes the config path when the endpoint changes, retiring a pooled process', () => {
-    // PI's spawn identity hashes argv+env, so a new path is what makes the pool drop the old
-    // subprocess instead of reusing one bound to a dead browser.
-    const a = spawnEnv({ browserCdpEndpoint: ENDPOINT })[ENV_VAR];
-    const b = spawnEnv({ browserCdpEndpoint: 'http://127.0.0.1:9333' })[ENV_VAR];
-    expect(a).toBeTruthy();
+  it('changes the session identity when the endpoint changes, retiring a pooled session', () => {
+    // The pool reuses a live session only for an identical request, so a new endpoint is what
+    // makes it drop the old session instead of reusing one bound to a dead browser.
+    const a = sessionIdentity(request({ browserCdpEndpoint: ENDPOINT }));
+    const b = sessionIdentity(request({ browserCdpEndpoint: 'http://127.0.0.1:9333' }));
     expect(a).not.toBe(b);
+    expect(a).toBe(sessionIdentity(request({ browserCdpEndpoint: ENDPOINT })));
   });
 
   it('shares one descriptor with the Claude path', () => {
-    const parsed = envelope(spawnEnv({ browserCdpEndpoint: ENDPOINT }));
-    expect(parsed?.mcpServers[0]).toEqual(browserMcpServer(ENDPOINT));
+    const servers = request({ browserCdpEndpoint: ENDPOINT }).pluginMcpServers;
+    expect(servers[0]).toEqual(browserMcpServer(ENDPOINT));
   });
 });

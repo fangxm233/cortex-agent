@@ -1,9 +1,5 @@
 [
   {
-    "type": "session_started",
-    "sessionId": "pi-sess-02a-first"
-  },
-  {
     "type": "assistant_text",
     "text": "Reading the file.",
     "blockId": "msg-a1"

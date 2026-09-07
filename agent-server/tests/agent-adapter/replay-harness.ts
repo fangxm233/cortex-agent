@@ -14,7 +14,7 @@ import {
   isPlanFilePath,
 } from '../../src/agent-adapter/claude/event-parser.js';
 import {
-  piRpcLineToNormalized,
+  piEventToNormalized,
   createPIEventParserState,
 } from '../../src/agent-adapter/pi/event-parser.js';
 
@@ -227,12 +227,28 @@ export function replayClaudeFixture(name: string): NormalizedEvent[] {
   return out;
 }
 
+/** One recorded PI event per JSONL line; lines that are not a JSON object (RPC-era frames,
+ *  blank lines) are skipped exactly as the in-process session never sees them. */
+function parsePiEventLine(line: string): Record<string, unknown> | null {
+  if (!line.trim()) return null;
+  try {
+    const parsed: unknown = JSON.parse(line);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export function replayPiFixture(name: string): NormalizedEvent[] {
   const lines = readLines(inputPath('pi', name));
   const state = createPIEventParserState();
   const out: NormalizedEvent[] = [];
   for (const line of lines) {
-    for (const evt of piRpcLineToNormalized(line, state)) out.push(evt);
+    const event = parsePiEventLine(line);
+    if (event === null) continue;
+    for (const evt of piEventToNormalized(event, state)) out.push(evt);
   }
   return out;
 }

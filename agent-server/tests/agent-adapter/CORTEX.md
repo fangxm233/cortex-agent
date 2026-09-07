@@ -25,11 +25,10 @@ Agent adapter tests: Claude and PI streams normalized into shared events, plus s
 | commission-tools.test.ts | test | commission tools are additive and hidden from every other session |
 | normalize-assistant-delta.test.ts | test | delta event union and backend capability |
 | normalize.test.ts | test | normalized event parser edge cases |
-| pi-adapter.test.ts | test | PI RPC to normalized event replay |
-| pi-browser-mcp.test.ts | test | PI browser opt-in, envelope contents and pool identity |
-| pi-context-usage-probe.test.ts | test | PI end-of-turn context usage probe |
+| pi-adapter.test.ts | test | PI session event to normalized event replay |
+| pi-browser-mcp.test.ts | test | PI browser opt-in, plugin server list and pool identity |
 | pi-discovery.test.ts | test | forced PI provider refresh and retry policy |
+| pi-fake-runtime.ts | helper | in-memory PI runtime double for adapter and session tests |
 | pi-mid-turn-inject.test.ts | test | PI switch guard and mid-turn prompt steering |
 | pi-usage.test.ts | test | PI cached Codex usage without provider traffic |
-| pi-supervision.test.ts | test | PI uses injected process supervision |
 | replay-harness.ts | helper | fixture replay and golden comparison helpers |

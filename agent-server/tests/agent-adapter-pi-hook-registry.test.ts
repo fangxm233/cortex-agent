@@ -8,7 +8,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { test } from 'vitest';
 
-import hookBridge from '../src/agent-adapter/pi/hook-bridge.js';
+import { installHookBridge, type HookHost } from '../src/agent-adapter/pi/hook-bridge.js';
 import type {
   ExtensionAPI,
   ExtensionContext,
@@ -274,7 +274,7 @@ function writeLifecycleEntries(registryDir: string): void {
 
 function makeBridge(): FakePi {
   const pi = new FakePi();
-  hookBridge(pi as unknown as ExtensionAPI);
+  installHookBridge(pi as unknown as HookHost, process.env);
   return pi;
 }
 

@@ -1,92 +1,66 @@
-// input:  PI adapter, spawn stubs, transcripts, provider discovery
-// output: Spawn env, interaction eligibility, RPC, and resume tests
-// pos:    Tests PI process and session lifecycles
+// input:  PI adapter, fake PI runtime, transcripts, provider discovery
+// output: Session request, env, turn lifecycle, pool, compaction and resume tests
+// pos:    Tests PI in-process session lifecycles
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { EventEmitter } from 'node:events';
-import { PassThrough } from 'node:stream';
 import { tmpdir } from 'node:os';
 import { join as pathJoin } from 'node:path';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import type {
-  ChildProcess, ChildProcessWithoutNullStreams, SpawnOptions,
-} from 'node:child_process';
-import type { AgentProcessSpawner } from '../src/agent-adapter/types.js';
+import type { AgentResult } from '../src/core/types/agent-types.js';
+import type { NormalizedEvent } from '../src/agent-adapter/normalize/event-types.js';
 import { PIAdapter, type PIAgentProcess } from '../src/agent-adapter/pi/adapter.js';
-import { PI_MODELS_PATH } from '../src/agent-adapter/pi/agent-dir.js';
-import { PI_PLUGIN_MCP_CONFIG_ENV } from '../src/agent-adapter/pi/mcp-config.js';
+import { PI_MODELS_PATH } from '../src/agent-adapter/pi/defaults.js';
 import { createPIProviderDiscovery } from '../src/agent-adapter/pi/discovery.js';
-import { encodeCommand, createLineSplitter } from '../src/agent-adapter/pi/framing.js';
+import { buildPiEnv, PI_INTERACTION_BRIDGE_ENV } from '../src/agent-adapter/pi/spawn-args.js';
 import {
-  buildPiEnv,
-  buildSpawnArgs,
-  PI_INTERACTION_BRIDGE_ENV,
-} from '../src/agent-adapter/pi/spawn-args.js';
+  collectEvents, makeFakeRuntimeFactory, type FakeRuntime,
+} from './agent-adapter/pi-fake-runtime.js';
 
 // Writable temp session dir used by Group G tests (avoids root-level paths that fail with EACCES).
 const G_SESSION_DIR = pathJoin(tmpdir(), `pi-test-sessions-${process.pid}`);
 mkdirSync(G_SESSION_DIR, { recursive: true });
 
-// --- Stub child process infrastructure ---
+// --- Helpers over the fake runtime ---
 
-interface StubChild extends EventEmitter {
-  stdin: PassThrough & { writeHistory: string[] };
-  stdout: PassThrough;
-  stderr: PassThrough;
-  kill: (signal?: NodeJS.Signals | number) => boolean;
-  __killed: boolean;
-  __lastSignal: string | null;
+/** One macrotask: enough for the session's microtask-only dispatch chain to settle. */
+function tick(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve));
 }
 
-function makeStubChild(): StubChild {
-  const emitter = new EventEmitter() as StubChild;
-  const stdin = new PassThrough() as PassThrough & { writeHistory: string[] };
-  stdin.writeHistory = [];
-  const origWrite = stdin.write.bind(stdin);
-  (stdin as any).write = (chunk: unknown, ...rest: unknown[]) => {
-    const s = typeof chunk === 'string' ? chunk : (chunk as Buffer).toString('utf8');
-    stdin.writeHistory.push(s);
-    return origWrite(chunk as any, ...(rest as any));
-  };
-  emitter.stdin = stdin;
-  emitter.stdout = new PassThrough();
-  emitter.stderr = new PassThrough();
-  emitter.__killed = false;
-  emitter.__lastSignal = null;
-  emitter.kill = (signal?: NodeJS.Signals | number) => {
-    if (emitter.__killed) return false;
-    emitter.__killed = true;
-    emitter.__lastSignal = typeof signal === 'string' ? signal : signal !== undefined ? String(signal) : 'SIGTERM';
-    return true;
-  };
-  return emitter;
+/** Wait until the fake has recorded `count` prompt calls; the session dispatches asynchronously. */
+async function awaitPrompts(runtime: FakeRuntime, count: number): Promise<void> {
+  for (let i = 0; i < 20 && runtime.prompts().length < count; i++) await tick();
+  assert.equal(runtime.prompts().length, count, `PI received ${count} prompt(s)`);
 }
 
-function makeStubSpawner(): {
-  spawn: AgentProcessSpawner;
-  calls: { cmd: string; args: string[]; opts: SpawnOptions }[];
-  children: StubChild[];
-} {
-  const calls: { cmd: string; args: string[]; opts: SpawnOptions }[] = [];
-  const children: StubChild[] = [];
-  return {
-    calls,
-    children,
-    spawn: (cmd, args, opts) => {
-      calls.push({ cmd, args, opts });
-      const child = makeStubChild();
-      children.push(child);
-      return { process: child as unknown as ChildProcessWithoutNullStreams };
-    },
-  };
+/** Send one message and return its turn once the session has handed the prompt to PI. */
+async function startTurn(
+  proc: PIAgentProcess, runtime: FakeRuntime, text: string,
+): Promise<{ turn: Promise<AgentResult> }> {
+  const expected = runtime.prompts().length + 1;
+  const turn = proc.send({ text });
+  await awaitPrompts(runtime, expected);
+  return { turn };
+}
+
+/** The next event of an open run stream; fails if the stream ended instead. */
+async function nextEvent(iterator: AsyncIterator<NormalizedEvent>): Promise<NormalizedEvent> {
+  const entry = await iterator.next();
+  assert.equal(entry.done, false, 'the run stream is still open');
+  return entry.value as NormalizedEvent;
+}
+
+/** Transcript paths the session asked the runtime to switch to, in call order. */
+function switchCalls(runtime: FakeRuntime): string[] {
+  return runtime.calls.flatMap((call) => (call.kind === 'switch' ? [call.path] : []));
 }
 
 test('spawn accepts explicit direct and thread-control MCP compositions', () => {
   for (const composition of ['direct', 'thread-control'] as const) {
-    const stub = makeStubSpawner();
-    const adapter = new PIAdapter(stub.spawn);
+    const fake = makeFakeRuntimeFactory();
+    const adapter = new PIAdapter(fake.factory);
     const proc = adapter.spawn({
       sessionId: null,
       sessionKey: `pi-${composition}`,
@@ -94,123 +68,91 @@ test('spawn accepts explicit direct and thread-control MCP compositions', () => 
       mcpComposition: composition,
     });
 
-    assert.equal(stub.calls.length, 1, `${composition} must reach the spawn boundary`);
+    assert.equal(fake.requests.length, 1, `${composition} must reach the runtime factory`);
     proc.kill();
-    stub.children[0].emit('close', 0);
   }
 });
 
-// --- Group A: framing correctness (done-when: NDJSON LF-only framing) ---
+// --- Group B: session request (done-when: prompts, skill roots and thinking resolve into PiSessionRequest) ---
 
-test('encodeCommand produces byte-exact JSONL with single LF delimiter', () => {
-  const out = encodeCommand({ id: 'r1', type: 'get_state' });
-  assert.equal(out, '{"id":"r1","type":"get_state"}\n');
-  assert.equal(out[out.length - 1], '\n');
-  assert.ok(!out.includes('\r'));
-});
-
-test('encodeCommand escapes internal newlines inside JSON string values', () => {
-  // JSON.stringify escapes embedded \n → "\\n"; there must be exactly one raw LF (the trailing delimiter).
-  const out = encodeCommand({ msg: 'line1\nline2' });
-  assert.equal((out.match(/\n/g) ?? []).length, 1, 'only one raw LF (the trailing delimiter)');
-  assert.ok(out.includes('line1\\nline2'));
-});
-
-test('createLineSplitter splits LF-only, strips trailing CR, buffers across chunks', () => {
-  const s = createLineSplitter();
-  assert.deepEqual(s.push('a\nb\r\nc'), ['a', 'b']);
-  assert.deepEqual(s.push('d\n'), ['cd']);
-  assert.equal(s.flushRemainder(), null);
-});
-
-test('createLineSplitter handles multiple lines in one chunk and empty tail', () => {
-  const s = createLineSplitter();
-  assert.deepEqual(s.push('one\ntwo\nthree\n'), ['one', 'two', 'three']);
-  assert.equal(s.flushRemainder(), null);
-});
-
-test('createLineSplitter flushRemainder returns partial tail line', () => {
-  const s = createLineSplitter();
-  assert.deepEqual(s.push('complete\npartial'), ['complete']);
-  assert.equal(s.flushRemainder(), 'partial');
-  assert.equal(s.flushRemainder(), null, 'second flush returns null');
-});
-
-// --- Group B: spawn args (done-when: --mode rpc + --session-dir + pluginDirs(--skill)) ---
-
-test('buildSpawnArgs baseline: only sessionDir produces mode/rpc/session-dir', () => {
-  assert.deepEqual(buildSpawnArgs({ sessionDir: '/x' }), ['--mode', 'rpc', '--session-dir', '/x']);
-});
-
-test('buildSpawnArgs full options snapshot with multiple pluginDirs in order', () => {
-  const args = buildSpawnArgs({
-    sessionDir: '/pi-sessions',
+test('spawn resolves prompts and skill roots into the session request', () => {
+  const fake = makeFakeRuntimeFactory();
+  const adapter = new PIAdapter(fake.factory);
+  const proc = adapter.spawn({
+    sessionId: null,
+    sessionKey: 'request-prompts',
+    resume: false,
     systemPrompt: 'sp',
     appendSystemPrompt: 'asp',
     pluginDirs: ['/a', '/b'],
   });
-  assert.deepEqual(args, [
-    '--mode', 'rpc',
-    '--session-dir', '/pi-sessions',
-    '--system-prompt', 'sp',
-    '--append-system-prompt', 'asp',
-    '--skill', '/a',
-    '--skill', '/b',
-  ]);
+
+  const request = fake.requests[0];
+  assert.equal(request.systemPrompt, 'sp');
+  assert.deepEqual(request.appendSystemPrompt, ['asp']);
+  assert.deepEqual(request.skillPaths, ['/a', '/b']);
+  assert.equal(request.sessionPath, null, 'a fresh spawn resumes no transcript');
+  proc.kill();
 });
 
-test('buildSpawnArgs places portable pluginSkillDirs before pluginDirs', () => {
-  const args = buildSpawnArgs({
-    sessionDir: '/pi-sessions',
+test('spawn places portable pluginSkillDirs before pluginDirs in skillPaths', () => {
+  const fake = makeFakeRuntimeFactory();
+  const adapter = new PIAdapter(fake.factory);
+  const proc = adapter.spawn({
+    sessionId: null,
+    sessionKey: 'request-skills',
+    resume: false,
     pluginSkillDirs: ['/portable/skill-a', '/portable/skill-b'],
     pluginDirs: ['/legacy/plugin'],
   });
-  assert.deepEqual(args, [
-    '--mode', 'rpc',
-    '--session-dir', '/pi-sessions',
-    '--skill', '/portable/skill-a',
-    '--skill', '/portable/skill-b',
-    '--skill', '/legacy/plugin',
+
+  assert.deepEqual(fake.requests[0].skillPaths, [
+    '/portable/skill-a',
+    '/portable/skill-b',
+    '/legacy/plugin',
   ]);
+  proc.kill();
 });
 
-test('buildSpawnArgs accepts appendSystemPrompt array for repeated flag', () => {
-  const args = buildSpawnArgs({
-    sessionDir: '/x',
-    appendSystemPrompt: ['one', 'two'],
-  });
-  assert.deepEqual(args, [
-    '--mode', 'rpc',
-    '--session-dir', '/x',
-    '--append-system-prompt', 'one',
-    '--append-system-prompt', 'two',
-  ]);
+test('spawn resolves the thinking level from the profile, letting an explicit --thinking extraOption win', () => {
+  const fake = makeFakeRuntimeFactory();
+  const adapter = new PIAdapter(fake.factory);
+  const procs = [
+    adapter.spawn({ sessionId: null, sessionKey: 'thinking-profile', resume: false, thinking: 'high' }),
+    adapter.spawn({ sessionId: null, sessionKey: 'thinking-absent', resume: false }),
+    adapter.spawn({
+      sessionId: null,
+      sessionKey: 'thinking-extra',
+      resume: false,
+      thinking: 'high',
+      extraOption: { '--thinking': 'xhigh' },
+    }),
+  ];
+
+  assert.equal(fake.requests[0].thinking, 'high');
+  assert.equal(fake.requests[1].thinking, null, 'no thinking level when the profile has none');
+  assert.equal(fake.requests[2].thinking, 'xhigh', 'an explicit extraOption still wins');
+  for (const proc of procs) proc.kill();
 });
 
-test('buildSpawnArgs: thinking level is passed as --thinking', () => {
-  const args = buildSpawnArgs({ sessionDir: '/x', thinking: 'high' });
-  const idx = args.indexOf('--thinking');
-  assert.ok(idx >= 0, '--thinking must be present');
-  assert.equal(args[idx + 1], 'high');
+test('spawn resolves no skill roots when pluginDirs is empty or undefined', () => {
+  const fake = makeFakeRuntimeFactory();
+  const adapter = new PIAdapter(fake.factory);
+  const procs = [
+    adapter.spawn({ sessionId: null, sessionKey: 'skills-empty', resume: false, pluginDirs: [] }),
+    adapter.spawn({ sessionId: null, sessionKey: 'skills-undefined', resume: false }),
+  ];
+
+  assert.deepEqual(fake.requests[0].skillPaths, []);
+  assert.deepEqual(fake.requests[1].skillPaths, []);
+  for (const proc of procs) proc.kill();
 });
 
-test('buildSpawnArgs: no --thinking when thinking is absent (backward compat)', () => {
-  assert.ok(!buildSpawnArgs({ sessionDir: '/x' }).includes('--thinking'));
-  assert.ok(!buildSpawnArgs({ sessionDir: '/x', thinking: null }).includes('--thinking'));
-});
+// --- Group B2: the session's CORTEX_* env (read by hook scripts and plugin MCP servers) ---
 
-test('buildSpawnArgs emits no --skill when pluginDirs is empty or undefined', () => {
-  const a = buildSpawnArgs({ sessionDir: '/x', pluginDirs: [] });
-  assert.ok(!a.includes('--skill'));
-  const b = buildSpawnArgs({ sessionDir: '/x' });
-  assert.ok(!b.includes('--skill'));
-});
-
-// --- Group B2: PI subprocess context env ---
-
-test('spawn forwards authoritative Cortex thread context to the PI subprocess', () => {
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn);
+test('spawn forwards authoritative Cortex thread context to the session env', () => {
+  const fake = makeFakeRuntimeFactory();
+  const adapter = new PIAdapter(fake.factory);
   const proc = adapter.spawn({
     sessionId: 'backend-session',
     sessionKey: 'context-env',
@@ -231,7 +173,7 @@ test('spawn forwards authoritative Cortex thread context to the PI subprocess', 
     },
   });
 
-  const env = stub.calls[0].opts.env as NodeJS.ProcessEnv;
+  const env = fake.requests[0].env;
   assert.equal(env.CORTEX_THREAD_ID, 'thr_test');
   assert.equal(env.CORTEX_PROFILE, 'deepseek-pro');
   assert.equal(env.CORTEX_PROJECT, 'vr-security');
@@ -246,15 +188,14 @@ test('spawn forwards authoritative Cortex thread context to the PI subprocess', 
   assert.equal(env.CORTEX_BACKEND, 'pi');
   assert.equal(env.CUSTOM_ENV, 'kept');
 
-  stub.children[0].emit('close', 0, null);
-  void proc.close();
+  proc.kill();
 });
 
-test('spawn forwards AgentSpawnConfig.unsetEnv to the PI subprocess env', () => {
+test('spawn forwards AgentSpawnConfig.unsetEnv to the session env', () => {
   const prevKey = process.env.ANTHROPIC_API_KEY;
   process.env.ANTHROPIC_API_KEY = 'sk-ant-inherited';
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn);
+  const fake = makeFakeRuntimeFactory();
+  const adapter = new PIAdapter(fake.factory);
   try {
     const proc = adapter.spawn({
       sessionId: 'unset-env-session',
@@ -264,12 +205,11 @@ test('spawn forwards AgentSpawnConfig.unsetEnv to the PI subprocess env', () => 
       unsetEnv: ['ANTHROPIC_API_KEY'],
     });
 
-    const env = stub.calls[0].opts.env as NodeJS.ProcessEnv;
+    const env = fake.requests[0].env;
     assert.equal(Object.prototype.hasOwnProperty.call(env, 'ANTHROPIC_API_KEY'), false);
     assert.equal(env.KEPT_ENV, 'kept');
 
-    stub.children[0].emit('close', 0, null);
-    void proc.close();
+    proc.kill();
   } finally {
     if (prevKey === undefined) delete process.env.ANTHROPIC_API_KEY;
     else process.env.ANTHROPIC_API_KEY = prevKey;
@@ -295,7 +235,6 @@ test('buildPiEnv removes stale optional Cortex context from the parent env', () 
     CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE: 'stale-root-template',
     CORTEX_PI_SUBAGENT: '1',
     [PI_INTERACTION_BRIDGE_ENV]: '1',
-    [PI_PLUGIN_MCP_CONFIG_ENV]: '/stale-plugin-mcp.json',
   };
   const env = buildPiEnv({
     sessionId: null,
@@ -307,7 +246,6 @@ test('buildPiEnv removes stale optional Cortex context from the parent env', () 
   assert.equal(env.CORTEX_BACKEND, 'pi');
   assert.equal(env.PI_CODING_AGENT_DIR, '/pi-agent');
 });
-
 
 test('buildPiEnv sets the shared interaction bridge marker only from trusted options', () => {
   const inherited = { [PI_INTERACTION_BRIDGE_ENV]: 'spoofed' };
@@ -324,8 +262,8 @@ test('PIAdapter enables the shared interaction bridge only for direct user sessi
     { key: 'pi-nonuser-direct', isUserInitiated: false, mcpComposition: 'direct' as const, expected: undefined },
     { key: 'pi-user-thread', isUserInitiated: true, mcpComposition: 'thread-control' as const, expected: undefined },
   ]) {
-    const stub = makeStubSpawner();
-    const adapter = new PIAdapter(stub.spawn);
+    const fake = makeFakeRuntimeFactory();
+    const adapter = new PIAdapter(fake.factory);
     const proc = adapter.spawn({
       sessionId: null,
       sessionKey: entry.key,
@@ -334,11 +272,8 @@ test('PIAdapter enables the shared interaction bridge only for direct user sessi
       mcpComposition: entry.mcpComposition,
       env: { [PI_INTERACTION_BRIDGE_ENV]: 'spoofed' },
     });
-    assert.equal(
-      (stub.calls[0].opts.env as NodeJS.ProcessEnv)[PI_INTERACTION_BRIDGE_ENV], entry.expected,
-    );
+    assert.equal(fake.requests[0].env[PI_INTERACTION_BRIDGE_ENV], entry.expected, entry.key);
     proc.kill();
-    stub.children[0].emit('close', 0);
   }
 });
 
@@ -370,18 +305,6 @@ test('buildPiEnv scrubs production bootstrap controls from the child', () => {
     'CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE',
     'CORTEX_PRODUCTION_BENCHMARK_EVIDENCE_CONTEXT_FILE',
   ]) assert.equal(env[key], undefined, key);
-});
-
-test('buildPiEnv resets and sets the PI plugin MCP config path through a dedicated env key', () => {
-  const stale = { [PI_PLUGIN_MCP_CONFIG_ENV]: '/stale-plugin-mcp.json' };
-  const cleared = buildPiEnv({ piAgentDir: '/pi-agent' }, stale);
-  assert.equal(cleared[PI_PLUGIN_MCP_CONFIG_ENV], undefined);
-
-  const updated = buildPiEnv({
-    piAgentDir: '/pi-agent',
-    pluginMcpConfigPath: '/runtime/pi-mcp/private-config.json',
-  }, stale);
-  assert.equal(updated[PI_PLUGIN_MCP_CONFIG_ENV], '/runtime/pi-mcp/private-config.json');
 });
 
 // --- buildPiEnv unsetEnv (PI routes by env only: env is its sole mode lever) ---
@@ -425,47 +348,45 @@ test('buildPiEnv preserves an explicit PI subagent marker after reset', () => {
   assert.equal(env.CORTEX_PI_SUBAGENT, '1');
 });
 
-test('PIAdapter does not export plugin MCP config for restricted compositions or subagents', () => {
+test('PIAdapter hands plugin MCP servers to the session only for compositions that allow them', () => {
+  const server = {
+    name: 'portable-plugin',
+    type: 'sse' as const,
+    url: 'https://private.example.com/events',
+    headers: {},
+  };
   for (const entry of [
-    { key: 'pi-none', mcpComposition: 'none' as const },
-    { key: 'pi-subagent', mcpComposition: 'thread-control' as const, env: { CORTEX_PI_SUBAGENT: '1' } },
+    { key: 'pi-direct', mcpComposition: 'direct' as const, expected: [server] },
+    { key: 'pi-none', mcpComposition: 'none' as const, expected: [] },
+    {
+      key: 'pi-subagent',
+      mcpComposition: 'thread-control' as const,
+      env: { CORTEX_PI_SUBAGENT: '1' },
+      expected: [],
+    },
   ]) {
-    const stub = makeStubSpawner();
-    const adapter = new PIAdapter(stub.spawn);
+    const fake = makeFakeRuntimeFactory();
+    const adapter = new PIAdapter(fake.factory);
     const proc = adapter.spawn({
       sessionId: null,
       sessionKey: entry.key,
       resume: false,
       mcpComposition: entry.mcpComposition,
       env: entry.env,
-      mcpServers: [{
-        name: 'portable-plugin',
-        type: 'sse',
-        url: 'https://private.example.com/events',
-        headers: {},
-      }],
+      mcpServers: [server],
     });
 
-    const env = stub.calls[0].opts.env as NodeJS.ProcessEnv;
-    assert.equal(env[PI_PLUGIN_MCP_CONFIG_ENV], undefined);
-    if (entry.env?.CORTEX_PI_SUBAGENT === '1') assert.equal(env.CORTEX_PI_SUBAGENT, '1');
+    assert.deepEqual(fake.requests[0].pluginMcpServers, entry.expected, entry.key);
+    if (entry.env?.CORTEX_PI_SUBAGENT === '1') assert.equal(fake.requests[0].env.CORTEX_PI_SUBAGENT, '1');
     proc.kill();
-    stub.children[0].emit('close', 0);
   }
 });
 
-// --- D1: --provider passed through from profile mode, not hardcoded ---
+// --- D1: provider passed through from the profile, not hardcoded ---
 
-test('buildSpawnArgs: explicit provider opt is passed as --provider', () => {
-  const args = buildSpawnArgs({ sessionDir: '/x', model: 'gpt-5.4-mini', provider: 'openai-codex' });
-  const idx = args.indexOf('--provider');
-  assert.ok(idx >= 0, '--provider must be present');
-  assert.equal(args[idx + 1], 'openai-codex');
-});
-
-test('PIAdapter spawns an openai-codex provider profile through PI', () => {
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn);
+test('PIAdapter passes the profile provider and model to the session', () => {
+  const fake = makeFakeRuntimeFactory();
+  const adapter = new PIAdapter(fake.factory);
   const proc = adapter.spawn({
     sessionId: null,
     sessionKey: 'openai-codex-profile',
@@ -474,26 +395,24 @@ test('PIAdapter spawns an openai-codex provider profile through PI', () => {
     piProvider: 'openai-codex',
   });
 
-  assert.equal(stub.calls[0].cmd, 'pi');
-  const providerIndex = stub.calls[0].args.indexOf('--provider');
-  assert.ok(providerIndex >= 0, '--provider must be present');
-  assert.equal(stub.calls[0].args[providerIndex + 1], 'openai-codex');
-  stub.children[0].emit('close', 0, null);
-  void proc.close();
+  assert.equal(fake.requests[0].provider, 'openai-codex');
+  assert.equal(fake.requests[0].model, 'gpt-5.4-mini');
+  proc.kill();
 });
 
-test('buildSpawnArgs: provider opt is NOT defaulted to "anthropic" when only model given', () => {
-  // Old behavior: always pushed --provider anthropic when model was set. New behavior: omit --provider.
-  const args = buildSpawnArgs({ sessionDir: '/x', model: 'claude-opus-4-7' });
-  assert.ok(!args.includes('--provider'),
-    `--provider should not appear when not requested explicitly, got: ${JSON.stringify(args)}`);
-});
+test('PIAdapter does not default the provider to "anthropic" when only a model is given', () => {
+  const fake = makeFakeRuntimeFactory();
+  const adapter = new PIAdapter(fake.factory);
+  const proc = adapter.spawn({
+    sessionId: null,
+    sessionKey: 'model-only',
+    resume: false,
+    model: 'claude-opus-4-7',
+  });
 
-test('buildSpawnArgs: provider is omitted when model is not set (no orphan flag)', () => {
-  const args = buildSpawnArgs({ sessionDir: '/x', provider: 'deepseek' });
-  // Without --model, --provider is meaningless; omit both
-  assert.ok(!args.includes('--provider'));
-  assert.ok(!args.includes('--model'));
+  assert.equal(fake.requests[0].provider, null, 'PI infers the provider when the profile names none');
+  assert.equal(fake.requests[0].model, 'claude-opus-4-7');
+  proc.kill();
 });
 
 test('gateway spawns return while one slow discovery warms provider overrides', async () => {
@@ -506,8 +425,8 @@ test('gateway spawns return while one slow discovery warms provider overrides', 
       return slowDiscovery;
     },
   });
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR, discovery);
+  const fake = makeFakeRuntimeFactory();
+  const adapter = new PIAdapter(fake.factory, G_SESSION_DIR, discovery);
   const processes = [];
 
   processes.push(adapter.spawn({
@@ -544,12 +463,12 @@ test('gateway spawns return while one slow discovery warms provider overrides', 
   }));
   models = JSON.parse(readFileSync(PI_MODELS_PATH, 'utf8'));
   assert.deepEqual(Object.keys(models.providers).sort(), ['anthropic', 'deepseek']);
-  assert.equal(stub.calls.length, 3, 'all PI subprocesses start before discovery settles');
+  assert.equal(fake.requests.length, 3, 'all PI sessions start before discovery settles');
 
   await Promise.resolve();
   assert.equal(scans, 1, 'concurrent cold spawns coalesce provider discovery');
   resolveDiscovery(['anthropic', 'anthropic', 'openai-codex']);
-  await new Promise<void>((resolve) => setImmediate(resolve));
+  await tick();
 
   processes.push(adapter.spawn({
     sessionId: null,
@@ -565,8 +484,7 @@ test('gateway spawns return while one slow discovery warms provider overrides', 
   assert.equal(models.providers.deepseek.baseUrl, 'http://127.0.0.1:9880/m/pro/deepseek');
   assert.equal(scans, 1, 'fresh cache avoids another list-models call');
 
-  for (const child of stub.children) child.emit('close', 0, null);
-  await Promise.all(processes.map((process) => process.close()));
+  for (const proc of processes) proc.kill();
 });
 
 test('failed gateway discovery preserves current-provider fallback without delaying spawn', async () => {
@@ -577,10 +495,10 @@ test('failed gateway discovery preserves current-provider fallback without delay
       throw new Error('pi list-models failed');
     },
   });
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR, discovery);
+  const fake = makeFakeRuntimeFactory();
+  const adapter = new PIAdapter(fake.factory, G_SESSION_DIR, discovery);
 
-  const process = adapter.spawn({
+  const proc = adapter.spawn({
     sessionId: null,
     sessionKey: 'gateway-failed-discovery',
     resume: false,
@@ -590,7 +508,7 @@ test('failed gateway discovery preserves current-provider fallback without delay
     piGatewayPath: '/m/gateway/anthropic',
   });
 
-  assert.equal(stub.calls.length, 1, 'spawn is not gated on discovery failure');
+  assert.equal(fake.requests.length, 1, 'spawn is not gated on discovery failure');
   const models = JSON.parse(readFileSync(PI_MODELS_PATH, 'utf8'));
   assert.deepEqual(Object.keys(models.providers), ['anthropic']);
   assert.equal(models.providers.anthropic.baseUrl, 'http://127.0.0.1:9880/m/gateway/anthropic');
@@ -598,162 +516,115 @@ test('failed gateway discovery preserves current-provider fallback without delay
   await Promise.resolve();
   assert.equal(scans, 1);
 
-  stub.children[0].emit('close', 0, null);
-  await process.close();
+  proc.kill();
 });
 
-// --- Group C: bootstrap id capture (done-when: first get_state synthesizes session_started) ---
-
-test('spawn writes bootstrap {id:"bootstrap",type:"get_state"} as ONLY first stdin frame', async () => {
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn);
-  const proc = adapter.spawn({ sessionId: null, sessionKey: 'k1', resume: false, pluginDirs: [] });
-
-  // Allow synchronous constructor to enqueue writes — PassThrough buffers are synchronous.
-  await Promise.resolve();
-
-  const child = stub.children[0];
-  assert.ok(child, 'stub spawner was called');
-  // Nice-to-have #4 from Plan Review iter1: lock bootstrap-correlation invariant.
-  assert.equal(child.stdin.writeHistory.length, 1, 'exactly one spawn-time write');
+test('flags provider quota reporting only for gateway-routed runs', () => {
+  const routed = makeFakeRuntimeFactory();
+  const routedProc = new PIAdapter(routed.factory).spawn({
+    sessionId: null,
+    sessionKey: 'pi-quota-routed',
+    resume: false,
+    piGatewayBaseUrl: 'http://127.0.0.1:9880',
+  });
   assert.equal(
-    child.stdin.writeHistory[0],
-    '{"id":"bootstrap","type":"get_state"}\n',
-    'byte-exact bootstrap frame with LF delimiter',
+    routed.requests[0].reportsProviderQuota, true,
+    'a gateway-routed run must report provider quota',
   );
-  assert.equal(proc.sessionId, null, 'sessionId is null until response arrives');
+  routedProc.kill();
 
-  // clean up so test runner does not keep the stub stdin open
-  child.emit('close', 0, null);
-  await proc.close();
+  const unrouted = makeFakeRuntimeFactory();
+  const unroutedProc = new PIAdapter(unrouted.factory).spawn({
+    sessionId: null,
+    sessionKey: 'pi-quota-unrouted',
+    resume: false,
+  });
+  assert.equal(
+    unrouted.requests[0].reportsProviderQuota, false,
+    'a run Cortex does not route must not report into the daemon throttle',
+  );
+  unroutedProc.kill();
 });
 
-test('bootstrap response populates sessionId and emits session_started as first NormalizedEvent', async () => {
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn);
+// --- Group C: session identity (done-when: the session announces itself first) ---
+
+test('the session announces session_started first, carrying its id and transcript path', async () => {
+  const fake = makeFakeRuntimeFactory({ sessionId: 'abc-123' });
+  const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
   const proc = adapter.spawn({ sessionId: null, sessionKey: 'k2', resume: false });
 
-  await Promise.resolve();
-  const child = stub.children[0];
+  assert.equal(proc.sessionId, null, 'sessionId is null until the runtime exists');
 
-  const eventsIter = proc.events[Symbol.asyncIterator]();
-  const firstEventPromise = eventsIter.next();
+  const first = await proc.events[Symbol.asyncIterator]().next();
+  assert.equal(first.done, false);
+  assert.deepEqual(first.value, {
+    type: 'session_started',
+    sessionId: 'abc-123',
+    sessionFile: pathJoin(G_SESSION_DIR, 'abc-123.jsonl'),
+  });
+  assert.equal(proc.sessionId, 'abc-123', 'AgentProcess.sessionId getter reflects the announced id');
 
-  child.stdout.emit(
-    'data',
-    Buffer.from(
-      '{"type":"response","id":"bootstrap","command":"get_state","success":true,"data":{"sessionId":"abc-123"}}\n',
-    ),
-  );
-
-  const firstResult = await firstEventPromise;
-  assert.equal(firstResult.done, false);
-  assert.deepEqual(firstResult.value, { type: 'session_started', sessionId: 'abc-123' });
-  assert.equal(proc.sessionId, 'abc-123', 'AgentProcess.sessionId getter reflects bootstrap fill-in');
-
-  child.emit('close', 0, null);
-  await proc.close();
-});
-
-test('bootstrap response with missing data.sessionId does not emit session_started', async () => {
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn);
-  const proc = adapter.spawn({ sessionId: null, sessionKey: 'k3', resume: false });
-
-  await Promise.resolve();
-  const child = stub.children[0];
-
-  child.stdout.emit(
-    'data',
-    Buffer.from('{"type":"response","id":"bootstrap","command":"get_state","success":true,"data":{}}\n'),
-  );
-
-  // session_started must NOT have been pushed; iterator should resolve only after close.
-  assert.equal(proc.sessionId, null);
-
-  child.emit('close', 0, null);
-  const result = await proc.events[Symbol.asyncIterator]().next();
-  assert.equal(result.done, true, 'iterator terminates without emitting session_started');
+  proc.kill();
 });
 
 test('PI turn emits live context_usage during streaming without flushing partial text', async () => {
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn);
+  const fake = makeFakeRuntimeFactory({ sessionId: 'context-live-session' });
+  const adapter = new PIAdapter(fake.factory);
   const proc = adapter.spawn({ sessionId: null, sessionKey: 'context-live', resume: false });
-  const child = stub.children[0];
+  const runtime = await fake.runtime();
   const iterator = proc.events[Symbol.asyncIterator]();
+  assert.equal((await nextEvent(iterator)).type, 'session_started');
 
-  emitBootstrap(child, 'context-live-session');
-  await iterator.next();
+  runtime.stats.contextUsage = { tokens: 60100, contextWindow: 200000, percent: 30.05 };
   let turnSettled = false;
-  const turn = proc.send({ text: 'hello' }).then((result) => { turnSettled = true; return result; });
+  const { turn } = await startTurn(proc, runtime, 'hello');
+  void turn.then(() => { turnSettled = true; });
 
-  child.stdout.emit('data', Buffer.from(JSON.stringify({
+  runtime.emit({
     type: 'message_update', message: { id: 'm-live' },
     assistantMessageEvent: { type: 'text_delta', delta: 'partial' },
-  }) + '\n'));
-  assert.deepEqual((await iterator.next()).value, {
+  });
+  assert.deepEqual(await nextEvent(iterator), {
     type: 'assistant_delta', text: 'partial', blockId: 'm-live',
   });
-
-  const liveStats = child.stdin.writeHistory
-    .map((frame) => JSON.parse(frame.trim()) as Record<string, unknown>)
-    .find((command) => command.type === 'get_session_stats');
-  assert.ok(liveStats, 'streaming output triggers a throttled stats query before settle');
-  child.stdout.emit('data', Buffer.from(JSON.stringify({
-    type: 'response', id: liveStats.id, command: 'get_session_stats', success: true,
-    data: { contextUsage: { tokens: 60100, contextWindow: 200000, percent: 30.05 } },
-  }) + '\n'));
-
-  assert.deepEqual((await iterator.next()).value, {
+  // Streaming output samples the session stats without waiting for the turn to settle.
+  assert.deepEqual(await nextEvent(iterator), {
     type: 'context_usage', usedTokens: 60100, contextWindow: 200000,
     percent: 30.05, accuracy: 'estimate',
   });
   assert.equal(turnSettled, false, 'live context snapshot does not settle the turn');
 
-  child.stdout.emit('data', Buffer.from('{"type":"message_end"}\n'));
-  assert.deepEqual((await iterator.next()).value, {
+  runtime.stats.contextUsage = { tokens: 60200, contextWindow: 200000, percent: 30.1 };
+  runtime.emit({ type: 'message_end' });
+  assert.deepEqual(await nextEvent(iterator), {
     type: 'assistant_text', text: 'partial', blockId: 'm-live',
   });
-  assert.equal((await iterator.next()).value.type, 'turn_progress');
+  assert.equal((await nextEvent(iterator)).type, 'turn_progress');
 
-  child.stdout.emit('data', Buffer.from('{"type":"agent_settled"}\n'));
+  runtime.emit({ type: 'agent_settled' });
   await turn;
-  const finalStats = child.stdin.writeHistory
-    .map((frame) => JSON.parse(frame.trim()) as Record<string, unknown>)
-    .filter((command) => command.type === 'get_session_stats')
-    .at(-1)!;
-  assert.notEqual(finalStats.id, liveStats.id);
-  child.stdout.emit('data', Buffer.from(JSON.stringify({
-    type: 'response', id: finalStats.id, command: 'get_session_stats', success: true,
-    data: { contextUsage: { tokens: 60200, contextWindow: 200000, percent: 30.1 } },
-  }) + '\n'));
-  assert.equal((await iterator.next()).value.type, 'context_usage');
-  assert.equal((await iterator.next()).value.type, 'turn_complete');
+  assert.deepEqual(await nextEvent(iterator), {
+    type: 'context_usage', usedTokens: 60200, contextWindow: 200000,
+    percent: 30.1, accuracy: 'estimate',
+  });
+  assert.equal((await nextEvent(iterator)).type, 'turn_complete');
 
-  child.emit('close', 0, null);
-  await proc.close();
+  proc.kill();
 });
 
 test('a PI turn that ends in a provider error rejects with a classified reason', async () => {
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn);
+  const fake = makeFakeRuntimeFactory({ sessionId: 'provider-error-session' });
+  const adapter = new PIAdapter(fake.factory);
   const proc = adapter.spawn({ sessionId: null, sessionKey: 'provider-error', resume: false });
-  const child = stub.children[0];
+  const runtime = await fake.runtime();
   const iterator = proc.events[Symbol.asyncIterator]();
+  assert.equal((await nextEvent(iterator)).type, 'session_started');
 
-  emitBootstrap(child, 'provider-error-session');
-  assert.equal((await iterator.next()).value.type, 'session_started');
-
-  const turn = proc.send({ text: 'hello' });
-  child.stdout.emit('data', Buffer.from(`${JSON.stringify({
-    type: 'agent_end',
-    messages: [{
-      role: 'assistant', provider: 'deepseek', model: 'deepseek-v4-flash',
-      stopReason: 'error', errorMessage: 'Connection error.',
-    }],
-  })}\n`));
-  child.stdout.emit('data', Buffer.from('{"type":"agent_settled"}\n'));
+  const { turn } = await startTurn(proc, runtime, 'hello');
+  runtime.emitAgentEnd({
+    provider: 'deepseek', model: 'deepseek-v4-flash',
+    stopReason: 'error', errorMessage: 'Connection error.',
+  });
 
   const failure = await turn.then(
     () => null, (error: unknown) => error as Error & { reason?: string });
@@ -761,329 +632,202 @@ test('a PI turn that ends in a provider error rejects with a classified reason',
   // run classify itself as `provider_error` rather than a blanket `child_failure`.
   assert.equal(failure?.message, 'Connection error.');
   assert.equal(failure?.reason, 'provider_error');
+
+  proc.kill();
 });
 
 test('settled PI turn emits context_usage before its terminal event', async () => {
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn);
+  const fake = makeFakeRuntimeFactory({ sessionId: 'context-session' });
+  const adapter = new PIAdapter(fake.factory);
   const proc = adapter.spawn({ sessionId: null, sessionKey: 'context-order', resume: false });
-  const child = stub.children[0];
+  const runtime = await fake.runtime();
   const iterator = proc.events[Symbol.asyncIterator]();
+  assert.equal((await nextEvent(iterator)).type, 'session_started');
 
-  emitBootstrap(child, 'context-session');
-  assert.equal((await iterator.next()).value.type, 'session_started');
-
-  const turn = proc.send({ text: 'hello' });
-  child.stdout.emit('data', Buffer.from('{"type":"agent_settled"}\n'));
+  runtime.stats.contextUsage = { tokens: 60000, contextWindow: 200000, percent: 30 };
+  const { turn } = await startTurn(proc, runtime, 'hello');
+  runtime.emit({ type: 'agent_settled' });
   await turn;
 
-  const stats = child.stdin.writeHistory
-    .map((frame) => JSON.parse(frame.trim()) as Record<string, unknown>)
-    .find((command) => command.type === 'get_session_stats');
-  assert.ok(stats, 'agent_settled sends one optional stats query');
-
-  child.stdout.emit('data', Buffer.from(JSON.stringify({
-    type: 'response', id: stats.id, command: 'get_session_stats', success: true,
-    data: { contextUsage: { tokens: 60000, contextWindow: 200000, percent: 30 } },
-  }) + '\n'));
-
-  assert.deepEqual((await iterator.next()).value, {
+  assert.deepEqual(await nextEvent(iterator), {
     type: 'context_usage', usedTokens: 60000, contextWindow: 200000,
     percent: 30, accuracy: 'estimate',
   });
-  assert.deepEqual((await iterator.next()).value, {
+  assert.deepEqual(await nextEvent(iterator), {
     type: 'turn_complete', numTurns: 0, totalCostUsd: null,
   });
   let streamDone = false;
-  void iterator.next().then((entry) => { streamDone = entry.done; });
-  await new Promise((resolve) => setImmediate(resolve));
+  void iterator.next().then((entry) => { streamDone = entry.done === true; });
+  await tick();
   assert.equal(streamDone, true, 'per-run stream closes after its terminal event');
 
-  child.emit('close', 0, null);
-  await proc.close();
+  proc.kill();
 });
 
-// --- Group D: exit-on-stdin-close + adapter session map cleanup ---
+// --- Group D: run close versus session close ---
 
-test('a finished run closes its stream and leaves the subprocess pooled', async () => {
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn);
+test('a finished run closes its stream and leaves the session pooled', async () => {
+  const fake = makeFakeRuntimeFactory();
+  const adapter = new PIAdapter(fake.factory);
   const proc = adapter.spawn({ sessionId: null, sessionKey: 'k4', resume: false });
-
-  await Promise.resolve();
-  const child = stub.children[0];
-
-  let stdinEnded = false;
-  child.stdin.on('end', () => { stdinEnded = true; });
-  child.stdin.on('finish', () => { stdinEnded = true; });
+  const runtime = await fake.runtime();
 
   await proc.close();
 
-  assert.equal(stdinEnded, false, 'the run does not end the pooled subprocess stdin');
-  assert.equal(child.__killed, false, 'the run does not kill the pooled subprocess');
+  assert.equal(runtime.disposed, false, 'the run does not dispose the pooled runtime');
+  assert.ok(!runtime.calls.some((call) => call.kind === 'abort'), 'the run does not abort the pooled runtime');
   assert.ok(adapter.listSessions().includes('k4'), 'session stays pooled for the next turn');
-  assert.equal((await proc.events[Symbol.asyncIterator]().next()).done, true, 'run stream ended');
+  const events = await collectEvents(proc.events);
+  assert.deepEqual(events.map((event) => event.type), ['session_started'], 'run stream ended');
+
+  await adapter.close('k4');
 });
 
-test('adapter.close(key) ends stdin and drops the pooled session', async () => {
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn);
-  adapter.spawn({ sessionId: null, sessionKey: 'k4b', resume: false });
+test('adapter.close(key) disposes the runtime, ends the run stream and drops the pooled session', async () => {
+  const fake = makeFakeRuntimeFactory();
+  const adapter = new PIAdapter(fake.factory);
+  const proc = adapter.spawn({ sessionId: null, sessionKey: 'k4b', resume: false });
+  const runtime = await fake.runtime();
 
-  await Promise.resolve();
-  const child = stub.children[0];
+  await adapter.close('k4b');
 
-  let stdinEnded = false;
-  child.stdin.on('end', () => { stdinEnded = true; });
-  child.stdin.on('finish', () => { stdinEnded = true; });
-
-  const closePromise = adapter.close('k4b');
-  // Simulate pi exiting cleanly on stdin close.
-  setImmediate(() => child.emit('close', 0, null));
-  await closePromise;
-
-  assert.ok(stdinEnded, 'stdin.end() was invoked');
+  assert.equal(runtime.disposed, true, 'the runtime was disposed');
   assert.ok(!adapter.listSessions().includes('k4b'), 'session removed from adapter map');
+  const events = await collectEvents(proc.events);
+  assert.deepEqual(events.map((event) => event.type), ['session_started'], 'iterator terminates after close');
 });
 
 // --- Group D2: session pooling across turns ---
 
 /** Drive one full turn on a spawned process and drain its stream to completion. */
-async function runPooledTurn(proc: PIAgentProcess, child: StubChild, text: string): Promise<void> {
-  const iterator = proc.events[Symbol.asyncIterator]();
-  const drained: string[] = [];
-  const pump = (async () => {
-    for (;;) {
-      const entry = await iterator.next();
-      if (entry.done) return;
-      drained.push(entry.value.type);
-    }
-  })();
-  const turn = proc.send({ text });
-  child.stdout.emit('data', Buffer.from('{"type":"agent_settled"}\n'));
+async function runPooledTurn(proc: PIAgentProcess, runtime: FakeRuntime, text: string): Promise<void> {
+  const drained = collectEvents(proc.events);
+  const { turn } = await startTurn(proc, runtime, text);
+  runtime.emitSimpleTurn(`${text} done`);
   await turn;
-  const stats = child.stdin.writeHistory
-    .map((frame) => JSON.parse(frame.trim()) as Record<string, unknown>)
-    .filter((command) => command.type === 'get_session_stats')
-    .pop();
-  if (stats) {
-    child.stdout.emit('data', Buffer.from(JSON.stringify({
-      type: 'response', id: stats.id, command: 'get_session_stats', success: true, data: {},
-    }) + '\n'));
-  }
-  await pump;
+  const types = (await drained).map((event) => event.type);
+  assert.ok(types.includes('turn_complete'), `turn "${text}" reached its terminal event`);
   await proc.close();
-  assert.ok(drained.includes('turn_complete'), `turn "${text}" reached its terminal event`);
 }
 
-test('two turns on one sessionKey reuse a single subprocess', async () => {
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR);
+test('two turns on one sessionKey reuse a single runtime', async () => {
+  const fake = makeFakeRuntimeFactory();
+  const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
   const config = { sessionId: null, sessionKey: 'pool-reuse', resume: false, model: 'gpt-5.6-sol' };
 
   const first = adapter.spawn({ ...config });
-  const child = stub.children[0];
-  emitBootstrap(child, `pool-reuse-${Date.now()}`);
-  await Promise.resolve();
-  await runPooledTurn(first, child, 'first');
+  const runtime = await fake.runtime();
+  await runPooledTurn(first, runtime, 'first');
 
   const second = adapter.spawn({ ...config });
-  assert.equal(stub.calls.length, 1, 'the second turn reuses the pooled subprocess');
-  await runPooledTurn(second, child, 'second');
+  assert.equal(fake.requests.length, 1, 'the second turn reuses the pooled runtime');
+  await runPooledTurn(second, runtime, 'second');
 
-  const prompts = child.stdin.writeHistory
-    .map((frame) => JSON.parse(frame.trim()) as Record<string, unknown>)
-    .filter((command) => command.type === 'prompt');
-  assert.deepEqual(prompts.map((command) => command.message), ['first', 'second']);
+  assert.deepEqual(runtime.prompts(), ['first', 'second']);
 
-  child.emit('close', 0, null);
+  await adapter.close('pool-reuse');
 });
 
-test('a changed spawn configuration retires the pooled subprocess', async () => {
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR);
+test('a changed spawn configuration retires the pooled session', async () => {
+  const fake = makeFakeRuntimeFactory();
+  const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
 
   const first = adapter.spawn({
     sessionId: null, sessionKey: 'pool-model', resume: false, model: 'gpt-5.6-sol',
   });
-  const child = stub.children[0];
-  emitBootstrap(child, `pool-model-${Date.now()}`);
-  await Promise.resolve();
-  await runPooledTurn(first, child, 'first');
+  const runtime = await fake.runtime();
+  await runPooledTurn(first, runtime, 'first');
 
   adapter.spawn({
     sessionId: null, sessionKey: 'pool-model', resume: false, model: 'claude-sonnet-4',
   });
-  assert.equal(stub.calls.length, 2, 'a different model must not run on the pooled subprocess');
-  assert.ok(stub.calls[1].args.includes('claude-sonnet-4'));
+  assert.equal(fake.requests.length, 2, 'a different model must not run on the pooled session');
+  assert.equal(fake.requests[1].model, 'claude-sonnet-4');
+  await tick();
+  assert.equal(runtime.disposed, true, 'the retired session releases its runtime');
 
-  child.emit('close', 0, null);
-  stub.children[1].emit('close', 0, null);
+  await fake.runtime(1);
+  await adapter.close('pool-model');
 });
 
-test('a subprocess that exited is replaced on the next turn', async () => {
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR);
+test('a killed session is replaced on the next turn', async () => {
+  const fake = makeFakeRuntimeFactory();
+  const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
   const config = { sessionId: null, sessionKey: 'pool-dead', resume: false };
 
-  adapter.spawn({ ...config });
-  await Promise.resolve();
-  stub.children[0].emit('close', 0, null);
-  await Promise.resolve();
+  const first = adapter.spawn({ ...config });
+  await fake.runtime();
+  first.kill();
 
   adapter.spawn({ ...config });
-  assert.equal(stub.calls.length, 2, 'a dead subprocess is not reused');
+  assert.equal(fake.requests.length, 2, 'a dead session is not reused');
 
-  stub.children[1].emit('close', 0, null);
+  await fake.runtime(1);
+  await adapter.close('pool-dead');
 });
 
-test('a per-run execution id does not retire the pooled subprocess', async () => {
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR);
+test('a per-run execution id does not retire the pooled session', async () => {
+  const fake = makeFakeRuntimeFactory();
+  const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
   const base = { sessionId: null, sessionKey: 'pool-exec', resume: false };
 
   const first = adapter.spawn({ ...base, cortexContext: { executionId: 'exec-1' } });
-  const child = stub.children[0];
-  emitBootstrap(child, `pool-exec-${Date.now()}`);
-  await Promise.resolve();
-  await runPooledTurn(first, child, 'first');
+  const runtime = await fake.runtime();
+  await runPooledTurn(first, runtime, 'first');
 
   adapter.spawn({ ...base, cortexContext: { executionId: 'exec-2' } });
-  assert.equal(stub.calls.length, 1, 'a new execution id reuses the pooled subprocess');
+  assert.equal(fake.requests.length, 1, 'a new execution id reuses the pooled session');
 
-  child.emit('close', 0, null);
+  await adapter.close('pool-exec');
 });
 
-test('events iterator terminates with {done:true} after close', async () => {
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn);
-  const proc = adapter.spawn({ sessionId: null, sessionKey: 'k5', resume: false });
+// --- Group E: fatal paths and kill ---
 
-  await Promise.resolve();
-  const child = stub.children[0];
-
-  child.emit('close', 0, null);
-  await proc.close();
-
-  const result = await proc.events[Symbol.asyncIterator]().next();
-  assert.equal(result.done, true);
-});
-
-test('non-zero exit emits fatal error event before iterator terminates', async () => {
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn);
+test('a runtime that fails to start emits a fatal error before the iterator terminates', async () => {
+  const fake = makeFakeRuntimeFactory({ fail: new Error('fatal: no API key') });
+  const adapter = new PIAdapter(fake.factory);
   const proc = adapter.spawn({ sessionId: null, sessionKey: 'k6', resume: false });
+  const turn = proc.send({ text: 'hello' });
 
-  await Promise.resolve();
-  const child = stub.children[0];
-
-  child.stderr.emit('data', Buffer.from('fatal: no API key'));
-  child.emit('close', 1, null);
-
-  const iter = proc.events[Symbol.asyncIterator]();
-  const first = await iter.next();
-  assert.equal(first.done, false);
-  assert.equal(first.value?.type, 'error');
-  if (first.value?.type === 'error') {
-    assert.equal(first.value.fatal, true);
-    assert.ok(first.value.message.includes('fatal: no API key'));
-  }
-  const second = await iter.next();
-  assert.equal(second.done, true);
+  const events = await collectEvents(proc.events);
+  assert.deepEqual(events, [{ type: 'error', message: 'fatal: no API key', fatal: true }]);
+  await assert.rejects(turn, /fatal: no API key/);
+  assert.ok(!adapter.listSessions().includes('k6'), 'a session that never started is evicted');
 });
 
-test('kill() sends SIGTERM and cleans adapter session map', async () => {
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn);
-  const proc = adapter.spawn({ sessionId: null, sessionKey: 'k7', resume: false });
+test('a prompt PI refuses rejects the turn and ends the run with a fatal error', async () => {
+  const fake = makeFakeRuntimeFactory();
+  const adapter = new PIAdapter(fake.factory);
+  const proc = adapter.spawn({ sessionId: null, sessionKey: 'prompt-refused', resume: false });
+  const runtime = await fake.runtime();
 
-  await Promise.resolve();
-  const child = stub.children[0];
+  runtime.promptRejections.push(new Error('model not found'));
+  await assert.rejects(proc.send({ text: 'hello' }), /model not found/);
+
+  const events = await collectEvents(proc.events);
+  assert.deepEqual(events.map((event) => event.type), ['session_started', 'error']);
+  assert.deepEqual(events[1], { type: 'error', message: 'model not found', fatal: true });
+  assert.ok(adapter.listSessions().includes('prompt-refused'), 'a refused prompt does not end the pooled session');
+
+  await adapter.close('prompt-refused');
+});
+
+test('kill() aborts the PI run, disposes the runtime and cleans the adapter session map', async () => {
+  const fake = makeFakeRuntimeFactory();
+  const adapter = new PIAdapter(fake.factory);
+  const proc = adapter.spawn({ sessionId: null, sessionKey: 'k7', resume: false });
+  const runtime = await fake.runtime();
 
   const killed = proc.kill();
   assert.equal(killed, true);
-  assert.equal(child.__lastSignal, 'SIGTERM');
+  assert.ok(runtime.calls.some((call) => call.kind === 'abort'), 'whatever PI was doing is aborted');
   assert.ok(!adapter.listSessions().includes('k7'));
-
-  child.emit('close', null, 'SIGTERM');
+  await tick();
+  assert.equal(runtime.disposed, true);
+  assert.equal(proc.kill(), false, 'a second kill reports the session already gone');
 });
 
-// --- Group F: extensionPaths / --extension flag (task 5754 MCP bridge) ---
-
-test('buildSpawnArgs emits --extension for each extensionPaths entry in order', () => {
-  const args = buildSpawnArgs({
-    sessionDir: '/s',
-    extensionPaths: ['/ext/a.ts', '/ext/b.ts'],
-  });
-  assert.deepEqual(args, [
-    '--mode', 'rpc',
-    '--session-dir', '/s',
-    '--extension', '/ext/a.ts',
-    '--extension', '/ext/b.ts',
-  ]);
-});
-
-test('injects the quota probe only into gateway-routed runs', () => {
-  const extensionsOf = (args: string[]) =>
-    args.filter((value, index) => args[index - 1] === '--extension');
-
-  const routed = makeStubSpawner();
-  new PIAdapter(routed.spawn).spawn({
-    sessionId: null,
-    sessionKey: 'pi-quota-routed',
-    resume: false,
-    piGatewayBaseUrl: 'http://127.0.0.1:9880',
-  });
-  assert.equal(
-    extensionsOf(routed.calls[0].args).some((path) => path.includes('quota-probe')),
-    true,
-    'a gateway-routed run must report provider quota',
-  );
-
-  const unrouted = makeStubSpawner();
-  new PIAdapter(unrouted.spawn).spawn({
-    sessionId: null,
-    sessionKey: 'pi-quota-unrouted',
-    resume: false,
-  });
-  assert.equal(
-    extensionsOf(unrouted.calls[0].args).some((path) => path.includes('quota-probe')),
-    false,
-    'a run Cortex does not route must not report into the daemon throttle',
-  );
-});
-
-test('buildSpawnArgs emits no --extension when extensionPaths is empty or undefined', () => {
-  const a = buildSpawnArgs({ sessionDir: '/s', extensionPaths: [] });
-  assert.ok(!a.includes('--extension'));
-  const b = buildSpawnArgs({ sessionDir: '/s' });
-  assert.ok(!b.includes('--extension'));
-});
-
-test('buildSpawnArgs places --extension after --skill when both are present', () => {
-  const args = buildSpawnArgs({
-    sessionDir: '/s',
-    pluginDirs: ['/skill/dir'],
-    extensionPaths: ['/ext/mcp.ts'],
-  });
-  const skillIdx = args.indexOf('--skill');
-  const extIdx = args.indexOf('--extension');
-  assert.ok(skillIdx !== -1, '--skill present');
-  assert.ok(extIdx !== -1, '--extension present');
-  assert.ok(skillIdx < extIdx, '--skill comes before --extension');
-});
-
-// --- Group G: session path mapping + switch_session runtime swap (task 7ca9) ---
-
-// Helper: push a bootstrap response onto a stub child's stdout.
-function emitBootstrap(child: StubChild, sessionId: string): void {
-  child.stdout.emit(
-    'data',
-    Buffer.from(
-      `{"type":"response","id":"bootstrap","command":"get_state","success":true,"data":{"sessionId":"${sessionId}"}}\n`,
-    ),
-  );
-}
+// --- Group G: session path mapping + switchSession runtime swap ---
 
 function stageCanonicalSession(sessionId: string): string {
   const sessionPath = pathJoin(G_SESSION_DIR, `${sessionId}.jsonl`);
@@ -1091,50 +835,22 @@ function stageCanonicalSession(sessionId: string): string {
   return sessionPath;
 }
 
-// Helper: push a switch_session response onto a stub child's stdout.
-function emitSwitchResponse(child: StubChild, id: string, cancelled: boolean): void {
-  child.stdout.emit(
-    'data',
-    Buffer.from(
-      JSON.stringify({ type: 'response', command: 'switch_session', id, success: true, data: { cancelled } }) + '\n',
-    ),
-  );
-}
-
-// Helper: extract the most recent switch_session command written to stdin.
-function lastSwitchCmd(child: StubChild): { id: string; sessionPath: string } | null {
-  for (let i = child.stdin.writeHistory.length - 1; i >= 0; i--) {
-    try {
-      const obj = JSON.parse(child.stdin.writeHistory[i].trim()) as Record<string, unknown>;
-      if (obj['type'] === 'switch_session') {
-        return { id: obj['id'] as string, sessionPath: obj['sessionPath'] as string };
-      }
-    } catch { /* skip */ }
-  }
-  return null;
-}
-
-test('G-1: bootstrap without a transcript does not expose a synthesized resume path', async () => {
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR);
+test('G-1: a session whose transcript is not on disk does not expose a synthesized resume path', async () => {
+  const fake = makeFakeRuntimeFactory({ sessionId: 'g1-unstaged' });
+  const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
   const proc = adapter.spawn({ sessionId: null, sessionKey: 'k1', resume: false });
 
-  await Promise.resolve();
-  const child = stub.children[0];
+  // Before the runtime exists: path is unknown.
+  assert.equal(adapter.resolveSessionPath('g1-unstaged'), null);
 
-  // Before bootstrap: path is unknown.
-  assert.equal(adapter.resolveSessionPath('abc-123'), null);
+  await fake.runtime();
 
-  emitBootstrap(child, 'abc-123');
-  await Promise.resolve();
+  // The session reports its transcript path before PI has created the file. A guessed path is
+  // not resumable until it exists on disk.
+  assert.equal(adapter.resolveSessionPath('g1-unstaged'), null);
+  assert.equal(proc.sessionId, 'g1-unstaged');
 
-  // Bootstrap may omit sessionFile before PI has created the transcript. A guessed path is not
-  // resumable until it exists on disk.
-  assert.equal(adapter.resolveSessionPath('abc-123'), null);
-  assert.equal(proc.sessionId, 'abc-123');
-
-  child.emit('close', 0, null);
-  await proc.close();
+  proc.kill();
 });
 
 test('G-2: resolveSessionPath on unknown sessionId returns null', () => {
@@ -1143,224 +859,154 @@ test('G-2: resolveSessionPath on unknown sessionId returns null', () => {
 });
 
 test('G-3: switchSession with unknown sessionId returns {ok:false, cancelled:false}', async () => {
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR);
+  const fake = makeFakeRuntimeFactory({ sessionId: 'abc-123' });
+  const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
   const proc = adapter.spawn({ sessionId: null, sessionKey: 'k1', resume: false });
+  const runtime = await fake.runtime();
 
-  await Promise.resolve();
-  const child = stub.children[0];
-  emitBootstrap(child, 'abc-123');
-  await Promise.resolve();
-
-  // 'unknown-xyz' is not in registry → immediate {ok:false, cancelled:false}, no stdin write.
+  // 'unknown-xyz' is not in registry → immediate {ok:false, cancelled:false}, PI is never asked.
   const result = await adapter.switchSession('unknown-xyz', 'k1');
   assert.deepEqual(result, { ok: false, cancelled: false });
+  assert.deepEqual(switchCalls(runtime), [], 'no switch reaches the runtime');
 
-  child.emit('close', 0, null);
-  await proc.close();
+  proc.kill();
 });
 
-test('G-4: switchSession sends switch_session RPC and resolves with cancelled=false on success', async () => {
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR);
-  const proc1 = adapter.spawn({ sessionId: null, sessionKey: 'k1', resume: false });
-  const proc2 = adapter.spawn({ sessionId: null, sessionKey: 'k2', resume: false });
-
-  await Promise.resolve();
-  const child1 = stub.children[0];
-  const child2 = stub.children[1];
-
-  // Bootstrap both sessions and stage the files required by switch_session.
-  emitBootstrap(child1, 'abc-123');
-  emitBootstrap(child2, 'xyz-456');
-  await Promise.resolve();
+test('G-4: switchSession re-points the runtime and resolves ok when PI does not cancel', async () => {
+  const fake = makeFakeRuntimeFactory({ sessionIds: ['abc-123', 'xyz-456'] });
+  const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
+  adapter.spawn({ sessionId: null, sessionKey: 'k1', resume: false });
+  adapter.spawn({ sessionId: null, sessionKey: 'k2', resume: false });
+  const runtime1 = await fake.runtime(0);
+  await fake.runtime(1);
   stageCanonicalSession('abc-123');
   stageCanonicalSession('xyz-456');
 
-  // Switch k1's subprocess to serve xyz-456.
-  const switchPromise = adapter.switchSession('xyz-456', 'k1');
+  // Switch k1's runtime to serve xyz-456.
+  const result = await adapter.switchSession('xyz-456', 'k1');
 
-  // switch_session command should have been written to k1's stdin.
-  const sw = lastSwitchCmd(child1);
-  assert.ok(sw !== null, 'switch_session command written to k1 stdin');
-  assert.equal(sw!.sessionPath, pathJoin(G_SESSION_DIR, 'xyz-456.jsonl'));
-
-  // Respond with cancelled=false.
-  emitSwitchResponse(child1, sw!.id, false);
-
-  const result = await switchPromise;
+  assert.deepEqual(switchCalls(runtime1), [pathJoin(G_SESSION_DIR, 'xyz-456.jsonl')]);
   assert.deepEqual(result, { ok: true, cancelled: false });
 
-  child1.emit('close', 0, null);
-  child2.emit('close', 0, null);
-  await proc1.close();
-  await proc2.close();
+  adapter.kill('k1');
+  adapter.kill('k2');
 });
 
-test('G-5: switchSession propagates cancelled=true from switch_session response', async () => {
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR);
-  const proc1 = adapter.spawn({ sessionId: null, sessionKey: 'k1', resume: false });
-  const proc2 = adapter.spawn({ sessionId: null, sessionKey: 'k2', resume: false });
-
-  await Promise.resolve();
-  const child1 = stub.children[0];
-  const child2 = stub.children[1];
-
-  emitBootstrap(child1, 'abc-123');
-  emitBootstrap(child2, 'xyz-456');
-  await Promise.resolve();
+test('G-5: switchSession propagates a cancelled switch as not ok', async () => {
+  const fake = makeFakeRuntimeFactory({ sessionIds: ['abc-123', 'xyz-456'] });
+  const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
+  adapter.spawn({ sessionId: null, sessionKey: 'k1', resume: false });
+  adapter.spawn({ sessionId: null, sessionKey: 'k2', resume: false });
+  const runtime1 = await fake.runtime(0);
+  await fake.runtime(1);
   stageCanonicalSession('abc-123');
   stageCanonicalSession('xyz-456');
 
-  const switchPromise = adapter.switchSession('xyz-456', 'k1');
-  const sw = lastSwitchCmd(child1);
-  assert.ok(sw !== null);
+  // PI cancels the switch (an in-flight agent was preempted).
+  runtime1.switchResult = { cancelled: true };
+  const result = await adapter.switchSession('xyz-456', 'k1');
 
-  // Respond with cancelled=true (in-flight agent was preempted).
-  emitSwitchResponse(child1, sw!.id, true);
+  assert.equal(switchCalls(runtime1).length, 1, 'the switch was attempted');
+  assert.deepEqual(result, { ok: false, cancelled: true });
 
-  const result = await switchPromise;
-  assert.deepEqual(result, { ok: true, cancelled: true });
-
-  child1.emit('close', 0, null);
-  child2.emit('close', 0, null);
-  await proc1.close();
-  await proc2.close();
+  adapter.kill('k1');
+  adapter.kill('k2');
 });
 
-test('G-6: sendTurn no-op when same session; auto-switches and writes prompt when different', async () => {
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR);
+test('G-6: sendTurn no-op when same session; auto-switches before the prompt when different', async () => {
+  const fake = makeFakeRuntimeFactory({ sessionIds: ['abc-123', 'xyz-456'] });
+  const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
   const proc1 = adapter.spawn({ sessionId: null, sessionKey: 'k1', resume: false });
-  const proc2 = adapter.spawn({ sessionId: null, sessionKey: 'k2', resume: false });
-
-  await Promise.resolve();
-  const child1 = stub.children[0];
-  const child2 = stub.children[1];
-
-  emitBootstrap(child1, 'abc-123');
-  emitBootstrap(child2, 'xyz-456');
-  await Promise.resolve();
+  adapter.spawn({ sessionId: null, sessionKey: 'k2', resume: false });
+  const runtime1 = await fake.runtime(0);
+  await fake.runtime(1);
   stageCanonicalSession('abc-123');
   stageCanonicalSession('xyz-456');
 
   // --- no-op path: send to same session ---
   // proc1.send routes through sendTurn(abc-123, path, msg); currentSessionId=abc-123 → no switch.
-  proc1.send({ text: 'hello' }).catch(() => {/* rejected promise expected */});
-  await Promise.resolve();
+  proc1.send({ text: 'hello' }).catch(() => {/* superseded below; rejection expected */});
+  await awaitPrompts(runtime1, 1);
 
-  const histNoSwitch = child1.stdin.writeHistory.slice();
-  // writeHistory: [bootstrap_frame, prompt_frame]
-  assert.equal(histNoSwitch.length, 2, 'only bootstrap + prompt, no switch');
-  assert.ok(!child1.stdin.writeHistory.join('').includes('switch_session'), 'no switch_session written');
-  const promptNoSwitch = JSON.parse(histNoSwitch[1].trim()) as Record<string, unknown>;
-  assert.equal(promptNoSwitch['type'], 'prompt');
-  assert.equal(promptNoSwitch['message'], 'hello');
+  assert.deepEqual(switchCalls(runtime1), [], 'no switch before the first prompt');
+  assert.deepEqual(runtime1.prompts(), ['hello']);
 
   // --- auto-switch path: divert k1 to xyz-456, then send ---
-  const divertPromise = adapter.switchSession('xyz-456', 'k1');
-  const swCmd = lastSwitchCmd(child1);
-  assert.ok(swCmd !== null, 'switch_session command sent');
-  emitSwitchResponse(child1, swCmd!.id, false);
-  await divertPromise;
+  const divert = await adapter.switchSession('xyz-456', 'k1');
+  assert.deepEqual(divert, { ok: true, cancelled: false });
   // k1 currentSessionId is now xyz-456; spawn closure target is abc-123 → will auto-switch back.
 
-  proc1.send({ text: 'auto-switch test' }).catch(() => {/* rejected promise expected */});
-  // sendTurn is async (needs switch ack); wait a tick for the switch_session write.
-  await Promise.resolve();
+  proc1.send({ text: 'auto-switch test' }).catch(() => {/* never settled; rejection expected */});
+  await awaitPrompts(runtime1, 2);
 
-  const swBack = lastSwitchCmd(child1);
-  assert.ok(swBack !== null, 'second switch_session command sent');
-  assert.equal(swBack!.sessionPath, pathJoin(G_SESSION_DIR, 'abc-123.jsonl'), 'switches back to original session');
+  const switches = switchCalls(runtime1);
+  assert.equal(switches.length, 2, 'divert plus switch-back');
+  assert.equal(switches[1], pathJoin(G_SESSION_DIR, 'abc-123.jsonl'), 'switches back to original session');
+  assert.deepEqual(runtime1.prompts(), ['hello', 'auto-switch test'], 'prompt written after switch-back');
 
-  // Respond to the switch-back.
-  emitSwitchResponse(child1, swBack!.id, false);
+  // Verify order: the switch-back precedes the final prompt.
+  const switchBackIdx = runtime1.calls.findIndex(
+    (call, index) => index > 0 && call.kind === 'switch' && call.path.endsWith('abc-123.jsonl'),
+  );
+  const lastPromptIdx = runtime1.calls.length - 1;
+  assert.equal(runtime1.calls[lastPromptIdx]?.kind, 'prompt');
+  assert.ok(switchBackIdx !== -1 && switchBackIdx < lastPromptIdx, 'switch precedes prompt');
 
-  // Wait for sendTurn to complete and write the prompt.
-  await new Promise(resolve => setImmediate(resolve));
-
-  const finalHist = child1.stdin.writeHistory;
-  const lastEntry = JSON.parse(finalHist[finalHist.length - 1].trim()) as Record<string, unknown>;
-  assert.equal(lastEntry['type'], 'prompt', 'prompt written after switch-back');
-  assert.equal(lastEntry['message'], 'auto-switch test');
-
-  // Verify order: switch_session appears before the final prompt.
-  const switchIdxBack = finalHist.findIndex((h, i) => i > 2 && h.includes('switch_session') && h.includes(swBack!.id));
-  assert.ok(switchIdxBack < finalHist.length - 1, 'switch_session precedes prompt');
-
-  child1.emit('close', 0, null);
-  child2.emit('close', 0, null);
-  await proc1.close();
-  await proc2.close();
+  adapter.kill('k1');
+  adapter.kill('k2');
 });
 
 test('G-6b: internal switch-back refreshes a synthesized registry path from disk', async () => {
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR);
-  const proc1 = adapter.spawn({ sessionId: null, sessionKey: 'refresh-k1', resume: false });
-  const proc2 = adapter.spawn({ sessionId: null, sessionKey: 'refresh-k2', resume: false });
-  await Promise.resolve();
-  const child1 = stub.children[0];
-  const child2 = stub.children[1];
   const sessionA = `refresh-a-${Date.now()}`;
   const sessionB = `refresh-b-${Date.now()}`;
-  emitBootstrap(child1, sessionA);
-  emitBootstrap(child2, sessionB);
-  await Promise.resolve();
+  const fake = makeFakeRuntimeFactory({ sessionIds: [sessionA, sessionB] });
+  const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
+  const proc1 = adapter.spawn({ sessionId: null, sessionKey: 'refresh-k1', resume: false });
+  adapter.spawn({ sessionId: null, sessionKey: 'refresh-k2', resume: false });
+  const runtime1 = await fake.runtime(0);
+  await fake.runtime(1);
+  // The session registered <dir>/<sessionA>.jsonl, which never appears; PI wrote this name instead.
   const timestampedA = pathJoin(G_SESSION_DIR, `2026-08-01T00-00-00Z_${sessionA}.jsonl`);
   writeFileSync(timestampedA, '{}\n');
   stageCanonicalSession(sessionB);
 
-  const divert = adapter.switchSession(sessionB, 'refresh-k1');
-  const divertCommand = lastSwitchCmd(child1)!;
-  emitSwitchResponse(child1, divertCommand.id, false);
-  await divert;
+  const divert = await adapter.switchSession(sessionB, 'refresh-k1');
+  assert.deepEqual(divert, { ok: true, cancelled: false });
 
-  const sendPromise = proc1.send({ text: 'return to A' }).catch(() => undefined);
-  await Promise.resolve();
-  const switchBack = lastSwitchCmd(child1)!;
-  const observedPath = switchBack.sessionPath;
-  emitSwitchResponse(child1, switchBack.id, false);
-  child1.emit('close', 0, null);
-  child2.emit('close', 0, null);
-  await Promise.all([proc1.close(), proc2.close(), sendPromise]);
+  proc1.send({ text: 'return to A' }).catch(() => undefined);
+  await awaitPrompts(runtime1, 1);
 
-  assert.equal(observedPath, timestampedA);
+  const switches = switchCalls(runtime1);
+  assert.equal(switches[switches.length - 1], timestampedA);
+
+  adapter.kill('refresh-k1');
+  adapter.kill('refresh-k2');
 });
 
-test('compact waits for bootstrap, sends correlated RPC, then returns post-compact stats', async () => {
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR);
-  const proc = adapter.spawn({ sessionId: null, sessionKey: 'compact-ok', resume: false } as any);
-  const child = stub.children[0];
+test('compact waits for the runtime, compacts once, then returns post-compact stats', async () => {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const fake = makeFakeRuntimeFactory({
+    gate,
+    compact: {
+      summary: 'short summary', firstKeptEntryId: 'e1',
+      tokensBefore: 120000, estimatedTokensAfter: 18000,
+      usage: {
+        input: 120000, output: 900, cacheRead: 10, cacheWrite: 20, totalTokens: 120930,
+        cost: { input: 0.4, output: 0.02, cacheRead: 0, cacheWrite: 0, total: 0.42 },
+      },
+    },
+    stats: { contextUsage: { tokens: 19000, contextWindow: 200000, percent: 9.5 } },
+  });
+  const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
+  const proc = adapter.spawn({ sessionId: null, sessionKey: 'compact-ok', resume: false });
 
   const compactPromise = proc.compact!();
-  assert.equal(child.stdin.writeHistory.length, 1, 'bootstrap remains the only pre-ready frame');
+  await tick();
+  assert.equal(fake.runtimes.length, 0, 'compact waits for the runtime instead of failing');
 
-  child.stdout.write(Buffer.from(
-    '{"type":"response","id":"bootstrap","command":"get_state","success":true,"data":{"sessionId":"pi-compact"}}\n',
-  ));
-  await new Promise((resolve) => setImmediate(resolve));
-  const compactFrame = JSON.parse(child.stdin.writeHistory[1].trim()) as Record<string, unknown>;
-  assert.equal(compactFrame.type, 'compact');
-  assert.equal(typeof compactFrame.id, 'string');
-
-  child.stdout.write(Buffer.from(JSON.stringify({
-    type: 'response', id: compactFrame.id, command: 'compact', success: true,
-    data: {
-      summary: 'short summary', tokensBefore: 120000, estimatedTokensAfter: 18000,
-      usage: { input: 120000, output: 900, cacheRead: 10, cacheWrite: 20, cost: { total: 0.42 } },
-    },
-  }) + '\n'));
-  await new Promise((resolve) => setImmediate(resolve));
-  const statsFrame = JSON.parse(child.stdin.writeHistory[2].trim()) as Record<string, unknown>;
-  assert.equal(statsFrame.type, 'get_session_stats');
-
-  child.stdout.write(Buffer.from(JSON.stringify({
-    type: 'response', id: statsFrame.id, command: 'get_session_stats', success: true,
-    data: { contextUsage: { tokens: 19000, contextWindow: 200000, percent: 9.5 } },
-  }) + '\n'));
+  release();
+  const runtime = await fake.runtime();
 
   assert.deepEqual(await compactPromise, {
     status: 'compacted',
@@ -1369,125 +1015,104 @@ test('compact waits for bootstrap, sends correlated RPC, then returns post-compa
     contextUsage: { usedTokens: 19000, contextWindow: 200000, percent: 9.5, accuracy: 'estimate' },
     usage: { inputTokens: 120000, outputTokens: 900, cacheReadTokens: 10, cacheWriteTokens: 20, costUsd: 0.42 },
   });
+  assert.equal(runtime.calls.filter((call) => call.kind === 'compact').length, 1);
 
-  const close = proc.close();
-  child.emit('close', 0);
-  await close;
+  proc.kill();
 });
 
-test('compact maps PI no-history response to not-needed without requesting stats', async () => {
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR);
-  const proc = adapter.spawn({ sessionId: null, sessionKey: 'compact-empty', resume: false } as any);
-  const child = stub.children[0];
-  const compactPromise = proc.compact!();
-  emitBootstrap(child, 'pi-empty');
-  await new Promise((resolve) => setImmediate(resolve));
-  const frame = JSON.parse(child.stdin.writeHistory[1].trim()) as Record<string, unknown>;
-  child.stdout.write(Buffer.from(JSON.stringify({
-    type: 'response', id: frame.id, command: 'compact', success: false,
-    error: 'No messages to compact',
-  }) + '\n'));
+test('compact maps a PI no-history rejection to not-needed', async () => {
+  const fake = makeFakeRuntimeFactory({
+    compact: new Error('No messages to compact'),
+    stats: { contextUsage: { tokens: 19000, contextWindow: 200000, percent: 9.5 } },
+  });
+  const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
+  const proc = adapter.spawn({ sessionId: null, sessionKey: 'compact-empty', resume: false });
 
-  assert.deepEqual(await compactPromise, {
+  assert.deepEqual(await proc.compact!(), {
     status: 'not-needed', tokensBefore: null, estimatedTokensAfter: null,
     contextUsage: null, usage: null,
   });
-  assert.equal(child.stdin.writeHistory.length, 2);
-  const close = proc.close();
-  child.emit('close', 0);
-  await close;
+
+  proc.kill();
 });
 
-test('compact rejects a correlated PI failure response', async () => {
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR);
-  const proc = adapter.spawn({ sessionId: null, sessionKey: 'compact-failed', resume: false } as any);
-  const child = stub.children[0];
+test('compact rejects any other PI compaction failure', async () => {
+  const fake = makeFakeRuntimeFactory({ compact: new Error('compaction exploded') });
+  const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
+  const proc = adapter.spawn({ sessionId: null, sessionKey: 'compact-failed', resume: false });
+
+  await assert.rejects(proc.compact!(), /compaction exploded/);
+
+  proc.kill();
+});
+
+test('compact rejects promptly when the session is killed while its runtime is still starting', async () => {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const fake = makeFakeRuntimeFactory({ gate });
+  const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
+  const proc = adapter.spawn({ sessionId: null, sessionKey: 'compact-exit', resume: false });
+
   const compactPromise = proc.compact!();
-  emitBootstrap(child, 'pi-failed');
-  await new Promise((resolve) => setImmediate(resolve));
-  const frame = JSON.parse(child.stdin.writeHistory[1].trim()) as Record<string, unknown>;
-  child.stdout.write(Buffer.from(JSON.stringify({
-    type: 'response', id: frame.id, command: 'compact', success: false,
-    error: 'compaction exploded',
-  }) + '\n'));
+  proc.kill();
+  release();
 
-  await assert.rejects(compactPromise, /compaction exploded/);
-  const close = proc.close();
-  child.emit('close', 0);
-  await close;
+  await assert.rejects(compactPromise, /closed while starting/i);
+  const runtime = await fake.runtime();
+  await tick();
+  assert.equal(runtime.disposed, true, 'a runtime that arrives after kill is released');
 });
 
-test('compact rejects promptly when the PI subprocess exits', async () => {
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR);
-  const proc = adapter.spawn({ sessionId: null, sessionKey: 'compact-exit', resume: false } as any);
-  const child = stub.children[0];
-  const compactPromise = proc.compact!();
-  emitBootstrap(child, 'pi-exit');
-  await new Promise((resolve) => setImmediate(resolve));
-  child.emit('close', 17, null);
+test('G-7: a session whose transcript never reached disk is not resumed through a synthesized path', async () => {
+  const fake = makeFakeRuntimeFactory({ sessionId: 'known-id' });
+  const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
 
-  await assert.rejects(compactPromise, /pi exited with code 17/i);
-  await proc.close();
-});
-
-test('G-7: bootstrap without sessionFile does not resume a nonexistent synthesized path', async () => {
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR);
-
-  // First spawn to register the session path.
+  // First spawn registers the session path the runtime reports.
   const proc1 = adapter.spawn({ sessionId: null, sessionKey: 'k1', resume: false });
-  await Promise.resolve();
-  emitBootstrap(stub.children[0], 'known-id');
-  await Promise.resolve();
-  stub.children[0].emit('close', 0, null);
+  await fake.runtime();
   await proc1.close();
+  await adapter.close('k1');
 
   assert.equal(adapter.resolveSessionPath('known-id'), null);
 
   adapter.spawn({ sessionId: 'known-id', sessionKey: 'k2', resume: true });
-  const { args } = stub.calls[1];
-  assert.equal(args.indexOf('--session'), -1, 'nonexistent synthesized path is not passed to PI');
+  assert.equal(fake.requests[1].sessionPath, null, 'nonexistent synthesized path is not handed to PI');
 
-  stub.children[1].emit('close', 0, null);
+  adapter.kill('k2');
 });
 
 test('G-7b: a registered transcript deleted before resume is evicted and starts fresh', async () => {
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR);
   const sessionId = `deleted-${Date.now()}`;
+  const fake = makeFakeRuntimeFactory({ sessionId });
+  const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
   const proc = adapter.spawn({ sessionId: null, sessionKey: 'delete-source', resume: false });
-  await Promise.resolve();
   const sessionPath = stageCanonicalSession(sessionId);
-  emitBootstrap(stub.children[0], sessionId);
-  await Promise.resolve();
+  await fake.runtime();
   assert.equal(adapter.resolveSessionPath(sessionId), sessionPath);
   rmSync(sessionPath, { force: true });
-  stub.children[0].emit('close', 0, null);
   await proc.close();
+  await adapter.close('delete-source');
 
   adapter.spawn({ sessionId, sessionKey: 'delete-resume', resume: true });
-  assert.equal(stub.calls[1].args.indexOf('--session'), -1, 'deleted registry target is not resumed');
-  stub.children[1].emit('close', 0, null);
+  assert.equal(fake.requests[1].sessionPath, null, 'deleted registry target is not resumed');
+
+  adapter.kill('delete-resume');
 });
 
-test('G-8: spawn with resume=true but UNKNOWN sessionId omits --session (starts fresh)', () => {
-  const stub = makeStubSpawner();
-  const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR);
+test('G-8: spawn with resume=true but UNKNOWN sessionId resumes no transcript (starts fresh)', () => {
+  const fake = makeFakeRuntimeFactory();
+  const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
 
   // PI can only RESUME an existing session (unlike Claude it cannot create one under an external
-  // id). When the id is unknown — not bootstrapped in this adapter instance and no matching file in
-  // --session-dir — the guard omits --session so PI bootstraps a fresh session instead of exiting
-  // with "No session found matching <id>". (Regression: web/pi sessions minted a Cortex UUID and
-  // forced resume, which PI rejected.)
+  // id). When the id is unknown — not announced in this adapter instance and no matching file in
+  // the session dir — the guard passes no transcript so PI opens a fresh session instead of
+  // failing with "No session found matching <id>". (Regression: web/pi sessions minted a Cortex
+  // UUID and forced resume, which PI rejected.)
   adapter.spawn({ sessionId: 'unknown-id', sessionKey: 'kR', resume: true });
 
-  const { args } = stub.calls[0];
-  assert.equal(args.indexOf('--session'), -1, '--session omitted for an unknown resume target');
+  assert.equal(fake.requests[0].sessionPath, null, 'no transcript for an unknown resume target');
 
-  stub.children[0].emit('close', 0, null);
+  adapter.kill('kR');
 });
 
 test('G-9: disk resume recognizes the exact timestamp-prefixed session filename', () => {
@@ -1498,13 +1123,12 @@ test('G-9: disk resume recognizes the exact timestamp-prefixed session filename'
   writeFileSync(sessionPath, 'not-json');
 
   try {
-    const stub = makeStubSpawner();
-    const adapter = new PIAdapter(stub.spawn, sessionDir);
+    const fake = makeFakeRuntimeFactory();
+    const adapter = new PIAdapter(fake.factory, sessionDir);
     adapter.spawn({ sessionId, sessionKey: 'k-name', resume: true });
 
-    const { args } = stub.calls[0];
-    assert.equal(args[args.indexOf('--session') + 1], sessionPath);
-    stub.children[0].emit('close', 0, null);
+    assert.equal(fake.requests[0].sessionPath, sessionPath);
+    adapter.kill('k-name');
   } finally {
     rmSync(sessionDir, { recursive: true, force: true });
   }
@@ -1520,17 +1144,16 @@ test('G-9b: a restored transcript registration overrides a canonical duplicate o
   writeFileSync(canonicalPath, 'selector-preferred-context');
 
   try {
-    const stub = makeStubSpawner();
-    const adapter = new PIAdapter(stub.spawn, sessionDir);
+    const fake = makeFakeRuntimeFactory();
+    const adapter = new PIAdapter(fake.factory, sessionDir);
     adapter.registerSessionPath(sessionId, restoredPath);
 
     adapter.spawn({ sessionId, sessionKey: 'k-restored', resume: true });
 
-    const { args } = stub.calls[0];
-    assert.equal(args[args.indexOf('--session') + 1], restoredPath);
+    assert.equal(fake.requests[0].sessionPath, restoredPath);
     assert.equal(readFileSync(restoredPath, 'utf8'), 'restored-context');
     assert.equal(readFileSync(canonicalPath, 'utf8'), 'selector-preferred-context');
-    stub.children[0].emit('close', 0, null);
+    adapter.kill('k-restored');
   } finally {
     rmSync(sessionDir, { recursive: true, force: true });
   }
@@ -1543,13 +1166,12 @@ test('G-10: disk resume does not discover an id only by reading an unrelated hea
   writeFileSync(pathJoin(sessionDir, 'unrelated-name.jsonl'), JSON.stringify({ type: 'session', id: sessionId }) + '\n');
 
   try {
-    const stub = makeStubSpawner();
-    const adapter = new PIAdapter(stub.spawn, sessionDir);
+    const fake = makeFakeRuntimeFactory();
+    const adapter = new PIAdapter(fake.factory, sessionDir);
     adapter.spawn({ sessionId, sessionKey: 'k-header', resume: true });
 
-    const { args } = stub.calls[0];
-    assert.equal(args.indexOf('--session'), -1, 'resume discovery must not open unrelated bodies');
-    stub.children[0].emit('close', 0, null);
+    assert.equal(fake.requests[0].sessionPath, null, 'resume discovery must not open unrelated bodies');
+    adapter.kill('k-header');
   } finally {
     rmSync(sessionDir, { recursive: true, force: true });
   }

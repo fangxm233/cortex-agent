@@ -1,4 +1,4 @@
-// input:  PI RPC events and parser state
+// input:  PI session events and parser state
 // output: Tool, dialog, lifecycle, and usage event regressions
 // pos:    Tests PI event translation
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -6,7 +6,8 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {
-  piRpcLineToNormalized,
+  piEventToNormalized,
+  piContextUsageFromStats,
   createPIEventParserState,
   type PIEventParserState,
 } from '../src/agent-adapter/pi/event-parser.js';
@@ -15,115 +16,33 @@ function freshState(): PIEventParserState {
   return createPIEventParserState();
 }
 
-function line(obj: unknown): string {
-  return JSON.stringify(obj);
+/** One event as PI's AgentSession delivers it (typed loosely so fixtures can be partial). */
+function ev(obj: Record<string, unknown>): Record<string, unknown> {
+  return obj;
 }
 
 // ---------------------------------------------------------------------------
-// 1. session_started — bootstrap response
+// 1. context usage — read straight off AgentSession.getSessionStats()
 // ---------------------------------------------------------------------------
 
-test('session_started: bootstrap response with sessionId', () => {
-  const state = freshState();
-  const events = piRpcLineToNormalized(
-    line({ type: 'response', id: 'bootstrap', command: 'get_state', success: true, data: { sessionId: 's-1' } }),
-    state,
+test('context_usage: session stats map the PI estimate', () => {
+  assert.deepEqual(
+    piContextUsageFromStats({ contextUsage: { tokens: 425353, contextWindow: 1000000, percent: 42.5353 } }),
+    { usedTokens: 425353, contextWindow: 1000000, percent: 42.5353, accuracy: 'estimate' },
   );
-  assert.equal(events.length, 1);
-  assert.deepEqual(events[0], { type: 'session_started', sessionId: 's-1' });
-  assert.equal(state.sessionId, 's-1');
-});
-
-test('session_started: bootstrap dedup — second bootstrap produces []', () => {
-  const state = freshState();
-  const fixture = line({ type: 'response', id: 'bootstrap', command: 'get_state', success: true, data: { sessionId: 's-1' } });
-  piRpcLineToNormalized(fixture, state); // first — sets state.sessionId
-  const second = piRpcLineToNormalized(fixture, state);
-  assert.deepEqual(second, []);
-  assert.equal(state.sessionId, 's-1'); // unchanged
-});
-
-test('session_started: bootstrap without sessionId → []', () => {
-  const state = freshState();
-  const events = piRpcLineToNormalized(
-    line({ type: 'response', id: 'bootstrap', command: 'get_state', success: true, data: {} }),
-    state,
-  );
-  assert.deepEqual(events, []);
-  assert.equal(state.sessionId, null);
-});
-
-test('session_started: bootstrap with empty sessionId string → []', () => {
-  const state = freshState();
-  const events = piRpcLineToNormalized(
-    line({ type: 'response', id: 'bootstrap', command: 'get_state', success: true, data: { sessionId: '' } }),
-    state,
-  );
-  assert.deepEqual(events, []);
-});
-
-test('session_started: bootstrap response with sessionFile', () => {
-  const state = freshState();
-  const events = piRpcLineToNormalized(
-    line({ type: 'response', id: 'bootstrap', command: 'get_state', success: true, data: { sessionId: 's-1', sessionFile: '/tmp/sessions-pi/2026-04-30_s-1.jsonl' } }),
-    state,
-  );
-  assert.equal(events.length, 1);
-  assert.deepEqual(events[0], { type: 'session_started', sessionId: 's-1', sessionFile: '/tmp/sessions-pi/2026-04-30_s-1.jsonl' });
-  assert.equal(state.sessionId, 's-1');
-});
-
-test('session_started: bootstrap dedup preserves sessionFile', () => {
-  const state = freshState();
-  const fixture = line({ type: 'response', id: 'bootstrap', command: 'get_state', success: true, data: { sessionId: 's-1', sessionFile: '/tmp/s.jsonl' } });
-  piRpcLineToNormalized(fixture, state);
-  const second = piRpcLineToNormalized(fixture, state);
-  assert.deepEqual(second, []);
-  assert.equal(state.sessionId, 's-1');
-});
-
-test('context_usage: successful get_session_stats maps the PI estimate', () => {
-  const events = piRpcLineToNormalized(line({
-    type: 'response',
-    id: 'context-1',
-    command: 'get_session_stats',
-    success: true,
-    data: { contextUsage: { tokens: 425353, contextWindow: 1000000, percent: 42.5353 } },
-  }), freshState());
-
-  assert.deepEqual(events, [{
-    type: 'context_usage',
-    usedTokens: 425353,
-    contextWindow: 1000000,
-    percent: 42.5353,
-    accuracy: 'estimate',
-  }]);
 });
 
 test('context_usage: preserves PI nulls immediately after compaction', () => {
-  const events = piRpcLineToNormalized(line({
-    type: 'response', id: 'context-2', command: 'get_session_stats', success: true,
-    data: { contextUsage: { tokens: null, contextWindow: 272000, percent: null } },
-  }), freshState());
-
-  assert.deepEqual(events, [{
-    type: 'context_usage', usedTokens: null, contextWindow: 272000,
-    percent: null, accuracy: 'estimate',
-  }]);
+  assert.deepEqual(
+    piContextUsageFromStats({ contextUsage: { tokens: null, contextWindow: 272000, percent: null } }),
+    { usedTokens: null, contextWindow: 272000, percent: null, accuracy: 'estimate' },
+  );
 });
 
-test('context_usage: malformed usage and failed optional stats responses emit nothing', () => {
-  const malformed = piRpcLineToNormalized(line({
-    type: 'response', id: 'context-3', command: 'get_session_stats', success: true,
-    data: { contextUsage: { tokens: 12, contextWindow: 0, percent: 4 } },
-  }), freshState());
-  const failed = piRpcLineToNormalized(line({
-    type: 'response', id: 'context-4', command: 'get_session_stats', success: false,
-    error: 'stats unavailable',
-  }), freshState());
-
-  assert.deepEqual(malformed, []);
-  assert.deepEqual(failed, [], 'optional stats failure is not an agent error');
+test('context_usage: malformed or missing usage yields nothing', () => {
+  assert.equal(piContextUsageFromStats({ contextUsage: { tokens: 12, contextWindow: 0, percent: 4 } }), null);
+  assert.equal(piContextUsageFromStats({}), null);
+  assert.equal(piContextUsageFromStats(undefined), null);
 });
 
 // ---------------------------------------------------------------------------
@@ -132,8 +51,8 @@ test('context_usage: malformed usage and failed optional stats responses emit no
 
 test('assistant_text: message_update text_delta with blockId', () => {
   const state = freshState();
-  const events = piRpcLineToNormalized(
-    line({ type: 'message_update', message: { id: 'm1' }, assistantMessageEvent: { type: 'text_delta', delta: 'hello' } }),
+  const events = piEventToNormalized(
+    ev({ type: 'message_update', message: { id: 'm1' }, assistantMessageEvent: { type: 'text_delta', delta: 'hello' } }),
     state,
   );
   assert.deepEqual(events, [{ type: 'assistant_text', text: 'hello', blockId: 'm1' }]);
@@ -143,8 +62,8 @@ test('assistant_text: blockId falls back to message.responseId (the real PI fiel
   // Real PI AssistantMessage has NO `id` — the stable per-message identifier the provider
   // sets once, before any text_delta, is `responseId` (anthropic msg_… / openai chatcmpl_…).
   const state = freshState();
-  const events = piRpcLineToNormalized(
-    line({
+  const events = piEventToNormalized(
+    ev({
       type: 'message_update',
       message: { role: 'assistant', responseId: 'msg_abc123', timestamp: 1 },
       assistantMessageEvent: { type: 'text_delta', delta: 'hello', contentIndex: 0 },
@@ -157,8 +76,8 @@ test('assistant_text: blockId falls back to message.responseId (the real PI fiel
 
 test('assistant_text: message.id still wins over responseId when both are present', () => {
   const state = freshState();
-  const events = piRpcLineToNormalized(
-    line({
+  const events = piEventToNormalized(
+    ev({
       type: 'message_update',
       message: { id: 'm1', responseId: 'msg_abc123' },
       assistantMessageEvent: { type: 'text_delta', delta: 'hello' },
@@ -170,8 +89,8 @@ test('assistant_text: message.id still wins over responseId when both are presen
 
 test('assistant_text: message_update without blockId', () => {
   const state = freshState();
-  const events = piRpcLineToNormalized(
-    line({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'hi' } }),
+  const events = piEventToNormalized(
+    ev({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'hi' } }),
     state,
   );
   assert.equal(events.length, 1);
@@ -180,8 +99,8 @@ test('assistant_text: message_update without blockId', () => {
 
 test('assistant_text: message_update non-text_delta type → []', () => {
   const state = freshState();
-  const events = piRpcLineToNormalized(
-    line({ type: 'message_update', assistantMessageEvent: { type: 'input_json_delta', delta: '{}' } }),
+  const events = piEventToNormalized(
+    ev({ type: 'message_update', assistantMessageEvent: { type: 'input_json_delta', delta: '{}' } }),
     state,
   );
   assert.deepEqual(events, []);
@@ -189,8 +108,8 @@ test('assistant_text: message_update non-text_delta type → []', () => {
 
 test('assistant_text: message_update empty delta → []', () => {
   const state = freshState();
-  const events = piRpcLineToNormalized(
-    line({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: '' } }),
+  const events = piEventToNormalized(
+    ev({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: '' } }),
     state,
   );
   assert.deepEqual(events, []);
@@ -202,8 +121,8 @@ test('assistant_text: message_update empty delta → []', () => {
 
 test('tool_use: tool_execution_start regular tool (bash)', () => {
   const state = freshState();
-  const events = piRpcLineToNormalized(
-    line({ type: 'tool_execution_start', toolCallId: 'tc1', toolName: 'bash', args: { command: 'ls' } }),
+  const events = piEventToNormalized(
+    ev({ type: 'tool_execution_start', toolCallId: 'tc1', toolName: 'bash', args: { command: 'ls' } }),
     state,
   );
   assert.equal(events.length, 1);
@@ -212,8 +131,8 @@ test('tool_use: tool_execution_start regular tool (bash)', () => {
 
 test('tool_use: tool_execution_start with canonical name mapping', () => {
   const state = freshState();
-  const events = piRpcLineToNormalized(
-    line({ type: 'tool_execution_start', toolCallId: 'tc2', toolName: 'read', args: { file_path: '/tmp/x' } }),
+  const events = piEventToNormalized(
+    ev({ type: 'tool_execution_start', toolCallId: 'tc2', toolName: 'read', args: { file_path: '/tmp/x' } }),
     state,
   );
   assert.equal(events.length, 1);
@@ -222,8 +141,8 @@ test('tool_use: tool_execution_start with canonical name mapping', () => {
 
 test('tool_use: tool_execution_start missing toolCallId → []', () => {
   const state = freshState();
-  const events = piRpcLineToNormalized(
-    line({ type: 'tool_execution_start', toolName: 'bash', args: {} }),
+  const events = piEventToNormalized(
+    ev({ type: 'tool_execution_start', toolName: 'bash', args: {} }),
     state,
   );
   assert.deepEqual(events, []);
@@ -235,8 +154,8 @@ test('tool_use: tool_execution_start missing toolCallId → []', () => {
 
 test('tool_result: tool_execution_end success with array content', () => {
   const state = freshState();
-  const events = piRpcLineToNormalized(
-    line({ type: 'tool_execution_end', toolCallId: 'tc1', isError: false, result: { content: [{ type: 'text', text: 'ok' }] } }),
+  const events = piEventToNormalized(
+    ev({ type: 'tool_execution_end', toolCallId: 'tc1', isError: false, result: { content: [{ type: 'text', text: 'ok' }] } }),
     state,
   );
   assert.equal(events.length, 1);
@@ -245,8 +164,8 @@ test('tool_result: tool_execution_end success with array content', () => {
 
 test('tool_result: tool_execution_end error', () => {
   const state = freshState();
-  const events = piRpcLineToNormalized(
-    line({ type: 'tool_execution_end', toolCallId: 'tc1', isError: true, result: { content: [{ type: 'text', text: 'fail' }] } }),
+  const events = piEventToNormalized(
+    ev({ type: 'tool_execution_end', toolCallId: 'tc1', isError: true, result: { content: [{ type: 'text', text: 'fail' }] } }),
     state,
   );
   assert.deepEqual(events[0], { type: 'tool_result', toolUseId: 'tc1', ok: false, content: 'fail' });
@@ -254,8 +173,8 @@ test('tool_result: tool_execution_end error', () => {
 
 test('tool_result: array content joining (multiple text blocks)', () => {
   const state = freshState();
-  const events = piRpcLineToNormalized(
-    line({ type: 'tool_execution_end', toolCallId: 'tc1', isError: false, result: { content: [{ type: 'text', text: 'hello' }, { type: 'text', text: ' world' }] } }),
+  const events = piEventToNormalized(
+    ev({ type: 'tool_execution_end', toolCallId: 'tc1', isError: false, result: { content: [{ type: 'text', text: 'hello' }, { type: 'text', text: ' world' }] } }),
     state,
   );
   assert.equal((events[0] as any).content, 'hello world');
@@ -263,8 +182,8 @@ test('tool_result: array content joining (multiple text blocks)', () => {
 
 test('tool_result: non-text blocks in array are skipped', () => {
   const state = freshState();
-  const events = piRpcLineToNormalized(
-    line({ type: 'tool_execution_end', toolCallId: 'tc1', isError: false, result: { content: [{ type: 'image', source: {} }, { type: 'text', text: 'result' }] } }),
+  const events = piEventToNormalized(
+    ev({ type: 'tool_execution_end', toolCallId: 'tc1', isError: false, result: { content: [{ type: 'image', source: {} }, { type: 'text', text: 'result' }] } }),
     state,
   );
   assert.equal((events[0] as any).content, 'result');
@@ -272,8 +191,8 @@ test('tool_result: non-text blocks in array are skipped', () => {
 
 test('tool_result: string content', () => {
   const state = freshState();
-  const events = piRpcLineToNormalized(
-    line({ type: 'tool_execution_end', toolCallId: 'tc1', isError: false, result: { content: 'direct string' } }),
+  const events = piEventToNormalized(
+    ev({ type: 'tool_execution_end', toolCallId: 'tc1', isError: false, result: { content: 'direct string' } }),
     state,
   );
   assert.equal((events[0] as any).content, 'direct string');
@@ -281,8 +200,8 @@ test('tool_result: string content', () => {
 
 test('tool_result: missing toolCallId → []', () => {
   const state = freshState();
-  const events = piRpcLineToNormalized(
-    line({ type: 'tool_execution_end', isError: false, result: {} }),
+  const events = piEventToNormalized(
+    ev({ type: 'tool_execution_end', isError: false, result: {} }),
     state,
   );
   assert.deepEqual(events, []);
@@ -294,8 +213,8 @@ test('tool_result: missing toolCallId → []', () => {
 
 test('shared interaction MCP tool calls preserve their exposed names and input', () => {
   const state = freshState();
-  const events = piRpcLineToNormalized(
-    line({
+  const events = piEventToNormalized(
+    ev({
       type: 'tool_execution_start',
       toolCallId: 'tc2',
       toolName: 'cortex_ask_user',
@@ -317,8 +236,8 @@ test('shared interaction MCP tool calls preserve their exposed names and input',
 
 test('ask_user_question (extension_ui): select method', () => {
   const state = freshState();
-  const events = piRpcLineToNormalized(
-    line({ type: 'extension_ui_request', id: 'u1', method: 'select', title: 'Allow?', options: ['Yes', 'No'] }),
+  const events = piEventToNormalized(
+    ev({ type: 'extension_ui_request', id: 'u1', method: 'select', title: 'Allow?', options: ['Yes', 'No'] }),
     state,
   );
   assert.equal(events.length, 1);
@@ -330,8 +249,8 @@ test('ask_user_question (extension_ui): select method', () => {
 
 test('ask_user_question (extension_ui): confirm method synthesizes Yes/No options', () => {
   const state = freshState();
-  const events = piRpcLineToNormalized(
-    line({ type: 'extension_ui_request', id: 'u2', method: 'confirm', title: 'Are you sure?', message: 'This will delete data' }),
+  const events = piEventToNormalized(
+    ev({ type: 'extension_ui_request', id: 'u2', method: 'confirm', title: 'Are you sure?', message: 'This will delete data' }),
     state,
   );
   const evt = events[0] as any;
@@ -343,8 +262,8 @@ test('ask_user_question (extension_ui): confirm method synthesizes Yes/No option
 
 test('ask_user_question (extension_ui): input method', () => {
   const state = freshState();
-  const events = piRpcLineToNormalized(
-    line({ type: 'extension_ui_request', id: 'u3', method: 'input', title: 'Enter name' }),
+  const events = piEventToNormalized(
+    ev({ type: 'extension_ui_request', id: 'u3', method: 'input', title: 'Enter name' }),
     state,
   );
   const evt = events[0] as any;
@@ -354,8 +273,8 @@ test('ask_user_question (extension_ui): input method', () => {
 
 test('ask_user_question (extension_ui): editor method sets multi=true', () => {
   const state = freshState();
-  const events = piRpcLineToNormalized(
-    line({ type: 'extension_ui_request', id: 'u4', method: 'editor', title: 'Write note' }),
+  const events = piEventToNormalized(
+    ev({ type: 'extension_ui_request', id: 'u4', method: 'editor', title: 'Write note' }),
     state,
   );
   assert.equal((events[0] as any).questions[0].multi, true);
@@ -364,37 +283,18 @@ test('ask_user_question (extension_ui): editor method sets multi=true', () => {
 test('extension_ui_request fire-and-forget methods → []', () => {
   const state = freshState();
   for (const method of ['notify', 'setStatus', 'setWidget', 'setTitle', 'set_editor_text']) {
-    const events = piRpcLineToNormalized(
-      line({ type: 'extension_ui_request', id: 'u5', method, title: 'irrelevant' }),
+    const events = piEventToNormalized(
+      ev({ type: 'extension_ui_request', id: 'u5', method, title: 'irrelevant' }),
       state,
     );
     assert.deepEqual(events, [], `expected [] for method=${method}`);
   }
 });
 
-test('extension_ui_request notify carrying a provider-quota notice → rate_limit', () => {
-  const state = freshState();
-  const reading = {
-    provider: 'openai-codex',
-    planType: 'pro',
-    windows: [{ type: 'seven_day', utilization: 0.93, resetsAt: 1786160107 }],
-  };
-  const events = piRpcLineToNormalized(
-    line({
-      type: 'extension_ui_request',
-      id: 'u6',
-      method: 'notify',
-      message: `cortex:provider-quota:${JSON.stringify(reading)}`,
-    }),
-    state,
-  );
-  assert.deepEqual(events, [{ type: 'rate_limit', raw: reading }]);
-});
-
 test('extension_ui_request: missing id or method → []', () => {
   const state = freshState();
-  assert.deepEqual(piRpcLineToNormalized(line({ type: 'extension_ui_request', method: 'select', title: 'T' }), state), []);
-  assert.deepEqual(piRpcLineToNormalized(line({ type: 'extension_ui_request', id: 'u1', title: 'T' }), state), []);
+  assert.deepEqual(piEventToNormalized(ev({ type: 'extension_ui_request', method: 'select', title: 'T' }), state), []);
+  assert.deepEqual(piEventToNormalized(ev({ type: 'extension_ui_request', id: 'u1', title: 'T' }), state), []);
 });
 
 // ---------------------------------------------------------------------------
@@ -404,7 +304,7 @@ test('extension_ui_request: missing id or method → []', () => {
 test('auto_retry_start and auto_retry_end are non-terminal lifecycle events', () => {
   const state = freshState();
   assert.deepEqual(
-    piRpcLineToNormalized(line({
+    piEventToNormalized(ev({
       type: 'auto_retry_start',
       attempt: 1,
       errorMessage: 'Codex error: Our servers are currently overloaded.',
@@ -412,7 +312,7 @@ test('auto_retry_start and auto_retry_end are non-terminal lifecycle events', ()
     [],
   );
   assert.deepEqual(
-    piRpcLineToNormalized(line({ type: 'auto_retry_end', success: true, attempt: 1 }), state),
+    piEventToNormalized(ev({ type: 'auto_retry_end', success: true, attempt: 1 }), state),
     [],
   );
 });
@@ -426,8 +326,8 @@ function agentEndThenSettle(
   agentEnd: Record<string, unknown>,
 ) {
   return [
-    ...piRpcLineToNormalized(line(agentEnd), state),
-    ...piRpcLineToNormalized(line({ type: 'agent_settled' }), state),
+    ...piEventToNormalized(ev(agentEnd), state),
+    ...piEventToNormalized(ev({ type: 'agent_settled' }), state),
   ];
 }
 
@@ -540,16 +440,16 @@ test('cost_record: missing or empty provider emits no low-level cost event', () 
       usage: { input: 10, output: 5, cost: { total: 0.001 } },
     }];
     assert.deepEqual(
-      piRpcLineToNormalized(line({ type: 'agent_end', messages }), state),
+      piEventToNormalized(ev({ type: 'agent_end', messages }), state),
       [],
     );
-    assert.equal(piRpcLineToNormalized(line({ type: 'agent_settled' }), state)[0]?.type, 'turn_complete');
+    assert.equal(piEventToNormalized(ev({ type: 'agent_settled' }), state)[0]?.type, 'turn_complete');
   }
 });
 
 test('cost_record: reported zero remains zero while absent token counts remain unavailable', () => {
   const state = freshState();
-  const zero = piRpcLineToNormalized(line({ type: 'agent_end', messages: [{
+  const zero = piEventToNormalized(ev({ type: 'agent_end', messages: [{
     role: 'assistant', provider: 'openai', model: 'gpt-4o',
     usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: { total: 0 } },
   }] }), state);
@@ -560,7 +460,7 @@ test('cost_record: reported zero remains zero while absent token counts remain u
     cache_creation_tokens: 0, provider_requests: 1, cost_usd: 0,
   }]);
 
-  const unavailable = piRpcLineToNormalized(line({ type: 'agent_end', messages: [{
+  const unavailable = piEventToNormalized(ev({ type: 'agent_end', messages: [{
     role: 'assistant', provider: 'openai', model: 'gpt-4o',
     usage: { cost: { total: 0.002 } },
   }] }), freshState());
@@ -578,8 +478,8 @@ test('cost_record: reported zero remains zero while absent token counts remain u
 
 test('error: extension_error', () => {
   const state = freshState();
-  const events = piRpcLineToNormalized(
-    line({ type: 'extension_error', error: 'boom' }),
+  const events = piEventToNormalized(
+    ev({ type: 'extension_error', error: 'boom' }),
     state,
   );
   assert.equal(events.length, 1);
@@ -588,64 +488,28 @@ test('error: extension_error', () => {
 
 test('error: extension_error missing error field → fallback message', () => {
   const state = freshState();
-  const events = piRpcLineToNormalized(
-    line({ type: 'extension_error' }),
+  const events = piEventToNormalized(
+    ev({ type: 'extension_error' }),
     state,
   );
   assert.equal((events[0] as any).message, 'extension error');
-});
-
-test('error: non-bootstrap failed response', () => {
-  const state = freshState();
-  const events = piRpcLineToNormalized(
-    line({ type: 'response', id: 'cmd-1', command: 'prompt', success: false, error: 'bad request' }),
-    state,
-  );
-  assert.deepEqual(events[0], { type: 'error', message: 'bad request', fatal: false });
-});
-
-test('error: failed response without error string → fallback message', () => {
-  const state = freshState();
-  const events = piRpcLineToNormalized(
-    line({ type: 'response', command: 'prompt', success: false }),
-    state,
-  );
-  const msg = (events[0] as any).message as string;
-  assert.ok(msg.includes('pi command failed'));
 });
 
 // ---------------------------------------------------------------------------
 // Edge cases — malformed input and silently dropped events
 // ---------------------------------------------------------------------------
 
-test('edge: malformed JSON → []', () => {
-  const state = freshState();
-  assert.deepEqual(piRpcLineToNormalized('{not json', state), []);
-});
-
-test('edge: empty line → []', () => {
-  const state = freshState();
-  assert.deepEqual(piRpcLineToNormalized('', state), []);
-});
-
-test('edge: non-object JSON → []', () => {
-  const state = freshState();
-  assert.deepEqual(piRpcLineToNormalized('"string"', state), []);
-  assert.deepEqual(piRpcLineToNormalized('42', state), []);
-  assert.deepEqual(piRpcLineToNormalized('null', state), []);
-});
-
 test('edge: missing type field → []', () => {
   const state = freshState();
-  assert.deepEqual(piRpcLineToNormalized(line({ id: 'foo' }), state), []);
+  assert.deepEqual(piEventToNormalized(ev({ id: 'foo' }), state), []);
 });
 
 test('edge: unknown event type → []', () => {
   const state = freshState();
-  assert.deepEqual(piRpcLineToNormalized(line({ type: 'queue_update', data: {} }), state), []);
-  assert.deepEqual(piRpcLineToNormalized(line({ type: 'turn_start' }), state), []);
-  assert.deepEqual(piRpcLineToNormalized(line({ type: 'compaction_end', reason: 'threshold' }), state), []);
-  assert.deepEqual(piRpcLineToNormalized(line({ type: 'agent_start' }), state), []);
+  assert.deepEqual(piEventToNormalized(ev({ type: 'queue_update', data: {} }), state), []);
+  assert.deepEqual(piEventToNormalized(ev({ type: 'turn_start' }), state), []);
+  assert.deepEqual(piEventToNormalized(ev({ type: 'compaction_end', reason: 'threshold' }), state), []);
+  assert.deepEqual(piEventToNormalized(ev({ type: 'agent_start' }), state), []);
 });
 
 // ---------------------------------------------------------------------------
@@ -654,19 +518,19 @@ test('edge: unknown event type → []', () => {
 
 test('context_compacted: compaction_start carries reason as trigger', () => {
   const state = freshState();
-  const events = piRpcLineToNormalized(line({ type: 'compaction_start', reason: 'threshold' }), state);
+  const events = piEventToNormalized(ev({ type: 'compaction_start', reason: 'threshold' }), state);
   assert.deepEqual(events, [{ type: 'context_compacted', trigger: 'threshold' }]);
 });
 
 test('context_compacted: compaction_start without reason defaults to auto', () => {
   const state = freshState();
-  const events = piRpcLineToNormalized(line({ type: 'compaction_start' }), state);
+  const events = piEventToNormalized(ev({ type: 'compaction_start' }), state);
   assert.deepEqual(events, [{ type: 'context_compacted', trigger: 'auto' }]);
 });
 
 test('agent_settled: compaction continuation aggregates runs and resets after settlement', () => {
   const state = freshState();
-  const first = piRpcLineToNormalized(line({
+  const first = piEventToNormalized(ev({
     type: 'agent_end',
     messages: [{
       role: 'assistant', provider: 'openai', model: 'gpt-5.6-sol',
@@ -676,56 +540,47 @@ test('agent_settled: compaction continuation aggregates runs and resets after se
   assert.deepEqual(first.map((event) => event.type), ['cost_record']);
 
   assert.deepEqual(
-    piRpcLineToNormalized(line({ type: 'compaction_start', reason: 'threshold' }), state),
+    piEventToNormalized(ev({ type: 'compaction_start', reason: 'threshold' }), state),
     [{ type: 'context_compacted', trigger: 'threshold' }],
   );
-  assert.deepEqual(piRpcLineToNormalized(line({ type: 'compaction_end' }), state), []);
+  assert.deepEqual(piEventToNormalized(ev({ type: 'compaction_end' }), state), []);
 
-  const second = piRpcLineToNormalized(line({
+  const second = piEventToNormalized(ev({
     type: 'agent_end',
     messages: [{ role: 'assistant', usage: { cost: { total: 0.03 } } }],
   }), state);
   assert.deepEqual(second, []);
   assert.deepEqual(
-    piRpcLineToNormalized(line({ type: 'agent_settled' }), state),
+    piEventToNormalized(ev({ type: 'agent_settled' }), state),
     [{ type: 'turn_complete', numTurns: 2, totalCostUsd: 0.05 }],
   );
 
-  piRpcLineToNormalized(line({
+  piEventToNormalized(ev({
     type: 'agent_end',
     messages: [{ role: 'assistant', usage: { cost: { total: 0.01 } } }],
   }), state);
   assert.deepEqual(
-    piRpcLineToNormalized(line({ type: 'agent_settled' }), state),
+    piEventToNormalized(ev({ type: 'agent_settled' }), state),
     [{ type: 'turn_complete', numTurns: 1, totalCostUsd: 0.01 }],
   );
 });
 
 test('agent_settled: successful retry clears the earlier low-level run error', () => {
   const state = freshState();
-  assert.deepEqual(piRpcLineToNormalized(line({
+  assert.deepEqual(piEventToNormalized(ev({
     type: 'agent_end', willRetry: true,
     messages: [{
       role: 'assistant', stopReason: 'error', errorMessage: 'transient overload',
       usage: { cost: { total: 0.01 } },
     }],
   }), state), []);
-  assert.deepEqual(piRpcLineToNormalized(line({
+  assert.deepEqual(piEventToNormalized(ev({
     type: 'agent_end',
     messages: [{ role: 'assistant', usage: { cost: { total: 0.02 } } }],
   }), state), []);
 
   assert.deepEqual(
-    piRpcLineToNormalized(line({ type: 'agent_settled' }), state),
+    piEventToNormalized(ev({ type: 'agent_settled' }), state),
     [{ type: 'turn_complete', numTurns: 2, totalCostUsd: 0.03 }],
   );
-});
-
-test('edge: successful non-bootstrap response → []', () => {
-  const state = freshState();
-  const events = piRpcLineToNormalized(
-    line({ type: 'response', id: 'cmd-2', command: 'prompt', success: true }),
-    state,
-  );
-  assert.deepEqual(events, []);
 });

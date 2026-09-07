@@ -16,7 +16,7 @@ import {
   type SubagentToolDeps,
 } from '../src/agent-adapter/pi/subagent.js';
 import { PI_INTERACTION_BRIDGE_ENV } from '../src/agent-adapter/pi/spawn-args.js';
-import { createPIEventParserState, piRpcLineToNormalized } from '../src/agent-adapter/pi/event-parser.js';
+import { createPIEventParserState, piEventToNormalized } from '../src/agent-adapter/pi/event-parser.js';
 
 class StubChild extends EventEmitter {
   readonly stdout = new PassThrough();
@@ -622,12 +622,12 @@ test('parallel abort propagates to every active child', async () => {
 // Native-subagent attribution (option B): the child's stream, carried out
 // ---------------------------------------------------------------------------
 
-/** The parent PI process would deliver each notice as an `extension_ui_request`/`notify` on its
- *  RPC stream; this is that hop, so the test covers the real seam rather than the codec alone. */
+/** The parent PI session delivers each notice as an `extension_ui_request`/`notify` record on
+ *  its event stream; this is that hop, so the test covers the real seam rather than the codec alone. */
 function throughRpc(notices: string[]) {
   const state = createPIEventParserState();
-  return notices.flatMap((message) => piRpcLineToNormalized(
-    JSON.stringify({ type: 'extension_ui_request', id: 'ui-1', method: 'notify', message }),
+  return notices.flatMap((message) => piEventToNormalized(
+    { type: 'extension_ui_request', id: 'ui-1', method: 'notify', message },
     state,
   ));
 }

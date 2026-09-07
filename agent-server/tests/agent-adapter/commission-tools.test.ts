@@ -85,7 +85,9 @@ describe('withoutCommissionTools', () => {
   });
 });
 
-describe('PI bundled-server env gate', () => {
+describe('PI bundled core tool-context env gate', () => {
+  // The bundled core server now runs in-process; its tool context is built from the env the
+  // bridge attaches to the `core` state, so the gate is read from `source.env`.
   async function coreEnv(overrides: Record<string, string>): Promise<Record<string, string>> {
     const { buildServerStates } = await import('../../src/agent-adapter/pi/mcp-bridge.js');
     const states = buildServerStates({
@@ -94,8 +96,8 @@ describe('PI bundled-server env gate', () => {
       ...overrides,
     } as NodeJS.ProcessEnv);
     const core = states.find((s) => s.name === 'core');
-    if (!core || core.config.type !== 'stdio') throw new Error('no core stdio server');
-    return core.config.env as Record<string, string>;
+    if (!core || core.source.kind !== 'bundled') throw new Error('no bundled core server');
+    return core.source.env;
   }
 
   it('leaves a commission session ungated so it can reach both tool sets', async () => {

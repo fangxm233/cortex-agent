@@ -26,7 +26,7 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | mcp-timeout.ts | config | Defines the shared MCP infrastructure deadline |
 | mcp-tool-gate.ts | policy | canonicalizes and enforces MCP tool allowlists, incl. the commission-tool gate |
 | paths.ts | config | defines install, data, config paths and the single agent-cwd resolver |
-| pi-sdk.ts | boundary | lazily imports the bundled PI SDK once and locates PI's user agent dir |
+| pi-sdk.ts | boundary | lazily imports the bundled PI SDK once, locates its CLI entry and PI's user agent dir |
 | pi-session-filename.ts | util | parses and selects PI transcript filenames |
 | profile-generator.ts | config | generates the agent profiles file |
 | production-benchmark-evidence.ts | guard | Validates immutable benchmark admission facts, including the attested context a daemon-created root adopts |

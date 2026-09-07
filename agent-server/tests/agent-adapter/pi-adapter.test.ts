@@ -1,6 +1,6 @@
-// input:  node:test, replay-harness, fixtures/pi/
-// output: PI rpc → NormalizedEvent sequence fixture-replay tests
-// pos:    DR-0008 §4.5 PI fixture regression test
+// input:  vitest, replay-harness, fixtures/pi/
+// output: PI session event → NormalizedEvent sequence fixture-replay tests
+// pos:    PI fixture regression test
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';

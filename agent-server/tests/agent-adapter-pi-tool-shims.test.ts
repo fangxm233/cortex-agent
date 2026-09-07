@@ -1,18 +1,17 @@
-// input:  PI adapter stubs, web responses, extension UI events
+// input:  PI adapter over a fake runtime, web responses, extension UI events
 // output: Local shim gates, Agent, web, and generic dialog tests
 // pos:    Tests PI-local tools and extension UI transport
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { afterEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
-import { EventEmitter } from 'node:events';
-import { PassThrough } from 'node:stream';
 import { tmpdir } from 'node:os';
 import { join as pathJoin } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
 import type { PIAgentProcess } from '../src/agent-adapter/pi/adapter.js';
 import toolShims from '../src/agent-adapter/pi/tool-shims.js';
+import { makeFakeRuntimeFactory, type FakeRuntime } from './agent-adapter/pi-fake-runtime.js';
 
 const SESSION_DIR = pathJoin(tmpdir(), 'pi-shims-test-' + process.pid);
 mkdirSync(SESSION_DIR, { recursive: true });
@@ -28,169 +27,105 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function makeStubChild(): any {
-  const emitter = new EventEmitter() as any;
-  const stdin = new PassThrough() as any;
-  stdin.writeHistory = [] as string[];
-  const origWrite = stdin.write.bind(stdin);
-  stdin.write = (chunk: any, ...rest: any[]) => {
-    const s = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
-    stdin.writeHistory.push(s);
-    return origWrite(chunk, ...rest);
-  };
-  emitter.stdin = stdin;
-  emitter.stdout = new PassThrough();
-  emitter.stderr = new PassThrough();
-  emitter.__killed = false;
-  emitter.kill = () => { if (emitter.__killed) return false; emitter.__killed = true; return true; };
-  return emitter;
+/** One adapter over a fake runtime whose session reports `sessionId`, with the runtime resolved. */
+async function spawnSession(sessionKey: string, sessionId = 'sess-abc', config: Record<string, unknown> = {}) {
+  const fake = makeFakeRuntimeFactory({ sessionId });
+  const adapter = new PIAdapter(fake.factory, SESSION_DIR);
+  const proc = adapter.spawn({ sessionKey, sessionId: null, resume: false, ...config }) as PIAgentProcess;
+  const runtime: FakeRuntime = await fake.runtime();
+  return { fake, adapter, proc, runtime };
 }
 
-function makeStubSpawner() {
-  const children: any[] = [];
-  return {
-    children,
-    spawn: () => { const c = makeStubChild(); children.push(c); return { process: c }; },
-  };
-}
-
-function pushLine(child: any, obj: any) { child.stdout.write(JSON.stringify(obj) + '\n'); }
-
-async function bootstrap(child: any, sessionId = 'sess-abc') {
-  pushLine(child, { type: 'response', id: 'bootstrap', command: 'get_state', success: true, data: { sessionId } });
-  await Promise.resolve();
-}
-
-// Tests A-D (same as before)
+// Tests A-D: turn lifecycle over the in-process session
 test('A: basic send', async () => {
-  const s = makeStubSpawner();
-  const adapter = new PIAdapter(s.spawn, SESSION_DIR);
-  const proc = adapter.spawn({ sessionKey: 'k1', sessionId: null, resume: false });
-  const child = s.children[0];
-  await bootstrap(child);
+  const { proc, runtime } = await spawnSession('k1');
   const turnPromise = proc.send({ text: 'hello' });
-  pushLine(child, { type: 'agent_end', messages: [{ role: 'assistant', content: 'ok', usage: { cost: { total: 0.005 } } }] });
-  pushLine(child, { type: 'agent_settled' });
-  await Promise.resolve();
+  await runtime.nextCall('prompt');
+  runtime.emit({ type: 'agent_end', messages: [{ role: 'assistant', content: 'ok', usage: { cost: { total: 0.005 } } }] });
+  runtime.emit({ type: 'agent_settled' });
   const result = await turnPromise;
   assert.equal(result.sessionId, 'sess-abc');
-  child.emit('close', 0);
+  assert.deepEqual(runtime.prompts(), ['hello']);
   await proc.close();
 });
 
 test('B: successful PI auto-retry does not mark the settled turn rate-limited', async () => {
-  const s = makeStubSpawner();
-  const adapter = new PIAdapter(s.spawn, SESSION_DIR);
-  const proc = adapter.spawn({ sessionKey: 'k2', sessionId: null, resume: false });
-  const child = s.children[0];
-  await bootstrap(child);
+  const { proc, runtime } = await spawnSession('k2');
   const turnPromise = proc.send({ text: 'do stuff' });
+  await runtime.nextCall('prompt');
   const transientError = 'Codex error: An error occurred while processing your request. You can retry your request.';
-  pushLine(child, { type: 'agent_end', messages: [{
+  runtime.emit({ type: 'agent_end', messages: [{
     role: 'assistant', stopReason: 'error', errorMessage: transientError,
   }] });
-  pushLine(child, { type: 'auto_retry_start', attempt: 1, errorMessage: transientError });
-  pushLine(child, { type: 'auto_retry_end', success: true, attempt: 1 });
-  pushLine(child, { type: 'agent_end', messages: [{ role: 'assistant', stopReason: 'stop' }] });
-  pushLine(child, { type: 'agent_settled' });
-  await Promise.resolve();
+  runtime.emit({ type: 'auto_retry_start', attempt: 1, errorMessage: transientError });
+  runtime.emit({ type: 'auto_retry_end', success: true, attempt: 1 });
+  runtime.emit({ type: 'agent_end', messages: [{ role: 'assistant', stopReason: 'stop' }] });
+  runtime.emit({ type: 'agent_settled' });
   const result = await turnPromise;
   assert.equal(result.rateLimited, false);
-  child.emit('close', 0);
   await proc.close();
 });
 
 test('B2: exhausted PI auto-retry rejects with the final provider error', async () => {
-  const s = makeStubSpawner();
-  const adapter = new PIAdapter(s.spawn, SESSION_DIR);
-  const proc = adapter.spawn({ sessionKey: 'k2-failed', sessionId: null, resume: false });
-  const child = s.children[0];
-  await bootstrap(child);
+  const { proc, runtime } = await spawnSession('k2-failed');
   const turnPromise = proc.send({ text: 'do stuff' });
   const rejection = assert.rejects(turnPromise, /You can retry your request/);
+  await runtime.nextCall('prompt');
   const finalError = 'Codex error: An error occurred while processing your request. You can retry your request.';
-  pushLine(child, { type: 'agent_end', messages: [{
+  runtime.emit({ type: 'agent_end', messages: [{
     role: 'assistant', stopReason: 'error', errorMessage: finalError,
   }] });
-  pushLine(child, { type: 'auto_retry_end', success: false, attempt: 3, finalError });
-  pushLine(child, { type: 'agent_settled' });
+  runtime.emit({ type: 'auto_retry_end', success: false, attempt: 3, finalError });
+  runtime.emit({ type: 'agent_settled' });
   await rejection;
-  child.emit('close', 0);
   await proc.close();
 });
 
 test('C: sendExtensionUiResponse', async () => {
-  const s = makeStubSpawner();
-  const adapter = new PIAdapter(s.spawn, SESSION_DIR);
-  const proc = adapter.spawn({ sessionKey: 'k3', sessionId: null, resume: false }) as PIAgentProcess;
-  const child = s.children[0];
-  await bootstrap(child);
+  const { proc, runtime } = await spawnSession('k3');
   proc.sendExtensionUiResponse('ui-req-1', { confirmed: true });
-  const written = child.stdin.writeHistory.find((w: string) => w.includes('extension_ui_response'));
-  assert.ok(written);
-  child.emit('close', 0);
+  assert.deepEqual(runtime.uiResponses, [{ id: 'ui-req-1', payload: { confirmed: true } }]);
   await proc.close();
 });
 
 test('D: sendExtensionUiResponse with value', async () => {
-  const s = makeStubSpawner();
-  const adapter = new PIAdapter(s.spawn, SESSION_DIR);
-  const proc = adapter.spawn({ sessionKey: 'k4', sessionId: null, resume: false }) as PIAgentProcess;
-  const child = s.children[0];
-  await bootstrap(child);
+  const { proc, runtime } = await spawnSession('k4');
   proc.sendExtensionUiResponse('ui-req-2', { value: 'Option A' });
-  const written = child.stdin.writeHistory.find((w: string) => w.includes('extension_ui_response'));
-  assert.ok(written);
-  child.emit('close', 0);
+  assert.deepEqual(runtime.uiResponses, [{ id: 'ui-req-2', payload: { value: 'Option A' } }]);
   await proc.close();
 });
 
 // Test F: generic extension dialog routing remains available
 test('F: generic extension dialog', async () => {
-  const s = makeStubSpawner();
-  const adapter = new PIAdapter(s.spawn, SESSION_DIR);
-  const proc = adapter.spawn({ sessionKey: 'k6', sessionId: null, resume: false }) as PIAgentProcess;
-  const child = s.children[0];
-  await bootstrap(child);
+  const { proc, runtime } = await spawnSession('k6');
   const turnPromise = proc.send({ text: 'ask me something' });
-  pushLine(child, { type: 'extension_ui_request', id: 'ui-sel-1', method: 'select', title: 'What color?', options: ['Red', 'Blue'] });
-  await Promise.resolve();
+  await runtime.nextCall('prompt');
+  runtime.emit({ type: 'extension_ui_request', id: 'ui-sel-1', method: 'select', title: 'What color?', options: ['Red', 'Blue'] });
   proc.sendExtensionUiResponse('ui-sel-1', { value: 'Blue' });
-  pushLine(child, { type: 'agent_end', messages: [] });
-  pushLine(child, { type: 'agent_settled' });
-  await Promise.resolve();
+  runtime.emit({ type: 'agent_end', messages: [] });
+  runtime.emit({ type: 'agent_settled' });
   const result = await turnPromise;
   assert.equal(result.askUserQuestions, undefined);
-  child.emit('close', 0);
+  assert.deepEqual(runtime.uiResponses, [{ id: 'ui-sel-1', payload: { value: 'Blue' } }]);
   await proc.close();
 });
 
-// Test G: fatal error
+// Test G: the prompt is refused before PI enters its loop (auth/model failure)
 test('G: fatal error', async () => {
-  const s = makeStubSpawner();
-  const adapter = new PIAdapter(s.spawn, SESSION_DIR);
-  const proc = adapter.spawn({ sessionKey: 'k7', sessionId: null, resume: false });
-  const child = s.children[0];
-  await bootstrap(child);
+  const { proc, runtime } = await spawnSession('k7');
+  runtime.promptRejections.push(new Error('fatal: something broke'));
   const turnPromise = proc.send({ text: 'do something' });
-  child.stderr.write('fatal: something broke\n');
-  child.emit('close', 1);
-  await Promise.resolve();
-  await assert.rejects(turnPromise, /fatal|something broke|exited/i);
+  await assert.rejects(turnPromise, /something broke/i);
   await proc.close().catch(() => {});
 });
 
-// Test H: clean exit without turn_complete
-test('H: clean exit before turn_complete', async () => {
-  const s = makeStubSpawner();
-  const adapter = new PIAdapter(s.spawn, SESSION_DIR);
-  const proc = adapter.spawn({ sessionKey: 'k8', sessionId: null, resume: false });
-  const child = s.children[0];
-  await bootstrap(child);
+// Test H: the session is closed while a turn is still waiting on PI
+test('H: session closed before turn_complete', async () => {
+  const { adapter, proc } = await spawnSession('k8');
   const turnPromise = proc.send({ text: 'do work' });
-  child.emit('close', 0);
-  await Promise.resolve();
-  await assert.rejects(turnPromise, /exited before turn_complete/i);
+  const rejection = assert.rejects(turnPromise, /closed before turn_complete/i);
+  await adapter.close('k8');
+  await rejection;
   await proc.close().catch(() => {});
 });
 
@@ -215,21 +150,6 @@ function makeMockPi() {
     for (const handler of handlers.get(event) ?? []) await handler({ type: event }, ctx);
   };
   return { pi, registered, definitions, handlers, emit };
-}
-
-function makeCapturingSpawner() {
-  const calls: any[] = [];
-  const children: any[] = [];
-  return {
-    calls,
-    children,
-    spawn: (bin: string, args: string[], opts: any) => {
-      calls.push({ bin, args, opts });
-      const c = makeStubChild();
-      children.push(c);
-      return { process: c };
-    },
-  };
 }
 
 const CODER_TOOLS = 'Agent,Bash,Edit,Glob,Grep,Read,Skill,TaskStop,TodoWrite,WebFetch,WebSearch,Write';
@@ -598,14 +518,9 @@ test('J11b: WebFetch rejects non-application structured JSON suffixes', async ()
   assert.equal(body.wasCancelled(), true);
 });
 
-test('K: spawn forwards rawTools allowlist to the subprocess env', async () => {
-  const s = makeCapturingSpawner();
-  const adapter = new PIAdapter(s.spawn as any, SESSION_DIR);
-  const proc = adapter.spawn({ sessionKey: 'kEnv', sessionId: null, resume: false, rawTools: CODER_TOOLS });
-  const child = s.children[0];
-  await bootstrap(child);
-  assert.equal(s.calls[0].opts.env.CORTEX_PI_ALLOWED_TOOLS, CODER_TOOLS);
-  child.emit('close', 0);
+test('K: spawn forwards rawTools allowlist to the session env', async () => {
+  const { fake, proc } = await spawnSession('kEnv', 'sess-abc', { rawTools: CODER_TOOLS });
+  assert.equal(fake.requests[0].env.CORTEX_PI_ALLOWED_TOOLS, CODER_TOOLS);
   await proc.close();
 });
 
@@ -613,13 +528,8 @@ test('K2: spawn omits CORTEX_PI_ALLOWED_TOOLS when rawTools is unset', async () 
   const prev = process.env.CORTEX_PI_ALLOWED_TOOLS;
   delete process.env.CORTEX_PI_ALLOWED_TOOLS;
   try {
-    const s = makeCapturingSpawner();
-    const adapter = new PIAdapter(s.spawn as any, SESSION_DIR);
-    const proc = adapter.spawn({ sessionKey: 'kEnv2', sessionId: null, resume: false });
-    const child = s.children[0];
-    await bootstrap(child);
-    assert.equal(s.calls[0].opts.env.CORTEX_PI_ALLOWED_TOOLS, undefined);
-    child.emit('close', 0);
+    const { fake, proc } = await spawnSession('kEnv2');
+    assert.equal(fake.requests[0].env.CORTEX_PI_ALLOWED_TOOLS, undefined);
     await proc.close();
   } finally {
     if (prev !== undefined) process.env.CORTEX_PI_ALLOWED_TOOLS = prev;

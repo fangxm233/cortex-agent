@@ -1,21 +1,16 @@
-// input:  PIAdapter stub + runWithAdapter + cost-tracker
+// input:  PIAdapter over a fake PI runtime + runWithAdapter + cost-tracker
 // output: Per-run PI cost recording with settled completion
 // pos:    PI cost record end-to-end integration path
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
-import { EventEmitter } from 'node:events';
-import { PassThrough } from 'node:stream';
 import { tmpdir } from 'node:os';
 import { join as pathJoin } from 'node:path';
 import { mkdirSync, existsSync, readFileSync, unlinkSync } from 'node:fs';
-import type {
-  ChildProcess, ChildProcessWithoutNullStreams, SpawnOptions,
-} from 'node:child_process';
-import type { AgentProcessSpawner } from '../src/agent-adapter/types.js';
 
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
+import { makeFakeRuntimeFactory } from './agent-adapter/pi-fake-runtime.js';
 import { _test as modeManagerTest } from '../src/domain/agents/index.js';
 import type { AgentAdapter } from '../src/agent-adapter/index.js';
 import { CAPABILITIES_BY_BACKEND } from '../src/agent-adapter/index.js';
@@ -32,57 +27,6 @@ mkdirSync(SESSION_DIR, { recursive: true });
 // Temp costs file (isolated from production costs.json)
 const COSTS_FILE = pathJoin(tmpdir(), `pi-cost-record-costs-${process.pid}.json`);
 const ORIGINAL_COSTS_FILE = process.env['CORTEX_COSTS_FILE'];
-
-// --- Stub child process infrastructure (mirrors agent-adapter-pi-tool-shims.test.ts) ---
-
-interface StubChild extends EventEmitter {
-  stdin: PassThrough & { writeHistory: string[] };
-  stdout: PassThrough;
-  stderr: PassThrough;
-  kill: (signal?: NodeJS.Signals | number) => boolean;
-  __killed: boolean;
-}
-
-function makeStubChild(): StubChild {
-  const emitter = new EventEmitter() as StubChild;
-  const stdin = new PassThrough() as PassThrough & { writeHistory: string[] };
-  stdin.writeHistory = [];
-  const origWrite = stdin.write.bind(stdin);
-  (stdin as any).write = (chunk: unknown, ...rest: unknown[]) => {
-    const s = typeof chunk === 'string' ? chunk : (chunk as Buffer).toString('utf8');
-    stdin.writeHistory.push(s);
-    return origWrite(chunk as any, ...(rest as any));
-  };
-  emitter.stdin = stdin;
-  emitter.stdout = new PassThrough();
-  emitter.stderr = new PassThrough();
-  emitter.__killed = false;
-  emitter.kill = (_signal?: NodeJS.Signals | number) => {
-    if (emitter.__killed) return false;
-    emitter.__killed = true;
-    return true;
-  };
-  return emitter;
-}
-
-function makeStubSpawner(): {
-  spawn: AgentProcessSpawner;
-  children: StubChild[];
-} {
-  const children: StubChild[] = [];
-  return {
-    children,
-    spawn: (_cmd, _args, _opts) => {
-      const child = makeStubChild();
-      children.push(child);
-      return { process: child as unknown as ChildProcessWithoutNullStreams };
-    },
-  };
-}
-
-function pushLine(child: StubChild, obj: unknown): void {
-  child.stdout.write(JSON.stringify(obj) + '\n');
-}
 
 // --- Cleanup (N2H-3: afterAll() ensures env is restored even on assertion failure) ---
 
@@ -108,8 +52,8 @@ test('pi-cost-record: agent_end records cost before agent_settled completes', as
   process.env['CORTEX_COSTS_FILE'] = COSTS_FILE;
   costRepo._testReset();
 
-  const s = makeStubSpawner();
-  const piAdapter = new PIAdapter(s.spawn, SESSION_DIR);
+  const fake = makeFakeRuntimeFactory({ sessionId: 'pi-test-001' });
+  const piAdapter = new PIAdapter(fake.factory, SESSION_DIR);
 
   // Wrap PIAdapter as AgentAdapter for runWithAdapter
   const adapter: AgentAdapter = {
@@ -121,7 +65,7 @@ test('pi-cost-record: agent_end records cost before agent_settled completes', as
     listSessions: () => piAdapter.listSessions(),
   };
 
-  // runWithAdapter calls adapter.spawn() synchronously inside, creating s.children[0].
+  // runWithAdapter calls adapter.spawn() synchronously inside, which creates the PI session.
   const handle = runWithAdapter(
     adapter,
     'hello',
@@ -130,21 +74,13 @@ test('pi-cost-record: agent_end records cost before agent_settled completes', as
     undefined,
   );
 
-  // After runWithAdapter() returns synchronously (handle is returned immediately),
-  // the spawn has happened and s.children[0] is available.
-  const child = s.children[0];
-  assert.ok(child, 'stub child should exist after runWithAdapter');
-
-  // Emit bootstrap response to unblock session_started processing.
-  pushLine(child, {
-    type: 'response', id: 'bootstrap', command: 'get_state', success: true,
-    data: { sessionId: 'pi-test-001' },
-  });
-  await Promise.resolve();
-  await Promise.resolve();
+  // The session announces itself once its runtime resolved and hands PI the opening prompt.
+  const runtime = await fake.runtime();
+  await runtime.nextCall('prompt');
 
   // agent_end records low-level usage; agent_settled terminates the Cortex turn.
-  pushLine(child, {
+  runtime.emitAgentStart();
+  runtime.emit({
     type: 'agent_end',
     messages: [
       {
@@ -158,15 +94,11 @@ test('pi-cost-record: agent_end records cost before agent_settled completes', as
       },
     ],
   });
-  pushLine(child, { type: 'agent_settled' });
-  await Promise.resolve();
-  await Promise.resolve();
-
-  // Signal clean subprocess exit.
-  child.emit('close', 0);
+  runtime.emit({ type: 'agent_settled' });
 
   // Wait for runWithAdapter to finish processing.
   await handle.promise;
+  for (const key of piAdapter.listSessions()) await piAdapter.close(key);
   // Drain any pending async cost writes (recordCost is fire-and-forget in mode-manager event loop).
   await costRepo.flush();
 

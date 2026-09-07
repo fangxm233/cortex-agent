@@ -1,9 +1,9 @@
-// input:  PI API, MCP configs, tool gates, process env
-// output: Bundled Cortex and independent plugin MCP tools
+// input:  PI API, session env, plugin MCP configs, tool gates
+// output: Bundled Cortex tools (in-process) and independent plugin MCP tools
 // pos:    Bridges MCP servers into PI tools
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import type { ExtensionAPI } from './pi-ext-types.js';
+import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import {
   StdioClientTransport,
@@ -17,17 +17,16 @@ import {
   SSEClientTransport,
   type SSEClientTransportOptions,
 } from '@modelcontextprotocol/sdk/client/sse.js';
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { Type } from '@sinclair/typebox';
 import { createLogger } from '@core/log.js';
 import { MCP_INFRASTRUCTURE_TIMEOUT_MS } from '@core/mcp-timeout.js';
-import { encodeMcpBundles, MCP_BUNDLES_ENV, parseMcpBundles, type McpBundleName } from '@core/mcp-bundles.js';
+import type { McpBundleName } from '@core/mcp-bundles.js';
 import {
   MCP_TOOL_ALLOWLIST_ENV, MCP_TOOLS_BY_SERVER, parseMcpToolAllowlist,
   validateMcpToolAllowlist, withoutCommissionTools,
 } from '@core/mcp-tool-gate.js';
-import { resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import type { McpServerConfig } from '../types.js';
 import { createRedirectRejectingFetch } from '../mcp-remote-fetch.js';
 import {
@@ -40,22 +39,9 @@ import {
 import {
   PI_COMMISSION_TOOLS_ENV, PI_INTERACTION_BRIDGE_ENV, PI_MCP_COMPOSITION_ENV,
 } from './spawn-args.js';
-import {
-  PI_PLUGIN_MCP_CONFIG_ENV,
-  loadPiPluginMcpConfig,
-  type PiPluginMcpConfigIssue,
-  type PiPluginMcpConfigLoadResult,
-} from './mcp-config.js';
 import { safeNativeComposite, safeNativeName } from '../../domain/plugins/native-name.js';
-
-export { PI_PLUGIN_MCP_CONFIG_ENV } from './mcp-config.js';
-
-// __dirname is provided by PI's jiti CJS compat layer when loading .ts extension files.
-// In ESM contexts (agent-server tests via tsx), derive it from import.meta.url instead.
-// eslint-disable-next-line no-undef
-const _dirname: string = (typeof __dirname === 'string' ? __dirname : null) ?? dirname(fileURLToPath(import.meta.url));
-// Point at compiled siblings because installed packages do not ship src/.
-const BUNDLED_SERVER_PATH = resolve(_dirname, '../../domain/mcp/bundled-server.js');
+import { createBundledServer } from '../../domain/mcp/bundled-server.js';
+import { toolContextFromEnv } from '../../domain/mcp/tools/context.js';
 
 const log = createLogger('pi-mcp-bridge');
 
@@ -67,9 +53,15 @@ export interface McpClientHandle {
   transport: Pick<Transport, 'close'>;
 }
 
+/** Where a bridged server comes from: Cortex's own bundles served in-process, or a plugin's
+ *  external server reached over its declared transport. */
+export type McpServerSource =
+  | { kind: 'bundled'; bundles: McpBundleName[]; env: Record<string, string> }
+  | { kind: 'plugin'; config: McpServerConfig };
+
 export interface ServerState {
   name: string;
-  config: McpServerConfig;
+  source: McpServerSource;
   handle: McpClientHandle | null;
   registered: boolean;
   registeredToolNames: Set<string>;
@@ -80,18 +72,13 @@ type StateDiscovery =
   | { state: ServerState; status: 'ready'; tools: McpTool[] }
   | { state: ServerState; status: 'failed'; failure: unknown };
 
-type PluginConfigLoader = (configPath: string) => McpServerConfig[] | PiPluginMcpConfigLoadResult;
-
-export interface BuildServerStatesOptions {
-  loadPluginConfig?: PluginConfigLoader;
-  reportPluginIssue?(issue: PiPluginMcpConfigIssue): void;
-}
-
 export interface McpBridgeDeps {
+  /** The session's environment: composition markers, channel, Cortex context, tool gate. */
   env: NodeJS.ProcessEnv;
+  /** Plugin (and browser) servers for this session, already filtered by composition. */
+  pluginServers?: readonly McpServerConfig[];
   spawnClient(state: ServerState): Promise<McpClientHandle>;
   reportFailure(error: unknown): void;
-  loadPluginConfig?: PluginConfigLoader;
 }
 
 export interface McpTransportConstructors {
@@ -120,38 +107,25 @@ function builtinEnv(env: NodeJS.ProcessEnv): Record<string, string> {
  * fail-open, meaning "hide a tool" has to be spelled out as an allowlist spanning every selected
  * bundle. This runs here rather than in the adapter because this is the first place that knows PI's
  * bundle set. A session drafting a commission gets no allowlist at all: it is allowed everything,
- * including the two commission tools (DR-0037 v3).
+ * including the two commission tools.
  */
 function commissionGatedEnv(
   bundles: readonly McpBundleName[], env: NodeJS.ProcessEnv,
 ): Record<string, string> {
-  const childEnv = { ...builtinEnv(env), [MCP_BUNDLES_ENV]: encodeMcpBundles(bundles) };
-  if (!bundles.includes('cortex-interaction-bridge')) return childEnv;
-  if (env[PI_COMMISSION_TOOLS_ENV] === '1') return childEnv;
+  const toolEnv = builtinEnv(env);
+  if (!bundles.includes('cortex-interaction-bridge')) return toolEnv;
+  if (env[PI_COMMISSION_TOOLS_ENV] === '1') return toolEnv;
   const declared = parseMcpToolAllowlist(env[MCP_TOOL_ALLOWLIST_ENV]);
-  childEnv[MCP_TOOL_ALLOWLIST_ENV] = JSON.stringify(
+  toolEnv[MCP_TOOL_ALLOWLIST_ENV] = JSON.stringify(
     withoutCommissionTools(declared ? [...declared] : undefined, bundles),
   );
-  return childEnv;
+  return toolEnv;
 }
 
-function bundledServerConfig(
-  bundles: readonly McpBundleName[], env: NodeJS.ProcessEnv,
-): McpServerConfig {
-  return {
-    name: 'core',
-    type: 'stdio',
-    command: 'node',
-    args: [BUNDLED_SERVER_PATH],
-    env: commissionGatedEnv(bundles, env),
-    cwd: process.cwd(),
-  };
-}
-
-function createState(name: string, config: McpServerConfig): ServerState {
+function createState(name: string, source: McpServerSource): ServerState {
   return {
     name,
-    config,
+    source,
     handle: null,
     registered: false,
     registeredToolNames: new Set<string>(),
@@ -173,8 +147,7 @@ function validateToolGatedStates(
   const allowlist = parseMcpToolAllowlist(env[MCP_TOOL_ALLOWLIST_ENV]);
   if (allowlist === null) return states;
   const core = states.find(state => state.name === 'core');
-  const bundles = core?.config.type === 'stdio'
-    ? parseMcpBundles(core.config.env[MCP_BUNDLES_ENV]) : [];
+  const bundles = core?.source.kind === 'bundled' ? core.source.bundles : [];
   const known = new Set(bundles.flatMap(bundle => MCP_TOOLS_BY_SERVER[bundle] ?? []));
   validateMcpToolAllowlist([...allowlist], known);
   return states;
@@ -192,58 +165,21 @@ function optionalBundles(env: NodeJS.ProcessEnv): McpBundleName[] {
   return optional.filter(([enabled]) => enabled).map(([, bundle]) => bundle);
 }
 
-function pluginLoadResult(value: ReturnType<PluginConfigLoader>): PiPluginMcpConfigLoadResult {
-  return Array.isArray(value) ? { servers: value, issues: [] } : value;
-}
-
-function readPluginConfig(
-  configPath: string,
-  loadPluginConfig: PluginConfigLoader,
-  reportPluginIssue: (issue: PiPluginMcpConfigIssue) => void,
-): PiPluginMcpConfigLoadResult | null {
-  try {
-    return pluginLoadResult(loadPluginConfig(configPath));
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    reportPluginIssue({ path: configPath, message });
-    return null;
-  }
-}
-
-function appendPluginState(
-  server: McpServerConfig,
-  configPath: string,
-  states: ServerState[],
-  seen: Set<string>,
-  reportPluginIssue: (issue: PiPluginMcpConfigIssue) => void,
-): void {
-  const stateName = pluginServerStateName(server.name);
-  if (seen.has(stateName)) {
-    reportPluginIssue({
-      path: `${configPath}#mcpServers`,
-      message: `Duplicate MCP server state name: ${stateName}`,
-    });
-    return;
-  }
-  seen.add(stateName);
-  states.push(createState(stateName, server));
-}
-
-function loadPluginStates(
-  env: NodeJS.ProcessEnv,
-  loadPluginConfig: PluginConfigLoader,
-  reportPluginIssue: (issue: PiPluginMcpConfigIssue) => void,
+function pluginStates(
+  servers: readonly McpServerConfig[],
+  reportIssue: (message: string) => void,
 ): ServerState[] {
-  const configPath = env[PI_PLUGIN_MCP_CONFIG_ENV];
-  if (!configPath) return [];
-  const loaded = readPluginConfig(configPath, loadPluginConfig, reportPluginIssue);
-  if (!loaded) return [];
   const states: ServerState[] = [];
   const seen = new Set<string>();
-  loaded.issues.forEach(reportPluginIssue);
-  const servers = loaded.servers.slice().sort((left, right) => left.name.localeCompare(right.name));
-  for (const server of servers) {
-    appendPluginState(server, configPath, states, seen, reportPluginIssue);
+  const ordered = servers.slice().sort((left, right) => left.name.localeCompare(right.name));
+  for (const server of ordered) {
+    const stateName = pluginServerStateName(server.name);
+    if (seen.has(stateName)) {
+      reportIssue(`Duplicate MCP server state name: ${stateName}`);
+      continue;
+    }
+    seen.add(stateName);
+    states.push(createState(stateName, { kind: 'plugin', config: server }));
   }
   return states;
 }
@@ -251,7 +187,8 @@ function loadPluginStates(
 /** Build the server set before connecting any MCP transport. */
 export function buildServerStates(
   env: NodeJS.ProcessEnv,
-  options: BuildServerStatesOptions = {},
+  pluginServers: readonly McpServerConfig[] = [],
+  reportIssue: (message: string) => void = () => undefined,
 ): ServerState[] {
   const composition = env[PI_MCP_COMPOSITION_ENV];
   if (composition === 'none') return validateToolGatedStates(env, []);
@@ -263,14 +200,8 @@ export function buildServerStates(
     }
     bundles.push(...optionalBundles(env));
   }
-  const states = [createState('core', bundledServerConfig(bundles, env))];
-  if (env.CORTEX_PI_SUBAGENT !== '1') {
-    states.push(...loadPluginStates(
-      env,
-      options.loadPluginConfig ?? loadPiPluginMcpConfig,
-      options.reportPluginIssue ?? (() => undefined),
-    ));
-  }
+  const states = [createState('core', { kind: 'bundled', bundles, env: commissionGatedEnv(bundles, env) })];
+  if (env.CORTEX_PI_SUBAGENT !== '1') states.push(...pluginStates(pluginServers, reportIssue));
   return validateToolGatedStates(env, assertUniqueServerStateNames(states));
 }
 
@@ -293,20 +224,23 @@ export function pluginToolName(serverStateName: string, toolName: string): strin
 }
 
 function exposedToolName(state: ServerState, toolName: string): string {
-  return state.config.name === state.name ? toolName : pluginToolName(state.name, toolName);
+  return state.source.kind === 'bundled' ? toolName : pluginToolName(state.name, toolName);
 }
 
 export const createSameOriginFetch = createRedirectRejectingFetch;
 
+/** Transport for one plugin server. A stdio server inherits `baseEnv` (the session's environment,
+ *  not the daemon's) beneath its own declared variables. */
 export function createMcpTransport(
   config: McpServerConfig,
   constructors: McpTransportConstructors = DEFAULT_TRANSPORT_CONSTRUCTORS,
+  baseEnv: NodeJS.ProcessEnv = process.env,
 ): Transport {
   if (config.type === 'stdio') {
     return constructors.stdio({
       command: config.command,
       args: [...config.args],
-      env: { ...process.env, ...config.env },
+      env: { ...baseEnv, ...config.env } as Record<string, string>,
       cwd: config.cwd,
       stderr: 'pipe',
     });
@@ -323,8 +257,35 @@ export function createMcpTransport(
   });
 }
 
-async function spawnMcpClient(state: ServerState): Promise<McpClientHandle> {
-  const transport = createMcpTransport(state.config);
+/** Cortex's bundles served over an in-memory transport pair: same McpServer the stdio entries
+ *  build, bound to a tool context derived from the session's environment, no child process. */
+async function connectBundledServer(
+  state: ServerState, bundles: McpBundleName[], env: Record<string, string>,
+): Promise<McpClientHandle> {
+  const server = await createBundledServer(bundles, toolContextFromEnv(env));
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const client = new Client({ name: `pi-mcp-bridge-${state.name}`, version: '1.0.0' });
+  await server.connect(serverTransport);
+  try {
+    await client.connect(clientTransport);
+  } catch (error) {
+    try { await server.close(); } catch { /* best-effort */ }
+    throw error;
+  }
+  return {
+    client,
+    transport: {
+      close: async () => {
+        try { await clientTransport.close(); } finally { await server.close(); }
+      },
+    },
+  };
+}
+
+async function connectPluginServer(
+  state: ServerState, config: McpServerConfig, baseEnv: NodeJS.ProcessEnv,
+): Promise<McpClientHandle> {
+  const transport = createMcpTransport(config, DEFAULT_TRANSPORT_CONSTRUCTORS, baseEnv);
   const client = new Client({ name: `pi-mcp-bridge-${state.name}`, version: '1.0.0' });
   try {
     await client.connect(transport);
@@ -335,12 +296,20 @@ async function spawnMcpClient(state: ServerState): Promise<McpClientHandle> {
   }
 }
 
-const DEFAULT_DEPS: McpBridgeDeps = {
-  env: process.env,
-  spawnClient: spawnMcpClient,
-  reportFailure: reportBridgeFailure,
-  loadPluginConfig: loadPiPluginMcpConfig,
-};
+/** Production dependencies for one session: bundles in-process, plugins over their transports. */
+export function createMcpBridgeDeps(
+  env: NodeJS.ProcessEnv,
+  pluginServers: readonly McpServerConfig[] = [],
+): McpBridgeDeps {
+  return {
+    env,
+    pluginServers,
+    spawnClient: (state) => state.source.kind === 'bundled'
+      ? connectBundledServer(state, state.source.bundles, state.source.env)
+      : connectPluginServer(state, state.source.config, env),
+    reportFailure: reportBridgeFailure,
+  };
+}
 
 class McpBridgeSession {
   private states: ServerState[] | null = null;
@@ -358,10 +327,11 @@ class McpBridgeSession {
 
   private resolveStates(): ServerState[] {
     if (this.states) return this.states;
-    this.states = buildServerStates(this.deps.env, {
-      loadPluginConfig: this.deps.loadPluginConfig,
-      reportPluginIssue: (issue) => this.deps.reportFailure(new Error(issue.message)),
-    });
+    this.states = buildServerStates(
+      this.deps.env,
+      this.deps.pluginServers ?? [],
+      (message) => this.deps.reportFailure(new Error(message)),
+    );
     return this.states;
   }
 
@@ -489,7 +459,7 @@ class McpBridgeSession {
           const message = content.map(item => item.text).filter(Boolean).join('\n');
           throw new Error(message || `${exposedName} failed`);
         }
-        return { content };
+        return { content, details: undefined };
       },
     });
   }
@@ -508,13 +478,6 @@ class McpBridgeSession {
   }
 }
 
-export async function installMcpBridge(
-  pi: ExtensionAPI,
-  deps: McpBridgeDeps = DEFAULT_DEPS,
-): Promise<void> {
+export async function installMcpBridge(pi: ExtensionAPI, deps: McpBridgeDeps): Promise<void> {
   new McpBridgeSession(pi, deps).install();
-}
-
-export default async function mcpBridge(pi: ExtensionAPI): Promise<void> {
-  await installMcpBridge(pi);
 }

@@ -4,37 +4,17 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import assert from 'node:assert/strict';
-import type {
-  ChildProcess, ChildProcessWithoutNullStreams, SpawnOptions,
-} from 'node:child_process';
-import type { AgentProcessSpawner } from '../../../src/agent-adapter/types.js';
-import { EventEmitter } from 'node:events';
 import { readFileSync } from 'node:fs';
-import { PassThrough } from 'node:stream';
 import { test } from 'vitest';
 
 import { PIAdapter } from '../../../src/agent-adapter/pi/adapter.js';
 import { PI_MODELS_PATH, PI_SESSIONS_DIR } from '../../../src/agent-adapter/pi/agent-dir.js';
 import { createPIProviderDiscovery } from '../../../src/agent-adapter/pi/discovery.js';
+import type { PiRuntimeFactory } from '../../../src/agent-adapter/pi/runtime.js';
 import type { PIAgentProcess } from '../../../src/agent-adapter/pi/session-support.js';
 import { handleCreateAndSend } from '../../../src/domain/ui-service/mutate/sessions.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
-
-interface StubChild extends EventEmitter {
-  stdin: PassThrough;
-  stdout: PassThrough;
-  stderr: PassThrough;
-  kill: () => boolean;
-}
-
-function makeStubChild(): StubChild {
-  const child = new EventEmitter() as StubChild;
-  child.stdin = new PassThrough();
-  child.stdout = new PassThrough();
-  child.stderr = new PassThrough();
-  child.kill = () => true;
-  return child;
-}
+import { makeFakeRuntimeFactory } from '../../agent-adapter/pi-fake-runtime.js';
 
 test('fresh PI createAndSend responds and exposes the user event before slow discovery fails', async () => {
   let rejectDiscovery!: (error: Error) => void;
@@ -52,12 +32,14 @@ test('fresh PI createAndSend responds and exposes the user event before slow dis
     },
   });
   const timeline: string[] = [];
-  const child = makeStubChild();
-  const spawner: AgentProcessSpawner = (_cmd, _args, _opts) => {
+  const fake = makeFakeRuntimeFactory();
+  // The session invokes its runtime factory synchronously inside spawn(), so this marker lands
+  // exactly where the PI session is created relative to the response and the user event.
+  const factory: PiRuntimeFactory = (request, callbacks) => {
     timeline.push('pi-spawn');
-    return { process: child as unknown as ChildProcessWithoutNullStreams };
+    return fake.factory(request, callbacks);
   };
-  const adapter = new PIAdapter(spawner, PI_SESSIONS_DIR, discovery);
+  const adapter = new PIAdapter(factory, PI_SESSIONS_DIR, discovery);
   let agentProcess: PIAgentProcess | null = null;
   let markVisible!: () => void;
   const visible = new Promise<void>((resolve) => { markVisible = resolve; });
@@ -117,7 +99,7 @@ test('fresh PI createAndSend responds and exposes the user event before slow dis
     await Promise.resolve();
     assert.equal(discoverySettled, true);
   } finally {
-    child.emit('close', 0, null);
     await agentProcess?.close();
+    await adapter.close('fresh-web-pi');
   }
 });

@@ -1,6 +1,6 @@
-// input:  PI quota probes, usage persistence, throttle keys
-// output: quota emission, labeled routed usage, and throttle assertions
-// pos:    Covers PI quota flow from probe notices into provider stores
+// input:  PI quota probe, usage persistence, throttle keys, fake PI runtime
+// output: quota reporting, labeled routed usage, and throttle assertions
+// pos:    Covers PI quota flow from response headers into provider stores
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -8,8 +8,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import quotaProbe from '../src/agent-adapter/pi/quota-probe.js';
-import { decodeQuotaNotice } from '../src/domain/costs/codex-quota.js';
+import { createQuotaProbe } from '../src/agent-adapter/pi/quota-probe.js';
+import type { CodexQuotaReading } from '../src/domain/costs/codex-quota.js';
 import { reportCodexQuota, resolveQuotaSource } from '../src/agent-adapter/pi/quota-sink.js';
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
 import {
@@ -19,8 +19,7 @@ import {
 import { MockAdapter } from '../src/platform/testing.js';
 import { ProviderStateRepo } from '../src/store/provider-state-repo.js';
 import { UsageStore } from '../src/domain/costs/usage-store.js';
-import { EventEmitter } from 'node:events';
-import { PassThrough } from 'node:stream';
+import { makeFakeRuntimeFactory } from './agent-adapter/pi-fake-runtime.js';
 
 const CODEX_HEADERS: Record<string, string> = {
   'x-codex-plan-type': 'pro',
@@ -31,76 +30,58 @@ const CODEX_HEADERS: Record<string, string> = {
 
 type Handler = (event: unknown, ctx: unknown) => unknown;
 
-function stubPi() {
+/** The probe installed on a stub extension host, with the readings it reported. */
+function installProbe(report?: (reading: CodexQuotaReading) => void) {
   const handlers = new Map<string, Handler>();
+  const sent: CodexQuotaReading[] = [];
+  const api = { on: (event: string, handler: Handler) => handlers.set(event, handler), registerTool() {} };
+  createQuotaProbe(report ?? ((reading) => { sent.push(reading); }))(api as never);
   return {
-    api: { on: (event: string, handler: Handler) => handlers.set(event, handler), registerTool() {} },
-    fire(event: string, payload: unknown, ctx: unknown) {
+    sent,
+    fire(event: string, payload: unknown) {
       const handler = handlers.get(event);
       assert.ok(handler, `no handler registered for ${event}`);
-      return handler(payload, ctx);
+      return handler(payload, {});
     },
     registered: () => [...handlers.keys()],
   };
 }
 
-function stubCtx() {
-  const sent: string[] = [];
-  return { sent, ctx: { ui: { notify: (message: string) => { sent.push(message); } } } };
-}
-
 test('reports the quota it read off a codex response', () => {
-  const pi = stubPi();
-  quotaProbe(pi.api as never);
-  assert.deepEqual(pi.registered(), ['after_provider_response']);
+  const probe = installProbe();
+  assert.deepEqual(probe.registered(), ['after_provider_response']);
 
-  const { sent, ctx } = stubCtx();
-  pi.fire('after_provider_response', { status: 200, headers: CODEX_HEADERS }, ctx);
+  probe.fire('after_provider_response', { status: 200, headers: CODEX_HEADERS });
 
-  assert.equal(sent.length, 1);
-  assert.deepEqual(decodeQuotaNotice(sent[0]), {
+  assert.deepEqual(probe.sent, [{
     provider: 'openai-codex',
     planType: 'pro',
     windows: [{ type: 'codex_primary', utilization: 0.93, resetsAt: 1786160107 }],
-  });
+  }]);
 });
 
 test('reports quota from a failed response too, since the headers still carry it', () => {
-  const pi = stubPi();
-  quotaProbe(pi.api as never);
-  const { sent, ctx } = stubCtx();
-  pi.fire('after_provider_response', { status: 429, headers: CODEX_HEADERS }, ctx);
-  assert.equal(sent.length, 1);
+  const probe = installProbe();
+  probe.fire('after_provider_response', { status: 429, headers: CODEX_HEADERS });
+  assert.equal(probe.sent.length, 1);
 });
 
 test('stays silent for a provider that advertises no quota', () => {
-  const pi = stubPi();
-  quotaProbe(pi.api as never);
-  const { sent, ctx } = stubCtx();
-  pi.fire('after_provider_response', { status: 200, headers: { 'content-type': 'text/event-stream' } }, ctx);
-  assert.deepEqual(sent, []);
+  const probe = installProbe();
+  probe.fire('after_provider_response', { status: 200, headers: { 'content-type': 'text/event-stream' } });
+  assert.deepEqual(probe.sent, []);
 });
 
 test('never lets a reporting failure escape into the turn', () => {
-  const pi = stubPi();
-  quotaProbe(pi.api as never);
-  const brokenCtx = { ui: { notify: () => { throw new Error('rpc closed'); } } };
-  pi.fire('after_provider_response', { status: 200, headers: CODEX_HEADERS }, brokenCtx);
-});
-
-test('tolerates a context with no UI channel', () => {
-  const pi = stubPi();
-  quotaProbe(pi.api as never);
-  pi.fire('after_provider_response', { status: 200, headers: CODEX_HEADERS }, {});
+  const probe = installProbe(() => { throw new Error('store closed'); });
+  probe.fire('after_provider_response', { status: 200, headers: CODEX_HEADERS });
 });
 
 test('ignores an event whose headers are missing or malformed', () => {
-  const pi = stubPi();
-  quotaProbe(pi.api as never);
-  const { sent, ctx } = stubCtx();
-  pi.fire('after_provider_response', { status: 200 }, ctx);
-  pi.fire('after_provider_response', { status: 200, headers: 'nope' }, ctx);
-  assert.deepEqual(sent, []);
+  const probe = installProbe();
+  probe.fire('after_provider_response', { status: 200 });
+  probe.fire('after_provider_response', { status: 200, headers: 'nope' });
+  assert.deepEqual(probe.sent, []);
 });
 
 // --- server side: the reading reaches the throttle under the keys dispatch gates on ---
@@ -274,20 +255,6 @@ test('persists every below-threshold window across restart with its observation 
   }
 });
 
-function stubSpawner() {
-  const children: { stdout: PassThrough }[] = [];
-  const spawn = () => {
-    const child = new EventEmitter() as EventEmitter & Record<string, unknown>;
-    child.stdin = new PassThrough();
-    child.stdout = new PassThrough();
-    child.stderr = new PassThrough();
-    child.kill = () => true;
-    children.push(child as unknown as { stdout: PassThrough });
-    return { process: child as never };
-  };
-  return { spawn: spawn as never, children };
-}
-
 async function waitForThrottle(attempts = 50) {
   for (let i = 0; i < attempts; i++) {
     if (getThrottleState().providers.length > 0) return;
@@ -295,7 +262,7 @@ async function waitForThrottle(attempts = 50) {
   }
 }
 
-test('a quota notice from the PI child throttles the provider it was routed under', async (t) => {
+test('a quota reading from the PI session throttles the provider it was routed under', async (t) => {
   t.onTestFinished(() => _testReset());
   let saved: RateLimitThrottleState | null = null;
   await initRateLimitThrottle(
@@ -303,9 +270,9 @@ test('a quota notice from the PI child throttles the provider it was routed unde
     { save: async (state) => { saved = state; }, load: async () => saved },
   );
 
-  const stub = stubSpawner();
-  const adapter = new PIAdapter(stub.spawn);
-  adapter.spawn({
+  const fake = makeFakeRuntimeFactory();
+  const adapter = new PIAdapter(fake.factory);
+  const proc = adapter.spawn({
     sessionId: null,
     sessionKey: 'quota-wire',
     resume: false,
@@ -313,20 +280,22 @@ test('a quota notice from the PI child throttles the provider it was routed unde
     piGatewayPath: '/m/openai-codex/openai-codex',
     piGatewayBaseUrl: 'http://127.0.0.1:9880',
   });
+  assert.equal(fake.requests[0].reportsProviderQuota, true, 'a gateway-routed run installs the probe');
 
-  const reading = {
+  const reading: CodexQuotaReading = {
     provider: 'openai-codex',
     planType: 'pro',
     windows: [{ type: 'codex_primary', utilization: 0.96, resetsAt: Math.floor(Date.now() / 1000) + 3600 }],
   };
-  stub.children[0].stdout.write(`${JSON.stringify({
-    type: 'extension_ui_request',
-    id: 'q1',
-    method: 'notify',
-    message: `cortex:provider-quota:${JSON.stringify(reading)}`,
-  })}\n`);
+  const runtime = await fake.runtime();
+  runtime.emitQuota(reading);
 
   await waitForThrottle();
+  const surfaced = await proc.events[Symbol.asyncIterator]().next();
+  assert.equal(surfaced.value?.type, 'session_started');
+  const rateLimit = await proc.events[Symbol.asyncIterator]().next();
+  assert.deepEqual(rateLimit.value, { type: 'rate_limit', raw: reading });
+  proc.kill();
   const state = getThrottleState();
   assert.deepEqual(state.providers.map((p) => p.provider), ['openai-codex']);
   assert.deepEqual(state.providers[0].modes, ['openai-codex']);

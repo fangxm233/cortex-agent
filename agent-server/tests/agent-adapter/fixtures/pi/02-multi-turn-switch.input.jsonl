@@ -1,11 +1,9 @@
-{"type":"response","id":"bootstrap","command":"get_state","success":true,"data":{"sessionId":"pi-sess-02a-first"}}
 {"type":"message_update","message":{"id":"msg-a1"},"assistantMessageEvent":{"type":"text_delta","delta":"Reading the file."}}
 {"type":"tool_execution_start","toolCallId":"tc-a1","toolName":"read","args":{"file_path":"/tmp/hello.txt","description":"Read hello file"}}
 {"type":"tool_execution_end","toolCallId":"tc-a1","isError":false,"result":{"content":[{"type":"text","text":"hello world"}]}}
 {"type":"message_update","message":{"id":"msg-a1"},"assistantMessageEvent":{"type":"text_delta","delta":" File read successfully."}}
 {"type":"agent_end","messages":[{"role":"assistant","usage":{"cost":{"total":0.005}}}]}
 {"type":"agent_settled"}
-{"type":"response","id":"switch-1","command":"switch_session","success":true,"data":{"cancelled":false}}
 {"type":"message_update","message":{"id":"msg-b1"},"assistantMessageEvent":{"type":"text_delta","delta":"Now on the second session."}}
 {"type":"tool_execution_start","toolCallId":"tc-b1","toolName":"bash","args":{"command":"echo done","description":"Print done"}}
 {"type":"tool_execution_end","toolCallId":"tc-b1","isError":false,"result":{"content":[{"type":"text","text":"done"}]}}

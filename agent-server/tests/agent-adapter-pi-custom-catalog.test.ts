@@ -1,18 +1,16 @@
-// input:  provider overrides, PI catalog refresh fixtures, a stub spawner
+// input:  provider overrides, PI catalog refresh fixtures, a fake PI runtime
 // output: custom providers and frozen DeepSeek caps in spawned catalogs
 // pos:    Unit tests for PI provider routing at spawn time
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { EventEmitter } from 'node:events';
-import { PassThrough } from 'node:stream';
 import { tmpdir } from 'node:os';
 import { join as pathJoin } from 'node:path';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 
-import type { AgentProcessSpawner } from '../src/agent-adapter/types.js';
+import { makeFakeRuntimeFactory } from './agent-adapter/pi-fake-runtime.js';
+import type { PiRuntimeFactory } from '../src/agent-adapter/pi/runtime.js';
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
 import {
   buildProviderOverrides,
@@ -20,19 +18,11 @@ import {
   writeProvidersConfig,
 } from '../src/agent-adapter/pi/providers-config.js';
 
-function makeStubSpawner(): { spawn: AgentProcessSpawner; calls: number } {
-  const state = { calls: 0 };
+function makeStubSpawner(): { spawn: PiRuntimeFactory; calls: number } {
+  const fake = makeFakeRuntimeFactory();
   return {
-    get calls() { return state.calls; },
-    spawn: () => {
-      state.calls += 1;
-      const child = new EventEmitter() as EventEmitter & Record<string, unknown>;
-      child.stdin = new PassThrough();
-      child.stdout = new PassThrough();
-      child.stderr = new PassThrough();
-      child.kill = () => true;
-      return { process: child as unknown as ChildProcessWithoutNullStreams };
-    },
+    get calls() { return fake.requests.length; },
+    spawn: fake.factory,
   };
 }
 

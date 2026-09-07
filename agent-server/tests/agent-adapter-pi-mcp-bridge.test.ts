@@ -1,22 +1,19 @@
-// input:  PI MCP bridge, interaction env, tool gates, clients
-// output: Bundle loading, plugin isolation and retry tests
+// input:  PI MCP bridge, session env, plugin server configs, tool gates, fake clients
+// output: Bundle selection, in-process core server, plugin isolation and retry tests
 // pos:    Tests PI MCP bridge behavior
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { fileURLToPath } from 'node:url';
-import { resolve, dirname } from 'node:path';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import type { ExtensionAPI, ToolDefinition } from '@earendil-works/pi-coding-agent';
 import {
   buildServerStates,
+  createMcpBridgeDeps,
   createMcpTransport,
   createSameOriginFetch,
   installMcpBridge,
   pluginServerStateName,
   pluginToolName,
-  PI_PLUGIN_MCP_CONFIG_ENV,
   type McpBridgeDeps,
   type McpClientHandle,
   type McpTransportConstructors,
@@ -33,17 +30,8 @@ import {
   PI_INTERACTION_BRIDGE_ENV,
   PI_MCP_COMPOSITION_ENV,
 } from '../src/agent-adapter/pi/spawn-args.js';
-import type { ExtensionAPI, ToolDefinition } from '../src/agent-adapter/pi/pi-ext-types.js';
 import type { McpServerConfig } from '../src/agent-adapter/types.js';
-import { MCP_BUNDLES_ENV, parseMcpBundles } from '../src/core/mcp-bundles.js';
-import { MCP_TOOL_ALLOWLIST_ENV } from '../src/core/mcp-tool-gate.js';
-
-// The bundled server path resolves relative to compiled adapter output. The integration test below
-// targets dist/ so it verifies installed-package behavior; `npm run build` must run first.
-const TESTS_DIR = dirname(fileURLToPath(import.meta.url));
-const DIST_DIR = resolve(TESTS_DIR, '../dist');
-const BUNDLED_SERVER_PATH = resolve(DIST_DIR, 'domain/mcp/bundled-server.js');
-const PLUGIN_CONFIG_PATH = '/runtime/pi-plugin-mcp.json';
+import { MCP_TOOL_ALLOWLIST_ENV, MCP_TOOLS_BY_SERVER } from '../src/core/mcp-tool-gate.js';
 
 // --- Test C: mapMcpContent pure unit tests ---
 
@@ -131,6 +119,7 @@ test('shouldLoadThreadControl: false for empty or missing thread ids', () => {
 type BridgeEvent = 'before_agent_start' | 'session_shutdown';
 type BridgeHandler = (event: Record<string, never>, ctx: Record<string, never>) => Promise<void> | void;
 
+// The bridge only touches `on` and `registerTool` of the PI SDK's ExtensionAPI; the rest is unused.
 function createPiHarness(options: { registerFailures?: Set<string> } = {}) {
   const handlers = new Map<BridgeEvent, BridgeHandler>();
   const registered: string[] = [];
@@ -182,22 +171,23 @@ function bridgeDeps(overrides: Partial<McpBridgeDeps>): McpBridgeDeps {
   return {
     env: { CORTEX_THREAD_ID: 'thr_retry' },
     reportFailure: () => undefined,
-    loadPluginConfig: () => [],
     spawnClient: async (state) => fakeHandle(state.name),
     ...overrides,
   };
-}
-
-function pluginConfig(...servers: McpServerConfig[]): McpServerConfig[] {
-  return servers;
 }
 
 const BUILTIN_STATES = ['core'];
 
 function selectedBundles(states: ServerState[]): string[] {
   const core = states.find(state => state.name === 'core');
-  assert.ok(core?.config.type === 'stdio');
-  return parseMcpBundles(core.config.env[MCP_BUNDLES_ENV]);
+  assert.ok(core?.source.kind === 'bundled');
+  return core.source.bundles;
+}
+
+function coreEnv(states: ServerState[]): Record<string, string> {
+  const core = states.find(state => state.name === 'core');
+  assert.ok(core?.source.kind === 'bundled');
+  return core.source.env;
 }
 
 function deferred(): { promise: Promise<void>; resolve(): void } {
@@ -239,15 +229,12 @@ const BETA_TOOL = pluginToolName(BETA_STATE, 'search');
 
 type TransportCall = { type: string; value: any };
 
-function directPluginEnv(): NodeJS.ProcessEnv {
-  return {
-    [PI_MCP_COMPOSITION_ENV]: 'direct',
-    [PI_PLUGIN_MCP_CONFIG_ENV]: PLUGIN_CONFIG_PATH,
-  };
+function directEnv(): NodeJS.ProcessEnv {
+  return { [PI_MCP_COMPOSITION_ENV]: 'direct' };
 }
 
 function searchableHandle(state: ServerState): McpClientHandle {
-  const toolName = state.config.name === state.name ? `${state.name}_tool` : 'search';
+  const toolName = state.source.kind === 'bundled' ? `${state.name}_tool` : 'search';
   return fakeHandle(state.name, {
     listTools: async () => ({
       tools: [{ name: toolName, description: state.name, inputSchema: { type: 'object' } }],
@@ -323,6 +310,16 @@ test('createMcpTransport constructs stdio, StreamableHTTP, and SSE transports wi
   assertSseTransport(calls[2]);
 });
 
+test('createMcpTransport layers a stdio server\'s declared env over the session env, not the daemon\'s', () => {
+  const { calls, constructors } = createTransportRecorder();
+  const [stdio] = transportConfigs();
+  createMcpTransport(stdio, constructors, { SESSION_ONLY: 'yes', API_KEY: 'session-value' });
+  assertStdioTransport(calls[0]);
+  assert.equal(calls[0].value.env.SESSION_ONLY, 'yes');
+  assert.equal(calls[0].value.env.API_KEY, 'secret-env');
+  assert.equal('PATH' in calls[0].value.env, false);
+});
+
 test('createSameOriginFetch gives SDK/client headers precedence over configured headers', async () => {
   const requests: Array<{ url: string; headers: Headers }> = [];
   const previous = global.fetch;
@@ -396,29 +393,21 @@ test('createSameOriginFetch rejects every redirect, cancels the body, and never 
   assertCapturedPost(calls[0]);
 });
 
-test('empty compositions and subagents suppress plugin config reads before the file is touched', () => {
-  let reads = 0;
-  const loadPluginConfig = () => {
-    reads += 1;
-    return pluginConfig({
-      name: 'portable-plugin',
-      type: 'sse',
-      url: 'https://private.example.com/events',
-      headers: {},
-    });
-  };
+test('empty compositions and subagents ignore the plugin server set', () => {
+  const issues: string[] = [];
+  const plugins: McpServerConfig[] = [
+    { name: 'portable-plugin', type: 'sse', url: 'https://private.example.com/events', headers: {} },
+  ];
 
   assert.deepEqual(buildServerStates({
     [PI_MCP_COMPOSITION_ENV]: 'none',
-    [PI_PLUGIN_MCP_CONFIG_ENV]: PLUGIN_CONFIG_PATH,
-  }, { loadPluginConfig }), []);
+  }, plugins, (message) => issues.push(message)), []);
   assert.deepEqual(buildServerStates({
     [PI_MCP_COMPOSITION_ENV]: 'direct',
     CORTEX_PI_SUBAGENT: '1',
     [PI_INTERACTION_BRIDGE_ENV]: '1',
-    [PI_PLUGIN_MCP_CONFIG_ENV]: PLUGIN_CONFIG_PATH,
-  }, { loadPluginConfig }).map(state => state.name), ['core']);
-  assert.equal(reads, 0);
+  }, plugins, (message) => issues.push(message)).map(state => state.name), ['core']);
+  assert.deepEqual(issues, []);
 });
 
 test('buildServerStates loads the shared interaction bridge only for eligible direct PI sessions', () => {
@@ -447,6 +436,23 @@ test('buildServerStates validates interaction tools only when the shared bridge 
     [PI_MCP_COMPOSITION_ENV]: 'direct',
     [MCP_TOOL_ALLOWLIST_ENV]: allowed,
   }), /Unknown MCP tool.*cortex_ask_user/);
+});
+
+test('the bundled core env carries the session env plus a commission-free gate for the bridge', () => {
+  const env = coreEnv(buildServerStates({
+    [PI_MCP_COMPOSITION_ENV]: 'direct',
+    [PI_INTERACTION_BRIDGE_ENV]: '1',
+    CORTEX_SESSION_ID: 'sess-core',
+    SLACK_CHANNEL: 'slack:C0123',
+  }));
+  assert.equal(env.CORTEX_SESSION_ID, 'sess-core');
+  assert.equal(env.SLACK_CHANNEL, 'slack:C0123');
+  assert.equal(env.SLACK_BOT_TOKEN, '');
+  assert.equal(env.FEISHU_CHANNEL, '');
+  const allowed = JSON.parse(env[MCP_TOOL_ALLOWLIST_ENV]) as string[];
+  assert.ok(allowed.includes('cortex_plan_exit'));
+  assert.equal(allowed.includes('cortex_commission_start'), false);
+  assert.equal(coreEnv(buildServerStates({ [PI_MCP_COMPOSITION_ENV]: 'direct' }))[MCP_TOOL_ALLOWLIST_ENV], undefined);
 });
 
 test('eligible PI sessions register the three shared interaction tool names', async () => {
@@ -483,15 +489,10 @@ test('buildServerStates validates a tool gate against the composed built-in unio
 });
 
 test('buildServerStates appends namespaced plugin servers after the built-in direct set', () => {
-  const states = buildServerStates({
-    [PI_MCP_COMPOSITION_ENV]: 'direct',
-    [PI_PLUGIN_MCP_CONFIG_ENV]: PLUGIN_CONFIG_PATH,
-  }, {
-    loadPluginConfig: () => pluginConfig(
-      { name: 'portable-http', type: 'streamable-http', url: 'https://private.example.com/mcp', headers: {} },
-      { name: 'portable-sse', type: 'sse', url: 'https://private.example.com/events', headers: {} },
-    ),
-  });
+  const states = buildServerStates(directEnv(), [
+    { name: 'portable-sse', type: 'sse', url: 'https://private.example.com/events', headers: {} },
+    { name: 'portable-http', type: 'streamable-http', url: 'https://private.example.com/mcp', headers: {} },
+  ]);
 
   assert.deepEqual(states.map(state => state.name), [
     'core', pluginServerStateName('portable-http'), pluginServerStateName('portable-sse'),
@@ -499,6 +500,9 @@ test('buildServerStates appends namespaced plugin servers after the built-in dir
   assert.deepEqual(selectedBundles(states), [
     'cortex-core', 'cortex-tasks', 'cortex-manager-qa', 'cortex-ext',
   ]);
+  const http = states[1];
+  assert.ok(http.source.kind === 'plugin');
+  assert.equal(http.source.config.name, 'portable-http');
 });
 
 test('plugin server and tool names stay safe for dotted, colon, percent, and long names', () => {
@@ -521,16 +525,10 @@ test('pluginToolName stays distinct across pair-boundary collisions', () => {
 
 test('buildServerStates reports and skips duplicate plugin server state names deterministically', () => {
   const issues: string[] = [];
-  const states = buildServerStates({
-    [PI_MCP_COMPOSITION_ENV]: 'direct',
-    [PI_PLUGIN_MCP_CONFIG_ENV]: PLUGIN_CONFIG_PATH,
-  }, {
-    loadPluginConfig: () => pluginConfig(
-      { name: 'duplicate', type: 'sse', url: 'https://one.example.com/events', headers: {} },
-      { name: 'duplicate', type: 'streamable-http', url: 'https://two.example.com/mcp', headers: {} },
-    ),
-    reportPluginIssue: (issue) => issues.push(issue.message),
-  });
+  const states = buildServerStates(directEnv(), [
+    { name: 'duplicate', type: 'sse', url: 'https://one.example.com/events', headers: {} },
+    { name: 'duplicate', type: 'streamable-http', url: 'https://two.example.com/mcp', headers: {} },
+  ], (message) => issues.push(message));
 
   assert.deepEqual(states.map(state => state.name), [
     'core', pluginServerStateName('duplicate'),
@@ -538,16 +536,17 @@ test('buildServerStates reports and skips duplicate plugin server state names de
   assert.deepEqual(issues, [`Duplicate MCP server state name: ${pluginServerStateName('duplicate')}`]);
 });
 
-function duplicateConfigIssueScenario() {
+function duplicatePluginNameScenario() {
   const harness = createPiHarness();
   const spawned: string[] = [];
   const failures: string[] = [];
   const deps = bridgeDeps({
-    env: directPluginEnv(),
-    loadPluginConfig: () => ({
-      servers: [{ name: 'portable-unique', type: 'sse', url: 'https://unique.example.com/events', headers: {} }],
-      issues: [{ path: `${PLUGIN_CONFIG_PATH}#mcpServers[1].name`, message: 'Duplicate PI plugin MCP server name: portable-duplicate' }],
-    }),
+    env: directEnv(),
+    pluginServers: [
+      { name: 'portable-unique', type: 'sse', url: 'https://unique.example.com/events', headers: {} },
+      { name: 'portable-duplicate', type: 'sse', url: 'https://one.example.com/events', headers: {} },
+      { name: 'portable-duplicate', type: 'streamable-http', url: 'https://two.example.com/mcp', headers: {} },
+    ],
     reportFailure: (error) => failures.push((error as Error).message),
     spawnClient: async (state) => {
       spawned.push(state.name);
@@ -557,45 +556,17 @@ function duplicateConfigIssueScenario() {
   return { harness, spawned, failures, deps };
 }
 
-test('plugin config duplicate-name issues are reported while built-ins and unique plugins still register', async () => {
-  const { harness, spawned, failures, deps } = duplicateConfigIssueScenario();
+test('duplicate plugin names reach reportFailure while built-ins and the remaining plugins still register', async () => {
+  const { harness, spawned, failures, deps } = duplicatePluginNameScenario();
+  const duplicateState = pluginServerStateName('portable-duplicate');
   const uniqueState = pluginServerStateName('portable-unique');
   await installMcpBridge(harness.pi, deps);
   await harness.fire('before_agent_start');
-  assert.deepEqual(spawned, [...BUILTIN_STATES, uniqueState]);
+  assert.deepEqual(spawned, [...BUILTIN_STATES, duplicateState, uniqueState]);
   assert.deepEqual(harness.registered, [
-    'core_tool', pluginToolName(uniqueState, 'search'),
+    'core_tool', pluginToolName(duplicateState, 'search'), pluginToolName(uniqueState, 'search'),
   ]);
-  assert.equal(failures.length, 1);
-  assert.match(failures[0], /Duplicate PI plugin MCP server name/);
-});
-
-test('plugin config envelope failures are reported while built-ins still register', async () => {
-  const harness = createPiHarness();
-  const spawned: string[] = [];
-  const failures: string[] = [];
-  const deps = bridgeDeps({
-    env: {
-      [PI_MCP_COMPOSITION_ENV]: 'direct',
-      [PI_PLUGIN_MCP_CONFIG_ENV]: PLUGIN_CONFIG_PATH,
-    },
-    loadPluginConfig: () => ({
-      servers: [],
-      issues: [{ path: PLUGIN_CONFIG_PATH, message: 'plugin config hash mismatch' }],
-    }),
-    reportFailure: (error) => failures.push((error as Error).message),
-    spawnClient: async (state) => {
-      spawned.push(state.name);
-      return fakeHandle(state.name);
-    },
-  });
-
-  await installMcpBridge(harness.pi, deps);
-  await harness.fire('before_agent_start');
-
-  assert.deepEqual(spawned, ['core']);
-  assert.equal(failures.length, 1);
-  assert.match(failures[0], /hash mismatch/);
+  assert.deepEqual(failures, [`Duplicate MCP server state name: ${duplicateState}`]);
 });
 
 test('bridged MCP calls use the shared 30m30s infrastructure deadline', async () => {
@@ -649,11 +620,10 @@ test('subagent MCP bridge exposes only cortex-core', async () => {
       CORTEX_PI_SUBAGENT: '1',
       CORTEX_THREAD_ID: 'thr_parent',
       SLACK_CHANNEL: 'slack:C0123',
-      [PI_PLUGIN_MCP_CONFIG_ENV]: PLUGIN_CONFIG_PATH,
     },
-    loadPluginConfig: () => {
-      throw new Error('plugin config must not be read for subagents');
-    },
+    pluginServers: [
+      { name: 'portable-alpha', type: 'sse', url: 'https://alpha.example.com/events', headers: {} },
+    ],
     spawnClient: async (state) => {
       spawned.push(state.name);
       return fakeHandle(state.name);
@@ -685,17 +655,17 @@ test('top-level direct MCP bridge loads manager answers without thread control',
   assert.deepEqual(harness.registered, ['core_tool']);
 });
 
-function alphaPluginConfig(): McpServerConfig[] {
-  return pluginConfig({
-    name: 'portable-alpha', type: 'sse', url: 'https://alpha.example.com/events', headers: {},
-  });
+function alphaPluginServers(): McpServerConfig[] {
+  return [
+    { name: 'portable-alpha', type: 'sse', url: 'https://alpha.example.com/events', headers: {} },
+  ];
 }
 
-function alphaBetaPluginConfig(): McpServerConfig[] {
-  return pluginConfig(
+function alphaBetaPluginServers(): McpServerConfig[] {
+  return [
     { name: 'portable-alpha', type: 'sse', url: 'https://alpha.example.com/events', headers: {} },
     { name: 'portable-beta', type: 'sse', url: 'https://beta.example.com/events', headers: {} },
-  );
+  ];
 }
 
 function connectFailureScenario() {
@@ -703,8 +673,8 @@ function connectFailureScenario() {
   const attempts = new Map<string, number>();
   const failures: string[] = [];
   const deps = bridgeDeps({
-    env: directPluginEnv(),
-    loadPluginConfig: alphaBetaPluginConfig,
+    env: directEnv(),
+    pluginServers: alphaBetaPluginServers(),
     reportFailure: (error) => failures.push((error as Error).message),
     spawnClient: async (state) => {
       const attempt = (attempts.get(state.name) ?? 0) + 1;
@@ -741,15 +711,15 @@ function listFailureScenario() {
   const attempts = new Map<string, number>();
   const failures: string[] = [];
   const deps = bridgeDeps({
-    env: directPluginEnv(),
-    loadPluginConfig: alphaPluginConfig,
+    env: directEnv(),
+    pluginServers: alphaPluginServers(),
     reportFailure: (error) => failures.push((error as Error).message),
     spawnClient: async (state) => fakeHandle(state.name, {
       listTools: async () => {
         const attempt = (attempts.get(state.name) ?? 0) + 1;
         attempts.set(state.name, attempt);
         if (state.name === ALPHA_STATE && attempt === 1) throw new Error('alpha list unavailable');
-        const toolName = state.config.name === state.name ? `${state.name}_tool` : 'search';
+        const toolName = state.source.kind === 'bundled' ? `${state.name}_tool` : 'search';
         return { tools: [{ name: toolName, description: state.name, inputSchema: { type: 'object' } }] };
       },
     }),
@@ -774,8 +744,8 @@ function registerFailureScenario() {
   const harness = createPiHarness({ registerFailures: new Set([ALPHA_TOOL]) });
   const failures: string[] = [];
   const deps = bridgeDeps({
-    env: directPluginEnv(),
-    loadPluginConfig: alphaBetaPluginConfig,
+    env: directEnv(),
+    pluginServers: alphaBetaPluginServers(),
     reportFailure: (error) => failures.push((error as Error).message),
     spawnClient: async (state) => searchableHandle(state),
   });
@@ -799,8 +769,8 @@ function duplicateToolScenario() {
   const harness = createPiHarness();
   const failures: string[] = [];
   const deps = bridgeDeps({
-    env: directPluginEnv(),
-    loadPluginConfig: alphaPluginConfig,
+    env: directEnv(),
+    pluginServers: alphaPluginServers(),
     reportFailure: (error) => failures.push((error as Error).message),
     spawnClient: async (state) => {
       if (state.name !== ALPHA_STATE) return fakeHandle(state.name);
@@ -831,8 +801,8 @@ function shutdownScenario() {
   const closed: string[] = [];
   const spawned: string[] = [];
   const deps = bridgeDeps({
-    env: directPluginEnv(),
-    loadPluginConfig: alphaPluginConfig,
+    env: directEnv(),
+    pluginServers: alphaPluginServers(),
     spawnClient: async (state) => {
       spawned.push(state.name);
       return fakeHandle(state.name, { close: async () => { closed.push(state.name); } });
@@ -853,23 +823,26 @@ test('shutdown closes every handle and a later turn can reconnect', async () => 
   ]);
 });
 
-// Real transport integration: invoking one tool exercises server startup, registration, RPC, and mapping.
+// Real in-process integration: the production deps serve the bundled core server over an in-memory
+// transport pair (no child process); listing and invoking one tool exercises bundle loading, the
+// tool gate, the MCP round trip, and content mapping.
 
-test('cost_query tool returns text content when called', { timeout: 15000 }, async () => {
-  const transport = new StdioClientTransport({
-    command: 'node',
-    args: [BUNDLED_SERVER_PATH],
-    stderr: 'pipe',
-    env: { ...process.env, [MCP_BUNDLES_ENV]: JSON.stringify(['cortex-ext']) },
-  });
-  const client = new Client({ name: 'test-ext-server-cost', version: '1.0.0' });
-  await client.connect(transport);
+test('createMcpBridgeDeps serves the bundled core server in-process and cost_query returns text', { timeout: 15000 }, async () => {
+  const env: NodeJS.ProcessEnv = directEnv();
+  const deps = createMcpBridgeDeps(env, []);
+  const states = buildServerStates(env);
+  const core = states.find(state => state.name === 'core');
+  assert.ok(core?.source.kind === 'bundled');
+  const handle = await deps.spawnClient(core);
   try {
-    const result = await client.callTool({ name: 'cost_query', arguments: {} });
+    const { tools } = await handle.client.listTools();
+    const expected = core.source.bundles.flatMap(bundle => MCP_TOOLS_BY_SERVER[bundle] ?? []).sort();
+    assert.deepEqual(tools.map(tool => tool.name).sort(), expected);
+    const result = await handle.client.callTool({ name: 'cost_query', arguments: {} });
     const mapped = (result.content as any[]).map(mapMcpContent);
     assert.ok(mapped.length > 0, 'cost_query should return at least one content item');
     assert.ok(mapped.every((c: any) => c.type === 'text'), 'all mapped content items should be text');
   } finally {
-    await transport.close();
+    await handle.transport.close();
   }
 });

@@ -1,4 +1,3 @@
-{"type":"response","id":"bootstrap","command":"get_state","success":true,"data":{"sessionId":"pi-sess-01-single"}}
 {"type":"message_update","message":{"id":"msg-01"},"assistantMessageEvent":{"type":"text_delta","delta":"Let me check the git status."}}
 {"type":"tool_execution_start","toolCallId":"tc-01","toolName":"bash","args":{"command":"git status","description":"Show working tree status"}}
 {"type":"tool_execution_end","toolCallId":"tc-01","isError":false,"result":{"content":[{"type":"text","text":"On branch main\nnothing to commit, working tree clean"}]}}

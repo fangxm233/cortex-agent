@@ -14,17 +14,17 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | agent-adapter-claude.test.ts | test | Claude bundles, interactions, pools and proxy |
 | agent-adapter-pi-agent-dir.test.ts | test | PI provider config and auth dir setup |
 | agent-adapter-pi-custom-catalog.test.ts | test | provider definitions and frozen caps reaching spawn catalogs |
-| agent-adapter-pi-event-parser.test.ts | test | PI tool, dialog, lifecycle and usage events |
-| agent-adapter-pi-hook-bridge.test.ts | test | PI hook lifecycle and CORTEX injection |
+| agent-adapter-pi-event-parser.test.ts | test | PI session event translation and context usage mapping |
+| agent-adapter-pi-hook-bridge.test.ts | test | PI async hook lifecycle and CORTEX injection |
 | agent-adapter-pi-hook-registry.test.ts | test | PI hook contracts and task guards |
 | agent-adapter-pi-mcp-config.test.ts | test | PI MCP config privacy and reloads |
 | agent-adapter-pi-mcp-bridge.test.ts | test | PI bundled MCP, plugin isolation and retry |
-| agent-adapter-pi-quota-probe.test.ts | test | PI quota labels, persistence, and throttle failure parity |
+| agent-adapter-pi-quota-probe.test.ts | test | PI quota reporting, persistence, and throttle failure parity |
 | agent-adapter-pi-streaming.test.ts | test | PI delta streaming with settings reset |
 | agent-adapter-pi-subagent.test.ts | test | PI schema, chain prompts, isolation and usage |
 | agent-adapter-pi-tool-shims.test.ts | test | PI-local shims, dialogs and web tools |
 | agent-adapter-pi-web-search.test.ts | test | PI WebSearch routing and decoding |
-| agent-adapter-pi.test.ts | test | PI interaction env, RPC lifecycle and resume |
+| agent-adapter-pi.test.ts | test | PI interaction env, in-process session lifecycle and resume |
 | agent-adapter.test.ts | test | adapter dispatch, native tools and event contracts |
 | agent-adapter-todo.test.ts | test | TodoWrite snapshot parsing, degradation and progress rendering |
 | agent-retry-classification.test.ts | test | Retry, auth lifecycle and outage classification |

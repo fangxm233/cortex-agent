@@ -21,8 +21,9 @@ export * from './normalize/hooks.js';
 export * from './normalize/tool-names.js';
 
 // The daemon's PI collaborators are injected here rather than defaulted inside the adapter: the host
-// PI home, its cached provider scan and its auth mirroring are exactly the ambient reaches design
-// §13 A1/A6/A7 forbids a trial from touching, and this registry is the daemon-only owner of all three.
+// PI home, its cached provider scan and its auth mirroring are exactly the ambient reaches a trial
+// must not touch, and this registry is the daemon-only owner of all three. The runtime factory is
+// left at its default: the PI SDK session created in this process.
 const PI_ADAPTER = new PIAdapter(undefined, DEFAULT_SESSION_DIR, piProviderDiscovery, {
   agentDir: PI_AGENT_DIR,
   prepareAgentDir: (agentDir) => ensureAuthVisible({ agentDir }),

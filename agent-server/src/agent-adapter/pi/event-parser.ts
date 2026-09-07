@@ -1,13 +1,12 @@
-// input:  PI RPC JSONL and parser state
+// input:  PI session events and parser state
 // output: Normalized events including attributed runtime prompts
-// pos:    Translates PI RPC events
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+// pos:    Translates PI session events
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { ContextUsage } from '@core/types/agent-types.js';
 import type { NormalizedEvent, QuestionSpec, ToolUseSubagent } from '../normalize/event-types.js';
 import { toCanonical } from '../normalize/tool-names.js';
 import { parseTodoWrite } from '../normalize/todo.js';
-import { decodeQuotaNotice } from '@domain/costs/codex-quota.js';
 import { decodeSubagentNotice, type SubagentNotice } from './subagent-notice.js';
 
 interface PIPendingCompletion {
@@ -30,8 +29,6 @@ interface PIAgentEndSummary extends PIPendingCompletion {
 }
 
 export interface PIEventParserState {
-  /** Set on first successful bootstrap response; also serves as the session_started dedup sentinel. */
-  sessionId: string | null;
   /** Cumulative turn count; incremented on each message_end to drive turn_progress. */
   turnProgressCount: number;
   /** Low-level PI runs accumulated until agent_settled closes the Cortex turn. */
@@ -40,77 +37,30 @@ export interface PIEventParserState {
 
 export function createPIEventParserState(): PIEventParserState {
   return {
-    sessionId: null,
     turnProgressCount: 0,
     pendingCompletion: emptyPendingCompletion(),
   };
 }
 
 /**
- * Translate one raw PI rpc stdout line (JSONL) to zero or more NormalizedEvents.
- *
- * Bootstrap dedup: state.sessionId is the sentinel. The parser sets it on first emission and
- * returns [] on subsequent bootstrap hits (Option A per Plan Review N2H-3).
+ * Translate one PI session event (as delivered by `AgentSession.subscribe`, or an
+ * `extension_ui_request` the host raised for an extension) to zero or more NormalizedEvents.
  *
  * Dropped events (return []): turn_start, turn_end, message_start, agent_start,
- * queue_update, compaction_end, auto_retry_start/end, successful unrelated response,
- * message_update without text_delta, fire-and-forget extension_ui_request.
+ * queue_update, compaction_end, auto_retry_start/end, message_update without text_delta,
+ * fire-and-forget extension_ui_request.
  * message_end emits a turn_progress heartbeat (non-terminal, state.turnProgressCount++).
  * compaction_start emits a context_compacted event (user notification); compaction_end is dropped
- * to avoid a duplicate notice.
+ * to avoid a duplicate notice. Session identity and context usage are not events here: the
+ * session reads both straight off the SDK session.
  */
-export function piRpcLineToNormalized(line: string, state: PIEventParserState): NormalizedEvent[] {
-  if (!line) return [];
-  let obj: unknown;
-  try {
-    obj = JSON.parse(line);
-  } catch {
-    return [];
-  }
-  if (!obj || typeof obj !== 'object') return [];
-  const ev = obj as Record<string, unknown>;
+export function piEventToNormalized(
+  event: Record<string, unknown>,
+  state: PIEventParserState,
+): NormalizedEvent[] {
+  const ev = event;
   if (typeof ev['type'] !== 'string') return [];
   const type = ev['type'] as string;
-
-  // --- response (bootstrap, optional context stats, or failed) ---
-  if (type === 'response') {
-    if (ev['command'] === 'get_session_stats') {
-      return ev['success'] === true ? contextUsageFromStats(ev['data']) : [];
-    }
-    if (
-      ev['id'] === 'bootstrap' &&
-      ev['command'] === 'get_state' &&
-      ev['success'] === true
-    ) {
-      // Bootstrap dedup: only emit if not yet announced (N2H-3 Option A).
-      if (state.sessionId !== null) return [];
-      const data = ev['data'];
-      if (data && typeof data === 'object') {
-        const sid = (data as Record<string, unknown>)['sessionId'];
-        if (typeof sid === 'string' && sid.length > 0) {
-          const sf = (data as Record<string, unknown>)['sessionFile'];
-          state.sessionId = sid;
-          const event: NormalizedEvent = { type: 'session_started', sessionId: sid };
-          if (typeof sf === 'string' && sf.length > 0) {
-            (event as any).sessionFile = sf;
-          }
-          return [event];
-        }
-      }
-      return [];
-    }
-    // Non-bootstrap failed response → non-fatal error.
-    if (ev['success'] === false) {
-      const errMsg = ev['error'];
-      const cmd = ev['command'];
-      const message =
-        typeof errMsg === 'string' && errMsg.length > 0
-          ? errMsg
-          : `pi command failed: ${typeof cmd === 'string' ? cmd : 'unknown'}`;
-      return [{ type: 'error', message, fatal: false }];
-    }
-    return [];
-  }
 
   // --- message_update → assistant_text (text_delta only) ---
   if (type === 'message_update') {
@@ -183,13 +133,12 @@ export function piRpcLineToNormalized(line: string, state: PIEventParserState): 
   }
 
   // --- extension_ui_request → ask_user_question (dialog methods only) ---
-  // DR-0008 §5.5 revision #4: extension_ui sub-protocol may handle interactive pseudo-tools.
   if (type === 'extension_ui_request') {
     return handleExtensionUiRequest(ev);
   }
 
-  // Silently drop all other events (turn_start/end, message_start/end, agent_start,
-  // queue_update, compaction_end, auto_retry_start/end, successful non-bootstrap response).
+  // Silently drop all other events (turn_start/end, message_start, agent_start,
+  // queue_update, compaction_end, auto_retry_start/end).
   return [];
 }
 
@@ -414,17 +363,12 @@ function handleExtensionUiRequest(ev: Record<string, unknown>): NormalizedEvent[
   const method = ev['method'];
   if (typeof id !== 'string' || typeof method !== 'string') return [];
 
-  // `notify` is PI's only fire-and-forget message to the host, so the quota probe extension rides
-  // it to report what it read off the provider response headers. Anything without the quota prefix
-  // is a real user notification and keeps falling through to the drop below.
+  // `notify` is PI's only fire-and-forget message to the host. A PI subagent runs in its own
+  // session; its output reaches us only because subagent.ts deliberately forwards it over this
+  // channel (see subagent-notice.ts). Anything else is a real user notification and drops.
   if (method === 'notify') {
-    const reading = decodeQuotaNotice(ev['message']);
-    if (reading) return [{ type: 'rate_limit', raw: reading }];
-    // A PI subagent is a separate process; its output reaches us only because subagent.ts
-    // deliberately forwards it over this same channel (see subagent-notice.ts).
     const notice = decodeSubagentNotice(ev['message']);
-    if (notice) return subagentEvents(notice);
-    return [];
+    return notice ? subagentEvents(notice) : [];
   }
 
   // Only dialog methods produce ask_user_question; fire-and-forget methods → [].
@@ -457,12 +401,7 @@ function handleExtensionUiRequest(ev: Record<string, unknown>): NormalizedEvent[
   return [{ type: 'ask_user_question', toolUseId: id, questions: [spec] }];
 }
 
-function contextUsageFromStats(data: unknown): NormalizedEvent[] {
-  const usage = piContextUsageFromStats(data);
-  return usage ? [{ type: 'context_usage', ...usage }] : [];
-}
-
-/** Validate a get_session_stats payload for both event and control-call consumers. */
+/** Validate a session stats payload (`AgentSession.getSessionStats()`) into a ContextUsage. */
 export function piContextUsageFromStats(data: unknown): ContextUsage | null {
   const usage = asRecord(asRecord(data)['contextUsage']);
   const contextWindow = usage['contextWindow'];

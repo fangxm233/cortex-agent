@@ -30,6 +30,15 @@ export async function piSdkVersion(): Promise<string> {
 }
 
 /**
+ * The bundled PI CLI entry (`<package>/dist/cli.js`), for the child processes Cortex still runs
+ * through PI's command line. Resolved from the loaded SDK so it always matches the pinned version
+ * and never depends on a `pi` binary on PATH.
+ */
+export async function piCliPath(): Promise<string> {
+  return path.join((await loadPiSdk()).getPackageDir(), 'dist', 'cli.js');
+}
+
+/**
  * PI's own agent directory (`~/.pi/agent`). Its auth.json and models.json are shared with a
  * separately installed `pi` CLI, so login state and user-defined providers are discovered here
  * rather than in Cortex's private PI agent directory.

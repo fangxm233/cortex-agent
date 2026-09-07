@@ -39,8 +39,8 @@ import {
   pluginServerStateName,
 } from '../src/agent-adapter/pi/mcp-bridge.js';
 import { safeNativeComposite } from '../src/domain/plugins/native-name.js';
-import { PI_PLUGIN_MCP_CONFIG_ENV } from '../src/agent-adapter/pi/mcp-config.js';
 import { buildPiEnv, PI_MCP_COMPOSITION_ENV } from '../src/agent-adapter/pi/spawn-args.js';
+import { makeFakeRuntimeFactory } from './agent-adapter/pi-fake-runtime.js';
 import { generateMcpConfig } from '../src/core/config-generator.js';
 import { encodeMcpBundles, MCP_BUNDLES_ENV } from '../src/core/mcp-bundles.js';
 import { CONFIG_DIR, DATA_DIR } from '../src/core/paths.js';
@@ -481,33 +481,18 @@ function stubBackendChild(): ChildProcessWithoutNullStreams {
 
 test('PI carries the empty MCP composition strictly', () => {
   const root = mkdtempSync(path.join(tmpdir(), 'pi-strict-'));
-  const spawned: NodeJS.ProcessEnv[] = [];
-  const adapter = new PIAdapter((_cmd, _args, opts) => {
-    spawned.push(opts.env ?? {});
-    return { process: stubBackendChild() };
-  }, root);
+  const fake = makeFakeRuntimeFactory();
+  const adapter = new PIAdapter(fake.factory, root);
 
   adapter.spawn({
     sessionId: null, sessionKey: 'pi-none', resume: false,
     mcpComposition: 'none',
   });
-  assert.equal(spawned[0][PI_MCP_COMPOSITION_ENV], 'none');
-  assert.deepEqual(buildServerStates(spawned[0]), []);
+  const { env, pluginMcpServers } = fake.requests[0];
+  assert.equal(env[PI_MCP_COMPOSITION_ENV], 'none');
+  assert.deepEqual(buildServerStates(env, pluginMcpServers), []);
   rmSync(root, { recursive: true, force: true });
 });
-
-interface PiSpawnCapture {
-  argv: string[][];
-  envs: NodeJS.ProcessEnv[];
-}
-
-function capturingPiAdapter(capture: PiSpawnCapture): PIAdapter {
-  return new PIAdapter((_cmd, args, opts) => {
-    capture.argv.push(args);
-    capture.envs.push(opts.env ?? {});
-    return { process: stubBackendChild() };
-  }, mkdtempSync(path.join(tmpdir(), 'pi-plugin-mcp-')));
-}
 
 function spawnPrivatePluginServer(adapter: PIAdapter): void {
   adapter.spawn({
@@ -526,27 +511,23 @@ function spawnPrivatePluginServer(adapter: PIAdapter): void {
   });
 }
 
-function assertPrivatePluginCapture(capture: PiSpawnCapture): void {
-  assert.equal(capture.argv.length, 1);
-  assert.equal(capture.envs.length, 1);
-  assert.ok(capture.argv[0].every(value => !value.includes('secret-arg')));
-  assert.ok(capture.argv[0].every(value => !value.includes('secret-env')));
-  const configPath = capture.envs[0][PI_PLUGIN_MCP_CONFIG_ENV];
-  assert.equal(typeof configPath, 'string');
-  assert.ok(configPath!.includes(path.join('plugin-runtime', 'pi-mcp')));
-  const states = buildServerStates(capture.envs[0]).map(state => state.name);
-  assert.deepEqual(states, ['core', pluginServerStateName('portable-private')]);
-}
-
-function assertPiPrivatePluginMcpBridge(): void {
-  const capture: PiSpawnCapture = { argv: [], envs: [] };
-  spawnPrivatePluginServer(capturingPiAdapter(capture));
-  assertPrivatePluginCapture(capture);
-}
-
 test(
-  'PI adapter writes private plugin MCP config to env only and the bridge resolves namespaced plugin states from it',
-  assertPiPrivatePluginMcpBridge,
+  'PI adapter keeps private plugin MCP config out of the session env and the bridge resolves namespaced plugin states from the request',
+  () => {
+    const fake = makeFakeRuntimeFactory();
+    spawnPrivatePluginServer(new PIAdapter(fake.factory, mkdtempSync(path.join(tmpdir(), 'pi-plugin-mcp-'))));
+    assert.equal(fake.requests.length, 1);
+    const { env, pluginMcpServers } = fake.requests[0];
+    // The session env reaches hook scripts and plugin server processes; a plugin's own secrets
+    // must not leak into it.
+    for (const value of Object.values(env)) {
+      assert.ok(!String(value).includes('secret-arg'));
+      assert.ok(!String(value).includes('secret-env'));
+    }
+    assert.deepEqual(pluginMcpServers.map((server) => server.name), ['portable-private']);
+    const states = buildServerStates(env, pluginMcpServers).map(state => state.name);
+    assert.deepEqual(states, ['core', pluginServerStateName('portable-private')]);
+  },
 );
 
 function installFakeClaude(binDir: string): void {

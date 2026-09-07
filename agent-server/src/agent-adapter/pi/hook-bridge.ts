@@ -1,9 +1,9 @@
-// input:  PI ExtensionAPI, declarative hook registry
+// input:  PI ExtensionAPI, session env, declarative hook registry
 // output: Ordered PI hook handlers with native results and mutations
 // pos:    Compiles registry entries into PI event handlers
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import * as path from 'node:path';
 import { DEFAULTS_DIR, HOOKS_DIR } from '../../core/utils.js';
 import { createLogger } from '../../core/log.js';
@@ -13,16 +13,44 @@ import {
   type AgentHookEvent,
   type HookEntry,
 } from '../../store/hook-registry.js';
-import type {
-  BeforeAgentStartEvent,
-  ExtensionAPI,
-  ExtensionContext,
-  ToolCallEvent,
-  ToolResultEvent,
-  ToolCallReturn,
-} from './pi-ext-types.js';
 
 const log = createLogger('hook-bridge');
+
+/** The slice of PI's extension context the bridge reads. Structural so tests can pass a stub. */
+export interface HookContext {
+  cwd: string;
+  sessionManager?: { getSessionFile(): string | undefined };
+}
+
+/** The slice of PI's ExtensionAPI the bridge registers through. */
+export interface HookHost {
+  on(event: string, handler: (event: any, ctx: HookContext) => unknown): void;
+}
+
+/** Event fired by PI before a built-in or registered tool is executed. Input is mutable. */
+export interface ToolCallEvent {
+  toolName: string;
+  toolCallId: string;
+  input: Record<string, unknown>;
+}
+
+/** Event fired by PI after a tool has finished executing. */
+export interface ToolResultEvent {
+  toolName: string;
+  toolCallId: string;
+  input: Record<string, unknown>;
+  content: unknown;
+  details?: unknown;
+  isError: boolean;
+}
+
+export interface BeforeAgentStartEvent {
+  prompt?: string;
+  systemPrompt?: string;
+}
+
+/** Return type for tool_call handlers: block the tool call or let it proceed. */
+export type ToolCallReturn = { block: true; reason?: string } | undefined;
 
 // PI tool name → Claude-native name used by agent:* registry matchers.
 const TOOL_NAME_MAP: Record<string, string> = {
@@ -88,13 +116,13 @@ export function normalizePiInput(
 
 /**
  * Derive the Cortex session ID from the PI extension context.
- * Falls back to CORTEX_SESSION_ID env var, then 'unknown'.
- * Guards for getSessionFile() returning undefined (PI --no-session or pre-session state).
+ * Falls back to the session env's CORTEX_SESSION_ID, then 'unknown'.
+ * Guards for getSessionFile() returning undefined (in-memory or pre-session state).
  */
-export function getSessionId(ctx: ExtensionContext): string {
+export function getSessionId(ctx: HookContext, env: NodeJS.ProcessEnv = process.env): string {
   const f = ctx.sessionManager?.getSessionFile();
   if (f) return path.basename(f, '.jsonl');
-  return process.env['CORTEX_SESSION_ID'] ?? 'unknown';
+  return env['CORTEX_SESSION_ID'] ?? 'unknown';
 }
 
 interface TextContent {
@@ -137,10 +165,11 @@ function extractToolOutput(content: unknown): string {
     .join('');
 }
 
-function hookEnvironment(sessionId: string): NodeJS.ProcessEnv {
-  const cacheSessionId = process.env.CORTEX_CACHE_SESSION_ID ?? process.env.CORTEX_SESSION_ID;
+/** A hook script runs in the session's environment (not the daemon's), pinned to its session. */
+function hookEnvironment(env: NodeJS.ProcessEnv, sessionId: string): NodeJS.ProcessEnv {
+  const cacheSessionId = env.CORTEX_CACHE_SESSION_ID ?? env.CORTEX_SESSION_ID;
   return {
-    ...process.env,
+    ...env,
     ...(cacheSessionId ? { CORTEX_CACHE_SESSION_ID: cacheSessionId } : {}),
     CORTEX_SESSION_ID: sessionId,
   };
@@ -161,22 +190,50 @@ function failedProcess(status: number | null, stderr: string | null): Error | nu
   return new Error(`exited with code ${status}${detail}`);
 }
 
+/**
+ * Run one hook process to completion without blocking the event loop. The bridge lives in the
+ * daemon now, so a synchronous wait here would stall every other session for the hook's whole
+ * runtime; PI awaits handler promises, so the tool call still waits for its own hook.
+ */
 function spawnHook(
   command: string,
   args: string[],
   payload: ClaudeHookPayload | Record<string, unknown>,
   timeoutMs: number,
-): unknown {
-  const result = spawnSync(command, args, {
-    input: JSON.stringify(payload),
-    encoding: 'utf8',
-    timeout: timeoutMs,
-    env: hookEnvironment(payload.session_id as string),
+  env: NodeJS.ProcessEnv,
+): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      env: hookEnvironment(env, String(payload.session_id ?? 'unknown')),
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    let stderr = '';
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill('SIGKILL');
+    }, timeoutMs);
+    child.stdout.setEncoding('utf8').on('data', (chunk: string) => { stdout += chunk; });
+    child.stderr.setEncoding('utf8').on('data', (chunk: string) => { stderr += chunk; });
+    child.on('error', (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.on('close', (status) => {
+      clearTimeout(timer);
+      if (timedOut) {
+        reject(new Error(`timed out after ${timeoutMs}ms`));
+        return;
+      }
+      const failure = failedProcess(status, stderr);
+      if (failure) reject(failure);
+      else resolve(parseHookOutput(stdout));
+    });
+    // A hook may exit before reading its stdin; that must not surface as an unhandled error.
+    child.stdin.on('error', () => undefined);
+    child.stdin.end(JSON.stringify(payload));
   });
-  if (result.error) throw result.error;
-  const failure = failedProcess(result.status, result.stderr);
-  if (failure) throw failure;
-  return parseHookOutput(result.stdout);
 }
 
 function asHookResult(value: unknown): HookResult {
@@ -184,24 +241,26 @@ function asHookResult(value: unknown): HookResult {
   return value as HookResult;
 }
 
-export function runHookScript(
+export async function runHookScript(
   scriptPath: string,
   payload: ClaudeHookPayload,
   timeoutMs = 30_000,
-): HookResult {
-  return asHookResult(spawnHook(process.execPath, [scriptPath], payload, timeoutMs));
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<HookResult> {
+  return asHookResult(await spawnHook(process.execPath, [scriptPath], payload, timeoutMs, env));
 }
 
-function runHookEntry(
+async function runHookEntry(
   entry: HookEntry,
   payload: ClaudeHookPayload | Record<string, unknown>,
-): unknown {
+  env: NodeJS.ProcessEnv,
+): Promise<unknown> {
   const timeoutMs = (entry.run.timeout ?? 30) * 1_000;
   try {
     if (entry.run.script) {
-      return spawnHook(process.execPath, [path.join(HOOKS_DIR, entry.run.script)], payload, timeoutMs);
+      return await spawnHook(process.execPath, [path.join(HOOKS_DIR, entry.run.script)], payload, timeoutMs, env);
     }
-    return spawnHook('sh', ['-c', entry.run.command!], payload, timeoutMs);
+    return await spawnHook('sh', ['-c', entry.run.command!], payload, timeoutMs, env);
   } catch (error) {
     log.error(`${entry.id} error:`, error);
     return undefined;
@@ -233,11 +292,12 @@ function entriesForEvent(eventName: string): HookEntry[] {
 function toolPayload(
   hookEventName: string,
   event: ToolCallEvent | ToolResultEvent,
-  ctx: ExtensionContext,
+  ctx: HookContext,
+  env: NodeJS.ProcessEnv,
 ): ClaudeHookPayload {
   const payload: ClaudeHookPayload = {
     hook_event_name: hookEventName,
-    session_id: getSessionId(ctx),
+    session_id: getSessionId(ctx, env),
     tool_name: toClaude(event.toolName),
     tool_input: normalizePiInput(event.toolName, event.input),
     tool_use_id: event.toolCallId,
@@ -256,16 +316,17 @@ function addToolResultFields(payload: ClaudeHookPayload, event: ToolResultEvent)
 function lifecyclePayload(
   entry: HookEntry,
   event: unknown,
-  ctx: ExtensionContext,
+  ctx: HookContext,
+  env: NodeJS.ProcessEnv,
 ): ClaudeHookPayload | Record<string, unknown> {
-  if (entry.event.startsWith('pi:')) return nativePayload(entry.event.slice(3), event, ctx);
+  if (entry.event.startsWith('pi:')) return nativePayload(entry.event.slice(3), event, ctx, env);
   const source = typeof event === 'object' && event !== null
     ? event as Record<string, unknown>
     : { event };
   return {
     ...source,
     hook_event_name: CLAUDE_EVENT_MAP[entry.event as AgentHookEvent],
-    session_id: getSessionId(ctx),
+    session_id: getSessionId(ctx, env),
     tool_name: '',
     tool_input: {},
     tool_use_id: '',
@@ -276,7 +337,8 @@ function lifecyclePayload(
 function nativePayload(
   eventName: string,
   event: unknown,
-  ctx: ExtensionContext,
+  ctx: HookContext,
+  env: NodeJS.ProcessEnv,
 ): Record<string, unknown> {
   const source = typeof event === 'object' && event !== null
     ? event as Record<string, unknown>
@@ -284,7 +346,7 @@ function nativePayload(
   return {
     ...source,
     hook_event_name: eventName,
-    session_id: getSessionId(ctx),
+    session_id: getSessionId(ctx, env),
     cwd: ctx.cwd,
   };
 }
@@ -293,10 +355,11 @@ function payloadForToolEntry(
   entry: HookEntry,
   nativeEvent: string,
   event: ToolCallEvent | ToolResultEvent,
-  ctx: ExtensionContext,
+  ctx: HookContext,
+  env: NodeJS.ProcessEnv,
 ): ClaudeHookPayload | Record<string, unknown> {
-  if (entry.event.startsWith('pi:')) return nativePayload(nativeEvent, event, ctx);
-  return toolPayload(CLAUDE_EVENT_MAP[entry.event as AgentHookEvent], event, ctx);
+  if (entry.event.startsWith('pi:')) return nativePayload(nativeEvent, event, ctx, env);
+  return toolPayload(CLAUDE_EVENT_MAP[entry.event as AgentHookEvent], event, ctx, env);
 }
 
 function applyUpdatedInput(event: ToolCallEvent, output: HookSpecificOutput | undefined): void {
@@ -307,22 +370,23 @@ function applyUpdatedInput(event: ToolCallEvent, output: HookSpecificOutput | un
 
 function blockResult(result: HookResult): ToolCallReturn {
   const output = result.hookSpecificOutput;
-  if (output?.permissionDecision !== 'deny') return;
+  if (output?.permissionDecision !== 'deny') return undefined;
   return {
     block: true,
     reason: output.permissionDecisionReason ?? 'Blocked by hook registry',
   };
 }
 
-export function handlePreToolUse(
+export async function handlePreToolUse(
   event: ToolCallEvent,
-  ctx: ExtensionContext,
+  ctx: HookContext,
   entries = entriesForEvent('tool_call'),
-): ToolCallReturn {
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<ToolCallReturn> {
   for (const entry of entries) {
     if (!matchesTool(entry, event.toolName)) continue;
-    const payload = payloadForToolEntry(entry, 'tool_call', event, ctx);
-    const result = asHookResult(runHookEntry(entry, payload));
+    const payload = payloadForToolEntry(entry, 'tool_call', event, ctx, env);
+    const result = asHookResult(await runHookEntry(entry, payload, env));
     applyUpdatedInput(event, result.hookSpecificOutput);
     const blocked = blockResult(result);
     if (blocked) return blocked;
@@ -330,6 +394,7 @@ export function handlePreToolUse(
       return { block: true, reason: typeof result.reason === 'string' ? result.reason : undefined };
     }
   }
+  return undefined;
 }
 
 function appendContext(event: ToolResultEvent, context: string | undefined): boolean {
@@ -340,62 +405,66 @@ function appendContext(event: ToolResultEvent, context: string | undefined): boo
   return true;
 }
 
-export function handlePostToolUse(
+export async function handlePostToolUse(
   event: ToolResultEvent,
-  ctx: ExtensionContext,
+  ctx: HookContext,
   entries = entriesForEvent('tool_result'),
-): { content?: unknown } | void {
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<{ content?: unknown } | undefined> {
   let contentModified = false;
   for (const entry of entries) {
     if (!matchesTool(entry, event.toolName)) continue;
-    const payload = payloadForToolEntry(entry, 'tool_result', event, ctx);
-    const result = asHookResult(runHookEntry(entry, payload));
+    const payload = payloadForToolEntry(entry, 'tool_result', event, ctx, env);
+    const result = asHookResult(await runHookEntry(entry, payload, env));
     contentModified = appendContext(event, result.hookSpecificOutput?.additionalContext) || contentModified;
   }
-  if (contentModified) return { content: event.content };
+  return contentModified ? { content: event.content } : undefined;
 }
 
-function handleBeforeAgentStart(
+async function handleBeforeAgentStart(
   event: BeforeAgentStartEvent,
-  ctx: ExtensionContext,
+  ctx: HookContext,
   entries: HookEntry[],
-): { systemPrompt: string } | void {
+  env: NodeJS.ProcessEnv,
+): Promise<{ systemPrompt: string } | undefined> {
   let systemPrompt = event.systemPrompt ?? '';
   let modified = false;
   for (const entry of entries) {
     event.systemPrompt = systemPrompt;
-    const result = asHookResult(runHookEntry(entry, lifecyclePayload(entry, event, ctx)));
+    const result = asHookResult(await runHookEntry(entry, lifecyclePayload(entry, event, ctx, env), env));
     const context = result.hookSpecificOutput?.additionalContext;
     if (!context) continue;
     systemPrompt += `\n\n${context}`;
     modified = true;
   }
-  if (!modified) return;
+  if (!modified) return undefined;
   event.systemPrompt = systemPrompt;
   return { systemPrompt };
 }
 
-function handleLifecycleEvent(
+async function handleLifecycleEvent(
   event: unknown,
-  ctx: ExtensionContext,
+  ctx: HookContext,
   entries: HookEntry[],
-): void {
-  for (const entry of entries) runHookEntry(entry, lifecyclePayload(entry, event, ctx));
+  env: NodeJS.ProcessEnv,
+): Promise<void> {
+  for (const entry of entries) await runHookEntry(entry, lifecyclePayload(entry, event, ctx, env), env);
 }
 
 function dispatchAgentEntry(
   eventName: string,
   entry: HookEntry,
   event: unknown,
-  ctx: ExtensionContext,
-): unknown {
+  ctx: HookContext,
+  env: NodeJS.ProcessEnv,
+): Promise<unknown> {
   const entries = [entry];
-  if (eventName === 'tool_call') return handlePreToolUse(event as ToolCallEvent, ctx, entries);
-  if (eventName === 'tool_result') return handlePostToolUse(event as ToolResultEvent, ctx, entries);
+  if (eventName === 'tool_call') return handlePreToolUse(event as ToolCallEvent, ctx, entries, env);
+  if (eventName === 'tool_result') return handlePostToolUse(event as ToolResultEvent, ctx, entries, env);
   if (eventName === 'before_agent_start') {
-    return handleBeforeAgentStart(event as BeforeAgentStartEvent, ctx, entries);
+    return handleBeforeAgentStart(event as BeforeAgentStartEvent, ctx, entries, env);
   }
-  return handleLifecycleEvent(event, ctx, entries);
+  return handleLifecycleEvent(event, ctx, entries, env);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -423,16 +492,17 @@ function applyNativeMutation(eventName: string, event: unknown, result: unknown)
   return Object.keys(handlerResult).length > 0 ? handlerResult : undefined;
 }
 
-function dispatchNativeEntry(
+async function dispatchNativeEntry(
   eventName: string,
   entry: HookEntry,
   event: unknown,
-  ctx: ExtensionContext,
-): unknown {
+  ctx: HookContext,
+  env: NodeJS.ProcessEnv,
+): Promise<unknown> {
   const isToolEvent = eventName === 'tool_call' || eventName === 'tool_result';
   const toolName = (event as { toolName?: unknown })?.toolName;
-  if (isToolEvent && (typeof toolName !== 'string' || !matchesTool(entry, toolName))) return;
-  const result = runHookEntry(entry, nativePayload(eventName, event, ctx));
+  if (isToolEvent && (typeof toolName !== 'string' || !matchesTool(entry, toolName))) return undefined;
+  const result = await runHookEntry(entry, nativePayload(eventName, event, ctx, env), env);
   return applyNativeMutation(eventName, event, result);
 }
 
@@ -440,18 +510,19 @@ function dispatchEntry(
   eventName: string,
   entry: HookEntry,
   event: unknown,
-  ctx: ExtensionContext,
-): unknown {
-  if (entry.event.startsWith('pi:')) return dispatchNativeEntry(eventName, entry, event, ctx);
-  return dispatchAgentEntry(eventName, entry, event, ctx);
+  ctx: HookContext,
+  env: NodeJS.ProcessEnv,
+): Promise<unknown> {
+  if (entry.event.startsWith('pi:')) return dispatchNativeEntry(eventName, entry, event, ctx, env);
+  return dispatchAgentEntry(eventName, entry, event, ctx, env);
 }
 
-export default function hookBridge(pi: ExtensionAPI): void {
+/** Register every deployed PI hook entry on the session, scripts running in the session's env. */
+export function installHookBridge(pi: HookHost, env: NodeJS.ProcessEnv): void {
   const entries = filterHookEntries(loadHookRegistry(), { backend: 'pi' });
   for (const entry of entries) {
     const eventName = nativeEventFor(entry);
     if (!eventName) continue;
-    pi.on(eventName, (event: unknown, ctx: ExtensionContext) =>
-      dispatchEntry(eventName, entry, event, ctx));
+    pi.on(eventName, (event: unknown, ctx: HookContext) => dispatchEntry(eventName, entry, event, ctx, env));
   }
 }

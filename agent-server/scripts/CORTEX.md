@@ -10,7 +10,7 @@ They support packaging and manual verification outside the running daemon.
 | copy-web-dist.js | build | stages the built web UI into the package |
 | install-bundled-dependencies.mjs | build | Synchronizes packaged runtime dependencies |
 | lint-no-slack-shortcodes.ts | lint | flags Slack emoji shortcodes in source |
-| stage-bundled-dependencies.mjs | build | Stages direct bundles and runtime closure |
+| stage-bundled-dependencies.mjs | build | Stages direct bundles and the workspace-resolved runtime closure, nested conflicts included |
 | migrate-tasks-to-yaml.ts | migrate | converts task files from Markdown to YAML |
 | postinstall-restart-trigger.mjs | install | signals a running daemon to restart |
 | run-tests.sh | test | runs the test suite (isolated + shared shards) in a temporary home, serialized machine-wide via flock and niced |

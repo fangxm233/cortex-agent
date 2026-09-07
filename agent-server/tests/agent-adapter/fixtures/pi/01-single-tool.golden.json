@@ -1,9 +1,5 @@
 [
   {
-    "type": "session_started",
-    "sessionId": "pi-sess-01-single"
-  },
-  {
     "type": "assistant_text",
     "text": "Let me check the git status.",
     "blockId": "msg-01"
