@@ -10,7 +10,7 @@ Adds Cortex MCP tools, hooks, subagents, shims, and web tools.
 | spawn-args.ts | core | Builds PI args and sanitized interaction env |
 | defaults.ts | config | PI agent, session and extension path defaults |
 | agent-dir.ts | config | manages the private PI agent directory |
-| discovery.ts | core | refreshes the host provider cache |
+| discovery.ts | core | refreshes the host provider cache from the SDK model scan |
 | session-files.ts | core | Resolves an isolated PI transcript path |
 | providers-config.ts | config | writes routed PI catalogs with frozen compatibility |
 | custom-catalog.ts | config | Reads custom provider catalog entries |

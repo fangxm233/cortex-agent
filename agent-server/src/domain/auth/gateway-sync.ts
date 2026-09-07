@@ -31,14 +31,14 @@ export interface GatewaySyncOptions {
   /** Where gateway.yaml lives. Defaults to ~/.aistatus. */
   gatewayConfigDir?: string;
   /** Injectable discovery seam (tests supply fixed endpoints instead of scanning the machine). */
-  discover?: (backends?: string[]) => DiscoveredEndpoint[];
+  discover?: (backends?: string[]) => DiscoveredEndpoint[] | Promise<DiscoveredEndpoint[]>;
 }
 
 /**
  * Regenerate gateway.yaml and profiles.json from the backends that are reachable right now.
  *
  * Logging in is only half of becoming usable: the models a provider exposes are discovered by
- * scanning local backend state (`pi --list-models`, Claude config), and that scan previously ran
+ * scanning local backend state (PI's auth and model catalog, Claude config), and that scan previously ran
  * only inside `cortex init` and `cortex setup-gateway`. A user who logged in from the workbench
  * therefore had working credentials but no profile pointing at the newly reachable models, with no
  * in-product way to fix it. Running this after a successful login closes that loop.
@@ -57,7 +57,7 @@ export async function syncGatewayFromBackends(
   const discover = options.discover ?? discoverEndpoints;
   const configDir = options.configDir ?? CONFIG_DIR;
   try {
-    const endpoints = discover(options.backends);
+    const endpoints = await discover(options.backends);
     if (endpoints.length === 0) {
       log.info('No backend endpoints discovered — leaving gateway and profiles untouched');
       return { configured: false, endpoints: 0, profiles: [], reason: 'no-endpoints' };

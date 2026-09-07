@@ -502,7 +502,7 @@ function appendDroppedWarnings(lines: string[], result: GatewayMergeResult): voi
   if (result.droppedFromDiscovery.length === 0) return;
   const list = result.droppedFromDiscovery.map(item => `${item.mode}/${item.endpoint}`).join(', ');
   lines.push(`WARNING: preserved ${result.droppedFromDiscovery.length} existing gateway mode(s) not reported by discovery: ${list}`);
-  lines.push('  (if these should auto-detect, check `pi /login` / `pi --list-models`)');
+  lines.push('  (if these should auto-detect, check `cortex auth status` and log the provider in)');
 }
 
 function appendProfileIssues(lines: string[], issues: GatewayIssues): void {
@@ -512,7 +512,7 @@ function appendProfileIssues(lines: string[], issues: GatewayIssues): void {
 }
 
 function gatewayOutput(
-  endpoints: ReturnType<typeof discoverEndpoints>,
+  endpoints: Awaited<ReturnType<typeof discoverEndpoints>>,
   outputDir: string | undefined,
   gatewayPath: string,
   profilesPath: string,
@@ -532,8 +532,8 @@ function gatewayOutput(
   return lines.filter(Boolean).join('\n');
 }
 
-function writeGatewayConfiguration(outputDir: string | undefined): CliResult {
-  const endpoints = discoverEndpoints();
+async function writeGatewayConfiguration(outputDir: string | undefined): Promise<CliResult> {
+  const endpoints = await discoverEndpoints();
   if (endpoints.length === 0) {
     return { exitCode: 0, stdout: 'No backends discovered. Log into Claude Code and/or PI first.\n', stderr: '' };
   }
@@ -546,15 +546,15 @@ function writeGatewayConfiguration(outputDir: string | undefined): CliResult {
   };
 }
 
-function runSetupGatewayCli(args: string[]): CliResult {
+async function runSetupGatewayCli(args: string[]): Promise<CliResult> {
   if (args.includes('--help') || args.includes('-h')) {
     return { exitCode: 0, stdout: getSetupGatewayHelp(), stderr: '' };
   }
   try {
     if (args.includes('--dry-run')) {
-      return { exitCode: 0, stdout: dryRunGatewayYaml(), stderr: '' };
+      return { exitCode: 0, stdout: await dryRunGatewayYaml(), stderr: '' };
     }
-    return writeGatewayConfiguration(optionValue(args, '--output-dir'));
+    return await writeGatewayConfiguration(optionValue(args, '--output-dir'));
   } catch (error: any) {
     return { exitCode: 1, stdout: '', stderr: error.message || String(error) };
   }

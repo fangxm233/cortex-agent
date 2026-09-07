@@ -1,11 +1,9 @@
-// input:  PI model table, refresh requests, session filenames
+// input:  PI SDK model scan, refresh requests, session filenames
 // output: refreshable provider cache and filename session lookup
 // pos:    PI provider and resume-target discovery
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { execFile } from 'child_process';
-
-import { parsePiListModelsOutput } from '@core/gateway-generator.js';
+import { scanPiAvailableModels } from '@core/gateway-generator.js';
 import { createLogger } from '@core/log.js';
 
 // Filename lookup moved out so a trial adapter can resolve a transcript path without importing
@@ -31,22 +29,12 @@ export interface PIProviderDiscoveryOptions {
   retryMs?: number;
 }
 
-/** Discover authenticated PI providers without inheriting Cortex's private agent directory. */
-export function discoverPIProviders(): Promise<string[]> {
-  return new Promise((resolve, reject) => {
-    execFile('pi', ['--list-models'], {
-      timeout: 10_000,
-      encoding: 'utf-8',
-      env: { ...process.env, PI_CODING_AGENT_DIR: '' },
-    }, (error, stdout, stderr) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-      const models = parsePiListModelsOutput(`${stdout}\n${stderr}`);
-      resolve(Array.from(new Set(models.map((model) => model.provider))));
-    });
-  });
+/** Discover authenticated PI providers from PI's own agent dir, never Cortex's private one. */
+export async function discoverPIProviders(
+  scanModels: () => Promise<Array<{ provider: string }>> = scanPiAvailableModels,
+): Promise<string[]> {
+  const models = await scanModels();
+  return Array.from(new Set(models.map((model) => model.provider)));
 }
 
 class CachedPIProviderDiscovery implements PIProviderDiscovery {
@@ -101,7 +89,7 @@ class CachedPIProviderDiscovery implements PIProviderDiscovery {
   private reject(error: unknown): void {
     this.nextRefreshAt = this.now() + this.retryMs;
     const message = error instanceof Error ? error.message : 'unknown';
-    log.info(`pi --list-models refresh failed: ${message}`);
+    log.info(`PI provider refresh failed: ${message}`);
   }
 }
 
@@ -109,7 +97,7 @@ export function createPIProviderDiscovery(
   options: PIProviderDiscoveryOptions = {},
 ): PIProviderDiscovery {
   return new CachedPIProviderDiscovery(
-    options.scan ?? discoverPIProviders,
+    options.scan ?? (() => discoverPIProviders()),
     options.now ?? Date.now,
     options.cacheTtlMs ?? PI_PROVIDER_CACHE_TTL_MS,
     options.retryMs ?? PI_PROVIDER_RETRY_MS,

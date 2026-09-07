@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { test } from 'vitest';
 import { getSavedApiEnv } from '../../src/domain/agents/config.js';
 import {
@@ -15,7 +16,7 @@ import {
   type AuthStatusSnapshot,
   type GetAuthStatusOptions,
 } from '../../src/domain/auth/auth-status.js';
-import { loadPiRuntime, type PiRuntimeLoadResult } from '../../src/domain/auth/pi-runtime.js';
+import { loadPiRuntime, PI_SDK_PACKAGE, type PiRuntimeLoadResult } from '../../src/domain/auth/pi-runtime.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const NOW_MS = Date.parse('2030-01-01T00:00:00.000Z');
@@ -35,7 +36,6 @@ test('preferred auth type uses probed capabilities with OAuth first', () => {
 
 interface PiFixture {
   root: string;
-  binPath: string;
   authPath: string;
   entryPath: string;
 }
@@ -94,23 +94,16 @@ export function readStoredCredential(providerId, authPath) {
 }
 `;
 
-function createPiFixture(entry = './dist/index.js'): PiFixture {
+/** A stand-in PI SDK module on disk, injected through the loader's module seam. */
+function createPiFixture(entry = 'index.js'): PiFixture {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-auth-pi-'));
   const packageRoot = path.join(root, 'package');
-  const binDir = path.join(root, 'bin');
-  fs.mkdirSync(path.join(packageRoot, 'dist'), { recursive: true });
-  fs.mkdirSync(binDir, { recursive: true });
-  fs.writeFileSync(path.join(packageRoot, 'dist', 'cli.js'), '#!/usr/bin/env node\n');
-  fs.writeFileSync(path.join(packageRoot, 'dist', 'index.js'), RUNTIME_FIXTURE_SOURCE);
-  fs.writeFileSync(path.join(packageRoot, 'package.json'), JSON.stringify({
-    name: 'fixture-pi', version: '9.8.7', type: 'module',
-    exports: { '.': { import: entry } },
-  }));
-  const binPath = path.join(binDir, 'pi');
-  fs.symlinkSync(path.join(packageRoot, 'dist', 'cli.js'), binPath);
+  fs.mkdirSync(packageRoot, { recursive: true });
+  fs.writeFileSync(path.join(packageRoot, 'package.json'), JSON.stringify({ type: 'module' }));
+  fs.writeFileSync(path.join(packageRoot, 'index.js'), `export const VERSION = '9.8.7';\n${RUNTIME_FIXTURE_SOURCE}`);
   return {
-    root, binPath, authPath: path.join(root, 'auth.json'),
-    entryPath: path.join(packageRoot, 'dist', 'index.js'),
+    root, authPath: path.join(root, 'auth.json'),
+    entryPath: path.join(packageRoot, entry),
   };
 }
 
@@ -120,7 +113,10 @@ function writeJson(filePath: string, value: unknown): void {
 }
 
 async function loadFixture(fixture: PiFixture): Promise<PiRuntimeLoadResult> {
-  return loadPiRuntime({ findPi: () => fixture.binPath, authPath: fixture.authPath });
+  return loadPiRuntime({
+    importModule: () => import(/* @vite-ignore */ pathToFileURL(fixture.entryPath).href),
+    authPath: fixture.authPath,
+  });
 }
 
 function requireAvailable(result: PiRuntimeLoadResult): asserts result is Extract<PiRuntimeLoadResult, { available: true }> {
@@ -266,17 +262,17 @@ function writeStateCredentials(fixture: PiFixture, secrets: string[]): void {
   });
 }
 
-test('loadPiRuntime resolves the installed package export from the real CLI target', async () => {
+test('loadPiRuntime initializes the bundled SDK runtime against the given auth path', async () => {
   const fixture = createPiFixture();
   writeJson(fixture.authPath, {});
   try {
     const result = await loadFixture(fixture);
     requireAvailable(result);
     assert.equal(result.version, '9.8.7');
-    assert.equal(result.entry, fixture.entryPath);
+    assert.equal(result.entry, PI_SDK_PACKAGE);
     assert.equal(result.error, null);
     assert.deepEqual((result.runtime as unknown as { createOptions: unknown }).createOptions, {
-      authPath: fixture.authPath, allowModelNetwork: false,
+      authPath: fixture.authPath, modelsPath: path.join(fixture.root, 'models.json'), allowModelNetwork: false,
     });
     assert.deepEqual(result.runtime.getProviders().map(item => item.id), providers.map(item => item.id));
   } finally {
@@ -522,13 +518,13 @@ test('getSavedApiEnv returns defensive snapshots', () => {
   assert.equal(sameReference, false);
 });
 
-test('PI absence and import failure degrade without suppressing Claude status', async () => {
-  const missing = await loadPiRuntime({ findPi: () => { throw new Error('\uE130 secret path'); } });
-  assert.equal(missing.available, false);
-  assert.equal(missing.error, 'pi executable not found');
-  assert.equal(JSON.stringify(missing).includes('\uE130'), false);
+test('PI import and export failures degrade without suppressing Claude status', async () => {
+  const wrongShape = await loadPiRuntime({ importModule: async () => ({ VERSION: '\uE130 secret' }) });
+  assert.equal(wrongShape.available, false);
+  assert.equal(wrongShape.error, 'pi runtime exports unavailable');
+  assert.equal(JSON.stringify(wrongShape).includes('\uE130'), false);
 
-  const fixture = createPiFixture('./dist/missing.js');
+  const fixture = createPiFixture('missing.js');
   writeJson(fixture.authPath, {});
   const claudePath = path.join(fixture.root, 'claude', '.credentials.json');
   try {

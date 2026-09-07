@@ -20,4 +20,4 @@ It routes required/recovered events into debounced user notices.
 | login-service.ts | service | Selects consumers and binds notice flow identity |
 | pi-login.ts | adapter | Logs PI providers in with safe flow errors |
 | pi-oauth.ts | adapter | Logs OAuth-capable PI providers in safely |
-| pi-runtime.ts | adapter | Loads the installed PI model runtime |
+| pi-runtime.ts | adapter | Initializes the bundled PI SDK model runtime for login and status |

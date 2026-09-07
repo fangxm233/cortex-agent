@@ -14,7 +14,7 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | cli-utils.ts | util | formats CLI help/errors and reads stdin as text or raw bytes |
 | config-generator.ts | config | generates bundled and gated MCP configs |
 | debug-mode.ts | config | reports DEBUG state and tool size limits |
-| gateway-generator.ts | config | discovers models and builds bounded gateway.yaml |
+| gateway-generator.ts | config | scans PI models through the bundled SDK and builds bounded gateway.yaml |
 | hook-bus.ts | core | dispatches hooks with safe arguments and diagnostics |
 | hook-exec.ts | util | runs hooks and captures bounded output and exit status |
 | i18n.ts | core | resolves localized messages by key |
@@ -26,6 +26,7 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | mcp-timeout.ts | config | Defines the shared MCP infrastructure deadline |
 | mcp-tool-gate.ts | policy | canonicalizes and enforces MCP tool allowlists, incl. the commission-tool gate |
 | paths.ts | config | defines install, data, config paths and the single agent-cwd resolver |
+| pi-sdk.ts | boundary | lazily imports the bundled PI SDK once and locates PI's user agent dir |
 | pi-session-filename.ts | util | parses and selects PI transcript filenames |
 | profile-generator.ts | config | generates the agent profiles file |
 | production-benchmark-evidence.ts | guard | Validates immutable benchmark admission facts, including the attested context a daemon-created root adopts |

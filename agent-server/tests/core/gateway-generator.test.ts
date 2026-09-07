@@ -2,7 +2,7 @@
 // output: Gateway config generation regression tests
 // pos:    Gateway generator unit test suite
 
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 
 import * as fs from 'node:fs';
@@ -10,8 +10,18 @@ import * as os from 'node:os';
 import * as nodePath from 'node:path';
 import { parse as yamlParse } from 'yaml';
 
+const piSdkMock = vi.hoisted(() => ({
+  create: vi.fn(),
+  loadPiSdk: vi.fn(),
+}));
+vi.mock('../../src/core/pi-sdk.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/core/pi-sdk.js')>();
+  return { ...actual, loadPiSdk: piSdkMock.loadPiSdk };
+});
+
 import {
-  parsePiListModelsOutput,
+  discoverEndpoints,
+  scanPiAvailableModels,
   generateGatewayYaml,
   readGatewayYaml,
   discoveredToEndpointMap,
@@ -23,71 +33,56 @@ import {
   type EndpointMap,
 } from '../../src/core/gateway-generator.js';
 
-// ─── parsePiListModelsOutput ───────────────────────────────────
+// ─── scanPiAvailableModels ─────────────────────────────────────
 
-const REAL_PI_OUTPUT = `provider   model                       context  max-out  thinking  images
-anthropic  claude-3-5-haiku-20241022   200K     8.2K     no        yes
-anthropic  claude-opus-4-7             1M       128K     yes       yes
-deepseek   deepseek-v4-flash           1M       384K     yes       no
-deepseek   deepseek-v4-pro             1M       384K     yes       no
-`;
+function stubPiSdk(available: Array<{ provider: string; id: string }>): void {
+  piSdkMock.create.mockReset();
+  piSdkMock.create.mockResolvedValue({ getAvailable: async () => available });
+  piSdkMock.loadPiSdk.mockResolvedValue({ ModelRuntime: { create: piSdkMock.create } });
+}
 
-const CODEX_PI_OUTPUT = `provider      model                context  max-out  thinking  images
-openai-codex  gpt-5.1              272K     128K     yes       yes
-openai-codex  gpt-5.4-mini         272K     128K     yes       yes
-openai-codex  gpt-5.5              272K     128K     yes       yes
-`;
-
-const EMPTY_PI_OUTPUT = `No models available. Use /login to log into a provider via OAuth or API key. See:
-  /some/path/providers.md
-  /some/path/models.md
-`;
-
-test('parsePiListModelsOutput: parses standard table with header', () => {
-  const result = parsePiListModelsOutput(REAL_PI_OUTPUT);
-  assert.equal(result.length, 4);
-  assert.deepEqual(result[0], { provider: 'anthropic', model: 'claude-3-5-haiku-20241022' });
-  assert.deepEqual(result[3], { provider: 'deepseek', model: 'deepseek-v4-pro' });
+test('scanPiAvailableModels: reads PI\'s own agent dir offline and maps models to provider/model', async () => {
+  stubPiSdk([
+    { provider: 'anthropic', id: 'claude-opus-4-7' },
+    { provider: 'deepseek', id: 'deepseek-v4-pro' },
+    { provider: 'openai-codex', id: 'gpt-5.5' },
+  ]);
+  const result = await scanPiAvailableModels();
+  assert.deepEqual(result, [
+    { provider: 'anthropic', model: 'claude-opus-4-7' },
+    { provider: 'deepseek', model: 'deepseek-v4-pro' },
+    { provider: 'openai-codex', model: 'gpt-5.5' },
+  ]);
+  const piAgentDir = nodePath.join(os.homedir(), '.pi', 'agent');
+  assert.deepEqual(piSdkMock.create.mock.calls, [[{
+    authPath: nodePath.join(piAgentDir, 'auth.json'),
+    modelsPath: nodePath.join(piAgentDir, 'models.json'),
+    allowModelNetwork: false,
+  }]], 'discovery must read the user\'s ~/.pi/agent, never Cortex\'s private PI dir, without network');
 });
 
-test('parsePiListModelsOutput: parses oauth-style provider name (openai-codex)', () => {
-  const result = parsePiListModelsOutput(CODEX_PI_OUTPUT);
-  assert.equal(result.length, 3);
-  assert.equal(result[0].provider, 'openai-codex');
-  assert.equal(result[0].model, 'gpt-5.1');
-  assert.equal(result[1].model, 'gpt-5.4-mini');
+test('scanPiAvailableModels: no authenticated provider yields an empty list', async () => {
+  stubPiSdk([]);
+  assert.deepEqual(await scanPiAvailableModels(), []);
 });
 
-test('parsePiListModelsOutput: returns empty for "No models available"', () => {
-  const result = parsePiListModelsOutput(EMPTY_PI_OUTPUT);
-  assert.deepEqual(result, []);
+test('discoverEndpoints: a failing PI scan yields no PI endpoints but keeps Claude ones', async () => {
+  piSdkMock.loadPiSdk.mockRejectedValueOnce(new Error('sdk unavailable'));
+  const eps = await discoverEndpoints();
+  assert.ok(eps.some((e) => e.mode === 'plan'), 'claude plan endpoint survives a PI scan failure');
+  assert.ok(!eps.some((e) => e.endpoint === 'deepseek'), 'no PI endpoint is invented on failure');
 });
 
-test('parsePiListModelsOutput: returns empty for blank input', () => {
-  assert.deepEqual(parsePiListModelsOutput(''), []);
-  assert.deepEqual(parsePiListModelsOutput('\n\n\n'), []);
-});
-
-test('parsePiListModelsOutput: skips blank lines mid-output', () => {
-  const input = `provider  model
-
-anthropic  claude-opus-4-7
-
-deepseek  deepseek-v4-pro
-`;
-  const result = parsePiListModelsOutput(input);
-  assert.equal(result.length, 2);
-  assert.equal(result[0].provider, 'anthropic');
-  assert.equal(result[1].provider, 'deepseek');
-});
-
-test('parsePiListModelsOutput: tolerates trailing whitespace per row', () => {
-  const input = `provider  model
-anthropic  claude-opus-4-7
-`;
-  const result = parsePiListModelsOutput(input);
-  assert.equal(result.length, 1);
-  assert.equal(result[0].model, 'claude-opus-4-7');
+test('discoverEndpoints: PI providers become one endpoint each, anthropic deferred to Claude path', async () => {
+  stubPiSdk([
+    { provider: 'anthropic', id: 'claude-opus-4-7' },
+    { provider: 'deepseek', id: 'deepseek-v4-flash' },
+    { provider: 'deepseek', id: 'deepseek-v4-pro' },
+  ]);
+  const eps = await discoverEndpoints(['pi']);
+  assert.deepEqual(eps.map((e) => e.mode), ['deepseek']);
+  assert.deepEqual(eps[0].models, ['deepseek-v4-flash', 'deepseek-v4-pro']);
+  assert.equal(eps[0].gatewayManaged, true);
 });
 
 // ─── DiscoveredEndpoint shape ──────────────────────────────────
@@ -162,12 +157,8 @@ test('generateGatewayYaml: handles empty endpoints (no filter results) gracefull
 
 // ─── discoverEndpoints integration: PI_PROVIDER_UPSTREAM coverage ──
 
-import { discoverEndpoints } from '../../src/core/gateway-generator.js';
-
 test('discoverEndpoints: openai-codex is gatewayManaged=true (upstream known)', async () => {
-  // We can't easily mock `pi --list-models` from a unit test here, but we can assert
-  // the lookup table via a directly-constructed endpoint passed to generateGatewayYaml.
-  // The integration test is the e2e run; this test pins the rendering contract.
+  // Pins the rendering contract for the openai-codex upstream via a directly-constructed endpoint.
   const yamlContent = generateGatewayYaml([
     ep({
       mode: 'openai-codex',
@@ -187,13 +178,13 @@ test('discoverEndpoints: gateway-managed placeholder key does not enable api end
   const original = process.env.ANTHROPIC_API_KEY;
   try {
     process.env.ANTHROPIC_API_KEY = GATEWAY_MANAGED_KEY_PLACEHOLDER;
-    const withPlaceholder = discoverEndpoints(['claude']);
+    const withPlaceholder = await discoverEndpoints(['claude']);
     assert.ok(!withPlaceholder.some((e) => e.mode === 'api'),
       'placeholder key is not a real credential — api endpoint must not be generated');
     assert.ok(withPlaceholder.some((e) => e.mode === 'plan'), 'plan endpoint is always generated');
 
     process.env.ANTHROPIC_API_KEY = 'sk-real-key';
-    const withRealKey = discoverEndpoints(['claude']);
+    const withRealKey = await discoverEndpoints(['claude']);
     assert.ok(withRealKey.some((e) => e.mode === 'api'), 'real key enables api endpoint');
   } finally {
     if (original !== undefined) process.env.ANTHROPIC_API_KEY = original;
@@ -201,8 +192,8 @@ test('discoverEndpoints: gateway-managed placeholder key does not enable api end
   }
 });
 
-test('discoverEndpoints: claude plan endpoint exposes canonical model ids + [1m] variants', () => {
-  const plan = discoverEndpoints(['claude']).find((e) => e.mode === 'plan');
+test('discoverEndpoints: claude plan endpoint exposes canonical model ids + [1m] variants', async () => {
+  const plan = (await discoverEndpoints(['claude'])).find((e) => e.mode === 'plan');
   assert.ok(plan, 'plan endpoint should be generated');
   const models = plan!.models;
 
@@ -241,7 +232,7 @@ test('discoverEndpoints: falls back to CONFIG_DIR/.env for ANTHROPIC_API_KEY', a
   // The canonical key location is ~/.cortex/.env (docs/configuration.md) — init/cli
   // processes do not run dotenv.config, so discovery must read the file itself.
   delete process.env.ANTHROPIC_API_KEY;
-  const eps = discoverEndpoints(['claude']);
+  const eps = await discoverEndpoints(['claude']);
   assert.ok(eps.some((e) => e.mode === 'api'),
     'key present only in CONFIG_DIR/.env must still enable the api endpoint');
 });

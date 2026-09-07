@@ -1,16 +1,10 @@
-// input:  PI exec boundary, provider scanner, fake clock
-// output: PI parsing, forced refresh, and cache retry contracts
+// input:  PI SDK model scan seam, provider scanner, fake clock
+// output: provider de-duplication, forced refresh, and cache retry contracts
 // pos:    Covers non-blocking cached PI provider discovery
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import assert from 'node:assert/strict';
-import { test, vi } from 'vitest';
-
-const execFileMock = vi.hoisted(() => vi.fn());
-vi.mock('child_process', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('child_process')>();
-  return { ...actual, execFile: execFileMock };
-});
+import { test } from 'vitest';
 
 import {
   PI_PROVIDER_CACHE_TTL_MS,
@@ -39,31 +33,18 @@ async function flushRefresh(): Promise<void> {
   await new Promise<void>((resolve) => setImmediate(resolve));
 }
 
-test('authenticated provider scan parses the PI table emitted on stderr', async () => {
-  execFileMock.mockImplementationOnce((file, args, options, callback) => {
-    callback(null, '', [
-      'provider   model          context  max-out  thinking  images',
-      'anthropic  claude-sonnet  200K     64K      yes       yes',
-      'anthropic  claude-opus    200K     64K      yes       yes',
-      'deepseek   deepseek-chat  128K     8K       no        no',
-    ].join('\n'));
-  });
-
-  assert.deepEqual(await discoverPIProviders(), ['anthropic', 'deepseek']);
-  const [file, args, options] = execFileMock.mock.calls[0];
-  assert.equal(file, 'pi');
-  assert.deepEqual(args, ['--list-models']);
-  assert.equal(options.env.PI_CODING_AGENT_DIR, '');
-  assert.equal(options.timeout, 10_000);
+test('authenticated provider scan de-duplicates providers from the SDK model list', async () => {
+  const providers = await discoverPIProviders(async () => [
+    { provider: 'anthropic', model: 'claude-sonnet' },
+    { provider: 'anthropic', model: 'claude-opus' },
+    { provider: 'deepseek', model: 'deepseek-chat' },
+  ]);
+  assert.deepEqual(providers, ['anthropic', 'deepseek']);
 });
 
-test('authenticated provider scan rejects when the PI command fails', async () => {
-  const commandError = new Error('pi executable unavailable');
-  execFileMock.mockImplementationOnce((_file, _args, _options, callback) => {
-    callback(commandError, '', '');
-  });
-
-  await assert.rejects(discoverPIProviders(), commandError);
+test('authenticated provider scan rejects when the SDK scan fails', async () => {
+  const scanError = new Error('pi runtime unavailable');
+  await assert.rejects(discoverPIProviders(async () => { throw scanError; }), scanError);
 });
 
 test('cold reads return immediately and coalesce one provider refresh', async () => {

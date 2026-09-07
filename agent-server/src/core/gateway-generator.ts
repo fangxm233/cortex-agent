@@ -1,15 +1,15 @@
-// input:  Filesystem, YAML, PI model discovery output
+// input:  Filesystem, YAML, PI SDK model runtime
 // output: Gateway config discovery, merge, serialization
 // pos:    Gateway configuration generator
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { writeFileSync, copyFileSync, mkdirSync, existsSync, readFileSync } from 'fs';
-import { execSync } from 'child_process';
 import * as path from 'path';
 import * as os from 'os';
 import { parse as yamlParse, stringify as yamlStringify } from 'yaml';
 import { parse as parseDotenv } from 'dotenv';
 import { createLogger } from './log.js';
+import { loadPiSdk, piUserAuthPath, piUserModelsPath } from './pi-sdk.js';
 import { CONFIG_DIR, GATEWAY_MANAGED_KEY_PLACEHOLDER } from './utils.js';
 
 const log = createLogger('gateway-generator');
@@ -148,7 +148,7 @@ const PI_PROVIDER_UPSTREAM: Record<string, { url: string; auth_style: string }> 
   // Users wanting these through the gateway must edit gateway.yaml manually.
 };
 
-// ─── Scanning: PI via `pi --list-models` ──────────────────────────
+// ─── Scanning: PI via the bundled SDK model runtime ───────────────
 
 export interface PiDiscoveredModel {
   provider: string;
@@ -156,54 +156,30 @@ export interface PiDiscoveredModel {
 }
 
 /**
- * Parse the table output of `pi --list-models` into structured entries.
- * Skips header row, blank lines, and the "No models available" fallback message.
- *
- * Example input:
- *   provider   model                       context  max-out  thinking  images
- *   anthropic  claude-3-5-haiku-20241022   200K     8.2K     no        yes
- *   deepseek   deepseek-v4-pro             1M       384K     yes       no
+ * List the PI models whose provider has usable auth, exactly as `pi --list-models` would report
+ * them: a fresh ModelRuntime over PI's own ~/.pi/agent/{auth,models}.json (never Cortex's private
+ * PI agent dir), builtin catalog only, no network refresh. PI is the authoritative source of model
+ * metadata — cortex does not maintain a whitelist. Rejects when the SDK cannot be loaded or the
+ * runtime fails to initialize.
  */
-export function parsePiListModelsOutput(stdout: string): PiDiscoveredModel[] {
-  const lines = stdout.split('\n');
-  const result: PiDiscoveredModel[] = [];
-  for (const raw of lines) {
-    const line = raw.trim();
-    if (!line) continue;
-    if (line.startsWith('No models available')) return [];
-    // PI uses 2+ spaces between columns for alignment
-    const parts = line.split(/\s{2,}/);
-    if (parts.length < 2) continue;
-    const [provider, model] = parts;
-    if (provider === 'provider' && model === 'model') continue; // header row
-    result.push({ provider, model });
-  }
-  return result;
+export async function scanPiAvailableModels(): Promise<PiDiscoveredModel[]> {
+  const { ModelRuntime } = await loadPiSdk();
+  const runtime = await ModelRuntime.create({
+    authPath: piUserAuthPath(),
+    modelsPath: piUserModelsPath(),
+    allowModelNetwork: false,
+  });
+  const models = await runtime.getAvailable();
+  return models.map((model) => ({ provider: model.provider, model: model.id }));
 }
 
-/**
- * Discover PI providers and models by shelling out to `pi --list-models`.
- * PI is the authoritative source of model metadata — cortex does not maintain a whitelist.
- *
- * Returns an empty array on any failure (PI not installed, timeout, parse error). The init flow
- * should warn the user and tell them to `pi /login` first.
- */
-function scanPIViaListModels(): PiDiscoveredModel[] {
+/** Endpoint discovery treats any PI scan failure as "no PI providers" and logs the reason. */
+async function scanPiForEndpoints(): Promise<PiDiscoveredModel[]> {
   try {
-    // PI writes the table to stderr (not stdout) — merge via `2>&1` so we can parse it.
-    // Intentionally do NOT set PI_CODING_AGENT_DIR: discovery reads the user's real ~/.pi/agent/.
-    const stdout = execSync('pi --list-models 2>&1', {
-      timeout: 10_000,
-      encoding: 'utf-8',
-    });
-    return parsePiListModelsOutput(stdout);
-  } catch (e) {
-    const err = e as { code?: string; status?: number; message?: string };
-    if (err.code === 'ENOENT') {
-      log.info('PI is not installed — skipping PI provider discovery');
-    } else {
-      log.info(`pi --list-models failed (code=${err.code ?? err.status}): ${err.message ?? 'unknown error'}`);
-    }
+    return await scanPiAvailableModels();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    log.info(`PI model scan failed — skipping PI provider discovery: ${message}`);
     return [];
   }
 }
@@ -218,12 +194,12 @@ function scanPIViaListModels(): PiDiscoveredModel[] {
  *
  * - Claude Code plan mode: generated when 'claude' is in backends (or backends is omitted).
  * - Claude Code api mode: generated only if ANTHROPIC_API_KEY env var is set and 'claude' is included.
- * - PI providers: discovered via `pi --list-models` when 'pi' is in backends (or backends is omitted).
- *   Each provider becomes one endpoint with `mode = endpoint = provider name`. `gatewayManaged`
- *   is true only if the provider has a known upstream URL in PI_PROVIDER_UPSTREAM (otherwise profile
- *   is generated but gateway.yaml entry is skipped).
+ * - PI providers: discovered through the bundled PI SDK when 'pi' is in backends (or backends is
+ *   omitted). Each provider becomes one endpoint with `mode = endpoint = provider name`.
+ *   `gatewayManaged` is true only if the provider has a known upstream URL in PI_PROVIDER_UPSTREAM
+ *   (otherwise profile is generated but gateway.yaml entry is skipped).
  */
-export function discoverEndpoints(backends?: string[]): DiscoveredEndpoint[] {
+export async function discoverEndpoints(backends?: string[]): Promise<DiscoveredEndpoint[]> {
   const endpoints: DiscoveredEndpoint[] = [];
 
   // ── Claude Code → Anthropic plan mode ──
@@ -259,7 +235,7 @@ export function discoverEndpoints(backends?: string[]): DiscoveredEndpoint[] {
 
   // ── PI → per-provider endpoints (one mode per provider) ──
   const includePi = !backends || backends.includes('pi');
-  const piModels = includePi ? scanPIViaListModels() : [];
+  const piModels = includePi ? await scanPiForEndpoints() : [];
   // Group models by provider name
   const byProvider = new Map<string, string[]>();
   for (const { provider, model } of piModels) {
@@ -680,8 +656,8 @@ export function validateProfilesAgainstGateway(
  * Run discovery and return the YAML string (without writing to disk).
  * Useful for dry-run / preview.
  */
-export function dryRunGatewayYaml(): string {
-  const endpoints = discoverEndpoints();
+export async function dryRunGatewayYaml(): Promise<string> {
+  const endpoints = await discoverEndpoints();
   if (endpoints.length === 0) {
     return '# No backends discovered. Log into Claude Code and/or PI first.\n';
   }

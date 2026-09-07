@@ -1492,7 +1492,7 @@ function detectExistingPlanOrExecute(configDir: string): boolean {
  * case all *Choice / *Fallback fields are undefined.
  */
 async function pickPlanExecuteInteractive(
-  endpoints: ReturnType<typeof discoverEndpoints>,
+  endpoints: Awaited<ReturnType<typeof discoverEndpoints>>,
   configDir: string,
 ): Promise<{
   planChoice?: ModelChoice;
@@ -1612,7 +1612,7 @@ async function runGatewaySetup(
   answers?: Pick<InitAnswers, 'planChoice' | 'executeChoice' | 'extraProfiles'>,
 ): Promise<boolean> {
   // Discover endpoints from Claude/PI local configs — filtered by user-selected backends
-  const endpoints = discoverEndpoints(backends);
+  const endpoints = await discoverEndpoints(backends);
 
   if (endpoints.length === 0) {
     clack.log.warn(t('init.gatewaySetup.noBackends'));
@@ -1629,7 +1629,7 @@ async function runGatewaySetup(
   // Generate gateway.yaml — scoped to gatewayConfigDir when provided (test/alt env),
   // otherwise defaults to ~/.aistatus/gateway.yaml (production). Merge-aware: preserves
   // hand-maintained modes/keys and never drops previously-configured modes if discovery
-  // under-reports (e.g. a transient `pi --list-models` failure).
+  // under-reports (e.g. a transient PI model scan failure).
   const { path: gatewayPath, result: mergeResult } = writeMergedGatewayYaml(endpoints, gatewayConfigDir);
   clack.log.success(t('init.gatewaySetup.gatewayWritten', { path: gatewayPath }));
   if (mergeResult.droppedFromDiscovery.length > 0) {
