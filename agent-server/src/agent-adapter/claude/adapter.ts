@@ -148,6 +148,17 @@ function subagentAttribution(data: any): ToolUseSubagent | undefined {
   };
 }
 
+/** Flatten a `tool_result` block's content to the string shape every sink expects. Shared by the
+ *  in-turn path and the orphan-subagent path so the two cannot drift. */
+function toolResultText(block: any): string {
+  if (typeof block.content === 'string') return block.content;
+  if (Array.isArray(block.content)) {
+    const allText = block.content.every((item: any) => item?.type === 'text' && typeof item.text === 'string');
+    return allText ? block.content.map((item: any) => item.text).join('\n') : JSON.stringify(block.content);
+  }
+  return JSON.stringify(block.content ?? '');
+}
+
 function subagentActivityKind(data: any): SubagentActivityKind | null {
   if (data.type === 'assistant') return 'assistant';
   if (data.type === 'user' && !data.isReplay) return 'tool_result';
@@ -996,19 +1007,38 @@ class ClaudeSession {
     for (const block of content) {
       if (!block || block.type !== 'tool_result') continue;
       const toolUseId = typeof block.tool_use_id === 'string' ? block.tool_use_id : '';
-      let resultContent: string;
-      if (typeof block.content === 'string') {
-        resultContent = block.content;
-      } else if (Array.isArray(block.content)) {
-        const allText = block.content.every((item: any) => item?.type === 'text' && typeof item.text === 'string');
-        resultContent = allText
-          ? block.content.map((item: any) => item.text).join('\n')
-          : JSON.stringify(block.content);
-      } else {
-        resultContent = JSON.stringify(block.content ?? '');
-      }
-      try { turn.onToolResult(toolUseId, resultContent, block.is_error === true, subagent); }
+      try { turn.onToolResult(toolUseId, toolResultText(block), block.is_error === true, subagent); }
       catch (e) { log.warn('onToolResult threw:', (e as Error).message); }
+    }
+  }
+
+  /**
+   * A backgrounded subagent's own `assistant`/`user` line arriving with no turn open. Routed here
+   * by `routeLine` → 'subagent-orphan' instead of being dropped. Deliberately minimal: it feeds
+   * the continuation sink the same three attributed callbacks the in-turn path uses, and touches
+   * NO turn bookkeeping (no turn counts, no finalOutput, no plan-file capture, no delta cursor) —
+   * there is no turn here to account for, and the main agent's next real turn must not inherit
+   * anything from a subagent that ran beside it.
+   */
+  private handleOrphanSubagentLine(data: any): void {
+    const subagent = subagentAttribution(data);
+    if (!subagent) return;
+    const content = data.message?.content;
+    if (!Array.isArray(content)) return;
+    const model = typeof data.message?.model === 'string' ? data.message.model : null;
+    for (const block of content) {
+      if (!block) continue;
+      if (block.type === 'tool_use') {
+        const id = typeof block.id === 'string' ? block.id : '';
+        this.deliverContinuation(s => s.onToolUse?.(block.name || '?', block.input || {}, id, subagent));
+      } else if (block.type === 'text' && block.text) {
+        this.deliverContinuation(s => s.onAssistantText(block.text, model, subagent));
+      } else if (block.type === 'tool_result') {
+        const id = typeof block.tool_use_id === 'string' ? block.tool_use_id : '';
+        this.deliverContinuation(
+          s => s.onToolResult?.(id, toolResultText(block), block.is_error === true, subagent),
+        );
+      }
     }
   }
 
@@ -1161,6 +1191,13 @@ class ClaudeSession {
       // Track background-task lifecycle on every line (even with no active turn) so the
       // pending count stays accurate across the turn boundary.
       this.bgTracker.observe(data);
+      // A backgrounded subagent keeps working after its parent turn closed, and the CLI keeps
+      // streaming its lines. With no turn open the branches above skip them, so route them to the
+      // continuation sink here — otherwise the whole tail of a background agent's trajectory
+      // (tool calls AND its final report) is received and then dropped.
+      if (!this.currentTurn && routeLine(this.bgTracker, data, false) === 'subagent-orphan') {
+        this.handleOrphanSubagentLine(data);
+      }
       // No active turn, and the model just started speaking anyway: either a background task
       // finished (bgTracker armed) or an injected message was consumed after this turn's result
       // Both make the CLI open a turn of its own — open a synthetic turn for it so its

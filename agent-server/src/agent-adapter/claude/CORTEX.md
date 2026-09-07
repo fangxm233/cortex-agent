@@ -17,7 +17,7 @@ Translates Claude stream and transcript events into the normalized event schema.
 | jsonl-tail.ts | core | normalizes transcript, plans and accounting |
 | subagent-jsonl-mux.ts | core | multiplexes attributed TUI subagent sidecars |
 | tmux-control.ts | util | Runs tmux with secure paste buffers and launchers |
-| bg-task-tracker.ts | core | tracks background tasks and continuations |
+| bg-task-tracker.ts | core | tracks background tasks and routes continuation vs orphan-subagent lines |
 | context-usage.ts | core | tracks context window usage per session |
 | compact-window.ts | config | resolves the configured auto-compact window |
 | cost-from-usage.ts | util | derives call cost from token counts |

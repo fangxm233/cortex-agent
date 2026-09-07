@@ -144,15 +144,25 @@ export function isContinuationResult(data: any): boolean {
 /** How a parsed stream-json line should be routed by the session's handleLine. */
 export type LineRoute =
   | 'normal' // a turn is active — process via the existing currentTurn path
+  | 'subagent-orphan' // no active turn, but the line is a backgrounded subagent's own output
   | 'open-continuation' // no active turn, but a background completion re-invoked the model
   | 'ignore'; // no active turn and not a continuation — drop (pre-existing behavior)
 
 /**
  * Decide how a parsed line should be routed given whether a turn is currently active.
  * Pure: depends only on the tracker's armed state and the event type.
+ *
+ * `subagent-orphan` is checked BEFORE the continuation branch on purpose. A backgrounded subagent
+ * keeps emitting `assistant`/`user` lines after its parent turn closed (verified 2026-09-06:
+ * the CLI streamed a subagent's tool calls and its entire 13.8k-token final report minutes after
+ * the parent turn ended). Those lines carry `parent_tool_use_id`; they are the subagent's own work,
+ * never the main agent being re-invoked, so they must not open a continuation turn — and, before
+ * this route existed, they fell into `ignore` and were dropped.
  */
 export function routeLine(tracker: BgTaskTracker, data: any, hasActiveTurn: boolean): LineRoute {
   if (hasActiveTurn) return 'normal';
+  const linked = typeof data?.parent_tool_use_id === 'string' && data.parent_tool_use_id.length > 0;
+  if (linked && (data?.type === 'assistant' || data?.type === 'user')) return 'subagent-orphan';
   if (data?.type === 'assistant' && tracker.continuationArmed) return 'open-continuation';
   return 'ignore';
 }
