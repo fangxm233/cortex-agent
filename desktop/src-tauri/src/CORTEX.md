@@ -13,7 +13,7 @@ Provides SPA commands, native plugins, frontend delivery, and updates.
 | ota.rs | core | fetches and stages new frontend versions |
 | setup.rs | core | Async local setup commands and startup lifecycle |
 | setup_package.rs | util | Validates setup package and installed version |
-| setup_process.rs | util | Runs setup processes with token-safe progress |
+| setup_process.rs | util | Probes CLI versions and streams token-safe progress |
 | forward.rs | core | forwards a server loopback port to a local port (desktop) |
 | forward_stub.rs | core | refusing stand-in for the forward on Android |
 | seed.rs | util | supplies the initial frontend on Android |

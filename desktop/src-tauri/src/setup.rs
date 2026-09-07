@@ -14,7 +14,9 @@ mod package;
 mod process;
 
 use package::{server_package, validate_server_version};
-use process::{login_path, npm_bin, probe_output, resolve_cortex_bin, run_streaming};
+use process::{
+    login_path, npm_bin, probe_output, probe_server_version, resolve_cortex_bin, run_streaming,
+};
 
 /// The oldest server release that understands `init --answers` / `ui enable`, i.e. the machine-driven
 /// surface this wizard drives. Both an existing install and the result of an npm install must
@@ -294,9 +296,7 @@ pub async fn setup_probe() -> Result<SetupProbe, String> {
 fn probe_machine() -> SetupProbe {
     let node = probe_output("node", &["-v"]);
     let cortex_bin = resolve_cortex_bin();
-    let server_version = cortex_bin
-        .as_deref()
-        .and_then(|bin| probe_output(bin, &["--version"]));
+    let server_version = cortex_bin.as_deref().and_then(probe_server_version);
     SetupProbe {
         node_ok: node
             .as_deref()
@@ -354,7 +354,7 @@ fn install_server(app: &AppHandle, run: &str) -> Result<InstallResult, String> {
     }
     let cortex_bin = resolve_cortex_bin()
         .ok_or_else(|| "cortex was installed but is not on the PATH".to_string())?;
-    let server_version = probe_output(&cortex_bin, &["--version"]);
+    let server_version = probe_server_version(&cortex_bin);
     validate_server_version(server_version.as_deref())?;
     Ok(InstallResult {
         cortex_bin,

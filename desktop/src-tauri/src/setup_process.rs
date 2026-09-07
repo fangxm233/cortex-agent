@@ -1,5 +1,5 @@
 // input:  login PATH, npm/cortex CLIs, Tauri app handle
-// output: process probes, captured output, token-safe setup logs
+// output: compatible version probes and token-safe process logs
 // pos:    Blocking process execution for the setup wizard
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -173,6 +173,14 @@ pub(super) fn probe_output(program: &str, args: &[&str]) -> Option<String> {
     }
 }
 
+pub(super) fn probe_server_version(bin: &str) -> Option<String> {
+    version_from_probe(|args| probe_output(bin, args))
+}
+
+fn version_from_probe(mut probe: impl FnMut(&[&str]) -> Option<String>) -> Option<String> {
+    probe(&["--version"]).or_else(|| probe(&["daemon", "--version"]))
+}
+
 /// Find the binary even when npm's global bin directory is not on PATH yet.
 pub(super) fn resolve_cortex_bin() -> Option<String> {
     let finder = if cfg!(target_os = "windows") {
@@ -199,6 +207,25 @@ pub(super) fn resolve_cortex_bin() -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn server_version_supports_both_operator_cli_layouts() {
+        let mut calls = Vec::new();
+        let version = version_from_probe(|args| {
+            calls.push(args.join(" "));
+            (args == ["daemon", "--version"]).then(|| "2026.9.7".into())
+        });
+        assert_eq!(version.as_deref(), Some("2026.9.7"));
+        assert_eq!(calls, ["--version", "daemon --version"]);
+        let mut calls = 0;
+        assert!(version_from_probe(|_| {
+            calls += 1;
+            Some("2026.9.7".into())
+        })
+        .is_some());
+        assert_eq!(calls, 1);
+        assert!(version_from_probe(|_| None).is_none());
+    }
 
     #[test]
     fn setup_logs_filter_init_result_but_capture_it_for_parsing() {
