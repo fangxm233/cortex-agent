@@ -1191,6 +1191,15 @@ class ClaudeSession {
       // Track background-task lifecycle on every line (even with no active turn) so the
       // pending count stays accurate across the turn boundary.
       this.bgTracker.observe(data);
+      // Authoritative end-of-subagent, forwarded whether or not a turn is open: a subagent can
+      // finish inside its parent turn as easily as beside it, and `subagentEndFor` is consuming,
+      // so the signal is emitted exactly once either way.
+      const subagentEnd = this.bgTracker.subagentEndFor(data);
+      if (subagentEnd) {
+        this.deliverContinuation(
+          s => s.onSubagentEnd?.(subagentEnd.parentToolUseId, subagentEnd.status),
+        );
+      }
       // A backgrounded subagent keeps working after its parent turn closed, and the CLI keeps
       // streaming its lines. With no turn open the branches above skip them, so route them to the
       // continuation sink here — otherwise the whole tail of a background agent's trajectory

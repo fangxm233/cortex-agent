@@ -42,11 +42,24 @@
  * reporting work orphaned by a previous process on resume; it folds them into the next user
  * turn and never opens a turn for them, so they do not arm.
  */
+/** Terminal states a subagent task can reach. `killed` is the one no notification ever follows. */
+export type SubagentEndStatus = 'completed' | 'failed' | 'killed';
+const SUBAGENT_END_STATUSES = new Set<string>(['completed', 'failed', 'killed']);
+
+export interface SubagentEnd {
+  parentToolUseId: string;
+  status: SubagentEndStatus;
+}
+
 export class BgTaskTracker {
   private readonly running = new Set<string>();
   private readonly undelivered = new Set<string>();
   private readonly foreground = new Set<string>();
   private readonly armed = new Set<string>();
+  /** task_id → the `Agent`/`Task` tool call that spawned it. Populated from `task_started`, which
+   *  is the only event carrying BOTH ids: `task_updated` reports terminal status with `task_id`
+   *  alone, so without this map a completion cannot be attributed to a UI subagent block. */
+  private readonly subagentTasks = new Map<string, string>();
 
   /** Observe one parsed stream-json event. Idempotent per task_id. */
   observe(data: any): void {
@@ -57,6 +70,11 @@ export class BgTaskTracker {
     if (!id) return;
     switch (data.subtype) {
       case 'task_started':
+        // A subagent task is the one carrying `subagent_type`; a backgrounded Bash carries
+        // `task_type:'local_bash'` instead. Record the linkage before anything can complete.
+        if (typeof data.subagent_type === 'string' && typeof data.tool_use_id === 'string') {
+          this.subagentTasks.set(id, data.tool_use_id);
+        }
         if (data.is_backgrounded === false) this.foreground.add(id);
         else this.running.add(id);
         break;
@@ -131,6 +149,33 @@ export class BgTaskTracker {
 
   disarmContinuation(): void {
     this.armed.clear();
+  }
+
+  /**
+   * The authoritative "this subagent is over" signal, read off the same line `observe` consumes.
+   *
+   * Without it a subagent block's done-state is inferred from "the main agent spoke again", which
+   * is wrong for a backgrounded subagent (it runs BESIDE the main agent) and has no answer at all
+   * for a killed one: `task_updated{status:'killed'}` is followed by no notification and, if the
+   * main agent never speaks again, by nothing — the block would spin forever.
+   *
+   * Consuming: the linkage is dropped on first hit so a `task_updated` + `task_notification` pair
+   * for the same task reports the end exactly once. Returns null when the task is unknown (a Bash
+   * task, or a subagent whose `task_started` this process never saw — e.g. after `--resume`), in
+   * which case callers keep their previous behaviour.
+   */
+  subagentEndFor(data: any): SubagentEnd | null {
+    if (data?.type !== 'system') return null;
+    const id = typeof data.task_id === 'string' ? data.task_id : null;
+    if (!id) return null;
+    const parentToolUseId = this.subagentTasks.get(id);
+    if (!parentToolUseId) return null;
+    const status = data.subtype === 'task_updated'
+      ? data.patch?.status
+      : data.subtype === 'task_notification' ? data.status : null;
+    if (typeof status !== 'string' || !SUBAGENT_END_STATUSES.has(status)) return null;
+    this.subagentTasks.delete(id);
+    return { parentToolUseId, status: status as SubagentEndStatus };
   }
 }
 

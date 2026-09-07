@@ -208,6 +208,10 @@ export interface ContinuationSink {
   ) => void;
   /** Optional exact context snapshot from the spontaneous provider call. */
   onContextUsage?: (usage: ContextUsage) => void;
+  /** Optional authoritative end-of-subagent signal, keyed by the spawning tool call. Reported from
+   *  the backend's own task lifecycle rather than inferred from the main agent speaking again —
+   *  the only way to seal a killed or failed background subagent, which produces no notification. */
+  onSubagentEnd?: (parentToolUseId: string, status: 'completed' | 'failed' | 'killed') => void;
   /** Continuation turn's terminating result. `result.pendingBackgroundTasks` is the number
    *  of background tasks still running (0 ⇒ safe to seal the status as complete). */
   onResult: (result: AgentResult) => void;

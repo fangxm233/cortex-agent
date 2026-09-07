@@ -46,23 +46,43 @@ const MAIN_ASSISTANT = JSON.stringify({
   message: { model: 'claude-opus-5', content: [{ type: 'text', text: 'the agent finished' }] },
 });
 
+const TASK_UPDATED_DONE = JSON.stringify({
+  type: 'system', subtype: 'task_updated', task_id: 'a25248b17e8a0b69d',
+  patch: { status: 'completed', end_time: 1788744452630 },
+});
+const TASK_UPDATED_KILLED = JSON.stringify({
+  type: 'system', subtype: 'task_updated', task_id: 'a25248b17e8a0b69d',
+  patch: { status: 'killed' },
+});
+const BASH_TASK_STARTED = JSON.stringify({
+  type: 'system', subtype: 'task_started', task_id: 'bhyarwdtr',
+  tool_use_id: 'toolu_bash01', description: 'run tests', is_backgrounded: true, task_type: 'local_bash',
+});
+const BASH_TASK_UPDATED_DONE = JSON.stringify({
+  type: 'system', subtype: 'task_updated', task_id: 'bhyarwdtr', patch: { status: 'completed' },
+});
+
 interface Captured {
   tools: Array<{ name: string; id: string; sub: any }>;
   texts: Array<{ text: string; sub: any }>;
   results: Array<{ id: string; content: string; sub: any }>;
+  ends: Array<{ parentToolUseId: string; status: string }>;
 }
 
 function sessionWithSink(t: { onTestFinished: (fn: () => void) => void }) {
   const s: any = _test.makeSessionForTest();
   s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
   t.onTestFinished(() => s.close());
-  const cap: Captured = { tools: [], texts: [], results: [] };
+  const cap: Captured = { tools: [], texts: [], results: [], ends: [] };
   s.setContinuationSink({
     onResult() {},
     onAssistantText: (text: string, _model: any, sub: any) => { cap.texts.push({ text, sub }); },
     onToolUse: (name: string, _input: any, id: string, sub: any) => { cap.tools.push({ name, id, sub }); },
     onToolResult: (id: string, content: string, _err: boolean, sub: any) => {
       cap.results.push({ id, content, sub });
+    },
+    onSubagentEnd: (parentToolUseId: string, status: string) => {
+      cap.ends.push({ parentToolUseId, status });
     },
   });
   return { s, cap };
@@ -135,4 +155,59 @@ test('handleLine: orphan subagent lines do not consume the armed continuation', 
   s.handleLine(MAIN_ASSISTANT);     // the main agent's re-invocation still opens it
   assert.ok(s.currentTurn, 'main-agent line opened the continuation turn');
   assert.equal(cap.texts[0].sub?.parentToolUseId, PARENT, 'subagent text stayed attributed');
+});
+
+test('subagentEndFor: task_started linkage turns a task_updated into a parent-keyed end signal', () => {
+  const tracker = new BgTaskTracker();
+  tracker.observe(JSON.parse(TASK_STARTED));
+
+  const end = tracker.subagentEndFor(JSON.parse(TASK_UPDATED_DONE));
+  assert.deepEqual(end, { parentToolUseId: PARENT, status: 'completed' });
+
+  // Consuming: the notification that follows the same task must not report the end twice.
+  assert.equal(tracker.subagentEndFor(JSON.parse(TASK_NOTIFICATION)), null, 'reported exactly once');
+});
+
+test('subagentEndFor: a killed subagent still produces an end signal', () => {
+  const tracker = new BgTaskTracker();
+  tracker.observe(JSON.parse(TASK_STARTED));
+  // TaskStop kills are the case with no notification and possibly no further main-agent line —
+  // without this signal the UI block would spin forever.
+  assert.deepEqual(
+    tracker.subagentEndFor(JSON.parse(TASK_UPDATED_KILLED)),
+    { parentToolUseId: PARENT, status: 'killed' },
+  );
+});
+
+test('subagentEndFor: a backgrounded Bash task is not a subagent', () => {
+  const tracker = new BgTaskTracker();
+  tracker.observe(JSON.parse(BASH_TASK_STARTED));
+  assert.equal(tracker.subagentEndFor(JSON.parse(BASH_TASK_UPDATED_DONE)), null);
+});
+
+test('subagentEndFor: an unknown task (no task_started seen, e.g. after resume) reports nothing', () => {
+  const tracker = new BgTaskTracker();
+  assert.equal(tracker.subagentEndFor(JSON.parse(TASK_UPDATED_DONE)), null);
+});
+
+test('handleLine: subagent completion reaches the sink keyed by its spawning tool call', (t) => {
+  const { s, cap } = sessionWithSink(t);
+
+  s.handleLine(TASK_STARTED);
+  s.handleLine(SUB_TOOL_USE);
+  assert.equal(cap.ends.length, 0, 'still running');
+
+  s.handleLine(TASK_UPDATED_DONE);
+
+  assert.deepEqual(cap.ends, [{ parentToolUseId: PARENT, status: 'completed' }]);
+});
+
+test('handleLine: a killed subagent is sealed without any main-agent line', (t) => {
+  const { s, cap } = sessionWithSink(t);
+
+  s.handleLine(TASK_STARTED);
+  s.handleLine(TASK_UPDATED_KILLED);
+
+  assert.deepEqual(cap.ends, [{ parentToolUseId: PARENT, status: 'killed' }]);
+  assert.equal(s.currentTurn, null, 'no turn was opened to carry it');
 });
