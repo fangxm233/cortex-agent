@@ -1,5 +1,5 @@
 // input:  persisted/live task-list snapshots and raw SSE payloads
-// output: validated snapshot resolution plus rail row and label models
+// output: validated snapshots, active ordinal and rail row models
 // pos:    shared task-list model; surfaces own their visibility policy
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -15,7 +15,7 @@ export interface TodoRowViewModel {
 }
 
 export interface TodoRailViewModel {
-  /** `3/7`, always monospace at the call site. */
+  /** Active item ordinal / total; completed count when no item is active. */
   counts: string;
   /** What the agent says it is doing now, or null when nothing is in progress. */
   activeLabel: string | null;
@@ -76,8 +76,10 @@ export function todoRailViewModel(snapshot: TodoSnapshot | null): TodoRailViewMo
     status: item.status,
     hasTail: index < snapshot.items.length - 1,
   }));
+  const activeIndex = snapshot.items.findIndex((item) => item.status === 'in_progress');
+  const position = activeIndex >= 0 ? activeIndex + 1 : snapshot.completed;
   return {
-    counts: `${snapshot.completed}/${snapshot.total}`,
+    counts: `${position}/${snapshot.total}`,
     activeLabel: snapshot.activeLabel,
     allDone: snapshot.completed >= snapshot.total,
     rows,

@@ -15,7 +15,7 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 | MChatAttachments.tsx | view | Renders transcript cards and queued/progress/retry/remove composer chips |
 | MChatSheets.tsx | view | Renders session-id shared copy feedback plus profile/browser/commission/context sheets |
 | MChatComposerPresentation.tsx | view | Renders composer modes, tools, slash and plus menus |
-| MChatView.test.tsx | test | Tests chat stacking, subagents, menus and copy |
+| MChatView.test.tsx | test | Tests chat stacking, Todo ordinals and interactions |
 | m-chat-vm.ts | vm | Maps run facts with canonical USD labels and builds chat rows/profile/menu placement |
 | m-chat-vm.test.ts | test | Tests localized run status, profile labels and row state |
 | MInteractionCards.tsx | view | Ask-user bottom-input and plan-approval cards |

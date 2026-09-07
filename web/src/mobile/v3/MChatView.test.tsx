@@ -1,5 +1,5 @@
 // input:  mobile rows, lazy detail, Todo, composer and profiles
-// output: Chat stacking, sticky headers, and interaction contracts
+// output: Chat stacking, Todo ordinals and interaction contracts
 // pos:    Mobile chat interaction behavior tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -212,7 +212,7 @@ describe('MChatView Todo rail', () => {
     );
 
     expect(html).toContain('data-todo-rail="collapsed"');
-    expect(html).toContain('0/2');
+    expect(html).toContain('1/2');
     expect(html).toContain('Inspecting state');
   });
 });

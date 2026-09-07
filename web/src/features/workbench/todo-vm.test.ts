@@ -1,5 +1,5 @@
 // input:  raw session.todos payloads and task-list snapshots
-// output: payload validation and rail row model tests
+// output: payload validation, active ordinal and rail row tests
 // pos:    Tests the task-list view model
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -73,9 +73,24 @@ describe('todoRailViewModel', () => {
     expect(vm.rows.map((r) => r.text)).toEqual([
       'Read the adapter', 'Running the tests', 'Write the docs',
     ]);
-    expect(vm.counts).toBe('1/3');
+    expect(vm.counts).toBe('2/3');
     expect(vm.activeLabel).toBe('Running the tests');
     expect(vm.allDone).toBe(false);
+  });
+
+  it.each([0, 1, 2])('uses active item %i position rather than completed count', (index) => {
+    const items = snapshot.items.map((item, i) => ({
+      ...item, status: i === index ? 'in_progress' as const : 'pending' as const,
+    }));
+    const vm = todoRailViewModel({ ...snapshot, items, completed: 0 });
+    expect(vm!.counts).toBe(`${index + 1}/3`);
+    expect(vm!.allDone).toBe(false);
+  });
+
+  it('keeps completed counts when no item is active', () => {
+    const items = snapshot.items.map((item) => ({ ...item, status: 'pending' as const }));
+    expect(todoRailViewModel({ ...snapshot, items, completed: 0, activeLabel: null })!.counts).toBe('0/3');
+    expect(todoRailViewModel({ ...snapshot, items: [snapshot.items[0], ...items.slice(1)], activeLabel: null })!.counts).toBe('1/3');
   });
 
   it('drops the connector tail on the last row only', () => {
@@ -88,5 +103,6 @@ describe('todoRailViewModel', () => {
       total: 3, completed: 3, activeLabel: null, updatedAt: 2,
     };
     expect(todoRailViewModel(done)!.allDone).toBe(true);
+    expect(todoRailViewModel(done)!.counts).toBe('3/3');
   });
 });

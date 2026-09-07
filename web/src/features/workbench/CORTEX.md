@@ -98,9 +98,9 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | composer-slash.test.ts | test | Tests shortcut parsing, availability and local dispatch |
 | ContextUsageControl.tsx | view | Context usage ring, details and compact action |
 | TodoRail.tsx | shared | Shows composer Todo summary or click-to-collapse list |
-| TodoRail.test.tsx | test | Tests expanded task-list interaction |
-| todo-vm.ts | vm | Validates task snapshots and builds rail rows |
-| todo-vm.test.ts | test | Tests payload validation, resolution and rail rows |
+| TodoRail.test.tsx | test | Tests task ordinal and expand/collapse interaction |
+| todo-vm.ts | vm | Validates snapshots and builds active-ordinal rows |
+| todo-vm.test.ts | test | Tests snapshot validation, ordinals and rail rows |
 | ContextUsageControl.test.tsx | test | Unit tests for context control visibility |
 | context-usage.ts | vm | Resolves context snapshots into labels and bars |
 | context-usage.test.ts | test | Tests snapshot validation, precedence and progress state |

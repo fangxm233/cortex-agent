@@ -1,5 +1,5 @@
 // input:  task-list snapshots and persisted expand state
-// output: collapsed-summary and expanded click-to-collapse interaction tests
+// output: active ordinal and expanded click-to-collapse tests
 // pos:    Tests the desktop task-list rail interaction
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -45,7 +45,7 @@ describe('TodoRail', () => {
 
     const markup = JSON.stringify(renderer.toJSON());
     expect(rail.findAllByType('button')).toHaveLength(0);
-    expect(markup).not.toContain('0/2');
+    expect(markup).not.toContain('1/2');
     expect(markup).toContain('Inspecting the service');
   });
 
@@ -56,6 +56,7 @@ describe('TodoRail', () => {
     act(() => rail.props.onClick());
 
     expect(renderer.root.findByProps({ 'data-todo-rail': 'collapsed' })).toBeTruthy();
+    expect(JSON.stringify(renderer.toJSON())).toContain('1/2');
     expect(setItem).toHaveBeenLastCalledWith('cortex.todoRailOpen.session-1', '0');
   });
 });
