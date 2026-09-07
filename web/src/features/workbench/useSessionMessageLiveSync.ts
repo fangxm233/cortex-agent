@@ -344,7 +344,7 @@ export function useSessionMessageLiveSync(
         return;
       }
       const p = raw.payload as
-        | { sessionId?: string; role?: string; text?: string; toolName?: string; toolInput?: string; noticeLevel?: LiveSessionMessage['noticeLevel']; noticeAction?: LiveSessionMessage['noticeAction']; authAction?: LiveSessionMessage['authAction']; ts?: string; blockId?: string; pending?: boolean; pendingId?: string; subagentId?: string; subagentSpawns?: LiveSessionMessage['subagentSpawns']; subagentType?: string; subagentDescription?: string; subagentModel?: string; attachments?: LiveSessionMessage['attachments']; decisions?: LiveSessionMessage['decisions'] }
+        | { sessionId?: string; role?: string; text?: string; toolName?: string; toolInput?: string; noticeLevel?: LiveSessionMessage['noticeLevel']; noticeAction?: LiveSessionMessage['noticeAction']; authAction?: LiveSessionMessage['authAction']; ts?: string; blockId?: string; pending?: boolean; pendingId?: string; subagentId?: string; subagentSpawns?: LiveSessionMessage['subagentSpawns']; subagentType?: string; subagentDescription?: string; subagentModel?: string; subagentEnded?: 'completed' | 'failed' | 'killed'; attachments?: LiveSessionMessage['attachments']; decisions?: LiveSessionMessage['decisions'] }
         | undefined;
       if (!p || (p.role !== 'user' && p.role !== 'assistant' && p.role !== 'tool')) return;
       // A message written into a running turn's backend, which the model has not read yet. It holds
@@ -389,6 +389,7 @@ export function useSessionMessageLiveSync(
         subagentType: p.subagentType,
         subagentDescription: p.subagentDescription,
         subagentModel: p.subagentModel,
+        subagentEnded: p.subagentEnded,
         attachments: p.attachments,
         decisions: p.decisions,
       };

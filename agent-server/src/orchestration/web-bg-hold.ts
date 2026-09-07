@@ -36,6 +36,9 @@ export interface WebBgHoldDeps {
   publishTool: (name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void;
   /** Persist a complete normalized continuation tool result in DEBUG mode. */
   publishToolResult?: (toolUseId: string, content: string, isError: boolean) => void;
+  /** Publish the authoritative end of one backgrounded subagent. Distinct from `publishStatus`,
+   *  which seals the whole hold: several subagents can run under one hold and each ends alone. */
+  publishSubagentEnd?: (parentToolUseId: string, status: 'completed' | 'failed' | 'killed') => void;
   /** Persist and publish an exact continuation context snapshot. */
   publishContextUsage?: (usage: ContextUsage) => void;
   /** Register the interrupted turn for provider-reset auto-resume. */
@@ -119,6 +122,9 @@ export function holdWebForBg(deps: WebBgHoldDeps): boolean {
     onToolUse: (name: string, input: any, toolUseId?: string, subagent?: ToolUseSubagent) =>
       deps.publishTool(name, input, toolUseId ?? '', subagent),
     onToolResult: (toolUseId: string, content: string, isError: boolean) => deps.publishToolResult?.(toolUseId, content, isError),
+    // Not routed through publishAssistant/publishTool: this is a state correction for a subagent
+    // block, carrying no prose that belongs in the transcript.
+    onSubagentEnd: (parentToolUseId: string, status) => deps.publishSubagentEnd?.(parentToolUseId, status),
     onContextUsage: (usage: ContextUsage) => deps.publishContextUsage?.(usage),
     onResult: (cont: AgentResult) => {
       // Process death seals the hold; provider limits also preserve the interrupted turn for reset.

@@ -39,6 +39,11 @@ export interface SessionMessagePayload {
    *  own row (the group anchor) and by every row the subagent produced under it. Absent = main
    *  agent. `sidechain` when the source cannot name the parent. */
   subagentId?: string;
+  /** Terminal state of the subagent named by `subagentId`, reported from the backend's own task
+   *  lifecycle. Carries no prose: it is a state correction for that subagent's block, not a row.
+   *  The only signal that can seal a killed or failed background subagent — nothing else follows
+   *  one, so without this its block would keep spinning. */
+  subagentEnded?: 'completed' | 'failed' | 'killed';
   /** Complete prompts for children spawned by this main-agent tool row. */
   subagentSpawns?: SubagentSpawnRef[];
   subagentType?: string;
@@ -96,6 +101,7 @@ export function publishSessionMessage(p: SessionMessagePayload): void {
     ...(p.pending !== undefined ? { pending: p.pending } : {}),
     ...(p.pendingId !== undefined ? { pendingId: p.pendingId } : {}),
     ...(p.subagentId !== undefined ? { subagentId: p.subagentId } : {}),
+    ...(p.subagentEnded !== undefined ? { subagentEnded: p.subagentEnded } : {}),
     ...(p.subagentSpawns !== undefined ? { subagentSpawns: p.subagentSpawns } : {}),
     ...(p.subagentType !== undefined ? { subagentType: p.subagentType } : {}),
     ...(p.subagentDescription !== undefined ? { subagentDescription: p.subagentDescription } : {}),

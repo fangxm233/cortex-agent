@@ -984,6 +984,10 @@ export interface TranscriptMessage {
   /** The model that produced this row, as the subagent's own messages report it. Absent on the
    *  anchor and on history written before the field existed — absent means unknown. */
   subagentModel?: string;
+  /** Terminal state the backend reported for the subagent named by `subagentId`. Live-only: it
+   *  corrects that block's status while the session is held open and is never persisted, because
+   *  a session that is no longer live re-derives every block as done anyway. */
+  subagentEnded?: 'completed' | 'failed' | 'killed';
   ts: string;
   /**
    * Real elapsed since the previous message in the session's chronological stream, in ms

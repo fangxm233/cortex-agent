@@ -978,6 +978,40 @@ describe('buildTranscriptRows — native subagent grouping', () => {
   const msg = (o: Partial<Parameters<typeof buildTranscriptRows>[0]['turns'][0]['messages'][0]> & { type: 'user' | 'assistant' | 'tool' }) =>
     ({ text: null, toolName: null, toolInput: null, ts: T, elapsedMs: null, ...o }) as any;
 
+  it('seals a block the backend reported ended, even while the session is live', () => {
+    const rows = buildTranscriptRows(
+      tx([{ turnIndex: 0, messages: [
+        msg({ type: 'user', text: 'go' }),
+        msg({ type: 'tool', toolName: 'Task', toolInput: 'probe', subagentId: 'tu_bg' }),
+        msg({ type: 'tool', toolName: 'Read', toolInput: 'a.ts', subagentId: 'tu_bg' }),
+        msg({ type: 'assistant', text: '', subagentId: 'tu_bg', subagentEnded: 'completed' }),
+      ] }]),
+      [],
+      { running: true },
+    );
+    const block = rows.find((r) => r.kind === 'subagent') as Extract<ChatRow, { kind: 'subagent' }>;
+    expect(block.status).toBe('done');
+    // The state correction carries no prose, so it must not add a row inside the card.
+    expect(block.children.filter((c) => c.kind === 'assistant')).toHaveLength(0);
+  });
+
+  it('keeps a killed block sealed when the subagent emits nothing further', () => {
+    const rows = buildTranscriptRows(
+      tx([{ turnIndex: 0, messages: [
+        msg({ type: 'user', text: 'go' }),
+        msg({ type: 'tool', toolName: 'Task', toolInput: 'probe', subagentId: 'tu_bg' }),
+        msg({ type: 'assistant', text: '', subagentId: 'tu_bg', subagentEnded: 'killed' }),
+        // A killed subagent gets no notification and no closing main-agent row; without the
+        // backend signal this block would spin forever.
+        msg({ type: 'tool', toolName: 'Read', toolInput: 'b.ts', subagentId: 'tu_bg' }),
+      ] }]),
+      [],
+      { running: true },
+    );
+    const block = rows.find((r) => r.kind === 'subagent') as Extract<ChatRow, { kind: 'subagent' }>;
+    expect(block.status).toBe('done');
+  });
+
   it('builds one card per structured spawn and preserves complete multiline prompts', () => {
     const first = 'Inspect desktop.\n\n' + 'A'.repeat(180);
     const second = 'Inspect mobile.\nKeep formatting.';

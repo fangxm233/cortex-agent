@@ -59,6 +59,9 @@ export interface LiveSessionMessage {
   subagentType?: string;
   subagentDescription?: string;
   subagentModel?: string;
+  /** Terminal state reported by the backend for the subagent named by `subagentId`. Carries no
+   *  prose — it corrects that block's status and produces no row of its own. */
+  subagentEnded?: 'completed' | 'failed' | 'killed';
 }
 
 // ── Token-level streaming (`session.message.delta`) ─────────────────────────────────────────────
@@ -364,6 +367,7 @@ export function liveToMessage(m: LiveSessionMessage): TranscriptMessageWithSpawn
     ...(m.subagentType ? { subagentType: m.subagentType } : {}),
     ...(m.subagentDescription ? { subagentDescription: m.subagentDescription } : {}),
     ...(m.subagentModel ? { subagentModel: m.subagentModel } : {}),
+    ...(m.subagentEnded ? { subagentEnded: m.subagentEnded } : {}),
   };
 }
 
@@ -624,6 +628,9 @@ export function buildTranscriptRows(
     row: Extract<ChatRow, { kind: 'subagent' }>;
     sink: RowSink;
     summary?: TranscriptSubagentSummary;
+    /** The backend reported this subagent terminal. Outranks every structural inference below:
+     *  a later main-agent row cannot reopen it, and it cannot be left running at the end. */
+    ended?: boolean;
   }>();
 
   const flushTools = (sink: RowSink): void => {
@@ -653,7 +660,7 @@ export function buildTranscriptRows(
       // between its rows and `closeOpenBlocks` marks it done prematurely. Another row from the same
       // subagent proves it was still going; the block reopens rather than fragmenting into a second
       // one, and the last main-agent row after it genuinely ends leaves it done.
-      existing.row.status = 'running';
+      if (!existing.ended) existing.row.status = 'running';
       if (!existing.summary) {
         // The anchor carries the description, the child rows carry the declared type — whichever
         // arrives second fills in what the first could not know.
@@ -699,6 +706,16 @@ export function buildTranscriptRows(
       curDay = day;
     }
     // New anchors describe one or more children explicitly. One PI `agent` call may represent a
+    // A backend-reported subagent end: a state correction, not a row. Seal the block and drop the
+    // message — it carries no prose, and rendering it would add an empty line to the transcript.
+    if (m.subagentEnded && m.subagentId) {
+      const block = blocks.get(m.subagentId);
+      if (block) {
+        block.ended = true;
+        block.row.status = 'done';
+      }
+      continue;
+    }
     // parallel/chain batch, while Claude Agent/Task calls contain one child.
     if (m.subagentSpawns?.length) {
       for (const spawn of m.subagentSpawns) openBlock(m, spawn.id, spawn);
@@ -774,7 +791,7 @@ export function buildTranscriptRows(
   if (summaryAuthority) {
     for (const block of blocks.values()) {
       if (!block.summary) continue;
-      block.row.status = sessionLive && block.summary.structurallyOpen ? 'running' : 'done';
+      block.row.status = !block.ended && sessionLive && block.summary.structurallyOpen ? 'running' : 'done';
       block.row.toolCount = block.summary.toolCount;
       block.row.hasDetails = block.summary.hasDetails;
       block.row.detailMode = 'lazy';

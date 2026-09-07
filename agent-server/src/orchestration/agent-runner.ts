@@ -581,6 +581,16 @@ export class AgentRunner {
           },
           publishTool: persistToolUse,
           publishToolResult: persistToolResult ?? undefined,
+          // Live-only, deliberately: a subagent block's done-state is re-derived correctly from
+          // history whenever the session is no longer live, so this needs no history entry. It
+          // exists to correct the block WHILE the hold is up, when the transcript alone would
+          // still infer "running".
+          publishSubagentEnd: (parentToolUseId, status) => {
+            publishSessionMessage({
+              sessionId: sid, channel, role: 'assistant', text: '',
+              ts: new Date().toISOString(), subagentId: parentToolUseId, subagentEnded: status,
+            });
+          },
           publishContextUsage: persistContinuationContext,
           onRateLimited: (continuation) => {
             const provider = continuation.rateLimitProvider ?? convResult.result.rateLimitProvider ?? null;
