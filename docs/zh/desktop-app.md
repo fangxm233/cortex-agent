@@ -31,20 +31,17 @@ Android APK 面向 arm64 设备，并通过 Play Store 之外的方式分发。�
 
 ## 从应用内安装服务端 {#installing-a-server-from-the-app}
 
-在首屏选择**在本机安装并启动**。本机需已安装 Node.js 20 或更高版本；向导会检查，若缺失则给出指引并停止，而不会自行安装运行时。如果 Node 通过 nvm 安装而应用看不到它，从终端启动一次应用，让它继承该 shell 的 `PATH`。
+在首屏选择**安装 Cortex**。应用会自动检查 Node.js、npm、Git 与已有 Cortex，然后按需安装或升级服务端。本机需已有 Node.js 20 或更高版本、npm 和 Git；缺少依赖时会停止并给出指引。如果 Node 通过 nvm 安装而应用看不到它，可从终端启动应用，让它继承该 shell 的 `PATH`。
 
-向导分四步执行，并实时输出每条命令的日志：
+安装使用 `npm install -g @cortex-agent/server@latest`；已有受支持版本时直接复用。命令运行期间持续显示当前进度，**查看运行日志**可展开详细输出。失败时会显示出错的操作与重试入口。
 
-| 步骤 | 内容 |
-|---|---|
-| 检查 | 报告 Node.js、npm、git 的版本，已安装的 Cortex 版本（若有），以及本机是否已有配置。 |
-| 安装 | 执行 `npm install -g @cortex-agent/server@latest`。已安装且版本满足要求时跳过。npm 权限失败会直接给出改用自有 prefix 目录的解决方案。 |
-| 配置 | 询问机器名称、要安装的 agent 后端、是否开机自启，以及高级选项中的本地端口。 |
-| 启动 | 写入配置、启动 daemon、等待其响应，然后打开工作台。 |
+安装就绪后，填写机器名称、选择 Agent 后端，可选登录系统时自动启动，也可在**高级设置**中调整端口。点击**启动 Cortex**即自动保存配置、启动服务端、连接并打开工作台。
+
+本地开发时，可将 `CORTEX_SETUP_SERVER_PACKAGE` 设置为本地打包 `.tgz` 的绝对路径，再启动原生应用。安装器通过 npm 安装该包，并检查其报告的版本是否达到最低要求；这一操作不会发布软件包。全新安装测试应使用独立的 home、npm prefix、凭据存储和网络。
 
 向导不询问 Slack 或飞书：应用本身就是交互界面，没有消息平台的服务端使用内置 gateway 运行。它同样不询问账号与模型。安装完成后在 **Settings → Accounts** 登录后端，服务端会据此重新生成 gateway 模式与 profile；进一步的模型选择由 **Settings → Profiles** 负责。
 
-已有 Cortex 配置的机器会保留原配置，向导只开启应用所需的端点——这也是修复早于本功能的旧安装的路径。版本低于应用要求的安装会得到一次明确的升级确认，而不是被静默替换。
+已有 Cortex 配置的机器会保留原设置，只开启或更新本地连接端点。选择**安装 Cortex**也表示允许将低于应用要求的已有服务端升级。
 
 本机服务端没有其他进程负责拉起它，因此应用在启动时若发现服务端未响应就会启动 daemon。在向导中勾选开机自启，还会启用服务端写入的服务单元——Linux 上是 systemd user unit，macOS 上是 launchd agent——使定时任务在应用关闭时也能触发。Windows 没有服务注册，应用启动时拉起 daemon 是该平台上唯一的自启方式。
 
@@ -92,7 +89,7 @@ grep CORTEX_CLIENT_TOKEN "${CORTEX_HOME:-$HOME/.cortex}/config/.env"
 
 ## 首次连接 {#first-connection}
 
-在首屏选择**连接到远程服务器**，然后输入包含 `https://` 或 `http://` 的服务器 URL，以及 `CORTEX_CLIENT_TOKEN`。连接测试会区分端点不可访问和 token 未授权。连接成功后，应用打开工作台并保存凭据，供后续启动使用。由向导安装的服务端会跳过此界面——它使用自己生成的凭据直接连接。
+在首屏选择**连接已有服务器**，然后输入包含 `https://` 或 `http://` 的服务器 URL，以及 `CORTEX_CLIENT_TOKEN`。连接测试会区分端点不可访问和 token 未授权。连接成功后，应用打开工作台并保存凭据，供后续启动使用。由向导安装的服务端会跳过此界面——它使用自己生成的凭据直接连接。
 
 Linux、macOS 与 Windows 将连接 JSON 保存到操作系统密钥链，即 Secret Service、钥匙串或 Windows 凭据管理器。Android 将其保存到应用私有数据目录，因为桌面 keychain 库没有 Android backend。执行 Disconnect 会清除相应平台存储并返回连接界面。
 

@@ -5,8 +5,9 @@ Serves the SPA, stores credentials, opens system URLs, and updates the frontend 
 
 | filename | role | function |
 |---|---|---|
-| package.json | config | Package manifest and build scripts |
+| package.json | config | Native build and focused onboarding test scripts |
 | scripts/ | subdir | Android release and icon build scripts |
 | src-tauri/ | subdir | Rust Tauri application crate |
 | tauri-plugin-cortex-download/ | subdir | Android downloads and APK install plugin |
-| ui/ | subdir | Standalone connection setup page |
+| ui/ | subdir | Embedded connection and automatic setup screens |
+| tests/ | subdir | Focused onboarding behavior and asset checks |

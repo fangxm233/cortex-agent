@@ -33,20 +33,17 @@ The Android APK is intended for arm64 devices and is distributed outside the Pla
 
 ## Installing a server from the app
 
-Choose **Install on this computer** on the first screen. Node.js 20 or newer must already be present; the wizard checks for it and stops with instructions rather than installing a runtime of its own. If Node was installed through nvm and the app cannot see it, launch the app from a terminal once so it inherits that shell's `PATH`.
+Choose **Install Cortex** on the first screen. The app automatically checks Node.js, npm, Git, and any existing Cortex installation, then installs or upgrades the server as needed. Node.js 20 or newer, npm, and Git must already be available. Missing prerequisites stop setup with instructions. If Node was installed through nvm and the app cannot see it, launch the app from a terminal so it inherits that shell's `PATH`.
 
-The wizard runs four steps and streams the output of every command it runs:
+Installation uses `npm install -g @cortex-agent/server@latest`; a supported existing installation is reused. Progress remains visible while commands run, and **Activity log** expands their output. Failures show the failing operation and a retry action.
 
-| Step | What happens |
-|---|---|
-| Check | Reports the versions of Node.js, npm, git, and any Cortex install already present, and whether this machine already has a configuration. |
-| Install | Runs `npm install -g @cortex-agent/server@latest`. Skipped when a supported version is already installed. An npm permission failure is answered with the user-owned-prefix remedy. |
-| Configure | Asks for the machine name, which agent backends to install, whether to start Cortex with the computer, and — under Advanced — the local port. |
-| Start | Writes the configuration, starts the daemon, waits for it to answer, and opens the workbench. |
+Once installation is ready, enter the machine name, choose agent backends, and optionally enable auto-start or change the port under **Advanced settings**. Clicking **Start Cortex** saves the configuration, starts the server, connects, and opens the workbench automatically.
+
+For local development, launch the native app with `CORTEX_SETUP_SERVER_PACKAGE` set to an absolute path to a locally packed `.tgz`. The installer uses that package through npm and checks its reported version against the app's minimum. This does not publish the package; use an isolated home, npm prefix, credential store, and network for fresh-install testing.
 
 The wizard asks nothing about Slack or Feishu: the app is the interface, and a server with no messaging platform runs on its built-in gateway. It also asks nothing about accounts or models. Sign in to a backend afterwards under **Settings → Accounts**; the server regenerates the gateway modes and profiles for whatever that login makes reachable, and **Settings → Profiles** owns any further model choice.
 
-A machine that already has a Cortex configuration keeps it. The wizard only switches on the endpoint the app needs, which is also the repair path for an install created before the app existed. An install older than the version the app requires is offered an explicit upgrade instead of being replaced silently.
+A machine that already has a Cortex configuration keeps it. Setup enables or updates only the local connection endpoint. Choosing **Install Cortex** also authorizes upgrading an installed server that is older than the app requires.
 
 Because a local server has nothing else to start it, the app starts the daemon at launch whenever it is not already answering. Enabling autostart in the wizard additionally registers the service the server writes — a systemd user unit on Linux, a launchd agent on macOS — so scheduled tasks fire while the app is closed. Windows has no service registration, so the app's launch-time start is the only autostart there.
 
@@ -94,7 +91,7 @@ Current builds serve the shell through the `cortexui` custom protocol, which app
 
 ## First connection
 
-Choose **Connect to a remote server** on the first screen, then enter the server URL, including `https://` or `http://`, together with `CORTEX_CLIENT_TOKEN`. The connection test distinguishes an unreachable endpoint from an unauthorized token. A successful connection opens the workbench and stores the credentials for later launches. A server installed by the wizard skips this screen — it connects with credentials it generated itself.
+Choose **Connect an existing server** on the first screen, then enter the server URL, including `https://` or `http://`, together with `CORTEX_CLIENT_TOKEN`. The connection test distinguishes an unreachable endpoint from an unauthorized token. A successful connection opens the workbench and stores the credentials for later launches. A server installed by the wizard skips this screen — it connects with credentials it generated itself.
 
 Linux, macOS, and Windows store the connection JSON in the operating-system keychain: Secret Service, Keychain, or Windows Credential Manager. Android stores it in the app's private data directory because the desktop keychain library has no Android backend. Disconnecting clears the platform store and returns to the connection screen.
 

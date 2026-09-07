@@ -1,6 +1,6 @@
 // input:  custom-scheme URLs, frontend root, embedded shell assets
-// output: sanitized paths and MIME-typed frontend responses
-// pos:    Secure resolver for OTA files and native shell assets
+// output: sanitized paths and embedded/OTA asset responses
+// pos:    Resolves standalone setup assets and workbench files
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 use std::path::Path;
@@ -11,9 +11,14 @@ const INDEX: &str = "index.html";
 /// same `/theme.css` link used in dev; the embedded response replaces that link with the canonical
 /// palette so a missing or older OTA bundle cannot leave shell pages unstyled. Normal SPA requests
 /// still resolve `theme.css` from the active frontend directory, preserving OTA token updates.
-const EMBEDDED_PAGES: &[(&str, &str)] = &[
+const EMBEDDED_ASSETS: &[(&str, &str)] = &[
     ("connect.html", include_str!("../../ui/connect.html")),
     ("setup.html", include_str!("../../ui/setup.html")),
+    ("shell.css", include_str!("../../ui/shell.css")),
+    ("shell.js", include_str!("../../ui/shell.js")),
+    ("connect.js", include_str!("../../ui/connect.js")),
+    ("setup-flow.js", include_str!("../../ui/setup-flow.js")),
+    ("setup.js", include_str!("../../ui/setup.js")),
 ];
 const THEME_LINK: &str = r#"<link rel="stylesheet" href="/theme.css">"#;
 const SHARED_THEME: &str = include_str!("../../../web/public/theme.css");
@@ -26,11 +31,15 @@ fn inject_shell_theme(page: &str) -> Vec<u8> {
 /// Serve a binary-embedded shell page before consulting the active frontend directory.
 pub fn resolve_embedded(raw_url: &str) -> Option<ResolvedAsset> {
     let rel = sanitize_request_path(raw_url)?;
-    let (path, body) = EMBEDDED_PAGES.iter().find(|(name, _)| *name == rel)?;
+    let (path, body) = EMBEDDED_ASSETS.iter().find(|(name, _)| *name == rel)?;
     Some(ResolvedAsset {
         status: 200,
         mime: content_type(path),
-        body: inject_shell_theme(body),
+        body: if path.ends_with(".html") {
+            inject_shell_theme(body)
+        } else {
+            body.as_bytes().to_vec()
+        },
     })
 }
 
@@ -299,6 +308,22 @@ mod tests {
         assert_eq!(r.status, 200);
         assert_eq!(r.mime, "text/html; charset=utf-8");
         assert!(!r.body.is_empty());
+    }
+
+    #[test]
+    fn resolve_embedded_serves_setup_dependencies_without_a_server() {
+        for name in [
+            "shell.css",
+            "shell.js",
+            "connect.js",
+            "setup-flow.js",
+            "setup.js",
+        ] {
+            let asset = resolve_embedded(&format!("cortexui://localhost/{name}")).unwrap();
+            assert_eq!(asset.status, 200);
+            assert_eq!(asset.mime, content_type(name));
+            assert!(!asset.body.is_empty());
+        }
     }
 
     #[test]

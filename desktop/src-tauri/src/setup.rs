@@ -1,18 +1,24 @@
-// input:  wizard answers, the user's login PATH, the npm/cortex CLIs
-// output: setup_* Tauri commands, streamed `setup-log` events, a reachable local server
+// input:  wizard answers, setup_process, setup_package
+// output: async setup IPC, progress events, local daemon startup
 // pos:    Drives a local Cortex install from the native shell
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 use serde::{Deserialize, Serialize};
-use std::io::{BufRead, BufReader};
-use std::process::{Command, Stdio};
-use std::sync::OnceLock;
+use std::ffi::OsStr;
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
+
+#[path = "setup_package.rs"]
+mod package;
+#[path = "setup_process.rs"]
+mod process;
+
+use package::{server_package, validate_server_version};
+use process::{login_path, npm_bin, probe_output, resolve_cortex_bin, run_streaming};
 
 /// The oldest server release that understands `init --answers` / `ui enable`, i.e. the machine-driven
-/// surface this wizard drives. A fresh `@latest` install always clears it; an *existing* install
-/// below it is offered an explicit upgrade rather than being silently overwritten.
+/// surface this wizard drives. Both an existing install and the result of an npm install must
+/// clear this floor before setup can use the machine-driven initialization protocol.
 ///
 /// Bump this to the release that actually ships those flags whenever they move.
 pub const MIN_SERVER_VERSION: &str = "2026.8.20";
@@ -179,170 +185,6 @@ pub fn answers_json(answers: &SetupAnswers) -> String {
     .to_string()
 }
 
-// ─── Process execution ─────────────────────────────────────────────────────
-
-/// One streamed line, as delivered to the wizard page.
-#[derive(Clone, Serialize)]
-struct SetupLogLine<'a> {
-    run: &'a str,
-    stream: &'a str,
-    line: String,
-}
-
-/// Result of one streamed command: exit status plus each stream captured whole.
-pub struct RunOutcome {
-    pub code: i32,
-    pub stdout: String,
-    pub stderr: String,
-}
-
-impl RunOutcome {
-    pub fn ok(&self) -> bool {
-        self.code == 0
-    }
-    /// Both streams, for error reporting — the useful message may be on either.
-    pub fn combined(&self) -> String {
-        format!("{}{}", self.stdout, self.stderr)
-    }
-}
-
-/// The PATH a login shell reports, resolved once per process.
-///
-/// macOS Finder launches (and Linux `.desktop` launches) hand the app a stripped PATH that has no
-/// nvm, no homebrew and often no node at all, while the user's terminal — where they installed all
-/// of it — has a full one. `$SHELL -lic 'echo $PATH'` asks their own shell what it sees. Windows GUI
-/// processes inherit the full user PATH already, so it is skipped there.
-fn login_path() -> Option<&'static str> {
-    static CACHE: OnceLock<Option<String>> = OnceLock::new();
-    CACHE
-        .get_or_init(|| {
-            if cfg!(target_os = "windows") {
-                return None;
-            }
-            let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
-            let out = Command::new(&shell)
-                .args(["-lic", "echo $PATH"])
-                .output()
-                .ok()?;
-            parse_login_path(&String::from_utf8_lossy(&out.stdout))
-        })
-        .as_deref()
-}
-
-/// npm's executable name. Windows ships npm as a batch script, which must be named explicitly —
-/// `Command` resolves a literal file name, it does not apply PATHEXT.
-fn npm_bin() -> &'static str {
-    if cfg!(target_os = "windows") {
-        "npm.cmd"
-    } else {
-        "npm"
-    }
-}
-
-fn cortex_bin_name() -> &'static str {
-    if cfg!(target_os = "windows") {
-        "cortex.cmd"
-    } else {
-        "cortex"
-    }
-}
-
-/// Spawn `program` with the resolved PATH and stream both its outputs to the wizard as they arrive.
-///
-/// Streaming rather than collecting matters here: `npm install -g` and a cold `cortex init` each run
-/// for tens of seconds, and a wizard that shows nothing for that long is indistinguishable from one
-/// that has hung. Each stream is read on its own thread so a chatty stderr cannot deadlock stdout.
-fn run_streaming(
-    app: &AppHandle,
-    run: &str,
-    program: &str,
-    args: &[&str],
-) -> Result<RunOutcome, String> {
-    let mut command = Command::new(program);
-    command.args(args).stdout(Stdio::piped()).stderr(Stdio::piped()).stdin(Stdio::null());
-    if let Some(path) = login_path() {
-        command.env("PATH", path);
-    }
-    let mut child = command
-        .spawn()
-        .map_err(|e| format!("{program}: {e}"))?;
-
-    let pump = |reader: Option<Box<dyn std::io::Read + Send>>, stream: &'static str| {
-        let handle = app.clone();
-        let run = run.to_string();
-        std::thread::spawn(move || {
-            let mut collected = String::new();
-            if let Some(reader) = reader {
-                for line in BufReader::new(reader).lines().map_while(Result::ok) {
-                    let _ = handle.emit(
-                        SETUP_LOG_EVENT,
-                        SetupLogLine { run: &run, stream, line: line.clone() },
-                    );
-                    collected.push_str(&line);
-                    collected.push('\n');
-                }
-            }
-            collected
-        })
-    };
-
-    let out = pump(
-        child.stdout.take().map(|s| Box::new(s) as Box<dyn std::io::Read + Send>),
-        "stdout",
-    );
-    let err = pump(
-        child.stderr.take().map(|s| Box::new(s) as Box<dyn std::io::Read + Send>),
-        "stderr",
-    );
-
-    let status = child.wait().map_err(|e| format!("{program}: {e}"))?;
-    Ok(RunOutcome {
-        code: status.code().unwrap_or(-1),
-        stdout: out.join().unwrap_or_default(),
-        stderr: err.join().unwrap_or_default(),
-    })
-}
-
-/// Run a short command and return its trimmed stdout, or None when it is not installed / fails.
-/// Used for the version probes, which must never surface as errors — "absent" is a valid answer.
-fn probe_output(program: &str, args: &[&str]) -> Option<String> {
-    let mut command = Command::new(program);
-    command.args(args).stdin(Stdio::null());
-    if let Some(path) = login_path() {
-        command.env("PATH", path);
-    }
-    let out = command.output().ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    let text = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    if text.is_empty() {
-        None
-    } else {
-        Some(text)
-    }
-}
-
-/// Absolute path of the installed `cortex` executable, if any.
-///
-/// `which` first; when npm's global bin directory is not on the PATH we still find the binary via
-/// `npm prefix -g`, which is exactly the situation right after a first-ever global install.
-fn resolve_cortex_bin() -> Option<String> {
-    let finder = if cfg!(target_os = "windows") { "where" } else { "which" };
-    if let Some(found) = probe_output(finder, &[cortex_bin_name()]) {
-        if let Some(first) = found.lines().next() {
-            return Some(first.trim().to_string());
-        }
-    }
-    let prefix = probe_output(npm_bin(), &["prefix", "-g"])?;
-    let candidate = if cfg!(target_os = "windows") {
-        std::path::Path::new(&prefix).join("cortex.cmd")
-    } else {
-        std::path::Path::new(&prefix).join("bin").join("cortex")
-    };
-    candidate.is_file().then(|| candidate.to_string_lossy().to_string())
-}
-
 /// The Cortex home this machine would use — the same resolution the server does.
 fn cortex_home() -> Option<std::path::PathBuf> {
     if let Ok(explicit) = std::env::var("CORTEX_HOME") {
@@ -443,14 +285,23 @@ pub struct SetupProbe {
 
 /// Inspect the machine: toolchain versions, any existing install, and whether it is new enough.
 #[tauri::command]
-pub fn setup_probe() -> SetupProbe {
+pub async fn setup_probe() -> Result<SetupProbe, String> {
+    tauri::async_runtime::spawn_blocking(probe_machine)
+        .await
+        .map_err(|e| format!("setup probe task: {e}"))
+}
+
+fn probe_machine() -> SetupProbe {
     let node = probe_output("node", &["-v"]);
     let cortex_bin = resolve_cortex_bin();
     let server_version = cortex_bin
         .as_deref()
         .and_then(|bin| probe_output(bin, &["--version"]));
     SetupProbe {
-        node_ok: node.as_deref().and_then(node_major).is_some_and(|m| m >= MIN_NODE_MAJOR),
+        node_ok: node
+            .as_deref()
+            .and_then(node_major)
+            .is_some_and(|m| m >= MIN_NODE_MAJOR),
         node,
         npm: probe_output(npm_bin(), &["-v"]),
         git: probe_output("git", &["--version"]),
@@ -476,18 +327,22 @@ pub struct InstallResult {
     pub server_version: Option<String>,
 }
 
-/// `npm install -g @cortex-agent/server@latest`.
-///
-/// Always `@latest`, never a version pinned to this app: the app and the server share a CalVer but
-/// not a release cadence — native packages ship only when the shell changes, so an app is routinely
-/// older than the newest server, and the supported direction is server ≥ app.
+/// Install from npm @latest unless CORTEX_SETUP_SERVER_PACKAGE names a local .tgz.
+/// The override still goes through a real global npm install; it never reuses a source checkout.
 #[tauri::command]
-pub fn setup_install_server(app: AppHandle, run: String) -> Result<InstallResult, String> {
+pub async fn setup_install_server(app: AppHandle, run: String) -> Result<InstallResult, String> {
+    tauri::async_runtime::spawn_blocking(move || install_server(&app, &run))
+        .await
+        .map_err(|e| format!("setup install task: {e}"))?
+}
+
+fn install_server(app: &AppHandle, run: &str) -> Result<InstallResult, String> {
+    let package = server_package()?;
     let outcome = run_streaming(
-        &app,
-        &run,
+        app,
+        run,
         npm_bin(),
-        &["install", "-g", "@cortex-agent/server@latest"],
+        &[OsStr::new("install"), OsStr::new("-g"), package.as_os_str()],
     )?;
     if !outcome.ok() {
         let log = outcome.combined();
@@ -500,7 +355,11 @@ pub fn setup_install_server(app: AppHandle, run: String) -> Result<InstallResult
     let cortex_bin = resolve_cortex_bin()
         .ok_or_else(|| "cortex was installed but is not on the PATH".to_string())?;
     let server_version = probe_output(&cortex_bin, &["--version"]);
-    Ok(InstallResult { cortex_bin, server_version })
+    validate_server_version(server_version.as_deref())?;
+    Ok(InstallResult {
+        cortex_bin,
+        server_version,
+    })
 }
 
 /// `cortex init --answers <file> --json` — the whole configuration step, run headlessly.
@@ -508,16 +367,27 @@ pub fn setup_install_server(app: AppHandle, run: String) -> Result<InstallResult
 /// The answers go through a temp file rather than the command line so nothing about the machine ends
 /// up in the process table, and the file is removed as soon as init has read it.
 #[tauri::command]
-pub fn setup_run_init(
+pub async fn setup_run_init(
     app: AppHandle,
     run: String,
     bin: String,
     answers: SetupAnswers,
 ) -> Result<InitResult, String> {
+    tauri::async_runtime::spawn_blocking(move || run_init(&app, &run, &bin, &answers))
+        .await
+        .map_err(|e| format!("setup init task: {e}"))?
+}
+
+fn run_init(
+    app: &AppHandle,
+    run: &str,
+    bin: &str,
+    answers: &SetupAnswers,
+) -> Result<InitResult, String> {
     let file = std::env::temp_dir().join(format!("cortex-init-{}.json", std::process::id()));
-    std::fs::write(&file, answers_json(&answers)).map_err(|e| format!("answers file: {e}"))?;
+    std::fs::write(&file, answers_json(answers)).map_err(|e| format!("answers file: {e}"))?;
     let path = file.to_string_lossy().to_string();
-    let outcome = run_streaming(&app, &run, &bin, &["init", "--answers", &path, "--json"]);
+    let outcome = run_streaming(app, run, bin, &["init", "--answers", &path, "--json"]);
     let _ = std::fs::remove_file(&file);
 
     let outcome = outcome?;
@@ -531,14 +401,20 @@ pub fn setup_run_init(
 /// `cortex ui enable --json` — the repair path for an install that predates the wizard, or one whose
 /// Web UI endpoint was never switched on.
 #[tauri::command]
-pub fn setup_enable_ui(
+pub async fn setup_enable_ui(
     app: AppHandle,
     run: String,
     bin: String,
     port: u16,
 ) -> Result<UiEndpoint, String> {
+    tauri::async_runtime::spawn_blocking(move || enable_ui(&app, &run, &bin, port))
+        .await
+        .map_err(|e| format!("setup UI task: {e}"))?
+}
+
+fn enable_ui(app: &AppHandle, run: &str, bin: &str, port: u16) -> Result<UiEndpoint, String> {
     let port = port.to_string();
-    let outcome = run_streaming(&app, &run, &bin, &["ui", "enable", "--port", &port, "--json"])?;
+    let outcome = run_streaming(app, run, bin, &["ui", "enable", "--port", &port, "--json"])?;
     if !outcome.ok() {
         return Err(outcome.combined());
     }
@@ -603,13 +479,19 @@ pub fn autostart_plan(os: &str, home: &str) -> Option<(String, Vec<String>)> {
 /// A failure here is reported but never fatal: the install itself is complete and usable, and the
 /// user can still start Cortex by opening the app.
 #[tauri::command]
-pub fn setup_enable_autostart(app: AppHandle, run: String) -> Result<bool, String> {
+pub async fn setup_enable_autostart(app: AppHandle, run: String) -> Result<bool, String> {
+    tauri::async_runtime::spawn_blocking(move || enable_autostart(&app, &run))
+        .await
+        .map_err(|e| format!("setup autostart task: {e}"))?
+}
+
+fn enable_autostart(app: &AppHandle, run: &str) -> Result<bool, String> {
     let home = std::env::var("HOME").unwrap_or_default();
     let Some((program, args)) = autostart_plan(std::env::consts::OS, &home) else {
         return Ok(false);
     };
     let borrowed: Vec<&str> = args.iter().map(String::as_str).collect();
-    let outcome = run_streaming(&app, &run, &program, &borrowed)?;
+    let outcome = run_streaming(app, run, &program, &borrowed)?;
     if outcome.ok() {
         Ok(true)
     } else {
@@ -619,16 +501,17 @@ pub fn setup_enable_autostart(app: AppHandle, run: String) -> Result<bool, Strin
 
 /// Start the local daemon and wait for it to answer. False = it never came up in the budget.
 #[tauri::command]
-pub fn setup_start_daemon(
+pub async fn setup_start_daemon(
     app: AppHandle,
     run: String,
     bin: String,
     url: String,
     token: String,
 ) -> Result<bool, String> {
-    start_local_daemon(&app, &run, &bin, &url, &token)
+    tauri::async_runtime::spawn_blocking(move || start_local_daemon(&app, &run, &bin, &url, &token))
+        .await
+        .map_err(|e| format!("setup daemon task: {e}"))?
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -663,8 +546,12 @@ mod tests {
 
     #[test]
     fn npm_permission_failures_are_recognised_from_the_log() {
-        assert!(is_npm_permission_error("npm ERR! code EACCES\nnpm ERR! syscall mkdir"));
-        assert!(is_npm_permission_error("npm ERR! Error: EPERM: operation not permitted"));
+        assert!(is_npm_permission_error(
+            "npm ERR! code EACCES\nnpm ERR! syscall mkdir"
+        ));
+        assert!(is_npm_permission_error(
+            "npm ERR! Error: EPERM: operation not permitted"
+        ));
         assert!(!is_npm_permission_error(
             "npm ERR! code ETARGET\nnpm ERR! notarget No matching version found"
         ));
@@ -731,13 +618,17 @@ mod tests {
 
     #[test]
     fn autostart_is_enabled_through_the_platform_service_manager() {
-        let (program, args) = autostart_plan("linux", "/home/u").expect("linux uses systemd --user");
+        let (program, args) =
+            autostart_plan("linux", "/home/u").expect("linux uses systemd --user");
         assert_eq!(program, "systemctl");
         assert_eq!(args, vec!["--user", "enable", "--now", "cortex.service"]);
 
         let (program, args) = autostart_plan("macos", "/Users/u").expect("macos uses launchd");
         assert_eq!(program, "launchctl");
-        assert_eq!(args.last().unwrap(), "/Users/u/Library/LaunchAgents/cc.cortex.agent-server.plist");
+        assert_eq!(
+            args.last().unwrap(),
+            "/Users/u/Library/LaunchAgents/cc.cortex.agent-server.plist"
+        );
     }
 
     #[test]
