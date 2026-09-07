@@ -1,6 +1,6 @@
 {
   "name": "doc-writer",
-  "description": "Doc Writer — general document producer, outputs structured documents such as status / digest / decision / report / knowledge entry, writes to project files",
+  "description": "Write or update project documents.",
   "profile": "plan",
   "persistSession": true,
   "directive": "file:doc-writer.md",
@@ -8,13 +8,13 @@
   "entryStage": "write",
   "stages": {
     "write": {
-      "description": "Initial writing pass — produce or update the target document, then summarize changes in the artifact.",
-      "promptTemplate": "Task:\n{{input}}\n\nProduce or update the document(s) per the doc-writer directive. After writing, append `## Write Summary (iteration 1)` to {{artifactPath}} listing each file you modified and the key changes. Do NOT write `[APPROVED]` — only the reviewer writes that."
+      "description": "Write the document and summarize the result.",
+      "promptTemplate": "Task:\n{{input}}\n\nProduce or update the requested documents. Append `## Write Summary (iteration 1)` to {{artifactPath}} with changed files, relevant sources or checks, and unresolved issues. Do not write `[APPROVED]`; the reviewer owns that verdict."
     },
     "retry": {
-      "description": "After a blocking `## Review`: fix and append `## Write Summary (iteration N)` + `[REVISED]`.",
+      "description": "Revise the document after review.",
       "continuesSession": true,
-      "promptTemplate": "The Reviewer's `## Review` has been written to {{artifactPath}}. First verify each Blocker against its cited source — the Reviewer is not infallible. Then fix the document files per the feedback. When done, append `## Write Summary (iteration N)` and MUST write `[REVISED]` to {{artifactPath}} on its own line."
+      "promptTemplate": "Read the latest `## Review` in {{artifactPath}}. Address confirmed issues and explain any disagreement with evidence. Append `## Write Summary (iteration N)`, then write `[REVISED]` on its own line to request another review. Do not write `[APPROVED]`."
     }
   },
   "tools": "Agent,Bash,Edit,Glob,Grep,Read,Skill,TaskStop,TodoWrite,WebFetch,WebSearch,Write",

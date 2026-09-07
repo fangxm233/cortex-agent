@@ -1,10 +1,10 @@
 {
   "name": "director",
-  "description": "Project Director — consume Milestone Reviewer report in the milestone-gate template and issue Proceed / Iterate / Pivot / Abort verdict; write result to artifact",
+  "description": "Judge milestone readiness against declared success criteria.",
   "profile": "execute",
   "persistSession": false,
   "directive": "file:director.md",
-  "promptTemplate": "Execute the milestone verdict per the director directive.\n\nMilestone Reviewer's report (previous step):\n{{previousOutput}}\n\n---\n\nOriginal task / context:\n{{input}}\n\n---\n\nReviewer's full artifact is at {{artifactPath}} — read it end-to-end first. Write your analysis and the final `Verdict:` line back to the same artifact. Artifact MUST agree on verdict word and top reasons.",
+  "promptTemplate": "Task / context:\n{{input}}\n\nPrevious review:\n{{previousOutput}}\n\nRead the full report in {{artifactPath}}. Append your decision and reasons there. When the evidence supports a verdict, end with exactly one of `Verdict: Proceed`, `Verdict: Iterate`, `Verdict: Pivot`, or `Verdict: Abort`. Otherwise explain the missing evidence without inventing a verdict.",
   "systemPrompt": "file:worker.md",
   "tools": "Agent,Bash,Edit,Glob,Grep,Read,Skill,TaskStop,TodoWrite,WebFetch,WebSearch,Write",
   "pluginDirs": []

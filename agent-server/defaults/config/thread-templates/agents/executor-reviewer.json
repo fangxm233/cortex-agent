@@ -1,11 +1,11 @@
 {
   "name": "executor-reviewer",
-  "description": "Executor Reviewer — audit Executor's execution results, check correctness, completeness, and safety against task requirements + diff",
+  "description": "Review execution results without performing the fixes.",
   "profile": "execute",
   "persistSession": true,
   "directive": "file:executor-reviewer.md",
   "systemPrompt": "file:worker.md",
-  "promptTemplate": "Audit Executor's work. Read `## Execute Summary` at {{artifactPath}}, cross-check the modified files:\n{{modifiedFiles}}\n\nOriginal task:\n{{input}}\n\nApply the executor-reviewer directive and append your review to {{artifactPath}} under `## Review (iteration N)`. End the section with `[APPROVED]` if no Blockers remain; otherwise list the Blockers so Executor can revise.",
+  "promptTemplate": "Task:\n{{input}}\n\nChanged files (may include unrelated concurrent edits):\n{{modifiedFiles}}\n\nRead `## Execute Summary` in {{artifactPath}} and inspect the actual results. Append `## Review (iteration N)` with evidenced issues, their severity, and suggested corrections. Write `[APPROVED]` on its own line only if no Blockers remain; otherwise list the Blockers for revision.",
   "tools": "Agent,Bash,Edit,Glob,Grep,Read,Skill,TaskStop,Write,WebFetch,WebSearch",
   "pluginDirs": [
     "plugins/cortex-system"

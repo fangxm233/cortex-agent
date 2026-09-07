@@ -1,5 +1,5 @@
 // input:  Vitest, temporary prompt files, shipped defaults
-// output: Coder, reviewer, and manager directive migration regressions
+// output: Historical migration and compact-default preservation tests
 // pos:    Verifies stock prompt migrations and customization guards
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -163,6 +163,9 @@ const OLD_MANAGER_DIRECTIVE = [
   '- For a quick sub-call that doesn\'t merit a full decomposition (an independent verifier pass on a child\'s deliverable, a short research probe before deciding a split), create a single child with `cortex-task spawn --text "..." --template <name>` (it hangs under you and joins via `depends_on`, like decompose) and then call `thread_wait`. It flows through the dispatch queue like any child — there is no in-process thread spawn (`thread_start` was removed; tasks are the only delegation primitive).',
 ].join('\n') + '\n';
 
+// Freeze the historical migration contract independently of current defaults.
+const MIGRATED_REVIEWER_GIT_DISCIPLINE = "### Git discipline\n- Commits must land **before** the handoff boundary (before downstream consumers run it, before QA reviews, before the thread ends). Uncommitted changes at handoff are **Blockers**. Your own fixes are held to the same rule: they are committed before you write the review artifact, and the artifact cites their SHAs.\n- Attribute the implementation from the summary/artifact's explicit SHA evidence and verify the commit and diff with Git. Missing or unverifiable attribution is a **Blocker**.\n- Commit subjects should reference the spec identifier when repository policy permits; omission is a **Nice-to-have** in that case. When repository policy forbids internal or context identifiers, their omission is compliant, must not be treated as a Blocker, and must not require a metadata-only follow-up commit.\n- `--no-verify`, `--no-gpg-sign`, or any hook bypass is a **Blocker**; hook failures must be root-caused.\n- Force-push, `git reset --hard`, or `rm -rf` on shared paths without explicit user authorization is a **Blocker**.";
+
 function markdownSection(content: string, heading: string, nextHeading: string): string {
   const start = content.indexOf(heading);
   const end = content.indexOf(nextHeading, start);
@@ -219,11 +222,10 @@ test.each([
 
   await runMigrations({ dataDir, defaultsDir, storeDir });
   const first = await readText(target);
-  const shipped = await readText(path.join(DEFAULTS_DIR, relativePath));
 
   assert.equal(
     markdownSection(first, '### Git discipline', '### Config in-repo'),
-    markdownSection(shipped, '### Git discipline', '### Config in-repo'),
+    MIGRATED_REVIEWER_GIT_DISCIPLINE,
   );
   assert.ok(first.includes('Missing or unverifiable attribution is a **Blocker**'));
   assert.ok(first.includes('Uncommitted changes at handoff are **Blockers**'));
@@ -486,4 +488,24 @@ test('runMigrations leaves a customized manager directive byte-identical', async
   assert.equal(await readText(target), customized);
   const versions = await readJson(path.join(storeDir, 'versions.json')) as any;
   assert.equal(versions[relativePath], '2026.8.2');
+});
+
+
+test('runMigrations preserves compact shipped directives and base prompts', async () => {
+  const { dataDir, storeDir, defaultsDir } = setupDirs();
+  const relatives = [
+    ...['coder', 'coder-reviewer', 'doc-writer', 'doc-reviewer', 'executor',
+      'executor-reviewer', 'director', 'manager'].map(name => `prompts/directives/${name}.md`),
+    'prompts/systemPrompts/worker.md', 'prompts/systemPrompts/coder.md',
+  ];
+  const originals = new Map<string, string>();
+  for (const relative of relatives) {
+    const content = await readText(path.join(DEFAULTS_DIR, relative));
+    originals.set(relative, content);
+    await writeText(path.join(dataDir, relative), content);
+  }
+  await runMigrations({ dataDir, storeDir, defaultsDir });
+  for (const [relative, content] of originals) {
+    assert.equal(await readText(path.join(dataDir, relative)), content, relative);
+  }
 });

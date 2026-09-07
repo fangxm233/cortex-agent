@@ -1,11 +1,11 @@
 {
   "name": "manager",
-  "description": "Resident manager of a composite task node (DR-0014 §8): decomposes into child tasks (decompose --keep-parent), suspends via the thread_wait tool, re-enters its own session to verify deliverables, rework, or escalate. persistSession is load-bearing — re-entry resumes the SAME session with full memory.",
+  "description": "Delegate, checkpoint, verify, and integrate a composite task.",
   "profile": "__active__",
   "persistSession": true,
   "directive": "file:manager.md",
   "systemPrompt": "file:worker.md",
-  "promptTemplate": "{{input}}\n\nYour shared artifact (decomposition rationale + acceptance log) is {{artifactPath}}.",
+  "promptTemplate": "Task:\n{{input}}\n\nUse {{artifactPath}} as your durable record of delegations, acceptance criteria, decisions, remaining plan, and assumptions. Read it on entry and update it before calling `thread_wait`.",
   "tools": "Bash,Edit,Glob,Grep,Read,Skill,TodoWrite,WebFetch,WebSearch,Write",
   "pluginDirs": [
     "plugins/cortex-system",

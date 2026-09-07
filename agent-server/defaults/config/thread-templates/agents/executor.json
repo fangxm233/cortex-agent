@@ -1,6 +1,6 @@
 {
   "name": "executor",
-  "description": "Executor — general task executor, performs assigned work (edit files, run commands, modify code, config changes, etc.), writes results to artifact. Stages: execute → retry",
+  "description": "Execute a scoped task and verify the result.",
   "profile": "execute",
   "persistSession": true,
   "directive": "file:executor.md",
@@ -8,13 +8,13 @@
   "entryStage": "execute",
   "stages": {
     "execute": {
-      "description": "Execute the task, write ## Execute Summary to artifact",
-      "promptTemplate": "Task:\n{{input}}\n\nExecute the task per the executor directive. After completion, append `## Execute Summary (iteration 1)` to {{artifactPath}} listing what you did, what changed, and any decisions made. Do NOT write `[APPROVED]` — only the reviewer writes that."
+      "description": "Execute and summarize the result.",
+      "promptTemplate": "Task:\n{{input}}\n\nExecute the task. Append `## Execute Summary (iteration 1)` to {{artifactPath}} with changes, verification results, and unresolved issues. Do not write `[APPROVED]`; the reviewer owns that verdict."
     },
     "retry": {
-      "description": "Address reviewer Blockers, write [REVISED] after fixing",
+      "description": "Address issues found in review.",
       "continuesSession": true,
-      "promptTemplate": "The Reviewer's `## Review` has been written to {{artifactPath}}. First verify each Blocker against its cited source — the Reviewer is not infallible. Fix the issues per the feedback. When done, append `## Execute Summary (iteration N)` and MUST write `[REVISED]` to {{artifactPath}} on its own line."
+      "promptTemplate": "Read the latest `## Review` in {{artifactPath}}. Address confirmed issues and explain any disagreement with evidence. Append `## Execute Summary (iteration N)`, then write `[REVISED]` on its own line to request another review. Do not write `[APPROVED]`."
     }
   },
   "tools": "Agent,Bash,Edit,Glob,Grep,Read,Skill,TaskStop,Write,WebFetch,WebSearch",

@@ -20,7 +20,7 @@ and the persisted registries for sessions, tasks, schedules, providers and costs
 | profile-watcher-fallback.test.ts | test | Covers profile polling after watcher failure |
 | project-dir-repo.test.ts | test | Covers per-machine project directory mapping |
 | project-notes-repo.test.ts | test | Covers private notes CRUD, stable timestamps, and concurrency |
-| prompt-migrations.test.ts | test | Covers coder, reviewer and manager prompt migrations |
+| prompt-migrations.test.ts | test | Covers legacy migrations and compact prompt safety |
 | provider-state-repo.test.ts | test | Covers provider state defaults, writes and migration |
 | schedule-repo.test.ts | test | Covers scheduled tasks and channel migration |
 | commission-repo.test.ts | test | Covers commission registry CRUD and fallback |

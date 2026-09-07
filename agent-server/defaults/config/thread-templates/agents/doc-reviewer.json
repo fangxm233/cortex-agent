@@ -1,11 +1,11 @@
 {
   "name": "doc-reviewer",
-  "description": "Doc Reviewer — audit Doc Writer's changes to project documents, grade by original requirements + Blocker / Nice-to-have",
+  "description": "Review document accuracy and completeness without rewriting.",
   "profile": "execute",
   "persistSession": true,
   "directive": "file:doc-reviewer.md",
   "systemPrompt": "file:worker.md",
-  "promptTemplate": "Audit Doc Writer's project-file changes (changes by other agents in the same files may appear — ignore those):\n{{modifiedFiles}}\n\nOriginal task:\n{{input}}\n\nApply the doc-reviewer directive and append your review to {{artifactPath}} under `## Review (iteration N)`. End the section with `[APPROVED]` if no Blockers remain; otherwise list the Blockers so Doc Writer can revise.",
+  "promptTemplate": "Task:\n{{input}}\n\nChanged files (may include unrelated concurrent edits):\n{{modifiedFiles}}\n\nRead the documents and `## Write Summary` in {{artifactPath}}. Append `## Review (iteration N)` with evidenced issues, their severity, and suggested corrections. Write `[APPROVED]` on its own line only if no Blockers remain; otherwise list the Blockers for revision.",
   "tools": "Agent,Bash,Edit,Glob,Grep,Read,Skill,TaskStop,TodoWrite,WebFetch,WebSearch,Write",
   "pluginDirs": [
     "plugins/cortex-system"

@@ -1,6 +1,6 @@
 {
   "name": "coder-reviewer",
-  "description": "Coder Reviewer — runs the `implReview` stage of the coder-review template, auditing Coder's implementation and landing the fixes for the Blockers it finds",
+  "description": "Review code, fix confirmed problems, and own final acceptance.",
   "profile": "execute",
   "persistSession": true,
   "directive": "file:coder-reviewer.md",
@@ -8,8 +8,8 @@
   "entryStage": "implReview",
   "stages": {
     "implReview": {
-      "description": "Audit `## Implementation Summary` + diff, fix every Blocker, and append `## Impl Review`.",
-      "promptTemplate": "Original task:\n{{input}}\n\nAudit Coder's project-file changes (changes by other agents in the same files may appear — ignore those):\n{{modifiedFiles}}\n\nRead the `## Implementation Summary` in {{artifactPath}} and audit the implementation against the task. Run the project's full test suite (`npm test` or equivalent) yourself and check that every stage passes: architecture linter, unit tests, integration tests.\n\nYou are the last step of this pipeline — fix every Blocker you find rather than returning it. Re-verify each Blocker against its cited source first, keep the fix minimal and scoped to that Blocker, cover it with a test where the project allows, re-run the suite, and commit. Then append `## Impl Review` to {{artifactPath}}, listing each issue with its citation, severity, and disposition: fixed (with the fixing commit's short SHA) or left open (with the reason). **Remember: you MUST write your review to {{artifactPath}}.** Task lifecycle ownership in `coder-review`: when `CORTEX_TASK_ID` is set, you alone own the task's final lifecycle transition. After all fixes are committed, the review is written, and verification passes, verify every `done_when` condition from the original task. If all are satisfied, run the exact `cortex-task complete` command from the original task's `## When Done` section with a note citing the review and verification evidence. Never complete the task while any Blocker remains open; use the original task's block or unclaim instructions instead."
+      "description": "Review, fix, and record final acceptance.",
+      "promptTemplate": "Task:\n{{input}}\n\nChanged files (may include unrelated concurrent edits):\n{{modifiedFiles}}\n\nRead `## Implementation Summary` in {{artifactPath}}. Review and fix as directed, then append `## Impl Review` with findings, fixes and commit SHAs, verification results, and open issues.\n\nIn `coder-review`, when `CORTEX_TASK_ID` is set, you alone own the task's final lifecycle transition. Complete it only after the integrated result meets every `done_when` condition and no Blocker remains. Use the exact `cortex-task complete` command in the original task's `## When Done` section with verification evidence; otherwise follow its block or unclaim instructions."
     }
   },
   "tools": "Agent,Bash,Edit,Glob,Grep,Read,Skill,TaskStop,TodoWrite,WebFetch,WebSearch,Write",
