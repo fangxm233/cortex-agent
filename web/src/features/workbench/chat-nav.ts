@@ -1,5 +1,5 @@
 // input:  built chat rows plus the transcript's measured scroll geometry
-// output: One nav mark per user message, the mark the view sits on, and the rail's tick step
+// output: One nav mark per user message, the turns the viewport shows, and the rail's tick geometry
 // pos:    Pure view model behind the desktop transcript's jump rail
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -69,16 +69,33 @@ export function buildNavMarks(rows: ChatRow[]): NavMark[] {
   return marks;
 }
 
-/** The mark the view is sitting on: the last one whose top has passed the reading line. `tops` are
- *  the marks' offsets from the scroll viewport's top edge, in row order; `line` is how far below
- *  that edge a message counts as the one being read. Null → the view is above the first mark. */
-export function activeNavRow(tops: { row: number; top: number }[], line: number): number | null {
-  let active: number | null = null;
-  for (const t of tops) {
-    if (t.top > line) break;
-    active = t.row;
-  }
-  return active;
+/** Every turn the viewport is showing, in row order. A turn runs from its own prompt down to the
+ *  next one, so a screen filled entirely with one reply still marks that reply's prompt — and a
+ *  screen straddling two turns marks both. `tops` are the marks' offsets from the scroll viewport's
+ *  top edge, in row order; anything the viewport overlaps at all counts, head or tail. */
+export function visibleNavRows(tops: { row: number; top: number }[], viewportHeight: number): number[] {
+  const rows: number[] = [];
+  tops.forEach((t, i) => {
+    const next = tops[i + 1];
+    const end = next ? next.top : Number.POSITIVE_INFINITY;
+    if (t.top < viewportHeight && end > 0) rows.push(t.row);
+  });
+  return rows;
+}
+
+/** True when two visible-row sets are the same, so scrolling only re-renders the rail when the set
+ *  it draws actually changed. */
+export function sameNavRows(a: number[], b: number[]): boolean {
+  return a.length === b.length && a.every((row, i) => row === b[i]);
+}
+
+/** How much a tick grows for a cursor `distance` px away from it — 1 under the cursor, easing to 0
+ *  at the radius. The cosine keeps both ends flat, so the row of ticks swells and settles instead
+ *  of snapping as the pointer travels down the rail. */
+export function magnify(distance: number, radius: number): number {
+  const d = Math.abs(distance);
+  if (d >= radius || radius <= 0) return 0;
+  return (1 + Math.cos((Math.PI * d) / radius)) / 2;
 }
 
 /** Vertical step per tick, so a short session gets comfortable spacing and a long one compresses to

@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLang } from '@/i18n';
 import type { ChatRow } from './transcript-vm';
 import { ChatNavRail } from './ChatNavRail';
-import { activeNavRow, buildNavMarks } from './chat-nav';
+import { buildNavMarks, sameNavRows, visibleNavRows } from './chat-nav';
 import { ToolCallsRow } from './ToolCallsRow';
 import { SubagentBlock } from './SubagentBlock';
 import { SubagentTranscriptDetail } from './SubagentTranscriptDetail';
@@ -31,10 +31,8 @@ import { ChatNotice } from './ChatNotice';
 const COLUMN_W = 756;
 const GUTTER = 32;
 
-/** How far below the viewport's top edge a message counts as the one being read, and where a jump
- *  parks its target — the column's own top padding, so the message lands where a fresh screen of
- *  transcript would start. */
-const READING_LINE = 96;
+/** Where a jump parks its target — the column's own top padding, so the message lands where a fresh
+ *  screen of transcript would start. */
 const JUMP_MARGIN = 22;
 
 /** Edit+rewind context passed from CenterChat (sessions.rewind). Absent → chat is read-only
@@ -478,10 +476,10 @@ export function MessageStream({ rows, loading, inlineThreadCard, interactionActi
 
   // The session's own table of contents — one mark per prompt (see ChatNavRail).
   const marks = useMemo(() => buildNavMarks(rows), [rows]);
-  const [activeRow, setActiveRow] = useState<number | null>(null);
+  const [activeRows, setActiveRows] = useState<number[]>([]);
   const syncRaf = useRef(0);
 
-  // Which mark the view is sitting on. Measured from live rects rather than stored offsets: the
+  // Which turns the viewport is showing. Measured from live rects rather than stored offsets: the
   // transcript's rows change height constantly (streamed text, images, expanding tool rows), so any
   // cached geometry would be wrong by the next frame. Coalesced to one read per frame.
   const syncActive = useCallback((): void => {
@@ -492,8 +490,8 @@ export function MessageStream({ rows, loading, inlineThreadCard, interactionActi
       row: Number(node.dataset.chatAnchor),
       top: node.getBoundingClientRect().top - base,
     }));
-    const next = activeNavRow(tops, READING_LINE);
-    setActiveRow((prev) => (prev === next ? prev : next));
+    const next = visibleNavRows(tops, el.clientHeight);
+    setActiveRows((prev) => (sameNavRows(prev, next) ? prev : next));
   }, []);
 
   const scheduleSync = useCallback((): void => {
@@ -589,7 +587,7 @@ export function MessageStream({ rows, loading, inlineThreadCard, interactionActi
           {inlineThreadCard && <div style={{ marginTop: 16 }}>{inlineThreadCard}</div>}
         </div>
       </div>
-      <ChatNavRail marks={marks} activeRow={activeRow} onJump={jumpTo} />
+      <ChatNavRail marks={marks} activeRows={activeRows} onJump={jumpTo} />
     </div>
   );
 }

@@ -1,11 +1,11 @@
 // input:  chat rows, measured mark offsets, and rail heights
-// output: Mark extraction, reading-line selection, and tick-step clamping regressions
+// output: Mark extraction, visible-turn selection, pointer falloff, and tick-step clamping
 // pos:    Pure specification for the desktop transcript nav rail
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { describe, expect, it } from 'vitest';
 import type { ChatRow } from './transcript-vm';
-import { activeNavRow, buildNavMarks, railStep } from './chat-nav';
+import { buildNavMarks, magnify, railStep, sameNavRows, visibleNavRows } from './chat-nav';
 
 const user = (text: string, extra: Partial<Extract<ChatRow, { kind: 'user' }>> = {}): ChatRow => ({
   kind: 'user', text, ...extra,
@@ -64,23 +64,59 @@ describe('buildNavMarks', () => {
   });
 });
 
-describe('activeNavRow', () => {
+describe('visibleNavRows', () => {
+  // Turn 1 runs off the top of the view, turn 4 fills it, turn 9 starts below the fold.
   const tops = [{ row: 1, top: -400 }, { row: 4, top: 40 }, { row: 9, top: 600 }];
 
-  it('picks the last mark that has passed the reading line', () => {
-    expect(activeNavRow(tops, 96)).toBe(4);
+  it('lights every turn the viewport overlaps, head or tail', () => {
+    expect(visibleNavRows(tops, 500)).toEqual([1, 4]);
   });
 
-  it('is null while the view sits above the first mark', () => {
-    expect(activeNavRow([{ row: 1, top: 300 }], 96)).toBeNull();
+  it('lights a turn whose prompt has scrolled off but whose reply is still on screen', () => {
+    expect(visibleNavRows([{ row: 1, top: -900 }, { row: 4, top: 800 }], 500)).toEqual([1]);
   });
 
-  it('holds the last mark once every one is above the line', () => {
-    expect(activeNavRow(tops, 900)).toBe(9);
+  it('lights the last turn however far its reply runs', () => {
+    expect(visibleNavRows(tops, 700)).toEqual([1, 4, 9]);
   });
 
-  it('has no mark for an empty transcript', () => {
-    expect(activeNavRow([], 96)).toBeNull();
+  it('drops a turn that ends above the view', () => {
+    expect(visibleNavRows([{ row: 1, top: -300 }, { row: 4, top: -10 }], 500)).toEqual([4]);
+  });
+
+  it('lights nothing for an empty transcript', () => {
+    expect(visibleNavRows([], 500)).toEqual([]);
+  });
+});
+
+describe('sameNavRows', () => {
+  it('holds a set steady so scrolling does not re-render the rail', () => {
+    expect(sameNavRows([1, 4], [1, 4])).toBe(true);
+  });
+
+  it('sees a changed set', () => {
+    expect(sameNavRows([1, 4], [4])).toBe(false);
+    expect(sameNavRows([1, 4], [1, 9])).toBe(false);
+  });
+});
+
+describe('magnify', () => {
+  it('pulls hardest under the pointer', () => {
+    expect(magnify(0, 52)).toBe(1);
+  });
+
+  it('eases to nothing at the radius, and stays there beyond it', () => {
+    expect(magnify(52, 52)).toBe(0);
+    expect(magnify(90, 52)).toBe(0);
+  });
+
+  it('is symmetric either side of the pointer', () => {
+    expect(magnify(-20, 52)).toBeCloseTo(magnify(20, 52));
+  });
+
+  it('falls off monotonically', () => {
+    expect(magnify(10, 52)).toBeGreaterThan(magnify(30, 52));
+    expect(magnify(30, 52)).toBeGreaterThan(magnify(50, 52));
   });
 });
 

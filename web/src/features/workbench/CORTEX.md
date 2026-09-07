@@ -38,10 +38,10 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | scheduled-chat.ts | vm | Cadence label and next-run delta helpers |
 | ChatHeader.tsx | view | Session title, command, browser, notes and session menu |
 | MessageStream.tsx | view | Renders transcript rows, controls, scroll pinning, prompt anchors and the published pane width |
-| ChatNavRail.tsx | view | Left-edge tick rail raising a prompt preview and jumping the transcript to it |
-| ChatNavRail.test.tsx | test | Tests rail visibility, active-tick emphasis, preview content and jump wiring |
-| chat-nav.ts | vm | Builds one nav mark per prompt, the mark the view sits on and the tick step |
-| chat-nav.test.ts | test | Tests mark extraction, reading-line selection and tick-step clamping |
+| ChatNavRail.tsx | view | Left-edge tick rail that magnifies under the pointer, previews a prompt and jumps to it |
+| ChatNavRail.test.tsx | test | Tests rail visibility, visible-turn lighting, magnification, preview and jump wiring |
+| chat-nav.ts | vm | Builds one nav mark per prompt, the turns on screen and the rail's tick geometry |
+| chat-nav.test.ts | test | Tests mark extraction, visible-turn selection, pointer falloff and step clamping |
 | MessageAttachmentCards.tsx | view | Renders user and agent attachment, media, file and HTML-view cards |
 | DecisionCards.tsx | view | Gates decision response actions behind in-place expansion |
 | DecisionCards.test.tsx | test | Tests disclosure-only actions and composed response messages |
