@@ -38,7 +38,7 @@ import {
 } from './mcp-bridge-logic.js';
 import {
   PI_COMMISSION_TOOLS_ENV, PI_INTERACTION_BRIDGE_ENV, PI_MCP_COMPOSITION_ENV,
-} from './spawn-args.js';
+} from './session-options.js';
 import { safeNativeComposite, safeNativeName } from '../../domain/plugins/native-name.js';
 import { createBundledServer } from '../../domain/mcp/bundled-server.js';
 import { toolContextFromEnv } from '../../domain/mcp/tools/context.js';

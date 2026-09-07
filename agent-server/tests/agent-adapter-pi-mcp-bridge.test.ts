@@ -29,7 +29,7 @@ import {
 import {
   PI_INTERACTION_BRIDGE_ENV,
   PI_MCP_COMPOSITION_ENV,
-} from '../src/agent-adapter/pi/spawn-args.js';
+} from '../src/agent-adapter/pi/session-options.js';
 import type { McpServerConfig } from '../src/agent-adapter/types.js';
 import { MCP_TOOL_ALLOWLIST_ENV, MCP_TOOLS_BY_SERVER } from '../src/core/mcp-tool-gate.js';
 

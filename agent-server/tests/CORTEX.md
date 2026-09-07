@@ -17,7 +17,6 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | agent-adapter-pi-event-parser.test.ts | test | PI session event translation and context usage mapping |
 | agent-adapter-pi-hook-bridge.test.ts | test | PI async hook lifecycle and CORTEX injection |
 | agent-adapter-pi-hook-registry.test.ts | test | PI hook contracts and task guards |
-| agent-adapter-pi-mcp-config.test.ts | test | PI MCP config privacy and reloads |
 | agent-adapter-pi-mcp-bridge.test.ts | test | PI bundled MCP, plugin isolation and retry |
 | agent-adapter-pi-quota-probe.test.ts | test | PI quota reporting, persistence, and throttle failure parity |
 | agent-adapter-pi-streaming.test.ts | test | PI delta streaming with settings reset |

@@ -1,5 +1,5 @@
-// input:  AgentSpawnConfig, resolved agent/session dirs, transcript path
-// output: PiSessionRequest (everything an in-process PI session is created from) and its identity
+// input:  AgentSpawnConfig, resolved agent/session dirs, transcript path, inherited env
+// output: PiSessionRequest (everything an in-process PI session is created from), its CORTEX_* env and identity
 // pos:    Resolves Cortex spawn configuration into PI session inputs
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -7,7 +7,105 @@ import { resolveMcpComposition } from '../types.js';
 import type { AgentSpawnConfig, McpComposition, McpServerConfig } from '../types.js';
 import { fromCanonical } from '../normalize/tool-names.js';
 import { browserMcpServer } from '../browser-mcp-server.js';
-import { buildPiEnv } from './spawn-args.js';
+import { MCP_TOOL_ALLOWLIST_ENV } from '@core/mcp-tool-gate.js';
+
+export const PI_MCP_COMPOSITION_ENV = 'CORTEX_PI_MCP_COMPOSITION';
+export const PI_INTERACTION_BRIDGE_ENV = 'CORTEX_PI_INTERACTION_BRIDGE';
+/** Set while a NEW commission is being drafted. Read by the MCP bridge, which is where PI knows its
+ *  bundle set and can therefore write the allowlist that hides the commission tools from every other
+ *  session. */
+export const PI_COMMISSION_TOOLS_ENV = 'CORTEX_PI_COMMISSION_TOOLS';
+
+export interface PIEnvOptions {
+  sessionId?: string | null;
+  channel?: string | null;
+  callbackSource?: string | null;
+  scheduleTaskId?: string | null;
+  extraEnv?: Record<string, string> | null;
+  /** Keys deleted after the `extraEnv` merge (AgentSpawnConfig.unsetEnv). PI routes purely through
+   *  env, so this is how a mode expresses "this spawn must not carry ANTHROPIC_API_KEY". */
+  unsetEnv?: string[] | null;
+  context?: AgentSpawnConfig['cortexContext'];
+  piAgentDir: string;
+  allowedTools?: string | null;
+  /** Resolved MCP composition; the bridge derives its server set from it. */
+  mcpComposition?: McpComposition;
+  /** Canonical per-tool MCP allowlist inherited by built-in stdio servers. */
+  mcpToolAllowlist?: string[] | null;
+  /** Trusted marker enabling the shared interaction MCP bridge. */
+  enableInteractionBridge?: boolean;
+  /** Expose the commission-creation tools; ignored when the bridge is off. */
+  commissionTools?: boolean;
+  /** Explicit marker for the restricted PI subagent surface. */
+  subagentMarker?: string | null;
+}
+
+const RESET_CONTEXT_KEYS = [
+  'SLACK_CHANNEL', 'FEISHU_CHANNEL',
+  'CORTEX_SESSION_ID', 'CORTEX_THREAD_ID', 'CORTEX_PROFILE',
+  'CORTEX_PROJECT', 'CORTEX_SESSION_NAME', 'CORTEX_EXECUTION_ID',
+  'CORTEX_THREAD_DEPTH', 'CORTEX_TASK_ID', 'CORTEX_TASK_PROJECT',
+  'CORTEX_TASK_GENERATION',
+  'CORTEX_CALLBACK_SOURCE', 'CORTEX_SCHEDULE_TASK_ID',
+  'CORTEX_CONFIG_IMMUTABLE', 'CORTEX_PRODUCTION_AUTH_FILE',
+  'CORTEX_WEBHOOK_THREAD_OP_ONLY', 'CORTEX_WEBHOOK_SINGLE_ROOT',
+  'CORTEX_WEBHOOK_SINGLE_ROOT_TEMPLATE',
+  'CORTEX_PRODUCTION_BENCHMARK_EVIDENCE_CONTEXT_FILE',
+  'CORTEX_PI_ALLOWED_TOOLS', 'CORTEX_PI_SUBAGENT',
+  PI_MCP_COMPOSITION_ENV, PI_INTERACTION_BRIDGE_ENV, PI_COMMISSION_TOOLS_ENV,
+  MCP_TOOL_ALLOWLIST_ENV,
+] as const;
+
+function setOptional(env: NodeJS.ProcessEnv, key: string, value: unknown): void {
+  if (value !== undefined && value !== null && value !== '') env[key] = String(value);
+}
+
+function applyContext(env: NodeJS.ProcessEnv, options: PIEnvOptions): void {
+  const context = options.context;
+  setOptional(env, 'CORTEX_SESSION_ID', context?.trackSessionId ?? options.sessionId);
+  setOptional(env, 'CORTEX_CALLBACK_SOURCE', options.callbackSource);
+  setOptional(env, 'CORTEX_SCHEDULE_TASK_ID', options.scheduleTaskId);
+  setOptional(env, 'CORTEX_THREAD_ID', context?.threadId);
+  setOptional(env, 'CORTEX_PROFILE', context?.profile);
+  setOptional(env, 'CORTEX_PROJECT', context?.project);
+  setOptional(env, 'CORTEX_SESSION_NAME', context?.sessionName);
+  setOptional(env, 'CORTEX_EXECUTION_ID', context?.executionId);
+  setOptional(env, 'CORTEX_THREAD_DEPTH', context?.threadDepth);
+  setOptional(env, 'CORTEX_TASK_ID', context?.taskId);
+  setOptional(env, 'CORTEX_TASK_PROJECT', context?.taskProject);
+  setOptional(env, 'CORTEX_TASK_GENERATION', context?.taskGeneration);
+}
+
+/**
+ * The session's CORTEX_* environment: the inherited env with every Cortex scope key reset, then
+ * this spawn's own scope applied. The hook scripts and plugin MCP servers a session still forks
+ * read their scope from it, and it doubles as part of the pooled-session identity.
+ */
+export function buildPiEnv(
+  options: PIEnvOptions,
+  inheritedEnv: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...inheritedEnv, ...(options.extraEnv ?? {}) };
+  for (const key of RESET_CONTEXT_KEYS) delete env[key];
+  // After the merge: deletion is the only way to express "absent", since '' is a legal value here.
+  for (const key of options.unsetEnv ?? []) delete env[key];
+  env.PI_CODING_AGENT_DIR = options.piAgentDir;
+  env.CORTEX_BACKEND = 'pi';
+  if (options.channel) {
+    env.SLACK_CHANNEL = options.channel;
+    env.FEISHU_CHANNEL = options.channel;
+  }
+  setOptional(env, 'CORTEX_PI_ALLOWED_TOOLS', options.allowedTools);
+  setOptional(env, PI_MCP_COMPOSITION_ENV, options.mcpComposition);
+  if (options.mcpToolAllowlist !== undefined && options.mcpToolAllowlist !== null) {
+    env[MCP_TOOL_ALLOWLIST_ENV] = JSON.stringify(options.mcpToolAllowlist);
+  }
+  if (options.enableInteractionBridge === true) env[PI_INTERACTION_BRIDGE_ENV] = '1';
+  if (options.commissionTools === true) env[PI_COMMISSION_TOOLS_ENV] = '1';
+  setOptional(env, 'CORTEX_PI_SUBAGENT', options.subagentMarker);
+  applyContext(env, options);
+  return env;
+}
 
 /** Everything one in-process PI session is built from. Plain data so it can be compared. */
 export interface PiSessionRequest {

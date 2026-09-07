@@ -18,7 +18,7 @@ import {
   handlePostToolUse,
   runHookScript,
 } from '../src/agent-adapter/pi/hook-bridge.js';
-import type { ExtensionContext } from '../src/agent-adapter/pi/pi-ext-types.js';
+import type { HookContext } from '../src/agent-adapter/pi/hook-bridge.js';
 
 const _dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(_dirname, '../..');
@@ -28,17 +28,9 @@ const SESSION_LOG_DIR = path.join(REPO_ROOT, 'tmp', 'test-logs', 'session-activi
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeCtx(sessionFile?: string): ExtensionContext {
+function makeCtx(sessionFile?: string): HookContext {
   return {
-    signal: undefined,
     cwd: REPO_ROOT,
-    ui: {
-      select: async () => null,
-      confirm: async () => null,
-      input: async () => null,
-      editor: async () => null,
-      notify: () => {},
-    },
     sessionManager: sessionFile
       ? { getSessionFile: () => sessionFile }
       : { getSessionFile: () => undefined },

@@ -1,6 +1,6 @@
 // input:  install root and the Cortex data directory
-// output: PI adapter path defaults and compiled-extension paths
-// pos:    Static path defaults for PI process spawning
+// output: PI adapter path defaults and the compiled extension paths the child subagent still loads
+// pos:    Static path defaults for the PI backend
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as path from 'path';
@@ -15,8 +15,6 @@ export const PI_MODELS_PATH = path.join(PI_AGENT_DIR, 'models.json');
 export const DEFAULT_SESSION_DIR = PI_SESSIONS_DIR;
 export const MCP_BRIDGE_PATH = path.join(INSTALL_ROOT, 'dist/agent-adapter/pi/mcp-bridge.js');
 export const TOOL_SHIMS_PATH = path.join(INSTALL_ROOT, 'dist/agent-adapter/pi/tool-shims.js');
-export const HOOK_BRIDGE_PATH = path.join(INSTALL_ROOT, 'dist/agent-adapter/pi/hook-bridge.js');
-export const QUOTA_PROBE_PATH = path.join(INSTALL_ROOT, 'dist/agent-adapter/pi/quota-probe.js');
 
 /** PI's models.json always lives beside auth.json inside the agent dir, so one parameter fixes
  *  both (design §13 P7 / A3): a trial agent dir implies a trial provider catalog. */

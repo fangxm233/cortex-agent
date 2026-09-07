@@ -15,7 +15,7 @@ import {
   MAX_SUBAGENT_TASKS,
   type SubagentToolDeps,
 } from '../src/agent-adapter/pi/subagent.js';
-import { PI_INTERACTION_BRIDGE_ENV } from '../src/agent-adapter/pi/spawn-args.js';
+import { PI_INTERACTION_BRIDGE_ENV } from '../src/agent-adapter/pi/session-options.js';
 import { createPIEventParserState, piEventToNormalized } from '../src/agent-adapter/pi/event-parser.js';
 
 class StubChild extends EventEmitter {

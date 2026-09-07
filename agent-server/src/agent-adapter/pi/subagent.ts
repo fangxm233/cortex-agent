@@ -17,8 +17,8 @@ import { Type } from '@sinclair/typebox';
 import { parse as yamlParse } from 'yaml';
 import { PI_AGENT_DIR, ensurePIAgentRoles } from './agent-dir.js';
 import { MCP_BRIDGE_PATH, TOOL_SHIMS_PATH } from './defaults.js';
-import type { ExtensionContext, ToolDefinition } from './pi-ext-types.js';
-import { PI_INTERACTION_BRIDGE_ENV } from './spawn-args.js';
+import type { ExtensionContext, ToolDefinition } from '@earendil-works/pi-coding-agent';
+import { PI_INTERACTION_BRIDGE_ENV } from './session-options.js';
 import { encodeSubagentNotice, type SubagentNotice } from './subagent-notice.js';
 
 export const MAX_SUBAGENT_TASKS = 8;
@@ -719,11 +719,11 @@ async function executeChain(
 function buildToolResult(mode: SubagentMode, results: SubagentResult[]) {
   const details: SubagentDetails = { mode, results, usage: aggregateUsage(results) };
   if (mode === 'parallel') {
-    return { content: [{ type: 'text', text: parallelContent(results) }], details };
+    return { content: [{ type: 'text' as const, text: parallelContent(results) }], details };
   }
   const last = results.at(-1)!;
   const prefix = isFailed(last) ? `Agent failed: ` : '';
-  return { content: [{ type: 'text', text: prefix + resultText(last) }], details };
+  return { content: [{ type: 'text' as const, text: prefix + resultText(last) }], details };
 }
 
 function resolveDeps(overrides?: Partial<SubagentToolDeps>): SubagentToolDeps {

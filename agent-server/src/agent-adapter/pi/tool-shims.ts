@@ -3,7 +3,7 @@
 // pos:    Registers PI-local tool shims
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { Type } from '@sinclair/typebox';
-import type { ExtensionAPI, ExtensionContext } from './pi-ext-types.js';
+import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { createSubagentTool, type SubagentModelOption } from './subagent.js';
 import { webFetchTool } from './web-fetch.js';
 import { webSearchTool } from './web-search.js';
@@ -41,6 +41,7 @@ function registerTodoWrite(pi: ExtensionAPI): void {
           type: 'text',
           text: `Todos updated: ${total} total, ${done} completed, ${inProgress} in progress.`,
         }],
+        details: undefined,
       };
     },
   });

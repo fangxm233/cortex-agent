@@ -8,16 +8,12 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { test } from 'vitest';
 
-import { installHookBridge, type HookHost } from '../src/agent-adapter/pi/hook-bridge.js';
-import type {
-  ExtensionAPI,
-  ExtensionContext,
-} from '../src/agent-adapter/pi/pi-ext-types.js';
+import { installHookBridge, type HookContext, type HookHost } from '../src/agent-adapter/pi/hook-bridge.js';
 import { CONFIG_DIR, DEFAULTS_DIR, HOOKS_DIR } from '../src/core/paths.js';
 
-type Handler = (event: any, ctx: ExtensionContext) => any;
+type Handler = (event: any, ctx: HookContext) => any;
 
-class FakePi implements Pick<ExtensionAPI, 'on' | 'registerTool'> {
+class FakePi implements HookHost {
   readonly handlers = new Map<string, Handler[]>();
   readonly tools = new Map<string, any>();
 
@@ -31,7 +27,7 @@ class FakePi implements Pick<ExtensionAPI, 'on' | 'registerTool'> {
     this.tools.set(definition.name, definition);
   }
 
-  private async emitDefault(event: string, payload: any, ctx: ExtensionContext): Promise<unknown> {
+  private async emitDefault(event: string, payload: any, ctx: HookContext): Promise<unknown> {
     let result: any;
     for (const handler of this.handlers.get(event) ?? []) {
       const next = await handler(payload, ctx);
@@ -42,7 +38,7 @@ class FakePi implements Pick<ExtensionAPI, 'on' | 'registerTool'> {
     return result;
   }
 
-  private async emitContext(payload: any, ctx: ExtensionContext): Promise<unknown[]> {
+  private async emitContext(payload: any, ctx: HookContext): Promise<unknown[]> {
     let messages = payload.messages;
     for (const handler of this.handlers.get('context') ?? []) {
       const result = await handler({ ...payload, messages }, ctx);
@@ -51,7 +47,7 @@ class FakePi implements Pick<ExtensionAPI, 'on' | 'registerTool'> {
     return messages;
   }
 
-  private async emitProvider(payload: any, ctx: ExtensionContext): Promise<unknown> {
+  private async emitProvider(payload: any, ctx: HookContext): Promise<unknown> {
     let current = payload.payload;
     for (const handler of this.handlers.get('before_provider_request') ?? []) {
       const result = await handler({ ...payload, payload: current }, ctx);
@@ -60,7 +56,7 @@ class FakePi implements Pick<ExtensionAPI, 'on' | 'registerTool'> {
     return current;
   }
 
-  private async emitMessageEnd(payload: any, ctx: ExtensionContext): Promise<unknown> {
+  private async emitMessageEnd(payload: any, ctx: HookContext): Promise<unknown> {
     let message = payload.message;
     let modified = false;
     for (const handler of this.handlers.get('message_end') ?? []) {
@@ -72,7 +68,7 @@ class FakePi implements Pick<ExtensionAPI, 'on' | 'registerTool'> {
     return modified ? message : undefined;
   }
 
-  private async emitBeforeAgent(payload: any, ctx: ExtensionContext): Promise<unknown> {
+  private async emitBeforeAgent(payload: any, ctx: HookContext): Promise<unknown> {
     let systemPrompt = payload.systemPrompt;
     const messages: unknown[] = [];
     let modified = false;
@@ -87,7 +83,7 @@ class FakePi implements Pick<ExtensionAPI, 'on' | 'registerTool'> {
     return { messages: messages.length > 0 ? messages : undefined, systemPrompt };
   }
 
-  private async emitToolResult(payload: any, ctx: ExtensionContext): Promise<unknown> {
+  private async emitToolResult(payload: any, ctx: HookContext): Promise<unknown> {
     const current = { ...payload };
     let modified = false;
     for (const handler of this.handlers.get('tool_result') ?? []) {
@@ -105,14 +101,14 @@ class FakePi implements Pick<ExtensionAPI, 'on' | 'registerTool'> {
     );
   }
 
-  private async emitHeaders(payload: any, ctx: ExtensionContext): Promise<unknown> {
+  private async emitHeaders(payload: any, ctx: HookContext): Promise<unknown> {
     for (const handler of this.handlers.get('before_provider_headers') ?? []) {
       await handler(payload, ctx);
     }
     return payload.headers;
   }
 
-  async emit(event: string, payload: any, ctx: ExtensionContext): Promise<unknown> {
+  async emit(event: string, payload: any, ctx: HookContext): Promise<unknown> {
     if (event === 'context') return this.emitContext(payload, ctx);
     if (event === 'before_provider_request') return this.emitProvider(payload, ctx);
     if (event === 'message_end') return this.emitMessageEnd(payload, ctx);
@@ -123,17 +119,9 @@ class FakePi implements Pick<ExtensionAPI, 'on' | 'registerTool'> {
   }
 }
 
-function makeCtx(input: () => Promise<string | null> = async () => null): ExtensionContext {
+function makeCtx(): HookContext {
   return {
-    signal: undefined,
     cwd: process.cwd(),
-    ui: {
-      select: async () => null,
-      confirm: async () => null,
-      input,
-      editor: async () => null,
-      notify: () => {},
-    },
     sessionManager: { getSessionFile: () => '/tmp/pi-registry-session.jsonl' },
   };
 }
@@ -205,7 +193,7 @@ const LIFECYCLE_EVENTS = [
 interface Fixture {
   registryDir: string;
   logFile: string;
-  ctx: ExtensionContext;
+  ctx: HookContext;
 }
 
 function setupFixture(t: { onTestFinished(callback: () => void): void }): Fixture {

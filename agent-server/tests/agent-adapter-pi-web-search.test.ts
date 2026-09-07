@@ -49,8 +49,14 @@ function makeContext(options: StubContextOptions): any {
   };
 }
 
-function executeSearch(ctx: any, params: Record<string, unknown> = { query: QUERY }) {
-  return webSearchTool.execute('tc-web-search', params as any, undefined, undefined, ctx);
+/** Run the tool and hand back its text blocks, which is all these tests read. */
+async function executeSearch(ctx: any, params: Record<string, unknown> = { query: QUERY }) {
+  const result = await webSearchTool.execute('tc-web-search', params as any, undefined, undefined, ctx);
+  const content = result.content.map((block) => {
+    if (block.type !== 'text') throw new Error(`unexpected ${block.type} block in WebSearch result`);
+    return block;
+  });
+  return { ...result, content };
 }
 
 function sseEventsResponse(events: Record<string, unknown>[]): Response {

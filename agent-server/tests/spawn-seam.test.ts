@@ -39,7 +39,7 @@ import {
   pluginServerStateName,
 } from '../src/agent-adapter/pi/mcp-bridge.js';
 import { safeNativeComposite } from '../src/domain/plugins/native-name.js';
-import { buildPiEnv, PI_MCP_COMPOSITION_ENV } from '../src/agent-adapter/pi/spawn-args.js';
+import { buildPiEnv, PI_MCP_COMPOSITION_ENV } from '../src/agent-adapter/pi/session-options.js';
 import { makeFakeRuntimeFactory } from './agent-adapter/pi-fake-runtime.js';
 import { generateMcpConfig } from '../src/core/config-generator.js';
 import { encodeMcpBundles, MCP_BUNDLES_ENV } from '../src/core/mcp-bundles.js';

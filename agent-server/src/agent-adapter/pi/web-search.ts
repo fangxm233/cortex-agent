@@ -5,12 +5,11 @@
 
 import { randomUUID } from 'node:crypto';
 import { Type } from '@sinclair/typebox';
-import type {
-  ExtensionContext,
-  ExtensionModel,
-  ResolvedRequestAuth,
-  ToolDefinition,
-} from './pi-ext-types.js';
+import type { ExtensionContext, ToolDefinition } from '@earendil-works/pi-coding-agent';
+
+/** The active model as PI exposes it to extensions. */
+type ExtensionModel = NonNullable<ExtensionContext['model']>;
+type ResolvedRequestAuth = Awaited<ReturnType<ExtensionContext['modelRegistry']['getApiKeyAndHeaders']>>;
 
 export const WEB_SEARCH_MAX_USES = 3;
 
@@ -643,6 +642,6 @@ export const webSearchTool: ToolDefinition<typeof WebSearchParameters> = {
   parameters: WebSearchParameters,
   async execute(_toolCallId, params, signal, _onUpdate, ctx) {
     const text = await runWebSearch(params, signal, ctx);
-    return { content: [{ type: 'text', text }] };
+    return { content: [{ type: 'text', text }], details: undefined };
   },
 };

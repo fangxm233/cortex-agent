@@ -6,7 +6,7 @@
 import { Type } from '@sinclair/typebox';
 import TurndownService from 'turndown';
 import { gfm } from 'turndown-plugin-gfm';
-import type { ToolDefinition } from './pi-ext-types.js';
+import type { ToolDefinition } from '@earendil-works/pi-coding-agent';
 
 export const WEB_FETCH_MAX_REDIRECTS = 5;
 export const WEB_FETCH_TIMEOUT_MS = 30_000;
@@ -224,6 +224,6 @@ export const webFetchTool: ToolDefinition<typeof WebFetchParameters> = {
   parameters: WebFetchParameters,
   async execute(_toolCallId, params, signal, _onUpdate, _ctx) {
     const text = await fetchWebContent(params.url, signal);
-    return { content: [{ type: 'text', text }] };
+    return { content: [{ type: 'text', text }], details: undefined };
   },
 };

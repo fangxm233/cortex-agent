@@ -13,7 +13,7 @@ import type { NormalizedEvent } from '../src/agent-adapter/normalize/event-types
 import { PIAdapter, type PIAgentProcess } from '../src/agent-adapter/pi/adapter.js';
 import { PI_MODELS_PATH } from '../src/agent-adapter/pi/defaults.js';
 import { createPIProviderDiscovery } from '../src/agent-adapter/pi/discovery.js';
-import { buildPiEnv, PI_INTERACTION_BRIDGE_ENV } from '../src/agent-adapter/pi/spawn-args.js';
+import { buildPiEnv, PI_INTERACTION_BRIDGE_ENV } from '../src/agent-adapter/pi/session-options.js';
 import {
   collectEvents, makeFakeRuntimeFactory, type FakeRuntime,
 } from './agent-adapter/pi-fake-runtime.js';
