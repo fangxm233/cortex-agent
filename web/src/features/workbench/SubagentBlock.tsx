@@ -1,5 +1,5 @@
 // input:  one subagent's identity, complete prompt, and grouped rows
-// output: sticky prompt block with a right-aligned tool-call count
+// output: rounded sticky prompt block and tool-call count
 // pos:    desktop workbench subagent card presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -56,12 +56,13 @@ const promptLabelStyle: CSSProperties = {
   textTransform: 'uppercase', letterSpacing: '.05em',
 };
 
-function headerStyle(hover: boolean): CSSProperties {
+function headerStyle(hover: boolean, expanded: boolean): CSSProperties {
   return {
     position: 'sticky', top: 0, zIndex: 1,
     display: 'flex', alignItems: 'center', gap: 7, fontSize: 11.5,
     color: hover ? 'var(--proto-muted)' : 'var(--proto-muted-3)',
     background: 'var(--proto-rail)',
+    borderRadius: expanded ? '7px 7px 0 0' : 7,
     padding: '6px 13px', cursor: 'pointer', minWidth: 0,
   };
 }
@@ -104,7 +105,7 @@ export function SubagentBlock({ agentType, description, prompt, model, status, t
         onMouseLeave={() => setHover(false)}
         role="button"
         aria-expanded={expanded}
-        style={headerStyle(hover)}
+        style={headerStyle(hover, expanded)}
       >
         <span
           style={statusDotStyle(status === 'running')}

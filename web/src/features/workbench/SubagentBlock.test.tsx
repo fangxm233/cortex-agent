@@ -1,5 +1,5 @@
 // input:  subagent identity, folded rows, and turn-copy actions
-// output: sticky header, prompt disclosure, count, and copy tests
+// output: rounded sticky header, prompt, count, and copy tests
 // pos:    Desktop subagent card presentation contract
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -37,11 +37,16 @@ describe('SubagentBlock', () => {
     const header = renderer.root.findByProps({ role: 'button' });
     expect(header.props.style).toMatchObject({
       position: 'sticky', top: 0, zIndex: 1, background: 'var(--proto-rail)',
+      borderRadius: 7,
     });
+    expect(header.parent!.props.style.overflow).toBeUndefined();
     act(() => header.props.onClick());
+    expect(header.props.style.borderRadius).toBe('7px 7px 0 0');
     const rendered = JSON.stringify(renderer.toJSON());
     expect(rendered).toContain(prompt.replace(/\n/g, '\\n'));
     expect(rendered).toContain('child output');
+    act(() => header.props.onClick());
+    expect(header.props.style.borderRadius).toBe(7);
   });
 
   it('keeps one outer turn-copy action after an expanded subagent', () => {
