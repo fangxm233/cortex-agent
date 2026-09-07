@@ -6,8 +6,8 @@ Status pills reuse the canonical design Tone/status mapping while keeping their 
 
 | filename | role | function |
 |---|---|---|
-| kit.tsx | facade | Supplies primitives, canonical-tone mobile pills and back-aware nested sheets |
+| kit.tsx | facade | Supplies primitives, pills and layered sheets |
 | composer.tsx | view | Renders inline/fullscreen composer presentation and text metrics |
 | mobile-theme.ts | tokens | Exposes the shared mobile palette and monospace stack |
-| kit.test.ts | test | Tests sheet viewport, dismissal and Unicode-safe counts |
+| kit.test.ts | test | Tests sheet layers, viewport, dismissal and counts |
 | format.ts | util | Formats relative time/copy and adapts missing-aware canonical USD labels |

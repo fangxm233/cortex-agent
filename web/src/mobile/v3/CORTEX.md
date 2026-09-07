@@ -9,13 +9,13 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 | m-chat-attachments.ts | hook | Adapts mobile draft persistence to the neutral attachment controller |
 | MChatInlineThreadCard.tsx | view | Binds the selected session's live inline thread stepper |
 | MChatScreen.optimistic.test.tsx | test | Tests status priority, Todo wiring, optimistic sends and shortcuts |
-| MChatView.tsx | view | Renders sticky subagents in the mobile chat frame |
+| MChatView.tsx | view | Contains sticky chat headers below overlays |
 | MChatView.types.ts | types | Shares public chat, action, composer and sheet contracts |
 | MChatMessageActions.tsx | view | Renders success-only shared copy, long-press and edit actions |
 | MChatAttachments.tsx | view | Renders transcript cards and queued/progress/retry/remove composer chips |
 | MChatSheets.tsx | view | Renders session-id shared copy feedback plus profile/browser/commission/context sheets |
 | MChatComposerPresentation.tsx | view | Renders composer modes, tools, slash and plus menus |
-| MChatView.test.tsx | test | Tests sticky subagents, Todo, menus and copy |
+| MChatView.test.tsx | test | Tests chat stacking, subagents, menus and copy |
 | m-chat-vm.ts | vm | Maps run facts with canonical USD labels and builds chat rows/profile/menu placement |
 | m-chat-vm.test.ts | test | Tests localized run status, profile labels and row state |
 | MInteractionCards.tsx | view | Ask-user bottom-input and plan-approval cards |

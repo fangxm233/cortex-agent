@@ -1,5 +1,5 @@
 // input:  sheet markup, drag metrics, and composer text
-// output: viewport, dismiss, and Unicode-safe count assertions
+// output: Sheet layering, viewport, dismiss, and count assertions
 // pos:    Mobile UI-kit layout and logic tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -14,6 +14,13 @@ import {
 } from './kit';
 
 describe('MBottomSheet viewport containment', () => {
+  it('layers the entire sheet and scrim above chat menus', () => {
+    const html = renderToStaticMarkup(
+      createElement(MBottomSheet, { onClose: () => {}, children: 'rows' }),
+    );
+    expect(html.split('>')[0]).toContain('z-index:10');
+  });
+
   it('caps the sheet height and scrolls overflowing content', () => {
     const html = renderToStaticMarkup(
       createElement(MBottomSheet, {

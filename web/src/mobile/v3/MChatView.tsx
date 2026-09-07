@@ -1,5 +1,5 @@
 // input:  mobile chat rows, lazy detail, decisions, Todo, modules
-// output: Mobile chat with sticky subagents, decisions, and actions
+// output: Mobile chat with contained sticky headers and overlays
 // pos:    Mobile chat presentation facade and stream renderer
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -553,8 +553,9 @@ export function MChatView(props: MChatViewProps): JSX.Element {
           transcript + composer while leaving the header untouched. */}
       <div style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
         {/* Plain-block scroll container (like the desktop MessageStream) with an inner flex-column
-            content wrapper — keeps programmatic scrollTop stick-to-bottom reliable in mobile webviews. */}
-        <div ref={scrollRef} onScroll={onScroll} onClick={onContentClick} style={{ flex: 1, minHeight: 0, overflow: 'auto', background: MC.canvas }}>
+            content wrapper — keeps programmatic scrollTop stick-to-bottom reliable in mobile webviews.
+            Isolate sticky headers so their z-index cannot escape over the composer or overlays. */}
+        <div ref={scrollRef} onScroll={onScroll} onClick={onContentClick} style={{ flex: 1, minHeight: 0, overflow: 'auto', isolation: 'isolate', background: MC.canvas }}>
           <div ref={contentRef} style={{ padding: '14px 14px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
             <MChatStream
               rows={props.rows}

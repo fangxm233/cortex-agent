@@ -1,5 +1,5 @@
 // input:  React nodes, shared Tone semantics, mobile dismissal, and presentation tokens
-// output: themed mobile screens, distinct mobile pills, sheets, and composer facade exports
+// output: Mobile primitives, layered sheets, and composer exports
 // pos:    Shared mobile primitives over the canonical design status-tone model
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 // @ds-adherence-ignore -- mobile v3 UI kit, chrome extracted 1:1 from scheme-mobile.dc.html
@@ -501,7 +501,7 @@ export function MBottomSheet({
   const dimOpacity = offscreen ? 0 : Math.max(0, 0.38 * (1 - dragY / height));
 
   return (
-    <div style={{ position: 'absolute', inset: 0, boxSizing: 'border-box' }}>
+    <div style={{ position: 'absolute', inset: 0, zIndex: 10, boxSizing: 'border-box' }}>
       {behind && <div style={{ position: 'absolute', inset: 0 }}>{behind}</div>}
       <div
         onClick={close}

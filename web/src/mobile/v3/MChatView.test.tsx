@@ -1,5 +1,5 @@
 // input:  mobile rows, lazy detail, Todo, composer and profiles
-// output: Sticky subagent and mobile chat interaction contracts
+// output: Chat stacking, sticky headers, and interaction contracts
 // pos:    Mobile chat interaction behavior tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -127,6 +127,18 @@ function renderChat(running: boolean, sendEnabled: boolean): string {
 
 beforeEach(() => {
   harness.queryCalls = [];
+});
+
+describe('MChatView stacking', () => {
+  it('contains sticky header layers inside the transcript scroller', () => {
+    let renderer!: ReactTestRenderer;
+    act(() => { renderer = create(
+      <MChatView {...baseProps} rows={[]} status={{ running: false, tone: 'idle', text: 'idle' }} />,
+    ); });
+    const scroller = renderer.root.find((node) => node.type === 'div' && typeof node.props.onScroll === 'function');
+    expect(scroller.props.style).toMatchObject({ overflow: 'auto', isolation: 'isolate' });
+    act(() => renderer.unmount());
+  });
 });
 
 describe('MChatView slash shortcuts', () => {
