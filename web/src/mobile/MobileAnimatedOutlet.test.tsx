@@ -3,8 +3,9 @@
 // pos:    Mobile outlet behavior tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
+import { create } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
-import { planFrameChange, planTransition, type Frame } from './MobileAnimatedOutlet';
+import { AnimatedOutletLayers, planFrameChange, planTransition, type Frame } from './MobileAnimatedOutlet';
 
 describe('planTransition', () => {
   it('maps drill-in and drill-out navigation to opposite directions', () => {
@@ -90,5 +91,26 @@ describe('planFrameChange', () => {
 
     expect(result.current).toBe(root);
     expect(result.returningToRetained).toBe(true);
+  });
+});
+
+// The outgoing layer keeps painting for the ~40ms between the 160ms slide-out and the 200ms
+// slide-in, with its transform (and its stacking context) already gone. Without isolation a
+// z-indexed child of that layer -- the sticky subagent header -- flashes over the incoming route.
+describe('route layers', () => {
+  it('isolates each layer so a route\'s z-index cannot paint over another route', () => {
+    const tree = create(
+      <AnimatedOutletLayers
+        current={frame('/m/sessions')}
+        retainedTab={frame('/m/tasks')}
+        previous={frame('/m/session/chat-1')}
+        dir="back"
+        onSettled={() => {}}
+      />,
+    );
+    const layers = tree.root.findAll((node) => typeof node.props['data-route-layer'] === 'string');
+
+    expect(layers).toHaveLength(3);
+    for (const layer of layers) expect(layer.props.style.isolation).toBe('isolate');
   });
 });

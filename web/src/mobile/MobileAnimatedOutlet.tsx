@@ -64,10 +64,16 @@ function prefersReducedMotion(): boolean {
     && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
+// `isolation` keeps every route's z-index inside its own layer. Layers are absolute with
+// z-index auto, so without it a positioned child (the sticky subagent header) escapes to the
+// shell's stacking context and paints OVER the incoming route -- visible as a flash in the gap
+// between the 160ms outgoing slide and the 200ms incoming one, where the outgoing layer has
+// dropped its transform (and with it the stacking context) but is not unmounted yet.
 const layerStyle: CSSProperties = {
   position: 'absolute',
   inset: 0,
   background: MC.canvas,
+  isolation: 'isolate',
 };
 
 const retainedStyle: CSSProperties = {
@@ -128,7 +134,7 @@ function RouteLayer({ frame, role, className, hidden, onAnimationEnd }: RouteLay
   );
 }
 
-function AnimatedOutletLayers({ current, retainedTab, previous, dir, onSettled }: {
+export function AnimatedOutletLayers({ current, retainedTab, previous, dir, onSettled }: {
   current: Frame;
   retainedTab: Frame | null;
   previous: Frame | null;
