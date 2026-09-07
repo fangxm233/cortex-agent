@@ -8,6 +8,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { registerUiFileTools } from './tools/ui-file.js';
 import { registerUiViewTools } from './tools/ui-view.js';
 import { registerUiDecisionTools } from './tools/ui-decision.js';
+import { toolContextFromEnv } from './tools/context.js';
 import { isMainModule } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
 import { CORTEX_VERSION } from '@core/version.js';
@@ -17,13 +18,14 @@ const log = createLogger('mcp-web');
 
 // --- McpServer + tool registration ---
 
+const ctx = toolContextFromEnv();
 const server = new McpServer({ name: 'cortex-web', version: CORTEX_VERSION });
 
 registerGatedMcpTools(server, (target) => {
-  registerUiFileTools(target);
-  registerUiViewTools(target);
-  registerUiDecisionTools(target);
-});
+  registerUiFileTools(target, ctx);
+  registerUiViewTools(target, ctx);
+  registerUiDecisionTools(target, ctx);
+}, ctx.toolAllowlist);
 
 // --- Start (called by barrel when run as standalone) ---
 

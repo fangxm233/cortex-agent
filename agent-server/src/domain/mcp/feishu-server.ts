@@ -9,6 +9,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { registerFeishuTools } from './feishu/index.js';
 import { buildFeishuClientFromEnv } from './feishu/client.js';
+import { toolContextFromEnv } from './tools/context.js';
 import { isMainModule } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
 import { CORTEX_VERSION } from '@core/version.js';
@@ -22,8 +23,13 @@ const client = buildFeishuClientFromEnv();
 
 // --- McpServer + tool registration ---
 
+const ctx = toolContextFromEnv();
 const server = new McpServer({ name: 'cortex-feishu', version: CORTEX_VERSION });
-registerGatedMcpTools(server, target => registerFeishuTools(target, { client }));
+registerGatedMcpTools(
+  server,
+  target => registerFeishuTools(target, { client, fallbackChannel: ctx.channel }),
+  ctx.toolAllowlist,
+);
 
 export async function startServer(): Promise<void> {
   if (!client) {

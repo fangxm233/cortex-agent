@@ -1,4 +1,4 @@
-// input:  MCP server, webhook proxy, thread environment
+// input:  MCP server, webhook proxy, session tool context
 // output: thread_abort, thread_split, and thread_wait MCP tools
 // pos:    Self-control tools for the caller's active thread
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -6,30 +6,29 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { requestLoopbackJson } from '@core/loopback-http.js';
+import { webhookAuthHeaders, type CortexToolContext } from './context.js';
 
-// Thread operations proxied through the daemon webhook (separate process, no shared memory with
-// the thread runner / store / live PlatformAdapter, all of which live in the daemon).
-const WEBHOOK_BASE = `http://127.0.0.1:${process.env.WEBHOOK_PORT || '3001'}`;
+// Thread operations proxied through the daemon webhook: the thread runner / store / live
+// PlatformAdapter live in the daemon, and a tool must not reach into them directly.
+export function registerThreadTools(server: McpServer, ctx: CortexToolContext): void {
+  const proxyThreadOp = async (action: string, payload: Record<string, any>): Promise<any> => {
+    const { body } = await requestLoopbackJson(
+      'POST',
+      `${ctx.webhookBaseUrl}/webhook/thread-op`,
+      { action, ...payload },
+      webhookAuthHeaders(ctx),
+    );
+    if (!body.success) throw new Error(body.error || 'thread-op failed');
+    return body.data;
+  };
 
-async function proxyThreadOp(action: string, payload: Record<string, any>): Promise<any> {
-  const { body } = await requestLoopbackJson(
-    'POST',
-    `${WEBHOOK_BASE}/webhook/thread-op`,
-    { action, ...payload },
-    { 'x-cortex-token': process.env.CORTEX_WEBHOOK_TOKEN || '' },
-  );
-  if (!body.success) throw new Error(body.error || 'thread-op failed');
-  return body.data;
-}
-
-export function registerThreadTools(server: McpServer): void {
   // --- Control plane (DR-0015): self-control of the CALLER'S OWN thread ---
   // All three target CORTEX_THREAD_ID (the thread you are running inside) — you never pass a
   // threadId. They write a structured intent the runner consumes at the next step boundary, then
   // your step should end. Calling outside a thread (no CORTEX_THREAD_ID) is an error.
 
   const selfThreadId = (): string => {
-    const id = process.env.CORTEX_THREAD_ID;
+    const id = ctx.threadId;
     if (!id) throw new Error('not running inside a thread (CORTEX_THREAD_ID unset) — control tools only work from within a thread');
     return id;
   };

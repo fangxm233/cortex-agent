@@ -10,11 +10,13 @@ import { createLogger } from '@core/log.js';
 import { CORTEX_VERSION } from '@core/version.js';
 import { registerGatedMcpTools } from '@core/mcp-tool-gate.js';
 import { registerTaskMonitorTools } from './tools/task-monitor.js';
+import { toolContextFromEnv } from './tools/context.js';
 
 const log = createLogger('mcp-tasks');
+const ctx = toolContextFromEnv();
 const server = new McpServer({ name: 'cortex-tasks', version: CORTEX_VERSION });
 
-registerGatedMcpTools(server, registerTaskMonitorTools);
+registerGatedMcpTools(server, target => registerTaskMonitorTools(target, ctx), ctx.toolAllowlist);
 
 export async function startServer(): Promise<void> {
   const transport = new StdioServerTransport();

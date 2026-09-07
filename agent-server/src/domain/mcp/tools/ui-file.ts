@@ -1,4 +1,4 @@
-// input:  McpServer, daemon UI-file webhook, CORTEX_SESSION_ID
+// input:  McpServer, daemon UI-file webhook, session tool context
 // output: Web-only send_file tool registration
 // pos:    Sends agent-produced files into Web chat sessions
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -8,19 +8,9 @@ import { z } from 'zod';
 import * as fs from 'fs';
 import * as path from 'path';
 import { requestLoopbackJson } from '@core/loopback-http.js';
+import { webhookAuthHeaders, webSessionId, type CortexToolContext } from './context.js';
 
-/** Daemon webhook base — same loopback + token seam the thread/task MCP tools use. */
-const WEBHOOK_BASE = `http://127.0.0.1:${process.env.WEBHOOK_PORT || '3001'}`;
-
-function resolveSessionId(): string | null {
-  const envId = process.env.CORTEX_SESSION_ID;
-  if (envId) return envId;
-  const ch = process.env.SLACK_CHANNEL || process.env.FEISHU_CHANNEL;
-  if (ch && ch.startsWith('web:')) return ch.slice('web:'.length);
-  return null;
-}
-
-export function registerUiFileTools(server: McpServer): void {
+export function registerUiFileTools(server: McpServer, ctx: CortexToolContext): void {
   server.tool(
     'send_file',
     'Send a file to the user in this chat. Use this whenever you want to share a file you produced — a report, plot, image, dataset, log, PDF, etc. The file appears as a downloadable card in the conversation (images preview inline). Pass a local path to a file you have written or that exists on disk.',
@@ -31,7 +21,7 @@ export function registerUiFileTools(server: McpServer): void {
     },
     async ({ file_path, file_name, caption }: { file_path: string; file_name?: string; caption?: string }) => {
       try {
-        const sessionId = resolveSessionId();
+        const sessionId = webSessionId(ctx);
         if (!sessionId) throw new Error('No web session in context — send_file is only usable inside a Web UI chat session');
 
         const resolved = path.isAbsolute(file_path) ? file_path : path.resolve(process.cwd(), file_path);
@@ -40,9 +30,9 @@ export function registerUiFileTools(server: McpServer): void {
 
         const { body } = await requestLoopbackJson(
           'POST',
-          `${WEBHOOK_BASE}/webhook/ui-file`,
+          `${ctx.webhookBaseUrl}/webhook/ui-file`,
           { sessionId, filePath: resolved, fileName: file_name, caption },
-          { 'x-cortex-token': process.env.CORTEX_WEBHOOK_TOKEN || '' },
+          webhookAuthHeaders(ctx),
         );
         if (!body.success) throw new Error(body.error || 'send_file failed');
         const meta = body.data;

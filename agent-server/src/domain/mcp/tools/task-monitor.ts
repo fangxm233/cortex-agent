@@ -1,4 +1,4 @@
-// input:  McpServer, @core/task-parser (reads TASKS.yaml on disk)
+// input:  McpServer, session tool context, @core/task-parser (reads TASKS.yaml on disk)
 // output: task_status / task_result / task_list read-only tool registrations
 // pos:    Agent-facing task monitoring. Delegation is done via the cortex-task CLI (add / spawn);
 //         these tools let an agent observe a task it created or depends on without shelling out.
@@ -16,10 +16,12 @@ import {
   filterTasks,
   type Task,
 } from '@core/task-parser.js';
+import type { CortexToolContext } from './context.js';
 
-/** Default project scope from env so an in-task agent need not re-declare it. null = all projects. */
-function defaultProject(project?: string): string | null {
-  return project || process.env.CORTEX_TASK_PROJECT || process.env.CORTEX_PROJECT || null;
+/** Default project scope from the session context so an in-task agent need not re-declare it.
+ *  null = all projects. */
+function defaultProject(ctx: CortexToolContext, project?: string): string | null {
+  return project || ctx.taskProject || ctx.project || null;
 }
 
 function statusView(task: Task, completed: Set<string>): Record<string, unknown> {
@@ -42,7 +44,7 @@ function jsonResult(payload: unknown) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(payload, null, 2) }] };
 }
 
-export function registerTaskMonitorTools(server: McpServer): void {
+export function registerTaskMonitorTools(server: McpServer, ctx: CortexToolContext): void {
   // --- task_status ---
 
   server.tool(
@@ -55,7 +57,7 @@ export function registerTaskMonitorTools(server: McpServer): void {
     { readOnlyHint: true },
     async ({ task_id, project }: { task_id: string; project?: string }) => {
       try {
-        const all = scanAllTasks(defaultProject(project));
+        const all = scanAllTasks(defaultProject(ctx, project));
         const task = all.find((t) => t.id === task_id);
         if (!task) return { content: [{ type: 'text', text: `task ${task_id} not found` }], isError: true };
         return jsonResult(statusView(task, completedHashSet(all)));
@@ -77,7 +79,7 @@ export function registerTaskMonitorTools(server: McpServer): void {
     { readOnlyHint: true },
     async ({ task_id, project }: { task_id: string; project?: string }) => {
       try {
-        const all = scanAllTasks(defaultProject(project));
+        const all = scanAllTasks(defaultProject(ctx, project));
         const task = all.find((t) => t.id === task_id);
         if (!task) return { content: [{ type: 'text', text: `task ${task_id} not found` }], isError: true };
         const terminal = task.status === 'done' || !!task.blocked_by;
@@ -113,7 +115,7 @@ export function registerTaskMonitorTools(server: McpServer): void {
     { readOnlyHint: true },
     async ({ project, status, parent, limit }: { project?: string; status?: string; parent?: string; limit?: number }) => {
       try {
-        const proj = defaultProject(project);
+        const proj = defaultProject(ctx, project);
         const all = scanAllTasks(proj);
         const completed = completedHashSet(all);
         let tasks = filterTasks(all, { project: proj, status }, completed);

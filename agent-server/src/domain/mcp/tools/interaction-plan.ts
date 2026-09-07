@@ -1,4 +1,4 @@
-// input:  McpServer, tool dependencies, plan files
+// input:  McpServer, tool dependencies or session tool context, plan files
 // output: Shared plan-mode MCP registrations and handlers
 // pos:    Implements blocking human plan approval
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -6,8 +6,10 @@
 import * as fs from 'fs';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { requestLoopbackJson } from '@core/loopback-http.js';
+import { webhookAuthHeaders, type CortexToolContext } from './context.js';
 
-/** Per-process injection point for tests. Production binds httpPost to global fetch. */
+/** Injection point for tests. Production binds httpPost to the bounded loopback helper. */
 export interface InteractionToolDeps {
   channel: string | null;
   sessionId: string | null;
@@ -17,6 +19,22 @@ export interface InteractionToolDeps {
   sessionName?: string | null;
   webhookBaseUrl: string;
   httpPost: (url: string, body: any) => Promise<{ status: number; body: any }>;
+}
+
+/**
+ * Production deps for one session. Interaction webhooks block up to the 30-minute business TTL;
+ * the shared loopback helper adds the infrastructure grace without inheriting Node fetch's
+ * shorter hidden deadline.
+ */
+export function interactionDepsFor(ctx: CortexToolContext): InteractionToolDeps {
+  return {
+    channel: ctx.channel,
+    sessionId: ctx.sessionId,
+    sessionName: ctx.sessionName,
+    threadId: ctx.threadId,
+    webhookBaseUrl: ctx.webhookBaseUrl,
+    httpPost: (url, body) => requestLoopbackJson('POST', url, body, webhookAuthHeaders(ctx)),
+  };
 }
 
 /** Shape of an MCP CallToolResult — kept structural to avoid importing SDK types into test files. */

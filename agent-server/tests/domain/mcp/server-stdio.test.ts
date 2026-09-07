@@ -1,5 +1,5 @@
-// input:  MCP entries, bundles, gates and QA webhook
-// output: bundled surfaces, refusals and answerer identity tests
+// input:  MCP entries, bundles, gates, tool contexts and QA webhook
+// output: bundled surfaces, refusals, answerer identity and per-context isolation tests
 // pos:    Built MCP server integration tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -9,11 +9,14 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { encodeMcpBundles, MCP_BUNDLES_ENV, type McpBundleName } from '../../../src/core/mcp-bundles.js';
 import { MCP_TOOL_ALLOWLIST_ENV, MCP_TOOLS_BY_SERVER } from '../../../src/core/mcp-tool-gate.js';
-import { loadBundleRegistrars, type Registrar } from '../../../src/domain/mcp/bundled-server.js';
+import { createBundledServer, loadBundleRegistrars, type Registrar } from '../../../src/domain/mcp/bundled-server.js';
+import { toolContextFromEnv } from '../../../src/domain/mcp/tools/context.js';
 
 const TESTS_DIR = dirname(fileURLToPath(import.meta.url));
 const MCP_DIST_DIR = resolve(TESTS_DIR, '../../../dist/domain/mcp');
@@ -101,6 +104,7 @@ test('bundle load and registration failures do not remove healthy registrations'
   const broken: Registrar = () => { throw new Error('registration failed'); };
   const loaded = await loadBundleRegistrars(
     ['cortex-core', 'cortex-web', 'cortex-slack'],
+    toolContextFromEnv({}),
     async bundle => {
       if (bundle === 'cortex-web') throw new Error('optional dependency missing');
       return bundle === 'cortex-slack' ? broken : healthy;
@@ -113,6 +117,34 @@ test('bundle load and registration failures do not remove healthy registrations'
     'cortex-web:optional dependency missing',
     'cortex-slack:registration failed',
   ]);
+});
+
+test('two bundled servers in one process keep their session contexts apart', async () => {
+  await withQaWebhook(async (port, received) => {
+    const env = { WEBHOOK_PORT: String(port), CORTEX_WEBHOOK_TOKEN: 'in-process' };
+    const [alpha, beta] = await Promise.all([
+      createBundledServer(['cortex-web'], toolContextFromEnv({ ...env, CORTEX_SESSION_ID: 'session-alpha' })),
+      createBundledServer(['cortex-web'], toolContextFromEnv({ ...env, CORTEX_SESSION_ID: 'session-beta' })),
+    ]);
+    const call = async (server: McpServer, title: string) => {
+      const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+      const client = new Client({ name: `test-${title}`, version: '1.0.0' });
+      await Promise.all([server.connect(serverSide), client.connect(clientSide)]);
+      try {
+        const result = await client.callTool({ name: 'send_view', arguments: { title, html: '<p/>' } });
+        assert.equal(result.isError ?? false, false);
+      } finally {
+        await client.close();
+        await server.close();
+      }
+    };
+    await call(alpha, 'from alpha');
+    await call(beta, 'from beta');
+    assert.deepEqual(
+      received.map(body => [body.sessionId, body.title]),
+      [['session-alpha', 'from alpha'], ['session-beta', 'from beta']],
+    );
+  });
 });
 
 test('bundled server exposes one exact direct Web composition', async () => {

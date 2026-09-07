@@ -96,10 +96,16 @@ function gatedMethod(original: (...args: any[]) => any, allowed: ReadonlySet<str
   return (...args: any[]) => allowed.has(args[0]) ? original(...args) : undefined;
 }
 
+/**
+ * Run `registrar` against `server` with only the allowlisted tool names reaching the server.
+ * `allowlist` is normally the session's parsed gate (see `toolContextFromEnv`); it defaults to
+ * this process's `CORTEX_MCP_TOOL_ALLOWLIST` for single-session stdio entries.
+ */
 export function registerGatedMcpTools(
-  server: McpServer, registrar: (target: McpServer) => void,
+  server: McpServer,
+  registrar: (target: McpServer) => void,
+  allowlist: ReadonlySet<string> | null = parseMcpToolAllowlist(),
 ): void {
-  const allowlist = parseMcpToolAllowlist();
   if (allowlist === null) {
     registrar(server);
     return;

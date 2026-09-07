@@ -8,6 +8,8 @@ import type { LarkClient } from './client.js';
 /** Dependencies injected into each register*Tools function (client is mockable in tests). */
 export interface FeishuToolDeps {
   client: LarkClient | null;
+  /** Session channel used when a tool call names none (may carry the `feishu:` prefix). */
+  fallbackChannel?: string | null;
 }
 
 export interface McpResult {

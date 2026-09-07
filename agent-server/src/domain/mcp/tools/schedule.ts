@@ -7,7 +7,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { Scheduler, parseDuration } from '../../scheduling/scheduler.js';
 import { scheduleRepo, channelToProjectId, type ScheduleTarget, type ScheduleTask } from '@store/schedule-repo.js';
-import { resolveCortexContext } from './context.js';
+import { resolveCortexContext, type CortexToolContext } from './context.js';
 
 // --- Target shorthand resolver (extracted for unit tests) ---
 
@@ -129,8 +129,10 @@ const addInputShape = {
   projectId: z.string().optional().describe('Project id for the schedule. If omitted, resolved from channel via channel-registry.'),
 };
 
-async function runScheduleAdd(input: z.infer<z.ZodObject<typeof addInputShape>>): Promise<unknown> {
-  const ctxSnapshot = await resolveCortexContext();
+async function runScheduleAdd(
+  ctx: CortexToolContext, input: z.infer<z.ZodObject<typeof addInputShape>>,
+): Promise<unknown> {
+  const ctxSnapshot = await resolveCortexContext(ctx);
   const target = resolveTargetShorthand(input.target as TargetSpec, ctxSnapshot);
 
   // Resolve channel: explicit > target.channel (when not fresh) > current-context channel.
@@ -182,14 +184,14 @@ async function runScheduleAdd(input: z.infer<z.ZodObject<typeof addInputShape>>)
 
 // --- Tool registrations ---
 
-export function registerScheduleTools(server: McpServer): void {
+export function registerScheduleTools(server: McpServer, ctx: CortexToolContext): void {
   server.tool(
     'cortex_schedule_add',
     'Create a scheduled task. Supports interval/daily/weekly/once. target shorthand "current-project" | "current-thread" | "fresh" auto-resolves to concrete IDs against the running agent context — no need to call cortex_context first unless you need an explicit ID.',
     addInputShape,
     async (input) => {
       try {
-        const result = await runScheduleAdd(input);
+        const result = await runScheduleAdd(ctx, input);
         return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
       } catch (e) {
         return { content: [{ type: 'text', text: `Failed to add schedule: ${(e as Error).message}` }], isError: true };

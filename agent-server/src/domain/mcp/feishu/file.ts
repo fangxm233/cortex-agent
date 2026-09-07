@@ -1,4 +1,4 @@
-// input:  McpServer and Feishu LarkClient
+// input:  McpServer, Feishu LarkClient, session fallback channel
 // output: feishu_send_file tool registration
 // pos:    MCP tool for uploading files to Feishu
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -104,8 +104,8 @@ export function registerFileTools(server: McpServer, deps: FeishuToolDeps): void
     },
     async ({ file_path, file_name, title, channel: explicitChannel }) =>
       guard(deps.client, async (client) => {
-        const channel = explicitChannel || (process.env.FEISHU_CHANNEL ?? '');
-        if (!channel) throw new Error('No Feishu channel available (missing FEISHU_CHANNEL env or channel parameter)');
+        const channel = explicitChannel || deps.fallbackChannel || '';
+        if (!channel) throw new Error('No Feishu channel available (no session channel or channel parameter)');
 
         const uploaded = await uploadFileToFeishu(client, {
           channel,

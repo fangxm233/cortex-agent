@@ -1,10 +1,11 @@
 Please update me when files in this folder change
 
-MCP tool modules register one Cortex capability group each.
+MCP tool modules register one Cortex capability group each; every registrar takes the
+session's `CortexToolContext` instead of reading `process.env`.
 
 | filename | role | function |
 |---|---|---|
-| context.ts | tool | Reports caller execution context |
+| context.ts | tool | Defines CortexToolContext, builds it from env, reports caller context |
 | cortex-md.ts | util | Builds CORTEX.md response blocks |
 | cost.ts | tool | Reports cost and budget status |
 | executions.ts | tool | Queries execution records |

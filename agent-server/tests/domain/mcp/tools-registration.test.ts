@@ -7,16 +7,19 @@ import { afterEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { requestLoopbackJson } from '../../../src/core/loopback-http.js';
 import { registerTaskOpsTools } from '../../../src/domain/mcp/tools/task-ops.js';
+import { toolContextFromEnv } from '../../../src/domain/mcp/tools/context.js';
 
 vi.mock('../../../src/core/loopback-http.js', () => ({ requestLoopbackJson: vi.fn() }));
 const requestMock = vi.mocked(requestLoopbackJson);
+
+const ctx = toolContextFromEnv({ WEBHOOK_PORT: '4321', CORTEX_WEBHOOK_TOKEN: 'unit-token' });
 
 function captureRemoteTools(): Map<string, any[]> {
   const tools = new Map<string, any[]>();
   const fakeServer = {
     tool: (...args: any[]) => tools.set(args[0], args),
   };
-  registerTaskOpsTools(fakeServer as any);
+  registerTaskOpsTools(fakeServer as any, ctx);
   return tools;
 }
 
@@ -44,6 +47,10 @@ test('remote_bash accepts integer seconds and converts them only at the internal
 
   await handler({ device: 'lab', command: 'true' }, {});
   await handler({ device: 'lab', command: 'true', timeout: 2 }, {});
+
+  const [firstCall] = requestMock.mock.calls;
+  assert.equal(firstCall[1], 'http://127.0.0.1:4321/webhook/remote-command', 'targets the context webhook');
+  assert.deepEqual(firstCall[3], { 'x-cortex-token': 'unit-token' }, 'authenticates with the context token');
 
   const bodies = requestMock.mock.calls.map((call) => call[2] as any);
   assert.equal(bodies[0].params.timeout, 120_000);

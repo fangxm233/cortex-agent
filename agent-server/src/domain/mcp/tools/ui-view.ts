@@ -1,4 +1,4 @@
-// input:  McpServer, daemon UI-view webhook, CORTEX_SESSION_ID
+// input:  McpServer, daemon UI-view webhook, session tool context
 // output: Web-only send_view tool registration
 // pos:    Sends agent-authored HTML views into Web chat sessions
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -8,17 +8,7 @@ import { z } from 'zod';
 import * as fs from 'fs';
 import * as path from 'path';
 import { requestLoopbackJson } from '@core/loopback-http.js';
-
-/** Daemon webhook base — same loopback + token seam `send_file` and the thread/task tools use. */
-const WEBHOOK_BASE = `http://127.0.0.1:${process.env.WEBHOOK_PORT || '3001'}`;
-
-function resolveSessionId(): string | null {
-  const envId = process.env.CORTEX_SESSION_ID;
-  if (envId) return envId;
-  const ch = process.env.SLACK_CHANNEL || process.env.FEISHU_CHANNEL;
-  if (ch && ch.startsWith('web:')) return ch.slice('web:'.length);
-  return null;
-}
+import { webhookAuthHeaders, webSessionId, type CortexToolContext } from './context.js';
 
 const DESCRIPTION = [
   'Render an HTML view inline in this chat. The user sees it as a live, interactive card in the',
@@ -34,7 +24,7 @@ const DESCRIPTION = [
   'load libraries and data over https. Inline your CSS and JS; relative paths will not resolve.',
 ].join('\n');
 
-export function registerUiViewTools(server: McpServer): void {
+export function registerUiViewTools(server: McpServer, ctx: CortexToolContext): void {
   server.tool(
     'send_view',
     DESCRIPTION,
@@ -50,7 +40,7 @@ export function registerUiViewTools(server: McpServer): void {
       { title: string; html?: string; file_path?: string; caption?: string; height?: number },
     ) => {
       try {
-        const sessionId = resolveSessionId();
+        const sessionId = webSessionId(ctx);
         if (!sessionId) throw new Error('No web session in context — send_view is only usable inside a Web UI chat session');
 
         const hasHtml = typeof html === 'string' && html.length > 0;
@@ -66,9 +56,9 @@ export function registerUiViewTools(server: McpServer): void {
 
         const { body } = await requestLoopbackJson(
           'POST',
-          `${WEBHOOK_BASE}/webhook/ui-view`,
+          `${ctx.webhookBaseUrl}/webhook/ui-view`,
           { sessionId, title, html, filePath: resolved, caption, height },
-          { 'x-cortex-token': process.env.CORTEX_WEBHOOK_TOKEN || '' },
+          webhookAuthHeaders(ctx),
         );
         if (!body.success) throw new Error(body.error || 'send_view failed');
         const meta = body.data;

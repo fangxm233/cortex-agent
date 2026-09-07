@@ -5,7 +5,7 @@ Feishu side of the MCP layer — authenticated Feishu API access and the feishu_
 | filename | role | function |
 |---|---|---|
 | client.ts | core | Builds an authenticated Feishu API client |
-| file.ts | tool | Registers the Feishu file sending tool |
+| file.ts | tool | Registers the Feishu file sending tool (session channel from deps) |
 | index.ts | entry | Registers all Feishu tools on a server |
 | types.ts | types | Tool dependency shapes and result helpers |
 | user-auth.ts | core | Obtains and refreshes Feishu user tokens |

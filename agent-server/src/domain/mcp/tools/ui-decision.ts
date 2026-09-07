@@ -1,4 +1,4 @@
-// input:  McpServer, daemon UI-decision webhook, CORTEX_SESSION_ID
+// input:  McpServer, daemon UI-decision webhook, session tool context
 // output: Web-only send_decision tool registration
 // pos:    Records agent-announced decisions on Web chat sessions
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -6,17 +6,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { requestLoopbackJson } from '@core/loopback-http.js';
-
-/** Daemon webhook base — same loopback + token seam `send_file` and `send_view` use. */
-const WEBHOOK_BASE = `http://127.0.0.1:${process.env.WEBHOOK_PORT || '3001'}`;
-
-function resolveSessionId(): string | null {
-  const envId = process.env.CORTEX_SESSION_ID;
-  if (envId) return envId;
-  const ch = process.env.SLACK_CHANNEL || process.env.FEISHU_CHANNEL;
-  if (ch && ch.startsWith('web:')) return ch.slice('web:'.length);
-  return null;
-}
+import { webhookAuthHeaders, webSessionId, type CortexToolContext } from './context.js';
 
 const DESCRIPTION = [
   'Record one or more decisions you have just made and show them to the user. The user',
@@ -46,7 +36,7 @@ const decisionItemSchema = z.object({
     .describe('Why you picked this option, in 1-2 sentences. Name the decisive trade-off, not every consideration.'),
 });
 
-export function registerUiDecisionTools(server: McpServer): void {
+export function registerUiDecisionTools(server: McpServer, ctx: CortexToolContext): void {
   server.tool(
     'send_decision',
     DESCRIPTION,
@@ -59,14 +49,14 @@ export function registerUiDecisionTools(server: McpServer): void {
       { decisions: { title: string; decision: string; context: string; reasoning: string }[] },
     ) => {
       try {
-        const sessionId = resolveSessionId();
+        const sessionId = webSessionId(ctx);
         if (!sessionId) throw new Error('No web session in context — send_decision is only usable inside a Web UI chat session');
 
         const { body } = await requestLoopbackJson(
           'POST',
-          `${WEBHOOK_BASE}/webhook/ui-decision`,
+          `${ctx.webhookBaseUrl}/webhook/ui-decision`,
           { sessionId, decisions },
-          { 'x-cortex-token': process.env.CORTEX_WEBHOOK_TOKEN || '' },
+          webhookAuthHeaders(ctx),
         );
         if (!body.success) throw new Error(body.error || 'send_decision failed');
         const titles: string[] = body.data?.titles ?? decisions.map(d => d.title);

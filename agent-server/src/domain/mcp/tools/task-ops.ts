@@ -1,4 +1,4 @@
-// input:  McpServer, webhook proxy, image processing
+// input:  McpServer, session tool context, webhook proxy, image processing
 // output: Compact remote operation tool registrations
 // pos:    MCP tools for remote device operations via cortex-client
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -12,34 +12,21 @@ import { pathToFileURL } from 'url';
 import { WORKSPACE_DIR } from '@core/utils.js';
 import { requestLoopbackJson } from '@core/loopback-http.js';
 import { cortexMDContentBlocks, type CortexMDEntry } from './cortex-md.js';
+import { webhookAuthHeaders, type CortexToolContext } from './context.js';
 
-// Remote device commands proxied through app.ts webhook (separate process, no shared memory with client-manager)
-const WEBHOOK_BASE = `http://127.0.0.1:${process.env.WEBHOOK_PORT || '3001'}`;
-// Bearer token for the webhook auth gate. Inherited from the daemon's env (see core/auth.ts).
-const webhookAuthHeader = (): Record<string, string> => ({ 'x-cortex-token': process.env.CORTEX_WEBHOOK_TOKEN || '' });
-
-async function proxyGetOnlineDevices(): Promise<string[]> {
-  const { body } = await requestLoopbackJson(
-    'GET', `${WEBHOOK_BASE}/webhook/devices`, undefined, webhookAuthHeader(),
-  );
-  return body.devices || [];
-}
-
-async function proxySendCommand(device: string, action: string, params: Record<string, any>, timeout?: number): Promise<any> {
+// Remote device commands are proxied through the daemon webhook: client-manager lives in the
+// daemon and a tool must not reach into it directly.
+async function proxySendCommand(
+  ctx: CortexToolContext, device: string, action: string, params: Record<string, any>, timeout?: number,
+): Promise<any> {
   const { body } = await requestLoopbackJson(
     'POST',
-    `${WEBHOOK_BASE}/webhook/remote-command`,
+    `${ctx.webhookBaseUrl}/webhook/remote-command`,
     { device, action, params, timeout },
-    webhookAuthHeader(),
+    webhookAuthHeaders(ctx),
   );
   if (!body.success) throw new Error(body.error || 'Command failed');
   return body.data;
-}
-
-async function deviceListDescription(): Promise<string> {
-  const devices = await proxyGetOnlineDevices();
-  if (devices.length === 0) return 'No devices currently online.';
-  return `Online devices: ${devices.join(', ')}`;
 }
 
 /** Cross-platform absolute-path check (server runs on Linux but validates paths for Windows clients). */
@@ -200,7 +187,7 @@ async function processImage(
   };
 }
 
-export function registerTaskOpsTools(server: McpServer): void {
+export function registerTaskOpsTools(server: McpServer, ctx: CortexToolContext): void {
 
   // --- remote_bash ---
 
@@ -219,7 +206,7 @@ export function registerTaskOpsTools(server: McpServer): void {
     }) => {
       try {
         const timeoutMs = (timeout ?? 120) * 1000;
-        const result = await proxySendCommand(device, 'bash', {
+        const result = await proxySendCommand(ctx, device, 'bash', {
           command, timeout: timeoutMs, run_in_background: run_in_background || false,
         }, timeoutMs + 5000);
         const parts = [];
@@ -255,7 +242,7 @@ export function registerTaskOpsTools(server: McpServer): void {
         if (!isAbsoluteFilePath(file_path)) {
           return { content: [{ type: 'text', text: 'file_path must be absolute' }], isError: true };
         }
-        const result = await proxySendCommand(device, 'read', { file_path, offset, limit });
+        const result = await proxySendCommand(ctx, device, 'read', { file_path, offset, limit });
         const cmdBlocks = cortexMDContentBlocks(device, result.cortexMDs, file_path);
 
         // Image response path
@@ -339,7 +326,7 @@ export function registerTaskOpsTools(server: McpServer): void {
         if (!isAbsoluteFilePath(file_path)) {
           return { content: [{ type: 'text', text: 'file_path must be absolute' }], isError: true };
         }
-        const result = await proxySendCommand(device, 'write', { file_path, content });
+        const result = await proxySendCommand(ctx, device, 'write', { file_path, content });
         const cmdBlocks = cortexMDContentBlocks(device, result?.cortexMDs, file_path);
         return {
           content: [{ type: 'text', text: `File written: ${file_path}` }, ...cmdBlocks],
@@ -369,7 +356,7 @@ export function registerTaskOpsTools(server: McpServer): void {
         if (!isAbsoluteFilePath(file_path)) {
           return { content: [{ type: 'text', text: 'file_path must be absolute' }], isError: true };
         }
-        const result = await proxySendCommand(device, 'edit', { file_path, old_string, new_string, replace_all: replace_all || false });
+        const result = await proxySendCommand(ctx, device, 'edit', { file_path, old_string, new_string, replace_all: replace_all || false });
         const cmdBlocks = cortexMDContentBlocks(device, result?.cortexMDs, file_path);
         return {
           content: [{ type: 'text', text: `File edited: ${file_path}` }, ...cmdBlocks],
@@ -395,7 +382,7 @@ export function registerTaskOpsTools(server: McpServer): void {
       device: string; pattern: string; path?: string;
     }) => {
       try {
-        const result = await proxySendCommand(device, 'glob', { pattern, path: searchPath });
+        const result = await proxySendCommand(ctx, device, 'glob', { pattern, path: searchPath });
         const files = result.files || [];
         if (files.length === 0) {
           return { content: [{ type: 'text', text: 'No files matched the pattern.' }] };
@@ -441,7 +428,7 @@ export function registerTaskOpsTools(server: McpServer): void {
       multiline?: boolean; [key: string]: any;
     }) => {
       try {
-        const result = await proxySendCommand(device, 'grep', {
+        const result = await proxySendCommand(ctx, device, 'grep', {
           pattern,
           path: searchPath,
           glob: globFilter,

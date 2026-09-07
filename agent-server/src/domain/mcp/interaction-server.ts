@@ -1,4 +1,4 @@
-// input:  MCP SDK, tool gate, interaction registrars, webhook
+// input:  MCP SDK, tool gate, env-built tool context, interaction registrars
 // output: Shared blocking interaction MCP stdio service
 // pos:    Serves human questions and plan approval to agents
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -9,38 +9,17 @@ import { isMainModule } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
 import { CORTEX_VERSION } from '@core/version.js';
 import { registerGatedMcpTools } from '@core/mcp-tool-gate.js';
-import { requestLoopbackJson } from '@core/loopback-http.js';
-import { registerInteractionPlanTools, type InteractionToolDeps } from './tools/interaction-plan.js';
+import { registerInteractionPlanTools, interactionDepsFor } from './tools/interaction-plan.js';
 import { registerCommissionTools } from './tools/commission-tools.js';
 import { registerInteractionAskTools } from './tools/interaction-ask.js';
+import { toolContextFromEnv } from './tools/context.js';
 
 const log = createLogger('mcp-interaction');
 
-// --- Resolve env-driven deps at module load time ---
+// --- Session context from env at module load time ---
 
-const channel = process.env.SLACK_CHANNEL ?? null;
-const sessionId = process.env.CORTEX_SESSION_ID ?? null;
-const sessionName = process.env.CORTEX_SESSION_NAME ?? null;
-const threadId = process.env.CORTEX_THREAD_ID ?? null;
-const webhookPort = parseInt(process.env.WEBHOOK_PORT || '3001', 10);
-const webhookBaseUrl = `http://127.0.0.1:${webhookPort}`;
-
-/** Interaction webhooks block up to the 30-minute business TTL. The shared loopback helper
- *  adds the infrastructure grace without inheriting Node fetch's shorter hidden deadline. */
-async function defaultHttpPost(url: string, body: any): Promise<{ status: number; body: any }> {
-  return requestLoopbackJson('POST', url, body, {
-    'x-cortex-token': process.env.CORTEX_WEBHOOK_TOKEN || '',
-  });
-}
-
-const deps: InteractionToolDeps = {
-  channel,
-  sessionId,
-  sessionName,
-  threadId,
-  webhookBaseUrl,
-  httpPost: defaultHttpPost,
-};
+const ctx = toolContextFromEnv();
+const deps = interactionDepsFor(ctx);
 
 // --- McpServer + tool registration ---
 
@@ -50,15 +29,15 @@ registerGatedMcpTools(server, (target) => {
   registerInteractionPlanTools(target, deps);
   registerCommissionTools(target, deps);
   registerInteractionAskTools(target, deps);
-});
+}, ctx.toolAllowlist);
 
 // --- Start (called by barrel when run as standalone) ---
 
 export async function startServer(): Promise<void> {
-  if (!channel) {
+  if (!ctx.channel) {
     log.warn('interaction channel not set — plan and question tools will fail at call time');
   }
-  if (!sessionId) {
+  if (!ctx.sessionId) {
     log.warn('CORTEX_SESSION_ID not set — webhook will receive null sessionId');
   }
   const transport = new StdioServerTransport();

@@ -10,6 +10,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { PROJECTS_DIR } from '../../../src/core/paths.js';
 import { registerTaskMonitorTools } from '../../../src/domain/mcp/tools/task-monitor.js';
+import { toolContextFromEnv } from '../../../src/domain/mcp/tools/context.js';
 
 const projectDirs: string[] = [];
 let seq = 0;
@@ -23,10 +24,10 @@ function makeProject(name: string, yaml: string): void {
   fs.writeFileSync(path.join(dir, 'TASKS.yaml'), yaml);
 }
 
-function captureHandlers(): Record<string, (input: any) => Promise<any>> {
+function captureHandlers(env: Record<string, string> = {}): Record<string, (input: any) => Promise<any>> {
   const handlers: Record<string, any> = {};
   const fakeServer: any = { tool: (name: string, _d: string, _s: any, _m: any, fn: any) => { handlers[name] = fn; } };
-  registerTaskMonitorTools(fakeServer);
+  registerTaskMonitorTools(fakeServer, toolContextFromEnv(env));
   return handlers;
 }
 
@@ -113,4 +114,15 @@ test('task_list filters children by parent', async () => {
   const p = parse(res);
   const ids = p.tasks.map((t: any) => t.id).sort();
   assert.deepEqual(ids, ['bb01', 'cc01']);
+});
+
+test('task_list falls back to the context task project, then project', async () => {
+  const taskProj = `_tm_${seq++}`;
+  const proj = `_tm_${seq++}`;
+  makeProject(taskProj, TASKS(taskProj));
+  makeProject(proj, `tasks: []\n`);
+  const scoped = captureHandlers({ CORTEX_TASK_PROJECT: taskProj, CORTEX_PROJECT: proj });
+  assert.equal(parse(await scoped.task_list({})).count, 3, 'CORTEX_TASK_PROJECT wins');
+  const plain = captureHandlers({ CORTEX_PROJECT: proj });
+  assert.equal(parse(await plain.task_list({})).count, 0, 'CORTEX_PROJECT is the fallback');
 });

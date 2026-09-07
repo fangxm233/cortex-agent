@@ -11,14 +11,16 @@ import { CORTEX_VERSION } from '@core/version.js';
 import { registerGatedMcpTools } from '@core/mcp-tool-gate.js';
 import { registerAskManagerTool } from './tools/manager-qa.js';
 import { registerThreadTools } from './tools/thread-ops.js';
+import { toolContextFromEnv } from './tools/context.js';
 
 const log = createLogger('mcp-thread');
+const ctx = toolContextFromEnv();
 const server = new McpServer({ name: 'cortex-thread', version: CORTEX_VERSION });
 
 registerGatedMcpTools(server, (target) => {
-  registerThreadTools(target);
-  registerAskManagerTool(target);
-});
+  registerThreadTools(target, ctx);
+  registerAskManagerTool(target, ctx);
+}, ctx.toolAllowlist);
 
 export async function startServer(): Promise<void> {
   const transport = new StdioServerTransport();

@@ -1,4 +1,4 @@
-// input:  McpServer, Slack WebClient, fallback channel
+// input:  McpServer, Slack WebClient or session tool context, fallback channel
 // output: slack_send_file tool registration
 // pos:    MCP tool for uploading files to Slack
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -10,12 +10,23 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { TokenBucketRateLimiter } from '../../../platform/utils/rate-limiter.js';
 import { Icons } from '../../../core/icons.js';
+import type { CortexToolContext } from './context.js';
 
 export interface SlackToolDeps {
   slack: WebClient | null;
   fallbackChannel: string | undefined;
   branchMachine: string | undefined;
   callbackSource: string | undefined;
+}
+
+/** Production deps for one session: a WebClient when the session carries a bot token. */
+export function slackDepsFor(ctx: CortexToolContext): SlackToolDeps {
+  return {
+    slack: ctx.slackBotToken ? new WebClient(ctx.slackBotToken) : null,
+    fallbackChannel: ctx.channel ?? undefined,
+    branchMachine: ctx.branchMachine ?? undefined,
+    callbackSource: ctx.callbackSource ?? undefined,
+  };
 }
 
 /** Per-process rate limiter for the MCP server's Slack API calls.

@@ -1,11 +1,12 @@
 Please update me when files in this folder change
 
-One bundled stdio server exposes session-scoped Cortex tools.
-Standalone entries preserve scoped compatibility surfaces.
+One bundled server exposes Cortex tools bound to a `CortexToolContext` (tools/context.ts).
+Stdio entries build the context from their environment; an in-process host builds one per
+session, so tools never read session scope from `process.env`.
 
 | filename | role | function |
 |---|---|---|
-| bundled-server.ts | entry | Serves selected Cortex tool bundles |
+| bundled-server.ts | entry | Serves selected Cortex tool bundles against one tool context |
 | core-server.ts | entry | Serves remote execution and time tools |
 | feishu-server.ts | entry | Serves Feishu file tools |
 | manager-qa-server.ts | entry | Serves subtask answer tools |

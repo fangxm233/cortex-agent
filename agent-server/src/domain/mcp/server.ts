@@ -7,7 +7,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { registerCostTools } from './tools/cost.js';
 import { registerExecutionTools } from './tools/executions.js';
-import { registerContextTools } from './tools/context.js';
+import { registerContextTools, toolContextFromEnv } from './tools/context.js';
 import { registerScheduleTools } from './tools/schedule.js';
 import { executionRepo } from '@store/execution-repo.js';
 import { isMainModule } from '@core/utils.js';
@@ -19,14 +19,15 @@ const log = createLogger('mcp-server');
 
 // --- McpServer + tool registration ---
 
+const ctx = toolContextFromEnv();
 const server = new McpServer({ name: 'cortex-ext', version: CORTEX_VERSION });
 
 registerGatedMcpTools(server, (target) => {
   registerCostTools(target);
   registerExecutionTools(target);
-  registerContextTools(target);
-  registerScheduleTools(target);
-});
+  registerContextTools(target, ctx);
+  registerScheduleTools(target, ctx);
+}, ctx.toolAllowlist);
 
 // --- Start (called by barrel when run as standalone) ---
 
