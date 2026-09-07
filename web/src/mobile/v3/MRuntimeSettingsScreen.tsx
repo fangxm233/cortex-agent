@@ -1,6 +1,6 @@
-// input:  config snapshot, keyed runtime descriptors and shared runtime writer
-// output: writable mobile Notifications and Advanced settings screens
-// pos:    Mobile runtime settings view independent of desktop view modules
+// input:  runtime config, native notification state and writers
+// output: mobile Notifications and Advanced settings screens
+// pos:    Mobile runtime and device-local notification settings
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { useEffect, useState } from 'react';
@@ -10,6 +10,7 @@ import type { ConfigSettingEntry, ConfigSnapshot } from '@cortex-agent/ui-contra
 import { useVocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
 import { MC } from '@/mobile/ui/kit';
+import { MNativeNotificationsCard } from './MNativeNotificationsCard';
 import {
   ADVANCED_FLAGS, ADVANCED_NUMBER_SETTINGS, BUILTIN_JOB_SETTINGS, NOTIFY_SETTINGS,
   MAX_SESSION_RETENTION_DAYS, durationDraftFromMs, durationDraftToMs, getSetting,
@@ -173,16 +174,17 @@ function RuntimeScreen({ kind }: { kind: 'notifications' | 'advanced' }) {
   const query = useQuery(trpc.config.get.queryOptions({}));
   const write = useRuntimeSettingWrite();
   const title = kind === 'notifications' ? L.stNavNotifications : L.stNavAdvanced;
-  if (query.isLoading) return <MSettingsPage title={title} onBack={() => navigate('/m/settings')}>
-    <MSettingsCard><div style={{ padding: 13 }}>{L.stLoadingConfig}</div></MSettingsCard>
-  </MSettingsPage>;
-  if (query.isError || !query.data) return <MSettingsPage title={title} onBack={() => navigate('/m/settings')}>
-    <MSettingsCard><div style={{ padding: 13, color: MC.fail }}>{L.stFailedLoadConfig}</div></MSettingsCard>
-  </MSettingsPage>;
+  let content;
+  if (query.isLoading) content = <MSettingsCard><div style={{ padding: 13 }}>{L.stLoadingConfig}</div></MSettingsCard>;
+  else if (query.isError || !query.data) content = <MSettingsCard>
+    <div style={{ padding: 13, color: MC.fail }}>{L.stFailedLoadConfig}</div>
+  </MSettingsCard>;
+  else content = kind === 'notifications'
+    ? <NotificationsContent snapshot={query.data} write={write} />
+    : <AdvancedContent snapshot={query.data} write={write} />;
   return <MSettingsPage title={title} onBack={() => navigate('/m/settings')}>
-    {kind === 'notifications'
-      ? <NotificationsContent snapshot={query.data} write={write} />
-      : <AdvancedContent snapshot={query.data} write={write} />}
+    {kind === 'notifications' && <MNativeNotificationsCard />}
+    {content}
   </MSettingsPage>;
 }
 

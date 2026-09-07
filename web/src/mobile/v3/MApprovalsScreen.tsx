@@ -1,6 +1,6 @@
-// input:  shared approval queue/project scope plus mobile expansion and feedback state
-// output: mobile project-grouped approval queue with optional reject feedback
-// pos:    Mobile approvals routing and surface-interaction controller
+// input:  approval queue, project scope and approvalId route target
+// output: route-selected approvals and optional reject feedback
+// pos:    Mobile approvals routing and interaction controller
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 // 1f 审批 — the approval queue, drilled from the project page's amber bar (scheme 1e→1f). A non-Tab
@@ -9,8 +9,8 @@
 // `approvals.approve` / `approvals.reject` flip the target entry's Status line in PENDING_APPROVALS.md
 // (the mutate never runs the underlying op) → the list re-invalidates. The first pending card is
 // expanded for an inline decision; tapping a collapsed card swaps which one is expanded.
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
@@ -18,6 +18,7 @@ import { defaultSelectedId } from '@/features/approvals/approval-center-vm';
 import { useApprovalQueue } from '@/features/approvals/useApprovalQueue';
 import { MApprovalsView, type MApprovalsCopy } from './MApprovalsView';
 import { buildMApprovalsVm } from './m-approvals-vm';
+import { notificationTargetId } from './m-notification-routing';
 
 const COPY: { en: MApprovalsCopy; zh: MApprovalsCopy } = {
   en: {
@@ -48,23 +49,17 @@ const COPY: { en: MApprovalsCopy; zh: MApprovalsCopy } = {
   },
 };
 
-export function MApprovalsScreen() {
-  const navigate = useNavigate();
-  const lang = useLang();
-  const copy = pickCopy(lang, COPY);
-  const queue = useApprovalQueue();
-  const { currentProjectId } = useCurrentProject();
-
-  // Grouped by project attribution: current project first, then 全局 (null), then other projects.
-  const vm = useMemo(
-    () => buildMApprovalsVm(queue.entries, Date.now(), currentProjectId),
-    [queue.entries, currentProjectId],
-  );
-
-  // Expansion and feedback are mobile interaction state, not shared queue state.
-  const [rawExpandedId, setRawExpandedId] = useState<string | null>(null);
+// Expansion and feedback belong to the mobile surface, not the shared queue.
+function useRouteExpansion(cards: ReturnType<typeof buildMApprovalsVm>['cards']) {
+  const location = useLocation();
+  const targetId = notificationTargetId(new URLSearchParams(location.search).get('approvalId')) ?? null;
+  const [rawExpandedId, setRawExpandedId] = useState<string | null>(targetId);
   const [feedback, setFeedback] = useState('');
-  const expandedId = defaultSelectedId(vm.cards, rawExpandedId);
+  useEffect(() => {
+    setRawExpandedId(targetId);
+    setFeedback('');
+  }, [targetId, location.key]);
+  const expandedId = defaultSelectedId(cards, rawExpandedId);
   const expand = (id: string) => {
     setFeedback('');
     setRawExpandedId(id);
@@ -73,18 +68,24 @@ export function MApprovalsScreen() {
     void decision.catch(() => undefined).finally(() => setFeedback(''));
   };
 
-  return (
-    <MApprovalsView
-      vm={vm}
-      copy={copy}
-      expandedId={expandedId}
-      feedback={feedback}
-      busy={queue.isPending}
-      onBack={() => navigate('/m/project')}
-      onExpand={expand}
-      onFeedback={setFeedback}
-      onApprove={(id) => settle(queue.approve(id))}
-      onReject={(id, draft) => settle(queue.reject(id, draft))}
-    />
+  return { expandedId, feedback, expand, setFeedback, settle };
+}
+
+export function MApprovalsScreen() {
+  const navigate = useNavigate();
+  const copy = pickCopy(useLang(), COPY);
+  const queue = useApprovalQueue();
+  const { currentProjectId } = useCurrentProject();
+  const vm = useMemo(
+    () => buildMApprovalsVm(queue.entries, Date.now(), currentProjectId),
+    [queue.entries, currentProjectId],
   );
+  const selection = useRouteExpansion(vm.cards);
+  return <MApprovalsView
+    vm={vm} copy={copy} expandedId={selection.expandedId} feedback={selection.feedback}
+    busy={queue.isPending} onBack={() => navigate('/m/project')}
+    onExpand={selection.expand} onFeedback={selection.setFeedback}
+    onApprove={(id) => selection.settle(queue.approve(id))}
+    onReject={(id, draft) => selection.settle(queue.reject(id, draft))}
+  />;
 }

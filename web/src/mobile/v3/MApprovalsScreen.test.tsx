@@ -1,5 +1,5 @@
-// input:  shared approval queue facts/outcomes and mobile expansion/feedback interactions
-// output: selection fallback, draft reset, and decision wiring regressions
+// input:  approval queue, route targets and feedback interactions
+// output: route selection, fallback and feedback reset tests
 // pos:    Mobile approval screen interaction specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -13,6 +13,7 @@ const state = vi.hoisted(() => ({
   approve: vi.fn<(id: string) => Promise<void>>(),
   reject: vi.fn<(id: string, feedback?: string) => Promise<void>>(),
   entries: [] as ApprovalInfo[],
+  location: { search: '', key: 'initial' },
 }));
 
 vi.mock('@/features/approvals/useApprovalQueue', () => ({
@@ -27,7 +28,7 @@ vi.mock('@/features/projects/CurrentProjectProvider', () => ({
   useCurrentProject: () => ({ currentProjectId: null }),
 }));
 vi.mock('@/i18n', () => ({ useLang: () => 'en' }));
-vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }));
+vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn(), useLocation: () => state.location }));
 vi.mock('./MApprovalsView', () => ({
   MApprovalsView: (props: unknown) => {
     state.viewProps = props;
@@ -57,14 +58,34 @@ function approval(id: string): ApprovalInfo {
 
 beforeEach(() => {
   state.viewProps = null;
+  state.location = { search: '', key: 'initial' };
   state.entries = [approval('apr-1'), approval('apr-2')];
   state.approve.mockReset().mockResolvedValue();
   state.reject.mockReset().mockResolvedValue();
 });
 
 describe('MApprovalsScreen', () => {
+  it('selects an encoded cross-project route target after the queue arrives', () => {
+    state.location = { search: '?approvalId=apr%2F2%3F', key: 'cold' };
+    state.entries = [];
+    let renderer!: ReturnType<typeof create>;
+    act(() => { renderer = create(<MApprovalsScreen />); });
+    state.entries = [approval('apr-1'), { ...approval('apr/2?'), projectId: 'other-project' }];
+    act(() => renderer.update(<MApprovalsScreen />));
+    expect((state.viewProps as MApprovalsViewProps).expandedId).toBe('apr/2?');
+    act(() => (state.viewProps as MApprovalsViewProps).onFeedback('old draft'));
+    state.location = { search: '?approvalId=apr-1', key: 'warm' };
+    act(() => renderer.update(<MApprovalsScreen />));
+    expect((state.viewProps as MApprovalsViewProps).expandedId).toBe('apr-1');
+    expect((state.viewProps as MApprovalsViewProps).feedback).toBe('');
+    state.location = { search: '?approvalId=deleted', key: 'missing' };
+    act(() => renderer.update(<MApprovalsScreen />));
+    expect((state.viewProps as MApprovalsViewProps).expandedId).toBe('apr-1');
+    act(() => renderer.unmount());
+  });
+
   it('owns expanded selection through shared fallback and clears feedback when cards switch', () => {
-    create(<MApprovalsScreen />);
+    act(() => { create(<MApprovalsScreen />); });
     let props = state.viewProps as MApprovalsViewProps;
     expect(props.expandedId).toBe('apr-1');
 
@@ -81,7 +102,7 @@ describe('MApprovalsScreen', () => {
   it('passes feedback to the shared reject operation and clears it when the decision settles', async () => {
     let resolve: (() => void) | undefined;
     state.reject.mockImplementation(() => new Promise<void>((done) => { resolve = done; }));
-    create(<MApprovalsScreen />);
+    act(() => { create(<MApprovalsScreen />); });
     let props = state.viewProps as MApprovalsViewProps;
 
     act(() => props.onFeedback('  reduce scope  '));

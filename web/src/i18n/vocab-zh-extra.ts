@@ -1,9 +1,16 @@
-// input:  shared Chinese product copy, schedule limits, and usage policy strings
-// output: trailing Chinese vocabulary chunk including honest editor capability text
+// input:  shared Chinese product and notification copy
+// output: trailing Chinese vocabulary chunk
 // pos:    Extra Chinese web vocabulary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 export const zhExtra = {
+  stMobileNotifyTitle: '本设备后台通知',
+  stMobileNotifyNote: '保留静默常驻通知，监听运行会话、审批和待回答问题。Android 省电限制或强制停止可能延迟通知。关闭后，应用活跃时仍可收到回复通知。',
+  stMobileNotifyRunning: '后台服务运行中',
+  stMobileNotifyStopped: '后台服务未运行',
+  stMobileNotifyDisabled: '后台服务已关闭',
+  stMobileNotifyPermission: '请在 Android 应用设置中允许通知，然后返回 Cortex。',
+  stMobileNotifyError: '无法更新本设备通知设置，请重试。',
   // ── Toasts & tooltips ──
   stToastQueuedApproval: '已排队等待审批 — 请在审批中心查看',
   stToastWriteFailed: '写入失败',

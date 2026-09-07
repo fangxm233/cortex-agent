@@ -1,9 +1,16 @@
-// input:  shared English product copy, schedule limits, and usage policy strings
-// output: trailing English vocabulary chunk including honest editor capability text
+// input:  shared English product and notification copy
+// output: trailing English vocabulary chunk
 // pos:    Extra English web vocabulary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 export const enExtra = {
+  stMobileNotifyTitle: 'Background notifications on this device',
+  stMobileNotifyNote: 'Keeps a silent service notification for running sessions, approvals and questions. Android battery limits or force stop may delay delivery. Reply notifications still work while the app is active when this is off.',
+  stMobileNotifyRunning: 'Background service running',
+  stMobileNotifyStopped: 'Background service not running',
+  stMobileNotifyDisabled: 'Background service off',
+  stMobileNotifyPermission: 'Allow notifications in Android app settings, then return to Cortex.',
+  stMobileNotifyError: 'Could not update device notifications. Try again.',
   // ── Toasts & tooltips ──
   stToastQueuedApproval: 'Queued for approval — review in the Approval Center',
   stToastWriteFailed: 'Write failed',

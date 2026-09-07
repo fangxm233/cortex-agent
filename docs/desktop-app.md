@@ -113,7 +113,11 @@ To change servers, open the daemon or connectivity status, choose **Disconnect**
 
 Android uses four bottom tabs: Sessions, Threads, Tasks, and Project. Session chat, plan review, thread details, task details, approvals, issues, notes, memory files, machines, settings, hooks, and daemon status open as drill-in screens. The Android back action closes overlays first, then returns through the app's navigation stack.
 
-Native notifications report completed turns and can return to the related session. Files downloaded by Cortex are handed to Android's `DownloadManager`, which writes them to the public Downloads collection and shows the system completion notification.
+With notification permission granted, **Settings → Notifications → Background notifications** enables an Android-owned connection that continues listening when the page is in the background. A silent ongoing notification shows the running direct-session count across projects, including background continuations. At zero it shows that background notifications are connected; while reconnecting it reports unavailable state rather than a stale count. Disabling this device-local switch or disconnecting stops the service and clears its notifications (`desktop/tauri-plugin-cortex-notifications/android/src/main/java/dev/cortex/notifications/NotificationService.kt`; `Reconciler.kt`).
+
+Pending questions and plan approvals raise separate notifications. Session notifications open the related conversation, including from a cold launch. Approval-center entries open the approvals screen and select the entry. The native owner retains tap targets until the page handles them, and reconciles pending requests on reconnect and periodically. Notifications hide private content on the lock screen. The background connection requires HTTPS and is subject to Android Doze, manufacturer battery restrictions, network availability, and user force-stop; it is not a guarantee of delivery while the app is forcibly stopped. Pending question details currently require a Web-origin session channel. Ordinary completed-turn notifications are generated while the page's live feed is available (`NotificationsPlugin.kt`; `Protocol.kt`; `web/src/mobile/v3/MNotificationProvider.tsx`).
+
+Files downloaded by Cortex are handed to Android's `DownloadManager`, which writes them to the public Downloads collection and shows the system completion notification.
 
 ## Files and downloads
 
@@ -135,7 +139,7 @@ The app uses two update channels, both coordinated by the connected server.
 
 ### Frontend workbench
 
-After launch, the shell compares its installed SPA with the content-addressed frontend bundle served by the server. It downloads a newer bundle in the background, verifies its SHA-256 digest, stages it, and prompts when a restart can apply it. This channel updates the Web workbench without replacing the native executable or APK.
+After launch, the shell compares its installed SPA with the content-addressed frontend bundle served by the server. It downloads a newer bundle in the background, verifies its SHA-256 digest, stages it, and prompts when a restart can apply it. This channel updates the Web workbench without replacing the native executable or APK. Installing an Android APK with a different bundled frontend refreshes the local page once; subsequent launches preserve frontend OTA updates (`desktop/src-tauri/src/seed.rs`).
 
 ### Native app shell
 

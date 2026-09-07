@@ -1,0 +1,6 @@
+[default]
+description = "Post notifications and consume retained Android tap actions."
+permissions = [
+  "allow-post", "allow-pending-actions", "allow-ack-action",
+  "allow-register-listener", "allow-remove-listener"
+]

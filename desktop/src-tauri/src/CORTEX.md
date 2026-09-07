@@ -6,7 +6,8 @@ Provides SPA commands, native plugins, frontend delivery, and updates.
 | filename | role | function |
 |---|---|---|
 | main.rs | entry | starts the native application |
-| lib.rs | core | Builds the shell and isolates frame initialization |
+| lib.rs | core | Register the shell and native notification owner |
+| mobile_notifications.rs | adapter | Configure native notifications with shell credentials |
 | creds.rs | core | stores and loads the server credentials |
 | app_update.rs | core | checks, downloads and installs shell updates |
 | frontend.rs | core | Resolves embedded setup assets and OTA workbench |
@@ -16,4 +17,4 @@ Provides SPA commands, native plugins, frontend delivery, and updates.
 | setup_process.rs | util | Probes CLI versions and streams token-safe progress |
 | forward.rs | core | forwards a server loopback port to a local port (desktop) |
 | forward_stub.rs | core | refusing stand-in for the forward on Android |
-| seed.rs | util | supplies the initial frontend on Android |
+| seed.rs | util | Materialize frontend on first run and APK upgrade |

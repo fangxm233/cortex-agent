@@ -1,0 +1,14 @@
+event: connected
+data: {}
+
+
+data: {"type":"session.status","ts":"2026-01-01T00:00:00.000Z","payload":{"sessionId":"session-one","running":true}}
+
+
+data: {"type":"session.interaction","ts":"2026-01-01T00:00:01.000Z","payload":{"sessionId":"session-one","kind":"ask-user","status":"pending"}}
+
+
+event: return
+data: 
+
+

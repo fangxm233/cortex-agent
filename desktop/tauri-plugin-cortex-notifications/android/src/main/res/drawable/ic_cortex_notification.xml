@@ -1,0 +1,10 @@
+<!-- input: Android vector drawable renderer -->
+<!-- output: Monochrome notification status icon -->
+<!-- pos: Native Cortex notification small icon -->
+<!-- >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<< -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M4,3h16c1.1,0 2,0.9 2,2v12c0,1.1 -0.9,2 -2,2H8l-6,4V5c0,-1.1 0.9,-2 2,-2zM6,7v2h12V7zM6,11v2h9v-2z" />
+</vector>

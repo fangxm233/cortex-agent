@@ -658,6 +658,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-cortex-download",
+ "tauri-plugin-cortex-notifications",
  "tauri-plugin-notification",
  "tauri-plugin-opener",
  "tokio",
@@ -4086,6 +4087,15 @@ name = "tauri-plugin-cortex-download"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "tauri",
+ "tauri-plugin",
+]
+
+[[package]]
+name = "tauri-plugin-cortex-notifications"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
  "tauri",
  "tauri-plugin",
 ]

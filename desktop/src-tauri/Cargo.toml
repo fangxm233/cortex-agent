@@ -32,6 +32,7 @@ tauri-plugin-opener = "2"
 # DownloadManager (public Downloads + native "download complete" notification). Android does the real
 # work through a Kotlin bridge; on desktop it is a stub (the app uses its own `save_download` there).
 tauri-plugin-cortex-download = { path = "../tauri-plugin-cortex-download" }
+tauri-plugin-cortex-notifications = { path = "../tauri-plugin-cortex-notifications" }
 
 # ── Frontend OTA updater (all platforms) ──
 # reqwest/sha2/zip power the self-updating SPA on both desktop and Android. TLS = rustls with the
@@ -87,6 +88,9 @@ include_dir = "0.7"
 # eprintln! (visible on the terminal) — see the `shell_log!` macro in lib.rs.
 android_logger = "0.14"
 log = "0.4"
+
+[dev-dependencies]
+include_dir = "0.7"
 
 [profile.release]
 panic = "abort"   # Strip expensive panic clean-up logic

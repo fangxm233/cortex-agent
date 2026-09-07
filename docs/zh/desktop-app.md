@@ -111,7 +111,11 @@ Linux、macOS 与 Windows 将连接 JSON 保存到操作系统密钥链，即 Se
 
 Android 使用四个底部 Tab：Sessions、Threads、Tasks 与 Project。会话聊天、计划阅读、线程详情、任务详情、审批、问题、笔记、记忆文件、机器、设置、hooks 与 daemon 状态以 drill-in 页面打开。Android 返回操作会先关闭 overlay，再沿应用导航栈返回。
 
-原生通知会报告已完成的 turn，并可返回相关会话。Cortex 下载的文件会交给 Android `DownloadManager`，写入公共 Downloads collection，并显示系统完成通知。
+授予通知权限后，**设置 → 通知 → 后台通知**可启用 Android 原生后台连接，页面切到后台后仍继续监听。一条静默常驻通知显示跨项目运行中的 direct session 数量，包含后台延续任务；数量为零时显示后台通知已连接，断线重连时明确显示状态暂不可用，不保留假实时数字。关闭这个本设备开关或断开服务器连接会停止服务并清理相关通知（`desktop/tauri-plugin-cortex-notifications/android/src/main/java/dev/cortex/notifications/NotificationService.kt`；`Reconciler.kt`）。
+
+待回答问题和待审批计划各自发出通知。会话通知点击后打开对应对话，冷启动也可恢复目标；审批中心条目则打开审批页面并选中条目。原生端保存点击目标，直到页面处理完成，并在重连及定期刷新时核对待处理请求。锁屏通知隐藏私密内容。后台连接要求 HTTPS，仍受 Android Doze、厂商省电策略、网络及用户强制停止影响，不能保证强制停止后继续送达。待交互详情目前要求会话使用 Web channel。普通 turn 完成提醒由页面存活期间的实时消息流生成（`NotificationsPlugin.kt`；`Protocol.kt`；`web/src/mobile/v3/MNotificationProvider.tsx`）。
+
+Cortex 下载的文件会交给 Android `DownloadManager`，写入公共 Downloads collection，并显示系统完成通知。
 
 ## 文件与下载 {#files-and-downloads}
 
@@ -133,7 +137,7 @@ Android 使用四个底部 Tab：Sessions、Threads、Tasks 与 Project。会话
 
 ### 前端工作台 {#frontend-workbench}
 
-启动后，原生壳会比较本地 SPA 与服务器提供的 content-addressed frontend bundle。发现新 bundle 后，应用在后台下载、校验 SHA-256 digest、完成 staging，并在可通过重启应用时提示。这条通道更新 Web 工作台，不会替换原生 executable 或 APK。
+启动后，原生壳会比较本地 SPA 与服务器提供的 content-addressed frontend bundle。发现新 bundle 后，应用在后台下载、校验 SHA-256 digest、完成 staging，并在可通过重启应用时提示。这条通道更新 Web 工作台，不会替换原生 executable 或 APK。安装包含不同内置前端的 Android APK 时，会同步刷新一次本地页面；之后的启动仍保留前端 OTA 更新（`desktop/src-tauri/src/seed.rs`）。
 
 ### 原生应用壳 {#native-app-shell}
 

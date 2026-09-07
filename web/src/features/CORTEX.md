@@ -25,7 +25,7 @@ Native-facing features consume `lib/native-bridge.ts`; they do not redeclare or 
 | machines/ | subdir | Shared polled machine roster, expanded-detail lifecycle and locale-free facts |
 | daemon/ | subdir | Shared daemon status facts, 5s polling, restart lifecycle and exact cache refreshes |
 | command-palette/ | subdir | Global search and command overlay |
-| notifications/ | subdir | In-app toasts for replies and notices |
+| notifications/ | subdir | Shared replies and native background lifecycle |
 | media/ | subdir | Image, video and document previewers |
 | dock/ | subdir | Tabbed docked pane mixing file previews and web pages |
 | browser/ | subdir | One web tab's body, address bar and typed native port-forward adapter |

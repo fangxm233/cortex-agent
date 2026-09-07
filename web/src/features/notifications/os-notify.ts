@@ -1,102 +1,125 @@
-// input:  notification items, native-shell availability, and Tauri notification events
-// output: permission-gated OS notification delivery and tap subscriptions
-// pos:    Mobile native-notification bridge with browser fallback
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  notification items, shell flags and native bridge
+// output: permission-gated posts and retained tap subscriptions
+// pos:    OS notification delivery with old-shell fallback
+// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
 
-// OS/system-notification bridge (design 1q: mobile uses system push, not an in-app banner).
-//
-// The mobile app is a Tauri v2 Android shell wrapping this SPA (see desktop/CORTEX.md). The Android
-// System WebView does NOT implement the web Notifications API, so `new Notification()` / service-worker
-// `showNotification()` never fire there — the ONLY way to raise a real OS notification is the Tauri
-// notification plugin (`@tauri-apps/plugin-notification`), which invokes the native shell.
-//
-// This module is the single seam the notification providers call. It is a no-op in a plain browser
-// (no Tauri shell) so the SPA still builds + runs there; the caller falls back to the in-app toaster
-// when `sendOsNotification` reports it could not deliver. The plugin is dynamically imported so the
-// browser bundle never eagerly evaluates Tauri internals (they throw off-shell).
-import { isNativeShell } from '@/lib/desktop-config';
+import { isMobileShell, isNativeShell } from '@/lib/desktop-config';
+import {
+  isNativeCommandMissing, listenNativeNotificationActions, mobileNotificationStatus, safeInvoke,
+} from '@/lib/native-bridge';
 import type { NotificationItem } from './notification-vm';
 
-/** Minimal OS-notification payload — the native-agnostic shape a NotificationItem maps to. */
-export interface OsNotificationSpec {
-  title: string;
-  body: string;
-}
+export interface OsNotificationSpec { title: string; body: string }
+export type OsActionHandler = (data: Record<string, unknown> | undefined) => void | boolean | Promise<void | boolean>;
 
-/** Pure map: a NotificationItem → the {title, body} an OS notification shows. Title = conversation /
- *  notice name (bold line); body = the one-line preview. Deterministic, DOM-free, unit-tested. */
 export function osNotificationSpec(item: NotificationItem): OsNotificationSpec {
   return { title: item.title, body: item.meta };
 }
 
-/** True only inside the native (Tauri) shell — the only context where an OS notification can fire.
- *  A plain browser (including a narrow mobile browser) returns false → callers use the in-app toaster. */
-export function osNotifyAvailable(): boolean {
-  return isNativeShell();
+export function osNotifyAvailable(): boolean { return isNativeShell(); }
+
+let permissionGranted: boolean | null = null;
+let permissionRequest: Promise<boolean> | undefined;
+const PROMPT_KEY = 'cortex.mobile.notifications.permission-requested';
+let prompted = false;
+
+function wasPrompted(): boolean {
+  if (!isMobileShell()) return prompted;
+  try { return prompted || localStorage.getItem(PROMPT_KEY) === 'true'; }
+  catch { return prompted; }
 }
 
-// Cached permission result so we neither re-prompt nor re-invoke on every notification. `null` = not
-// yet resolved this session.
-let permissionGranted: boolean | null = null;
+function rememberPrompt(): void {
+  prompted = true;
+  if (!isMobileShell()) return;
+  try { localStorage.setItem(PROMPT_KEY, 'true'); } catch { /* In-memory guard remains. */ }
+}
 
-/** Ensure OS-notification permission, prompting once if still undecided. Returns whether it is granted.
- *  No-op (false) off-shell. Safe to call on mount and again lazily before the first send. */
+/** Resume rechecks OS settings without showing another permission dialog. */
+export async function refreshOsNotifyPermission(): Promise<boolean> {
+  if (!osNotifyAvailable()) return false;
+  try {
+    const { isPermissionGranted } = await import('@tauri-apps/plugin-notification');
+    permissionGranted = await isPermissionGranted();
+  } catch { permissionGranted = false; }
+  return permissionGranted;
+}
+
+async function requestOnce(): Promise<boolean> {
+  if (await refreshOsNotifyPermission()) return true;
+  if (wasPrompted()) return false;
+  if (isMobileShell() && typeof document !== 'undefined' && document.visibilityState !== 'visible') return false;
+  rememberPrompt();
+  try {
+    const { requestPermission } = await import('@tauri-apps/plugin-notification');
+    permissionGranted = (await requestPermission()) === 'granted';
+  } catch { permissionGranted = false; }
+  return permissionGranted;
+}
+
 export async function ensureOsNotifyPermission(): Promise<boolean> {
   if (!osNotifyAvailable()) return false;
+  if (permissionRequest) return permissionRequest;
   if (permissionGranted !== null) return permissionGranted;
-  try {
-    const { isPermissionGranted, requestPermission } = await import('@tauri-apps/plugin-notification');
-    let granted = await isPermissionGranted();
-    if (!granted) {
-      granted = (await requestPermission()) === 'granted';
-    }
-    permissionGranted = granted;
-    return granted;
-  } catch {
-    permissionGranted = false;
-    return false;
-  }
+  permissionRequest = requestOnce().finally(() => { permissionRequest = undefined; });
+  return permissionRequest;
 }
 
-/** Fire an OS notification. `data` is an opaque string map echoed back verbatim to `onOsNotificationAction`
- *  when the user taps the notification (stored in the OS notification's `extra`), so the caller can route
- *  the tap — e.g. `{ sessionId, projectId }` for deep-link navigation. os-notify stays route-agnostic:
- *  it only carries the payload, the caller interprets it.
- *
- *  Returns true when the notification was handed to the native shell, false when it could not deliver
- *  (off-shell, permission denied, or a plugin error) — the caller then falls back to the in-app toaster
- *  so a notification is never silently dropped. */
-export async function sendOsNotification(
-  spec: OsNotificationSpec,
-  data?: Record<string, string>,
-): Promise<boolean> {
+export async function sendOsNotification(spec: OsNotificationSpec, data?: Record<string, string>): Promise<boolean> {
   if (!osNotifyAvailable()) return false;
   try {
-    const granted = await ensureOsNotifyPermission();
-    if (!granted) return false;
+    if (!await ensureOsNotifyPermission()) return false;
+    if (isMobileShell()) {
+      const result = await safeInvoke('plugin:cortex-notifications|post', { ...spec, data });
+      if (!isNativeCommandMissing(result)) return result.ok;
+    }
     const { sendNotification } = await import('@tauri-apps/plugin-notification');
-    // autoCancel: tapping the notification dismisses it (Android) — the tap is delivered to onAction.
-    sendNotification({ title: spec.title, body: spec.body, extra: data, autoCancel: true });
+    sendNotification({ ...spec, extra: data, autoCancel: true });
     return true;
-  } catch {
-    return false;
-  }
+  } catch { return false; }
 }
 
-/** Subscribe to notification taps. The callback receives the `data` payload passed to
- *  `sendOsNotification` (the OS notification's `extra`), letting the caller route the tap (deep-link).
- *  Returns an unsubscribe function; a no-op off-shell (a plain browser has no native notifications). */
-export async function onOsNotificationAction(
-  cb: (data: Record<string, unknown> | undefined) => void,
-): Promise<() => void> {
-  if (!osNotifyAvailable()) return () => {};
+/** Installed plugin emits notification.extra on Android; older shells emit extra. */
+function legacyActionData(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const nested = Reflect.get(value, 'notification');
+  const extra: unknown = nested && typeof nested === 'object'
+    ? Reflect.get(nested, 'extra') ?? Reflect.get(value, 'extra') : Reflect.get(value, 'extra');
+  return extra && typeof extra === 'object' ? extra as Record<string, unknown> : undefined;
+}
+
+async function listenLegacyActions(cb: OsActionHandler, signal?: AbortSignal): Promise<() => void> {
+  let disposed = signal?.aborted ?? false;
+  let unregister = () => {};
+  const off = () => {
+    disposed = true;
+    signal?.removeEventListener('abort', off);
+    unregister();
+  };
+  signal?.addEventListener('abort', off, { once: true });
   try {
     const { onAction } = await import('@tauri-apps/plugin-notification');
-    const listener = await onAction((n) => cb(n.extra));
-    return () => {
-      void listener.unregister();
+    if (disposed) return off;
+    const listener = await onAction((value) => {
+      if (!disposed) void Promise.resolve(cb(legacyActionData(value))).catch(() => {});
+    });
+    let removed = false;
+    unregister = () => {
+      if (removed) return;
+      removed = true;
+      void listener.unregister().catch(() => {});
     };
-  } catch {
-    return () => {};
-  }
+    if (disposed) unregister();
+  } catch { off(); }
+  return off;
+}
+
+export async function onOsNotificationAction(cb: OsActionHandler, signal?: AbortSignal): Promise<() => void> {
+  if (!osNotifyAvailable() || signal?.aborted) return () => {};
+  if (!isMobileShell()) return listenLegacyActions(cb, signal);
+  try {
+    const status = await mobileNotificationStatus();
+    if (status) return listenNativeNotificationActions((action) => cb({ ...action }), signal);
+    return listenLegacyActions(cb, signal);
+  } catch { return () => {}; }
 }

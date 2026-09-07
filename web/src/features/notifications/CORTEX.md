@@ -1,7 +1,7 @@
 Please update me when files in this folder change
 
-Surfaces turn-scoped direct-chat assistant replies and server system notices through one shared feed.
-The feed owns direct-session gating, buffering, queue semantics and external-delivery fallback; shells only adapt open-session predicates, navigation and presentation.
+Shares reply and system-notice delivery across desktop and mobile.
+Owns Android background lifecycle and compatibility with older native shells.
 
 | filename | role | function |
 |---|---|---|
@@ -18,5 +18,7 @@ The feed owns direct-session gating, buffering, queue semantics and external-del
 | useNotificationFeed.ts | hook | Retains unknown turns through lookup failure, then delivers direct or discards confirmed non-direct turns |
 | useNotificationFeed.test.tsx | test | Tests direct retry/flush, non-direct disposal, suppression, fallback, dedupe and unmount safety |
 | useSystemNotices.ts | hook | Feeds system notice events to a callback |
-| os-notify.ts | util | Delivers OS notifications and tap events |
-| os-notify.test.ts | test | Unit tests for the OS notification bridge |
+| os-notify.ts | util | Posts native replies and normalizes legacy taps |
+| os-notify.test.ts | test | Tests permission, native post and legacy fallback |
+| mobile-notifications.ts | core | Owns visible native lifecycle and device toggle |
+| mobile-notifications.test.ts | test | Tests permission, resume and disabled native sync |

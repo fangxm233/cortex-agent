@@ -1,29 +1,82 @@
-// Embedded frontend seed (Android only).
-//
-// Desktop resolves its first-run / offline frontend from `resource_dir/frontend-seed` — real files
-// staged by `bundle.resources`. Android can't: its bundled assets live inside the read-only APK and
-// are NOT std::fs-readable regular files, which is exactly what the `cortexui://` disk resolver
-// (frontend.rs) needs. So on Android we compile the built SPA into the binary with `include_dir!`
-// and materialize it onto disk (`<appDataDir>/ui/current`) on first run, giving the resolver a
-// single stable on-disk origin for the app's whole life (seed → OTA-updated versions alike).
-//
-// The embedded path is `web/dist`, so `pnpm --filter web build` must run before the Android build.
+// input:  Embedded frontend files and app-private frontend directory
+// output: First-run and APK-upgrade frontend materialization
+// pos:    Android bundled frontend lifecycle
+// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
 
 use include_dir::{include_dir, Dir};
-use std::io;
-use std::path::Path;
+use sha2::{Digest, Sha256};
+use std::{io, path::Path};
 
 static SEED: Dir = include_dir!("$CARGO_MANIFEST_DIR/../../web/dist");
 
-/// Materialize the embedded SPA seed into `dest` when it lacks an index.html (first run / after a
-/// wipe). Returns Ok(true) when the seed was written, Ok(false) when `dest` already had a frontend.
-/// Deliberately does not write a `current.version` sentinel: the seed's version is unknown, so the
-/// first online OTA check always stages the server's version, which then promotes on next launch.
 pub fn ensure_seed(dest: &Path) -> io::Result<bool> {
-    if dest.join("index.html").is_file() {
+    let index = SEED.get_file("index.html")
+        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Bundled frontend missing"))?;
+    // Vite's index names content-hashed assets. The marker lives outside current/
+    // so an OTA replacement does not cause the bundled seed to overwrite it again.
+    let version = format!("{:x}", Sha256::digest(index.contents()));
+    ensure_version(dest, &version, || SEED.extract(dest))
+}
+
+fn ensure_version(dest: &Path, version: &str, extract: impl FnOnce() -> io::Result<()>) -> io::Result<bool> {
+    let marker = dest.with_extension("seed-version");
+    if dest.join("index.html").is_file()
+        && std::fs::read_to_string(&marker).ok().as_deref() == Some(version) {
         return Ok(false);
     }
     std::fs::create_dir_all(dest)?;
-    SEED.extract(dest)?;
+    extract()?;
+    let staged = marker.with_extension("seed-version.tmp");
+    std::fs::write(&staged, version)?;
+    std::fs::rename(staged, marker)?;
     Ok(true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn sandbox() -> std::path::PathBuf {
+        let unique = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+        std::env::temp_dir().join(format!("cortex-seed-{}-{unique}", std::process::id())).join("current")
+    }
+    fn install(dest: &Path, version: &str) -> io::Result<bool> {
+        ensure_version(dest, version, || std::fs::write(dest.join("index.html"), version))
+    }
+    #[test]
+    fn installs_first_run_and_apk_upgrade() {
+        let dest = sandbox();
+        assert!(install(&dest, "first").unwrap());
+        assert!(!install(&dest, "first").unwrap());
+        assert!(install(&dest, "second").unwrap());
+        assert_eq!(std::fs::read_to_string(dest.join("index.html")).unwrap(), "second");
+        std::fs::remove_dir_all(dest.parent().unwrap()).unwrap();
+    }
+    #[test]
+    fn preserves_ota_until_bundled_frontend_changes() {
+        let dest = sandbox();
+        install(&dest, "seed").unwrap();
+        std::fs::write(dest.join("index.html"), "ota").unwrap();
+        assert!(!install(&dest, "seed").unwrap());
+        assert_eq!(std::fs::read_to_string(dest.join("index.html")).unwrap(), "ota");
+        std::fs::remove_file(dest.join("index.html")).unwrap();
+        assert!(install(&dest, "seed").unwrap());
+        std::fs::remove_dir_all(dest.parent().unwrap()).unwrap();
+    }
+    #[test]
+    fn upgrades_legacy_install_without_marker() {
+        let dest = sandbox();
+        std::fs::create_dir_all(&dest).unwrap();
+        std::fs::write(dest.join("index.html"), "legacy").unwrap();
+        assert!(install(&dest, "seed").unwrap());
+        std::fs::remove_dir_all(dest.parent().unwrap()).unwrap();
+    }
+    #[test]
+    fn failed_extraction_does_not_mark_upgrade_complete() {
+        let dest = sandbox();
+        install(&dest, "old").unwrap();
+        assert!(ensure_version(&dest, "new", || Err(io::Error::other("interrupted"))).is_err());
+        assert_eq!(std::fs::read_to_string(dest.with_extension("seed-version")).unwrap(), "old");
+        assert!(install(&dest, "new").unwrap());
+        std::fs::remove_dir_all(dest.parent().unwrap()).unwrap();
+    }
 }

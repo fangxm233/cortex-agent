@@ -1,5 +1,5 @@
 // input:  app config, credential store, OTA modules, native plugins
-// output: guarded shell config, title bridge, commands and app window
+// output: Shell configuration, native notifications and app window
 // pos:    Cortex native shell composition root
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -33,6 +33,7 @@ mod forward;
 mod forward;
 
 mod creds;
+mod mobile_notifications;
 // frontend (custom-scheme asset resolver) + ota (self-updating SPA) now run on BOTH desktop and
 // Android: the SPA is served over the `cortexui://` scheme from an on-disk frontend directory, and
 // the OTA updater (reqwest[rustls]/sha2/zip — all cross-compile cleanly for Android) stages new
@@ -44,7 +45,7 @@ mod frontend;
 mod ota;
 // Android-only: the embedded SPA seed materialized onto disk on first run (desktop uses the real
 // files under resource_dir/frontend-seed instead, so this module is not compiled there).
-#[cfg(target_os = "android")]
+#[cfg(any(target_os = "android", test))]
 mod seed;
 
 // ─── Frontend source (OTA) ──────────────────────────────────────────────────
@@ -165,13 +166,15 @@ pub struct LocalInstall {
 }
 
 #[tauri::command]
-fn connect(
+async fn connect(
     app: tauri::AppHandle,
-    state: State<AppState>,
+    state: State<'_, AppState>,
     server_url: String,
     token: String,
     local: Option<LocalInstall>,
 ) -> Result<(), String> {
+    let _change = mobile_notifications::CONNECTION_CHANGE.lock().unwrap();
+    mobile_notifications::clear(&app)?;
     let config = ConnectionConfig {
         server_url: Some(server_url),
         token: Some(token),
@@ -194,7 +197,9 @@ fn connect(
 /// Called by the SPA daemon interface's Disconnect action (web/src/lib/shell-connection.ts).
 /// After this returns the SPA navigates to connect.html.
 #[tauri::command]
-fn disconnect(app: tauri::AppHandle, state: State<AppState>) -> Result<(), String> {
+async fn disconnect(app: tauri::AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    let _change = mobile_notifications::CONNECTION_CHANGE.lock().unwrap();
+    mobile_notifications::clear(&app)?;
     creds::clear(&app);
     *state.config.lock().unwrap() = ConnectionConfig::default();
     Ok(())
@@ -608,11 +613,9 @@ pub fn run() {
 
     #[allow(unused_mut)]
     let mut builder = tauri::Builder::default()
-        // Native OS/system notifications for the SPA (design 1q). The JS side
-        // (@tauri-apps/plugin-notification via web/src/features/notifications/os-notify.ts) invokes
-        // this plugin's commands; it is the only path to a real OS notification inside the Android
-        // WebView, which has no web Notifications API.
+        // Keep desktop delivery and Android permission prompts compatible with older frontends.
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_cortex_notifications::init())
         // Open external authorization URLs in the system browser on every native platform.
         .plugin(tauri_plugin_opener::init())
         // Android public-Downloads bridge (DownloadManager). Desktop registers a stub; the desktop
@@ -628,6 +631,8 @@ pub fn run() {
             set_connection_config,
             connect,
             disconnect,
+            mobile_notifications::mobile_notifications_configure,
+            mobile_notifications::mobile_notifications_status,
             apply_frontend_update,
             get_staged_update,
             get_app_update,

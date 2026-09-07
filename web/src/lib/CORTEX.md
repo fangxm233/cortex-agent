@@ -1,7 +1,7 @@
 Please update me when files in this folder change
 
 Non-visual client infrastructure shared by every screen.
-Builds the tRPC client, reads native-shell credentials, centralizes typed native capabilities, moves workspace files and owns canonical formatting.
+Owns transport, native capabilities, retained actions and file utilities.
 
 | filename | role | function |
 |---|---|---|
@@ -11,8 +11,9 @@ Builds the tRPC client, reads native-shell credentials, centralizes typed native
 | desktop-config.test.ts | test | Unit tests for shell detection and auth headers |
 | external-navigation.ts | util | Opens HTTP links in browser and native shells |
 | external-navigation.test.ts | test | Tests native opener and legacy fallback paths |
-| native-bridge.ts | core | Runtime-checks the sole `__TAURI__` boundary and provides typed safe invoke plus idempotent event/back listeners |
-| native-bridge.test.ts | test | Tests absent/partial bridges, command failures, unknown event payloads and listener teardown races |
+| native-bridge.ts | core | Typed native calls and scoped retained taps; register-before-drain, focus/resume drains and five foreground retries (1–16s), with handled-ID dedup and timer/listener teardown |
+| native-bridge.test.ts | test | Tests native capabilities and listener teardown |
+| native-notifications.test.ts | test | Tests retained tap scope, route/status/ack retry recovery, bounded foreground backoff, idle queues and in-flight teardown |
 | shell-connection.ts | util | Safely clears native credentials through the canonical bridge and reopens the connect screen |
 | shell-connection.test.ts | test | Unit tests for the disconnect path |
 | files.ts | util | Downloads, previews and reveals workspace files through HTTP or typed native commands |

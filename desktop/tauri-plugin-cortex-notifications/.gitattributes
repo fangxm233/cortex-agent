@@ -1,0 +1,2 @@
+# Captured SSE frames preserve the empty data field and terminal frame separator.
+android/src/test/resources/*.sse whitespace=-blank-at-eol,-blank-at-eof

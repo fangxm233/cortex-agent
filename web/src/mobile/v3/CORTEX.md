@@ -52,8 +52,8 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 | MNewProjectView.test.tsx | test | Tests mobile creation errors and pending gating |
 | m-new-project-flow.ts | controller | Scopes a returned project id before close and navigation |
 | m-new-project-flow.test.ts | test | Tests scope-before-navigation ordering |
-| MApprovalsScreen.tsx | screen | Adapts the shared queue and owns expanded selection plus feedback reset |
-| MApprovalsScreen.test.tsx | test | Tests selection fallback, card-switch reset and settled feedback clearing |
+| MApprovalsScreen.tsx | screen | Selects routed approvals and owns feedback state |
+| MApprovalsScreen.test.tsx | test | Tests cross-project targets and feedback reset |
 | MApprovalsView.tsx | view | Project-grouped queue with expandable decision card and optional feedback |
 | MApprovalsView.test.tsx | test | Tests feedback presentation and reject handoff |
 | m-approvals-vm.ts | vm | Groups pending approvals by project into card slots |
@@ -93,7 +93,9 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 | MBudgetScreen.tsx | screen | Keeps mobile budget view over pending-safe nullable shared-writer outcomes |
 | MBudgetScreen.test.ts | test | Tests complete-pair initialization, pending gates and nullable operation feedback |
 | MMcpScreen.tsx | screen | Lists configured MCP servers read-only |
-| MRuntimeSettingsScreen.tsx | screen | Edits Notifications and keyed Advanced descriptors through the shared runtime writer |
+| MRuntimeSettingsScreen.tsx | screen | Edits runtime and device notification settings |
+| MNativeNotificationsCard.tsx | view | Device-local background toggle and status |
+| MNativeNotificationsCard.test.tsx | test | Tests local toggle errors and unsupported shells |
 | MRuntimeSettingsScreen.test.tsx | test | Tests descriptor-keyed Advanced rows, safe integer gating and writes |
 | MAppearanceScreen.tsx | screen | Binds device-local appearance state and back route |
 | MAppearanceView.tsx | view | Language, theme, palette, accent and motion controls |
@@ -114,8 +116,10 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 | m-hooks-vm.test.ts | test | Tests mobile hook row/detail projection over shared grouping |
 | MPlanReadScreen.tsx | screen | Loads a plan from the compact transcript and handles approve or reject |
 | MPlanReadView.tsx | view | Full plan text with scroll progress and actions |
-| MNotificationProvider.tsx | provider | Injects mobile route suppression and OS delivery into the shared feed, then deep-links actions |
-| MNotificationProvider.test.tsx | test | Tests mobile permission, external delivery, deep-links and thin feed-adapter wiring |
+| MNotificationProvider.tsx | provider | Owns native lifecycle and scoped tap routing |
+| MNotificationProvider.test.tsx | test | Tests visibility, target routing and late cleanup |
+| m-notification-routing.ts | util | Validates server targets and encodes mobile routes |
+| m-notification-routing.test.ts | test | Tests unsafe, deleted and encoded tap targets |
 | MNotificationToaster.tsx | view | Independently selects and renders stacked tappable top notification banners |
 | MUpdateProvider.tsx | provider | Renders the one shared-priority mobile update prompt |
 | MUpdateProvider.test.tsx | test | Verifies app/hot dialog selection and empty rendering |
