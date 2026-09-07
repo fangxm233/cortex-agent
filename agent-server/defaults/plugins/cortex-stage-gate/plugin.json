@@ -1,6 +1,0 @@
-{
-  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
-  "name": "cortex-stage-gate",
-  "version": "0.2.0",
-  "description": "Cortex stage-gate skill bundle — reorient / task creation / approval primitives"
-}
