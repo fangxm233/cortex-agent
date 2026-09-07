@@ -8,7 +8,6 @@
   "promptTemplate": "Audit Executor's work. Read `## Execute Summary` at {{artifactPath}}, cross-check the modified files:\n{{modifiedFiles}}\n\nOriginal task:\n{{input}}\n\nApply the executor-reviewer directive and append your review to {{artifactPath}} under `## Review (iteration N)`. End the section with `[APPROVED]` if no Blockers remain; otherwise list the Blockers so Executor can revise.",
   "tools": "Agent,Bash,Edit,Glob,Grep,Read,Skill,TaskStop,Write,WebFetch,WebSearch",
   "pluginDirs": [
-    "plugins/cortex-common",
     "plugins/cortex-system"
   ]
 }

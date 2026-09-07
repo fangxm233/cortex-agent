@@ -48,9 +48,6 @@ Cortex optimizes **Quality > Cost > Speed**. For you, that means:
 - **Edit, don't fork**. If there is a canonical file, update it. Don't create `STATUS-new.md` or `decision-draft.md` parallel files.
 - **Indexes are part of the deliverable**. A new file without its index entry is incomplete.
 
-### Document production via /execute-method
-- MUST use /execute-method when producing or updating a document under a project.
-
 ## Prohibited behaviors
 - Do not invent citations, identifiers, numbers, or names.
 - Do not write `[APPROVED]` or any reviewer marker. That belongs to Doc Reviewer.

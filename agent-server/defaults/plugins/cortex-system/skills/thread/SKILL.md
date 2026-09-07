@@ -205,14 +205,7 @@ Templates define multi-agent pipelines by composing agents with transition rules
       ],
       "entryAgent": "agent-a",
       "maxTotalSteps": 6,
-      "maxTotalCostUsd": 5.0,
-      "hooks": {
-        "onEnd": {
-          "command": "node ~/.cortex/hooks/post-task-hook.mjs",
-          "args": ["agent-a"],
-          "timeout": 10000
-        }
-      }
+      "maxTotalCostUsd": 5.0
     }
   }
 }
@@ -274,8 +267,7 @@ Shell definition (`shells/worker-review.json` — the shipped generic produce-th
   ],
   "entryAgent": "{worker}",
   "entryStage": "{worker.entryStage}",
-  "maxTotalSteps": 4,
-  "hooks": { "onEnd": { "command": "node ~/.cortex/hooks/post-task-hook.mjs", "args": ["{worker}"], "timeout": 10000 } }
+  "maxTotalSteps": 4
 }
 ```
 
@@ -381,7 +373,7 @@ Templates can define lifecycle hooks that execute external scripts at key moment
 |------|------|----------|
 | `onStart` | Before the first agent step | Setup, validation |
 | `onTransition` | After each transition, before the next step | Intermediate processing |
-| `onEnd` | After all steps complete | Cleanup, compound, git commit |
+| `onEnd` | After all steps complete | Cleanup, reporting |
 
 Hook scripts receive `HookContext` on stdin (JSON) and return `HookResult` on stdout (JSON):
 
@@ -397,8 +389,6 @@ Hook scripts receive `HookContext` on stdin (JSON) and return `HookResult` on st
 **HookResult** (output) — two modes:
 1. `insertAgent: true` — Creates a temporary new agent to execute the prompt
 2. `targetAgent: "slotId"` — Sends a prompt to an existing agent's persistent session (process alive → stdin, dead → `--resume`)
-
-Example hook script (`post-task-hook.mjs`): Checks if `/compound-simple` should run and if there are uncommitted git changes, then sends a combined prompt to the worker agent's session.
 
 ---
 
@@ -445,7 +435,6 @@ Dispatch flow: `task-dispatcher.ts` selects a task → extracts template name �
 | `agent-server/src/message-router.ts` | Slack message → thread routing |
 | `agent-server/src/scheduled-runner.ts` | Scheduler + dispatch → thread creation |
 | `agent-server/src/task-dispatcher.ts` | Task selection and dispatch prompt building |
-| `~/.cortex/hooks/post-task-hook.mjs` | onEnd hook for scheduler/worker templates |
 
 ---
 
@@ -472,15 +461,14 @@ Dispatch flow: `task-dispatcher.ts` selects a task → extracts template name �
 
 ## Common Patterns for New Templates
 
-**Single-agent with hook** (like worker/scheduler):
+**Single-agent** (like scheduler):
 ```json
 {
   "name": "my-task",
   "agents": ["my-agent"],
   "transitions": [],
   "entryAgent": "my-agent",
-  "maxTotalSteps": 1,
-  "hooks": { "onEnd": { "command": "node ~/.cortex/hooks/post-task-hook.mjs", "args": ["my-agent"], "timeout": 10000 } }
+  "maxTotalSteps": 1
 }
 ```
 

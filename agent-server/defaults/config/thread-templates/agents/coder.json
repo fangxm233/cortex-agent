@@ -13,8 +13,5 @@
     }
   },
   "tools": "Agent,Bash,Edit,Glob,Grep,Read,Skill,TaskStop,TodoWrite,WebFetch,WebSearch,Write",
-  "pluginDirs": [
-    "plugins/cortex-common",
-    "plugins/cortex-coder"
-  ]
+  "pluginDirs": []
 }

@@ -8,9 +8,6 @@
   "systemPrompt": "file:worker.md",
   "tools": "Agent,Bash,Edit,Glob,Grep,Read,Skill,TaskStop,TodoWrite,WebFetch,WebSearch,Write",
   "pluginDirs": [
-    "plugins/cortex-common",
-    "plugins/cortex-stage-gate",
-    "plugins/cortex-coder",
     "plugins/cortex-system",
     "plugins/cortex-feishu"
   ]

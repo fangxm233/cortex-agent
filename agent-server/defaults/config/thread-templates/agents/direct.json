@@ -7,9 +7,6 @@
   "systemPrompt": "file:direct.md",
   "tools": "Agent,AskUserQuestion,Bash,Edit,EnterPlanMode,ExitPlanMode,Glob,Grep,Read,Skill,TaskStop,TodoWrite,WebFetch,WebSearch,Write",
   "pluginDirs": [
-    "plugins/cortex-common",
-    "plugins/cortex-stage-gate",
-    "plugins/cortex-coder",
     "plugins/cortex-system",
     "plugins/cortex-commission",
     "plugins/cortex-feishu"

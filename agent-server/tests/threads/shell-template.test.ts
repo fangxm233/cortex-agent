@@ -1,17 +1,18 @@
 // input:  Vitest, shell expander, shipped worker-review config
-// output: Shell binding expansion and validation regressions
+// output: Shell expansion and shipped dependency regressions
 // pos:    Verifies generic worker-review shell expansion
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { DEFAULTS_DIR } from '../../src/core/paths.js';
 import { expandShell, isShellBinding } from '../../src/domain/threads/shell-templates.js';
+import { rawRegistryFromDir, validateRegistry } from '../../src/domain/threads/template-validate.js';
 import type { AgentDefinition, ShellDefinition } from '../../src/core/types/thread-types.js';
 
-// --- worker-review shell fixture (mirrors the shipped shells/worker-review.json) ---
+// --- Custom worker-review fixture with a lifecycle hook ---
 const WORKER_REVIEW: ShellDefinition = {
   params: ['worker', 'reviewer'],
   agents: ['{worker}', '{reviewer}'],
@@ -23,7 +24,7 @@ const WORKER_REVIEW: ShellDefinition = {
   entryAgent: '{worker}',
   entryStage: '{worker.entryStage}',
   maxTotalSteps: 4,
-  hooks: { onEnd: { command: 'node ~/.cortex/hooks/post-task-hook.mjs', args: ['{worker}'], timeout: 10000 } },
+  hooks: { onEnd: { command: 'node /custom/completion-hook.mjs', args: ['{worker}'], timeout: 10000 } },
 };
 
 // --- Fixture agents mirroring the real worker/reviewer agent shapes ---
@@ -72,6 +73,29 @@ test('shipped worker-review shell sends a revised retry back to its reviewer', (
   );
   const shipped = JSON.parse(readFileSync(shellPath, 'utf8'));
   assert.deepEqual(shipped.transitions[2], WORKER_REVIEW.transitions[2]);
+});
+
+test('shipped thread registry has valid references and no retired plugins or completion hook', () => {
+  const registry = rawRegistryFromDir(path.join(DEFAULTS_DIR, 'config/thread-templates'), {
+    existsSync, readdirSync, readFileSync, join: path.join,
+  });
+  const results = validateRegistry(registry, {
+    promptsDir: path.join(DEFAULTS_DIR, 'prompts'), pluginBaseDir: DEFAULTS_DIR,
+    join: path.join, exists: existsSync, isAbsolute: path.isAbsolute,
+  });
+  for (const [name, result] of results) {
+    assert.deepEqual(result.errors, [], name);
+    assert.deepEqual(result.warnings, [], name);
+  }
+  assert.doesNotMatch(JSON.stringify(registry), /cortex-(common|stage-gate|coder)|post-task-hook/);
+  assert.equal(existsSync(path.join(DEFAULTS_DIR, 'hooks/post-task-hook.mjs')), false);
+  const shell = registry.shells['worker-review'] as ShellDefinition;
+  assert.equal(shell.hooks?.onEnd, undefined);
+  const out = expandShell('doc-review', {
+    shell: 'worker-review', worker: 'doc-writer', reviewer: 'doc-reviewer',
+  }, shell, registry.agents as Record<string, AgentDefinition>);
+  assert.equal(out.hooks?.onEnd, undefined);
+  assert.equal(out.transitions.length, 3);
 });
 
 // --- Interpolation: structural coverage for the live-only workers ---

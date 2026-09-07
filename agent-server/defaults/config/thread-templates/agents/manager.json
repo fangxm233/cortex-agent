@@ -8,9 +8,6 @@
   "promptTemplate": "{{input}}\n\nYour shared artifact (decomposition rationale + acceptance log) is {{artifactPath}}.",
   "tools": "Bash,Edit,Glob,Grep,Read,Skill,TodoWrite,WebFetch,WebSearch,Write",
   "pluginDirs": [
-    "plugins/cortex-common",
-    "plugins/cortex-stage-gate",
-    "plugins/cortex-coder",
     "plugins/cortex-system",
     "plugins/cortex-feishu"
   ]

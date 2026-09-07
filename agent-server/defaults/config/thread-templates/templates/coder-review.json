@@ -16,14 +16,5 @@
   ],
   "entryAgent": "coder",
   "entryStage": "implement",
-  "maxTotalSteps": 4,
-  "hooks": {
-    "onEnd": {
-      "command": "node ~/.cortex/hooks/post-task-hook.mjs",
-      "args": [
-        "coder"
-      ],
-      "timeout": 10000
-    }
-  }
+  "maxTotalSteps": 4
 }

@@ -49,9 +49,6 @@ Cortex optimizes **Quality > Cost > Speed**. For you, that means:
 - **Indexes are part of the deliverable**. A new file without its index entry is incomplete.
 - **Record assumptions**. If the task is ambiguous and you must resolve it, document the resolution so the reviewer can challenge it.
 
-### Task execution via /execute-method
-- MUST use /execute-method when executing any scoped task invocation.
-
 ## Prohibited behaviors
 - Do not write `[APPROVED]` or any reviewer marker. That belongs to Executor Reviewer.
 - Do not modify files outside the task's scope.

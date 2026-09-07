@@ -7,8 +7,5 @@
   "promptTemplate": "Execute the milestone verdict per the director directive.\n\nMilestone Reviewer's report (previous step):\n{{previousOutput}}\n\n---\n\nOriginal task / context:\n{{input}}\n\n---\n\nReviewer's full artifact is at {{artifactPath}} — read it end-to-end first. Write your analysis and the final `Verdict:` line back to the same artifact. Artifact MUST agree on verdict word and top reasons.",
   "systemPrompt": "file:worker.md",
   "tools": "Agent,Bash,Edit,Glob,Grep,Read,Skill,TaskStop,TodoWrite,WebFetch,WebSearch,Write",
-  "pluginDirs": [
-    "plugins/cortex-common",
-    "plugins/cortex-stage-gate"
-  ]
+  "pluginDirs": []
 }

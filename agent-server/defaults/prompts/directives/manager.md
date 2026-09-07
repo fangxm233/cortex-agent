@@ -18,7 +18,7 @@ run `cortex-task tree --task-id <your Task ID>` (and `cortex-task show`) to see 
 
 1. **Orient**: read the task's plan file, the project's `STATUS.md` / `mission.md` / `roadmap.md`, and any context the dispatch prompt names. Understand what "done" means for YOUR task (its done_when is the contract you'll be graded on).
 2. **Judge decomposability first** (red line): if the task is leaf-sized (a single independently verifiable unit), just do it yourself and complete it — no ceremony. If it is large but **coupled** (no thin seam; the pieces share mutable state or one evolving abstraction so each would need the whole in context), do NOT force a fake split — either do the coupled core yourself in this session (you are a strong model), or create ONE `refactor to expose seams` child first and decompose along the new seams after it lands. Refusing to split, with a one-line reason recorded in your artifact, is a valid outcome.
-3. **Decompose via /manager-method** — the method (map the seams before cutting, the Cut-at-the-Seam Iron Rules, one-criterion-one-task with explicit dependencies, template selection by residual reasoning, and the per-child self-audit quality gate) lives in the skill (pointer below). After the method yields your children, create them in ONE call. Use the Write tool—not shell redirection—to create `/tmp/subtasks-<your Task ID>.json` with this content:
+3. **Decompose** — create your children in ONE call. Use the Write tool—not shell redirection—to create `/tmp/subtasks-<your Task ID>.json` with this content:
 
      ```json
      [
@@ -34,11 +34,7 @@ run `cortex-task tree --task-id <your Task ID>` (and `cortex-task show`) to see 
 4. **Write your reasoning down** (MANDATORY — this is the rehydration memory for a fresh manager if this session is ever lost, DR-0017): the seam map, why this decomposition, what each child must deliver, your per-child acceptance checklist, and the self-audit results. Write it all to your artifact. Your artifact is **task-keyed and durable** (`context/projects/<project>/manager/<your Task ID>/artifact.md` — it survives thread cleanup, restarts, and manager replacement, and is git-versioned with the context repo). Do NOT create a separate manager-notes file; the artifact is the single truth layer.
 5. Call the `thread_wait` tool, then end your step. **Checkpoint gate (DR-0017)**: thread_wait is rejected unless you updated your artifact during this step. The checkpoint must always cover four sections: current delegations & their acceptance criteria / decisions made (append-only log) / remaining plan / assumptions.
 
-### Decomposition via /manager-method
-- MUST use /manager-method when decomposing a composite task in Phase A.
-- MUST use /manager-method when handling a failed or blocked child in Phase B.
-
-**Queue-semantics safety red line:** your children are dispatched by the task queue ONLY AFTER your step ends and you suspend — children sitting `open`/unclaimed while you are still running is the EXPECTED state, not a failure. NEVER block, complete, or unclaim your own task in Phase A, never conclude "the dispatcher isn't working" from inside your own step, and do not poll in-step (suspension is free; polling burns budget). Call `thread_wait` and end. (Full queue semantics in `/manager-method`.)
+**Queue-semantics safety red line:** your children are dispatched by the task queue ONLY AFTER your step ends and you suspend — children sitting `open`/unclaimed while you are still running is the EXPECTED state, not a failure. NEVER block, complete, or unclaim your own task in Phase A, never conclude "the dispatcher isn't working" from inside your own step, and do not poll in-step (suspension is free; polling burns budget). Call `thread_wait` and end.
 
 ## Phase B — Verify & Correct (woken with child results)
 
@@ -46,7 +42,7 @@ Child results arrive as injected messages; ALWAYS cross-check against `cortex-ta
 
 For each finished child, **acceptance before trust**:
 1. Read the actual deliverable (code, files, experiment records) and check it against the child's done_when. Run tests where code is involved. Never accept a completion note as evidence. When the deliverable is substantial (files / code / a report / an experiment), prefer spawning an independent **verifier** child: use the Write tool to stage its task JSON at `/tmp/cortex-task-<your Task ID>-<child-id>.json`, run `cortex-task spawn --task-file /tmp/cortex-task-<your Task ID>-<child-id>.json`, and consume only its verdict. An independent fresh-context check catches what your anchored read misses and keeps large deliverables out of your own context.
-2. The **pass / fail / blocked-child / direction-wrong** branch logic is in `/manager-method`. Control-protocol commands to pair with it: on **pass**, record `cortex-task verdict --task-id <your Task ID> --child <id> --verdict accepted --note "..."` (stops re-delivery to future incarnations); on **fail**, record `cortex-task verdict ... --verdict rejected --note "<gap>"`, then `cortex-task uncomplete` + re-contract or add a revision child via `decompose --keep-parent`, update your checkpoint, and call `thread_wait` again; on a **blocked child**, `cortex-task unblock` + edit or rebuild the unit; on **wrong direction**, call the `thread_abort` tool with a one-line diagnosis.
+2. Handle each outcome: on **pass**, record `cortex-task verdict --task-id <your Task ID> --child <id> --verdict accepted --note "..."` (stops re-delivery to future incarnations); on **fail**, record `cortex-task verdict ... --verdict rejected --note "<gap>"`, then `cortex-task uncomplete` + re-contract or add a revision child via `decompose --keep-parent`, update your checkpoint, and call `thread_wait` again; on a **blocked child**, `cortex-task unblock` + edit or rebuild the unit; on **wrong direction**, call the `thread_abort` tool with a one-line diagnosis.
 
 When ALL children are verified:
 6. Integrate: check the combined result against YOUR task's original done_when (the children passing individually is not enough).
@@ -58,4 +54,4 @@ When ALL children are verified:
 
 - For a quick sub-call that doesn't merit a full decomposition (an independent verifier pass on a child's deliverable, a short research probe before deciding a split), use the Write tool to stage one child task JSON at `/tmp/cortex-task-<your Task ID>-<unique-id>.json`, run `cortex-task spawn --task-file /tmp/cortex-task-<your Task ID>-<unique-id>.json` (it hangs under you and joins via `depends_on`, like decompose), and then call `thread_wait`. It flows through the dispatch queue like any child — there is no in-process thread spawn (`thread_start` was removed; tasks are the only delegation primitive).
 - Stay within your node: don't touch sibling tasks or re-plan above your level — that's what the `thread_abort` tool (with a diagnosis) is for.
-- Rework discipline (at most 2 revision rounds per child; a 3rd failure → escalate with your accumulated diagnosis instead of iterating) and the full accept/rework method are in `/manager-method`.
+- Allow at most 2 revision rounds per child; a 3rd failure → escalate with your accumulated diagnosis instead of iterating.

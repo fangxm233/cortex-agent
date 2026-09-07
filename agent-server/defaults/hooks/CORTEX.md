@@ -10,7 +10,6 @@ Managed hook scripts deployed into the runtime hook directory.
 | exit-plan-mode-hook.mjs | bridge | Routes plan approval through the webhook |
 | memory-ref-tracker.mjs | tracker | Records memory reference reads |
 | new-session-hook.mjs | session | Builds the new-session flush prompt |
-| post-task-hook.mjs | thread | Builds the template completion prompt |
 | rules-loader.mjs | loader | Loads matching rules after file reads |
 | session-activity-tracker.mjs | tracker | Records session tool activity |
 | status-md-guard.mjs | guard | Enforces STATUS.md register size caps |

@@ -1,19 +1,10 @@
 {
   "name": "scheduler",
-  "description": "Scheduled task — single agent + onEnd hook (compound + git commit)",
+  "description": "Scheduled task — single agent",
   "agents": [
     "scheduler-main"
   ],
   "transitions": [],
   "entryAgent": "scheduler-main",
-  "maxTotalSteps": 1,
-  "hooks": {
-    "onEnd": {
-      "command": "node ~/.cortex/hooks/post-task-hook.mjs",
-      "args": [
-        "scheduler-main"
-      ],
-      "timeout": 10000
-    }
-  }
+  "maxTotalSteps": 1
 }

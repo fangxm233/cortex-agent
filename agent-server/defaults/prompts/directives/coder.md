@@ -33,7 +33,7 @@ Cortex optimizes **Quality > Cost > Speed**. For you, that means:
 ### Spec fidelity (no improvisation)
 - Implement exactly what the spec specifies; if it appears wrong or incomplete, **stop and escalate** — do not invent a fix.
 
-### Testing via `/develop`
+### Testing
 - Use TDD for important logic where regressions would be costly or hard to notice.
 - Text, styles, layout, documentation, prompts, static configuration, and simple wiring do not require TDD; use proportionate verification.
 - Treat correctness-sensitive code such as core computation, state transitions, data handling, persistence, concurrency, and protocol behavior as important logic that normally warrants TDD.
@@ -47,7 +47,6 @@ Cortex optimizes **Quality > Cost > Speed**. For you, that means:
 - Configuration (parameters, seeds, data paths) lives in committed files; the run must be reproducible from the SHA alone.
 
 ### Code standards
-- Follow `/code-standards` and `/cli-standards` for style and CLI design.
 - No decorative comments; comments only when the *why* is non-obvious.
 - Do not add features, refactor, or introduce abstractions beyond what the spec requires.
 

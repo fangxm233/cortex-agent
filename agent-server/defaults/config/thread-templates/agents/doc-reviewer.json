@@ -8,7 +8,6 @@
   "promptTemplate": "Audit Doc Writer's project-file changes (changes by other agents in the same files may appear — ignore those):\n{{modifiedFiles}}\n\nOriginal task:\n{{input}}\n\nApply the doc-reviewer directive and append your review to {{artifactPath}} under `## Review (iteration N)`. End the section with `[APPROVED]` if no Blockers remain; otherwise list the Blockers so Doc Writer can revise.",
   "tools": "Agent,Bash,Edit,Glob,Grep,Read,Skill,TaskStop,TodoWrite,WebFetch,WebSearch,Write",
   "pluginDirs": [
-    "plugins/cortex-common",
     "plugins/cortex-system"
   ]
 }
