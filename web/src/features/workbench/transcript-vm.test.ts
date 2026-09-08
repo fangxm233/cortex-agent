@@ -1325,6 +1325,68 @@ describe('buildTranscriptRows — native subagent grouping', () => {
     expect(child.toolCount).toBe(1);
   });
 
+  it('does not let a stale summary close a subagent whose live rows are still arriving', () => {
+    // The transcript refetch that produced this summary raced the events still coming in: the
+    // snapshot says the child is finished, the live tail proves it is not.
+    const rows = buildTranscriptRows(
+      {
+        sessionId: 's-compact-stale',
+        turns: [{ turnIndex: 0, messages: [
+          msg({ type: 'user', text: 'go' }),
+          msg({
+            type: 'tool', toolName: 'agent', toolInput: 'Inspect renderers',
+            subagentSpawns: [{ id: 'child-1', type: 'explore', description: 'Inspect', prompt: 'Inspect.' }],
+          } as any),
+        ] }],
+        subagentSummaries: [{
+          id: 'child-1', type: 'explore', description: 'Inspect', model: 'pi-small',
+          toolCount: 1, hasDetails: true, structurallyOpen: false,
+        }],
+      },
+      [{
+        sessionId: 's-compact-stale', role: 'tool', text: '', toolName: 'Grep', toolInput: 'x',
+        subagentId: 'child-1', ts: '2026-08-01T01:00:00.000Z',
+      }],
+      { running: true },
+    );
+
+    const child = rows.find((row) => row.kind === 'subagent' && row.id === 'child-1') as Extract<ChatRow, { kind: 'subagent' }>;
+    expect(child.status).toBe('running');
+  });
+
+  it('lets a reported end close a subagent even while its live rows are in the tail', () => {
+    const rows = buildTranscriptRows(
+      {
+        sessionId: 's-compact-ended',
+        turns: [{ turnIndex: 0, messages: [
+          msg({ type: 'user', text: 'go' }),
+          msg({
+            type: 'tool', toolName: 'agent', toolInput: 'Inspect renderers',
+            subagentSpawns: [{ id: 'child-1', type: 'explore', description: 'Inspect', prompt: 'Inspect.' }],
+          } as any),
+        ] }],
+        subagentSummaries: [{
+          id: 'child-1', type: 'explore', description: 'Inspect', model: 'pi-small',
+          toolCount: 1, hasDetails: true, structurallyOpen: true,
+        }],
+      },
+      [
+        {
+          sessionId: 's-compact-ended', role: 'tool', text: '', toolName: 'Grep', toolInput: 'x',
+          subagentId: 'child-1', ts: '2026-08-01T01:00:00.000Z',
+        },
+        {
+          sessionId: 's-compact-ended', role: 'assistant', text: '',
+          subagentId: 'child-1', subagentEnded: 'completed', ts: '2026-08-01T01:00:01.000Z',
+        },
+      ],
+      { running: true },
+    );
+
+    const child = rows.find((row) => row.kind === 'subagent' && row.id === 'child-1') as Extract<ChatRow, { kind: 'subagent' }>;
+    expect(child.status).toBe('done');
+  });
+
   it('keeps the old embedded-child behavior when no compact summaries are present', () => {
     const rows = buildTranscriptRows(
       tx([{ turnIndex: 0, messages: [

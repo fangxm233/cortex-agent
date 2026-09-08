@@ -57,7 +57,7 @@ import {
   type ModelFallbackEvent,
   type StreamDeltaState,
 } from './event-parser.js';
-import { BgTaskTracker, isContinuationResult, routeLine } from './bg-task-tracker.js';
+import { BgTaskTracker, isContinuationResult, routeLine, type SubagentEndStatus } from './bg-task-tracker.js';
 import { ClaudeContextUsageTracker } from './context-usage.js';
 import { activeClaudeCaptureRegistry } from './active-capture-registry.js';
 import { resolveAutoCompactWindow } from './compact-window.js';
@@ -123,6 +123,12 @@ interface PendingTurn {
   /** OC-11 / §17 G4-SA5: one census call per native-subagent line, carrying only the linkage. */
   onSubagentActivity: ((
     parentToolUseId: string, subagentType: string | null, kind: SubagentActivityKind,
+  ) => void) | null;
+  /** Authoritative end of one subagent spawned by this turn. A backgrounded child can reach its
+   *  terminal state while the parent turn is still open, so the signal needs an in-turn route —
+   *  the continuation sink only exists once the turn has ended and a background hold is up. */
+  onSubagentEnd: ((
+    parentToolUseId: string, status: SubagentEndStatus,
   ) => void) | null;
   rawStream: Writable;
   txtStream: Writable;
@@ -667,6 +673,7 @@ class ClaudeSession {
       onModelFallback: options.onModelFallback || null,
       onContextUsage: options.onContextUsage || null,
       onSubagentActivity: options.onSubagentActivity || null,
+      onSubagentEnd: options.onSubagentEnd || null,
       rawStream: streams.rawStream,
       txtStream: streams.txtStream,
       killed: false,
@@ -800,6 +807,7 @@ class ClaudeSession {
       capturePairKey: streams.pairKey,
       releaseCapture: streams.releaseCapture,
       onProgress: null, onAssistantDelta: null, onCompact: null, onSubagentActivity: null,
+      onSubagentEnd: null,
       rawStream: streams.rawStream, txtStream: streams.txtStream,
       killed: false, spontaneous: true,
     };
@@ -853,6 +861,7 @@ class ClaudeSession {
     onSubagentActivity?: ((
       parentToolUseId: string, subagentType: string | null, kind: SubagentActivityKind,
     ) => void) | null;
+    onSubagentEnd?: ((parentToolUseId: string, status: SubagentEndStatus) => void) | null;
   }): Promise<any> {
     if (!this.alive) {
       this.needsResume = true;
@@ -1196,9 +1205,18 @@ class ClaudeSession {
       // so the signal is emitted exactly once either way.
       const subagentEnd = this.bgTracker.subagentEndFor(data);
       if (subagentEnd) {
-        this.deliverContinuation(
-          s => s.onSubagentEnd?.(subagentEnd.parentToolUseId, subagentEnd.status),
-        );
+        // In-turn first: a subagent that finishes while its parent turn is still open has no
+        // continuation sink to reach (one is registered only when the turn ends holding background
+        // work), and `subagentEndFor` is consuming — dropping it here loses the end for good.
+        const inTurn = this.currentTurn?.onSubagentEnd;
+        if (inTurn) {
+          try { inTurn(subagentEnd.parentToolUseId, subagentEnd.status); }
+          catch (e) { log.warn('onSubagentEnd threw:', (e as Error).message); }
+        } else {
+          this.deliverContinuation(
+            s => s.onSubagentEnd?.(subagentEnd.parentToolUseId, subagentEnd.status),
+          );
+        }
       }
       // A backgrounded subagent keeps working after its parent turn closed, and the CLI keeps
       // streaming its lines. With no turn open the branches above skip them, so route them to the
@@ -1752,6 +1770,8 @@ export class ClaudeAdapter implements AgentAdapter {
             onSubagentActivity: (
               parentToolUseId: string, subagentType: string | null, kind: SubagentActivityKind,
             ) => stream.push({ type: 'subagent_activity', parentToolUseId, subagentType, kind }),
+            onSubagentEnd: (parentToolUseId: string, status: SubagentEndStatus) =>
+              stream.push({ type: 'subagent_end', parentToolUseId, status }),
           });
           // Derived events, in order, before the terminating turn_complete.
           for (const q of (result.askUserQuestions || [])) {

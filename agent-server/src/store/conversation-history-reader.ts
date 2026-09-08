@@ -12,11 +12,13 @@ import type {
   HistoryReadOptions,
   RawEvent,
   SessionHistory,
+  SubagentEndStatus,
 } from './conversation-history-repo.js';
 
 interface ParseState {
   events: HistoryEvent[];
   committedSourceIds: Set<string>;
+  subagentEnds: Map<string, SubagentEndStatus>;
   interactionById: Map<string, HistoryEvent>;
   decisionById: Map<string, HistoryDecisionItem>;
   toolByUseId: Map<string, HistoryEvent>;
@@ -30,6 +32,7 @@ function createParseState(options: HistoryReadOptions): ParseState {
   return {
     events: [],
     committedSourceIds: new Set<string>(),
+    subagentEnds: new Map<string, SubagentEndStatus>(),
     interactionById: new Map<string, HistoryEvent>(),
     decisionById: new Map<string, HistoryDecisionItem>(),
     toolByUseId: new Map<string, HistoryEvent>(),
@@ -80,6 +83,14 @@ function noteLargeToolResult(state: ParseState, line: string): boolean {
 
 function consumeEditMarker(state: ParseState, ev: RawEvent): void {
   state.pendingEdit = { originalText: ev.originalText ?? '', originalTs: ev.originalTs ?? '' };
+}
+
+/** A `subagent-end` line: a state correction for one subagent's block, never a row. First report
+ *  wins — a terminal state cannot be superseded. */
+function consumeSubagentEnd(state: ParseState, ev: RawEvent): void {
+  if (!ev.subagentId || !ev.subagentEnded) return;
+  if (state.subagentEnds.has(ev.subagentId)) return;
+  state.subagentEnds.set(ev.subagentId, ev.subagentEnded);
 }
 
 function consumeDebugPrompt(state: ParseState, ev: RawEvent): void {
@@ -227,6 +238,7 @@ function consumeDecisionAction(state: ParseState, ev: RawEvent): void {
 
 function consumeParsedEvent(state: ParseState, ev: RawEvent): void {
   if (ev.type === 'edit-marker') return consumeEditMarker(state, ev);
+  if (ev.type === 'subagent-end') return consumeSubagentEnd(state, ev);
   if (ev.type === 'decision-action') return consumeDecisionAction(state, ev);
   if (ev.type === 'debug-user-prompt') return consumeDebugPrompt(state, ev);
   if (ev.type === 'debug-tool-result') return consumeDebugToolResult(state, ev);
@@ -242,6 +254,7 @@ function finishHistory(sessionId: string, state: ParseState): SessionHistory | n
     sessionId,
     events: [...state.events],
     committedSourceIds: [...state.committedSourceIds],
+    subagentEnds: [...state.subagentEnds].map(([id, status]) => ({ id, status })),
   };
 }
 

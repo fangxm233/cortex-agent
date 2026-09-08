@@ -162,4 +162,12 @@ export type NormalizedEvent =
       subagentType: string | null;
       kind: 'assistant' | 'tool_result';
     }
+  // The backend's own task lifecycle reporting that one native subagent reached a terminal state.
+  // Not derivable from the transcript: a backgrounded subagent runs beside the main agent (so
+  // "the main agent spoke again" proves nothing), and a killed one emits nothing else at all.
+  | {
+      type: 'subagent_end';
+      parentToolUseId: string;
+      status: 'completed' | 'failed' | 'killed';
+    }
   | { type: 'error'; message: string; fatal: boolean };

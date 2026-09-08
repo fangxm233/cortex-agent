@@ -418,6 +418,24 @@ export class AgentRunner {
           );
         }
       : null;
+    // The authoritative end of one native subagent. Persisted as well as published: it is the only
+    // evidence a later reader has that a subagent which ran BESIDE the main agent is over — the
+    // event ordering in the transcript cannot express that, and a killed child leaves nothing else.
+    // Fires both in-turn (the child finished while its parent turn was still open) and from the
+    // background hold (it finished after the turn ended).
+    const persistSubagentEnd = (
+      parentToolUseId: string, status: 'completed' | 'failed' | 'killed',
+    ): void => {
+      if (!sessionId || !parentToolUseId) return;
+      const ts = new Date().toISOString();
+      recordHistory(conversationHistory.appendSubagentEnd(sessionId, {
+        subagentId: parentToolUseId, status, ts,
+      }));
+      publishSessionMessage({
+        sessionId, channel, role: 'assistant', text: '', ts,
+        subagentId: parentToolUseId, subagentEnded: status,
+      });
+    };
     const persistContext = (usage: ContextUsage): Promise<void> => persistSessionContextUsage({
       sessionName, sessionId, channel, usage,
     });
@@ -541,6 +559,7 @@ export class AgentRunner {
         onTodoUpdate: persistTodos,
         onToolUse: composeToolUse(callbacks.onToolUse, persistToolUse),
         onToolResult: persistToolResult,
+        onSubagentEnd: persistSubagentEnd,
         onAskUserQuestion: interactiveCallbacks.onAskUserQuestion,
       });
       // Background-task continuation: if the turn left background work remaining (running OR
@@ -589,16 +608,7 @@ export class AgentRunner {
           },
           publishTool: persistToolUse,
           publishToolResult: persistToolResult ?? undefined,
-          // Live-only, deliberately: a subagent block's done-state is re-derived correctly from
-          // history whenever the session is no longer live, so this needs no history entry. It
-          // exists to correct the block WHILE the hold is up, when the transcript alone would
-          // still infer "running".
-          publishSubagentEnd: (parentToolUseId, status) => {
-            publishSessionMessage({
-              sessionId: sid, channel, role: 'assistant', text: '',
-              ts: new Date().toISOString(), subagentId: parentToolUseId, subagentEnded: status,
-            });
-          },
+          publishSubagentEnd: persistSubagentEnd,
           publishContextUsage: persistContinuationContext,
           onRateLimited: (continuation) => {
             const provider = continuation.rateLimitProvider ?? convResult.result.rateLimitProvider ?? null;

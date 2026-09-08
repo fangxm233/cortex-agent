@@ -501,18 +501,20 @@ test('compact projection keeps main rows, structural child anchors, orphan ancho
     ['assistant', 'orphan-1', 'legacy orphan anchor'],
     ['assistant', null, 'main resumes'],
   ]);
+  // Nothing reported an end and the turn never closed, so all three stay open — "the main agent
+  // spoke again" is not evidence about a child that may be running beside it.
   assert.deepEqual(compact!.subagentSummaries, [
     {
       id: 'child-1', type: 'explore', description: 'Inspect renderers', model: 'claude-sonnet',
-      toolCount: 1, hasDetails: true, structurallyOpen: false,
+      toolCount: 1, hasDetails: true, structurallyOpen: true,
     },
     {
       id: 'grand-1', type: 'review', description: 'Review notes',
-      toolCount: 0, hasDetails: false, structurallyOpen: false,
+      toolCount: 0, hasDetails: false, structurallyOpen: true,
     },
     {
       id: 'orphan-1', type: 'research', description: 'Orphan branch', model: 'pi-small',
-      toolCount: 0, hasDetails: true, structurallyOpen: false,
+      toolCount: 0, hasDetails: true, structurallyOpen: true,
     },
   ]);
 
@@ -614,7 +616,7 @@ test('compact projection warms once, updates from durable appends without re-sca
     model: child.model,
     toolCount: 1,
     hasDetails: true,
-    structurallyOpen: false,
+    structurallyOpen: true,
   }]);
 
   await repo.truncateFromTurn(sid, 0);
@@ -662,4 +664,68 @@ test('compact projection LRU evicts by count and estimated bytes', async () => {
   const cacheKeys = [...(repo as any).compactCache.keys()];
   assert.equal(cacheKeys.includes('lru-a'), false, 'oldest entry evicted when count limit is exceeded');
   assert.ok((repo as any).compactCacheBytes <= 220, 'byte budget is enforced');
+});
+
+test('a subagent stays open beside the main agent until its end is reported', async () => {
+  const repo = new ConversationHistoryRepo(CUSTOM_HISTORY_DIR);
+  const sid = 'sess-bg-subagent-open';
+  const child = { id: 'bg-child-1', type: 'explore', description: 'Sweep callers' } as const;
+  await repo.appendUser(sid, { text: 'go', ts: '2026-09-08T00:00:00.000Z' });
+  await repo.appendTool(sid, {
+    toolName: 'Agent', toolInput: 'Sweep callers', ts: '2026-09-08T00:00:01.000Z',
+    subagentSpawns: [{ id: child.id, type: child.type, description: child.description, prompt: 'Sweep every caller.' }],
+  });
+  // A backgrounded child interleaves with the main agent for its whole life.
+  await repo.appendTool(sid, { toolName: 'Grep', toolInput: 'x', ts: '2026-09-08T00:00:02.000Z', subagent: child });
+  await repo.appendTool(sid, { toolName: 'Bash', toolInput: 'ls', ts: '2026-09-08T00:00:03.000Z' });
+  await repo.appendTool(sid, { toolName: 'Read', toolInput: 'a.ts', ts: '2026-09-08T00:00:04.000Z', subagent: child });
+  await repo.appendAssistant(sid, { text: 'meanwhile, progress', ts: '2026-09-08T00:00:05.000Z' });
+  await repo.appendTool(sid, { toolName: 'Bash', toolInput: 'pwd', ts: '2026-09-08T00:00:06.000Z' });
+
+  const working = await repo.getCompactHistory(sid);
+  assert.equal(working!.subagentSummaries[0].structurallyOpen, true, 'main-agent rows must not seal a running child');
+  assert.equal(working!.subagentSummaries[0].toolCount, 2);
+
+  await repo.appendSubagentEnd(sid, { subagentId: child.id, status: 'completed', ts: '2026-09-08T00:00:07.000Z' });
+  const sealed = await repo.getCompactHistory(sid);
+  assert.equal(sealed!.subagentSummaries[0].structurallyOpen, false, 'a reported end seals the block');
+  // The end record carries no prose and must never surface as a transcript row.
+  assert.deepEqual(
+    sealed!.events.map((event) => event.type),
+    ['user', 'tool', 'tool', 'assistant', 'tool'],
+  );
+  const history = await repo.getHistory(sid);
+  assert.deepEqual(history!.subagentEnds, [{ id: child.id, status: 'completed' }]);
+  assert.equal(history!.events.some((event) => (event as { subagentEnded?: string }).subagentEnded), false);
+});
+
+test('a killed subagent is sealed by its reported end, and a new user turn seals unreported leftovers', async () => {
+  const repo = new ConversationHistoryRepo(CUSTOM_HISTORY_DIR);
+  const sid = 'sess-bg-subagent-boundary';
+  const killed = { id: 'bg-killed', type: 'explore', description: 'Killed sweep' } as const;
+  const silent = { id: 'bg-silent', type: 'explore', description: 'Silent sweep' } as const;
+  await repo.appendUser(sid, { text: 'go', ts: '2026-09-08T01:00:00.000Z' });
+  await repo.appendTool(sid, {
+    toolName: 'Agent', toolInput: 'two children', ts: '2026-09-08T01:00:01.000Z',
+    subagentSpawns: [
+      { id: killed.id, type: killed.type, description: killed.description, prompt: 'Sweep A.' },
+      { id: silent.id, type: silent.type, description: silent.description, prompt: 'Sweep B.' },
+    ],
+  });
+  await repo.appendTool(sid, { toolName: 'Grep', toolInput: 'y', ts: '2026-09-08T01:00:02.000Z', subagent: killed });
+  await repo.appendSubagentEnd(sid, { subagentId: killed.id, status: 'killed', ts: '2026-09-08T01:00:03.000Z' });
+
+  const midTurn = await repo.getCompactHistory(sid);
+  assert.deepEqual(
+    midTurn!.subagentSummaries.map((summary) => [summary.id, summary.structurallyOpen]),
+    [[killed.id, false], [silent.id, true]],
+  );
+
+  await repo.appendUser(sid, { text: 'next question', ts: '2026-09-08T01:05:00.000Z' });
+  const nextTurn = await repo.getCompactHistory(sid);
+  assert.deepEqual(
+    nextTurn!.subagentSummaries.map((summary) => [summary.id, summary.structurallyOpen]),
+    [[killed.id, false], [silent.id, false]],
+    'the turn boundary is the backstop for a child whose end was never reported',
+  );
 });

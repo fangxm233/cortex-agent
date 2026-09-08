@@ -645,6 +645,10 @@ export function buildTranscriptRows(
     /** The backend reported this subagent terminal. Outranks every structural inference below:
      *  a later main-agent row cannot reopen it, and it cannot be left running at the end. */
     ended?: boolean;
+    /** This block has live-tail rows the fetched transcript does not contain yet, i.e. the
+     *  subagent produced output the summary snapshot predates. Keeps a stale summary from
+     *  reporting "done" for a subagent that is demonstrably still working. */
+    liveOpen?: boolean;
   }>();
 
   const flushTools = (sink: RowSink): void => {
@@ -663,7 +667,7 @@ export function buildTranscriptRows(
     for (const b of blocks.values()) b.row.status = 'done';
   };
   const openBlock = (
-    m: TranscriptMessage,
+    m: TranscriptMessageWithSpawns,
     id: string,
     spawn?: SubagentSpawnView,
   ) => {
@@ -675,6 +679,7 @@ export function buildTranscriptRows(
       // subagent proves it was still going; the block reopens rather than fragmenting into a second
       // one, and the last main-agent row after it genuinely ends leaves it done.
       if (!existing.ended) existing.row.status = 'running';
+      if (m.liveTail) existing.liveOpen = true;
       if (!existing.summary) {
         // The anchor carries the description, the child rows carry the declared type — whichever
         // arrives second fills in what the first could not know.
@@ -704,7 +709,10 @@ export function buildTranscriptRows(
         : {}),
     };
     rows.push(row);
-    const entry = { row, sink: { rows: row.children, toolBuf: [] } as RowSink, summary };
+    const entry = {
+      row, sink: { rows: row.children, toolBuf: [] } as RowSink, summary,
+      ...(m.liveTail ? { liveOpen: true } : {}),
+    };
     blocks.set(id, entry);
     return entry;
   };
@@ -805,7 +813,11 @@ export function buildTranscriptRows(
   if (summaryAuthority) {
     for (const block of blocks.values()) {
       if (!block.summary) continue;
-      block.row.status = !block.ended && sessionLive && block.summary.structurallyOpen ? 'running' : 'done';
+      // A summary may not close what live rows just proved open: the transcript refetch that
+      // produced it raced the events still arriving, so `structurallyOpen` can be a snapshot of a
+      // moment already past. Only a reported end (`ended`) or an idle session closes a block.
+      const open = block.summary.structurallyOpen || block.liveOpen === true;
+      block.row.status = !block.ended && sessionLive && open ? 'running' : 'done';
       block.row.toolCount = block.summary.toolCount;
       block.row.hasDetails = block.summary.hasDetails;
       block.row.detailMode = 'lazy';

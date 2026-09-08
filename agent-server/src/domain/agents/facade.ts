@@ -250,6 +250,7 @@ class LegacyEventDispatcher {
       model_fallback: (event) => this.modelFallback(event),
       plan_written: (event) => this.planWritten(event),
       ask_user_question: (event) => this.askUserQuestion(event),
+      subagent_end: (event) => this.subagentEnd(event),
     };
   }
 
@@ -345,6 +346,10 @@ class LegacyEventDispatcher {
 
   private askUserQuestion(event: Extract<NormalizedEvent, { type: 'ask_user_question' }>): void {
     this.options.onAskUserQuestion?.({ toolUseId: event.toolUseId, questions: event.questions });
+  }
+
+  private subagentEnd(event: Extract<NormalizedEvent, { type: 'subagent_end' }>): void {
+    this.options.onSubagentEnd?.(event.parentToolUseId, event.status);
   }
 }
 function shouldAwaitRunBackground(

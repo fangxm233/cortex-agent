@@ -77,6 +77,8 @@ export interface RunConversationOptions {
   /** The agent's task list after a TodoWrite call (replace-all snapshot). */
   onTodoUpdate?: ((snapshot: TodoSnapshot) => void) | null;
   onToolResult?: ((toolUseId: string, content: string, isError: boolean) => void) | null;
+  /** One native subagent reached a terminal state (see RunAgentOptions.onSubagentEnd). */
+  onSubagentEnd?: ((parentToolUseId: string, status: 'completed' | 'failed' | 'killed') => void) | null;
   onPlanWritten?: ((event: { path: string; content: string; toolUseId: string }) => void) | null;
   onAskUserQuestion?: ((event: any) => void) | null;
 }
@@ -255,6 +257,7 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
     onTodoUpdate: opts.onTodoUpdate ?? null,
     onToolUse: opts.onToolUse,
     onToolResult: opts.onToolResult ?? null,
+    onSubagentEnd: opts.onSubagentEnd ?? null,
     onPlanWritten: opts.onPlanWritten ?? null,
     onAskUserQuestion: opts.onAskUserQuestion ?? null,
   });

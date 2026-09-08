@@ -30,6 +30,9 @@ const HISTORY_DIR = path.join(STORE_DIR, 'conversation-history');
 
 export type HistoryEventType = 'user' | 'assistant' | 'tool' | 'interaction';
 
+/** Terminal state of one native subagent, as the backend's own task lifecycle reports it. */
+export type SubagentEndStatus = 'completed' | 'failed' | 'killed';
+
 export interface HistoryDebugDetails {
   /** Exact text handed to the adapter for this user turn. */
   agentMessage?: string;
@@ -152,9 +155,13 @@ export interface HistoryEvent {
 /** Raw line as persisted (no turnIndex — derived on read).
  *  `edit-marker` is a persistence-only line (message edit + rewind): appended right before the
  *  edited user event's re-send; on read it attaches to the NEXT user event as `edited` and is
- *  never emitted as an event itself. */
+ *  never emitted as an event itself.
+ *  `subagent-end` is the same kind of line for a different fact: one native subagent reached a
+ *  terminal state. It carries no prose, so it becomes no event either — on read it lands in
+ *  `SessionHistory.subagentEnds`, which is what seals that subagent's block. */
 export interface RawEvent {
-  type: HistoryEventType | 'edit-marker' | 'debug-user-prompt' | 'debug-tool-result' | 'decision-action';
+  type: HistoryEventType | 'edit-marker' | 'debug-user-prompt' | 'debug-tool-result' | 'decision-action'
+    | 'subagent-end';
   /** edit-marker lines only. */
   originalText?: string;
   /** edit-marker lines only. */
@@ -170,6 +177,8 @@ export interface RawEvent {
   subagentType?: string;
   subagentDescription?: string;
   subagentModel?: string;
+  /** `subagent-end` lines only: the terminal state reached by `subagentId`. */
+  subagentEnded?: SubagentEndStatus;
   /** DEBUG-only correlation and lossless payload fields. */
   toolUseId?: string;
   fullInput?: unknown;
@@ -200,6 +209,10 @@ export interface SessionHistory {
   events: HistoryEvent[];
   /** Internal committed pending ids used to suppress a cross-store handoff duplicate. */
   committedSourceIds?: string[];
+  /** Subagents the backend reported terminal, keyed by the spawning `Agent`/`Task` tool-use id.
+   *  Order-independent (a terminal state cannot be undone), which is why it rides beside the
+   *  event list instead of inside it. */
+  subagentEnds?: { id: string; status: SubagentEndStatus }[];
 }
 
 export interface HistoryReadOptions {
@@ -602,6 +615,19 @@ export class ConversationHistoryRepo {
       fullInput: opts.fullInput,
       ...(opts.subagentSpawns?.length ? { subagentSpawns: opts.subagentSpawns } : {}),
       ...subagentRowFields(opts.subagent),
+    });
+  }
+
+  /** Record that one native subagent reached a terminal state. Persisted rather than published
+   *  live only, because it is the sole evidence a reader has that a subagent which ran BESIDE the
+   *  main agent is over: the transcript alone cannot tell "still working" from "finished" for a
+   *  backgrounded child, and a killed one leaves no other trace at all. Emits no transcript row. */
+  appendSubagentEnd(sessionId: string, opts: { subagentId: string; status: SubagentEndStatus; ts?: string }): Promise<void> {
+    return this.append(sessionId, {
+      type: 'subagent-end',
+      subagentId: opts.subagentId,
+      subagentEnded: opts.status,
+      ts: opts.ts ?? nowIso(),
     });
   }
 

@@ -148,6 +148,10 @@ export interface RunAgentOptions {
    *  filtered out at the adapter boundary and never arrive here. */
   onTodoUpdate?: ((snapshot: TodoSnapshot) => void) | null;
   onToolResult?: ((toolUseId: string, content: string, isError: boolean, subagent?: ToolUseSubagent) => void) | null;
+  /** One native subagent reached a terminal state, keyed by the `Agent`/`Task` call that spawned
+   *  it. Reported by the backend, never inferred — the only signal that can seal a backgrounded or
+   *  killed child while its parent turn is still running. */
+  onSubagentEnd?: ((parentToolUseId: string, status: 'completed' | 'failed' | 'killed') => void) | null;
   onFallback?: (current: AgentConfig, next: AgentConfig, result: AgentResult | null, error?: Error) => Promise<void>;
   [key: string]: any;
 }

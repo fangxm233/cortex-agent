@@ -1,4 +1,4 @@
-// input:  SessionHistory with subagent attribution and spawn refs
+// input:  SessionHistory with subagent attribution, spawn refs and reported subagent ends
 // output: compact titles, subagent summaries, and detail views
 // pos:    Read-model reducer for lazy subagent transcripts
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -110,7 +110,19 @@ function updateSummaryFromSpawn(summary: SummaryState, spawn: NonNullable<Histor
   if (!summary.description && spawn.description) summary.description = spawn.description;
 }
 
-function closeAllSummaries(state: CompactState): void {
+/**
+ * Close every open subagent at a USER-TURN boundary — the one structural fact that survives without
+ * a reported end: whatever a previous turn spawned is not what the new turn is waiting on.
+ *
+ * Deliberately NOT "the main agent acted again". That inference is only valid for a foreground
+ * subagent, which blocks its parent; a backgrounded one runs BESIDE the main agent, so main-agent
+ * rows interleave with its own throughout its life and closing on them marked a working subagent
+ * finished within seconds of every spawn (and reopened it on its next row, which is what made the
+ * block's status dot flicker for the whole run). The authoritative end is `subagent-end`, applied
+ * in `projectCompactHistory`; this boundary is only the backstop for histories that carry none
+ * (older CLIs, resumed sessions whose `task_started` this process never saw).
+ */
+function consumeTurnBoundary(state: CompactState): void {
   for (const summary of state.summaries.values()) summary.structurallyOpen = false;
 }
 
@@ -155,10 +167,6 @@ function consumeChildEvent(state: CompactState, event: HistoryEvent): void {
   markDetail(summary, event);
 }
 
-function consumeMainEvent(state: CompactState): void {
-  closeAllSummaries(state);
-}
-
 function pushCompactEvent(state: CompactState, event: HistoryEvent, elapsed: number | null): void {
   state.events.push(copyEvent(event, elapsed));
 }
@@ -166,9 +174,9 @@ function pushCompactEvent(state: CompactState, event: HistoryEvent, elapsed: num
 function consumeCompactEvent(state: CompactState, event: HistoryEvent): void {
   const elapsed = elapsedMs(state.previousMs, event.ts);
   state.previousMs = nextPreviousMs(event.ts);
+  if (event.type === 'user') consumeTurnBoundary(state);
   openSpawnSummaries(state, event);
   if (event.subagentId && !isStructuralSpawnTool(event)) consumeChildEvent(state, event);
-  if (!event.subagentId && !isStructuralSpawnTool(event)) consumeMainEvent(state);
   if (keepCompactEvent(state, event)) pushCompactEvent(state, event, elapsed);
 }
 
@@ -188,9 +196,19 @@ function keepDetailEvent(event: HistoryEvent): boolean {
   return !isLegacyAnchor(event) && !isStructuralSpawnTool(event);
 }
 
+/** Apply the backend's own reported ends. Terminal and order-independent: a subagent reported
+ *  `completed`/`failed`/`killed` is sealed no matter where its rows sit in the history. */
+function sealReportedEnds(state: CompactState, history: SessionHistory): void {
+  for (const end of history.subagentEnds ?? []) {
+    const summary = state.summaries.get(end.id);
+    if (summary) summary.structurallyOpen = false;
+  }
+}
+
 export function projectCompactHistory(history: SessionHistory): CompactConversationHistory {
   const state = createCompactState();
   for (const event of history.events) consumeCompactEvent(state, event);
+  sealReportedEnds(state, history);
   return {
     sessionId: history.sessionId,
     events: state.events,
