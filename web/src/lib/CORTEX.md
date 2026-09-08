@@ -5,7 +5,7 @@ Owns transport, native capabilities, retained actions and file utilities.
 
 | filename | role | function |
 |---|---|---|
-| trpc.ts | core | Creates the tRPC client and React context |
+| trpc.ts | core | Creates tRPC clients with credential safeguards |
 | trpc.test.ts | test | Unit tests for URL and headers per transport mode |
 | desktop-config.ts | util | Detects guarded native shells and supplies auth details |
 | desktop-config.test.ts | test | Unit tests for shell detection and auth headers |
@@ -21,3 +21,5 @@ Owns transport, native capabilities, retained actions and file utilities.
 | build-info.ts | util | Exposes the injected build stamp with a fallback |
 | format.ts | util | Canonically formats fixed-precision USD and strategy-driven binary byte labels |
 | format.test.ts | test | Tests USD precision plus byte unit, fraction and trimming strategies |
+| sensitive-transport.ts | security | Gates credential transport and blocks redirects |
+| sensitive-transport.test.ts | test | Tests HTTPS and loopback credential transport |

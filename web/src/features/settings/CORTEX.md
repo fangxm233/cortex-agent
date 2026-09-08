@@ -6,8 +6,8 @@ Panels keep their presentation while canonical controllers and VMs in this folde
 | filename | role | function |
 |---|---|---|
 | SettingsProvider.tsx | provider | Provides global open and close for the modal |
-| SettingsModal.tsx | view | Routes independently-owned panels and lets Usage own its title/action header |
-| SettingsPanels.tsx | view | Renders non-runtime platform and config sections except Machines |
+| SettingsModal.tsx | view | Routes panels and protects unsaved form changes |
+| SettingsPanels.tsx | view | Renders platform badges and read-only MCP settings |
 | MachinesPanel.tsx | view | Keeps the desktop registry table and approval-gated Add action over the shared machines resource |
 | AccountsPanel.tsx | view | Presents desktop account cards over the shared account owner and VM |
 | AccountsPanel.test.tsx | test | Tests desktop account permissions, actions, redaction and rescans |
@@ -58,7 +58,7 @@ Panels keep their presentation while canonical controllers and VMs in this folde
 | plugin-authoring-vm.test.ts | test | Covers name rules, MCP payloads, secret patches and dirty detection |
 | usePluginAuthoring.ts | controller | One busy gate, toast policy and catalog refresh for every plugin write |
 | PluginAssignPanel.tsx | view | Assignment control embedded in the templates editor |
-| PluginAssignPanel.test.tsx | test | Covers assignment gating, modes, acknowledgement and stale states |
+| PluginAssignPanel.test.tsx | test | Tests assignment, modes and effective scope text |
 | PluginAssignPanel.keyboard.test.tsx | test | Covers assignment mode keyboard access |
 | PluginAssignPanel.container.test.tsx | test | Covers query failures, dirty guards, refresh and conflict handling |
 | plugin-assign-vm.ts | vm | Scopes targets to one entity, syncs drafts and detects conflicts |
@@ -69,3 +69,11 @@ Panels keep their presentation while canonical controllers and VMs in this folde
 | settings-nav.ts | vm | Lists settings sections and descriptions |
 | settings-ui.tsx | view | Shared cards and style-overridable native controls |
 | settings-ui.test.tsx | test | Covers control semantics and style overrides |
+| PlatformPanel.tsx | view | Renders responsive platform setup and settings |
+| PlatformPanel.test.tsx | test | Tests credential, routing and skill interactions |
+| PlatformConnectionFields.tsx | view | Renders write-only credentials and explicit clears |
+| PlatformRuntimeFields.tsx | view | Edits notification destinations and skill scope |
+| platform-settings-vm.ts | model | Builds platform patches and field labels |
+| platform-settings.css | style | Styles responsive platform settings cards |
+| usePlatformSettings.ts | hook | Saves settings without caching credential inputs |
+| usePlatformSettings.test.tsx | test | Tests serialized writes and secret-safe feedback |

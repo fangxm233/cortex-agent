@@ -35,7 +35,7 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | runtime-env.ts | config | excludes file-only metadata from runtime env |
 | running-executions.ts | state | indexes live executions and generic dialog processes |
 | settings-migration.ts | config | safely migrates legacy env settings at startup |
-| settings-spec.ts | config | defines settings, exact window policy shapes, and job defaults |
+| settings-spec.ts | contract | Defines runtime settings including Web Feishu skills |
 | settings.ts | config | reloads settings and applies provider/window policy patches |
 | singleton-lock.ts | util | creates, claims and releases a process pidfile |
 | status-format.ts | util | formats status and progress messages |
@@ -45,3 +45,4 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | version.ts | config | exposes the Cortex version and docs URL |
 | locales/ | subdir | English and Chinese message tables |
 | types/ | subdir | shared agent and thread type definitions |
+| platform-settings-spec.ts | contract | Validates platform credential patches and snapshots |

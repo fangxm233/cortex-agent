@@ -1,0 +1,41 @@
+/* input: platform settings form markup and theme tokens */
+/* output: responsive, keyboard-accessible platform cards */
+/* pos: shared desktop/mobile platform editor styling */
+/* >>> Once updated, update this header and parent CORTEX.md <<< */
+
+.ps-panel { color: var(--proto-ink); font-size: 13px; max-width: 960px; }
+.ps-intro { color: var(--proto-muted-2); line-height: 1.6; margin: 8px 0 18px; }
+.ps-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 310px), 1fr)); gap: 16px; align-items: start; }
+.ps-card { min-width: 0; background: var(--proto-card); border: 1px solid var(--proto-line); border-radius: 14px; overflow: hidden; }
+.ps-header, .ps-connection, .ps-runtime { padding: 18px; }
+.ps-header { background: var(--proto-alt); }
+.ps-heading { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+.ps-avatar { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; font-weight: 700; background: var(--proto-accent-bg); color: var(--proto-accent); }
+.ps-heading h2 { font-size: 16px; font-weight: 650; margin: 0; }
+.ps-heading a { margin-left: auto; font-size: 11px; color: var(--proto-accent); }
+.ps-status { display: inline-block; border: 1px solid var(--proto-line); border-radius: 20px; padding: 3px 8px; font-size: 11px; }
+.ps-hint { font-size: 11.5px; line-height: 1.65; color: var(--proto-muted-2); margin: 8px 0 12px; overflow-wrap: anywhere; }
+.ps-warning, .ps-feedback { border-radius: 8px; padding: 10px 12px; font-size: 12px; line-height: 1.6; background: var(--proto-amber-bg); color: var(--proto-amber-fg); }
+.ps-panel h3 { margin: 0 0 14px; font-size: 13px; font-weight: 650; }
+.ps-check { display: flex; align-items: center; gap: 9px; line-height: 1.5; cursor: pointer; }
+.ps-check input { width: 18px; height: 18px; accent-color: var(--proto-accent); flex: none; }
+.ps-field { display: flex; flex-direction: column; gap: 7px; margin: 14px 0; font-size: 12px; }
+.ps-field label { font-weight: 550; }
+.ps-field input, .ps-field select { box-sizing: border-box; width: 100%; min-width: 0; border: 1px solid var(--proto-line); border-radius: 8px; background: var(--proto-card); color: var(--proto-ink); padding: 10px; font: inherit; min-height: 40px; }
+.ps-field input:disabled, .ps-field select:disabled { opacity: .6; }
+.ps-field-note { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--proto-muted-2); font-size: 10.5px; }
+.ps-optional { margin: 14px 0; color: var(--proto-muted); }
+.ps-optional summary { cursor: pointer; padding: 6px 0; }
+.ps-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 18px; }
+.ps-button { min-height: 40px; border-radius: 8px; padding: 9px 12px; font: inherit; font-size: 12px; font-weight: 550; border: 1px solid var(--proto-line); background: var(--proto-card); color: var(--proto-ink); cursor: pointer; }
+.ps-primary { background: var(--proto-accent); color: var(--ink-solid-fg); border-color: var(--proto-accent); }
+.ps-link { border: 0; background: transparent; padding: 5px 0; font: inherit; color: var(--proto-accent); cursor: pointer; }
+.ps-panel button:disabled { opacity: .45; cursor: not-allowed; }
+.ps-panel :is(input, select, button, a, summary):focus-visible { outline: 2px solid var(--proto-accent); outline-offset: 3px; }
+.ps-runtime { border-top: 1px solid var(--proto-line); }
+.ps-footer { margin: 18px 0; font-size: 11.5px; line-height: 1.7; color: var(--proto-muted-2); }
+@media (max-width: 480px) {
+  .ps-header, .ps-connection, .ps-runtime { padding: 15px; }
+  .ps-field input, .ps-field select { font-size: 16px; min-height: 44px; }
+  .ps-button, .ps-link { min-height: 44px; }
+}

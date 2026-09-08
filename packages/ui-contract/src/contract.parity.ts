@@ -1,5 +1,5 @@
 // input:  shared schemas and UI op maps
-// output: exact parity guards incl plugin and usage ops
+// output: exact parity guards including platform configuration
 // pos:    Anti-drift boundary for UI contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -53,6 +53,7 @@ import type {
   executionsLogInput,
   configGetInput,
   configSetInput,
+  platformSettingsInput,
   configSetProviderRateLimitPolicyInput,
   authStatusInput,
   authFlowStateInput,
@@ -159,6 +160,7 @@ const _tasksComplete: MutateParity<'tasks.complete', typeof taskCompleteInput> =
 const _tasksBlock: MutateParity<'tasks.block', typeof taskBlockInput> = true;
 const _tasksUnblock: MutateParity<'tasks.unblock', typeof taskActionInput> = true;
 const _configSet: MutateParity<'config.set', typeof configSetInput> = true;
+const _platformSettings: MutateParity<'config.setPlatform', typeof platformSettingsInput> = true;
 const _configSetProviderRateLimitPolicy: MutateParity<
   'config.setProviderRateLimitPolicy',
   typeof configSetProviderRateLimitPolicyInput

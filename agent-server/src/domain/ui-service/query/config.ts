@@ -1,9 +1,10 @@
-// input:  config root, settings registry, mounted-hook registry
-// output: redacted config plus plaintext settings provenance
-// pos:    Config.get snapshot reader
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+// input:  config root, platform settings and hook registry
+// output: config snapshot with redacted platform fields
+// pos:    Config snapshot reader
+// >>> Once updated, update this header and parent CORTEX.md <<<
 
 import fs from 'node:fs/promises';
+import { readPlatformSettings } from '../platform-settings.js';
 import path from 'node:path';
 import { CONFIG_DIR } from '@core/paths.js';
 import { getSettingsSnapshot, resolveSettingsSnapshot } from '@core/settings.js';
@@ -187,6 +188,7 @@ export async function readConfigSnapshot(
   const [budget, profiles, machines, mcp, agents, templates, shells, env, settings] = parts;
   const threadTemplates: ConfigThreadTemplates = { agents, templates, shells };
   return {
+    platforms: await readPlatformSettings(path.join(configDir, '.env')),
     budget: parseBudget(budget), profiles: parseProfiles(profiles), machines: parseMachines(machines),
     mcp: parseMcp(mcp), threadTemplates, hooks, env, settings,
   };

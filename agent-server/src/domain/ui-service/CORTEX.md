@@ -5,14 +5,15 @@ Serves the TUI dashboard directly and the Web UI through the tRPC router bound h
 
 | filename | role | function |
 |---|---|---|
-| types.ts | types | UI DTOs with transcript tool device metadata |
+| types.ts | type | Defines UI DTOs and platform configuration contract |
 | query-input-schemas.ts | schemas | Validates extracted session/query read inputs including compact transcript detail routes |
-| input-schemas.ts | schemas | Validates UI inputs, re-exports extracted query schemas, window-target provider policy, and plugins |
-| plugins-shared.ts | util | Normalizes plugin catalog entries and pluginDirs |
-| ui-service.ts | facade | routes UI operations through registered handlers |
+| input-schemas.ts | schema | Validates UI operations and platform patches |
+| plugins-shared.ts | utility | Normalizes plugin catalogs and effective scopes |
+| ui-service.ts | core | Dispatches UI operations with safe mutation audit |
 | subscribe.ts | subscribe | turns event bus traffic into a UI event stream |
-| trpc.ts | tRPC | shared tRPC router and procedure builders |
-| app-router.ts | tRPC | tRPC router mirroring UI ops and provider policy |
+| trpc.ts | core | Builds tRPC procedures and redacts secret errors |
+| app-router.ts | entry | Routes typed UI queries and platform writes |
 | index.ts | entry | re-exports createUiService and public types |
 | query/ | subdir | read-side UI operation handlers |
 | mutate/ | subdir | write-side UI operation handlers |
+| platform-settings.ts | store | Persists and redacts platform connection settings |

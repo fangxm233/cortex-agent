@@ -1,7 +1,7 @@
-// input:  built UI-service declarations and cost types
-// output: browser DTO contract incl plugin and usage exports
-// pos:    Shared server/client compile-time DTO boundary
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+// input:  built UI service and cost declarations
+// output: browser-safe UI DTO type exports
+// pos:    Shared server/client DTO boundary
+// >>> Once updated, update this header and parent CORTEX.md <<<
 
 export type {
   // Result envelope
@@ -35,6 +35,10 @@ export type {
   NotesListParams,
   CostSummaryParams,
   ConfigGetParams,
+  PlatformSettingsPatch,
+  PlatformSettingsSnapshot,
+  PlatformFieldSnapshot,
+  PlatformFieldKey,
   AuthStatusParams,
   AuthFlowStateParams,
   AuthCustomProvidersParams,

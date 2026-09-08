@@ -88,7 +88,7 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 | MSettingsView.tsx | view | Keeps Daemon and Profile cards above stable title-only rows |
 | MSettingsView.test.tsx | test | Tests canonical order, routing and live connection copy |
 | MSettingsControls.tsx | view | Supplies compact rows, toggles and field-local validation feedback |
-| MPlatformScreen.tsx | screen | Shows redacted platform state and queues reconnect approval |
+| MPlatformScreen.tsx | view | Hosts shared platform settings on mobile |
 | MProfilesScreen.tsx | screen | Adapts the shared profile owner to the mobile list, native confirmation and editor view |
 | MProfilesScreen.test.tsx | test | Tests mobile profile field errors and controller callback delegation |
 | MBudgetScreen.tsx | screen | Keeps mobile budget view over pending-safe nullable shared-writer outcomes |

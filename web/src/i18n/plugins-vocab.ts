@@ -1,7 +1,7 @@
-// input:  desktop plugin settings copy
-// output: English and Chinese plugin vocabulary chunks
-// pos:    Plugin settings localization tables
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+// input:  plugin inventory, assignment and authoring copy
+// output: English and Chinese plugin vocabulary
+// pos:    Plugin UI localization
+// >>> Once updated, update this header and parent CORTEX.md <<<
 
 export const pluginEn = {
   // ── Plugins panel ──
@@ -79,7 +79,7 @@ export const pluginEn = {
   plSlotLabel: 'Slot',
   plMcpLegacyNote: 'Legacy plugins cannot declare MCP servers — only a portable plugin (root plugin.json) has its mcp.json read.',
   plScopeCommission: 'Loads only in commission mode, even where assigned.',
-  plScopeChannel: 'Loads only on channels starting with "{prefix}", even where assigned.',
+  plScopeChannel: 'Channel scope: {prefix}. Plugin assignment is also required.',
   plLockedByBody: 'Save or revert the JSON body first — both edit the same file.',
   plUnsavedLeave: 'Save or reset plugin changes before leaving.',
   plOriginManaged: 'shipped',
@@ -228,7 +228,7 @@ export const pluginZh = {
   plSlotLabel: '槽位',
   plMcpLegacyNote: '旧版插件无法声明 MCP server —— 只有可移植插件（根目录 plugin.json）才会读取 mcp.json。',
   plScopeCommission: '即使已分配，也只在 commission 模式下加载。',
-  plScopeChannel: '即使已分配，也只在以 "{prefix}" 开头的渠道加载。',
+  plScopeChannel: '渠道范围：{prefix}；仍需分配给 agent。',
   plLockedByBody: '请先保存或还原 JSON 正文 —— 两者写的是同一个文件。',
   plUnsavedLeave: '请先保存或重置插件更改，再离开此页面。',
   plOriginManaged: '随 Cortex 发布',

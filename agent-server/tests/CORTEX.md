@@ -188,3 +188,5 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | webhook-auth.test.ts | test | webhook bearer gate and thread-op-only confinement |
 | webhook-manager-qa.test.ts | test | manager Q&A webhook ask, poll, answer |
 | webhook-thread-control.test.ts | test | thread control, single-root trial confinement, and root/child evidence injection |
+| platform-settings.test.ts | test | Tests platform persistence, redaction and scopes |
+| platform-settings-http.test.ts | test | Tests platform HTTP roundtrip and spawn wiring |

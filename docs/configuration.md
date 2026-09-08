@@ -1,9 +1,8 @@
 # Configuration
 
-Cortex loads all configuration from `$CORTEX_HOME/config/` at startup. The
-only required variables are `CORTEX_PLATFORM` and the platform credentials
-(Slack). Everything else has sensible defaults and most users
-never touch them.
+Cortex reads configuration from `$CORTEX_HOME/config/`. Messaging integrations
+are optional: browser and app sessions can run without a Slack or Feishu bot.
+Each enabled messaging platform needs its own credentials.
 
 ## File hierarchy
 
@@ -54,8 +53,8 @@ $CORTEX_HOME/
 1. **Built-in defaults** (`agent-server/defaults/`) ship with the npm
    package and provide fallback values for every config file.
 2. **`$CORTEX_HOME/config/.env`** is loaded at daemon startup via
-   `dotenv`. These override the process environment for the daemon and
-   all forked child processes.
+   `dotenv`. Existing launcher environment variables take precedence over the
+   file, and the worker inherits the daemon environment.
 3. **`$CORTEX_HOME/config/settings.json`** holds the runtime behavior
    settings. It is read at the point of use and hot-reloaded on change.
    For every key it defines, it overrides the legacy environment
@@ -73,6 +72,36 @@ $CORTEX_HOME/
 The `.env` file supports standard `KEY=VALUE` syntax and `#` comments.
 Environment variables already set in the shell take precedence over the
 `.env` file (dotenv default behavior).
+
+## Platform settings in the Web UI
+
+**Settings → Platform** provides Feishu/Lark and Slack connection forms in the
+browser, desktop app and mobile app. Enable the platform, fill its required
+credentials and save. Secrets are write-only: a blank secret field preserves the
+saved value, entering a value replaces it, and **Clear saved value** explicitly
+queues its removal for the next save. Disabling a platform keeps its credentials.
+Credential entry requires HTTPS or a loopback API address; a native app's local
+webview origin does not make a remote HTTP server secure.
+
+The configuration check lists missing required fields; it does not test the
+connection or account permissions. Connection changes are saved to `config/.env`
+and require a **daemon restart**, not just a worker restart. The page compares
+saved configuration with the running server environment and marks differences.
+If differences remain after restarting the daemon, check its launcher environment
+for overriding variables. Saving does not restart any process.
+
+Each card also edits its notification destination (`adminChannel` for Slack,
+`feishuAdminChannel` for Feishu). These runtime settings apply to subsequent
+notifications. Saving an empty destination clears the route; Feishu may register
+a destination automatically on the next first-contact private message.
+
+The Feishu card's **Feishu skills in Web / apps** switch controls
+`settings.feishuSkillsInWeb` (default `false`). Enabling it allows `web:` sessions
+to load an assigned `cortex-feishu` skill plugin, including desktop and mobile app
+sessions. Feishu sessions retain their normal scope; Slack and CLI sessions do
+not gain the plugin. Start a new session to verify. Agent plugin assignment,
+`lark-cli` login and permissions remain necessary; this setting does not change
+Feishu MCP loading or grant account access.
 
 ## Environment variables
 

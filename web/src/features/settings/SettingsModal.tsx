@@ -1,18 +1,18 @@
-// input:  config/usage queries, independently-owned settings panels and login handoff
-// output: settings shell routing controller-owned Profiles and Machines sections
+// input:  config queries, panels and login handoff
+// output: settings navigation and dirty-form protection
 // pos:    Desktop settings modal and section router
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+// >>> Once updated, update this header and parent CORTEX.md <<<
 
 import * as RadixDialog from '@radix-ui/react-dialog';
 import { useEffect, useState, type CSSProperties } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import type { ConfigSnapshot, CostSummary } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
-import { useToast } from '@/design';
 import { useVocab } from '@/i18n';
 import { useLoginFlow } from '@/features/auth/LoginFlowProvider';
 import { getSettingsNav, getSectionMeta, type SettingsSectionKey } from './settings-nav';
-import { PlatformPanel, McpPanel } from './SettingsPanels';
+import { McpPanel } from './SettingsPanels';
+import { PlatformPanel } from './PlatformPanel';
 import { MachinesPanel } from './MachinesPanel';
 import { ProfilesPanel } from './ProfilesPanel';
 import { AdvancedPanel, NotificationsPanel } from './RuntimeSettingsPanels';
@@ -179,7 +179,6 @@ interface SectionContentProps {
   cost: CostSummary | undefined;
   configLoading: boolean;
   configError: { message: string } | null;
-  onReconnect: (platform: 'slack' | 'feishu') => void;
   onPanelDirtyChange: (dirty: boolean) => void;
 }
 
@@ -228,17 +227,6 @@ function SettingsSectionTitle({ section }: { section: SettingsSectionKey }) {
   return <div style={{ fontSize: 15, fontWeight: 650, color: 'var(--proto-ink)' }}>{getSectionMeta(L, section).title}</div>;
 }
 
-function useSettingsActions() {
-  const L = useVocab();
-  const trpc = useTRPC();
-  const { toast } = useToast();
-  const requestApproval = useMutation(trpc.approvals.request.mutationOptions({
-    onSuccess: () => toast({ title: L.stToastQueuedApproval, tone: 'waiting' }),
-    onError: (error) => toast({ title: `${L.stToastCouldNotQueue}: ${error.message}`, tone: 'failed' }),
-  }));
-  return { requestApproval };
-}
-
 interface SettingsBodyProps {
   onClose: () => void;
   panelDirty: boolean;
@@ -250,13 +238,11 @@ function SettingsBody(props: SettingsBodyProps) {
   const [section, setSection] = useState<SettingsSectionKey>('appearance');
   const config = useQuery(trpc.config.get.queryOptions({}));
   const cost = useQuery(trpc.cost.summary.queryOptions({}));
-  const actions = useSettingsActions();
   const content = {
     section, onClose: props.onClose, snapshot: config.data, cost: cost.data,
     configLoading: config.isLoading,
     onPanelDirtyChange: props.onPanelDirtyChange,
     configError: config.isError ? config.error : null,
-    onReconnect: (platform: 'slack' | 'feishu') => actions.requestApproval.mutate({ kind: 'reconnect-platform', platform }),
   };
   return (
     <>
@@ -279,7 +265,7 @@ interface PanelBodyProps extends SectionContentProps {
 type PanelRenderer = (props: PanelBodyProps) => JSX.Element;
 
 const PANEL_RENDERERS: Partial<Record<SettingsSectionKey, PanelRenderer>> = {
-  platform: (props) => <PlatformPanel snapshot={props.snapshot} onReconnect={props.onReconnect} />,
+  platform: (props) => <PlatformPanel snapshot={props.snapshot} onDirtyChange={props.onPanelDirtyChange} />,
   profiles: (props) => <ProfilesPanel snapshot={props.snapshot} />,
   budget: (props) => <BudgetPanel snapshot={props.snapshot} cost={props.cost} />,
   machines: () => <MachinesPanel />,

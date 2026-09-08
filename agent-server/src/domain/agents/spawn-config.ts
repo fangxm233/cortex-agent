@@ -1,8 +1,9 @@
-// input:  run options, resolved profile, tool gate, mode route
-// output: canonical spawn config with execution and evidence context
+// input:  run options, settings, profile and tool gates
+// output: canonical spawn config and scoped plugin selection
 // pos:    Registry-free spawn-config builder
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+// >>> Once updated, update this header and parent CORTEX.md <<<
 
+import { getSettings } from '@core/settings.js';
 import { resolveMcpComposition } from '../../agent-adapter/types.js';
 import { canonicalizeMcpToolAllowlist } from '@core/mcp-tool-gate.js';
 import type {
@@ -177,10 +178,8 @@ export function buildPiGatewaySubPath(mode: string | null, provider: string): st
 
 // --- Scoped plugin gating ---
 
-/** Plugins that load only for sessions originating from a specific platform channel.
- *  Mirrors the channel-gated MCP loading (loadFeishuMcp = channel.startsWith('feishu:')):
- *  the cortex-feishu skill bundle is only relevant when the user is working inside Feishu,
- *  so it is stripped from non-Feishu sessions even when listed in an agent's pluginDirs. */
+/** Default channel scopes. The Feishu skill bundle also permits web: sessions when
+ * feishuSkillsInWeb is enabled; MCP channel rules are separate and unchanged. */
 export const CHANNEL_SCOPED_PLUGINS: ReadonlyArray<{ plugin: string; channelPrefix: string }> = [
   { plugin: 'cortex-feishu', channelPrefix: 'feishu:' },
 ];
@@ -190,10 +189,10 @@ export const CHANNEL_SCOPED_PLUGINS: ReadonlyArray<{ plugin: string; channelPref
  *  session would put a procedure nobody asked for in front of the model (DR-0037 v2). */
 export const COMMISSION_SCOPED_PLUGINS: readonly string[] = ['cortex-commission'];
 
-/** What a plugin dir is scoped against. Both are properties of the session, not the agent, which
- *  is why the filter runs at spawn time rather than being baked into the agent's pluginDirs. */
+/** Session scope and current policy evaluated at spawn time, after agent assignment. */
 export interface PluginScope {
   channel?: string;
+  feishuSkillsInWeb?: boolean;
   /** True while the session is in commission mode, drafting or already bound. */
   commissionMode?: boolean;
 }
@@ -213,7 +212,8 @@ export function filterScopedPlugins(
     if (COMMISSION_SCOPED_PLUGINS.includes(base)) return scope.commissionMode === true;
     const rule = CHANNEL_SCOPED_PLUGINS.find((r) => r.plugin === base);
     if (!rule) return true;
-    return !!scope.channel && scope.channel.startsWith(rule.channelPrefix);
+    const webFeishu = base === 'cortex-feishu' && scope.feishuSkillsInWeb === true && scope.channel?.startsWith('web:');
+    return !!webFeishu || !!scope.channel?.startsWith(rule.channelPrefix);
   });
 }
 
@@ -299,6 +299,7 @@ function pluginSpawnFields(
   const selectedPluginDirs = filterScopedPlugins(options.pluginDirs, {
     channel: options.channel,
     commissionMode: options.commissionMode,
+    feishuSkillsInWeb: getSettings().feishuSkillsInWeb,
   });
   const runtime = resolvePluginRuntime({
     backend: config.backend, selectedPluginDirs, mcpComposition,

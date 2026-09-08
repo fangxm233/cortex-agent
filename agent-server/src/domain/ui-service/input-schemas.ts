@@ -1,7 +1,10 @@
-// input:  Zod, settings spec, and UI-service op unions
-// output: UI input schemas/maps incl per-window policy targets, plugin, and usage ops
+// input:  Zod, settings specs and UI operation unions
+// output: UI input validation schemas and operation maps
 // pos:    Runtime validation source for UI contract
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+// >>> Once updated, update this header and parent CORTEX.md <<<
+
+import { platformSettingsInput } from '@core/platform-settings-spec.js';
+export { platformSettingsInput } from '@core/platform-settings-spec.js';
 
 import { z } from 'zod';
 import { SETTINGS_SPEC } from '@core/settings-spec.js';
@@ -867,6 +870,7 @@ export const mutateInputSchemas = {
   'notes.delete': noteActionInput,
   'notes.clearCompleted': notesClearCompletedInput,
   'config.set': configSetInput,
+  'config.setPlatform': platformSettingsInput,
   'config.setProviderRateLimitPolicy': configSetProviderRateLimitPolicyInput,
   'auth.startLogin': authStartLoginInput,
   'auth.respondPrompt': authRespondPromptInput,

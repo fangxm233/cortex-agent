@@ -6,8 +6,8 @@ Compile-time parity checks keep operation maps and runtime validators aligned.
 | filename | role | function |
 |---|---|---|
 | app-router.ts | types | Re-exports the server AppRouter type |
-| contract.parity.ts | guard | Checks schema and provider policy op parity |
-| dto.ts | types | Re-exports UI DTOs including compact transcript detail contracts and per-window provider policy types |
+| contract.parity.ts | test | Checks schema and DTO operation parity |
+| dto.ts | type | Exports shared UI and platform DTOs |
 | index.ts | barrel | Exposes DTOs, schemas, and router types |
-| schemas.ts | schemas | Re-exports server query, mutate, and compact transcript detail schemas |
+| schemas.ts | schema | Exports shared input schemas and platform writes |
 | schemas.test.ts | test | Tests compact transcript/detail schema behavior, window-target provider policy, and plugin ids |

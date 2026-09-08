@@ -1,5 +1,5 @@
 // input:  built agent-server UI input schemas
-// output: shared query/mutate schemas incl usage
+// output: shared query/mutate schemas including platform writes
 // pos:    Shared browser/server input boundary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -51,6 +51,7 @@ export {
   executionsLogInput,
   configGetInput,
   configSetInput,
+  platformSettingsInput,
   configSetProviderRateLimitPolicyInput,
   authStatusInput,
   authFlowStateInput,
