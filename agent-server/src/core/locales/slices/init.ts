@@ -18,7 +18,7 @@ export const initEn = {
   'init.backend.installFailed': 'Failed to install ${label}.',
   'init.backend.installFailedHint': 'Installation failed. Install manually: ${command}',
   'init.backend.loginHint.claude': 'Run `claude login` to authenticate.',
-  'init.backend.loginHint.pi': 'Log a PI provider in from the Cortex web UI (Settings > Auth); verify with `cortex auth status`.',
+  'init.backend.loginHint.pi': 'Log a PI provider in from the Cortex web UI (Settings > Accounts) or with `!login pi` in chat; verify with `cortex auth status`.',
   'init.backend.label.claude': 'Claude Code',
   'init.backend.label.pi': 'PI',
 
@@ -226,7 +226,7 @@ export const initZh: Record<keyof typeof initEn, string> = {
   'init.backend.installFailed': '安装 ${label} 失败。',
   'init.backend.installFailedHint': '安装失败。请手动安装：${command}',
   'init.backend.loginHint.claude': '运行 `claude login` 进行认证。',
-  'init.backend.loginHint.pi': '在 Cortex 网页端（设置 > 认证）登录 PI 服务提供商；用 `cortex auth status` 验证。',
+  'init.backend.loginHint.pi': '在 Cortex 网页端（设置 > 账号）或聊天里的 `!login pi` 登录 PI 服务提供商；用 `cortex auth status` 验证。',
   'init.backend.label.claude': 'Claude Code',
   'init.backend.label.pi': 'PI',
 

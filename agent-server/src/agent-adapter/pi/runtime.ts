@@ -150,10 +150,10 @@ function runtimeFactory(
 /**
  * Create the PI session for one Cortex session, in this process.
  *
- * Mirrors what `pi --mode rpc` did for us: a session runtime over the transcript, Cortex's
- * extensions loaded as inline factories, extensions bound to a UI context that turns dialogs into
- * `extension_ui_request` records, and every session event forwarded to the caller. Re-binding
- * after a transcript switch is owned here too, as PI's RPC host owned it.
+ * A session runtime over the transcript, Cortex's extensions loaded as inline factories,
+ * extensions bound to a UI context that turns dialogs into `extension_ui_request` records, and
+ * every session event forwarded to the caller. Re-binding after a transcript switch is owned
+ * here too.
  */
 export async function createPiRuntime(
   request: PiSessionRequest,

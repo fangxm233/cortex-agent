@@ -19,10 +19,10 @@ export interface CortexExtensionHooks {
 }
 
 /**
- * The same four extensions `pi --mode rpc` loaded from compiled files, now closed over the
- * session's request instead of reading `process.env`: the MCP bridge (Cortex bundles in-process,
- * plugin servers as before), the tool shims, the hook bridge unless the role disabled hooks, and
- * the quota probe for gateway-routed runs that have somewhere to report to.
+ * The four Cortex extensions a session runs with, each closed over the session's request rather
+ * than `process.env`: the MCP bridge (Cortex bundles in-process, plugin servers as independent
+ * connections), the tool shims, the hook bridge unless the role disabled hooks, and the quota
+ * probe for gateway-routed runs that have somewhere to report to.
  */
 export function createCortexExtensions(
   request: PiSessionRequest,
