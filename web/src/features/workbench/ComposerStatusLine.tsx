@@ -14,7 +14,7 @@ export function ComposerStatusLine({ running, text }: ComposerStatusLineProps): 
   return (
     <div data-composer-status-line="true" style={{ display: 'flex', alignItems: 'center', gap: 8, font: `500 11px ${MONO}`, color: running ? 'var(--proto-muted-2)' : 'var(--proto-faint)', padding: '8px 2px 10px' }}>
       <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-        <span style={{ width: 7, height: 7, borderRadius: '50%', background: running ? 'var(--proto-accent)' : 'var(--proto-line-3)', animation: running ? 'cxpulse 1.6s ease-in-out infinite' : undefined, flex: 'none' }} />
+        <span style={{ width: 7, height: 7, borderRadius: '50%', background: running ? 'var(--proto-accent)' : 'var(--proto-line-3)', animation: running ? 'cxpulse 1.6s ease-in-out infinite' : undefined, transform: 'translateY(0.5px)', flex: 'none' }} />
         <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{text}</span>
       </span>
     </div>
