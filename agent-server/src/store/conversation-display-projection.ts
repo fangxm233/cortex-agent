@@ -1,6 +1,6 @@
-// input:  full SessionHistory snapshots with subagent attribution and spawn refs
-// output: compact transcript projections, subagent summaries, and exact-id detail views
-// pos:    Read-model reducer for lazy subagent transcript loading
+// input:  SessionHistory with subagent attribution and spawn refs
+// output: compact titles, subagent summaries, and detail views
+// pos:    Read-model reducer for lazy subagent transcripts
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { HistoryEvent, SessionHistory } from './conversation-history-repo.js';
@@ -117,8 +117,9 @@ function closeAllSummaries(state: CompactState): void {
 function openSpawnSummaries(state: CompactState, event: HistoryEvent): void {
   for (const spawn of event.subagentSpawns ?? []) {
     const summary = summaryFor(state, spawn.id);
-    if (event.subagentId === spawn.id) updateSummaryMetadata(summary, event);
+    // Mixed-format anchors also carry a legacy prompt preview; prefer the explicit title.
     updateSummaryFromSpawn(summary, spawn);
+    if (event.subagentId === spawn.id) updateSummaryMetadata(summary, event);
     summary.anchored = true;
     summary.structurallyOpen = true;
   }

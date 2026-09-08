@@ -1,6 +1,6 @@
-// input:  isolated session JSONL plus compact/detail projection, durable cache flow, and DEBUG APIs
-// output: grouping, spawn prompts, summaries, rewind, incremental cache behavior, and DEBUG regressions
-// pos:    Backend-independent conversation-history store specification
+// input:  session JSONL, compact/detail cache, DEBUG APIs
+// output: history, anchor title, cache, and DEBUG regressions
+// pos:    Conversation-history store specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import '../_test-home.js'; // MUST be first import — repoints CORTEX_HOME before paths bind
 
@@ -414,6 +414,43 @@ test('clearBySessionIds removes all matching transcript files and ignores missin
   assert.equal(await repo.getHistory('track-a'), null);
   assert.ok(await repo.getHistory('track-b'));
   assert.equal(await repo.getHistory('track-c'), null);
+});
+
+test.each(['Agent', 'Task'])('%s compact title preserves spawn description across reads and appends', async (toolName) => {
+  const repo = new ConversationHistoryRepo(CUSTOM_HISTORY_DIR);
+  const sid = `sess-compact-title-${toolName}`;
+  const child = { id: 'child-title', type: 'explore', description: 'Inspect renderers' };
+  const prompt = 'Inspect every renderer.\nReturn exact file and line evidence.';
+  await repo.appendTool(sid, {
+    toolName, toolInput: 'Inspect every renderer…', subagent: { id: child.id },
+    subagentSpawns: [{ ...child, prompt }],
+  });
+  const compact = await repo.getCompactHistory(sid);
+  assert.equal(compact?.subagentSummaries[0].description, child.description);
+  assert.equal(compact?.events[0].subagentSpawns?.[0].prompt, prompt);
+  await repo.appendTool(sid, { toolName: 'Read', toolInput: 'view.ts', subagent: child });
+  assert.equal((await repo.getCompactHistory(sid))?.subagentSummaries[0].description, child.description);
+  const reopened = new ConversationHistoryRepo(CUSTOM_HISTORY_DIR);
+  assert.equal((await reopened.getCompactHistory(sid))?.subagentSummaries[0].description, child.description);
+});
+
+test.each(['Agent', 'Task'])('%s legacy compact title retains the tool input fallback', async (toolName) => {
+  const repo = new ConversationHistoryRepo(CUSTOM_HISTORY_DIR);
+  const sid = `sess-legacy-title-${toolName}`;
+  await repo.appendTool(sid, {
+    toolName, toolInput: 'Inspect every renderer…', subagent: { id: 'legacy-child' },
+  });
+  assert.equal((await repo.getCompactHistory(sid))?.subagentSummaries[0].description, 'Inspect every renderer…');
+});
+
+test.each(['Agent', 'Task'])('%s legacy compact title prefers explicit attribution over tool input', async (toolName) => {
+  const repo = new ConversationHistoryRepo(CUSTOM_HISTORY_DIR);
+  const sid = `sess-legacy-description-${toolName}`;
+  await repo.appendTool(sid, {
+    toolName, toolInput: 'Inspect every renderer…',
+    subagent: { id: 'legacy-child', description: 'Inspect renderers' },
+  });
+  assert.equal((await repo.getCompactHistory(sid))?.subagentSummaries[0].description, 'Inspect renderers');
 });
 
 test('compact projection keeps main rows, structural child anchors, orphan anchors, and exact-id details', async () => {

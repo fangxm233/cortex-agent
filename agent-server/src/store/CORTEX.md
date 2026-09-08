@@ -1,7 +1,7 @@
 Please update me when files in this folder change
 
-Persistence layer: file-backed repositories for sessions, threads, tasks, schedules, provider state, costs, and history.
-Also runs startup file migrations and keeps deployed hooks and plugins in sync with defaults.
+File-backed repositories for sessions, threads, tasks, costs, and history.
+Also manages schedules, provider state, migrations, hooks, and plugin sync.
 
 | filename | role | function |
 |---|---|---|
@@ -13,7 +13,7 @@ Also runs startup file migrations and keeps deployed hooks and plugins in sync w
 | session-registry-repo.ts | store | Session identity, delete intents and admission |
 | conversation-ledger-repo.ts | store | Turn to message mapping per conduit |
 | conversation-history-reader.ts | parser | Streams session JSONL into collapsed SessionHistory snapshots or reusable incremental accumulators |
-| conversation-display-projection.ts | projection | Builds compact transcript summaries and exact-id subagent detail views |
+| conversation-display-projection.ts | projection | Projects compact titles, summaries and details |
 | conversation-history-repo.ts | store | Stores transcripts plus durable incrementally updated compact/detail read models and lazy DEBUG details |
 | retention-candidate-repo.ts | store | Persists two-sweep orphan cleanup candidates |
 | pending-injection-repo.ts | store | Injected messages not yet consumed |
