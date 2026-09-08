@@ -1,12 +1,10 @@
-# input:  pinned host Claude CLI, bwrap/strace, and loopback HTTP
-# output: canonical redacted Claude Code vendor-wire capture
-# pos:    Real-process capture support for the Claude fixture
-# >>> If I am updated, update my header and folder CORTEX.md <<<
+# input:  current host Claude CLI, bwrap/strace, loopback namespace
+# output: redacted wire capture with executed CLI version and hash
+# pos:    Isolated capture support for current Claude compatibility
+# >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
 
-import hashlib
 import ipaddress
 import json
-import os
 import re
 import shutil
 import subprocess
@@ -27,8 +25,8 @@ from cortex_bench_harness.proxy.adapters.anthropic import (
 )
 from cortex_bench_harness.proxy.lease import LeaseTerms
 
-VERSION = "2.1.232"
-ARTIFACT_SHA256 = "61d23f8749136907d586d5b11831ea8a5234d4c1dea40a5e55c33b52e204c6d1"
+from current_vendor_cli import CliIdentity, inspect_binary, require_isolated_network
+
 DUMMY_CREDENTIAL = "dummy-claude-code-vendor-wire-bearer"
 HOST_BEARER = "host-held-dummy-subscription-oauth"
 ALIASES = ("sonnet", "opus", "haiku")
@@ -208,16 +206,17 @@ class CaptureHandler(BaseHTTPRequestHandler):
 
 
 def capture_claude_code_wire(tmp_path: Path) -> dict[str, object]:
+    require_isolated_network()
     binary = _claude_binary()
-    _check_prerequisites(binary)
+    identity = _check_prerequisites(binary)
     runs = {spec.name: _capture_run(binary, tmp_path / spec.name, spec) for spec in RUN_SPECS}
     runs["trial_proxy_bearer_substitution"] = _capture_proxy_run(
         binary, tmp_path / "trial_proxy_bearer_substitution",
     )
     return {
         "schema_version": "cortex-bench-vendor-wire/1",
-        "claude_code_version": VERSION,
-        "artifact_sha256": ARTIFACT_SHA256,
+        "claude_code_version": identity.version_output.removesuffix(" (Claude Code)"),
+        "artifact_sha256": identity.artifact_sha256,
         "capture_method": "real Claude process in bwrap with hidden home; strace connect audit",
         "containment": _containment(runs),
         "observed_model_identifiers": _observed_models(runs),
@@ -232,19 +231,11 @@ def _claude_binary() -> Path:
     return Path(command).resolve()
 
 
-def _check_prerequisites(binary: Path) -> None:
+def _check_prerequisites(binary: Path) -> CliIdentity:
     for command in ("bwrap", "strace"):
         if shutil.which(command) is None:
             raise RuntimeError(f"{command} is required for isolated capture")
-    with binary.open("rb") as stream:
-        artifact_sha256 = hashlib.file_digest(stream, "sha256").hexdigest()
-    if artifact_sha256 != ARTIFACT_SHA256:
-        raise RuntimeError(f"unexpected Claude Code artifact sha256 {artifact_sha256}")
-    version = subprocess.run(
-        [str(binary), "--version"], check=True, capture_output=True, text=True,
-    ).stdout.strip()
-    if version != f"{VERSION} (Claude Code)":
-        raise RuntimeError(f"expected Claude Code {VERSION}, got {version!r}")
+    return inspect_binary(binary)
 
 
 def _capture_run(binary: Path, root: Path, spec: RunSpec) -> dict[str, object]:

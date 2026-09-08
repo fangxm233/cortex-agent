@@ -11,7 +11,7 @@ runs; the two scripts under it stay independently invocable and own every gate.
 | build-trial-artifacts.py | build | Builds both trial artifacts from current source into the paths a campaign pins, each with a provenance record |
 | build-wheel.sh | build | Builds the fixed wheel at a pinned epoch |
 | build-zero-paid-runtime-image.sh | build | Builds one pinned offline vendor runtime image |
-| capture-pi-vendor-wire.py | evidence | Captures PI loopback wire evidence |
+| capture-pi-vendor-wire.py | evidence | Captures current PI identity and loopback wire |
 | capability-evidence-v1-to-v2.json | config | Pins v1 evidence inputs and the v2 field migration |
 | launch-paid-campaign.py | launch | Loads host credentials and launches paid campaigns |
 | launch-terminal-bench-pi-full.py | launch | Runs the isolated 89-task PI full suite |

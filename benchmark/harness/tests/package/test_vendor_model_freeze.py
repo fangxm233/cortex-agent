@@ -1,7 +1,7 @@
-# input:  pinned vendor CLIs, campaign arms, trial proxy, loopback upstream
-# output: exact upstream model observations and mismatch refusals
-# pos:    Real-process proof for vendor campaign model freezes
-# >>> If I am updated, update my header and folder CORTEX.md <<<
+# input:  current vendor CLIs, campaign arms, loopback trial proxy
+# output: model transmission, native defaults, and drift refusals
+# pos:    Current CLI behavior against historical campaign models
+# >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
 
 import json
 import os
@@ -26,12 +26,11 @@ from cortex_bench_harness.proxy.adapters.openai_codex_responses import (
     mint_dummy_codex_token,
 )
 from cortex_bench_harness.proxy.lease import LeaseTerms
+from current_vendor_cli import installed_cli, isolated_or_rerun
 from vendor_wire_capture import text_events, tool_events
 
 HARNESS_DIR = Path(__file__).resolve().parents[2]
 CAMPAIGN_DIR = HARNESS_DIR.parent / "campaigns"
-ISOLATED_ENV = "CORTEX_VENDOR_MODEL_FREEZE_ISOLATED"
-COMMANDS = {"pi": "pi", "claude-code": "claude", "codex": "codex"}
 FROZEN_MODELS = {
     "claude-code": "claude-opus-5",
     "codex": "gpt-5.6-sol",
@@ -57,39 +56,8 @@ def arm(vendor: str) -> dict[str, object]:
     return campaign(vendor)[1]["arms"][0]  # type: ignore[index,return-value]
 
 
-def rerun_isolated(node_id: str) -> None:
-    unshare = shutil.which("unshare")
-    assert unshare, "unshare is required for zero-egress vendor model tests"
-    target = f"{Path(__file__).resolve()}::{node_id.split('::', 1)[1]}"
-    env = {**os.environ, ISOLATED_ENV: "1"}
-    result = subprocess.run(
-        [unshare, "--user", "--map-root-user", "--net", sys.executable,
-         "-m", "pytest", "-q", target],
-        cwd=HARNESS_DIR, env=env, capture_output=True, text=True, timeout=180,
-    )
-    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
-
-
-def require_isolated_network() -> None:
-    subprocess.run(["ip", "link", "set", "lo", "up"], check=True)
-    routes = Path("/proc/net/route").read_text(encoding="utf-8").splitlines()[1:]
-    assert not any(row.split()[1] == "00000000" for row in routes if row.split())
-
-
 def real_cli(vendor: str) -> Path:
-    command = shutil.which(COMMANDS[vendor])
-    assert command, f"{COMMANDS[vendor]} is not installed"
-    binary = Path(command).resolve()
-    completed = subprocess.run(
-        [str(binary), "--version"], capture_output=True, text=True, timeout=10,
-    )
-    expected = str(arm(vendor)["vendor_cli_version"])
-    if vendor == "claude-code":
-        expected = f"{expected} (Claude Code)"
-    elif vendor == "codex":
-        expected = f"codex-cli {expected}"
-    assert completed.returncode == 0 and completed.stdout.strip() == expected
-    return binary
+    return installed_cli(vendor).binary
 
 
 def test_subscription_campaigns_freeze_the_declared_models() -> None:
@@ -112,20 +80,23 @@ def test_subscription_campaigns_freeze_the_declared_models() -> None:
     assert codex_wire["request"]["model"] == "gpt-5.3-codex"
 
 
-def test_real_cli_version_check_uses_the_campaign_pin(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("vendor,version", (
+    ("pi", "0.99.0"), ("claude-code", "2.1.263 (Claude Code)"),
+    ("codex", "codex-cli 0.200.0"),
+))
+def test_real_cli_accepts_current_version_independent_of_campaign(
+    vendor: str, version: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     binary = tmp_path / "pi"
     binary.touch()
-    completed = subprocess.CompletedProcess([str(binary), "--version"], 0, "0.82.1\n", "")
+    completed = subprocess.CompletedProcess([str(binary), "--version"], 0, version + "\n", "")
     monkeypatch.setattr(shutil, "which", lambda _command: str(binary))
     monkeypatch.setattr(subprocess, "run", lambda *_args, **_kwargs: completed)
     monkeypatch.setattr(
         sys.modules[__name__], "arm", lambda _vendor: {"vendor_cli_version": "9.9.9"},
     )
 
-    with pytest.raises(AssertionError):
-        real_cli("pi")
+    assert real_cli(vendor) == binary
 
 
 def sse(events: list[dict[str, object]]) -> bytes:
@@ -364,16 +335,8 @@ def exercise(
     return result, upstream.requests, audit_outcomes(log_path)
 
 
-def isolated_or_rerun(request: pytest.FixtureRequest) -> bool:
-    if os.environ.get(ISOLATED_ENV) == "1":
-        require_isolated_network()
-        return True
-    rerun_isolated(request.node.nodeid)
-    return False
-
-
 @pytest.mark.parametrize("vendor", ("pi", "claude-code", "codex"))
-def test_pinned_vendor_cli_transmits_campaign_model_unchanged(
+def test_current_vendor_cli_transmits_campaign_model_unchanged(
     vendor: str, tmp_path: Path, request: pytest.FixtureRequest,
 ) -> None:
     if not isolated_or_rerun(request):

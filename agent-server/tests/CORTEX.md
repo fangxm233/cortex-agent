@@ -98,7 +98,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | manager-task-artifact.test.ts | test | task-keyed manager artifact placement |
 | memory-index-regen.test.ts | test | memory index rebuild lifecycle sections |
 | message-router.test.ts | test | message routing, mention normalization and edits |
-| mode-manager.test.ts | test | per-request mode routing and API key policy |
+| mode-manager.test.ts | test | Isolated saved-key policy and mode routing |
 | module-loader.ts | helper | fresh ESM import and root path helpers |
 | orch/ | subdir | orchestration runtime and session flow tests |
 | orchestration/ | subdir | session compact, rewind and coalescer tests |
@@ -125,7 +125,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | session-hooks-inject-isolation.test.ts | test | onNew hook injection session isolation |
 | session-hooks-profile-resolution.test.ts | test | onNew hook profile lookup priority |
 | session.test.ts | test | session CRUD and legacy key migration |
-| skill-scanner.test.ts | test | plugin skill discovery and namespacing |
+| skill-scanner.test.ts | test | Fixture skill discovery, grouping and namespacing |
 | slack-adapter-classification.test.ts | test | Slack subtype to message kind mapping |
 | slack-adapter-prefix.test.ts | test | Slack conduit, persistence and nullable routing |
 | slack-adapter-throttle.test.ts | test | Slack update throttle and 429 retry |

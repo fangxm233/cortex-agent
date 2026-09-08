@@ -1,4 +1,4 @@
-# input:  capability row, bound evidence, committed proof sources
+# input:  capability rows, evidence and refreshed offline proof hashes
 # output: strict promotion-evidence validation or refusal
 # pos:    Capability-state provenance validator
 # >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -34,7 +34,7 @@ CODEX_OFFLINE_CONTRACT = {
     "vendor_lifecycle_test_sha256":
         "ae964ff4d8c98ad1e22403460d6c10a04b3e2e9dee9be8390d9c47c53a138e8c",
     "model_freeze_test_sha256":
-        "f82078745f86c7e8705f9bc95767d8fd273a5a1279897de759d80438f4370c9f",
+        "508c5bd035f71e052c3a292f58c497013c6384f4cb927cc12b9a89f877d145f9",
 }
 PI_CODEX_OFFLINE_CONTRACT = {
     "implementation_commit": "1d082ce02fbc634198e576b8f9757a833e89bed9",
@@ -44,7 +44,7 @@ PI_CODEX_OFFLINE_CONTRACT = {
     "runtime_projection_test_sha256":
         "ca597ec2cdfefe78b9c4f044849955482701cb9a9158ae83955418f4c92ceb2d",
     "proxy_scan_test_sha256":
-        "9f6411fa2a77f65f3a6e7b58b6c51acfc5295ad8f8b626383b4813bfba717171",
+        "882000c5e436a9e9deceecdd7887f8670de10bebd8573e0363c8aa6f320e8f94",
 }
 CLAUDE_P0_CAPTURE_SHA256 = "fcc17df7ff3e2d7e618856e11479a315b72c7dcdfa85984e45c6f2564eccda45"
 CLAUDE_P0_BETA_HEADER = (

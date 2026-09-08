@@ -1,4 +1,4 @@
-# input:  versioned capability evidence files and registry rows
+# input:  capability evidence, registry rows and offline proof hashes
 # output: strict schema, binding, hash, and live-predicate proofs
 # pos:    Capability promotion evidence validation tests
 # >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -156,7 +156,7 @@ def test_validates_shipped_claude_live_and_synthetic_evidence() -> None:
     validate_offline_supporting_artifacts(offline_path.parent, offline)
 
 
-def test_validates_shipped_codex_live_and_preserved_zero_paid_evidence() -> None:
+def test_validates_shipped_codex_live_evidence() -> None:
     import cortex_bench_harness.launcher.credential_capabilities as registry
 
     row = registry.CAPABILITY_REGISTRY[CODEX_KEY]
@@ -174,10 +174,15 @@ def test_validates_shipped_codex_live_and_preserved_zero_paid_evidence() -> None
     assert live["scan_clean"] is True
     assert live["revocation_proven"] is True
 
+
+def test_validates_shipped_codex_offline_evidence() -> None:
+    import cortex_bench_harness.launcher.credential_capabilities as registry
+
+    row = registry.CAPABILITY_REGISTRY[CODEX_KEY]
     offline_path = registry._evidence_path(row.id, "offline-contract-passed")
     offline = validate_capability_evidence(
         offline_path,
-        "a3969d3ee461145f126aacfd5ba73b329df360259ed4d2bc550d0fb4ad0e67e0",
+        "daac711074cb77d5dd341f4ba7e21718fdd9bd0b88a0443b51fe528976a64cd3",
         capability_id=row.id, key=CODEX_KEY, state="offline-contract-passed",
         adapter_id="openai-codex-responses/oauth",
     )
@@ -193,7 +198,7 @@ def test_validates_shipped_codex_live_and_preserved_zero_paid_evidence() -> None
     }
 
 
-def test_validates_shipped_pi_codex_live_and_offline_evidence() -> None:
+def test_validates_shipped_pi_codex_live_evidence() -> None:
     import cortex_bench_harness.launcher.credential_capabilities as registry
 
     row = registry.CAPABILITY_REGISTRY[PI_CODEX_KEY]
@@ -215,10 +220,15 @@ def test_validates_shipped_pi_codex_live_and_offline_evidence() -> None:
     assert live["scan_clean"] is True
     assert live["revocation_proven"] is True
 
+
+def test_validates_shipped_pi_codex_offline_evidence() -> None:
+    import cortex_bench_harness.launcher.credential_capabilities as registry
+
+    row = registry.CAPABILITY_REGISTRY[PI_CODEX_KEY]
     offline_path = registry._evidence_path(row.id, "offline-contract-passed")
     offline = validate_capability_evidence(
         offline_path,
-        "3d9de579ebc71d9393ada278de78a00510428f4f698d7fcdf50c879908a55864",
+        "3d41e98679045b27bd0b31132c834a0828e19f0f3369db9d445fd45502444eb7",
         capability_id=row.id,
         key=PI_CODEX_KEY,
         state="offline-contract-passed",

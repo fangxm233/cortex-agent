@@ -1,5 +1,5 @@
-# input:  a row-four trial armed through the launcher and driven over its own refusal flows
-# output: closed-inventory scan proofs for every source this row's flows create
+# input:  row-four trial, synthetic token expiry and fixed clocks
+# output: closed-inventory scan proofs over real refusal flows
 # pos:    Leak-scan extension over the codex responses row
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 #
@@ -25,6 +25,7 @@ from cortex_bench_harness.proxy.adapters.openai_codex_responses import (
     RESPONSES_PATH,
     TOKEN_PATH,
     ZSTD_MAGIC,
+    extract_access_expiry_ms,
 )
 from cortex_bench_harness.proxy.lease import LEASE_ECHO_SCHEMA_VERSION
 from cortex_bench_harness.scan.models import ScanPolicy
@@ -78,6 +79,7 @@ def row_four_arm() -> dict[str, object]:
 def proxy_spec() -> dict[str, object]:
     return {
         "credential_env": CREDENTIAL_ENV, "bound_source_ip": "127.0.0.1",
+        "access_expires_at_ms": extract_access_expiry_ms(HOST_ACCESS_TOKEN),
         "request_body_limit_bytes": 16 * 1024 * 1024,
         "response_body_limit_bytes": 16 * 1024 * 1024,
     }
@@ -125,7 +127,10 @@ def drive_row_four_flows(handle, upstream: SyntheticUpstream) -> dict[str, tuple
 def row_four_trial(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """Arm through the shipped launcher entry, drive the row's flows, then revoke through the
     shipped revoke — so every file the scan reads was written by the production path."""
+    from cortex_bench_harness.proxy.adapters import openai_codex_responses
+
     admit_capability(monkeypatch, CAPABILITY_ID, protocol=PROTOCOL)
+    monkeypatch.setattr(openai_codex_responses, "_now_ms", lambda: COMPILED_AT_EPOCH_MS)
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir(parents=True, exist_ok=True)
     with SyntheticUpstream() as upstream:
@@ -133,11 +138,15 @@ def row_four_trial(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             arm=row_four_arm(), trial_id=TRIAL_ID, upstream_base_url=upstream.base_url,
             spec=parse_trial_proxy_spec(proxy_spec()), proxy_dir=artifacts / "proxy",
             trial_roots=(artifacts,), environ={CREDENTIAL_ENV: HOST_ACCESS_TOKEN},
+            now_ms=lambda: COMPILED_AT_EPOCH_MS,
         )
-        calls = drive_row_four_flows(session.handle, upstream)
-        revocation = revoke_trial_proxy(session, capture_inventory=lambda: (
-            capture_trial_inventory(sources={}, session=session, trial_roots=(artifacts,))
-        ))
+        try:
+            calls = drive_row_four_flows(session.handle, upstream)
+            revocation = revoke_trial_proxy(session, capture_inventory=lambda: (
+                capture_trial_inventory(sources={}, session=session, trial_roots=(artifacts,))
+            ))
+        finally:
+            session.handle.stop()
     return revocation.inventory, calls
 
 

@@ -1,4 +1,4 @@
-// input:  Node test runner, mode config, gateway mock
+// input:  Vitest, fresh config, isolated dotenv, gateway mock
 // output: mode routing, saved-key, and fallback tests
 // pos:    Verify mode-manager routing and credential policy
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -15,22 +15,7 @@ import { importFresh } from './module-loader.js';
 import { _testSetHealthy, GATEWAY_URL } from './../src/domain/costs/gateway-manager.js';
 
 test('resolveModeEnv(api) encodes mode in URL when gateway healthy', async (t) => {
-  const originalApiKey = process.env.ANTHROPIC_API_KEY;
-  const originalBaseUrl = process.env.ANTHROPIC_BASE_URL;
-
-  delete process.env.ANTHROPIC_API_KEY;
-  delete process.env.ANTHROPIC_BASE_URL;
-
-  t.onTestFinished(() => {
-    _testSetHealthy(null);
-    if (originalApiKey !== undefined) process.env.ANTHROPIC_API_KEY = originalApiKey;
-    else delete process.env.ANTHROPIC_API_KEY;
-    if (originalBaseUrl !== undefined) process.env.ANTHROPIC_BASE_URL = originalBaseUrl;
-    else delete process.env.ANTHROPIC_BASE_URL;
-  });
-
-  _testSetHealthy(true);
-  const modeManager = await importFresh('./../src/domain/agents/index.js');
+  const modeManager = await freshConfigWithSavedEnv(t, '', true);
 
   process.env.ANTHROPIC_API_KEY = 'sk-test-late';
   process.env.ANTHROPIC_BASE_URL = 'https://late.example.test';
@@ -45,25 +30,7 @@ test('resolveModeEnv(api) encodes mode in URL when gateway healthy', async (t) =
 });
 
 test('resolveModeEnv(api) sets placeholder key when no key available and gateway healthy', async (t) => {
-  const originalApiKey = process.env.ANTHROPIC_API_KEY;
-  const originalBaseUrl = process.env.ANTHROPIC_BASE_URL;
-
-  delete process.env.ANTHROPIC_API_KEY;
-  delete process.env.ANTHROPIC_BASE_URL;
-
-  t.onTestFinished(() => {
-    _testSetHealthy(null);
-    if (originalApiKey !== undefined) process.env.ANTHROPIC_API_KEY = originalApiKey;
-    else delete process.env.ANTHROPIC_API_KEY;
-    if (originalBaseUrl !== undefined) process.env.ANTHROPIC_BASE_URL = originalBaseUrl;
-    else delete process.env.ANTHROPIC_BASE_URL;
-  });
-
-  _testSetHealthy(true);
-  // Import config.js itself fresh: it owns the savedApiEnv module state, and the barrel's
-  // cache-buster does not propagate to it (a previous test's key would otherwise stick).
-  const modeManager = await importFresh('./../src/domain/agents/config.js');
-  delete process.env.ANTHROPIC_API_KEY; // module import may have mutated env
+  const modeManager = await freshConfigWithSavedEnv(t, '', true);
 
   const route = modeManager.resolveModeEnv('api');
 
@@ -77,22 +44,7 @@ test('resolveModeEnv(api) sets placeholder key when no key available and gateway
 });
 
 test('resolveModeEnv(non-plan custom mode) keeps API key when gateway healthy', async (t) => {
-  const originalApiKey = process.env.ANTHROPIC_API_KEY;
-  const originalBaseUrl = process.env.ANTHROPIC_BASE_URL;
-
-  delete process.env.ANTHROPIC_API_KEY;
-  delete process.env.ANTHROPIC_BASE_URL;
-
-  t.onTestFinished(() => {
-    _testSetHealthy(null);
-    if (originalApiKey !== undefined) process.env.ANTHROPIC_API_KEY = originalApiKey;
-    else delete process.env.ANTHROPIC_API_KEY;
-    if (originalBaseUrl !== undefined) process.env.ANTHROPIC_BASE_URL = originalBaseUrl;
-    else delete process.env.ANTHROPIC_BASE_URL;
-  });
-
-  _testSetHealthy(true);
-  const modeManager = await importFresh('./../src/domain/agents/index.js');
+  const modeManager = await freshConfigWithSavedEnv(t, '', true);
 
   process.env.ANTHROPIC_API_KEY = 'sk-test-custom';
   const route = modeManager.resolveModeEnv('qwen-ksu');
@@ -106,24 +58,7 @@ test('resolveModeEnv(non-plan custom mode) keeps API key when gateway healthy', 
 });
 
 test('placeholder key never leaks into the daemon env (gateway healthy → unhealthy)', async (t) => {
-  const originalApiKey = process.env.ANTHROPIC_API_KEY;
-  const originalBaseUrl = process.env.ANTHROPIC_BASE_URL;
-
-  delete process.env.ANTHROPIC_API_KEY;
-  delete process.env.ANTHROPIC_BASE_URL;
-
-  t.onTestFinished(() => {
-    _testSetHealthy(null);
-    if (originalApiKey !== undefined) process.env.ANTHROPIC_API_KEY = originalApiKey;
-    else delete process.env.ANTHROPIC_API_KEY;
-    if (originalBaseUrl !== undefined) process.env.ANTHROPIC_BASE_URL = originalBaseUrl;
-    else delete process.env.ANTHROPIC_BASE_URL;
-  });
-
-  _testSetHealthy(true);
-  // Fresh config.js (state owner) — see placeholder test above for why not the barrel.
-  const modeManager = await importFresh('./../src/domain/agents/config.js');
-  delete process.env.ANTHROPIC_API_KEY;
+  const modeManager = await freshConfigWithSavedEnv(t, '', true);
 
   // Healthy + no real key → the placeholder goes to the child and nowhere else
   const gatewayRoute = modeManager.resolveModeEnv('api');
@@ -143,30 +78,15 @@ test('placeholder key never leaks into the daemon env (gateway healthy → unhea
 });
 
 test('getSavedApiEnv ignores a gateway placeholder persisted in dotenv', async (t) => {
-  const originalApiKey = process.env.ANTHROPIC_API_KEY;
-  const envFile = path.join(CONFIG_DIR, '.env');
-  const originalFile = readOptionalFile(envFile);
-  delete process.env.ANTHROPIC_API_KEY;
-  fs.writeFileSync(envFile, 'ANTHROPIC_API_KEY=cortex-gateway-managed\n');
-  t.onTestFinished(() => { restoreApiKey(originalApiKey); restoreFile(envFile, originalFile); });
-
-  const modeManager = await importFresh('./../src/domain/agents/config.js');
+  const modeManager = await freshConfigWithSavedEnv(t, 'ANTHROPIC_API_KEY=cortex-gateway-managed\n', false);
 
   assert.equal(modeManager.getSavedApiEnv().ANTHROPIC_API_KEY, undefined);
 });
 
 test('a live gateway placeholder cannot replace a real key saved in dotenv', async (t) => {
-  const originalApiKey = process.env.ANTHROPIC_API_KEY;
-  const envFile = path.join(CONFIG_DIR, '.env');
-  const originalFile = readOptionalFile(envFile);
-  fs.writeFileSync(envFile, 'ANTHROPIC_API_KEY="sk-ant-fixture-saved"\n');
+  const modeManager = await freshConfigWithSavedEnv(t, 'ANTHROPIC_API_KEY="sk-ant-fixture-saved"\n', true);
+  pinClaudeCredential(t, false);
   process.env.ANTHROPIC_API_KEY = 'cortex-gateway-managed';
-  _testSetHealthy(true);
-  t.onTestFinished(() => {
-    restoreApiKey(originalApiKey); restoreFile(envFile, originalFile); _testSetHealthy(null);
-  });
-
-  const modeManager = await importFresh('./../src/domain/agents/config.js');
   assert.equal(modeManager.resolveModeEnv('api').ANTHROPIC_API_KEY, 'sk-ant-fixture-saved');
   _testSetHealthy(false);
   assert.equal(modeManager.resolveModeEnv('api').ANTHROPIC_API_KEY, 'sk-ant-fixture-saved');
@@ -185,28 +105,10 @@ function restoreFile(file: string, contents: string | undefined): void {
   else fs.writeFileSync(file, contents);
 }
 
-function restoreApiKey(value: string | undefined): void {
-  if (value === undefined) delete process.env.ANTHROPIC_API_KEY;
-  else process.env.ANTHROPIC_API_KEY = value;
-}
-
 test('resolveModeEnv(plan) encodes mode in URL when gateway healthy', async (t) => {
-  const originalApiKey = process.env.ANTHROPIC_API_KEY;
-  const originalBaseUrl = process.env.ANTHROPIC_BASE_URL;
-
+  const modeManager = await freshConfigWithSavedEnv(t, '', true);
   process.env.ANTHROPIC_API_KEY = 'sk-test-plan';
   process.env.ANTHROPIC_BASE_URL = 'https://managed.example.test';
-
-  t.onTestFinished(() => {
-    _testSetHealthy(null);
-    if (originalApiKey !== undefined) process.env.ANTHROPIC_API_KEY = originalApiKey;
-    else delete process.env.ANTHROPIC_API_KEY;
-    if (originalBaseUrl !== undefined) process.env.ANTHROPIC_BASE_URL = originalBaseUrl;
-    else delete process.env.ANTHROPIC_BASE_URL;
-  });
-
-  _testSetHealthy(true);
-  const modeManager = await importFresh('./../src/domain/agents/index.js');
   const route = modeManager.resolveModeEnv('plan');
 
   assert.equal(route.ANTHROPIC_API_KEY, null,
@@ -218,22 +120,7 @@ test('resolveModeEnv(plan) encodes mode in URL when gateway healthy', async (t) 
 });
 
 test('resolveModeEnv(api) falls back to direct when gateway unhealthy', async (t) => {
-  const originalApiKey = process.env.ANTHROPIC_API_KEY;
-  const originalBaseUrl = process.env.ANTHROPIC_BASE_URL;
-
-  delete process.env.ANTHROPIC_API_KEY;
-  delete process.env.ANTHROPIC_BASE_URL;
-
-  t.onTestFinished(() => {
-    _testSetHealthy(null);
-    if (originalApiKey !== undefined) process.env.ANTHROPIC_API_KEY = originalApiKey;
-    else delete process.env.ANTHROPIC_API_KEY;
-    if (originalBaseUrl !== undefined) process.env.ANTHROPIC_BASE_URL = originalBaseUrl;
-    else delete process.env.ANTHROPIC_BASE_URL;
-  });
-
-  _testSetHealthy(false);
-  const modeManager = await importFresh('./../src/domain/agents/index.js');
+  const modeManager = await freshConfigWithSavedEnv(t, '', false);
 
   process.env.ANTHROPIC_API_KEY = 'sk-test-direct';
   process.env.ANTHROPIC_BASE_URL = 'https://saved.example.test';
@@ -246,22 +133,9 @@ test('resolveModeEnv(api) falls back to direct when gateway unhealthy', async (t
 });
 
 test('resolveModeEnv(plan) falls back to direct when gateway unhealthy', async (t) => {
-  const originalApiKey = process.env.ANTHROPIC_API_KEY;
-  const originalBaseUrl = process.env.ANTHROPIC_BASE_URL;
-
+  const modeManager = await freshConfigWithSavedEnv(t, '', false);
   process.env.ANTHROPIC_API_KEY = 'sk-test-plan-direct';
   process.env.ANTHROPIC_BASE_URL = 'https://plan.example.test';
-
-  t.onTestFinished(() => {
-    _testSetHealthy(null);
-    if (originalApiKey !== undefined) process.env.ANTHROPIC_API_KEY = originalApiKey;
-    else delete process.env.ANTHROPIC_API_KEY;
-    if (originalBaseUrl !== undefined) process.env.ANTHROPIC_BASE_URL = originalBaseUrl;
-    else delete process.env.ANTHROPIC_BASE_URL;
-  });
-
-  _testSetHealthy(false);
-  const modeManager = await importFresh('./../src/domain/agents/index.js');
   const route = modeManager.resolveModeEnv('plan');
 
   assert.equal(route.ANTHROPIC_API_KEY, null,
@@ -273,16 +147,7 @@ test('resolveModeEnv(plan) falls back to direct when gateway unhealthy', async (
 });
 
 test('importing config.js does NOT mutate ANTHROPIC_API_KEY (no module side effect)', async (t) => {
-  const originalApiKey = process.env.ANTHROPIC_API_KEY;
-  const originalBaseUrl = process.env.ANTHROPIC_BASE_URL;
-
-  t.onTestFinished(() => {
-    _testSetHealthy(null);
-    if (originalApiKey !== undefined) process.env.ANTHROPIC_API_KEY = originalApiKey;
-    else delete process.env.ANTHROPIC_API_KEY;
-    if (originalBaseUrl !== undefined) process.env.ANTHROPIC_BASE_URL = originalBaseUrl;
-    else delete process.env.ANTHROPIC_BASE_URL;
-  });
+  await freshConfigWithSavedEnv(t, '', false);
 
   // CLI processes (cortex init / setup-gateway) import this module transitively and the
   // gateway is always unhealthy there. With mode=plan (isolated home → default), an
@@ -301,7 +166,7 @@ test('importing config.js does NOT mutate ANTHROPIC_API_KEY (no module side effe
 });
 
 test('GATEWAY_ANTHROPIC_URL has /anthropic suffix (backward compat)', async (t) => {
-  const modeManager = await importFresh('./../src/domain/agents/index.js');
+  const modeManager = await freshConfigWithSavedEnv(t, '', false);
   assert.ok(modeManager.GATEWAY_ANTHROPIC_URL.endsWith('/anthropic'),
     'gateway URL should end with /anthropic endpoint');
   assert.ok(modeManager.GATEWAY_ANTHROPIC_URL.startsWith('http://127.0.0.1:'),
@@ -309,7 +174,7 @@ test('GATEWAY_ANTHROPIC_URL has /anthropic suffix (backward compat)', async (t) 
 });
 
 test('gatewayModeUrl builds per-request mode URL', async (t) => {
-  const modeManager = await importFresh('./../src/domain/agents/index.js');
+  const modeManager = await freshConfigWithSavedEnv(t, '', false);
   const planUrl = modeManager.gatewayModeUrl('plan');
   const apiUrl = modeManager.gatewayModeUrl('api');
 
@@ -321,7 +186,8 @@ test('gatewayModeUrl builds per-request mode URL', async (t) => {
 
 // --- resolveModeEnv: the mode decision as a value, not a global write (plan §4.1) ---
 
-const ROUTE_ENV_KEYS = ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL', 'CLAUDE_CODE_OAUTH_TOKEN'];
+const ROUTE_ENV_KEYS = ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL',
+  'CLAUDE_CODE_OAUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT'];
 
 function snapshotRouteEnv(): Record<string, string | undefined> {
   return Object.fromEntries(ROUTE_ENV_KEYS.map(key => [key, process.env[key]]));
@@ -337,6 +203,7 @@ function restoreRouteEnv(snapshot: Record<string, string | undefined>): void {
 // The saved-credential snapshot is captured when config.js is evaluated, so the dotenv
 // fixture must land BEFORE the fresh import; process.env is cleared so the fixture is
 // the only credential source (getSavedApiEnv prefers process.env over the file).
+// Fresh-import the state owner, not the SDK-heavy barrel: its query does not reset config.
 async function freshConfigWithSavedEnv(
   t: { onTestFinished: (fn: () => void) => void },
   dotenv: string,

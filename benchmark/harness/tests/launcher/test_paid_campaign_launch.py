@@ -1,5 +1,5 @@
-# input:  the committed paid campaign, a fake gateway file and hostile launch environments
-# output: reference-completeness, credential-hygiene and arms-nothing proofs for the launcher
+# input:  committed campaigns, synthetic packages, fake credentials
+# output: hermetic launch, provenance and credential-hygiene proofs
 # pos:    Paid campaign launch procedure tests
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 #
@@ -19,13 +19,12 @@ from pathlib import Path
 import pytest
 
 from cortex_bench_harness.host_finalization import parse_host_scan_policy
+from paid_campaign_fixtures import SOURCE_FILES, stage_campaign
 
 HARNESS_ROOT = Path(__file__).resolve().parents[2]
 LAUNCH_SCRIPT = HARNESS_ROOT / "scripts" / "launch-paid-campaign.py"
 CAMPAIGNS_DIR = HARNESS_ROOT.parents[0] / "campaigns"
-# The real checkout, which the committed artifacts were built from. A document copied into tmp_path
-# derives its checkout as tmp_path, so any test planning against a moved document must name this
-# explicitly -- exactly as `--checkout` exists for.
+# Used only as a host-scan literal by environment-resolution tests, never for artifact validation.
 CHECKOUT_ROOT = HARNESS_ROOT.parents[1]
 COMMITTED_PAID_CONFIG = CAMPAIGNS_DIR / "terminal-bench-2.1-deepseek-paid.yaml"
 COMMITTED_CODEX_CONFIGS = {
@@ -75,33 +74,8 @@ def clean_environment(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
 
 @pytest.fixture
 def hermetic_campaign(tmp_path: Path) -> Path:
-    """The committed document with its trial roots moved into `tmp_path`, and nothing else changed.
-
-    Whether the committed root exists is host state — the campaign this document describes creates
-    it — so a test that plans against the real `trials_dir` reports `would-skip` the moment the
-    campaign has run, which is the coupling this task removed from `test_campaign.py`. Everything
-    the launcher is being proven on (the five references, the arm, the pairing, the three pinned
-    tasks) is still the committed declaration; only the roots the plan is read against are local.
-    The copy keeps the `<checkout>/benchmark/campaigns/` shape so the checkout literal is derived
-    exactly as it is in production, and the manifest and task paths are pinned to the committed
-    checkout before the move, because they resolve against the document's own directory.
-    """
-    import yaml
-
-    document = yaml.safe_load(COMMITTED_PAID_CONFIG.read_text(encoding="utf-8"))
-    document["manifest"] = {
-        key: value if key == "lockfile_manifest_path"
-        else str((COMMITTED_PAID_CONFIG.parent / value).resolve())
-        for key, value in document["manifest"].items()
-    }
-    for task in document["tasks"]:
-        task["path"] = str((COMMITTED_PAID_CONFIG.parent / task["path"]).resolve())
-    document["trials_dir"] = str(tmp_path / "trials")
-    campaigns = tmp_path / "benchmark" / "campaigns"
-    campaigns.mkdir(parents=True)
-    path = campaigns / COMMITTED_PAID_CONFIG.name
-    path.write_text(yaml.safe_dump(document), encoding="utf-8")
-    return path
+    """The committed declaration over a fresh checkout with valid synthetic provenance."""
+    return stage_campaign(tmp_path, COMMITTED_PAID_CONFIG)
 
 
 def committed_config() -> object:
@@ -125,23 +99,6 @@ def codex_token(*, exp_seconds: int = 4_102_444_800, account_id: str = "dummy-co
 
 
 FAKE_CODEX_TOKEN = codex_token()
-
-
-def stage_campaign(tmp_path: Path, source_path: Path) -> Path:
-    import yaml
-
-    document = yaml.safe_load(source_path.read_text(encoding="utf-8"))
-    document["manifest"] = {
-        key: value if key == "lockfile_manifest_path"
-        else str((source_path.parent / value).resolve())
-        for key, value in document["manifest"].items()
-    }
-    for task in document["tasks"]:
-        task["path"] = str((source_path.parent / task["path"]).resolve())
-    document["trials_dir"] = str(tmp_path / "trials")
-    path = tmp_path / source_path.name
-    path.write_text(yaml.safe_dump(document), encoding="utf-8")
-    return path
 
 
 @pytest.fixture
@@ -484,16 +441,13 @@ def test_preflight_plans_every_declared_trial_and_arms_none(
     gateway: Path, clean_environment: dict[str, str], hermetic_campaign: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Roots of their own, so `would-arm` and "nothing was created" mean what they say.
-
-    The document is moved but the artifacts it pins are the committed ones, so the checkout they
-    are verified against has to be named rather than derived from the moved document's location.
-    """
+    """Fresh trial roots and real provenance verification without host build outputs."""
     code = launcher.main(
         ["--config", str(hermetic_campaign), "--gateway", str(gateway),
-         "--checkout", str(CHECKOUT_ROOT)])
+         "--checkout", str(hermetic_campaign.parents[2])])
 
     captured = capsys.readouterr()
+    assert (code, captured.err) == (0, ""), captured.err
     document = json.loads(captured.out)
     assert (code, document["ok"], document["mode"]) == (0, True, "preflight")
     assert document["campaign"] == committed_config().campaign
@@ -504,27 +458,29 @@ def test_preflight_plans_every_declared_trial_and_arms_none(
     assert "CORTEX_BENCH_DEEPSEEK_CREDENTIAL" not in os.environ
 
 
+@pytest.mark.parametrize("existing", [False, True])
 def test_the_committed_document_preflights_whatever_state_its_roots_are_in(
-    gateway: Path, clean_environment: dict[str, str], capsys: pytest.CaptureFixture[str],
+    gateway: Path, clean_environment: dict[str, str], hermetic_campaign: Path,
+    capsys: pytest.CaptureFixture[str], existing: bool,
 ) -> None:
-    """The committed document itself, asserted only on what the document decides.
-
-    A trial's planned state is host state — `would-skip` once its root exists — so this pins the
-    plan's shape and the launcher's own output, and leaves what happens to an existing root to the
-    runner's refusal and resume tests. It therefore stays true before, during and after a campaign.
-    """
+    """The declared plan stays fixed whether its isolated trial roots exist or not."""
+    config = launcher.load_campaign_config(hermetic_campaign)
+    if existing:
+        for plan in config.trials():
+            (config.trials_dir / plan.trial_id).mkdir(parents=True)
     code = launcher.main(
-        ["--config", str(COMMITTED_PAID_CONFIG), "--gateway", str(gateway)])
+        ["--config", str(hermetic_campaign), "--gateway", str(gateway)])
 
     captured = capsys.readouterr()
+    assert (code, captured.err) == (0, ""), captured.err
     document = json.loads(captured.out)
     assert (code, document["ok"], document["mode"]) == (0, True, "preflight")
     assert document["campaign"] == committed_config().campaign
     assert document["host_scan_policy_resolved"] is True
     assert [trial["trial_id"] for trial in document["dry_run"]["trials"]] == [
         plan.trial_id for plan in committed_config().trials()]
-    assert {trial["state"] for trial in document["dry_run"]["trials"]} <= {
-        "would-arm", "would-skip"}
+    assert {trial["state"] for trial in document["dry_run"]["trials"]} == {
+        "would-skip" if existing else "would-arm"}
     assert FAKE_CREDENTIAL not in captured.out + captured.err
     assert "CORTEX_BENCH_DEEPSEEK_CREDENTIAL" not in os.environ
 
@@ -542,7 +498,7 @@ def test_preflight_refuses_structurally_when_a_reference_cannot_be_resolved(
 
 def test_run_hands_the_campaign_every_reference_and_then_clears_them(
     gateway: Path, clean_environment: dict[str, str], monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
+    capsys: pytest.CaptureFixture[str], hermetic_campaign: Path,
 ) -> None:
     """The credential reaches the campaign only through this process's own environment."""
     observed: dict[str, str] = {}
@@ -555,12 +511,12 @@ def test_run_hands_the_campaign_every_reference_and_then_clears_them(
     monkeypatch.setattr(launcher.campaign, "main", recorder)
 
     code = launcher.main(
-        ["--config", str(COMMITTED_PAID_CONFIG), "--gateway", str(gateway), "--run"])
+        ["--config", str(hermetic_campaign), "--gateway", str(gateway), "--run"])
 
     captured = capsys.readouterr()
     assert code == 0
     assert observed[DEEPSEEK_CREDENTIAL_ENV] == FAKE_CREDENTIAL
-    assert observed["argv"] == f"run --config {COMMITTED_PAID_CONFIG}"
+    assert observed["argv"] == f"run --config {hermetic_campaign}"
     assert all(name not in os.environ for name in REQUIRED_REFERENCES)
     assert FAKE_CREDENTIAL not in captured.out + captured.err
     assert json.loads(captured.err)["mode"] == "run"
@@ -578,25 +534,25 @@ def test_run_hands_a_codex_campaign_the_access_token_and_then_clears_it(
         observed["argv"] = " ".join(argv)
         return 0
 
-    monkeypatch.setattr(launcher, "verify_artifacts", lambda *_args, **_kwargs: {})
     monkeypatch.setattr(launcher.campaign, "main", recorder)
 
     code = launcher.main([
-        "--config", str(config_path),
-        "--gateway", str(gateway),
-        "--codex-auth", str(codex_auth),
-        "--checkout", str(CHECKOUT_ROOT),
-        "--run",
+        "--config", str(config_path), "--gateway", str(gateway),
+        "--codex-auth", str(codex_auth), "--run",
     ])
 
     captured = capsys.readouterr()
-    assert code == 0
+    assert code == 0, captured.err
     assert observed[CODEX_CREDENTIAL_ENV] == FAKE_CODEX_TOKEN
     assert observed["argv"] == f"run --config {config_path}"
     assert all(name not in os.environ for name in CODEX_REQUIRED_REFERENCES)
     assert FAKE_CODEX_TOKEN not in captured.out + captured.err
     assert str(codex_auth) not in captured.out + captured.err
-    report = json.loads(captured.err)
+    assert_codex_run_report(captured.err)
+
+
+def assert_codex_run_report(payload: str) -> None:
+    report = json.loads(payload)
     assert report["mode"] == "run"
     assert report["credential_source"] == "codex-auth"
     assert "gateway_path" not in report
@@ -610,51 +566,64 @@ def test_run_hands_a_codex_campaign_the_access_token_and_then_clears_it(
 
 
 @pytest.fixture
-def stale_campaign(tmp_path: Path) -> Path:
-    """The committed document with its artifacts copied somewhere they can be spoiled.
-
-    The copies keep their filenames and provenance sidecars, so what each test below changes is the
-    one thing it means to change and nothing else.
-    """
-    import yaml
-
-    document = yaml.safe_load(COMMITTED_PAID_CONFIG.read_text(encoding="utf-8"))
-    artifacts = tmp_path / "dist"
-    artifacts.mkdir()
-    manifest = dict(document["manifest"])
-    for key in ("wheel_path", "npm_artifact_path"):
-        source = (COMMITTED_PAID_CONFIG.parent / manifest[key]).resolve()
-        copied = artifacts / source.name
-        copied.write_bytes(source.read_bytes())
-        sidecar = source.with_name(source.name + ".provenance.json")
-        if sidecar.is_file():
-            copied.with_name(copied.name + ".provenance.json").write_bytes(sidecar.read_bytes())
-        manifest[key] = str(copied)
-    manifest["lockfile_path"] = str(
-        (COMMITTED_PAID_CONFIG.parent / manifest["lockfile_path"]).resolve())
-    document["manifest"] = manifest
-    for task in document["tasks"]:
-        task["path"] = str((COMMITTED_PAID_CONFIG.parent / task["path"]).resolve())
-    document["trials_dir"] = str(tmp_path / "trials")
-    campaigns = tmp_path / "benchmark" / "campaigns"
-    campaigns.mkdir(parents=True)
-    path = campaigns / COMMITTED_PAID_CONFIG.name
-    path.write_text(yaml.safe_dump(document), encoding="utf-8")
-    return path
+def stale_campaign(hermetic_campaign: Path) -> Path:
+    """Both artifacts verify before each negative case spoils one of them."""
+    config = launcher.load_campaign_config(hermetic_campaign)
+    verified = launcher.verify_artifacts(config, hermetic_campaign.parents[2])
+    assert set(verified) == {"wheel_path", "npm_artifact_path"}
+    return hermetic_campaign
 
 
 def artifact_in(campaign_path: Path, key: str) -> Path:
     return Path(str(launcher.load_campaign_config(campaign_path).manifest[key]))
 
 
+def test_hermetic_campaign_preserves_every_non_infrastructure_declaration(
+    hermetic_campaign: Path,
+) -> None:
+    import yaml
+
+    committed = yaml.safe_load(COMMITTED_PAID_CONFIG.read_text(encoding="utf-8"))
+    staged = yaml.safe_load(hermetic_campaign.read_text(encoding="utf-8"))
+    for task in committed["tasks"]:
+        task["path"] = str((COMMITTED_PAID_CONFIG.parent / task["path"]).resolve())
+    committed["trials_dir"] = staged["trials_dir"]
+    for key in ("wheel_path", "npm_artifact_path", "lockfile_path"):
+        committed["manifest"][key] = staged["manifest"][key]
+        assert Path(staged["manifest"][key]).is_relative_to(hermetic_campaign.parents[2])
+    assert staged == committed
+
+
+@pytest.mark.parametrize("key", ["wheel_path", "npm_artifact_path"])
+def test_source_drift_refuses_the_launch_with_unchanged_artifact_bytes(
+    key: str, gateway: Path, clean_environment: dict[str, str], stale_campaign: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    checkout = stale_campaign.parents[2]
+    artifact_bytes = artifact_in(stale_campaign, key).read_bytes()
+    (checkout / SOURCE_FILES[key]).write_text("changed source\n", encoding="utf-8")
+
+    code = launcher.main(["--config", str(stale_campaign), "--gateway", str(gateway)])
+
+    captured = capsys.readouterr()
+    assert (code, captured.out) == (1, "")
+    refusal = json.loads(captured.err)
+    assert refusal["ok"] is False
+    assert key in refusal["error"]
+    assert "built from different source" in refusal["error"]
+    assert artifact_in(stale_campaign, key).read_bytes() == artifact_bytes
+
+
 def test_preflight_verifies_both_pinned_artifacts_against_the_checkout(
-    gateway: Path, clean_environment: dict[str, str], capsys: pytest.CaptureFixture[str],
+    gateway: Path, clean_environment: dict[str, str], hermetic_campaign: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     code = launcher.main(
-        ["--config", str(COMMITTED_PAID_CONFIG), "--gateway", str(gateway)])
+        ["--config", str(hermetic_campaign), "--gateway", str(gateway)])
 
-    document = json.loads(capsys.readouterr().out)
-    assert code == 0
+    captured = capsys.readouterr()
+    assert (code, captured.err) == (0, ""), captured.err
+    document = json.loads(captured.out)
     assert sorted(document["artifacts_verified"]) == ["npm_artifact_path", "wheel_path"]
     assert document["artifacts_verified"]["npm_artifact_path"]["scope"] == "cortex_agent_server_npm"
     assert document["artifacts_verified"]["wheel_path"]["scope"] == "cortex_bench_harness_wheel"
@@ -671,7 +640,7 @@ def test_an_artifact_that_no_longer_matches_its_source_refuses_the_launch(
 
     code = launcher.main(
         ["--config", str(stale_campaign), "--gateway", str(gateway),
-         "--checkout", str(CHECKOUT_ROOT)])
+         "--checkout", str(stale_campaign.parents[2])])
 
     captured = capsys.readouterr()
     assert (code, captured.out) == (1, "")
@@ -692,11 +661,14 @@ def test_an_artifact_with_no_provenance_record_refuses_the_launch(
 
     code = launcher.main(
         ["--config", str(stale_campaign), "--gateway", str(gateway),
-         "--checkout", str(CHECKOUT_ROOT)])
+         "--checkout", str(stale_campaign.parents[2])])
 
     captured = capsys.readouterr()
     assert (code, captured.out) == (1, "")
-    assert "carries no provenance record" in json.loads(captured.err)["error"]
+    refusal = json.loads(captured.err)
+    assert refusal["ok"] is False
+    assert key in refusal["error"]
+    assert "carries no provenance record" in refusal["error"]
 
 
 def test_a_stale_artifact_refuses_a_run_before_the_credential_is_exported(
@@ -717,9 +689,13 @@ def test_a_stale_artifact_refuses_a_run_before_the_credential_is_exported(
 
     code = launcher.main(
         ["--config", str(stale_campaign), "--gateway", str(gateway),
-         "--checkout", str(CHECKOUT_ROOT), "--run"])
+         "--checkout", str(stale_campaign.parents[2]), "--run"])
 
     captured = capsys.readouterr()
-    assert code == 1
+    assert (code, captured.out) == (1, "")
+    refusal = json.loads(captured.err)
+    assert refusal["ok"] is False
+    assert "npm_artifact_path" in refusal["error"]
+    assert "carries no provenance record" in refusal["error"]
     assert FAKE_CREDENTIAL not in captured.out + captured.err
     assert all(name not in os.environ for name in REQUIRED_REFERENCES)

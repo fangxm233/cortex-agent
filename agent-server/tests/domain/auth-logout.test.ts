@@ -1,4 +1,4 @@
-// input:  disposable homes/auth paths, logout adapters, auth status
+// input:  isolated auth paths, logout adapters, local auth probe
 // output: logout ownership, state transition, and privacy regressions
 // pos:    Backend account logout regression tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -159,6 +159,9 @@ function piStatusOptions(
 ): GetAuthStatusOptions {
   return {
     claudeCredentialsPath: path.join(path.dirname(authPath), 'missing-claude.json'),
+    readClaudeAuthStatus: async () => ({
+      loggedIn: false, authMethod: 'none', apiProvider: 'firstParty',
+    }),
     piAuthPath: authPath,
     loadPiRuntime: loader,
     getSavedApiEnv: () => ({
@@ -177,7 +180,19 @@ function disposePiFixture(fixture: PiFixture): void {
   fs.rmSync(fixture.root, { recursive: true, force: true });
 }
 
-beforeEach(async () => {
+beforeEach(async (t) => {
+  const claudeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-logout-claude-'));
+  const envKeys = ['CLAUDE_CONFIG_DIR', 'ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN',
+    'CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT'];
+  const originalEnv = envKeys.map(key => [key, process.env[key]] as const);
+  t.onTestFinished(() => {
+    for (const [key, value] of originalEnv) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    fs.rmSync(claudeDir, { recursive: true, force: true });
+  });
+  process.env.CLAUDE_CONFIG_DIR = claudeDir;
   consoleCalls = [];
   for (const method of ['debug', 'log', 'info', 'warn', 'error'] as const) {
     vi.spyOn(console, method).mockImplementation((...args) => { consoleCalls.push(args); });

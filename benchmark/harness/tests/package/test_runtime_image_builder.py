@@ -1,7 +1,7 @@
-# input:  runtime image scripts, pinned manifests and local CLI fixtures
+# input:  runtime image scripts, manifests, bounded builder fixtures
 # output: role-safe vendor/Cortex image and smoke proofs
 # pos:    Contract tests for benchmark runtime images
-# >>> If I am updated, update my header and folder CORTEX.md <<<
+# >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
 
 import hashlib
 import json
@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 import yaml
+
+from runtime_image_builder_fixtures import executable, fake_docker, fake_task_builder_tools
 
 HARNESS_DIR = Path(__file__).resolve().parents[2]
 BUILD_SCRIPT = HARNESS_DIR / "scripts" / "build-zero-paid-runtime-image.sh"
@@ -107,13 +109,6 @@ def test_terminal_bench_manifest_has_one_digest_pinned_variant_per_vendor_and_ta
         "image_ref": f"{smoke['final_image_tag'].split(':')[0]}@{smoke['final_image_digest']}",
     }]
     assert selected["task_id"] == "constraints-scheduling"
-
-
-def executable(path: Path, content: str) -> Path:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
-    path.chmod(0o755)
-    return path
 
 
 def test_codex_runtime_preflight_selects_the_campaign_model(tmp_path: Path) -> None:
@@ -223,57 +218,6 @@ def runtime_manifest(root: Path, inputs: dict[str, Path]) -> Path:
         },
     }), encoding="utf-8")
     return path
-
-
-def fake_docker(root: Path) -> Path:
-    return executable(
-        root / "bin/docker",
-        """#!/bin/sh
-set -eu
-printf '%s\n' "$*" >> "$DOCKER_CALLS"
-if [ "$1" = build ]; then
-  for context do :; done
-  grep -q 'debian@sha256:7b140f374b289a7c2befc338f42ebe6441b7ea838a042bbd5acbfca6ec875818' "$context/Dockerfile"
-  case "$VENDOR" in
-    pi)
-      test -x "$context/node-runtime/bin/node"
-      test -x "$context/vendor-runtime/dist/cli.js"
-      grep -q '@earendil-works/pi-coding-agent' "$context/vendor-runtime/package.json"
-      grep -q '/opt/vendor-runtime/dist/cli.js' "$context/Dockerfile"
-      ! grep -Eq '/usr/local/bin/(claude|codex)' "$context/Dockerfile"
-      ;;
-    claude-code)
-      test -x "$context/vendor-runtime/claude"
-      test -x "$context/node-runtime/bin/node"
-      grep -q '/usr/local/bin/claude' "$context/Dockerfile"
-      ! grep -Eq '/usr/local/bin/(pi|codex)' "$context/Dockerfile"
-      ;;
-    codex)
-      test -x "$context/node-runtime/bin/node"
-      test -x "$context/vendor-runtime/bin/codex.js"
-      grep -q '@openai/codex' "$context/vendor-runtime/package.json"
-      grep -q '/usr/local/bin/codex' "$context/Dockerfile"
-      ! grep -Eq '/usr/local/bin/(pi|claude)' "$context/Dockerfile"
-      ;;
-    *) exit 97;;
-  esac
-  ! grep -Rq 'mariozechner/pi-coding-agent' "$context"
-  exit 0
-fi
-if [ "$1" = image ] && [ "$2" = inspect ]; then
-  printf '%s\n' "$FAKE_IMAGE_REF"
-  exit 0
-fi
-if [ "$1" = run ]; then
-  case "$*" in
-    *'/tmp/vendor-runtime-preflight.js'*) ;;
-    *) exit 96;;
-  esac
-  exit 0
-fi
-exit 99
-""",
-    )
 
 
 def explicit_environment(
@@ -531,71 +475,6 @@ def legacy_terminal_bench_manifest(
     path = root / "terminal-bench-images.json"
     path.write_text(json.dumps(document), encoding="utf-8")
     return path
-
-
-def fake_task_builder_tools(root: Path, source_commit: str) -> Path:
-    binary = root / "task-bin"
-    executable(
-        binary / "git",
-        "#!/bin/sh\n"
-        "set -eu\n"
-        "if [ \"$1\" = -C ] && [ \"$3\" = rev-parse ]; then printf '%s\\n' \"$SOURCE_COMMIT\"; exit 0; fi\n"
-        "exit 99\n",
-    )
-    executable(
-        binary / "uv",
-        "#!/bin/sh\n"
-        "set -eu\n"
-        "if [ \"${1:-}\" = python ] && [ \"${2:-}\" = find ]; then printf '/usr/bin/python3\\n'; exit 0; fi\n"
-        "target=\n"
-        "while [ $# -gt 0 ]; do [ \"$1\" = --target ] && { target=$2; break; }; shift; done\n"
-        "mkdir -p \"$target\"\n",
-    )
-    executable(
-        binary / "curl",
-        "#!/bin/sh\n"
-        "set -eu\n"
-        "while [ $# -gt 0 ]; do [ \"$1\" = -o ] && { output=$2; break; }; shift; done\n"
-        "printf 'fixture wheel' > \"$output\"\n",
-    )
-    executable(
-        binary / "docker",
-        "#!/bin/sh\n"
-        "set -eu\n"
-        "printf '%s %s\\n' \"${SOURCE_DATE_EPOCH:-unset}\" \"$*\" >> \"$DOCKER_CALLS\"\n"
-        "if [ \"$1\" = buildx ] && [ \"$2\" = build ]; then\n"
-        "  for context do :; done\n"
-        "  test -x \"$context/verifier/bin/apt-get\"\n"
-        "  vendor=${context##*/}\n"
-        "  case $vendor in\n"
-        "    pi) test -x \"$context/vendor-runtime/dist/cli.js\";;\n"
-        "    claude-code) test -x \"$context/vendor-runtime/claude\";;\n"
-        "    codex) test -x \"$context/vendor-runtime/bin/codex.js\";;\n"
-        "    cortex-smoke) test -x \"$context/pi-agent/dist/cli.js\"; test -f \"$context/npm/package.json\";;\n"
-        "    *) exit 97;;\n"
-        "  esac\n"
-        "  exit 0\n"
-        "fi\n"
-        "if [ \"$1\" = image ] && [ \"$2\" = inspect ]; then\n"
-        "  case \"$*\" in *--format*) :;; *) exit 0;; esac\n"
-        "  case \"$*\" in *'{{.Id}}'*) printf '%s\\n' \"${SOURCE_IMAGE_ID:-${3##*@}}\"; exit 0;; esac\n"
-        "  case \"$*\" in *'{{json .Config}}'*) printf '%s\\n' '{\"Env\":[\"PATH=/usr/bin\"],\"Volumes\":null}'; exit 0;; esac\n"
-        "  tag=$3; key=${tag#*:}\n"
-        "  case $key in\n"
-        "    alpha-vendor-pi-0.82.1) n=6;; alpha-claude-code-2.1.232) n=7;; alpha-codex-0.148.0) n=8;;\n"
-        "    beta-vendor-pi-0.82.1) n=9;; beta-claude-code-2.1.232) n=10;; beta-codex-0.148.0) n=11;;\n"
-        "    gamma-vendor-pi-0.82.1) n=12;; gamma-claude-code-2.1.232) n=13;; gamma-codex-0.148.0) n=14;;\n"
-        "    alpha-cortex-smoke-2026.8.6) n=15;;\n"
-        "    alpha-cortex-pi-0.82.1) n=16;; beta-cortex-pi-0.82.1) n=17;; gamma-cortex-pi-0.82.1) n=18;;\n"
-        "    *) exit 98;;\n"
-        "  esac\n"
-        "  printf '%s@sha256:%064x\\n' \"${tag%%:*}\" \"$n\"; exit 0\n"
-        "fi\n"
-        "if [ \"$1\" = load ]; then exit 0; fi\n"
-        "if [ \"$1\" = run ]; then exit 0; fi\n"
-        "exit 99\n",
-    )
-    return binary
 
 
 def test_terminal_bench_builder_preserves_authentic_tasks_and_builds_pinned_images(

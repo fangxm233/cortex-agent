@@ -1,4 +1,4 @@
-// input:  Claude/Feishu env writers, LoginFlow, temporary config
+// input:  env writers, LoginFlow, isolated config and auth probe
 // output: API-key persistence, concurrency, recovery, privacy tests
 // pos:    Claude API-key login regression tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -44,16 +44,20 @@ function restoreEnv(name: string, value: string | undefined): void {
 
 function setupAuthFixture(t: CleanupContext, initialKey: string = PLACEHOLDER): AuthFixture {
   const home = process.env.CORTEX_HOME!;
-  const originals = new Map(['HOME', 'ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL']
+  const claudeDir = fs.mkdtempSync(path.join(home, 'claude-login-'));
+  const credentialEnv = ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL',
+    'CLAUDE_CODE_OAUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT'];
+  const originals = new Map(['HOME', 'CLAUDE_CONFIG_DIR', ...credentialEnv]
     .map(name => [name, process.env[name]]));
   t.onTestFinished(() => {
     for (const [name, value] of originals) restoreEnv(name, value);
     _testSetHealthy(null);
     initAuthEvents(null);
+    fs.rmSync(claudeDir, { recursive: true, force: true });
   });
   process.env.HOME = home;
-  delete process.env.ANTHROPIC_API_KEY;
-  delete process.env.ANTHROPIC_BASE_URL;
+  process.env.CLAUDE_CONFIG_DIR = claudeDir;
+  for (const name of credentialEnv) delete process.env[name];
   fs.mkdirSync(path.join(home, 'config'), { recursive: true });
   fs.mkdirSync(path.join(home, 'data'), { recursive: true });
   fs.writeFileSync(path.join(home, 'data', 'mode.json'), JSON.stringify({ claudeMode: 'plan' }));
@@ -111,6 +115,9 @@ async function runLogin(login: LoginFlowConsumer, key: string) {
 async function readClaudeStatus(getAuthStatus: GetAuthStatus) {
   const snapshot = await getAuthStatus({
     getClaudeMode: () => 'api', getActiveBackend: () => 'claude', listProfiles: () => [],
+    readClaudeAuthStatus: async () => ({
+      loggedIn: false, authMethod: 'none', apiProvider: 'firstParty',
+    }),
     loadPiRuntime: async () => ({
       available: false, version: null, entry: null, error: 'fixture runtime unavailable',
       runtime: null, readStoredCredential: null,

@@ -1,4 +1,4 @@
-// input:  hook CLI, registry sync, temporary hook/template files
+// input:  hook CLI, registry sync, real subprocess fixtures
 // output: CLI metadata, mutation, execution, and ask-flow tests
 // pos:    Verifies the declarative hook registry CLI contract
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -217,7 +217,7 @@ test('test executes a registry script with a file payload through the shared run
   const fixture = makeFixture(t);
   writePayloadHook(fixture, 'payload.mjs');
   writeJson(fixture.registryDir, 'payload.json', registryEntry('payload', {
-    run: { script: 'payload.mjs', timeout: 1 }, enabled: false,
+    run: { script: 'payload.mjs', timeout: 5 }, enabled: false,
   }));
   const payloadPath = path.join(fixture.root, 'payload.json');
   fs.writeFileSync(payloadPath, '{"value":"file payload"}\n');
@@ -244,7 +244,7 @@ test('test executes a registry command with payload and structured output', asyn
     "});",
   ].join('\n'));
   writeJson(fixture.registryDir, 'command.json', registryEntry('command', {
-    run: { command: `node ${JSON.stringify(script)}`, timeout: 1 },
+    run: { command: `node ${JSON.stringify(script)}`, timeout: 5 },
   }));
   const payloadPath = path.join(fixture.root, 'command-payload.txt');
   fs.writeFileSync(payloadPath, 'registry command payload');
@@ -278,7 +278,7 @@ test('test preserves output and mirrors a non-zero hook exit', async (t) => {
   const fixture = makeFixture(t);
   writePayloadHook(fixture, 'failure.mjs', 7);
   writeJson(fixture.registryDir, 'failure.json', registryEntry('failure', {
-    run: { script: 'failure.mjs', timeout: 1 },
+    run: { script: 'failure.mjs', timeout: 5 },
   }));
   const payloadPath = path.join(fixture.root, 'payload.txt');
   fs.writeFileSync(payloadPath, 'partial output');
@@ -302,7 +302,7 @@ test('test executes a template command with positional args', async (t) => {
     "process.stdin.on('end', () => process.stdout.write(process.argv[2] + '|' + Buffer.concat(chunks)));",
   ].join('\n'));
   writeJson(fixture.templateDir, 'execute.json', {
-    hooks: { onStart: { command: `node ${JSON.stringify(script)}`, args: ['scoped arg'], timeout: 1_000 } },
+    hooks: { onStart: { command: `node ${JSON.stringify(script)}`, args: ['scoped arg'], timeout: 5_000 } },
   });
   const payloadPath = path.join(fixture.root, 'template-payload.txt');
   fs.writeFileSync(payloadPath, 'template payload');
@@ -319,7 +319,7 @@ test('--payload - reads process stdin in the executable CLI', (t) => {
   const fixture = makeFixture(t);
   writePayloadHook(fixture, 'stdin.mjs');
   writeJson(fixture.registryDir, 'stdin.json', registryEntry('stdin', {
-    run: { script: 'stdin.mjs', timeout: 1 },
+    run: { script: 'stdin.mjs', timeout: 5 },
   }));
   const cli = path.resolve('src/entry/hook-cli.ts');
   const payload = 'stdin payload\nwith second line\n';

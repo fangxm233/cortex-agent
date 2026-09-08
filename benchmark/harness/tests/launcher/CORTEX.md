@@ -5,10 +5,12 @@ Launcher tests cover production arm routing, admission and evidence recording.
 | filename | role | function |
 |---|---|---|
 | trial_fixtures.py | fixture | Builds production trial documents |
+| paid_campaign_fixtures.py | fixture | Stages synthetic checkouts and valid provenance |
+| trial_proxy_fixtures.py | fixture | Builds offline trial seeds and recording handles |
 | test_arms.py | test | Verifies arm/task selection, seed binding and direct-arm routing |
 | test_campaign.py | test | Verifies campaign execution and score admission semantics |
 | test_capability_ceilings.py | test | Verifies committed paid-envelope ceilings |
-| test_capability_evidence.py | test | Verifies current capability provenance and proof sources |
+| test_capability_evidence.py | test | Verifies live evidence and offline proof digests |
 | test_capability_state_gate.py | test | Verifies offline and live capability admission |
 | test_comparison_report.py | test | Verifies comparison rewards and outcome semantics |
 | test_container_stop_observation.py | test | Verifies post-stop observations |
@@ -22,7 +24,7 @@ Launcher tests cover production arm routing, admission and evidence recording.
 | test_host_finalization.py | test | Verifies envelopes, leak gates and scan diagnostics |
 | test_live_handshake_permit.py | test | Verifies native-default bootstrap bounds and safe diagnostics |
 | test_leak_scan_finalization_docker.py | test | Proves clean publication after verifier alias cleanup |
-| test_paid_campaign_launch.py | test | Verifies paid launch and Codex auth loading |
+| test_paid_campaign_launch.py | test | Verifies hermetic launch, auth and provenance gates |
 | test_production_arms.py | test | Verifies committed arm bundles |
 | test_result_summary.py | test | Verifies explicit thinking projection in public result summaries |
 | test_runtime_mounts.py | test | Verifies staged runtime mounts reach containers read-only or are refused |
@@ -31,7 +33,7 @@ Launcher tests cover production arm routing, admission and evidence recording.
 | test_production_session_admission.py | test | Verifies sealed session execution |
 | test_production_pi_child_docker.py | test | Proves real PI child caps across catalog refresh |
 | test_trial_admission.py | test | Verifies Harbor trial admission |
-| test_trial_proxy_wiring.py | test | Verifies proxy lifecycle wiring |
+| test_trial_proxy_wiring.py | test | Verifies bootstrap failures and route revocation |
 | test_verifier_gate.py | test | Verifies the pre-agent gate separates a verifier that could not start from an agent that was wrong |
 | test_vendor_agents.py | test | Verifies vendor setup, usage, caps and containment |
 | test_vendor_baseline_isolation.py | test | Verifies vendor baseline isolation |
