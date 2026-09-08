@@ -20,6 +20,7 @@ import { useVocab } from '@/i18n';
 import { NotesPane } from '@/features/notes/NotesPane';
 import { useNotes } from '@/features/notes/NotesProvider';
 import { useMachinesResource } from '@/features/machines/useMachinesResource';
+import { usePaneState } from '@/shell/PaneStateProvider';
 
 // RIGHT PANEL — 1:1 from prototype.dc.html L1091–1276 (Stage-R RB sibling C, task 1e96). Exact inline
 // styles / px / hex / font / weight / EN copy reproduced verbatim; real tRPC data (cost.summary /
@@ -33,7 +34,6 @@ type PanelLabels = Record<PanelTarget, string>;
 
 const PANEL_WIDTH = 400;
 const PANEL_RAIL_WIDTH = 42;
-const PANEL_COLLAPSED_KEY = 'cortex:right-panel-collapsed';
 
 const PANEL_ICONS: Record<PanelTarget, ReactNode> = {
   threads: <><path d="M8 6h11M8 12h8M8 18h5" /><circle cx="4" cy="6" r="1" /><circle cx="4" cy="12" r="1" /><circle cx="4" cy="18" r="1" /></>,
@@ -111,22 +111,16 @@ function RightPanelRail({ active, labels, navigationLabel, expandLabel, onExpand
   );
 }
 
-function usePanelCollapsed(notesOpen: boolean) {
-  const [collapsed, setCollapsed] = useState(() => window.localStorage.getItem(PANEL_COLLAPSED_KEY) === 'true');
-  useEffect(() => {
-    window.localStorage.setItem(PANEL_COLLAPSED_KEY, String(collapsed));
-  }, [collapsed]);
-  useEffect(() => {
-    if (notesOpen) setCollapsed(false);
-  }, [notesOpen]);
-  return [collapsed, setCollapsed] as const;
-}
-
 export function RightPanel(): JSX.Element {
   const L = useVocab();
   const notes = useNotes();
   const [tab, setTab] = useState<Tab>('threads');
-  const [collapsed, setCollapsed] = usePanelCollapsed(notes.isOpen);
+  const { panelCollapsed: collapsed, setPanelCollapsed: setCollapsed } = usePaneState();
+  // Opening Notes force-expands the panel: the drawer renders inside it, so a collapsed panel
+  // would swallow the surface the user just asked for.
+  useEffect(() => {
+    if (notes.isOpen) setCollapsed(false);
+  }, [notes.isOpen, setCollapsed]);
   const active: PanelTarget = notes.isOpen ? 'notes' : tab;
   const labels: PanelLabels = { threads: L.threads, tasks: L.tasks, machines: L.machines, notes: notes.copy.title };
   const select = (target: PanelTarget) => {

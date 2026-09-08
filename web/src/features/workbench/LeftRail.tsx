@@ -43,13 +43,13 @@ import { connectionDot, connectionLabelKey, type ConnectionDot } from '@/feature
 import { RailRateLimitStatus, useRateLimitStatus } from '@/features/rate-limit';
 import { PlusGlyph } from '@/design';
 import { useAllSessions } from '@/features/projects/useProjectSessions';
+import { usePaneState } from '@/shell/PaneStateProvider';
 
 const mono = "'IBM Plex Mono',monospace";
 const RAIL_WIDTH = 340;
 // Mirrors the right panel's icon rail (RightPanel PANEL_RAIL_WIDTH) so both collapsed edges read
 // as the same object: a 26px square of content inside 8px gutters.
 const RAIL_COLLAPSED_WIDTH = 42;
-const RAIL_COLLAPSED_KEY = 'cortex:left-rail-collapsed';
 const EXPANDED_KEY = 'cortex.railExpanded';
 const SCHED_EXPANDED_KEY = 'cortex.railSchedExpanded';
 const COMM_EXPANDED_KEY = 'cortex.railCommExpanded';
@@ -175,24 +175,6 @@ function RailIconButton({ label, color, onClick, onMouseEnter, onMouseLeave, chi
   );
 }
 
-function useRailCollapsed() {
-  const [collapsed, setCollapsed] = useState<boolean>(() => {
-    try {
-      return window.localStorage.getItem(RAIL_COLLAPSED_KEY) === 'true';
-    } catch {
-      return false;
-    }
-  });
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(RAIL_COLLAPSED_KEY, String(collapsed));
-    } catch {
-      /* persistence is best-effort */
-    }
-  }, [collapsed]);
-  return [collapsed, setCollapsed] as const;
-}
-
 export function LeftRail(): JSX.Element {
   const navigate = useNavigate();
   const trpc = useTRPC();
@@ -203,7 +185,7 @@ export function LeftRail(): JSX.Element {
   // Live UI↔server connectivity for the daemon badge (green connected / amber (re)connecting /
   // red disconnected).
   const connStatus = useConnectionStatus();
-  const [collapsed, setCollapsed] = useRailCollapsed();
+  const { railCollapsed: collapsed, setRailCollapsed: setCollapsed } = usePaneState();
   const rateLimitStatus = useRateLimitStatus();
   const connDot = connectionDot(connStatus);
   const connLabel = L[connectionLabelKey(connStatus)];
