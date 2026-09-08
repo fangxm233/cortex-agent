@@ -6,7 +6,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
-import { encodeSubagentNotice } from '../src/agent-adapter/pi/subagent-notice.js';
 import type { NormalizedEvent } from '../src/agent-adapter/normalize/event-types.js';
 import { resetSettingsForTests } from '../src/core/settings.js';
 import { makeFakeRuntimeFactory, type FakeRuntime } from './agent-adapter/pi-fake-runtime.js';
@@ -80,11 +79,11 @@ test('PI keeps attribution on a subagent assistant message instead of merging it
   const { proc, runtime } = await spawnStreaming('stream-subagent-text');
 
   runtime.emit({
-    type: 'extension_ui_request', id: 'ui-subagent', method: 'notify',
-    message: encodeSubagentNotice({
+    type: 'cortex_subagent_event',
+    notice: {
       ref: 'agent-call#0', type: 'explore', description: 'Inspect adapter',
       model: 'gpt-5.4-mini', kind: 'assistant_text', text: 'child report',
-    }),
+    },
   });
   runtime.emit({ type: 'message_end' });
 

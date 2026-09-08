@@ -20,7 +20,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | agent-adapter-pi-mcp-bridge.test.ts | test | PI bundled MCP, plugin isolation and retry |
 | agent-adapter-pi-quota-probe.test.ts | test | PI quota reporting, persistence, and throttle failure parity |
 | agent-adapter-pi-streaming.test.ts | test | PI delta streaming with settings reset |
-| agent-adapter-pi-subagent.test.ts | test | PI schema, chain prompts, isolation and usage |
+| agent-adapter-pi-subagent.test.ts | test | PI Agent tool: nested sessions, chain prompts, isolation, attribution and usage |
 | agent-adapter-pi-tool-shims.test.ts | test | PI-local shims, dialogs and web tools |
 | agent-adapter-pi-web-search.test.ts | test | PI WebSearch routing and decoding |
 | agent-adapter-pi.test.ts | test | PI interaction env, in-process session lifecycle and resume |

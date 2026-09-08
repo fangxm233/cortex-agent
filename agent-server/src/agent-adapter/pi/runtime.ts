@@ -161,7 +161,11 @@ export async function createPiRuntime(
 ): Promise<PiRuntimeHandle> {
   const sdk = await loadPiSdk();
   const ui = createPiUiContext((record) => callbacks.onEvent(record), ensureTheme(sdk));
-  const extensions = createCortexExtensions(request, { onProviderQuota: callbacks.onProviderQuota });
+  const extensions = createCortexExtensions(request, {
+    onProviderQuota: callbacks.onProviderQuota,
+    // A subagent's events reach the parent's stream as one raw record per event, no codec in between.
+    onSubagentEvent: (notice) => callbacks.onEvent({ type: 'cortex_subagent_event', notice }),
+  });
   const sessionManager = openSessionManager(sdk, request);
   const runtime = await sdk.createAgentSessionRuntime(runtimeFactory(sdk, request, extensions), {
     cwd: sessionManager.getCwd(),

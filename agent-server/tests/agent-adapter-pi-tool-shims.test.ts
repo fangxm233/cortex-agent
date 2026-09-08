@@ -10,7 +10,7 @@ import { join as pathJoin } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
 import type { PIAgentProcess } from '../src/agent-adapter/pi/adapter.js';
-import toolShims from '../src/agent-adapter/pi/tool-shims.js';
+import { installToolShims } from '../src/agent-adapter/pi/tool-shims.js';
 import { makeFakeRuntimeFactory, type FakeRuntime } from './agent-adapter/pi-fake-runtime.js';
 
 const SESSION_DIR = pathJoin(tmpdir(), 'pi-shims-test-' + process.pid);
@@ -161,7 +161,7 @@ test('J: coder allowlist registers one Agent at session start', async () => {
   delete process.env.CORTEX_PI_SUBAGENT;
   try {
     const { pi, registered, handlers, emit } = makeMockPi();
-    toolShims(pi);
+    installToolShims(pi, process.env);
     assert.ok(!registered.includes('ask_user_question'));
     assert.ok(!registered.includes('enter_plan_mode'));
     assert.ok(!registered.includes('exit_plan_mode'));
@@ -197,7 +197,7 @@ test('J2: unset allowlist exposes only the remaining local shims', async () => {
   delete process.env.CORTEX_PI_SUBAGENT;
   try {
     const { pi, registered, emit } = makeMockPi();
-    toolShims(pi);
+    installToolShims(pi, process.env);
     await emit('session_start', {
       model: { provider: 'openai-codex', id: 'active-model' },
       modelRegistry: { getAvailable: () => [] },
@@ -223,7 +223,7 @@ test('J2b: CORTEX_PI_SUBAGENT prevents recursive Agent registration', () => {
   process.env.CORTEX_PI_SUBAGENT = '1';
   try {
     const { pi, registered, handlers } = makeMockPi();
-    toolShims(pi);
+    installToolShims(pi, process.env);
     assert.ok(!registered.includes('agent'));
     assert.equal(handlers.get('session_start'), undefined);
     assert.ok(registered.includes('todo_write'));
@@ -241,7 +241,7 @@ function makeWebFetchTool(): any {
   delete process.env.CORTEX_PI_ALLOWED_TOOLS;
   try {
     const { pi, definitions } = makeMockPi();
-    toolShims(pi);
+    installToolShims(pi, process.env);
     const tool = definitions.get('web_fetch');
     assert.ok(tool, 'web_fetch should be registered');
     return tool;
@@ -290,7 +290,7 @@ test('J4: toolShims excludes web tools when the allowlist omits them', () => {
   process.env.CORTEX_PI_ALLOWED_TOOLS = 'Read,Grep';
   try {
     const { pi, registered } = makeMockPi();
-    toolShims(pi);
+    installToolShims(pi, process.env);
     assert.ok(!registered.includes('agent'));
     assert.ok(!registered.includes('web_fetch'));
     assert.ok(!registered.includes('web_search'));

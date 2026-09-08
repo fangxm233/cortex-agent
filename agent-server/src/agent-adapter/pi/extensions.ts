@@ -6,6 +6,7 @@
 import type { InlineExtension } from '@earendil-works/pi-coding-agent';
 import type { CodexQuotaReading } from '@domain/costs/codex-quota.js';
 import type { PiSessionRequest } from './session-options.js';
+import type { SubagentNotice } from './event-parser.js';
 import { installMcpBridge, createMcpBridgeDeps } from './mcp-bridge.js';
 import { installHookBridge } from './hook-bridge.js';
 import { installToolShims } from './tool-shims.js';
@@ -13,6 +14,8 @@ import { createQuotaProbe } from './quota-probe.js';
 
 export interface CortexExtensionHooks {
   onProviderQuota?: (reading: CodexQuotaReading) => void;
+  /** Receives each event a subagent forwards for the parent's transcript. */
+  onSubagentEvent?: (notice: SubagentNotice) => void;
 }
 
 /**
@@ -30,7 +33,10 @@ export function createCortexExtensions(
       name: 'cortex-mcp-bridge',
       factory: (pi) => installMcpBridge(pi, createMcpBridgeDeps(request.env, request.pluginMcpServers)),
     },
-    { name: 'cortex-tool-shims', factory: (pi) => installToolShims(pi, request.env) },
+    {
+      name: 'cortex-tool-shims',
+      factory: (pi) => installToolShims(pi, request.env, { onSubagentEvent: hooks.onSubagentEvent }),
+    },
   ];
   if (!request.disableHooks) {
     extensions.push({ name: 'cortex-hook-bridge', factory: (pi) => installHookBridge(pi, request.env) });

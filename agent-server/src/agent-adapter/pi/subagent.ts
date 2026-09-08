@@ -1,31 +1,21 @@
-// input:  PI roles, model options, child processes, TypeBox
-// output: PI Agent execution with runtime chain prompt notices
-// pos:    Orchestrates PI subagents and parses their streams
+// input:  PI Agent tool calls, role files under the agent dir, a nested PI session factory
+// output: Single, parallel and chain subagent runs with attributed child events and usage
+// pos:    PI Agent tool: runs role-scoped subagents as nested in-process PI sessions
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { spawn as defaultSpawn, type ChildProcess, type SpawnOptions } from 'node:child_process';
-import {
-  mkdtempSync,
-  readFileSync,
-  readdirSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
-import { tmpdir } from 'node:os';
+import { readFileSync, readdirSync } from 'node:fs';
 import * as path from 'node:path';
 import { Type } from '@sinclair/typebox';
 import { parse as yamlParse } from 'yaml';
-import { PI_AGENT_DIR, ensurePIAgentRoles } from './agent-dir.js';
-import { MCP_BRIDGE_PATH, TOOL_SHIMS_PATH } from './defaults.js';
-import type { ExtensionContext, ToolDefinition } from '@earendil-works/pi-coding-agent';
+import type { ExtensionContext, InlineExtension, ToolDefinition } from '@earendil-works/pi-coding-agent';
+import type { ChildSessionFactory, ChildSessionHandle } from './child-session.js';
+import type { SubagentNotice } from './event-parser.js';
 import { PI_INTERACTION_BRIDGE_ENV } from './session-options.js';
-import { encodeSubagentNotice, type SubagentNotice } from './subagent-notice.js';
 
 export const MAX_SUBAGENT_TASKS = 8;
 export const MAX_SUBAGENT_CONCURRENCY = 8;
 export const MAX_SUBAGENT_MODEL_CHOICES = 32;
 export const MAX_SUBAGENT_MODEL_LIST_CHARS = 1_200;
-export const SUBAGENT_KILL_GRACE_MS = 5_000;
 
 const MODEL_OVERRIDE_DESCRIPTION =
   'Optional PI model override in provider/model[:thinking] format. ' +
@@ -94,9 +84,7 @@ export interface SubagentResult {
   description: string;
   prompt: string;
   subagentType: string;
-  exitCode: number;
   output: string;
-  stderr: string;
   usage: SubagentUsage;
   model?: string;
   stopReason?: string;
@@ -109,23 +97,18 @@ export interface SubagentDetails {
   usage: SubagentUsage;
 }
 
-export type SubagentSpawn = (
-  command: string,
-  args: string[],
-  options: SpawnOptions,
-) => ChildProcess;
-
 export interface SubagentToolDeps {
-  spawn: SubagentSpawn;
-  command: string;
+  /** PI agent dir whose `agents/` holds the role files and whose auth/models the children use. */
   agentDir: string;
   ensureRoles(): void;
-  toolShimsPath: string;
-  mcpBridgePath: string;
-  killGraceMs: number;
-  /** Override the child→server channel. Tests substitute a recorder; production leaves it unset
-   *  and the real `ctx.ui.notify` channel is built per call. */
-  channel?: (parentToolCallId: string, ctx: ExtensionContext) => SubagentChannel | undefined;
+  /** Creates one nested in-process PI session per child. */
+  createSession: ChildSessionFactory;
+  /** The Cortex extensions a child session runs with, closed over the child's env. */
+  childExtensions: (env: NodeJS.ProcessEnv) => InlineExtension[];
+  /** The parent session's env; each child's env is derived from it. */
+  parentEnv: NodeJS.ProcessEnv;
+  /** Receives every forwarded child event for the parent's transcript. Absent: no attribution. */
+  onEvent?: (notice: SubagentNotice) => void;
 }
 
 interface ChildAccumulator {
@@ -141,11 +124,6 @@ interface Invocation {
   tasks: SubagentTask[];
 }
 
-interface PromptFile {
-  filePath: string | null;
-  cleanup(): void;
-}
-
 /** Called for every event a child emits, with the accumulator so the notice can name the model as
  *  soon as the child has reported one. Best-effort by contract — see processEvent. */
 type ChildEventForwarder = (event: Record<string, unknown>, acc: ChildAccumulator) => void;
@@ -156,18 +134,16 @@ export interface SubagentChannel {
   forChild(index: number, task: { description: string; prompt: string; subagent_type: string }): ChildEventForwarder;
 }
 
-/** The real channel: PI's `ctx.ui.notify`, the one fire-and-forget message an extension gets on
- *  the RPC stream. Absent (or throwing) simply costs attribution — the subagent still runs and its
- *  final output still returns through the tool result, exactly as before. */
+/** The parent-side sink for a child's events. Absent (or throwing) simply costs attribution — the
+ *  subagent still runs and its final output still returns through the tool result. */
 export function subagentChannel(
   parentToolCallId: string,
-  ctx: { ui?: { notify?: (message: string) => void } } | undefined,
+  onEvent: ((notice: SubagentNotice) => void) | undefined,
   forwardRuntimePrompt = false,
 ): SubagentChannel | undefined {
-  const notify = ctx?.ui?.notify;
-  if (typeof notify !== 'function' || !parentToolCallId) return undefined;
-  const send = (message: string): void => {
-    try { notify.call(ctx!.ui, message); } catch { /* best-effort */ }
+  if (!onEvent || !parentToolCallId) return undefined;
+  const send = (notice: SubagentNotice): void => {
+    try { onEvent(notice); } catch { /* best-effort */ }
   };
   return {
     forChild(index, task) {
@@ -176,8 +152,7 @@ export function subagentChannel(
       return (event, acc) => {
         const notices = noticesFor(ref, task, acc, event);
         for (let i = 0; i < notices.length; i++) {
-          const withPrompt = promptPending && i === 0 ? { ...notices[i], prompt: task.prompt } : notices[i];
-          send(encodeSubagentNotice(withPrompt));
+          send(promptPending && i === 0 ? { ...notices[i], prompt: task.prompt } : notices[i]);
         }
         if (notices.length) promptPending = false;
       };
@@ -185,7 +160,7 @@ export function subagentChannel(
   };
 }
 
-/** Translate one child stdout event into the notices the transcript can render. Returns [] for
+/** Translate one child session event into the notices the transcript can render. Returns [] for
  *  everything else — deltas, lifecycle, usage — so the channel stays quiet between real actions. */
 function noticesFor(
   ref: string,
@@ -231,15 +206,6 @@ function toolResultText(result: unknown): string {
     .filter((b) => b && typeof b === 'object' && (b as Record<string, unknown>).type === 'text')
     .map((b) => String((b as Record<string, unknown>).text ?? ''))
     .join('');
-}
-
-interface ChildCollectionState {
-  accumulator: ChildAccumulator;
-  buffer: string;
-  stderr: string;
-  closed: boolean;
-  aborted: boolean;
-  killTimer: ReturnType<typeof setTimeout> | null;
 }
 
 function emptyUsage(): SubagentUsage {
@@ -357,18 +323,6 @@ function validateTask(task: SubagentTask): void {
   }
 }
 
-function createPromptFile(role: AgentRole): PromptFile {
-  if (!role.systemPrompt) return { filePath: null, cleanup: () => undefined };
-  const directory = mkdtempSync(path.join(tmpdir(), 'cortex-pi-subagent-'));
-  const safeName = role.name.replace(/[^\w.-]+/g, '_');
-  const filePath = path.join(directory, `${safeName}.md`);
-  writeFileSync(filePath, role.systemPrompt, { encoding: 'utf8', mode: 0o600 });
-  return {
-    filePath,
-    cleanup: () => rmSync(directory, { recursive: true, force: true }),
-  };
-}
-
 function selectedModel(task: SubagentTask, role: AgentRole, ctx: ExtensionContext) {
   const explicit = task.model?.trim();
   if (explicit) return { model: explicit };
@@ -378,30 +332,11 @@ function selectedModel(task: SubagentTask, role: AgentRole, ctx: ExtensionContex
   return {};
 }
 
-function buildChildArgs(
-  task: SubagentTask,
-  role: AgentRole,
-  ctx: ExtensionContext,
-  promptFile: string | null,
-  deps: SubagentToolDeps,
-): string[] {
-  const args = ['--mode', 'json', '-p', '--no-session', '--no-extensions'];
-  const selection = selectedModel(task, role, ctx);
-  if (selection.provider) args.push('--provider', selection.provider);
-  if (selection.model) args.push('--model', selection.model);
-  if (role.tools?.length) args.push('--tools', role.tools.join(','));
-  if (promptFile) args.push('--append-system-prompt', promptFile);
-  args.push('--extension', deps.toolShimsPath, '--extension', deps.mcpBridgePath);
-  args.push(`Task: ${task.prompt}`);
-  return args;
-}
-
-function buildChildEnv(agentDir: string): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = {
-    ...process.env,
-    PI_CODING_AGENT_DIR: agentDir,
-    CORTEX_PI_SUBAGENT: '1',
-  };
+/** The child's env: the parent's, marked as a subagent and stripped of the thread scope and the
+ *  interaction bridge, so the child's tool shims skip the Agent tool and its MCP bridge loads only
+ *  the core bundle. */
+function buildChildEnv(parentEnv: NodeJS.ProcessEnv, agentDir: string): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...parentEnv, PI_CODING_AGENT_DIR: agentDir, CORTEX_PI_SUBAGENT: '1' };
   delete env.CORTEX_THREAD_ID;
   delete env.CORTEX_TASK_ID;
   delete env[PI_INTERACTION_BRIDGE_ENV];
@@ -435,16 +370,6 @@ function recordUsage(accumulator: ChildAccumulator, message: Record<string, unkn
     contextTokens: finiteNumber(usage?.totalTokens),
     turns: 1,
   });
-}
-
-function parseEventLine(line: string): Record<string, unknown> | null {
-  if (!line.trim()) return null;
-  try {
-    const event = JSON.parse(line) as unknown;
-    return event && typeof event === 'object' && !Array.isArray(event)
-      ? event as Record<string, unknown>
-      : null;
-  } catch { return null; }
 }
 
 function messageEndMessage(event: Record<string, unknown>): Record<string, unknown> | null {
@@ -483,15 +408,12 @@ function recordAssistantMessage(
 
 function processEvent(
   accumulator: ChildAccumulator,
-  line: string,
+  event: Record<string, unknown>,
   forward?: ChildEventForwarder,
 ): void {
-  const event = parseEventLine(line);
-  if (!event) return;
-  // Forward FIRST and unconditionally: the accumulator only ever cared about `message_end`, but
-  // the transcript wants the child's tool calls too, and those are exactly the events that used
-  // to be dropped here. The model is read off the accumulator so a notice can name it as soon as
-  // the child's first message reports one.
+  // Forward FIRST and unconditionally: the accumulator only cares about `message_end`, but the
+  // transcript wants the child's tool calls too. The model is read off the accumulator so a notice
+  // can name it as soon as the child's first message reports one.
   if (forward) {
     try { forward(event, accumulator); }
     catch { /* the channel is best-effort: a broken notice must not fail the subagent */ }
@@ -503,31 +425,20 @@ function processEvent(
 }
 
 function isFailed(result: SubagentResult): boolean {
-  return result.exitCode !== 0
-    || result.stopReason === 'error'
-    || result.stopReason === 'aborted';
+  return result.stopReason === 'error' || result.stopReason === 'aborted';
 }
 
 function resultText(result: SubagentResult): string {
-  if (isFailed(result)) {
-    return result.errorMessage || result.output || result.stderr || '(no output)';
-  }
-  return result.output || result.stderr || '(no output)';
+  if (isFailed(result)) return result.errorMessage || result.output || '(no output)';
+  return result.output || '(no output)';
 }
 
-function createChildResult(
-  task: SubagentTask,
-  accumulator: ChildAccumulator,
-  exitCode: number,
-  stderr: string,
-): SubagentResult {
+function createChildResult(task: SubagentTask, accumulator: ChildAccumulator): SubagentResult {
   return {
     description: task.description,
     prompt: task.prompt,
     subagentType: task.subagent_type,
-    exitCode,
     output: accumulator.output,
-    stderr,
     usage: accumulator.usage,
     model: accumulator.model,
     stopReason: accumulator.stopReason,
@@ -535,7 +446,8 @@ function createChildResult(
   };
 }
 
-function runChild(
+/** Run one task on its own nested PI session; the session is disposed however the run ends. */
+async function runChild(
   task: SubagentTask,
   role: AgentRole,
   ctx: ExtensionContext,
@@ -543,83 +455,49 @@ function runChild(
   deps: SubagentToolDeps,
   forward?: ChildEventForwarder,
 ): Promise<SubagentResult> {
-  const promptFile = createPromptFile(role);
-  const args = buildChildArgs(task, role, ctx, promptFile.filePath, deps);
-  const child = deps.spawn(deps.command, args, {
+  const selection = selectedModel(task, role, ctx);
+  const handle = await deps.createSession({
     cwd: ctx.cwd,
-    env: buildChildEnv(deps.agentDir),
-    shell: false,
-    stdio: ['ignore', 'pipe', 'pipe'],
+    agentDir: deps.agentDir,
+    provider: selection.provider ?? null,
+    model: selection.model ?? null,
+    tools: role.tools,
+    appendSystemPrompt: role.systemPrompt ? [role.systemPrompt] : [],
+    extensions: deps.childExtensions(buildChildEnv(deps.parentEnv, deps.agentDir)),
   });
-  return collectChild(child, task, signal, deps.killGraceMs, forward).finally(promptFile.cleanup);
-}
-
-function consumeStdout(
-  state: ChildCollectionState, chunk: unknown, forward?: ChildEventForwarder,
-): void {
-  state.buffer += String(chunk);
-  const lines = state.buffer.split('\n');
-  state.buffer = lines.pop() ?? '';
-  for (const line of lines) processEvent(state.accumulator, line, forward);
-}
-
-function abortChild(child: ChildProcess, state: ChildCollectionState, graceMs: number): void {
-  state.aborted = true;
-  child.kill('SIGTERM');
-  state.killTimer = setTimeout(() => {
-    if (!state.closed) child.kill('SIGKILL');
-  }, graceMs);
-}
-
-function markChildClosed(state: ChildCollectionState): void {
-  state.closed = true;
-  if (state.killTimer) clearTimeout(state.killTimer);
-}
-
-function finishChild(
-  state: ChildCollectionState,
-  task: SubagentTask,
-  code: number | null,
-  signal: NodeJS.Signals | null,
-): SubagentResult {
-  markChildClosed(state);
-  if (state.buffer.trim()) processEvent(state.accumulator, state.buffer);
-  if (signal && !state.aborted) {
-    state.accumulator.stopReason = 'error';
-    state.accumulator.errorMessage ??= `Subagent terminated by signal ${signal}.`;
+  try {
+    return await collectChild(handle, task, signal, forward);
+  } finally {
+    handle.dispose();
   }
-  return createChildResult(task, state.accumulator, code ?? 1, state.stderr);
 }
 
-function collectChild(
-  child: ChildProcess,
+/**
+ * Drive the child through one prompt. PI's `prompt()` resolves once the run is over, so the
+ * accumulator is complete when it returns; an abort in the meantime stops the run and rejects,
+ * whatever PI's own stop reason ended up being.
+ */
+async function collectChild(
+  handle: ChildSessionHandle,
   task: SubagentTask,
   signal: AbortSignal | undefined,
-  killGraceMs: number,
   forward?: ChildEventForwarder,
 ): Promise<SubagentResult> {
-  return new Promise((resolve, reject) => {
-    const state: ChildCollectionState = {
-      accumulator: { output: '', usage: emptyUsage() },
-      buffer: '', stderr: '', closed: false, aborted: false, killTimer: null,
-    };
-    const onAbort = () => abortChild(child, state, killGraceMs);
-    child.stdout?.on('data', (chunk) => consumeStdout(state, chunk, forward));
-    child.stderr?.on('data', (chunk) => { state.stderr += chunk.toString(); });
-    child.once('error', (error) => {
-      markChildClosed(state);
-      signal?.removeEventListener('abort', onAbort);
-      reject(error);
-    });
-    child.once('close', (code, closeSignal) => {
-      signal?.removeEventListener('abort', onAbort);
-      const result = finishChild(state, task, code, closeSignal);
-      if (state.aborted) reject(new Error('Subagent was aborted.'));
-      else resolve(result);
-    });
-    if (signal?.aborted) onAbort();
-    else signal?.addEventListener('abort', onAbort, { once: true });
+  if (signal?.aborted) throw new Error('Subagent was aborted.');
+  const accumulator: ChildAccumulator = { output: '', usage: emptyUsage() };
+  const unsubscribe = handle.session.subscribe((event) => {
+    processEvent(accumulator, event as unknown as Record<string, unknown>, forward);
   });
+  const onAbort = (): void => { void handle.session.abort().catch(() => undefined); };
+  signal?.addEventListener('abort', onAbort, { once: true });
+  try {
+    await handle.session.prompt(`Task: ${task.prompt}`);
+  } finally {
+    signal?.removeEventListener('abort', onAbort);
+    unsubscribe();
+  }
+  if (signal?.aborted) throw new Error('Subagent was aborted.');
+  return createChildResult(task, accumulator);
 }
 
 function failedChildResult(task: SubagentTask, error: unknown): SubagentResult {
@@ -630,7 +508,7 @@ function failedChildResult(task: SubagentTask, error: unknown): SubagentResult {
     stopReason: 'error',
     errorMessage: message,
   };
-  return createChildResult(task, accumulator, 1, '');
+  return createChildResult(task, accumulator);
 }
 
 async function runTask(
@@ -726,19 +604,6 @@ function buildToolResult(mode: SubagentMode, results: SubagentResult[]) {
   return { content: [{ type: 'text' as const, text: prefix + resultText(last) }], details };
 }
 
-function resolveDeps(overrides?: Partial<SubagentToolDeps>): SubagentToolDeps {
-  const agentDir = overrides?.agentDir ?? process.env.PI_CODING_AGENT_DIR ?? PI_AGENT_DIR;
-  return {
-    spawn: overrides?.spawn ?? defaultSpawn,
-    command: overrides?.command ?? 'pi',
-    agentDir,
-    ensureRoles: overrides?.ensureRoles ?? (() => ensurePIAgentRoles({ agentDir })),
-    toolShimsPath: overrides?.toolShimsPath ?? TOOL_SHIMS_PATH,
-    mcpBridgePath: overrides?.mcpBridgePath ?? MCP_BRIDGE_PATH,
-    killGraceMs: overrides?.killGraceMs ?? SUBAGENT_KILL_GRACE_MS,
-  };
-}
-
 async function executeInvocation(
   invocation: Invocation,
   roles: AgentRole[],
@@ -803,10 +668,9 @@ function toolDescription(options: SubagentModelOption[]): string {
 }
 
 export function createSubagentTool(
-  overrides?: Partial<SubagentToolDeps>,
+  deps: SubagentToolDeps,
   modelOptions: SubagentModelOption[] = [],
 ): ToolDefinition<typeof SubagentParameters, SubagentDetails> {
-  const deps = resolveDeps(overrides);
   return {
     name: 'agent',
     label: 'Agent',
@@ -817,7 +681,7 @@ export function createSubagentTool(
       const invocation = resolveInvocation(params as SubagentParams);
       return executeInvocation(
         invocation, loadRoles(deps.agentDir), ctx, signal, deps,
-        deps.channel?.(toolCallId, ctx) ?? subagentChannel(toolCallId, ctx, invocation.mode === 'chain'),
+        subagentChannel(toolCallId, deps.onEvent, invocation.mode === 'chain'),
       );
     },
   };

@@ -1,5 +1,5 @@
-// input:  PI session events and parser state
-// output: Normalized events including attributed runtime prompts
+// input:  PI session events, parser state, and the notices subagents forward
+// output: Normalized events, including a child's events attributed to the subagent that ran them
 // pos:    Translates PI session events
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -7,7 +7,6 @@ import type { ContextUsage } from '@core/types/agent-types.js';
 import type { NormalizedEvent, QuestionSpec, ToolUseSubagent } from '../normalize/event-types.js';
 import { toCanonical } from '../normalize/tool-names.js';
 import { parseTodoWrite } from '../normalize/todo.js';
-import { decodeSubagentNotice, type SubagentNotice } from './subagent-notice.js';
 
 interface PIPendingCompletion {
   numTurns: number;
@@ -28,6 +27,32 @@ interface PIAgentEndSummary extends PIPendingCompletion {
   cacheWriteReported: boolean;
 }
 
+/** One event a PI subagent forwards for the parent's transcript. Only the three kinds the
+ *  transcript renders are carried; token deltas stay with the child. */
+export interface SubagentNotice {
+  /** Block key — `${parentToolCallId}#${childIndex}`: one Agent call may run up to 8 children. */
+  ref: string;
+  /** Declared subagent type, from the task that spawned this child. */
+  type: string;
+  /** The task description, which reads far better than the prompt's opening fragment. */
+  description: string;
+  /** Exact runtime prompt, present only on the first forwarded event of a PI chain child. */
+  prompt?: string;
+  /** The model that answered, once the child has reported one; never guessed from the parent. */
+  model: string | null;
+  kind: 'tool_use' | 'tool_result' | 'assistant_text';
+  /** Namespaced `${ref}:${childToolCallId}`: parallel children number their calls independently. */
+  toolUseId?: string;
+  /** tool_use only. */
+  name?: string;
+  input?: unknown;
+  /** tool_result only. */
+  ok?: boolean;
+  content?: string;
+  /** assistant_text only. */
+  text?: string;
+}
+
 export interface PIEventParserState {
   /** Cumulative turn count; incremented on each message_end to drive turn_progress. */
   turnProgressCount: number;
@@ -43,8 +68,9 @@ export function createPIEventParserState(): PIEventParserState {
 }
 
 /**
- * Translate one PI session event (as delivered by `AgentSession.subscribe`, or an
- * `extension_ui_request` the host raised for an extension) to zero or more NormalizedEvents.
+ * Translate one PI session event (as delivered by `AgentSession.subscribe`, an
+ * `extension_ui_request` the host raised for an extension, or a `cortex_subagent_event` the Agent
+ * tool forwarded from a nested session) to zero or more NormalizedEvents.
  *
  * Dropped events (return []): turn_start, turn_end, message_start, agent_start,
  * queue_update, compaction_end, auto_retry_start/end, message_update without text_delta,
@@ -124,6 +150,12 @@ export function piEventToNormalized(
     return [{ type: 'turn_progress', numTurns: state.turnProgressCount }];
   }
 
+  // --- cortex_subagent_event → the child's tool_use / tool_result / assistant_text, attributed ---
+  if (type === 'cortex_subagent_event') {
+    const notice = subagentNoticeFrom(ev['notice']);
+    return notice ? subagentEvents(notice) : [];
+  }
+
   // --- extension_error → error (non-fatal) ---
   if (type === 'extension_error') {
     const errVal = ev['error'];
@@ -156,8 +188,8 @@ function handleToolExecutionStart(ev: Record<string, unknown>): NormalizedEvent[
     { type: 'tool_use', toolUseId: toolCallId, name: canonicalName, input: args },
   ];
   // Derived semantic event alongside the raw call. No subagent guard is needed here: PI subagents
-  // run as isolated child processes with their own streams (see pi/subagent.ts), so a subagent's
-  // tool calls never reach the parent's event stream in the first place.
+  // run on nested sessions with their own event streams (see pi/subagent.ts); their tool calls
+  // arrive as cortex_subagent_event records, never through this path.
   const snapshot = parseTodoWrite('pi', toolName, args);
   if (snapshot) events.push({ type: 'todo_update', toolUseId: toolCallId, snapshot });
   return events;
@@ -332,6 +364,41 @@ function sumNullableCosts(left: number | null, right: number | null): number | n
   return (left ?? 0) + (right ?? 0);
 }
 
+/** Shape-check a forwarded notice. Strict on purpose: a half-formed notice would produce a row
+ *  attributed to a subagent that cannot be named, which is worse than dropping the row. */
+function subagentNoticeFrom(value: unknown): SubagentNotice | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const parsed = value as Record<string, unknown>;
+  const { ref, kind } = parsed;
+  if (typeof ref !== 'string' || !ref) return null;
+  if (kind !== 'tool_use' && kind !== 'tool_result' && kind !== 'assistant_text') return null;
+  const notice: SubagentNotice = {
+    ref,
+    kind,
+    type: typeof parsed.type === 'string' ? parsed.type : '',
+    description: typeof parsed.description === 'string' ? parsed.description : '',
+    ...(typeof parsed.prompt === 'string' ? { prompt: parsed.prompt } : {}),
+    model: typeof parsed.model === 'string' ? parsed.model : null,
+  };
+  if (kind === 'tool_use') {
+    if (typeof parsed.name !== 'string' || typeof parsed.toolUseId !== 'string') return null;
+    notice.name = parsed.name;
+    notice.toolUseId = parsed.toolUseId;
+    notice.input = parsed.input ?? {};
+    return notice;
+  }
+  if (kind === 'tool_result') {
+    if (typeof parsed.toolUseId !== 'string') return null;
+    notice.toolUseId = parsed.toolUseId;
+    notice.ok = parsed.ok !== false;
+    notice.content = typeof parsed.content === 'string' ? parsed.content : '';
+    return notice;
+  }
+  if (typeof parsed.text !== 'string' || !parsed.text) return null;
+  notice.text = parsed.text;
+  return notice;
+}
+
 /** One forwarded child event → the normalized event it stands for, attributed to the child that
  *  produced it. `parentToolUseId` is the notice's `ref` (`${agentCallId}#${childIndex}`), so each
  *  child of a parallel batch groups on its own rather than merging into one indistinct block. */
@@ -363,13 +430,6 @@ function handleExtensionUiRequest(ev: Record<string, unknown>): NormalizedEvent[
   const method = ev['method'];
   if (typeof id !== 'string' || typeof method !== 'string') return [];
 
-  // `notify` is PI's only fire-and-forget message to the host. A PI subagent runs in its own
-  // session; its output reaches us only because subagent.ts deliberately forwards it over this
-  // channel (see subagent-notice.ts). Anything else is a real user notification and drops.
-  if (method === 'notify') {
-    const notice = decodeSubagentNotice(ev['message']);
-    return notice ? subagentEvents(notice) : [];
-  }
 
   // Only dialog methods produce ask_user_question; fire-and-forget methods → [].
   if (method !== 'select' && method !== 'confirm' && method !== 'input' && method !== 'editor') {
