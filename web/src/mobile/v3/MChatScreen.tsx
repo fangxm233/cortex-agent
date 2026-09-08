@@ -84,9 +84,6 @@ const COPY: { en: MChatCopy; zh: MChatCopy } = {
   zh: {
     composerPh: '输入消息，/ 调用命令',
     toolCallsUnit: '次工具调用',
-    menuRename: '重命名',
-    menuExport: '导出',
-    menuArchive: '归档',
     menuSessionId: '会话 ID',
     sessionIdTitle: '会话 ID',
     cortexIdLabel: 'Cortex ID',
@@ -111,9 +108,6 @@ const COPY: { en: MChatCopy; zh: MChatCopy } = {
   en: {
     composerPh: 'Message, / for commands',
     toolCallsUnit: 'tool calls',
-    menuRename: 'Rename',
-    menuExport: 'Export',
-    menuArchive: 'Archive',
     menuSessionId: 'Session ID',
     sessionIdTitle: 'Session ID',
     cortexIdLabel: 'Cortex ID',

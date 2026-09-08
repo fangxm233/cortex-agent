@@ -5,17 +5,17 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 
 | filename | role | function |
 |---|---|---|
-| MChatScreen.tsx | screen | Composes compact chat, shared run status, interactions and neutral attachments |
+| MChatScreen.tsx | screen | Composes chat with functional localized actions |
 | m-chat-attachments.ts | hook | Adapts mobile draft persistence to the neutral attachment controller |
 | MChatInlineThreadCard.tsx | view | Binds the selected session's live inline thread stepper |
 | MChatScreen.optimistic.test.tsx | test | Tests status priority, Todo wiring, optimistic sends and shortcuts |
-| MChatView.tsx | view | Contains sticky chat headers below overlays |
-| MChatView.types.ts | types | Shares public chat, action, composer and sheet contracts |
+| MChatView.tsx | view | Contains sticky chat headers and Session ID overlay |
+| MChatView.types.ts | types | Shares functional chat and sheet contracts |
 | MChatMessageActions.tsx | view | Renders success-only shared copy, long-press and edit actions |
 | MChatAttachments.tsx | view | Renders transcript cards and queued/progress/retry/remove composer chips |
-| MChatSheets.tsx | view | Renders session-id shared copy feedback plus profile/browser/commission/context sheets |
+| MChatSheets.tsx | view | Renders Session ID menu plus chat sheets |
 | MChatComposerPresentation.tsx | view | Renders composer modes, tools, slash and plus menus |
-| MChatView.test.tsx | test | Tests chat stacking, Todo ordinals and interactions |
+| MChatView.test.tsx | test | Tests chat stacking, overflow, Todo and interactions |
 | m-chat-vm.ts | vm | Maps run facts with canonical USD labels and builds chat rows/profile/menu placement |
 | m-chat-vm.test.ts | test | Tests localized run status, profile labels and row state |
 | MInteractionCards.tsx | view | Ask-user bottom-input and plan-approval cards |

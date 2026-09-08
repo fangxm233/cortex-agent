@@ -1,5 +1,5 @@
 // input:  mobile rows, lazy detail, Todo, composer and profiles
-// output: Chat stacking, Todo ordinals and interaction contracts
+// output: Chat stacking, overflow, Todo and interaction contracts
 // pos:    Mobile chat interaction behavior tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -53,9 +53,6 @@ import { ComposerAttachmentStrip } from './MChatAttachments';
 const copy: MChatCopy = {
   composerPh: 'composer',
   toolCallsUnit: 'tools',
-  menuRename: 'rename',
-  menuExport: 'export',
-  menuArchive: 'archive',
   menuSessionId: 'session-id',
   sessionIdTitle: 'session-id',
   cortexIdLabel: 'cortex-id',
@@ -137,6 +134,22 @@ describe('MChatView stacking', () => {
     ); });
     const scroller = renderer.root.find((node) => node.type === 'div' && typeof node.props.onScroll === 'function');
     expect(scroller.props.style).toMatchObject({ overflow: 'auto', isolation: 'isolate' });
+    act(() => renderer.unmount());
+  });
+
+  it('shows only the functional Session ID action in the overflow menu', () => {
+    let renderer!: ReactTestRenderer;
+    act(() => { renderer = create(
+      <MChatView
+        {...baseProps}
+        moreOpen
+        status={{ running: false, tone: 'idle', text: 'idle' }}
+        rows={[]}
+      />,
+    ); });
+    const menu = renderer.root.find((node) => node.type === 'div' && node.props.style?.width === 148);
+    expect(menu.children).toHaveLength(1);
+    expect(menu.children[0]).toMatchObject({ children: ['session-id'] });
     act(() => renderer.unmount());
   });
 });

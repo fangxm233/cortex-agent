@@ -16,9 +16,6 @@ import type { ChatHeaderStatus, PendingAttachmentVM, ProfileSheetItem } from './
 export interface MChatCopy {
   composerPh: string;
   toolCallsUnit: string;
-  menuRename: string;
-  menuExport: string;
-  menuArchive: string;
   menuSessionId: string;
   sessionIdTitle: string;
   cortexIdLabel: string;

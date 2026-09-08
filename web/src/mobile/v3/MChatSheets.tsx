@@ -1,5 +1,5 @@
 // input:  Session ids, choices, context usage, copy, and shared clipboard feedback
-// output: Mobile chat overflow menu and bottom-sheet presentations
+// output: Single-action chat menu and bottom-sheet presentations
 // pos:    Mobile chat sheet presentation seam
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -16,12 +16,7 @@ export function MoreMenu({ copy, onClose, onSessionId }: {
   onClose: () => void;
   onSessionId: () => void;
 }): JSX.Element {
-  const items = [
-    { label: copy.menuSessionId, onTap: onSessionId },
-    { label: copy.menuRename, onTap: onClose },
-    { label: copy.menuExport, onTap: onClose },
-    { label: copy.menuArchive, onTap: onClose },
-  ];
+  const items = [{ label: copy.menuSessionId, onTap: onSessionId }];
   return (
     <><div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 5 }} /><div style={{ position: 'absolute', top: 'calc(52px + env(safe-area-inset-top))', right: 14, width: 148, background: 'var(--panel-translucent-bg)', border: '1px solid var(--panel-translucent-border)', borderRadius: 13, boxShadow: 'var(--shadow-menu-strong)', overflow: 'hidden', zIndex: 6 }}>
       {items.map((item, index) => <div key={item.label} onClick={item.onTap} style={{ padding: '11px 14px', fontSize: 13, color: MC.ink, borderBottom: index < items.length - 1 ? '1px solid var(--proto-line-2)' : undefined, cursor: 'pointer' }}>{item.label}</div>)}

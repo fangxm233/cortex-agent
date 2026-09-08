@@ -81,8 +81,7 @@ function MChatStatusLine({ status }: MChatHeaderProps): JSX.Element {
   );
 }
 
-// The ⋯ menu: 会话ID (real → opens the Session ID sheet) + 重命名/导出/归档 (no backend op; honest
-// affordance, inert).
+// The ⋯ menu exposes the functional Session ID sheet only.
 // ── collapsed/expandable tool-call row (scheme 1b L146; tap to expand) ─────────
 const MOBILE_TOOL_GAP = 6;
 const mobileToolChipStyle = {
