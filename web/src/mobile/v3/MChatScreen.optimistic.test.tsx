@@ -1,5 +1,5 @@
 // input:  Mounted mobile chat, live run status, Todo state, mutations, and routes
-// output: Status priority, Todo, attachment gate, optimistic-send, and slash specifications
+// output: Status, attachments, optimistic sends and slash feedback
 // pos:    Mounted mobile composer integration specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -337,6 +337,15 @@ describe('mobile attachment send gate', () => {
 });
 
 describe('mobile UI slash shortcuts', () => {
+  it.each(['/unknown hello', '/tmp/file', '/pro', '/profile', '/profile missing', '/cancel'])('explains blocked input %s without sending or clearing it', (text) => {
+    mounted = mountChat();
+    typeAndSend(mounted, text);
+    expect(view(mounted).props['data-system-lines']).toMatch(/not sent|未发送/i);
+    expect(view(mounted).props['data-composer-value']).toBe(text);
+    expect(harness.sendMutateAsync).not.toHaveBeenCalled();
+    expect(harness.createAndSendMutateAsync).not.toHaveBeenCalled();
+  });
+
   it('opens a new-session draft without sending command text', () => {
     mounted = mountChat();
     typeAndSend(mounted, '/new');

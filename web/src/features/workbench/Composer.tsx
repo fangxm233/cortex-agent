@@ -1,5 +1,5 @@
 // input:  Session state, chat drop target, attachments and drafts
-// output: Composer with pane-wide drops and prioritized run status
+// output: Composer with uploads, run status and slash feedback
 // pos:    Workbench message input and turn-control surface
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import {
@@ -10,7 +10,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLang, useVocab } from '@/i18n';
 import {
-  buildSlashSuggestions, resolveSlashInput, runSlashAction,
+  buildSlashSuggestions, resolveSlashInput, runSlashAction, slashFeedbackKey,
   type SlashAction, type SlashActionHandlers, type SlashSuggestion,
 } from './composer-slash';
 import { formatCost } from './right-panel-vm';
@@ -145,6 +145,7 @@ export function Composer({
   const createAndSendMut = useMutation(trpc.sessions.createAndSend.mutationOptions());
   const [composer, setComposer] = useState('');
   const [sendError, setSendError] = useState<string | null>(null);
+  const [slashErrorKey, setSlashErrorKey] = useState<ReturnType<typeof slashFeedbackKey>>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const localDropTargetRef = useRef<HTMLDivElement>(null);
@@ -152,6 +153,7 @@ export function Composer({
   // from briefly binding a random bucket and then clearing the restored metadata on the next render.
   const draftKey = draftStorageKey({ isDraft, sessionId, projectId });
   const draftIdentity = `${draftKey ?? ''}:${isDraft ? draftReloadToken : 0}`;
+  useEffect(() => { setSlashErrorKey(null); }, [composer, draftIdentity]);
   const draftUploadId = useRef<string | null>(null);
   const uploadIdentityRef = useRef<string | null>(null);
   if (uploadIdentityRef.current !== draftIdentity) {
@@ -406,6 +408,7 @@ export function Composer({
     const resolution = resolveSlashInput(text, slashProfiles, slashAvailability);
     if (resolution.kind === 'none') return false;
     if (resolution.kind === 'action') executeSlashAction(resolution.action);
+    setSlashErrorKey(slashFeedbackKey(resolution));
     return true;
   };
 
@@ -666,6 +669,11 @@ export function Composer({
           )}
         </div>
 
+        {slashErrorKey && (
+          <div data-slash-error role="alert" style={{ marginTop: 7, fontSize: 12, color: 'var(--proto-danger)' }}>
+            {L[slashErrorKey]}
+          </div>
+        )}
         {sendError && <ComposerSendFailure error={sendError} />}
 
         {/* Hidden file input */}
