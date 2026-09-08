@@ -44,6 +44,12 @@ function tick(tree: ReactTestRenderer, row: number): ReactTestInstance {
   return tree.root.findByProps({ 'data-nav-tick': row });
 }
 
+/** The preview card, found by its fixed width — `top` is where it landed against the rail. */
+function card(tree: ReactTestRenderer): { top: number } {
+  const node = tree.root.findAll((n) => n.type === 'div' && n.props?.style?.width === 360)[0];
+  return { top: node.props.style.top as number };
+}
+
 /** The drawn line inside a tick — its width is the magnification, its background the lighting. */
 function line(tree: ReactTestRenderer, row: number): { width: number; background: string } {
   const style = tick(tree, row).findAll((n) => n.type === 'span')[0].props.style;
@@ -63,7 +69,7 @@ function text(tree: ReactTestRenderer): string {
   return JSON.stringify(tree.toJSON());
 }
 
-/** Ten marks at the 10px step a roomy pane gives: tick i is centred at 10i + 5. */
+/** Ten marks at the 14px step a roomy pane gives: tick i is centred at 14i + 7. */
 const many = Array.from({ length: 10 }, (_, i) => mark(i * 2, `prompt ${i}`));
 
 describe('ChatNavRail', () => {
@@ -90,13 +96,23 @@ describe('ChatNavRail', () => {
   it('swells the ticks around the pointer and leaves the far ones alone', () => {
     const { tree } = mount(many);
     const resting = line(tree, 0).width;
-    move(tree, 45);
-    const under = line(tree, 8).width;
-    const neighbour = line(tree, 6).width;
+    move(tree, 45); // inside the fourth tick — rows 6, 8, 18 are it, its neighbour and a far one
+    const under = line(tree, 6).width;
+    const neighbour = line(tree, 8).width;
     const far = line(tree, 18).width;
     expect(under).toBeGreaterThan(neighbour);
     expect(neighbour).toBeGreaterThan(far);
     expect(far).toBe(resting);
+  });
+
+  it('keeps the settled tick clearly longer than the one next to it', () => {
+    const { tree } = mount(many);
+    move(tree, 45);
+    // A glance has to say which tick is being picked, so the gap to the neighbour is a real step,
+    // not a hair — and it holds anywhere inside the tick, not only at its exact middle.
+    expect(line(tree, 6).width - line(tree, 8).width).toBeGreaterThan(4);
+    move(tree, 55);
+    expect(line(tree, 6).width - line(tree, 8).width).toBeGreaterThan(4);
   });
 
   it('lets every tick settle back when the pointer leaves', () => {
@@ -136,7 +152,7 @@ describe('ChatNavRail', () => {
     ]);
     move(tree, 4);
     expect(text(tree)).toContain('first body');
-    move(tree, 25);
+    move(tree, 32);
     const shown = text(tree);
     expect(shown).toContain('third body');
     expect(shown).not.toContain('first body');
@@ -156,6 +172,26 @@ describe('ChatNavRail', () => {
       tick(tree, 0).props.onFocus({ currentTarget: { getBoundingClientRect: () => ({ top: 0, height: 10 }) } });
     });
     expect(text(tree)).toContain('body line');
+  });
+
+  it('measures the pane on the render that first draws the rail', () => {
+    // The rail is absent until a session has two prompts, so its node arrives after the component
+    // does. Miss that and the pane reads as zero: ticks jam at their floor and the card is pinned
+    // to the top of the pane instead of sitting beside the tick it describes.
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = create(
+        <LangProvider><ChatNavRail marks={[mark(0, 'first')]} activeRows={[]} onJump={vi.fn()} /></LangProvider>,
+        { createNodeMock: nodeMock },
+      );
+    });
+    expect(tree.toJSON()).toBeNull();
+    act(() => {
+      tree.update(<LangProvider><ChatNavRail marks={many} activeRows={[]} onJump={vi.fn()} /></LangProvider>);
+    });
+    expect(tick(tree, 0).props.style.height).toBe(14);
+    move(tree, 200); // the last tick, low in the pane — the card follows it down
+    expect(card(tree).top).toBeGreaterThan(60);
   });
 
   it('reports the row a click asks for, and closes the preview', () => {

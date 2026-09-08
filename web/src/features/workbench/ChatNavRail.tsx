@@ -24,12 +24,13 @@ const mono = "'IBM Plex Mono',monospace";
 
 /** Strip width. Wide enough to be an easy target, narrow enough to stay inside the prose gutter. */
 const RAIL_W = 26;
-const TICK_MIN = 12;
-const TICK_MAX = 22;
-/** How far the pointer's pull reaches, as a multiple of the tick step — about four ticks either
- *  side, whether the rail is roomy or compressed — with a floor so a dense rail still swells. */
-const MAGNIFY_STEPS = 4.5;
-const MAGNIFY_MIN = 24;
+const TICK_MIN = 10;
+const TICK_MAX = 26;
+/** How far the pull reaches, counted in ticks rather than pixels, so the same shape comes out of a
+ *  roomy rail and a compressed one. Just under three: the settled tick takes the whole swell, its
+ *  neighbour about two thirds of it, the one past that almost none — a step big enough to see
+ *  which tick the pointer is actually on. */
+const MAGNIFY_SPAN = 2.6;
 const CARD_W = 360;
 const CARD_GAP = 8;
 /** Below two prompts there is nothing to navigate between. */
@@ -41,10 +42,12 @@ export const NAV_COPY = {
 };
 export type NavCopy = typeof NAV_COPY.zh;
 
-/** Where the pointer (or keyboard focus) is on the rail: `y` drives the magnification, `row` is the
- *  mark it has settled on, and `centre` is that mark's middle in rail coordinates for the card. */
+/** The mark the pointer (or keyboard focus) has settled on: `index` drives the magnification, `row`
+ *  names the message to preview, and `centre` is that tick's middle in rail coordinates for the
+ *  card. The swell is measured from the settled tick, not the raw pointer, so the tick being picked
+ *  always takes the full length and its neighbours always fall a visible step behind it. */
 interface Probe {
-  y: number;
+  index: number;
   row: number;
   centre: number;
 }
@@ -123,7 +126,7 @@ export function ChatNavRail({ marks, activeRows, onJump }: {
 }): JSX.Element | null {
   const lang = useLang();
   const copy = lang === 'zh' ? NAV_COPY.zh : NAV_COPY.en;
-  const rootRef = useRef<HTMLElement>(null);
+  const rootRef = useRef<HTMLElement | null>(null);
   const columnRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const [avail, setAvail] = useState(0);
@@ -131,17 +134,25 @@ export function ChatNavRail({ marks, activeRows, onJump }: {
   // Resolved once the card has been measured — until then it is held invisible so it never paints
   // at an unclamped position.
   const [cardTop, setCardTop] = useState<number | null>(null);
+  const sizeRef = useRef<ResizeObserver | null>(null);
 
-  // The rail fills the pane, so its own height is the budget the ticks compress into.
-  useEffect(() => {
-    const el = rootRef.current;
+  // The rail fills the pane, so its own height is the budget the ticks compress into. Measured from
+  // the ref callback rather than a mount effect: the rail draws nothing until a session has two
+  // prompts, so in a session being typed the node appears long after the component mounts, and a
+  // once-on-mount measurement would keep the height at zero for the rest of the session — ticks
+  // jammed at their floor and the card pinned to the top of the pane.
+  const mountRoot = useCallback((el: HTMLElement | null): void => {
+    rootRef.current = el;
+    sizeRef.current?.disconnect();
+    sizeRef.current = null;
     if (!el) return;
     setAvail(el.clientHeight);
     if (typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(() => setAvail(el.clientHeight));
     ro.observe(el);
-    return () => ro.disconnect();
+    sizeRef.current = ro;
   }, []);
+  useEffect(() => () => sizeRef.current?.disconnect(), []);
 
   // Centre the card on its tick, then pull it back inside the pane. Measured before paint, so the
   // card lands once instead of jumping after its first frame.
@@ -156,7 +167,7 @@ export function ChatNavRail({ marks, activeRows, onJump }: {
   }, [probe, avail]);
 
   const step = railStep(marks.length, avail);
-  const radius = Math.max(MAGNIFY_MIN, step * MAGNIFY_STEPS);
+  const radius = step * MAGNIFY_SPAN;
 
   // Which mark the pointer is over, and where it sits — read from the tick column's own box so the
   // maths holds while the column is scrolled (a session longer than the rail can draw).
@@ -167,7 +178,7 @@ export function ChatNavRail({ marks, activeRows, onJump }: {
     const box = column.getBoundingClientRect();
     const y = clientY - box.top;
     const index = Math.min(marks.length - 1, Math.max(0, Math.floor(y / step)));
-    setProbe({ y, row: marks[index].row, centre: box.top - root.getBoundingClientRect().top + index * step + step / 2 });
+    setProbe({ index, row: marks[index].row, centre: box.top - root.getBoundingClientRect().top + index * step + step / 2 });
   }, [marks, step]);
 
   // Past the compression floor the rail scrolls rather than shrinking further; keep the newest turn
@@ -184,7 +195,7 @@ export function ChatNavRail({ marks, activeRows, onJump }: {
 
   return (
     <nav
-      ref={rootRef}
+      ref={mountRoot}
       aria-label={copy.rail}
       style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: RAIL_W, zIndex: 2, pointerEvents: 'none' }}
     >
@@ -203,8 +214,8 @@ export function ChatNavRail({ marks, activeRows, onJump }: {
           {marks.map((m, i) => {
             const lit = activeRows.includes(m.row);
             const focused = m.row === probe?.row;
-            // Distance from the pointer to this tick's middle, in the column's own coordinates.
-            const pull = probe ? magnify(probe.y - (i * step + step / 2), radius) : 0;
+            // Distance from the settled tick to this one, in whole ticks.
+            const pull = probe ? magnify((i - probe.index) * step, radius) : 0;
             return (
               <button
                 key={m.row}

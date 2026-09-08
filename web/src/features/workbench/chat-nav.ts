@@ -12,9 +12,11 @@ const BODY_MAX = 96;
 /** Lines under the title. Three is what fits the card without it becoming a second transcript. */
 const BODY_LINES = 3;
 
-/** Tick geometry. The step IS the button height, so ticks always fill the rail evenly. */
+/** Tick geometry. The step IS the button height, so ticks always fill the rail evenly. The ceiling
+ *  is what a short session gets: loose enough that neighbouring ticks read as separate marks rather
+ *  than one hatched block, tight enough that a dozen prompts still scan as a single column. */
 const STEP_MIN = 4;
-const STEP_MAX = 10;
+const STEP_MAX = 14;
 
 export interface NavMarkAttachment {
   name: string;

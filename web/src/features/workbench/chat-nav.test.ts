@@ -122,7 +122,7 @@ describe('magnify', () => {
 
 describe('railStep', () => {
   it('gives a short session comfortable spacing', () => {
-    expect(railStep(3, 700)).toBe(10);
+    expect(railStep(3, 700)).toBe(14);
   });
 
   it('compresses a long session to fit the pane', () => {
@@ -134,6 +134,6 @@ describe('railStep', () => {
   });
 
   it('falls back to the comfortable step before the rail is measured', () => {
-    expect(railStep(0, 0)).toBe(10);
+    expect(railStep(0, 0)).toBe(14);
   });
 });
