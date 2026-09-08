@@ -11,7 +11,7 @@ Owns transport, native capabilities, retained actions and file utilities.
 | desktop-config.test.ts | test | Unit tests for shell detection and auth headers |
 | external-navigation.ts | util | Opens HTTP links in browser and native shells |
 | external-navigation.test.ts | test | Tests native opener and legacy fallback paths |
-| native-bridge.ts | core | Typed native calls, on-screen session reports and scoped retained taps; register-before-drain, focus/resume drains and five foreground retries (1–16s), with handled-ID dedup and timer/listener teardown |
+| native-bridge.ts | core | Typed setup calls, native events and retained taps |
 | native-bridge.test.ts | test | Tests native capabilities and listener teardown |
 | native-notifications.test.ts | test | Tests retained tap scope, route/status/ack retry recovery, bounded foreground backoff, idle queues and in-flight teardown |
 | shell-connection.ts | util | Safely clears native credentials through the canonical bridge and reopens the connect screen |

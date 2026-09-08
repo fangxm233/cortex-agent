@@ -9,7 +9,8 @@ Language stays in local storage and falls back to browser choice.
 | LangProvider.tsx | provider | Holds active language state |
 | lang.ts | util | Resolves and persists language choice |
 | lang.test.ts | test | Covers viewport language derivation and breakpoint handling |
-| vocab.ts | compose | Merges split chunks into en and zh |
+| vocab.ts | compose | Merge product, setup and plugin language chunks |
+| provider-setup-vocab.ts | copy | English and Chinese provider onboarding copy |
 | plugins-vocab.ts | copy | Holds plugin and stale-draft copy |
 | vocab-en-base.ts | copy | English core, browser status and product copy |
 | vocab-en-extra.ts | copy | English product and device notification copy |

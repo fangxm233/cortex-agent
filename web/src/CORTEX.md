@@ -8,7 +8,7 @@ Splits into shared layers (design, i18n, theme, lib) and screen layers (features
 | main.tsx | entry | Mounts the React root with providers and router |
 | providers.tsx | provider | Nests global clients, themes and login overlay |
 | RootRouter.tsx | core | Chooses the mobile or desktop router |
-| router.tsx | core | Declares the separate desktop page routes under the app shell |
+| router.tsx | core | Route shell pages and standalone provider setup |
 | router-factory.ts | core | Selects hash history for native shells and browser history otherwise |
 | router-factory.test.ts | test | Verifies shared native/browser router selection |
 | index.css | style | Global styles, palette chrome and usage animations |

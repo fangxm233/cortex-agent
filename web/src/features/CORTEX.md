@@ -18,6 +18,7 @@ Native-facing features consume `lib/native-bridge.ts`; they do not redeclare or 
 | execution/ | subdir | Execution detail drawer with live logs |
 | approvals/ | subdir | Approval queue overlay |
 | auth/ | subdir | Responsive provider login flow overlay |
+| provider-setup/ | subdir | Standalone provider onboarding and local CC setup |
 | issues/ | subdir | Non-blocking issue queue overlay |
 | notes/ | subdir | Private project notes on desktop surfaces |
 | schedule/ | subdir | Shared create/edit controller and desktop schedule overlay |

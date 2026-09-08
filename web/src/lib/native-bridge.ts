@@ -1,5 +1,5 @@
 // input:  optional Tauri core, events and Android plugins
-// output: typed invokes, foreground-retried retained actions and safe listeners
+// output: typed setup invokes, retained actions and safe listeners
 // pos:    Canonical native boundary for all web surfaces
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -39,6 +39,8 @@ export interface NativeNotificationAction {
 }
 
 interface NativeCommandMap {
+  setup_claude_status: { args: undefined; result: { installed: boolean; version: string | null } };
+  setup_install_claude: { args: undefined; result: { installed: boolean; version: string | null } };
   mobile_notifications_configure: {
     args: { enabled: boolean; locale: string; completionNotifications: boolean };
     result: NativeNotificationStatus;
@@ -102,7 +104,7 @@ type CommandArgs<K extends NativeCommand> = NativeCommandMap[K]['args'] extends 
   ? [args?: undefined]
   : [args: NativeCommandMap[K]['args']];
 type CommandResult<K extends NativeCommand> = NativeCommandMap[K]['result'];
-type NativeEventName = 'app-update-available' | 'frontend-update-staged' | 'native-menu';
+type NativeEventName = 'app-update-available' | 'frontend-update-staged' | 'native-menu' | 'setup-log';
 
 function readNativeGlobal(): NativeGlobal | undefined {
   const value: unknown = Reflect.get(globalThis, '__TAURI__');
