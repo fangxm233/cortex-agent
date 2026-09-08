@@ -65,6 +65,21 @@ interface NativeCommandMap {
   forward_stop: { args: { port: number }; result: unknown };
   forward_list: { args: undefined; result: NativeForwardInfo[] };
   'plugin:app|exit': { args: undefined; result: unknown };
+  // ── Window chrome (desktop only; the app draws its own title bar) ──
+  // Arg shapes mirror @tauri-apps/api, which always passes the window label — see
+  // node_modules/@tauri-apps/api/window.js. Every one needs an explicit grant in
+  // desktop/src-tauri/capabilities/default.json: `core:default` allows only read-only queries
+  // plus `internal_toggle_maximize`, so an ungranted command fails silently.
+  'plugin:window|start_dragging': { args: { label: string }; result: unknown };
+  'plugin:window|minimize': { args: { label: string }; result: unknown };
+  'plugin:window|toggle_maximize': { args: { label: string }; result: unknown };
+  'plugin:window|close': { args: { label: string }; result: unknown };
+  'plugin:window|is_maximized': { args: { label: string }; result: boolean };
+  'plugin:window|is_fullscreen': { args: { label: string }; result: boolean };
+  'plugin:window|set_fullscreen': { args: { label: string; value: boolean }; result: unknown };
+  'plugin:webview|set_webview_zoom': { args: { label: string; value: number }; result: unknown };
+  'plugin:webview|internal_toggle_devtools': { args: { label: string }; result: unknown };
+  'plugin:app|version': { args: undefined; result: string };
 }
 
 export type NativeCapability = 'invoke' | 'events' | 'back';

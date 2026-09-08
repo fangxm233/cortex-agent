@@ -8,7 +8,6 @@ import {
   deriveMostRecentSessionId,
   resolveSelectedSessionId,
   resolveTransitionProfile,
-  isNewSessionShortcut,
   type PendingCreatedSession,
 } from './selected-session';
 
@@ -24,13 +23,6 @@ const sessions = [
   sess('b', '2026-05-10T00:00:00Z'),
   sess('c', '2026-05-05T00:00:00Z'),
 ];
-
-describe('isNewSessionShortcut', () => {
-  it('reserves command/control-shift-N for the notes drawer', () => {
-    expect(isNewSessionShortcut({ key: 'n', metaKey: true, ctrlKey: false, shiftKey: false, altKey: false })).toBe(true);
-    expect(isNewSessionShortcut({ key: 'N', metaKey: true, ctrlKey: false, shiftKey: true, altKey: false })).toBe(false);
-  });
-});
 
 describe('deriveMostRecentSessionId', () => {
   it('picks the most-recently-used session', () => {

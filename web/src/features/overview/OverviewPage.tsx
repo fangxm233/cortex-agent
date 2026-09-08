@@ -1,6 +1,7 @@
 import { LeftRail } from '@/features/workbench/LeftRail';
 import { RightPanel } from '@/features/workbench/RightPanel';
 import { OverviewView } from './OverviewView';
+import { AppFrame } from '@/shell/AppFrame';
 
 // Route /overview — the project Overview 6a as a center-column view inside the workbench frame
 // (task df67, plan §8.5). Reuses the 1:1 LeftRail (f528) + RightPanel (1e96); only the center pane
@@ -8,19 +9,10 @@ import { OverviewView } from './OverviewView';
 // identical to WorkbenchPage: 340px LeftRail / fluid center / 400px RightPanel.
 export function OverviewPage(): JSX.Element {
   return (
-    <div
-      style={{
-        height: '100vh',
-        minHeight: 640,
-        minWidth: 1280,
-        display: 'flex',
-        background: 'var(--proto-card)',
-        overflow: 'hidden',
-      }}
-    >
+    <AppFrame>
       <LeftRail />
       <OverviewView />
       <RightPanel />
-    </div>
+    </AppFrame>
   );
 }

@@ -110,6 +110,12 @@
   --ink-solid-bg: oklch(calc(0.226 - var(--ink-contrast)) calc(0.0125 * var(--ink-chroma)) var(--ink-hue));
   --ink-solid-fg: #ffffff;
   --ink-solid-hover: oklch(calc(0.332 - var(--ink-contrast)) calc(0.0152 * var(--ink-chroma)) var(--ink-hue));
+
+  /* App-drawn window caption. The close button's hover red is the Windows system value, kept
+     identical in both themes on purpose: it is OS chrome the app is imitating, not app colour. */
+  --caption-hover: var(--proto-line-2);
+  --caption-close-hover: #e81123;
+  --caption-close-hover-fg: #ffffff;
   --ink-solid-fg-dim: rgba(255, 255, 255, 0.55);
   --run-dot: var(--accent-main);
   --border-card: rgba(0, 0, 0, 0.08);
@@ -282,6 +288,10 @@
   --ink-solid-bg: oklch(calc(0.946 + var(--ink-contrast)) calc(0.007 * var(--ink-chroma)) var(--ink-hue));
   --ink-solid-fg: #14171b;
   --ink-solid-hover: oklch(calc(0.887 + var(--ink-contrast)) calc(0.0122 * var(--ink-chroma)) var(--ink-hue));
+
+  --caption-hover: var(--proto-line-2);
+  --caption-close-hover: #e81123;
+  --caption-close-hover-fg: #ffffff;
   --ink-solid-fg-dim: rgba(20, 23, 27, 0.5);
   --run-dot: var(--accent-mid);
   --border-card: rgba(255, 255, 255, 0.1);

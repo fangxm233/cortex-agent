@@ -25,6 +25,7 @@ import { CommissionBoardModalProvider } from '@/features/commission/CommissionBo
 import { NotesProvider } from '@/features/notes/NotesProvider';
 import { PaneStateProvider } from './PaneStateProvider';
 import { NavigationHistoryProvider } from './NavigationHistoryProvider';
+import { ShellModalsProvider } from './ShellModalsProvider';
 
 // App shell (Stage-R RB, task f528): a pass-through layout. The prototype is a single full-screen
 // frame owned by each view — `/workbench` (WorkbenchPage) renders the 240/fluid/400 three-pane
@@ -39,7 +40,7 @@ export function AppShell() {
   const { open, setOpen } = useCommandPalette();
   return (
     <LiveEventsProvider><ConnectionStatusProvider>
-      <CurrentProjectProvider><SelectedSessionProvider><NavigationHistoryProvider><PaneStateProvider><NotesProvider>
+      <CurrentProjectProvider><SelectedSessionProvider><NavigationHistoryProvider><PaneStateProvider><ShellModalsProvider><NotesProvider>
         <ExecutionLogDrawerProvider><ScheduleModalProvider>
           <ApprovalsProvider><SettingsProvider><IssuesProvider>
             <ThreadDetailModalProvider><TaskModalProvider><CommissionBoardModalProvider><DockProvider>
@@ -52,7 +53,7 @@ export function AppShell() {
             </DockProvider></CommissionBoardModalProvider></TaskModalProvider></ThreadDetailModalProvider>
           </IssuesProvider></SettingsProvider></ApprovalsProvider>
         </ScheduleModalProvider></ExecutionLogDrawerProvider>
-      </NotesProvider></PaneStateProvider></NavigationHistoryProvider></SelectedSessionProvider></CurrentProjectProvider>
+      </NotesProvider></ShellModalsProvider></PaneStateProvider></NavigationHistoryProvider></SelectedSessionProvider></CurrentProjectProvider>
     </ConnectionStatusProvider></LiveEventsProvider>
   );
 }
