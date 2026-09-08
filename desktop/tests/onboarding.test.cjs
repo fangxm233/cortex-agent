@@ -1,5 +1,5 @@
 // input:  standalone setup controller and native command fixtures
-// output: automatic transition, retry, and asset contract tests
+// output: PI-only setup, provider handoff and retry contract tests
 // pos:    Focused native onboarding behavior checks
 // >>> Once updated, update this header and the parent CORTEX.md <<<
 const { test } = require('node:test');
@@ -9,7 +9,7 @@ const { join } = require('node:path');
 const { runInNewContext } = require('node:vm');
 const ui = join(__dirname, '../ui');
 const source = readFileSync(join(ui, 'setup-flow.js'), 'utf8');
-const answers = { machineName: 'test-machine', backends: ['claude'], port: 13004, installService: false };
+const answers = { machineName: 'test-machine', backends: ['pi'], port: 13004, installService: false };
 const probe = { node: 'v22.0.0', nodeOk: true, npm: '10', git: 'git version 2',
   serverOk: false, cortexBin: null, serverVersion: null, homeExists: false };
 function fixture(overrides = {}, ready = Promise.resolve()) {
@@ -42,12 +42,14 @@ test('configuration submit initializes, starts and connects without another conf
   await controller.start(answers);
   assert.deepEqual(calls.slice(2), ['setup_run_init', 'setup_start_daemon', 'connect']);
   assert.equal(controller.state.stage, 'ready');
+  assert.equal(controller.state.destination, 'index.html#/setup/providers');
 });
 test('supported install skips npm and preserves existing configuration', async () => {
   const { controller, calls } = fixture({ setup_probe: () => ({ ...probe, serverOk: true, homeExists: true, cortexBin: '/existing/cortex' }) });
   await controller.prepare();
   await controller.start(answers);
   assert.deepEqual(calls, ['setup_probe', 'setup_enable_ui', 'setup_start_daemon', 'connect']);
+  assert.equal(controller.state.destination, 'index.html');
 });
 test('missing prerequisites stop before installation and can be rechecked', async () => {
   let valid = false;
@@ -73,11 +75,38 @@ test('daemon retry reuses successful initialization instead of rewriting it', as
   await controller.prepare();
   await controller.start(answers);
   assert.equal(controller.state.error, 'DAEMON_TIMEOUT');
+  assert.equal(controller.state.destination, null);
+  assert.equal(controller.state.needsInit, false);
   assert.equal(controller.state.progress.daemon, 'error');
   succeeds = true;
   await controller.start(answers);
   assert.equal(calls.filter((name) => name === 'setup_run_init').length, 1);
   assert.equal(controller.state.stage, 'ready');
+  assert.equal(controller.state.destination, 'index.html#/setup/providers');
+});
+test('new-install identity survives editing settings after successful init', async () => {
+  let succeeds = false;
+  const { controller, calls } = fixture({ setup_start_daemon: () => succeeds });
+  await controller.prepare();
+  await controller.start(answers);
+  controller.configure();
+  succeeds = true;
+  await controller.start(answers);
+  assert.equal(calls.filter((name) => name === 'setup_run_init').length, 1);
+  assert.ok(calls.includes('setup_enable_ui'));
+  assert.equal(controller.state.destination, 'index.html#/setup/providers');
+});
+test('connection failure never hands off early and retry preserves initialization', async () => {
+  let succeeds = false;
+  const { controller, calls } = fixture({ connect: () => { if (!succeeds) throw new Error('connect failed'); } });
+  await controller.prepare();
+  await controller.start(answers);
+  assert.equal(controller.state.destination, null);
+  assert.equal(controller.state.stage, 'start');
+  succeeds = true;
+  await controller.start(answers);
+  assert.equal(calls.filter((name) => name === 'setup_run_init').length, 1);
+  assert.equal(controller.state.destination, 'index.html#/setup/providers');
 });
 test('double clicks cannot start parallel installs and progress listener is awaited', async () => {
   let release;
@@ -109,6 +138,11 @@ test('setup markup has one submit action and all native assets are embedded', ()
   const html = readFileSync(join(ui, 'setup.html'), 'utf8');
   assert.equal((html.match(/type="submit"/g) || []).length, 1);
   assert.ok(!html.includes('cx-btn-next'));
+  assert.ok(!html.includes('cx-backend-'));
+  const presenter = readFileSync(join(ui, 'setup.js'), 'utf8');
+  assert.match(presenter, /backends: \['pi'\]/);
+  assert.ok(!presenter.includes('cx-backend-'));
+  assert.match(presenter, /window.location.href = state.destination/);
   const resolver = readFileSync(join(__dirname, '../src-tauri/src/frontend.rs'), 'utf8');
   for (const page of ['setup.html', 'connect.html']) {
     const source = readFileSync(join(ui, page), 'utf8');

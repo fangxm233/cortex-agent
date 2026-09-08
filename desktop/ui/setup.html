@@ -1,5 +1,5 @@
 <!-- input:  shell flags, persisted appearance, server credentials -->
-<!-- output: automatic native installation and workspace configuration -->
+<!-- output: automatic PI-only install and compact local configuration -->
 <!-- pos:    Native shell page shown before the SPA can connect -->
 <!-- >>> If I am updated, update my header comment and CORTEX.md <<< -->
 <!DOCTYPE html>
@@ -93,15 +93,12 @@
 <section id="cx-configure" hidden>
 <div class="eyebrow"><span data-en="READY TO CONFIGURE" data-zh="安装就绪" >READY TO CONFIGURE</span></div>
 <h1 data-en="Make this workspace yours." data-zh="设置你的本地工作台。" >Make this workspace yours.</h1>
-<p data-en="Just the essentials for this computer. Accounts, models and projects come next." data-zh="只需设置这台电脑的基本信息。账号、模型与项目稍后在工作台中配置。" class="intro">Just the essentials for this computer. Accounts, models and projects come next.</p>
+<p data-en="Just the essentials for this computer. Accounts, models and projects come next." data-zh="只需设置这台电脑的基本信息。接下来配置账号与模型，项目可稍后创建。" class="intro">Just the essentials for this computer. Accounts, models and projects come next.</p>
 <form id="cx-config-form" class="card">
 <div class="card-header"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg><h2 data-en="This computer" data-zh="本机设置" >This computer</h2><span id="cx-version" class="pill good"></span></div>
 <div class="card-body"><div id="cx-existing" class="notice" hidden><span data-en="Existing settings are kept. Only the local connection endpoint will be enabled or updated." data-zh="保留已有设置，仅开启或更新本地连接端点。" >Existing settings are kept. Only the local connection endpoint will be enabled or updated.</span></div>
 <fieldset id="cx-config-fields" class="fieldset">
 <label class="field" for="cx-machine"><span data-en="Machine name" data-zh="机器名称" class="label">Machine name</span><input class="input" id="cx-machine" required maxlength="80" autocomplete="off" spellcheck="false"><span data-en="The name shown in your Cortex workspace." data-zh="这台设备在 Cortex 工作台中显示的名称。" class="hint">The name shown in your Cortex workspace.</span></label>
-<div class="label"><span data-en="Agent backends" data-zh="Agent 后端" >Agent backends</span></div><div class="backend-grid">
-<label class="backend"><input type="checkbox" id="cx-backend-claude" checked><div><strong>Claude Code</strong><p data-en="Use Claude. Sign in after setup." data-zh="使用 Claude，设置完成后登录。" class="hint">Use Claude. Sign in after setup.</p></div></label>
-<label class="backend"><input type="checkbox" id="cx-backend-pi"><div><strong>PI</strong><p data-en="Connect other model providers." data-zh="连接其他模型提供方。" class="hint">Connect other model providers.</p></div></label></div>
 <label class="toggle-row" id="cx-autostart-row"><div><strong data-en="Start at login" data-zh="登录系统时自动启动" >Start at login</strong><p data-en="Keep scheduled work running in the background." data-zh="让定时任务在后台持续运行。" class="hint">Keep scheduled work running in the background.</p></div><input id="cx-autostart" class="toggle" type="checkbox"></label>
 </fieldset>
 <details class="advanced"><summary><span data-en="Advanced settings" data-zh="高级设置" >Advanced settings</span></summary><label class="field" for="cx-port"><span data-en="Local port" data-zh="本地端口" class="label">Local port</span><input class="input mono" id="cx-port" type="number" min="1" max="65535" value="3004" required></label></details>

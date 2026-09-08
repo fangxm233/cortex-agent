@@ -1,4 +1,4 @@
-// input:  wizard answers, setup_process, setup_package
+// input:  wizard answers, process/package/Claude setup helpers
 // output: async setup IPC, progress events, local daemon startup
 // pos:    Drives a local Cortex install from the native shell
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -8,6 +8,8 @@ use std::ffi::OsStr;
 use std::time::{Duration, Instant};
 use tauri::AppHandle;
 
+#[path = "setup_claude.rs"]
+pub mod claude;
 #[path = "setup_package.rs"]
 mod package;
 #[path = "setup_process.rs"]
@@ -598,14 +600,14 @@ mod tests {
         let answers = SetupAnswers {
             lang: "zh".into(),
             machine_name: "workbench".into(),
-            backends: vec!["claude".into()],
+            backends: vec!["pi".into()],
             install_service: true,
             port: 3004,
         };
         let doc: serde_json::Value = serde_json::from_str(&answers_json(&answers)).unwrap();
         assert_eq!(doc["machineName"], "workbench");
         assert_eq!(doc["lang"], "zh");
-        assert_eq!(doc["backends"][0], "claude");
+        assert_eq!(doc["backends"], serde_json::json!(["pi"]));
         assert_eq!(doc["installService"], true);
         assert_eq!(doc["localUi"]["enabled"], true);
         assert_eq!(doc["localUi"]["port"], 3004);

@@ -1,4 +1,4 @@
-// input:  login PATH, npm/cortex CLIs, Tauri app handle
+// input:  login PATH, npm/cortex/claude CLIs, Tauri app handle
 // output: compatible version probes and token-safe process logs
 // pos:    Blocking process execution for the setup wizard
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -58,14 +58,6 @@ pub(super) fn npm_bin() -> &'static str {
         "npm.cmd"
     } else {
         "npm"
-    }
-}
-
-fn cortex_bin_name() -> &'static str {
-    if cfg!(target_os = "windows") {
-        "cortex.cmd"
-    } else {
-        "cortex"
     }
 }
 
@@ -183,21 +175,25 @@ fn version_from_probe(mut probe: impl FnMut(&[&str]) -> Option<String>) -> Optio
 
 /// Find the binary even when npm's global bin directory is not on PATH yet.
 pub(super) fn resolve_cortex_bin() -> Option<String> {
+    resolve_cli_bin("cortex")
+}
+
+pub(super) fn resolve_cli_bin(name: &str) -> Option<String> {
     let finder = if cfg!(target_os = "windows") {
         "where"
     } else {
         "which"
     };
-    if let Some(found) = probe_output(finder, &[cortex_bin_name()]) {
+    if let Some(found) = probe_output(finder, &[name]) {
         if let Some(first) = found.lines().next() {
             return Some(first.trim().to_string());
         }
     }
     let prefix = probe_output(npm_bin(), &["prefix", "-g"])?;
     let candidate = if cfg!(target_os = "windows") {
-        std::path::Path::new(&prefix).join("cortex.cmd")
+        std::path::Path::new(&prefix).join(format!("{name}.cmd"))
     } else {
-        std::path::Path::new(&prefix).join("bin").join("cortex")
+        std::path::Path::new(&prefix).join("bin").join(name)
     };
     candidate
         .is_file()

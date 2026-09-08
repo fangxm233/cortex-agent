@@ -1,5 +1,5 @@
 // input:  app config, credential store, OTA modules, native plugins
-// output: Shell configuration, native notifications and app window
+// output: Shell configuration, local setup IPC and app window
 // pos:    Cortex native shell composition root
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -690,6 +690,8 @@ pub fn run() {
             open_path,
             reveal_path,
             setup::setup_probe,
+            setup::claude::setup_claude_status,
+            setup::claude::setup_install_claude,
             setup::setup_install_server,
             setup::setup_run_init,
             setup::setup_enable_ui,

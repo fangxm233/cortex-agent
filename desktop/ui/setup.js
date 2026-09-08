@@ -1,5 +1,5 @@
 // input:  native progress events, setup controller, form answers
-// output: responsive installation and configuration views
+// output: PI-only setup form and post-connect provider handoff
 // pos:    DOM presentation for automatic native onboarding
 // >>> Once updated, update this header and the parent CORTEX.md <<<
 (function () {
@@ -99,28 +99,24 @@
     navigating = true;
     el('cx-progress-title').textContent = t('Your workspace is ready.', '工作台已就绪。');
     if (state.warning) el('cx-progress-intro').textContent = t('Connected. Auto-start could not be enabled; open this app to start Cortex.', '已连接，但未能开启自动启动；之后打开本应用即可启动 Cortex。');
-    setTimeout(function () { window.location.href = 'index.html'; }, state.warning ? 3500 : 600);
+    setTimeout(function () { window.location.href = state.destination; }, state.warning ? 3500 : 600);
   }
   function readAnswers() {
-    var backends = [];
-    if (el('cx-backend-claude').checked) backends.push('claude');
-    if (el('cx-backend-pi').checked) backends.push('pi');
-    return { lang: shell.lang(), machineName: el('cx-machine').value.trim(), backends: backends,
+    return { lang: shell.lang(), machineName: el('cx-machine').value.trim(), backends: ['pi'],
       installService: el('cx-autostart').checked && !el('cx-autostart-row').hidden && latest.needsInit,
       port: Number(el('cx-port').value) };
   }
   var controller = window.CortexSetupFlow(shell.invoke, render, subscribe());
   el('cx-config-form').addEventListener('submit', function (event) {
     event.preventDefault(); answers = readAnswers();
-    if (latest.needsInit && (!answers.machineName || !answers.backends.length)) {
-      el('cx-machine').setCustomValidity(answers.machineName ? '' : t('Enter a machine name.', '请输入机器名称。'));
-      el('cx-backend-claude').setCustomValidity(answers.backends.length ? '' : t('Select at least one backend.', '请至少选择一个后端。'));
+    if (latest.needsInit && !answers.machineName) {
+      el('cx-machine').setCustomValidity(t('Enter a machine name.', '请输入机器名称。'));
       el('cx-config-form').reportValidity(); return;
     }
     el('cx-log').textContent = ''; controller.start(answers);
   });
   el('cx-config-form').addEventListener('input', function () {
-    el('cx-machine').setCustomValidity(''); el('cx-backend-claude').setCustomValidity('');
+    el('cx-machine').setCustomValidity('');
   });
   el('cx-retry').addEventListener('click', function () {
     if (latest.stage === 'prepare') { controller.prepare(); return; }

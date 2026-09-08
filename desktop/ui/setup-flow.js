@@ -1,5 +1,5 @@
 // input:  native setup commands, progress subscriber
-// output: CortexSetupFlow automatic install and start controller
+// output: CortexSetupFlow with new-install provider handoff
 // pos:    Framework-free state transitions for native onboarding
 // >>> Once updated, update this header and the parent CORTEX.md <<<
 (function (root) {
@@ -7,7 +7,7 @@
   function createFlow(invoke, notify, ready) {
     var state = { stage: 'prepare', busy: false, error: null, active: null,
       probe: null, bin: null, version: null, needsInit: true, endpoint: null,
-      progress: {}, warning: null };
+      progress: {}, warning: null, newInstall: null, destination: null };
     function publish() { notify(state); }
     function mark(key, value) {
       state.progress[key] = value;
@@ -35,6 +35,8 @@
       state.bin = probe.cortexBin;
       state.version = probe.serverVersion;
       state.needsInit = !probe.homeExists;
+      // Keep the entry identity even after init creates config or a retry re-probes.
+      if (state.newInstall === null) state.newInstall = state.needsInit;
       if (!probe.nodeOk) throw new Error('NODE_REQUIRED');
       if (!probe.npm) throw new Error('NPM_REQUIRED');
       if (!probe.git) throw new Error('GIT_REQUIRED');
@@ -97,6 +99,7 @@
       await invoke('connect', { serverUrl: state.endpoint.url, token: state.endpoint.token,
         local: { cortexBin: state.bin, serverVersion: state.version || null } });
       mark('connect', 'done');
+      state.destination = state.newInstall ? 'index.html#/setup/providers' : 'index.html';
       state.stage = 'ready';
     }
     async function start(answers) {
