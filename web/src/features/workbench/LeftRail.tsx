@@ -25,31 +25,28 @@ import {
   type RailSortMode,
 } from './rail-order';
 import { NewProjectIcon, RailTree, SearchIcon } from './RailTree';
-import { NewProjectModal } from './NewProjectModal';
-import { PaneToggle } from './PaneToggle';
 import { useApprovals } from '@/features/approvals/ApprovalsProvider';
 import { useSettings } from '@/features/settings/SettingsProvider';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useCommissionBoard } from '@/features/commission/CommissionBoardModalProvider';
 import { useCommissionLiveSync } from '@/features/commission/useCommissionLiveSync';
 import { useSelectedSession } from './SelectedSessionProvider';
-import { isNewSessionShortcut } from './selected-session';
 import { useVocab } from '@/i18n';
 import { useTheme, useSetTheme } from '@/theme';
-import { DaemonStatusModal } from '@/shell/DaemonStatusModal';
 import { useSessionsLiveSync } from './useSessionsLiveSync';
 import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvider';
 import { connectionDot, connectionLabelKey, type ConnectionDot } from '@/features/connection/connection-status';
 import { RailRateLimitStatus, useRateLimitStatus } from '@/features/rate-limit';
 import { PlusGlyph } from '@/design';
 import { useAllSessions } from '@/features/projects/useProjectSessions';
+import { usePaneState } from '@/shell/PaneStateProvider';
+import { useShellModals } from '@/shell/ShellModalsProvider';
 
 const mono = "'IBM Plex Mono',monospace";
 const RAIL_WIDTH = 340;
 // Mirrors the right panel's icon rail (RightPanel PANEL_RAIL_WIDTH) so both collapsed edges read
 // as the same object: a 26px square of content inside 8px gutters.
 const RAIL_COLLAPSED_WIDTH = 42;
-const RAIL_COLLAPSED_KEY = 'cortex:left-rail-collapsed';
 const EXPANDED_KEY = 'cortex.railExpanded';
 const SCHED_EXPANDED_KEY = 'cortex.railSchedExpanded';
 const COMM_EXPANDED_KEY = 'cortex.railCommExpanded';
@@ -175,24 +172,6 @@ function RailIconButton({ label, color, onClick, onMouseEnter, onMouseLeave, chi
   );
 }
 
-function useRailCollapsed() {
-  const [collapsed, setCollapsed] = useState<boolean>(() => {
-    try {
-      return window.localStorage.getItem(RAIL_COLLAPSED_KEY) === 'true';
-    } catch {
-      return false;
-    }
-  });
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(RAIL_COLLAPSED_KEY, String(collapsed));
-    } catch {
-      /* persistence is best-effort */
-    }
-  }, [collapsed]);
-  return [collapsed, setCollapsed] as const;
-}
-
 export function LeftRail(): JSX.Element {
   const navigate = useNavigate();
   const trpc = useTRPC();
@@ -203,7 +182,10 @@ export function LeftRail(): JSX.Element {
   // Live UI↔server connectivity for the daemon badge (green connected / amber (re)connecting /
   // red disconnected).
   const connStatus = useConnectionStatus();
-  const [collapsed, setCollapsed] = useRailCollapsed();
+  const { railCollapsed: collapsed, setRailCollapsed: setCollapsed } = usePaneState();
+  // New project and daemon status are opened from the menu bar too, so their modals live in
+  // ShellModalsProvider rather than in this component.
+  const shellModals = useShellModals();
   const rateLimitStatus = useRateLimitStatus();
   const connDot = connectionDot(connStatus);
   const connLabel = L[connectionLabelKey(connStatus)];
@@ -247,9 +229,7 @@ export function LeftRail(): JSX.Element {
   // A drag in ACTIVITY mode holds only until activity moves again — that is what the mode means.
   // The flag lives in state (not storage) so a reload lands back on the honest activity order.
   const [dragged, setDragged] = useState(false);
-  const [newProjOpen, setNewProjOpen] = useState(false);
   const [runModalId, setRunModalId] = useState<string | null>(null);
-  const [daemonOpen, setDaemonOpen] = useState(false);
   const [hover, setHover] = useState<string | null>(null);
 
   const toggleId = (
@@ -375,18 +355,9 @@ export function LeftRail(): JSX.Element {
     setSelectedSession('__draft__');
     navigate('/workbench');
   };
+  // ⌘N itself is bound by the menu registry (shell/menu/useMenuShortcuts) — File → New session —
+  // so the rail no longer keeps its own listener for it.
   const onNewSession = () => newSessionIn(null);
-  const onNewSessionRef = useRef(onNewSession);
-  onNewSessionRef.current = onNewSession;
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!isNewSessionShortcut(e)) return;
-      e.preventDefault();
-      onNewSessionRef.current();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
 
   const onOverview = (projectId: string) => {
     setCurrentProject(projectId);
@@ -497,8 +468,7 @@ export function LeftRail(): JSX.Element {
       aria-label={L.lrRailNavigation}
       style={{ width: RAIL_COLLAPSED_WIDTH - 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, padding: '14px 0 12px' }}
     >
-      <BrandBadge dot={connDot} label={`${L.dmDaemon} · ${connLabel}`} onClick={() => setDaemonOpen(true)} />
-      <PaneToggle side="left" expanded={false} label={L.lrExpandRail} onClick={() => setCollapsed(false)} />
+      <BrandBadge dot={connDot} label={`${L.dmDaemon} · ${connLabel}`} onClick={() => shellModals.openDaemonStatus()} />
       {railDivider}
       {/* The one filled square in the column, echoing the expanded rail's accent button: at this
           width the only way to say "primary" is with the fill. */}
@@ -527,7 +497,7 @@ export function LeftRail(): JSX.Element {
       <RailIconButton
         label={L.newProject}
         color={isHover('crail:newproj') ? 'var(--proto-ink)' : 'var(--proto-muted-2)'}
-        onClick={() => setNewProjOpen(true)}
+        onClick={() => shellModals.openNewProject()}
         {...hp('crail:newproj')}
       >
         <NewProjectIcon />
@@ -584,13 +554,12 @@ export function LeftRail(): JSX.Element {
         ref={treeScrollRef}
         style={{ display: collapsed ? 'none' : 'flex', flexDirection: 'column', flex: 1, minHeight: 0, width: RAIL_WIDTH }}
       >
-        {/* header: brand badge (carries the link dot) + wordmark + collapse toggle */}
+        {/* header: brand badge (carries the link dot) + wordmark. The collapse toggle moved to the
+            top bar, which owns window-level layout controls and stays reachable when the rail is
+            collapsed. */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '16px 16px 10px', flex: 'none' }}>
-          <BrandBadge dot={connDot} label={`${L.dmDaemon} · ${connLabel}`} onClick={() => setDaemonOpen(true)} />
+          <BrandBadge dot={connDot} label={`${L.dmDaemon} · ${connLabel}`} onClick={() => shellModals.openDaemonStatus()} />
           <div style={{ fontWeight: 650, fontSize: 14, color: 'var(--proto-ink)', letterSpacing: '-.01em' }}>Cortex</div>
-          <div style={{ marginLeft: 'auto', display: 'flex' }}>
-            <PaneToggle side="left" expanded label={L.lrCollapseRail} onClick={() => setCollapsed(true)} />
-          </div>
         </div>
 
         {/* The rail has exactly one primary action, so it gets a full row rather than a text link
@@ -630,7 +599,7 @@ export function LeftRail(): JSX.Element {
           onFilter={setFilter}
           searchOpen={searchOpen}
           onToggleSearch={onToggleSearch}
-          onNewProject={() => setNewProjOpen(true)}
+          onNewProject={() => shellModals.openNewProject()}
           onToggleProject={toggleProject}
           onToggleSchedules={toggleSchedules}
           onToggleCommissions={toggleCommissions}
@@ -728,7 +697,6 @@ export function LeftRail(): JSX.Element {
         </div>
       </div>
 
-      {newProjOpen && <NewProjectModal onClose={() => setNewProjOpen(false)} />}
 
       {runModalRow && (
         <RunListModal
@@ -751,7 +719,6 @@ export function LeftRail(): JSX.Element {
         />
       )}
 
-      <DaemonStatusModal open={daemonOpen} onClose={() => setDaemonOpen(false)} />
     </div>
   );
 }

@@ -19,17 +19,8 @@ export interface PendingCreatedSession {
   profileName: string | null;
 }
 
-interface ShortcutLike {
-  key: string;
-  metaKey: boolean;
-  ctrlKey: boolean;
-  shiftKey: boolean;
-  altKey: boolean;
-}
-
-export function isNewSessionShortcut(event: ShortcutLike): boolean {
-  return (event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'n';
-}
+// The ⌘N predicate that used to live here moved into the menu accelerator registry
+// (shell/menu/menu-model `matchesAccel`), which now owns every app-wide shortcut.
 
 /** Most-recently-used session id (by lastUsedAt, then createdAt), else null. */
 export function deriveMostRecentSessionId(sessions: SessionInfo[]): string | null {

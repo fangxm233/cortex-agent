@@ -472,6 +472,39 @@ const SHELL_FLAG: &str = "window.__CORTEX_MOBILE__ = true;\n";
 #[cfg(not(target_os = "android"))]
 const SHELL_FLAG: &str = "window.__CORTEX_DESKTOP__ = true;\n";
 
+/// Which OS the SPA is running on. The desktop bar needs it for three decisions the SPA cannot make
+/// on its own: reserve the macOS traffic-light strip, draw caption buttons at the right edge, and
+/// render ⌘ rather than Ctrl in accelerators.
+#[cfg(target_os = "macos")]
+const PLATFORM_FLAG: &str = "macos";
+#[cfg(target_os = "windows")]
+const PLATFORM_FLAG: &str = "windows";
+#[cfg(all(unix, not(target_os = "macos"), not(target_os = "android")))]
+const PLATFORM_FLAG: &str = "linux";
+#[cfg(target_os = "android")]
+const PLATFORM_FLAG: &str = "android";
+
+/// Frontend version from which the SPA draws its own title bar.
+///
+/// This is the gate that makes an OTA swap safe in either order. The frontend hot-updates while the
+/// Rust shell updates on its own schedule, so the two are routinely out of step. Stripping the
+/// decorations for a frontend that has no drag region and no caption buttons would leave a window
+/// the user cannot move or close — the one failure mode here that is not recoverable from inside
+/// the app. The window is built AFTER `promote_staged()`, so the installed version is already known.
+const TITLEBAR_MIN_UI_VERSION: &str = "2026.9.8";
+
+/// Whether the installed frontend can draw the window chrome itself.
+///
+/// `None` means no OTA bundle is installed, so we are serving the seed that shipped inside this very
+/// shell — which by construction matches it. Only an actually-older OTA bundle forces native chrome.
+#[cfg(not(target_os = "android"))]
+fn draws_own_titlebar(installed: Option<&str>) -> bool {
+    match installed {
+        Some(version) => setup::version_at_least(version, TITLEBAR_MIN_UI_VERSION),
+        None => true,
+    }
+}
+
 /// The full initialization script: platform flag + **synchronously baked** credentials + shared body.
 ///
 /// The credentials known at window-build time (loaded from the credential store) are serialized
@@ -487,7 +520,7 @@ const SHELL_FLAG: &str = "window.__CORTEX_DESKTOP__ = true;\n";
 /// window was built with empty creds (baked null), then the user saves creds on connect.html and
 /// navigates to index.html within the same session — the re-injected script's baked value is still
 /// null there, so the async `get_connection_config` fills in the freshly-saved creds.
-fn init_script(config: &ConnectionConfig) -> String {
+fn init_script(config: &ConnectionConfig, title_bar: &str) -> String {
     // Serialize via serde so serverUrl/token are correctly JSON-escaped (quotes, backslashes, etc.),
     // never string-interpolated raw. A serialize failure falls back to async-IPC-only behaviour.
     let baked = serde_json::to_string(config)
@@ -501,7 +534,9 @@ fn init_script(config: &ConnectionConfig) -> String {
     (location.protocol === 'http:' && location.hostname === '{FRONTEND_SCHEME}.localhost')
   );
   if (!shellOrigin) return;
-  {SHELL_FLAG}window.__CORTEX_DESKTOP_CONFIG = {baked};
+  {SHELL_FLAG}window.__CORTEX_PLATFORM__ = "{PLATFORM_FLAG}";
+  window.__CORTEX_TITLEBAR__ = "{title_bar}";
+  window.__CORTEX_DESKTOP_CONFIG = {baked};
   {INIT_SCRIPT}
 }}());
 "#)
@@ -709,6 +744,7 @@ pub fn run() {
             // running SPA is never swapped underneath itself. On Android, if `ui/current` is still
             // empty afterwards (first run / offline), materialize the embedded seed into it so the
             // cortexui:// resolver has something to serve (desktop falls back to resource_dir instead).
+            let mut installed_ui: Option<String> = None;
             if let Ok(data) = app.path().app_data_dir() {
                 let store = ota::UiStore::new(&data);
                 match store.promote_staged() {
@@ -724,11 +760,28 @@ pub fn run() {
                         Err(e) => shell_log!("[cortex-desktop] seed extract failed: {e}"),
                     }
                 }
+                installed_ui = store.installed_version();
                 shell_log!(
                     "[cortex-desktop] frontend dir: installed_version={:?}",
-                    store.installed_version()
+                    installed_ui
                 );
             }
+
+            // Chrome mode is decided here, before the builder runs, and is handed to the SPA in the
+            // same breath so the two can never disagree about who draws the title bar.
+            #[cfg(not(target_os = "android"))]
+            let custom_chrome = draws_own_titlebar(installed_ui.as_deref());
+            #[cfg(not(target_os = "android"))]
+            let title_bar_mode = if !custom_chrome {
+                "native"
+            } else if cfg!(target_os = "macos") {
+                "overlay"
+            } else {
+                "custom"
+            };
+            #[cfg(target_os = "android")]
+            let title_bar_mode = "native";
+            shell_log!("[cortex-desktop] title bar mode: {title_bar_mode}");
 
             // ── Open the window against the cortexui:// scheme (both platforms) ──
             let url = format!("{FRONTEND_SCHEME}://localhost/{initial_file}");
@@ -739,7 +792,7 @@ pub fn run() {
                 tauri::WebviewUrl::CustomProtocol(url.parse().expect("valid cortexui:// url")),
             )
             .initialization_script_for_all_frames(TITLE_BRIDGE_SCRIPT)
-            .initialization_script(&init_script(&baked_config));
+            .initialization_script(&init_script(&baked_config, title_bar_mode));
             // Desktop-only window chrome (Android manages its own full-screen activity).
             // `disable_drag_drop_handler()` turns OFF Tauri's native OS-level file drag-drop
             // interception so the webview's own HTML5 DnD events reach the DOM — without it the
@@ -752,6 +805,26 @@ pub fn run() {
                     .inner_size(1400.0, 900.0)
                     .resizable(true)
                     .disable_drag_drop_handler();
+                if custom_chrome {
+                    // macOS keeps its decorations: Overlay is the supported way to run content under
+                    // the title bar, and it preserves the native traffic lights, fullscreen button
+                    // and window menu. The lights are nudged to sit centred in the SPA's 50px bar.
+                    #[cfg(target_os = "macos")]
+                    {
+                        win = win
+                            .title_bar_style(tauri::TitleBarStyle::Overlay)
+                            .traffic_light_position(tauri::LogicalPosition::new(20.0, 19.0))
+                            .hidden_title(true);
+                    }
+                    // Windows / Linux draw nothing: the SPA paints the caption buttons. `shadow`
+                    // keeps the drop shadow (and, on Windows 11, the rounded corners) that an
+                    // undecorated window otherwise loses; tao still handles the resize borders and
+                    // Aero Snap for undecorated windows.
+                    #[cfg(not(target_os = "macos"))]
+                    {
+                        win = win.decorations(false).shadow(true);
+                    }
+                }
             }
             win.build()?;
 

@@ -64,6 +64,10 @@ interface DockContextValue {
   updateWeb: (id: string, update: (tab: WebDockTab) => WebDockTab) => void;
   /** Hide the dock and restore modal previews; the tabs survive for the next open. */
   closeDock: () => void;
+  /** Show/hide the dock from a window-level surface (top bar View menu). Reopens the surviving
+   *  tabs when there are any, and falls back to a fresh web tab when the dock has never been used —
+   *  otherwise the menu item would toggle a pane with nothing in it. */
+  toggleDock: () => void;
   /** Live during a divider drag; `persist` on drag end. */
   setSplit: (value: number, persist?: boolean) => void;
   /** Mounted by the pane; returns the unregister callback. */
@@ -86,6 +90,7 @@ const DockContext = createContext<DockContextValue>({
   reorder: () => {},
   updateWeb: () => {},
   closeDock: () => {},
+  toggleDock: () => {},
   setSplit: () => {},
   registerHost: () => () => {},
 });
@@ -169,6 +174,18 @@ export function DockProvider({ children }: { children: ReactNode }): JSX.Element
     store(DOCK_OPEN_KEY, '0');
   }, []);
 
+  const toggleDock = useCallback(() => {
+    if (open) {
+      closeDock();
+      return;
+    }
+    if (state && state.tabs.length > 0) {
+      show();
+      return;
+    }
+    openWeb();
+  }, [open, state, show, openWeb, closeDock]);
+
   const setSplit = useCallback((value: number, persist = false) => {
     const next = clampDockSplit(value);
     setSplitState(next);
@@ -190,10 +207,11 @@ export function DockProvider({ children }: { children: ReactNode }): JSX.Element
       reorder,
       updateWeb,
       closeDock,
+      toggleDock,
       setSplit,
       registerHost,
     }),
-    [hosts, open, state, split, openFile, openWeb, select, close, reorder, updateWeb, closeDock, setSplit, registerHost],
+    [hosts, open, state, split, openFile, openWeb, select, close, reorder, updateWeb, closeDock, toggleDock, setSplit, registerHost],
   );
 
   return <DockContext.Provider value={value}>{children}</DockContext.Provider>;

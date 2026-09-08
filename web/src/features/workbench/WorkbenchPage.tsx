@@ -8,6 +8,7 @@ import { LeftRail } from './LeftRail';
 import { CenterChat } from './CenterChat';
 import { RightPanel } from './RightPanel';
 import { useSettings } from '@/features/settings/SettingsProvider';
+import { AppFrame } from '@/shell/AppFrame';
 
 // Workbench app-shell frame — 1:1 from prototype.dc.html L39 (Stage-R RB, task f528). The outer
 // flex row is the load-bearing seam every workbench pane composes into: 340px LeftRail (flex:none)
@@ -26,20 +27,11 @@ export function WorkbenchPage(): JSX.Element {
   const { active, split } = useDock();
   const { open: openSettings } = useSettings();
   return (
-    <div
-      style={{
-        height: '100vh',
-        minHeight: 640,
-        minWidth: 1280,
-        display: 'flex',
-        background: 'var(--proto-card)',
-        overflow: 'hidden',
-      }}
-    >
+    <AppFrame>
       <LeftRail />
       <CenterChat grow={active ? 1 - split : 1} onOpenSettings={openSettings} />
       <DockPane />
       <RightPanel />
-    </div>
+    </AppFrame>
   );
 }

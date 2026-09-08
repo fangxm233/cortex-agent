@@ -8,6 +8,7 @@ import { SessionIdModal } from './SessionIdModal';
 import { NotesButton } from '@/features/notes/NotesButton';
 import { BrowserButton } from '@/features/browser/BrowserButton';
 import { useNotes } from '@/features/notes/NotesProvider';
+import { useShellModals } from '@/shell/ShellModalsProvider';
 
 const MONO = "'IBM Plex Mono',monospace";
 
@@ -27,7 +28,9 @@ export function ChatHeader({
   const [cmdkHover, setCmdkHover] = useState(false);
   const [moreHover, setMoreHover] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
-  const [sessionIdOpen, setSessionIdOpen] = useState(false);
+  // Edit → Copy session ID and this menu both reach the same modal, so its open flag lives in
+  // ShellModalsProvider. The modal itself stays here: it needs the ids from this subtree.
+  const shellModals = useShellModals();
 
   useEffect(() => {
     if (!moreMenuOpen) return;
@@ -124,7 +127,7 @@ export function ChatHeader({
               <div
                 onClick={() => {
                   setMoreMenuOpen(false);
-                  setSessionIdOpen(true);
+                  shellModals.openSessionId();
                 }}
                 style={{
                   padding: '9px 13px',
@@ -140,11 +143,11 @@ export function ChatHeader({
           ) : null}
         </span>
       </div>
-      {sessionIdOpen ? (
+      {shellModals.sessionIdOpen ? (
         <SessionIdModal
           cortexId={sessionName}
           backendUuid={backendSessionId}
-          onClose={() => setSessionIdOpen(false)}
+          onClose={shellModals.closeSessionId}
         />
       ) : null}
     </div>
