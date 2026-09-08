@@ -44,11 +44,10 @@ const threadLoader: RegistrarLoader = async (ctx) => {
 
 const extLoader: RegistrarLoader = async (ctx) => {
   const [{ registerCostTools }, { registerExecutionTools }, { registerContextTools },
-    { registerScheduleTools }, { executionRepo }] = await Promise.all([
+    { registerScheduleTools }] = await Promise.all([
     import('./tools/cost.js'), import('./tools/executions.js'), import('./tools/context.js'),
-    import('./tools/schedule.js'), import('@store/execution-repo.js'),
+    import('./tools/schedule.js'),
   ]);
-  executionRepo.load();
   return server => {
     registerCostTools(server); registerExecutionTools(server);
     registerContextTools(server, ctx); registerScheduleTools(server, ctx);
@@ -150,6 +149,14 @@ export async function createBundledServer(
 export async function startServer(): Promise<void> {
   const selection = process.env[MCP_BUNDLES_ENV] ?? process.argv[2];
   const bundles = parseMcpBundles(selection);
+  // Only this process needs the execution store filled: nothing else populated it. Loading
+  // belongs here rather than in the ext bundle because the in-process host shares one daemon-wide
+  // repository — the daemon loads it at boot and keeps writing to it, so a per-session reload
+  // there re-read the file on every session start and dropped whatever was still queued to write.
+  if (bundles.includes('cortex-ext')) {
+    const { executionRepo } = await import('@store/execution-repo.js');
+    executionRepo.load();
+  }
   const server = await createBundledServer(bundles, toolContextFromEnv());
   await server.connect(new StdioServerTransport());
 }

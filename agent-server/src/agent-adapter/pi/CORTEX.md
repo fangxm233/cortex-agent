@@ -22,7 +22,7 @@ Adds Cortex MCP tools, hooks, subagents, shims, and web tools as inline extensio
 | event-parser.ts | parser | Translates PI session events and forwarded subagent events |
 | mcp-bridge.ts | bridge | Loads the in-memory Cortex bundle plus plugin MCP tools |
 | mcp-bridge-logic.ts | core | decides server loading and maps tool content |
-| hook-bridge.ts | bridge | runs registry hook scripts asynchronously with native PI results |
+| hook-bridge.ts | bridge | runs registry hooks in-process when they expose an entry point, otherwise as scripts |
 | web-fetch.ts | tool | fetches bounded HTTP(S) and strips data images |
 | web-search.ts | tool | routes and decodes provider-side search responses |
 | subagent.ts | tool | Runs role-scoped subagents on nested in-process PI sessions |

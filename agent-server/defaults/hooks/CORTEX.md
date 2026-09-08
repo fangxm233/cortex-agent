@@ -6,7 +6,7 @@ Managed hook scripts deployed into the runtime hook directory.
 |---|---|---|
 | ask-user-question-hook.mjs | bridge | Routes agent questions through the webhook |
 | cortex-hook-api.mjs | library | posts non-empty question arrays for hooks |
-| cortex-md-injector.mjs | context | Injects matching directory context |
+| cortex-md-injector.mjs | context | Injects matching directory context; also exports runHook for in-process callers |
 | exit-plan-mode-hook.mjs | bridge | Routes plan approval through the webhook |
 | memory-ref-tracker.mjs | tracker | Records memory reference reads |
 | new-session-hook.mjs | session | Builds the new-session flush prompt |

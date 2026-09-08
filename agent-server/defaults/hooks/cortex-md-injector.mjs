@@ -1,7 +1,10 @@
 #!/usr/bin/env node
-// @cortex-hook-version 2026.6.24  ← set to the current release version (agent-server/package.json) whenever you change this hook; syncManagedHooks then refreshes deployed installs
-// input:  stdin JSON — Claude Code hook event or PI hook-bridge payload
+// @cortex-hook-version 2026.8.7  ← set to the current release version (agent-server/package.json) whenever you change this hook; syncManagedHooks then refreshes deployed installs
+// input:  stdin JSON — Claude Code hook event or PI hook-bridge payload; or runHook(payload, env)
 // output: { hookSpecificOutput: { hookEventName, additionalContext, matched } }
+//         Exported `runHook` is the in-process entry point: the PI hook bridge calls it directly
+//         instead of spawning this file, so every path here takes its scope from the `env`
+//         argument rather than process.env (one daemon process serves many sessions).
 // pos:    Inject CORTEX.md / CORTEX.local.md ancestor chain into agent context
 //         2-event dispatch:
 //           PostToolUse (Read|Edit) — from tool_input.file_path/path
@@ -20,22 +23,27 @@ import {
 } from 'fs';
 import { join, resolve, dirname, basename } from 'path';
 import { homedir, hostname } from 'os';
+import { fileURLToPath } from 'url';
 
 const HOSTNAME = hostname();
 const HOST_ID = HOSTNAME.toLowerCase();
 const CORTEX_MD_NAMES = ['CORTEX.md', 'CORTEX.local.md'];
-const CORTEX_HOME = process.env.CORTEX_HOME
-  ? resolve(process.env.CORTEX_HOME)
-  : join(homedir(), '.cortex');
-const HOME_FALLBACK = join(CORTEX_HOME, 'CORTEX.md');
 const MAX_FILE_SIZE = 200 * 1024;
 const MAX_DEPTH = 20;
-const CACHE_DIR = join(CORTEX_HOME, 'tmp', 'cortexmd-cache');
 const MAX_CONTEXT_CHARS = 9500;
 const LOCK_WAIT_MS = 250;
 const LOCK_STALE_MS = 5000;
 const LOCK_SLEEP = new Int32Array(new SharedArrayBuffer(4));
 const SESSION_ID_RE = /^[A-Za-z0-9._-]+$/;
+
+/** Home fallback and shared cache directory of ONE session, derived from its own environment. */
+function hookPaths(env) {
+  const home = env.CORTEX_HOME ? resolve(env.CORTEX_HOME) : join(homedir(), '.cortex');
+  return {
+    homeFallback: join(home, 'CORTEX.md'),
+    cacheDir: join(home, 'tmp', 'cortexmd-cache'),
+  };
+}
 
 // ── scan helpers ──
 
@@ -56,7 +64,7 @@ function tryReadEntry(filePath) {
  *  home fallback at ~/.cortex/CORTEX.md if present. Returns leaf→root order.
  *  If targetFilePath is a directory, scan that directory and its ancestors.
  *  If it is a file (or does not exist), scan its parent directory and ancestors. */
-function scanChain(targetFilePath) {
+function scanChain(targetFilePath, paths) {
   const entries = [];
   const seen = new Set();
 
@@ -89,9 +97,9 @@ function scanChain(targetFilePath) {
   }
 
   // Home fallback
-  if (!seen.has(HOME_FALLBACK)) {
-    seen.add(HOME_FALLBACK);
-    const entry = tryReadEntry(HOME_FALLBACK);
+  if (!seen.has(paths.homeFallback)) {
+    seen.add(paths.homeFallback);
+    const entry = tryReadEntry(paths.homeFallback);
     if (entry) entries.push(entry);
   }
 
@@ -100,10 +108,10 @@ function scanChain(targetFilePath) {
 
 // ── cache helpers ──
 
-function loadCache(sessionId) {
+function loadCache(sessionId, paths) {
   const cache = new Map();
   if (!sessionId || !SESSION_ID_RE.test(sessionId)) return cache;
-  const cacheFile = join(CACHE_DIR, `${sessionId}.json`);
+  const cacheFile = join(paths.cacheDir, `${sessionId}.json`);
   try {
     if (!existsSync(cacheFile)) return cache;
     const raw = readFileSync(cacheFile, 'utf8');
@@ -119,11 +127,11 @@ function loadCache(sessionId) {
   return cache;
 }
 
-function saveCache(sessionId, cache) {
+function saveCache(sessionId, cache, paths) {
   if (!sessionId || !SESSION_ID_RE.test(sessionId)) return;
   try {
-    mkdirSync(CACHE_DIR, { recursive: true });
-    const cacheFile = join(CACHE_DIR, `${sessionId}.json`);
+    mkdirSync(paths.cacheDir, { recursive: true });
+    const cacheFile = join(paths.cacheDir, `${sessionId}.json`);
     const obj = Object.fromEntries(cache);
     const tmp = `${cacheFile}.${process.pid}.tmp`;
     writeFileSync(tmp, JSON.stringify(obj), 'utf8');
@@ -131,9 +139,9 @@ function saveCache(sessionId, cache) {
   } catch { /* disk full etc. — degrade gracefully */ }
 }
 
-function lockFileFor(sessionId) {
+function lockFileFor(sessionId, paths) {
   if (!sessionId || !SESSION_ID_RE.test(sessionId)) return null;
-  return join(CACHE_DIR, `${sessionId}.json.lock`);
+  return join(paths.cacheDir, `${sessionId}.json.lock`);
 }
 
 function removeStaleLock(lockFile) {
@@ -143,13 +151,13 @@ function removeStaleLock(lockFile) {
   } catch { /* ignore */ }
 }
 
-function acquireLock(sessionId) {
-  const lockFile = lockFileFor(sessionId);
+function acquireLock(sessionId, paths) {
+  const lockFile = lockFileFor(sessionId, paths);
   if (!lockFile) return null;
   const deadline = Date.now() + LOCK_WAIT_MS;
   do {
     try {
-      mkdirSync(CACHE_DIR, { recursive: true });
+      mkdirSync(paths.cacheDir, { recursive: true });
       return { file: lockFile, descriptor: openSync(lockFile, 'wx') };
     } catch (error) {
       if (error?.code !== 'EEXIST') return null;
@@ -213,6 +221,83 @@ function buildContext(entries) {
   return { text: parts.join('\n\n'), includedPaths };
 }
 
+// ── hook body ──
+
+/**
+ * Run the hook against one payload and one session environment.
+ * Returns the hook output object, or null when this event injects nothing.
+ * Pure of process state apart from the filesystem, so the PI bridge can call it in-process.
+ */
+export function runHook(payload, env = process.env) {
+  const paths = hookPaths(env);
+  const hookEventName = payload.hook_event_name;
+  const stableSessionId = env.CORTEX_CACHE_SESSION_ID?.trim()
+    || env.CORTEX_SESSION_ID?.trim();
+  const sessionId = stableSessionId && SESSION_ID_RE.test(stableSessionId)
+    ? stableSessionId
+    : payload.session_id;
+
+  let scanRoot = null;
+  if (hookEventName === 'PostToolUse') {
+    const toolName = payload.tool_name;
+    if (toolName !== 'Read' && toolName !== 'Edit') return null;
+    scanRoot = payload.tool_input?.file_path || payload.tool_input?.path;
+  } else if (hookEventName === 'SessionStart') {
+    scanRoot = payload.cwd;
+  }
+  if (!scanRoot) return null;
+
+  const entries = scanChain(scanRoot, paths);
+  if (entries.length === 0) return null;
+
+  const lock = acquireLock(sessionId, paths);
+  try {
+    const cache = loadCache(sessionId, paths);
+    const markOnlyPaths = new Set();
+    if (hookEventName === 'PostToolUse') {
+      const targetPath = resolve(payload.tool_input?.file_path || payload.tool_input?.path || '');
+      if (CORTEX_MD_NAMES.includes(basename(targetPath))) markOnlyPaths.add(targetPath);
+    }
+
+    let changed = false;
+    for (const entry of entries) {
+      if (!markOnlyPaths.has(entry.path)) continue;
+      if (cache.get(cacheKey(entry)) === entry.mtimeMs) continue;
+      cache.set(cacheKey(entry), entry.mtimeMs);
+      changed = true;
+    }
+
+    const newEntries = entries.filter(entry =>
+      !markOnlyPaths.has(entry.path) && cache.get(cacheKey(entry)) !== entry.mtimeMs
+    );
+    if (newEntries.length === 0) {
+      if (changed && lock) saveCache(sessionId, cache, paths);
+      return null;
+    }
+
+    const { text: additionalContext, includedPaths } = buildContext(newEntries);
+    if (!additionalContext) return null;
+
+    const injected = new Set(includedPaths);
+    for (const entry of entries) {
+      if (!injected.has(entry.path)) continue;
+      cache.set(cacheKey(entry), entry.mtimeMs);
+      changed = true;
+    }
+    if (changed && lock) saveCache(sessionId, cache, paths);
+
+    return {
+      hookSpecificOutput: {
+        hookEventName,
+        additionalContext,
+        matched: includedPaths,
+      },
+    };
+  } finally {
+    releaseLock(lock);
+  }
+}
+
 // ── main ──
 
 function main() {
@@ -232,72 +317,9 @@ function main() {
     return;
   }
 
-  const hookEventName = payload.hook_event_name;
-  const stableSessionId = process.env.CORTEX_CACHE_SESSION_ID?.trim()
-    || process.env.CORTEX_SESSION_ID?.trim();
-  const sessionId = stableSessionId && SESSION_ID_RE.test(stableSessionId)
-    ? stableSessionId
-    : payload.session_id;
-
-  let scanRoot = null;
-  if (hookEventName === 'PostToolUse') {
-    const toolName = payload.tool_name;
-    if (toolName !== 'Read' && toolName !== 'Edit') return;
-    scanRoot = payload.tool_input?.file_path || payload.tool_input?.path;
-  } else if (hookEventName === 'SessionStart') {
-    scanRoot = payload.cwd;
-  }
-  if (!scanRoot) return;
-
-  const entries = scanChain(scanRoot);
-  if (entries.length === 0) return;
-
-  const lock = acquireLock(sessionId);
-  try {
-    const cache = loadCache(sessionId);
-    const markOnlyPaths = new Set();
-    if (hookEventName === 'PostToolUse') {
-      const targetPath = resolve(payload.tool_input?.file_path || payload.tool_input?.path || '');
-      if (CORTEX_MD_NAMES.includes(basename(targetPath))) markOnlyPaths.add(targetPath);
-    }
-
-    let changed = false;
-    for (const entry of entries) {
-      if (!markOnlyPaths.has(entry.path)) continue;
-      if (cache.get(cacheKey(entry)) === entry.mtimeMs) continue;
-      cache.set(cacheKey(entry), entry.mtimeMs);
-      changed = true;
-    }
-
-    const newEntries = entries.filter(entry =>
-      !markOnlyPaths.has(entry.path) && cache.get(cacheKey(entry)) !== entry.mtimeMs
-    );
-    if (newEntries.length === 0) {
-      if (changed && lock) saveCache(sessionId, cache);
-      return;
-    }
-
-    const { text: additionalContext, includedPaths } = buildContext(newEntries);
-    if (!additionalContext) return;
-
-    const injected = new Set(includedPaths);
-    for (const entry of entries) {
-      if (!injected.has(entry.path)) continue;
-      cache.set(cacheKey(entry), entry.mtimeMs);
-      changed = true;
-    }
-    if (changed && lock) saveCache(sessionId, cache);
-
-    process.stdout.write(JSON.stringify({
-      hookSpecificOutput: {
-        hookEventName,
-        additionalContext,
-        matched: includedPaths,
-      },
-    }));
-  } finally {
-    releaseLock(lock);
-  }
+  const output = runHook(payload, process.env);
+  if (output) process.stdout.write(JSON.stringify(output));
 }
 
-main();
+// Only the spawned form reads stdin: an in-process importer calls runHook directly.
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();

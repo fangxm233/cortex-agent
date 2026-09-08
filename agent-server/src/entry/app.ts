@@ -42,6 +42,7 @@ import { projectStore } from '@domain/projects/index.js';
 import { sendStartupDmIfConfigured } from './startup-notify.js';
 import { subscribeDaemonNotices } from './daemon-notice.js';
 import { startGateway, stopGateway } from '@domain/costs/gateway-manager.js';
+import { prewarmPiSdk } from '@core/pi-sdk.js';
 import { startClientManager, stopClientManager, startAllRemoteClients, getOnlineDevices, isDeviceOnline, sendCommand } from '@domain/remote/client-manager.js';
 import { initClientHotReload } from '@domain/remote/client-hot-reload.js';
 import { checkServerUpdate } from '@domain/system/server-update-check.js';
@@ -205,6 +206,19 @@ function initConfiguredHooks(): void {
   const ccCount = enabled.filter((entry) => entry.event.startsWith('cc:')).length;
   const cortexCount = enabled.filter((entry) => entry.event.startsWith('cortex:')).length;
   log.info(`Startup: mounted ${enabled.length} hooks (${ccCount} cc / ${cortexCount} cortex)`);
+}
+
+/** Preload the PI SDK at boot when any profile can route to it, so the first PI session of this
+ *  process does not wait out its multi-second module import. */
+function prewarmPiBackend(): void {
+  try {
+    const { profiles } = profileRepo.readSync();
+    const usesPi = Object.values(profiles).some((profile) => profile.backend === 'pi'
+      || profile.fallback?.some((entry) => entry.backend === 'pi'));
+    if (usesPi) prewarmPiSdk();
+  } catch (error) {
+    log.warn(`Startup: PI preload skipped (profiles unreadable): ${(error as Error).message}`);
+  }
 }
 
 // --- Singleton lock ---
@@ -737,6 +751,7 @@ process.on('SIGTERM', async () => {
   await projectStore.initialize();
 
   startGateway();
+  prewarmPiBackend();
   startClientManager(parseInt(process.env.CORTEX_CLIENT_PORT || '3002', 10));
 
   startClientHotReloadJob(

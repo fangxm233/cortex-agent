@@ -1,10 +1,12 @@
 // input:  PI ExtensionAPI, session env, declarative hook registry
 // output: Ordered PI hook handlers with native results and mutations
-// pos:    Compiles registry entries into PI event handlers
+// pos:    Compiles registry entries into PI event handlers, run in-process or as scripts
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { DEFAULTS_DIR, HOOKS_DIR } from '../../core/utils.js';
 import { createLogger } from '../../core/log.js';
 import {
@@ -236,6 +238,79 @@ function spawnHook(
   });
 }
 
+/**
+ * The in-process form of a hook script: a managed hook exports `runHook(payload, env)` and the
+ * bridge calls it directly instead of spawning it. One `node <script>` costs ~1s of interpreter
+ * startup on a busy host, every hook of a turn pays it, and `before_agent_start` pays it before
+ * the model request goes out. A script without the export keeps the spawned form, so an older
+ * deployed hook — or a user's own — is unaffected.
+ */
+type InprocHook = (
+  payload: ClaudeHookPayload | Record<string, unknown>,
+  env: NodeJS.ProcessEnv,
+) => unknown | Promise<unknown>;
+
+/** script name → its in-process entry point, or null once it is known to have none. */
+const inprocHooks = new Map<string, InprocHook | null>();
+
+const RUN_HOOK_EXPORT = /export\s+(?:async\s+)?function\s+runHook\b|export\s*\{[^}]*\brunHook\b/;
+
+/**
+ * Whether a script declares the in-process entry point, decided by reading it rather than by
+ * importing it. Importing is not a safe probe: every other hook script is a CLI that reads its
+ * payload off stdin at module scope, so importing one would run it against the daemon's own stdin
+ * and block there forever.
+ */
+function declaresRunHook(scriptPath: string): boolean {
+  try {
+    return RUN_HOOK_EXPORT.test(readFileSync(scriptPath, 'utf8'));
+  } catch {
+    return false;
+  }
+}
+
+async function resolveInprocHook(script: string): Promise<InprocHook | null> {
+  const cached = inprocHooks.get(script);
+  if (cached !== undefined) return cached;
+  const scriptPath = path.join(HOOKS_DIR, script);
+  let handler: InprocHook | null = null;
+  if (declaresRunHook(scriptPath)) {
+    try {
+      // @vite-ignore keeps a test bundler from resolving a path outside its root; in the daemon
+      // this is a plain Node dynamic import.
+      const loaded = await import(/* @vite-ignore */ pathToFileURL(scriptPath).href) as {
+        runHook?: unknown;
+      };
+      if (typeof loaded.runHook === 'function') handler = loaded.runHook as InprocHook;
+    } catch (error) {
+      log.warn(`in-process load of ${script} failed; using the spawned form: ${(error as Error).message}`);
+    }
+  }
+  inprocHooks.set(script, handler);
+  return handler;
+}
+
+/** Bound the wait, not the work: a synchronous hook has already returned by the time this runs,
+ *  and nothing can preempt one that blocks. The timer exists for a hook that awaits forever. */
+function withHookTimeout(result: unknown, timeoutMs: number, id: string): Promise<unknown> {
+  if (!(result instanceof Promise)) return Promise.resolve(result);
+  return Promise.race([
+    result,
+    new Promise<never>((_resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error(`${id} timed out after ${timeoutMs}ms`)),
+        timeoutMs,
+      );
+      timer.unref?.();
+    }),
+  ]);
+}
+
+/** Test seam: drop the resolved entry points so a rewritten hook script is picked up again. */
+export function resetInprocHooks(): void {
+  inprocHooks.clear();
+}
+
 function asHookResult(value: unknown): HookResult {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
   return value as HookResult;
@@ -258,6 +333,11 @@ async function runHookEntry(
   const timeoutMs = (entry.run.timeout ?? 30) * 1_000;
   try {
     if (entry.run.script) {
+      const inproc = await resolveInprocHook(entry.run.script);
+      if (inproc) {
+        const scriptEnv = hookEnvironment(env, String(payload.session_id ?? 'unknown'));
+        return await withHookTimeout(inproc(payload, scriptEnv), timeoutMs, entry.id);
+      }
       return await spawnHook(process.execPath, [path.join(HOOKS_DIR, entry.run.script)], payload, timeoutMs, env);
     }
     return await spawnHook('sh', ['-c', entry.run.command!], payload, timeoutMs, env);
