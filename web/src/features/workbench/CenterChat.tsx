@@ -1,8 +1,8 @@
-// input:  selected session, live snapshots and UI shortcut actions
-// output: reconciled chat, startup status and animated composer
+// input:  session snapshots, file drops and shortcut actions
+// output: chat with a pane-wide attachment target and composer
 // pos:    Workbench conversation pane orchestration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLang, useVocab } from '@/i18n';
@@ -51,6 +51,7 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
   const L = useVocab();
   const lang = useLang();
   const trpc = useTRPC();
+  const chatDropTargetRef = useRef<HTMLDivElement>(null);
   const { currentProjectId } = useCurrentProject();
   const { selectedSessionId, isDraft, draftProfile, draftReloadToken } = useSelectedSession();
   // Scoped to the current project (dedupes with the LeftRail / provider query) so the active session
@@ -188,6 +189,7 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
 
   return (
     <div
+      ref={chatDropTargetRef}
       data-pane="center"
       style={{
         flexGrow: grow,
@@ -253,6 +255,7 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
           turnProgressStarted={liveTurns !== null || streaming}
           compactAction={active?.contextCompactionSupported ? compactAction : undefined}
           todos={todos}
+          dropTargetRef={chatDropTargetRef}
           onOpenSettings={onOpenSettings}
           contextControl={(active?.contextCompactionSupported || contextUsage !== null) ? (
             <ContextUsageControl

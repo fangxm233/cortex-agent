@@ -34,7 +34,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | SessionProfileSelector.test.tsx | test | Tests profile routing and selection interactions |
 | DraftProjectSelector.tsx | view | Profile-styled draft project chip ordered like the left rail |
 | DraftProjectSelector.test.tsx | test | Tests capsule style, rail order, switching and pending lock |
-| CenterChat.tsx | view | Reconciles compact chat state, startup progress and composer placement |
+| CenterChat.tsx | view | Hosts chat state and pane-wide file drops |
 | scheduled-chat.ts | vm | Cadence label and next-run delta helpers |
 | ChatHeader.tsx | view | Session title, command, browser, notes and session menu |
 | MessageStream.tsx | view | Renders transcript rows, controls, scroll pinning, prompt anchors and the published pane width |
@@ -75,7 +75,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | InlineThreadCardProto.tsx | view | Live thread card opening modal detail |
 | thread-card-proto.ts | vm | Maps thread detail to inline card rows, canonical USD labels and pill |
 | thread-card-proto.test.ts | test | Unit tests for the inline thread card model |
-| Composer.tsx | view | Adapts project-scoped drafts and inputs to uploads and shared run status |
+| Composer.tsx | view | Maps drafts and chat drops to uploads and run state |
 | session-run-status.ts | vm | Derives locale-free foreground, background, idle and fresh session facts |
 | session-run-status.test.ts | test | Tests run phases, active tone, metrics and finalized-cost visibility |
 | ComposerAttachmentChip.tsx | view | Renders queued, uploading, failed, and done neutral attachment items with retry/remove controls |
@@ -92,6 +92,8 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | composer-draft.test.ts | test | Tests draft keys, parsing and send restoration |
 | optimistic-message.ts | vm | Reconciles neutral attachment-bearing local sends with source-aware message evidence |
 | useOptimisticUserMessages.ts | hook | Holds the neutral attachment-aware optimistic-send lifecycle for both chats |
+| useFileDropTarget.ts | hook | Binds file drops to a desktop chat surface |
+| useFileDropTarget.test.tsx | test | Tests chat-wide drops and non-file pass-through |
 | optimistic-message.test.ts | test | Tests stale rows, de-duplication and failure |
 | optimistic-message.integration.test.tsx | test | Tests mounted pending sends, restoration and authority races |
 | composer-slash.ts | util | Resolves shared UI-local slash actions |

@@ -1,8 +1,11 @@
-// input:  Session/browser/project state, run facts, shortcuts, attachments, and drafts
-// output: Guarded composer with draft project scope and prioritized run status
+// input:  Session state, chat drop target, attachments and drafts
+// output: Composer with pane-wide drops and prioritized run status
 // pos:    Workbench message input and turn-control surface
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-import { useRef, useState, useCallback, useEffect, useLayoutEffect, type ReactNode } from 'react';
+import {
+  useRef, useState, useCallback, useEffect, useLayoutEffect,
+  type ReactNode, type RefObject,
+} from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLang, useVocab } from '@/i18n';
@@ -36,6 +39,7 @@ import type { TodoSnapshot } from '@cortex-agent/ui-contract';
 import { runOptimisticMutation, type OptimisticUserMessage } from './optimistic-message';
 import { deriveSessionRunStatus } from './session-run-status';
 import { DraftProjectSelector } from './DraftProjectSelector';
+import { useFileDropTarget } from './useFileDropTarget';
 
 // Composer — a unified card: full-width input on top, one toolbar row below. The toolbar keeps the
 // ＋ menu (attach · browser opt-in · local slash commands) on the left and the profile chip, context
@@ -77,6 +81,7 @@ export function Composer({
   contextControl,
   todos,
   compactAction,
+  dropTargetRef,
   onOpenSettings = () => {},
 }: {
   sessionId: string;
@@ -115,6 +120,8 @@ export function Composer({
   contextControl?: ReactNode;
   todos?: TodoSnapshot | null;
   compactAction?: ContextCompactAction;
+  /** Optional larger surface that accepts file drops for this composer. */
+  dropTargetRef?: RefObject<HTMLElement>;
   onOpenSettings?: () => void;
 }): JSX.Element {
   const trpc = useTRPC();
@@ -136,7 +143,7 @@ export function Composer({
   const [sendError, setSendError] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const dropZoneRef = useRef<HTMLDivElement>(null);
+  const localDropTargetRef = useRef<HTMLDivElement>(null);
   // Resolve a restored draft bucket before the shared controller binds. This keeps a scope change
   // from briefly binding a random bucket and then clearing the restored metadata on the next render.
   const draftKey = draftStorageKey({ isDraft, sessionId, projectId });
@@ -179,10 +186,6 @@ export function Composer({
   const attachmentsRef = useRef(attachments);
   composerRef.current = composer;
   attachmentsRef.current = attachments;
-  const [dragOver, setDragOver] = useState(false);
-  const dragCount = useRef(0);
-  const dragFileCount = useRef(0);
-
   // Re-fit the textarea whenever the chip row appears/disappears: its vertical padding changes with
   // attachments (2px→11px). Pasting an image mutates `attachments` but not `composer`, so the
   // `[composer]` effect above never re-fires and the box stayed fitted to the old padding — the text
@@ -219,6 +222,12 @@ export function Composer({
       ...(isDraft && draftUploadId.current ? { draftUploadId: draftUploadId.current } : {}),
     });
   }, [draftKey, draftIdentity, composer, attachments, isDraft, attachmentUploads.replaceRestored]);
+
+  const addFiles = attachmentUploads.addFiles;
+  const removeAttachment = attachmentUploads.remove;
+  const retryAttachment = attachmentUploads.retry;
+  const activeDropTargetRef = dropTargetRef ?? localDropTargetRef;
+  const { active: dragOver, fileCount: dragFileCount } = useFileDropTarget(activeDropTargetRef, addFiles);
 
   const hasAttachments = attachments.length > 0;
   const doneAttachments = attachmentUploads.completed;
@@ -260,48 +269,6 @@ export function Composer({
     settingsDisabled: hasPendingUploads,
   };
   const slashList = buildSlashSuggestions(composer, slashProfiles, slashAvailability);
-
-  const addFiles = attachmentUploads.addFiles;
-  const removeAttachment = attachmentUploads.remove;
-  const retryAttachment = attachmentUploads.retry;
-
-  // ── Drag & drop handlers ──
-  const onDragEnter = useCallback((e: React.DragEvent): void => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCount.current++;
-    if (e.dataTransfer.types.includes('Files')) {
-      dragFileCount.current = e.dataTransfer.items.length;
-      setDragOver(true);
-    }
-  }, []);
-
-  const onDragLeave = useCallback((e: React.DragEvent): void => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCount.current--;
-    if (dragCount.current <= 0) {
-      dragCount.current = 0;
-      setDragOver(false);
-    }
-  }, []);
-
-  const onDragOver = useCallback((e: React.DragEvent): void => {
-    e.preventDefault();
-    e.stopPropagation();
-    // Update file count on dragover (may be more accurate than dragenter on some browsers)
-    if (e.dataTransfer.types.includes('Files') && e.dataTransfer.items.length > 0) {
-      dragFileCount.current = e.dataTransfer.items.length;
-    }
-  }, []);
-
-  const onDrop = useCallback((e: React.DragEvent): void => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCount.current = 0;
-    setDragOver(false);
-    if (e.dataTransfer.files.length > 0) addFiles(e.dataTransfer.files);
-  }, [addFiles]);
 
   // ── Paste handler ──
   const onPaste = useCallback((e: React.ClipboardEvent): void => {
@@ -467,11 +434,7 @@ export function Composer({
   return (
     <div style={{ flex: 'none' }}>
       <div
-        ref={dropZoneRef}
-        onDragEnter={onDragEnter}
-        onDragLeave={onDragLeave}
-        onDragOver={onDragOver}
-        onDrop={onDrop}
+        ref={localDropTargetRef}
         style={{ maxWidth: 756, margin: '0 auto', padding: '0 32px 18px', position: 'relative' }}
       >
         {/* Slash palette */}
@@ -507,8 +470,8 @@ export function Composer({
               }}
             >
               <span style={{ font: `600 11.5px ${mono}`, color: 'var(--proto-accent)' }}>
-                {dragFileCount.current > 0
-                  ? L.wbDropFilesPlural.replace('{n}', String(dragFileCount.current))
+                {dragFileCount > 0
+                  ? L.wbDropFilesPlural.replace('{n}', String(dragFileCount))
                   : L.wbDropFilesSingular}
               </span>
               <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-muted-3)' }}>
@@ -684,12 +647,12 @@ export function Composer({
                   }}
                 >
                   <span style={{ font: `600 11.5px ${mono}`, color: 'var(--proto-accent)' }}>
-                    {dragFileCount.current > 0
-                      ? L.wbDropAddMoreN.replace('{n}', String(dragFileCount.current))
+                    {dragFileCount > 0
+                      ? L.wbDropAddMoreN.replace('{n}', String(dragFileCount))
                       : L.wbDropAddMore}
                   </span>
                   <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-muted-3)' }}>
-                    {L.wbDragOverCount.replace('{n}', String(attachments.length)).replace('{m}', String(attachments.length + dragFileCount.current))}
+                    {L.wbDragOverCount.replace('{n}', String(attachments.length)).replace('{m}', String(attachments.length + dragFileCount))}
                   </span>
                 </div>
               )}
