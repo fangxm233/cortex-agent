@@ -32,7 +32,7 @@ const flush = () => new Promise((done) => setTimeout(done, 0));
 describe('mobile notification lifecycle', () => {
   it('checks status and permission before visible configuration and rechecks on resume', async () => {
     off = module.startMobileNotifications('zh');
-    await vi.waitFor(() => expect(h.invoke).toHaveBeenCalledWith('mobile_notifications_configure', { enabled: true, locale: 'zh' }));
+    await vi.waitFor(() => expect(h.invoke).toHaveBeenCalledWith('mobile_notifications_configure', { enabled: true, locale: 'zh', completionNotifications: true }));
     expect(h.status.mock.invocationCallOrder[0]).toBeLessThan(h.ensure.mock.invocationCallOrder[0]);
     expect(h.ensure.mock.invocationCallOrder[0]).toBeLessThan(h.invoke.mock.invocationCallOrder[0]);
     documentTarget.visibilityState = 'hidden';
@@ -61,7 +61,7 @@ describe('mobile notification lifecycle', () => {
   it('syncs credentials with enabled:false so ordinary posts keep working', async () => {
     h.status.mockResolvedValue({ ...status, enabled: false });
     off = module.startMobileNotifications('en');
-    await vi.waitFor(() => expect(h.invoke).toHaveBeenCalledWith('mobile_notifications_configure', { enabled: false, locale: 'en' }));
+    await vi.waitFor(() => expect(h.invoke).toHaveBeenCalledWith('mobile_notifications_configure', { enabled: false, locale: 'en', completionNotifications: true }));
   });
 
   it('does not configure old APKs or browser shells', async () => {
@@ -103,11 +103,23 @@ describe('mobile notification lifecycle', () => {
     expect(h.invoke).not.toHaveBeenCalled();
   });
 
+  it('leaves completion notifications to the page unless the native service reports ownership', async () => {
+    off = module.startMobileNotifications('en');
+    await vi.waitFor(() => expect(h.invoke).toHaveBeenCalledOnce());
+    expect(module.nativeCompletionNotifications()).toBe(false);
+    h.invoke.mockResolvedValue({ ok: true, value: { ...status, completionNotifications: true } });
+    documentTarget.dispatchEvent(new Event('visibilitychange'));
+    await vi.waitFor(() => expect(module.nativeCompletionNotifications()).toBe(true));
+    h.invoke.mockResolvedValue({ ok: true, value: { ...status, enabled: false, completionNotifications: true } });
+    await module.setMobileNotificationsEnabled(false, 'en');
+    expect(module.nativeCompletionNotifications()).toBe(false);
+  });
+
   it('serializes a toggle behind reconciliation and blocks denied enable without prompting', async () => {
     off = module.startMobileNotifications('en');
     await flush();
     await module.setMobileNotificationsEnabled(false, 'zh');
-    expect(h.invoke).toHaveBeenLastCalledWith('mobile_notifications_configure', { enabled: false, locale: 'zh' });
+    expect(h.invoke).toHaveBeenLastCalledWith('mobile_notifications_configure', { enabled: false, locale: 'zh', completionNotifications: true });
     h.refresh.mockResolvedValue(false);
     h.invoke.mockClear();
     await module.setMobileNotificationsEnabled(true, 'zh');

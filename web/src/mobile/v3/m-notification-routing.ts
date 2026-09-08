@@ -1,5 +1,5 @@
 // input:  untrusted notification targets and server lookup results
-// output: validated encoded mobile destinations and project scope
+// output: validated destinations, project scope and on-screen session
 // pos:    Notification target validation and route projection
 // >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
 
@@ -9,6 +9,15 @@ interface ApprovalTarget { id: string; projectId: string | null }
 export interface NotificationLookups {
   sessions: () => Promise<SessionTarget[]>;
   approvals: () => Promise<ApprovalTarget[]>;
+}
+
+const SESSION_PATH = /^\/m\/session\/([^/]+)$/;
+
+/** The session a mobile route puts on screen, or null for any other screen. */
+export function sessionPathId(pathname: string): string | null {
+  const match = SESSION_PATH.exec(pathname);
+  if (!match) return null;
+  try { return notificationTargetId(decodeURIComponent(match[1])) ?? null; } catch { return null; }
 }
 
 export function notificationTargetId(value: unknown): string | undefined {

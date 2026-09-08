@@ -4,7 +4,7 @@
 // >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
 
 import { describe, expect, it, vi } from 'vitest';
-import { notificationTargetId, resolveNotificationRoute } from './m-notification-routing';
+import { notificationTargetId, resolveNotificationRoute, sessionPathId } from './m-notification-routing';
 
 const lookups = () => ({
   sessions: vi.fn(async () => [{ sessionId: 'session/with?#', projectId: 'actual-project' }]),
@@ -12,6 +12,13 @@ const lookups = () => ({
 });
 
 describe('mobile notification target validation', () => {
+  it('reads back only the session a mobile route actually shows', () => {
+    expect(sessionPathId(`/m/session/${encodeURIComponent('session/with?#')}`)).toBe('session/with?#');
+    ['/m/sessions', '/m/session/', '/m/session/one/detail', '/m/project', '/m/session/%E0%A4%A'].forEach((path) => {
+      expect(sessionPathId(path)).toBeNull();
+    });
+  });
+
   it.each([undefined, null, {}, [], '', ' ', 'a\n', '\ud800', 'x'.repeat(513)])('rejects invalid target %j', (value) => {
     expect(notificationTargetId(value)).toBeUndefined();
   });

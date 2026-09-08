@@ -115,6 +115,39 @@ class ProtocolTest {
         assertEquals(1, Protocol.sessions(Protocol.queryData(query).toString()).count { it.running })
     }
 
+    @Test fun sessionRowsCarryDisplayNamesAndBackgroundHolds() {
+        val rows = Protocol.sessions("""[
+          {"sessionId":"one","origin":"direct","running":true,"backgroundRunning":true,
+            "awaitingInput":false,"name":"Fallback","label":"Atlas"},
+          {"sessionId":"two","origin":"direct","running":false,"awaitingInput":false,"name":"Fallback"}
+        ]""")
+        assertEquals(listOf("Atlas", "Fallback"), rows.map { it.name })
+        assertEquals(listOf(true, false), rows.map { it.background })
+    }
+
+    @Test fun executionSnapshotsExposeOnlyIdentityAndOutcome() {
+        val rows = Protocol.executions("""[
+          {"id":"exec-1","sessionId":"one","status":"completed","finishedAt":"2026-01-01T00:00:00Z"},
+          {"id":"exec-2","sessionId":null,"status":"completed","finishedAt":null}
+        ]""")
+        assertEquals(listOf("exec-1", "exec-2"), rows.map { it.id })
+        assertEquals(listOf("one", null), rows.map { it.sessionId })
+        assertEquals("", rows[1].finishedAt)
+        assertThrows(Exception::class.java) { Protocol.executions("""[{"sessionId":"one"}]""") }
+    }
+
+    @Test fun executionDetailKeepsThreadOriginAndHidesAgentOutput() {
+        val detail = Protocol.executionDetail(JSONObject("""{"id":"exec-1","status":"completed","kind":"local",
+          "threadId":null,"sessionId":"one","projectId":"project",
+          "text":{"finalOutput":"Private answer","label":"Private prompt"}}"""))
+        assertEquals(ExecutionDetail("completed", "local", null, "one", "project"), detail)
+        assertFalse(detail.toString().contains("Private"))
+        val step = Protocol.executionDetail(JSONObject(
+            """{"status":"completed","kind":"local","threadId":"thr_1","sessionId":"one","projectId":null}"""))
+        assertEquals("thr_1", step.threadId)
+        assertNull(step.projectId)
+    }
+
     @Test fun trpcQueryEnvelopeMustContainResultData() {
         assertEquals("[]", Protocol.queryData("""{"result":{"data":[]}}""").toString())
         assertThrows(Exception::class.java) { Protocol.queryData("""{"error":{"message":"failure"}}""") }

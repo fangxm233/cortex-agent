@@ -1,5 +1,5 @@
 // input:  mocked feed, native actions, server targets and router
-// output: scoped routing, visible suppression and cleanup tests
+// output: routing, completion ownership, on-screen sync and cleanup tests
 // pos:    Mobile notification adapter regression tests
 // >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
 
@@ -15,17 +15,19 @@ const h = vi.hoisted(() => ({
   toaster: null as MNotificationToasterProps | null, action: null as OsActionHandler | null,
   navigate: vi.fn(), project: vi.fn(), dismiss: vi.fn(), lifecycle: vi.fn(),
   send: vi.fn(async () => true), cleanup: vi.fn(), sessions: vi.fn(), approvals: vi.fn(),
-  status: vi.fn(),
+  status: vi.fn(), visible: vi.fn(), owned: vi.fn(() => false),
 }));
 vi.mock('react-router-dom', () => ({ useLocation: () => ({ pathname: h.pathname }), useNavigate: () => h.navigate }));
 vi.mock('@/i18n', () => ({ useLang: () => 'zh' }));
-vi.mock('@/lib/native-bridge', () => ({ mobileNotificationStatus: h.status }));
+vi.mock('@/lib/native-bridge', () => ({ mobileNotificationStatus: h.status, setNativeVisibleSession: h.visible }));
 vi.mock('@/lib/trpc', () => {
   const client = { sessions: { list: { query: h.sessions } }, approvals: { list: { query: h.approvals } } };
   return { useTRPCClient: () => client };
 });
 vi.mock('@/features/projects/CurrentProjectProvider', () => ({ useCurrentProject: () => ({ setCurrentProject: h.project }) }));
-vi.mock('@/features/notifications/mobile-notifications', () => ({ useMobileNotificationLifecycle: h.lifecycle }));
+vi.mock('@/features/notifications/mobile-notifications', () => ({
+  useMobileNotificationLifecycle: h.lifecycle, nativeCompletionNotifications: h.owned,
+}));
 vi.mock('@/features/notifications/useNotificationFeed', () => ({
   useNotificationFeed: (options: UseNotificationFeedOptions) => { h.feed = options; return { items: [], dismiss: h.dismiss }; },
 }));
@@ -47,7 +49,8 @@ beforeEach(async () => {
   h.status.mockResolvedValue({ scope: 'current' });
   h.sessions.mockResolvedValue([{ sessionId: 's1', projectId: 'atlas' }, { sessionId: 's/2?#', projectId: 'orion' }]);
   h.approvals.mockResolvedValue([{ id: 'apr/2?', projectId: 'other-project' }]);
-  vi.stubGlobal('document', { visibilityState: 'visible' });
+  h.owned.mockReturnValue(false);
+  vi.stubGlobal('document', Object.assign(new EventTarget(), { visibilityState: 'visible' }));
   await act(async () => { mounted = create(<MNotificationProvider />); });
 });
 afterEach(() => { act(() => mounted.unmount()); vi.unstubAllGlobals(); });
@@ -61,7 +64,7 @@ describe('mobile notification delivery', () => {
     act(() => mounted.update(<MNotificationProvider />));
     expect(h.feed?.isSessionOpen('s1')).toBe(true);
     expect(pendingDeliveryPredicate?.('s1')).toBe(true);
-    vi.stubGlobal('document', { visibilityState: 'hidden' });
+    vi.stubGlobal('document', Object.assign(new EventTarget(), { visibilityState: 'hidden' }));
     expect(h.feed?.isSessionOpen('s1')).toBe(false);
     await expect(h.feed?.externalDelivery?.(item())).resolves.toBe(true);
     expect(h.send).toHaveBeenCalledWith({ title: 'Inbox', body: 'Done' }, { kind: 'session', sessionId: 's1', projectId: 'atlas' });
@@ -103,6 +106,29 @@ describe('mobile notification delivery', () => {
     await pending;
     expect(h.navigate).not.toHaveBeenCalled();
     expect(h.cleanup).toHaveBeenCalledOnce();
+  });
+
+  it('leaves a session turn to the native service once it owns completions', async () => {
+    h.owned.mockReturnValue(true);
+    await expect(h.feed?.externalDelivery?.(item())).resolves.toBe(true);
+    expect(h.send).not.toHaveBeenCalled();
+    const notice = { ...item(), id: 'n2', sessionId: null, projectId: null };
+    await expect(h.feed?.externalDelivery?.(notice)).resolves.toBe(true);
+    expect(h.send).toHaveBeenCalledWith({ title: 'Inbox', body: 'Done' }, { kind: 'sessions' });
+  });
+
+  it('tells the native service which session is on screen and clears it when hidden', () => {
+    expect(h.visible).toHaveBeenLastCalledWith(null);
+    h.pathname = '/m/session/s%2F2%3F%23';
+    act(() => mounted.update(<MNotificationProvider />));
+    expect(h.visible).toHaveBeenLastCalledWith('s/2?#');
+    act(() => {
+      (document as unknown as { visibilityState: string }).visibilityState = 'hidden';
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(h.visible).toHaveBeenLastCalledWith(null);
+    act(() => mounted.unmount());
+    expect(h.visible).toHaveBeenLastCalledWith(null);
   });
 
   it('routes in-app replies and dismisses the activated toast', () => {

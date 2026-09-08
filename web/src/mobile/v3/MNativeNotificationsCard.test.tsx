@@ -44,7 +44,7 @@ describe('native device notification settings', () => {
     expect(renderer.root.findByProps({ role: 'switch' }).props['aria-checked']).toBe(true);
     expect(renderer.root.findByProps({ role: 'alert' }).children.length).toBeGreaterThan(0);
     expect(JSON.stringify(renderer.toJSON())).toContain('Could not update device notifications. Try again.');
-    expect(h.invoke).toHaveBeenLastCalledWith('mobile_notifications_configure', { enabled: false, locale: 'en' });
+    expect(h.invoke).toHaveBeenLastCalledWith('mobile_notifications_configure', { enabled: false, locale: 'en', completionNotifications: true });
   });
 
   it('disables pending writes and renders Chinese status/copy', async () => {

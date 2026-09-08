@@ -1,5 +1,5 @@
 // input:  Android notifications, scoped durable target ledger
-// output: Private service, interaction and reply notifications
+// output: Private service, interaction, reply and completion notifications
 // pos:    Sole Android notification presentation owner
 // >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
 package dev.cortex.notifications
@@ -75,6 +75,23 @@ internal class NotificationPresenter(private val context: Context, private val s
         if (!permissionGranted() || !channelAllowed(ALERT_CHANNEL)) { state.save(); return }
         changes.added.forEach(::postAlert)
         state.save()
+    }
+
+    fun completions(scan: CompletionScan, visible: String?) {
+        scan.announce.filter { it.sessionId != visible }.forEach(::postCompletion)
+        state.ledger.remember(scan.processed)
+        state.save()
+    }
+
+    // One stable tag per session: a newer turn or a retry after a failed post replaces the
+    // notification instead of stacking, so the ledger holds a single route per session.
+    private fun postCompletion(completion: Completion) {
+        if (!permissionGranted() || !channelAllowed(REPLY_CHANNEL)) return
+        val tag = "$PREFIX.completion.${digest(completion.sessionId)}"
+        state.ledger.issued.values.filter { it.tag == tag }.toList()
+            .forEach { state.ledger.issued.remove(it.action.actionId) }
+        val action = Action(state.connection.scope, "session", completion.sessionId, completion.projectId)
+        notify(issue(action, tag, false), REPLY_CHANNEL, text.session(completion.name).take(80), text.completion)
     }
 
     fun removeInactiveSessions(awaitingIds: Set<String>) {
