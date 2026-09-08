@@ -17,7 +17,9 @@ function makeHarness() {
   const tools: Array<{ name: string; input: any; subagent: any }> = [];
   const contexts: number[] = [];
   const rateLimits: any[] = [];
+  const notices: Array<{ text: string; level: string; action: any }> = [];
   const track: number[] = [];
+  let resumable = true;
   let sink: ContinuationSink | null = null;
 
   let pending: FakeTimer | null = null;
@@ -39,13 +41,15 @@ function makeHarness() {
       publishAssistant: (text, subagent) => assistants.push({ text, subagent }),
       publishTool: (name, input, _id, subagent) => tools.push({ name, input, subagent }),
       publishContextUsage: (usage) => contexts.push(usage.contextWindow),
-      onRateLimited: (continuation) => rateLimits.push(continuation),
+      publishNotice: (text, level, action) => { notices.push({ text, level, action }); },
+      onRateLimited: (continuation) => { rateLimits.push(continuation); return resumable; },
       guardTimers: timers,
     });
 
   return {
-    statuses, assistants, tools, contexts, rateLimits, track,
+    statuses, assistants, tools, contexts, rateLimits, notices, track,
     install,
+    setResumable: (value: boolean) => { resumable = value; },
     get sink() { return sink!; },
     get abort() { return abort; },
     get pendingMs() { return pending?.ms ?? null; },
@@ -142,6 +146,53 @@ test('holdWebForBg: rate-limited continuation → request resume once, then seal
   assert.deepEqual(h.rateLimits, [continuation]);
   assert.deepEqual(h.statuses.at(-1), { running: false, backgroundRunning: false });
   assert.deepEqual(h.track, [+1, -1]);
+});
+
+// --- The rate-limit card. The backend streams the 429 as ordinary assistant prose before the
+// continuation settles; only the result says whether it was a pause or a real failure.
+
+const RATE_LIMIT_TEXT =
+  "API Error: Server is temporarily limiting requests (not your usage limit) · This request "
+  + "would exceed your account's rate limit. Please try again later.";
+
+test('holdWebForBg: resumable rate limit → auto-resume notice replaces the raw API-error line', () => {
+  const h = makeHarness();
+  h.install({ pendingBackgroundTasks: 1 });
+  h.sink.onAssistantText(RATE_LIMIT_TEXT);
+  assert.deepEqual(h.assistants, [], 'the card is held, not streamed');
+  h.sink.onResult({ rateLimited: true } as any);
+  assert.deepEqual(h.assistants, [], 'held card dropped — the turn paused, it did not fail');
+  assert.equal(h.notices.length, 1);
+  assert.equal(h.notices[0].level, 'warning');
+  assert.deepEqual(h.notices[0].action, { kind: 'cancel-resume' });
+  assert.deepEqual(h.statuses.at(-1), { running: false, backgroundRunning: false });
+});
+
+test('holdWebForBg: non-resumable rate limit → the held API-error card is shown as an error notice', () => {
+  const h = makeHarness();
+  h.setResumable(false);
+  h.install({ pendingBackgroundTasks: 1 });
+  h.sink.onAssistantText(RATE_LIMIT_TEXT);
+  h.sink.onResult({ rateLimited: true } as any);
+  assert.deepEqual(h.notices, [{ text: RATE_LIMIT_TEXT, level: 'error', action: undefined }]);
+});
+
+test('holdWebForBg: a continuation that recovers still reports its mid-flight API error', () => {
+  const h = makeHarness();
+  h.install({ pendingBackgroundTasks: 1 });
+  h.sink.onAssistantText(RATE_LIMIT_TEXT);
+  h.sink.onAssistantText('recovered: suite green');
+  h.sink.onResult({ pendingBackgroundTasks: 0 } as any);
+  assert.deepEqual(h.assistants.map((a) => a.text), ['recovered: suite green']);
+  assert.deepEqual(h.notices, [{ text: RATE_LIMIT_TEXT, level: 'error', action: undefined }]);
+});
+
+test('holdWebForBg: a subagent API error keeps its attribution and is never held', () => {
+  const h = makeHarness();
+  h.install({ pendingBackgroundTasks: 1 });
+  h.sink.onAssistantText(RATE_LIMIT_TEXT, undefined, { toolUseId: 'toolu_1' } as any);
+  assert.deepEqual(h.assistants.map((a) => a.text), [RATE_LIMIT_TEXT]);
+  assert.deepEqual(h.notices, []);
 });
 
 // --- User Stop during the hold. The execution is gone from runningExecutions by the time the hold

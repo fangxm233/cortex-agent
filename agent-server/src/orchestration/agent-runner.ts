@@ -610,13 +610,25 @@ export class AgentRunner {
           publishToolResult: persistToolResult ?? undefined,
           publishSubagentEnd: persistSubagentEnd,
           publishContextUsage: persistContinuationContext,
+          // Notices carry the level/action the plain assistant path drops. The foreground turn's
+          // AttemptNoticeTracker has already retired by now, so without this a continuation that
+          // hits the provider limit is queued for resume with nothing said about it in the chat.
+          publishNotice: (text, noticeLevel, noticeAction) => {
+            const ts = new Date().toISOString();
+            recordHistory(conversationHistory.appendAssistant(sid, { text, ts, noticeLevel, noticeAction }));
+            publishSessionMessage({
+              sessionId: sid, channel, role: 'assistant', text, ts, noticeLevel,
+              ...(noticeAction ? { noticeAction } : {}),
+            });
+          },
           onRateLimited: (continuation) => {
             const provider = continuation.rateLimitProvider ?? convResult.result.rateLimitProvider ?? null;
-            if (!isProviderRateLimited(provider)) return;
+            if (!isProviderRateLimited(provider)) return false;
             recordResume({
               kind: 'direct', provider, channel, trackSessionId: sid,
               userMessage, recordedAt: Date.now(),
             });
+            return true;
           },
         });
       }

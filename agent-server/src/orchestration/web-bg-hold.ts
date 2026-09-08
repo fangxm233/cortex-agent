@@ -1,5 +1,5 @@
-// input:  result, continuation registrar, status/resume publishers
-// output: web background hold forwarding and rate-limit callbacks
+// input:  result, continuation registrar, status/notice/resume publishers
+// output: web background hold forwarding, held rate-limit cards, and resume callbacks
 // pos:    Web session background-continuation hold
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
@@ -13,9 +13,13 @@
 // Slack status message.
 
 import { createLogger } from '@core/log.js';
-import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
+import type {
+  AgentResult, ChatNoticeLevel, ContextUsage, NoticeAction,
+} from '@core/types/agent-types.js';
+import { isApiRateLimitError } from '@domain/agents/config.js';
 import type { ContinuationSink } from '../agent-adapter/types.js';
 import type { ToolUseSubagent } from '../agent-adapter/normalize/event-types.js';
+import { t } from '../core/i18n.js';
 import { startBgWaitGuard, type BgWaitGuard } from './bg-wait-guard.js';
 
 const log = createLogger('web-bg-hold');
@@ -41,8 +45,14 @@ export interface WebBgHoldDeps {
   publishSubagentEnd?: (parentToolUseId: string, status: 'completed' | 'failed' | 'killed') => void;
   /** Persist and publish an exact continuation context snapshot. */
   publishContextUsage?: (usage: ContextUsage) => void;
-  /** Register the interrupted turn for provider-reset auto-resume. */
-  onRateLimited: (result: AgentResult) => void;
+  /** Append + publish a continuation NOTICE row (level + optional action), the fields the plain
+   *  assistant path drops. Without it a rate-limited continuation renders as a bare "API Error:"
+   *  line with no resume affordance. */
+  publishNotice?: (text: string, level: ChatNoticeLevel, action?: NoticeAction) => void;
+  /** Register the interrupted turn for provider-reset auto-resume. Returns true when the turn was
+   *  actually queued (the provider is throttled); false means the failure is terminal and its
+   *  error card must be shown instead of the auto-resume notice. */
+  onRateLimited: (result: AgentResult) => boolean;
   /** Busy bracket (trackPendingTask). +1 for the whole wait window so a deferred daemon restart
    *  does not fire and kill the Claude child (F1); -1 when the guard settles. */
   track: (delta: number) => void;
@@ -78,9 +88,24 @@ export function holdWebForBg(deps: WebBgHoldDeps): boolean {
   const startGuard = deps.startGuard ?? startBgWaitGuard;
   let sealed = false;
 
+  // Rate-limit API errors are HELD, not streamed. The backend surfaces a 429 as ordinary assistant
+  // prose BEFORE the continuation settles, and only the result says whether it was a failure (show
+  // the card) or a pause the resume registry already owns (show the auto-resume warning instead).
+  // Same contract as AttemptNoticeTracker in domain/agents/facade.ts — which is bound to the
+  // foreground turn and has therefore already retired by the time a continuation runs.
+  let heldApiError: string | null = null;
+  const flushHeldApiError = (): void => {
+    const held = heldApiError;
+    heldApiError = null;
+    if (!held) return;
+    if (deps.publishNotice) deps.publishNotice(held, 'error');
+    else deps.publishAssistant(held);
+  };
+
   const seal = (): void => {
     if (sealed) return;
     sealed = true;
+    flushHeldApiError();
     guard.settle();
     deps.publishStatus({ running: false, backgroundRunning: false });
   };
@@ -118,7 +143,16 @@ export function holdWebForBg(deps: WebBgHoldDeps): boolean {
     // A background subagent finishes AFTER the turn that spawned it has ended, so its output
     // arrives here rather than through the in-turn path. Dropping the attribution at this seam
     // published the subagent's final report as the agent's own prose, in the NEXT turn.
-    onAssistantText: (text: string, _model, subagent) => { if (text) deps.publishAssistant(text, subagent); },
+    onAssistantText: (text: string, _model, subagent) => {
+      if (!text) return;
+      // Only the agent's own stream is held: a subagent's card keeps its attribution and the
+      // subagent, not the session, owns that failure.
+      if (!subagent && text.startsWith('API Error:') && isApiRateLimitError(text)) {
+        heldApiError = text;
+        return;
+      }
+      deps.publishAssistant(text, subagent);
+    },
     onToolUse: (name: string, input: any, toolUseId?: string, subagent?: ToolUseSubagent) =>
       deps.publishTool(name, input, toolUseId ?? '', subagent),
     onToolResult: (toolUseId: string, content: string, isError: boolean) => deps.publishToolResult?.(toolUseId, content, isError),
@@ -130,7 +164,13 @@ export function holdWebForBg(deps: WebBgHoldDeps): boolean {
       // Process death seals the hold; provider limits also preserve the interrupted turn for reset.
       if (cont.backgroundInterrupted) { seal(); return; }
       if (cont.rateLimited) {
-        if (!sealed) deps.onRateLimited(cont);
+        if (!sealed && deps.onRateLimited(cont)) {
+          // Paused, not failed — the held card would misreport the outcome.
+          heldApiError = null;
+          deps.publishNotice?.(t('notify.rateLimitAutoResume'), 'warning', { kind: 'cancel-resume' });
+        } else {
+          flushHeldApiError();
+        }
         seal();
         return;
       }

@@ -36,6 +36,6 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | thread-executor.ts | core | routes threads and buffers downloaded user files |
 | turn-mutation-lock.ts | guard | grants per-channel mutation leases |
 | turn-notify.ts | notify | applies settings and notifies completed long turns |
-| web-bg-hold.ts | helper | holds Web turns and forwards continuation limits |
+| web-bg-hold.ts | helper | holds Web turns, forwards continuation limits, owns the continuation's rate-limit notice |
 | interactions/ | subdir | approvals, prompts, and user interaction handling |
 | routing/ | subdir | message, edit, file, and webhook routing |
