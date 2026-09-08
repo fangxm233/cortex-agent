@@ -11,7 +11,7 @@ Splits into shared layers (design, i18n, theme, lib) and screen layers (features
 | router.tsx | core | Declares the separate desktop page routes under the app shell |
 | router-factory.ts | core | Selects hash history for native shells and browser history otherwise |
 | router-factory.test.ts | test | Verifies shared native/browser router selection |
-| index.css | style | Global base layer, palette chrome and animations |
+| index.css | style | Global styles, palette chrome and usage animations |
 | vite-env.d.ts | types | Vite client ambient type declarations |
 | design/ | subdir | Token-driven shared UI primitives |
 | features/ | subdir | Product features consuming shared transports and typed native capabilities |

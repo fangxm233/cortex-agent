@@ -1,5 +1,5 @@
 // input:  UsagePanel with tRPC query/mutation fakes and per-window config snapshots
-// output: layout, status omission, refresh, policy, and pending regressions
+// output: layout, animated quota, refresh and policy regressions
 // pos:    Verifies desktop Usage presentation, interactions, and hook wiring
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -225,6 +225,19 @@ beforeEach(() => {
 });
 
 describe('desktop Settings Usage panel', () => {
+  it('keeps the animated fill mounted when usage changes', () => {
+    const renderer = mount();
+    const fill = renderer.root.findAllByProps({ className: 'usage-meter-fill' })[0];
+    expect(fill.props.style.width).toBe('54%');
+    currentUsage = usage.map((provider, index) => index === 0 ? {
+      ...provider, windows: provider.windows.map(window => ({ ...window, utilization: 0.2 })),
+    } : provider);
+    act(() => { renderer.update(<LangProvider><UsagePanel /></LangProvider>); });
+    expect(renderer.root.findAllByProps({ className: 'usage-meter-fill' })[0]).toBe(fill);
+    expect(fill.props.style.width).toBe('20%');
+    act(() => renderer.unmount());
+  });
+
   it('packs cards by height, aligns policy controls, separates windows, and omits status pills', () => {
     const renderer = mount();
     const cards = renderer.root.findByProps({ 'data-usage-cards': true });

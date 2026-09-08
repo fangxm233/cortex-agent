@@ -1,5 +1,5 @@
 // input:  usage model, policy state, mobile UI kit, and copy
-// output: fixed Usage header with quota and threshold controls
+// output: fixed Usage header, animated quota and policy controls
 // pos:    Presentational mobile Usage settings view
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -262,7 +262,7 @@ function WindowRow(props: WindowRowProps) {
         <span style={{ marginLeft: 'auto', font: `600 10px ${MONO}`, color: MC.ink }}>{props.window.utilizationLabel ?? props.copy.unavailable}</span>
       </div>
       <div style={{ height: 5, borderRadius: 999, background: 'var(--proto-line-2)', overflow: 'hidden', marginTop: 6 }}>
-        <div style={{ width: props.window.utilizationWidth, height: '100%', background: MC.run }} />
+        <div className="usage-meter-fill" style={{ width: props.window.utilizationWidth, height: '100%', background: MC.run }} />
       </div>
       {reset ? <div style={{ ...META, marginTop: 5 }}>{reset}</div> : null}
       {props.window.policy

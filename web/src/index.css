@@ -1,5 +1,5 @@
 /* input:  Tailwind layers and shared theme.css custom properties */
-/* output: global resets, command palette styles, and animations */
+/* output: global styles, UI animations and usage meter motion */
 /* pos:    SPA-wide structural stylesheet layered over theme tokens */
 /* >>> If I am updated, update my header comment and CORTEX.md <<< */
 @tailwind base;
@@ -256,6 +256,10 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+.usage-meter-fill {
+  transition: width 450ms ease-out;
 }
 
 /*

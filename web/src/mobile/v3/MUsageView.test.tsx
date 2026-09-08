@@ -1,5 +1,5 @@
 // input:  shared usage view model, mobile Usage view, and row-policy callbacks
-// output: policy, status omission, config gating, and refresh regressions
+// output: animated quota, policy, config and refresh regressions
 // pos:    Verifies mobile Usage presentation and interactions
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -98,6 +98,19 @@ function view(overrides: Partial<Parameters<typeof MUsageView>[0]> = {}) {
 }
 
 describe('MUsageView policy controls', () => {
+  it('keeps the animated fill mounted when usage changes', () => {
+    const renderer = create(view());
+    const fill = renderer.root.findAllByProps({ className: 'usage-meter-fill' })[0];
+    expect(fill.props.style.width).toBe('54%');
+    const updated = status.map((provider, index) => index === 0 ? {
+      ...provider, windows: provider.windows.map(window => ({ ...window, utilization: 0.8 })),
+    } : provider);
+    act(() => renderer.update(view({ view: buildUsageView(updated, policies, NOW, 'en') })));
+    expect(renderer.root.findAllByProps({ className: 'usage-meter-fill' })[0]).toBe(fill);
+    expect(fill.props.style.width).toBe('80%');
+    act(() => renderer.unmount());
+  });
+
   it('saves exact row targets, resets fallback rows to explicit defaults, and clears legacy fallback', () => {
     const onSavePolicy = vi.fn();
     let renderer!: ReturnType<typeof create>;
