@@ -1,5 +1,5 @@
-// input:  transcript DTOs, neutral attachments, decisions, DEBUG data, pending data, compact summaries
-// output: ChatRows with compact subagents, previews, turn-copy targets, and reconciliation
+// input:  transcript DTOs, tool devices, decisions, pending data
+// output: device-aware ChatRows, previews, and reconciliation
 // pos:    Shared desktop/mobile transcript view-model
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type {
@@ -42,6 +42,7 @@ export interface LiveSessionMessage {
   text: string;
   toolName?: string;
   toolInput?: string;
+  toolDevice?: string;
   noticeLevel?: ChatNoticeLevel;
   noticeAction?: NoticeAction;
   authAction?: AuthNoticeAction;
@@ -348,6 +349,18 @@ export function subagentModelLabel(model: string): string {
   return model.replace(/^claude-/, '').replace(/-\d{8}$/, '');
 }
 
+const REMOTE_TOOL_NAMES = new Set([
+  'remote_bash', 'remote_read', 'remote_write',
+  'remote_edit', 'remote_glob', 'remote_grep',
+]);
+
+/** Compact device-qualified label for remote transcript tools. */
+export function toolCallLabel(toolName: string, device?: string): string {
+  const rawName = toolName.split('__').at(-1)?.split('.').at(-1) ?? toolName;
+  if (!device || !REMOTE_TOOL_NAMES.has(rawName)) return toolName;
+  return `${rawName.slice('remote_'.length)}:${device}`;
+}
+
 export function liveToMessage(m: LiveSessionMessage): TranscriptMessageWithSpawns {
   const isTool = m.role === 'tool';
   return {
@@ -355,6 +368,7 @@ export function liveToMessage(m: LiveSessionMessage): TranscriptMessageWithSpawn
     text: isTool ? null : (m.text ?? ''),
     toolName: isTool ? (m.toolName ?? '') : null,
     toolInput: isTool ? (m.toolInput ?? '') : null,
+    ...(isTool && m.toolDevice ? { toolDevice: m.toolDevice } : {}),
     ts: m.ts,
     elapsedMs: null,
     attachments: m.attachments,
@@ -527,7 +541,7 @@ function msgKey(m: TranscriptMessageWithSpawns): string {
   // Decision ids only — NOT the action logs: a refetched row with new actions must dedupe against
   // the live-tail original (the transcript version is pushed first and wins).
   const decisionIds = m.decisions?.map((d) => d.id).join(',') ?? '';
-  return `${m.type}|${m.ts}|${m.text ?? ''}|${m.toolName ?? ''}|${m.toolInput ?? ''}|${spawnIds}|${m.noticeLevel ?? ''}|${noticeId}|${decisionIds}`;
+  return `${m.type}|${m.ts}|${m.text ?? ''}|${m.toolName ?? ''}|${m.toolInput ?? ''}|${m.toolDevice ?? ''}|${spawnIds}|${m.noticeLevel ?? ''}|${noticeId}|${decisionIds}`;
 }
 
 // Relative-day label matching the prototype divider vocabulary (TODAY / YESTERDAY / "MON D"),
@@ -740,7 +754,7 @@ export function buildTranscriptRows(
       if (block && !block.summary) block.row.toolCount += 1;
       const debug = (m as TranscriptMessage & { debug?: DebugToolDetail }).debug;
       sink.toolBuf.push({
-        kind: m.toolName ?? '',
+        kind: toolCallLabel(m.toolName ?? '', m.toolDevice),
         input: m.toolInput ?? '',
         ...(debug && (debug.toolRef || debug.toolInput !== undefined || debug.toolResult !== undefined)
           ? { debug: {

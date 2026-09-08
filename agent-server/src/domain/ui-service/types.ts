@@ -1,5 +1,5 @@
-// input:  domain types, auth flows, settings, and usage/throttle state
-// output: UI DTOs/maps incl subagent spawns, policy, auth, and usage
+// input:  domain, auth, settings, usage, and tool metadata
+// output: UI DTOs for sessions, policy, auth, and usage
 // pos:    Canonical transport-neutral UI contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -954,6 +954,8 @@ export interface TranscriptMessage {
   toolName: string | null;
   /** compact tool input summary (tool events only). */
   toolInput: string | null;
+  /** Remote execution target (remote tool events only). */
+  toolDevice?: string;
   /** Sensitive lossless data. Present only in responses produced while server DEBUG is enabled. */
   debug?: TranscriptDebugDetails;
   /** Semantic chat-notice styling for system-authored assistant messages. */

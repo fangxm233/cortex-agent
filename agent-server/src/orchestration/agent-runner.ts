@@ -1,5 +1,5 @@
 // input:  User turns, files, provider limits, callbacks
-// output: Provider runs, transcripts, traces, dialogs, resumes
+// output: Provider runs, transcripts, remote metadata, resumes
 // pos:    Runs plain user messages and injections
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -16,7 +16,7 @@ import { getSessionAsync, setSessionAsync } from '@domain/sessions/session.js';
 import { sessionStore, effectiveBackendSessionId } from '@store/session-registry-repo.js';
 import type { Session } from '@store/session-registry-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
-import { conversationHistory, summarizeToolInputForHistory } from '@store/conversation-history-repo.js';
+import { conversationHistory, summarizeToolInputForHistory, toolDeviceForHistory } from '@store/conversation-history-repo.js';
 import { pendingInjectionRepo } from '@store/pending-injection-repo.js';
 import { subagentPayloadFields, subagentRowRef } from './subagent-rows.js';
 import { subagentSpawnFromAttribution, subagentSpawnsFromToolCall } from '../agent-adapter/normalize/event-types.js';
@@ -380,6 +380,7 @@ export class AgentRunner {
       name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent,
     ): void => {
       const toolInput = summarizeToolInputForHistory(input);
+      const toolDevice = toolDeviceForHistory(name, input);
       const ts = new Date().toISOString();
       const ref = subagent ? subagentRowRef(subagent) : undefined;
       const attributedSpawn = subagent ? subagentSpawnFromAttribution(subagent) : null;
@@ -394,6 +395,7 @@ export class AgentRunner {
         conversationHistory.appendTool(sessionId, {
           toolName: name,
           toolInput,
+          ...(toolDevice ? { toolDevice } : {}),
           ts,
           ...(rowRef ? { subagent: rowRef } : {}),
           ...(subagentSpawns.length ? { subagentSpawns } : {}),
@@ -403,6 +405,7 @@ export class AgentRunner {
       );
       publishSessionMessage({
         sessionId, channel, role: 'tool', text: '', toolName: name, toolInput, ts,
+        ...(toolDevice ? { toolDevice } : {}),
         ...(subagentSpawns.length ? { subagentSpawns } : {}),
         ...subagentPayloadFields(rowRef),
       });

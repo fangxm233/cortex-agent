@@ -54,8 +54,8 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | ChatNotice.test.tsx | test | Tests semantic roles, action gating and safe auth activation |
 | MessageEdit.tsx | view | Bare message actions with success-only clipboard feedback, edit box and rewind |
 | chat-content.ts | types | Defines workbench tool-call types and the local shortcut catalog |
-| transcript-vm.ts | vm | Builds compact decision-aware rows over neutral attachments and turn-copy targets |
-| transcript-vm.test.ts | test | Tests compact rows, turn tails, auth actions and decisions |
+| transcript-vm.ts | vm | Builds device-aware compact transcript rows |
+| transcript-vm.test.ts | test | Tests remote labels, rows, tails and decisions |
 | ToolCallsRow.tsx | view | Expands tool chips with row-scoped debug actions |
 | SubagentBlock.tsx | view | Shows rounded sticky agent headers and tool counts |
 | SubagentTranscriptDetail.tsx | view | Lazily loads one subagent transcript with minimal retry UI |
@@ -111,8 +111,8 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | useRevealedText.ts | hook | Drives the frame loop revealing streamed text |
 | reveal-pacing.ts | util | Computes how much streamed text to show |
 | reveal-pacing.test.ts | test | Unit tests for reveal pacing |
-| useSessionMessageLiveSync.ts | hook | Streams session-scoped messages, compact invalidation and runtime snapshots |
-| useSessionMessageLiveSync.test.tsx | test | Tests message authority, compact child suppression and Todo isolation |
+| useSessionMessageLiveSync.ts | hook | Streams messages with tool device metadata |
+| useSessionMessageLiveSync.test.tsx | test | Tests live metadata, authority and Todo isolation |
 | useSessionsLiveSync.test.tsx | test | Tests rail-wide session snapshot refresh |
 | useMarkSessionRead.ts | hook | Marks the visible session read |
 | SessionIdModal.tsx | view | Shows session identifiers in an accessible bare dialog with success-only shared copy feedback |

@@ -1,5 +1,5 @@
-// input:  session event publishers and an isolated shared EventBus
-// output: context/message/notice/pending/delta/delivery event regressions
+// input:  session publishers, tool devices, isolated EventBus
+// output: context, message, notice, pending, delivery regressions
 // pos:    Orchestration session-event contract specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -62,7 +62,10 @@ test('publishSessionMessage emits a session.message event on the shared bus', ()
   jobCtx.bus = bus;
   try {
     publishSessionMessage({ sessionId: 'sess-1', channel: 'C1', role: 'assistant', text: 'hi there' });
-    publishSessionMessage({ sessionId: 'sess-1', channel: 'C1', role: 'tool', text: '', toolName: 'Read', toolInput: 'x.ts' });
+    publishSessionMessage({
+      sessionId: 'sess-1', channel: 'C1', role: 'tool', text: '',
+      toolName: 'remote_read', toolInput: 'x.ts', toolDevice: 'lab2',
+    });
   } finally {
     jobCtx.bus = prev;
   }
@@ -75,7 +78,8 @@ test('publishSessionMessage emits a session.message event on the shared bus', ()
   assert.equal(seen[0].text, 'hi there');
   assert.ok(typeof seen[0].ts === 'string');
   assert.equal(seen[1].role, 'tool');
-  assert.equal(seen[1].toolName, 'Read');
+  assert.equal(seen[1].toolName, 'remote_read');
+  assert.equal(seen[1].toolDevice, 'lab2');
 });
 
 test('publishSessionMessage carries an optional notice level', () => {

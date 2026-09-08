@@ -5,7 +5,7 @@ and the persisted registries for sessions, tasks, schedules, providers and costs
 
 | filename | role | function |
 |---|---|---|
-| conversation-history-repo.test.ts | test | Covers history, anchor titles, cache and rewind |
+| conversation-history-repo.test.ts | test | Covers history, tool devices, cache and rewind |
 | conversation-ledger-repo.test.ts | test | Covers bulk clearing by tracked session ids |
 | cost-repo.test.ts | test | Covers cost entry writes, pruning and budget |
 | execution-repo.test.ts | test | Covers lifecycle, concurrency, recovery and archival |

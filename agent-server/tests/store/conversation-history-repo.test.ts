@@ -1,5 +1,5 @@
-// input:  session JSONL, compact/detail cache, DEBUG APIs
-// output: history, anchor title, cache, and DEBUG regressions
+// input:  session JSONL, tool devices, compact cache, DEBUG APIs
+// output: history, remote metadata, cache, and DEBUG regressions
 // pos:    Conversation-history store specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import '../_test-home.js'; // MUST be first import — repoints CORTEX_HOME before paths bind
@@ -10,9 +10,23 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { STORE_DIR } from '../../src/core/paths.js';
 import { readHistoryAccumulator } from '../../src/store/conversation-history-reader.js';
-import { ConversationHistoryRepo } from '../../src/store/conversation-history-repo.js';
+import { ConversationHistoryRepo, toolDeviceForHistory } from '../../src/store/conversation-history-repo.js';
 
 const CUSTOM_HISTORY_DIR = path.join(STORE_DIR, 'history-retention-tests');
+
+test('remote tool device metadata is derived narrowly and round-trips', async () => {
+  assert.equal(toolDeviceForHistory('remote_bash', { device: 'lab2', command: 'pwd' }), 'lab2');
+  assert.equal(toolDeviceForHistory('mcp__cortex__remote_read', { device: 'gpu', file_path: '/x' }), 'gpu');
+  assert.equal(toolDeviceForHistory('Bash', { device: 'lab2', command: 'pwd' }), undefined);
+  assert.equal(toolDeviceForHistory('remote_grep', { device: '  ' }), undefined);
+
+  const repo = new ConversationHistoryRepo();
+  await repo.appendTool('sess-remote-device', {
+    toolName: 'remote_bash', toolInput: 'pwd', toolDevice: 'lab2',
+  });
+  const history = await repo.getHistory('sess-remote-device');
+  assert.equal(history?.events[0].toolDevice, 'lab2');
+});
 
 test('DEBUG prompt and tool metadata round-trip without replacing the compact transcript fields', async () => {
   const repo = new ConversationHistoryRepo();

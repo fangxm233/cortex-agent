@@ -1,5 +1,5 @@
-// input:  transcript recorder, fake history, DEBUG gate
-// output: prompt, ownership, notice, tool, and result tests
+// input:  transcript recorder, remote tools, fake history, DEBUG
+// output: prompt, device, ownership, notice, and result tests
 // pos:    Thread-step transcript recorder tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -40,6 +40,18 @@ test('recorder appends user/assistant/tool incrementally, in order, keyed by the
   assert.equal(calls[2].arg.toolName, 'Bash');
   assert.equal(calls[2].arg.toolInput, 'ls -la', 'tool input is summarized to its primary field');
   assert.equal(calls[3].arg.text, 'done');
+});
+
+test('recorder preserves remote device metadata in history and live publish', async () => {
+  const { writer, calls } = makeFakeHistory();
+  const published: PersistedTranscriptEvent[] = [];
+  const rec = createStepTranscriptRecorder(writer, 'track-remote', (ev) => published.push(ev));
+
+  rec.recordTool('remote_bash', { device: 'lab2', command: 'pwd' });
+  await rec.settle();
+
+  assert.equal(calls[0].arg.toolDevice, 'lab2');
+  assert.equal(published[0].toolDevice, 'lab2');
 });
 
 test('DEBUG recorder preserves the complete step prompt, tool input, result, and update ordering', async (t) => {

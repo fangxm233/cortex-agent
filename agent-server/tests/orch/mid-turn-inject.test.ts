@@ -1,5 +1,5 @@
-// input:  mid-turn injection, settings, backend/path seams
-// output: resolved-path, DEBUG prompt, and lifecycle regressions
+// input:  mid-turn injection, remote tools, backend/path seams
+// output: device metadata, DEBUG prompt, lifecycle regressions
 // pos:    Mid-turn injection lifecycle behavioral tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -430,12 +430,14 @@ test('post-result continuation routes tool calls to the transcript too', async (
   await tryInjectIntoLiveTurn(r.deps, baseCtx);
   await proc.ackSink.onDelivered({ text: 'skip the rest', foldedIntoTurn: false });
 
-  proc.continuationSink.onToolUse('Bash', { command: 'echo hi' });
+  proc.continuationSink.onToolUse('remote_bash', { device: 'lab2', command: 'echo hi' });
 
   const toolRows = r.history.filter((h) => h.kind === 'tool');
   assert.equal(toolRows.length, 1);
-  assert.equal(toolRows[0].toolName, 'Bash');
-  assert.ok(r.published.some((p) => p.role === 'tool' && p.toolName === 'Bash'));
+  assert.equal(toolRows[0].toolName, 'remote_bash');
+  assert.equal(toolRows[0].toolDevice, 'lab2');
+  assert.ok(r.published.some((p) => p.role === 'tool'
+    && p.toolName === 'remote_bash' && p.toolDevice === 'lab2'));
 });
 
 test('busy gate is released exactly once even if ack and continuation result both fire', async () => {

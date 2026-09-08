@@ -1,6 +1,6 @@
-// input:  mounted live-sync hook and captured message/Todo/compact-detail events
-// output: message authority, compact invalidation, and Todo isolation regressions
-// pos:    Verifies session-scoped live state before and after renders
+// input:  mounted live-sync hook, tool devices, message events
+// output: message authority, metadata, compact, Todo regressions
+// pos:    Verifies session-scoped live state around renders
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
@@ -133,6 +133,20 @@ describe('useSessionMessageLiveSync message authority snapshot', () => {
       subagentId: 'toolu_01abc', subagentType: 'Explore', subagentDescription: 'Survey the repo',
       subagentModel: 'claude-haiku-4-5',
     });
+  });
+
+  it('carries remote device metadata onto a live tool row', () => {
+    act(() => {
+      harness.liveHandler?.({
+        type: 'session.message',
+        payload: {
+          sessionId: 's1', role: 'tool', text: '', toolName: 'remote_bash', toolInput: 'pwd',
+          toolDevice: 'lab2', ts: '2026-08-01T01:00:00.000Z',
+        },
+      });
+    });
+
+    expect(observed?.getMessageSnapshot().liveTail[0].toolDevice).toBe('lab2');
   });
 
   it('carries complete subagent spawn metadata onto a live anchor row', () => {

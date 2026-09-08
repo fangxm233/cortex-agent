@@ -1,5 +1,5 @@
-// input:  ChatNoticeLevel and SessionContextUsage
-// output: CortexEvent with task, auth, and subagent spawn metadata
+// input:  notices, session usage, tool and subagent metadata
+// output: CortexEvent union for the shared EventBus
 // pos:    Typed event contract for the shared EventBus
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -27,7 +27,7 @@ export type CortexEvent =
   // `subagentId` groups rows a native subagent produced under one `Agent`/`Task` call. It is set on
   // the spawning call's own row too, which therefore anchors the group at the right position in the
   // stream; every later row carrying the same id is that subagent's work. Absent = main agent.
-  | { type: 'session.message';        ts: string; sessionId: string; channel: string; role: 'user' | 'assistant' | 'tool'; text: string; toolName?: string; toolInput?: string; blockId?: string; noticeLevel?: ChatNoticeLevel; noticeAction?: NoticeAction; authAction?: AuthNoticeAction; pending?: boolean; pendingId?: string; subagentId?: string; subagentSpawns?: SubagentSpawnRef[]; subagentType?: string; subagentDescription?: string; subagentModel?: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' | 'view' }[]; decisions?: { id: string; title: string; decision: string; context: string; reasoning: string; actions: { action: 'approve' | 'explain' | 'revise'; message?: string; ts: string }[] }[] }
+  | { type: 'session.message';        ts: string; sessionId: string; channel: string; role: 'user' | 'assistant' | 'tool'; text: string; toolName?: string; toolInput?: string; toolDevice?: string; blockId?: string; noticeLevel?: ChatNoticeLevel; noticeAction?: NoticeAction; authAction?: AuthNoticeAction; pending?: boolean; pendingId?: string; subagentId?: string; subagentSpawns?: SubagentSpawnRef[]; subagentType?: string; subagentDescription?: string; subagentModel?: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' | 'view' }[]; decisions?: { id: string; title: string; decision: string; context: string; reasoning: string; actions: { action: 'approve' | 'explain' | 'revise'; message?: string; ts: string }[] }[] }
   // A user responded to an agent-announced decision card (`sessions.respondDecision`). Other open
   // clients patch the matching card's action log in place; the transcript stays authoritative.
   | { type: 'session.decision';       ts: string; sessionId: string; channel: string; decisionId: string; action: 'approve' | 'explain' | 'revise'; message?: string }

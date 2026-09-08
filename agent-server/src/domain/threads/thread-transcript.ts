@@ -1,9 +1,9 @@
 // input:  history writer, DEBUG gate, step events
-// output: persisted step rows with subagent prompts and ownership
+// output: step rows with remote device and subagent metadata
 // pos:    Thread-step transcript recorder
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { summarizeToolInputForHistory } from '@store/conversation-history-repo.js';
+import { summarizeToolInputForHistory, toolDeviceForHistory } from '@store/conversation-history-repo.js';
 import { createLogger } from '@core/log.js';
 import { isDebugMode } from '@core/debug-mode.js';
 import type { ChatNoticeLevel } from '@core/types/agent-types.js';
@@ -16,7 +16,7 @@ const log = createLogger('thread-transcript');
 export interface HistoryWriter {
   appendUser(sessionId: string, opts: { text: string; ts?: string; agentMessage?: string }): Promise<void>;
   appendAssistant(sessionId: string, opts: { text: string; ts?: string; noticeLevel?: ChatNoticeLevel; subagent?: SubagentRowRef; subagentSpawns?: SubagentSpawnRef[] }): Promise<void>;
-  appendTool(sessionId: string, opts: { toolName: string; toolInput?: string; ts?: string; toolUseId?: string; fullInput?: unknown; subagent?: SubagentRowRef; subagentSpawns?: SubagentSpawnRef[] }): Promise<void>;
+  appendTool(sessionId: string, opts: { toolName: string; toolInput?: string; toolDevice?: string; ts?: string; toolUseId?: string; fullInput?: unknown; subagent?: SubagentRowRef; subagentSpawns?: SubagentSpawnRef[] }): Promise<void>;
   appendToolResult(sessionId: string, opts: { toolUseId: string; content: string; isError: boolean }): Promise<void>;
 }
 
@@ -28,6 +28,7 @@ export interface PersistedTranscriptEvent {
   text?: string;
   toolName?: string;
   toolInput?: string;
+  toolDevice?: string;
   noticeLevel?: ChatNoticeLevel;
   subagentId?: string;
   subagentSpawns?: SubagentSpawnRef[];
@@ -113,6 +114,7 @@ export function createStepTranscriptRecorder(
     recordTool(name: string, input: any, toolUseId = '', subagent?: ToolUseSubagent): void {
       const ts = new Date().toISOString();
       const toolInput = summarizeToolInputForHistory(input);
+      const toolDevice = toolDeviceForHistory(name, input);
       const { ref, event } = subagentFields(subagent);
       const attributedSpawn = subagent ? subagentSpawnFromAttribution(subagent) : null;
       const subagentSpawns = attributedSpawn
@@ -125,9 +127,11 @@ export function createStepTranscriptRecorder(
       const anchorEvent = legacyAnchor ? { subagentId: legacyAnchor.id } : {};
       push({
         role: 'tool', ts, toolName: name, toolInput, ...event, ...anchorEvent,
+        ...(toolDevice ? { toolDevice } : {}),
         ...(subagentSpawns.length ? { subagentSpawns } : {}),
       }, () => history.appendTool(sessionId, {
         toolName: name, toolInput, ts,
+        ...(toolDevice ? { toolDevice } : {}),
         ...(rowRef ? { subagent: rowRef } : {}),
         ...(subagentSpawns.length ? { subagentSpawns } : {}),
         ...(debugEnabled ? { toolUseId, fullInput: input } : {}),

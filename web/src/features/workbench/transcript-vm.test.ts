@@ -1,5 +1,5 @@
-// input:  transcript helpers, DEBUG warnings, notices, pending fixtures
-// output: spawn prompt, grouping, streaming, and pending regressions
+// input:  transcript helpers, tool devices, notices, pending data
+// output: remote labels, grouping, streaming, pending regressions
 // pos:    Workbench transcript view-model specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
@@ -21,6 +21,7 @@ import {
   applyDelivered,
   reconcilePendingUserMessages,
   subagentModelLabel,
+  toolCallLabel,
   type ChatRow,
   type LiveSessionMessage,
   type PendingUserMessage,
@@ -80,6 +81,28 @@ describe('assistantTurnCopyTargets', () => {
 });
 
 describe('buildTranscriptRows', () => {
+  it('qualifies fetched and live remote tools with their device', () => {
+    expect(toolCallLabel('remote_bash', 'lab2')).toBe('bash:lab2');
+    expect(toolCallLabel('mcp__cortex__remote_read', 'gpu')).toBe('read:gpu');
+    expect(toolCallLabel('remote_write')).toBe('remote_write');
+    expect(toolCallLabel('Bash', 'lab2')).toBe('Bash');
+
+    const rows = buildTranscriptRows(
+      tx([{ turnIndex: 0, messages: [{
+        type: 'tool', text: null, toolName: 'remote_bash', toolInput: 'pwd', toolDevice: 'lab2',
+        ts: T, elapsedMs: null,
+      }] }]),
+      [{
+        sessionId: 's1', role: 'tool', text: '', toolName: 'remote_grep', toolInput: 'needle',
+        toolDevice: 'gpu', ts: '2026-07-07T07:42:01.000Z',
+      }],
+    );
+
+    expect(rows.find((row) => row.kind === 'tools')).toMatchObject({
+      calls: [{ kind: 'bash:lab2' }, { kind: 'grep:gpu' }],
+    });
+  });
+
   it('empty transcript with no live tail → no rows', () => {
     expect(buildTranscriptRows(tx([]), [])).toEqual([]);
   });

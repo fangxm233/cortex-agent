@@ -1,5 +1,5 @@
-// input:  session/history stores plus process DEBUG size policy
-// output: session snapshots, full/compact transcripts, subagent detail, and lazy DEBUG
+// input:  session/history stores, tool metadata, DEBUG policy
+// output: session snapshots, transcripts, subagent detail, DEBUG
 // pos:    Authoritative query boundary for session transcripts
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -248,6 +248,7 @@ function messageFromEvent(
     text: event.type === 'tool' ? null : (event.text ?? ''),
     toolName: event.type === 'tool' ? (event.toolName ?? '') : null,
     toolInput: event.type === 'tool' ? (event.toolInput ?? '') : null,
+    ...(event.type === 'tool' && event.toolDevice ? { toolDevice: event.toolDevice } : {}),
     ts: event.ts,
     elapsedMs,
     ...((event.type === 'user' || event.type === 'assistant') && event.attachments !== undefined ? { attachments: event.attachments } : {}),

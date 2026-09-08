@@ -1,5 +1,5 @@
-// input:  session JSONL, interactions, DEBUG sidecars, and durable compact read-model cache state
-// output: full history reads, incremental compact/detail projections, and lazy tool details
+// input:  session JSONL, tool metadata, DEBUG sidecars, cache state
+// output: history reads, compact projections, and remote device labels
 // pos:    Canonical per-session transcript file store
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -108,6 +108,8 @@ export interface HistoryEvent {
   toolName?: string;
   /** compact tool input summary (tool events only). */
   toolInput?: string;
+  /** Remote execution target (remote tool events only). */
+  toolDevice?: string;
   /** Native-subagent grouping key: the `Agent`/`Task` call's tool_use id. Set BOTH on that
    *  spawning call itself (which therefore anchors the group) and on every row the subagent
    *  produced under it. Absent = main agent. `sidechain` when the source attests a subagent
@@ -162,6 +164,7 @@ export interface RawEvent {
   noticeAction?: NoticeAction;
   toolName?: string;
   toolInput?: string;
+  toolDevice?: string;
   subagentId?: string;
   subagentSpawns?: SubagentSpawnRef[];
   subagentType?: string;
@@ -272,6 +275,19 @@ function subagentRowFields(ref?: SubagentRowRef):
 /** Compact, backend-agnostic one-line summary of a tool call's input for the history.
  *  Shared by the direct conversation path (agent-runner) and thread steps (thread-transcript)
  *  so both record identical tool-input summaries. */
+const REMOTE_TOOL_NAMES = new Set([
+  'remote_bash', 'remote_read', 'remote_write',
+  'remote_edit', 'remote_glob', 'remote_grep',
+]);
+
+/** Device metadata used only to qualify remote tool labels in transcript UIs. */
+export function toolDeviceForHistory(name: string, input: any): string | undefined {
+  const rawName = name.split('__').at(-1)?.split('.').at(-1) ?? name;
+  if (!REMOTE_TOOL_NAMES.has(rawName) || input == null || typeof input !== 'object') return undefined;
+  const device = input.device;
+  return typeof device === 'string' && device.trim() ? device.trim() : undefined;
+}
+
 export function summarizeToolInputForHistory(input: any): string {
   if (input == null || typeof input !== 'object') return '';
   // A task list has no string field worth picking below, so it used to fall through to
@@ -575,11 +591,12 @@ export class ConversationHistoryRepo {
 
   /** Append a tool call.
    *  An optional `ts` override lets the caller share a single timestamp with the EventBus event. */
-  appendTool(sessionId: string, opts: { toolName: string; toolInput?: string; ts?: string; toolUseId?: string; fullInput?: unknown; subagent?: SubagentRowRef; subagentSpawns?: SubagentSpawnRef[] }): Promise<void> {
+  appendTool(sessionId: string, opts: { toolName: string; toolInput?: string; toolDevice?: string; ts?: string; toolUseId?: string; fullInput?: unknown; subagent?: SubagentRowRef; subagentSpawns?: SubagentSpawnRef[] }): Promise<void> {
     return this.append(sessionId, {
       type: 'tool',
       toolName: opts.toolName,
       toolInput: opts.toolInput ?? '',
+      toolDevice: opts.toolDevice,
       ts: opts.ts ?? nowIso(),
       toolUseId: opts.toolUseId,
       fullInput: opts.fullInput,

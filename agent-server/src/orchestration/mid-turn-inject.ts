@@ -1,5 +1,5 @@
-// input:  live execution, lazy platform files, path/pending seams
-// output: injected turns, files, DEBUG and subagent metadata
+// input:  live execution, platform files, path/pending seams
+// output: injected turns, remote device and subagent metadata
 // pos:    Busy-channel injection branch of AgentRunner.route
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -22,7 +22,7 @@ import { subagentPayloadFields, subagentRowRef } from './subagent-rows.js';
 import { SYNTHETIC_CALLBACK_SENDER } from '@platform/types.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
 import type { PendingInjectionRecord } from '@store/pending-injection-repo.js';
-import type { SubagentRowRef } from '@store/conversation-history-repo.js';
+import { toolDeviceForHistory, type SubagentRowRef } from '@store/conversation-history-repo.js';
 import { createLogger } from '@core/log.js';
 import { resolveWorkspaceRelPath } from '@core/paths.js';
 import { getSettings } from '@core/settings.js';
@@ -53,11 +53,11 @@ export interface MidTurnInjectDeps {
   /** Captured while the running turn still owns it, before a spontaneous turn starts. */
   getStreamingCallback: (channel: string) => ((text: string) => void) | null;
   appendAssistant: (sessionId: string, opts: { text: string; ts: string; subagent?: SubagentRowRef; subagentSpawns?: SubagentSpawnRef[] }) => void;
-  appendTool: (sessionId: string, opts: { toolName: string; toolInput: string; ts: string; toolUseId?: string; fullInput?: unknown; subagent?: SubagentRowRef; subagentSpawns?: SubagentSpawnRef[] }) => void;
+  appendTool: (sessionId: string, opts: { toolName: string; toolInput: string; toolDevice?: string; ts: string; toolUseId?: string; fullInput?: unknown; subagent?: SubagentRowRef; subagentSpawns?: SubagentSpawnRef[] }) => void;
   appendToolResult?: (sessionId: string, opts: { toolUseId: string; content: string; isError: boolean }) => void;
   publishMessage: (ev: {
     sessionId: string; channel: string; role: 'user' | 'assistant' | 'tool'; text: string; ts: string;
-    toolName?: string; toolInput?: string; attachments?: AttachmentMeta[]; pending?: boolean; pendingId?: string;
+    toolName?: string; toolInput?: string; toolDevice?: string; attachments?: AttachmentMeta[]; pending?: boolean; pendingId?: string;
     subagentId?: string; subagentSpawns?: SubagentSpawnRef[]; subagentType?: string;
     subagentDescription?: string; subagentModel?: string;
   }) => void;
@@ -398,6 +398,7 @@ function handleContinuationTool(
 ): void {
   const ts = deps.now();
   const toolInput = deps.summarizeToolInput?.(input) ?? '';
+  const toolDevice = toolDeviceForHistory(name, input);
   const ref = subagent ? subagentRowRef(subagent) : undefined;
   const attributedSpawn = subagent ? subagentSpawnFromAttribution(subagent) : null;
   const subagentSpawns = attributedSpawn
@@ -409,12 +410,14 @@ function handleContinuationTool(
   const rowRef = ref ?? legacyAnchor;
   deps.appendTool(sessionId, {
     toolName: name, toolInput, ts,
+    ...(toolDevice ? { toolDevice } : {}),
     ...(rowRef ? { subagent: rowRef } : {}),
     ...(subagentSpawns.length ? { subagentSpawns } : {}),
     ...(deps.captureDebug ? { toolUseId, fullInput: input } : {}),
   });
   deps.publishMessage({
     sessionId, channel, role: 'tool', text: '', toolName: name, toolInput, ts,
+    ...(toolDevice ? { toolDevice } : {}),
     ...(subagentSpawns.length ? { subagentSpawns } : {}),
     ...subagentPayloadFields(rowRef),
   });

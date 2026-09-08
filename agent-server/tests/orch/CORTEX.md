@@ -22,7 +22,7 @@ queueing, mid-turn injection, background holds and execution lifecycle.
 | lifecycle-rate-limit.test.ts | test | Covers provider-attributed error recovery |
 | lifecycle-session-lease.test.ts | test | Covers ask/retry session lease handoff to live executions |
 | mid-turn-inject-persistence.test.ts | test | Covers durable ordering of pending injection |
-| mid-turn-inject.test.ts | test | Covers lazy files, DEBUG prompts and lifecycle |
+| mid-turn-inject.test.ts | test | Covers remote tools, DEBUG prompts and lifecycle |
 | orchestrator.test.ts | test | Covers thread versus agent routing choice |
 | pending-injection-recovery.test.ts | test | Covers injection idempotency and startup drain |
 | plan-approvals.test.ts | test | Covers plan approval state transitions |
@@ -31,7 +31,7 @@ queueing, mid-turn injection, background holds and execution lifecycle.
 | running-executions.test.ts | test | Covers execution registry indices and events |
 | seal-thread-status.test.ts | test | Covers terminal thread status sealing |
 | session-admission.test.ts | test | Covers send lease rejection and sweep blocking |
-| session-events.test.ts | test | Covers session event publication contract |
+| session-events.test.ts | test | Covers session and tool metadata events |
 | session-lifecycle-characterization.test.ts | test | Covers session naming and new session command |
 | session-retention-controller.test.ts | test | Covers startup and settings retention sweeps |
 | session-send.test.ts | test | Covers Web user message build and send |

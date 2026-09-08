@@ -5,7 +5,7 @@ Serves the TUI dashboard directly and the Web UI through the tRPC router bound h
 
 | filename | role | function |
 |---|---|---|
-| types.ts | types | UI DTOs, compact transcript detail contracts, per-window provider policy ops, and operation maps |
+| types.ts | types | UI DTOs with transcript tool device metadata |
 | query-input-schemas.ts | schemas | Validates extracted session/query read inputs including compact transcript detail routes |
 | input-schemas.ts | schemas | Validates UI inputs, re-exports extracted query schemas, window-target provider policy, and plugins |
 | plugins-shared.ts | util | Normalizes plugin catalog entries and pluginDirs |

@@ -1,5 +1,5 @@
-// input:  session/context payloads, chat notices, and the shared EventBus
-// output: session publishers including complete subagent spawn metadata
+// input:  session payloads, remote metadata, shared EventBus
+// output: session publishers with tool and subagent metadata
 // pos:    Orchestration bus seam; missing bus remains a no-op
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -15,6 +15,7 @@ export interface SessionMessagePayload {
   text: string;
   toolName?: string;
   toolInput?: string;
+  toolDevice?: string;
   attachments?: AttachmentMeta[];
   /** Agent-announced decisions (`send_decision`) carried by this assistant message. */
   decisions?: DecisionItem[];
@@ -92,6 +93,7 @@ export function publishSessionMessage(p: SessionMessagePayload): void {
     text: p.text,
     ...(p.toolName !== undefined ? { toolName: p.toolName } : {}),
     ...(p.toolInput !== undefined ? { toolInput: p.toolInput } : {}),
+    ...(p.toolDevice !== undefined ? { toolDevice: p.toolDevice } : {}),
     ...(p.attachments !== undefined ? { attachments: p.attachments } : {}),
     ...(p.decisions !== undefined ? { decisions: p.decisions } : {}),
     ...(p.ts !== undefined ? { ts: p.ts } : {}),

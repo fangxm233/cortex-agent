@@ -1,6 +1,6 @@
-// input:  shared SSE context/notices, React Query, durable snapshots, and compact authority
-// output: live messages, lazy-detail invalidation, Todo, and runtime state
-// pos:    React bridge from session events to desktop/mobile chat rows
+// input:  SSE events, tool devices, React Query, snapshots
+// output: live messages, detail invalidation, Todo, runtime state
+// pos:    Session-event bridge to desktop/mobile chat rows
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -344,7 +344,7 @@ export function useSessionMessageLiveSync(
         return;
       }
       const p = raw.payload as
-        | { sessionId?: string; role?: string; text?: string; toolName?: string; toolInput?: string; noticeLevel?: LiveSessionMessage['noticeLevel']; noticeAction?: LiveSessionMessage['noticeAction']; authAction?: LiveSessionMessage['authAction']; ts?: string; blockId?: string; pending?: boolean; pendingId?: string; subagentId?: string; subagentSpawns?: LiveSessionMessage['subagentSpawns']; subagentType?: string; subagentDescription?: string; subagentModel?: string; subagentEnded?: 'completed' | 'failed' | 'killed'; attachments?: LiveSessionMessage['attachments']; decisions?: LiveSessionMessage['decisions'] }
+        | { sessionId?: string; role?: string; text?: string; toolName?: string; toolInput?: string; toolDevice?: string; noticeLevel?: LiveSessionMessage['noticeLevel']; noticeAction?: LiveSessionMessage['noticeAction']; authAction?: LiveSessionMessage['authAction']; ts?: string; blockId?: string; pending?: boolean; pendingId?: string; subagentId?: string; subagentSpawns?: LiveSessionMessage['subagentSpawns']; subagentType?: string; subagentDescription?: string; subagentModel?: string; subagentEnded?: 'completed' | 'failed' | 'killed'; attachments?: LiveSessionMessage['attachments']; decisions?: LiveSessionMessage['decisions'] }
         | undefined;
       if (!p || (p.role !== 'user' && p.role !== 'assistant' && p.role !== 'tool')) return;
       // A message written into a running turn's backend, which the model has not read yet. It holds
@@ -376,6 +376,7 @@ export function useSessionMessageLiveSync(
         text: p.text ?? '',
         toolName: p.toolName,
         toolInput: p.toolInput,
+        toolDevice: p.toolDevice,
         noticeLevel: p.noticeLevel,
         noticeAction: p.noticeAction,
         authAction: p.authAction,

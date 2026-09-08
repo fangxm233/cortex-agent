@@ -1,5 +1,5 @@
-// input:  thread state, tool gates, buffered input, throttle, hooks
-// output: evidence-bound runs, attributed transcripts, and notices
+// input:  thread state, tool gates, buffered input, hooks
+// output: evidence runs, device-aware transcripts, and notices
 // pos:    Thread step runtime and lifecycle
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -343,6 +343,7 @@ async function buildStepConfig(
         role: ev.role, text: ev.text ?? '',
         ...(ev.toolName !== undefined ? { toolName: ev.toolName } : {}),
         ...(ev.toolInput !== undefined ? { toolInput: ev.toolInput } : {}),
+        ...(ev.toolDevice !== undefined ? { toolDevice: ev.toolDevice } : {}),
         ...(ev.noticeLevel !== undefined ? { noticeLevel: ev.noticeLevel } : {}),
         ...(ev.subagentId !== undefined ? { subagentId: ev.subagentId } : {}),
         ...(ev.subagentSpawns !== undefined ? { subagentSpawns: ev.subagentSpawns } : {}),

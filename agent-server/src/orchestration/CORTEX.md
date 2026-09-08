@@ -9,7 +9,7 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | agent-view-send.ts | chat | delivers agent-rendered HTML views with size and height limits |
 | agent-decision-send.ts | chat | records agent-announced decisions on Web chat transcripts |
 | outputs-store.ts | core | shared workspace outputs placement and filename discipline |
-| agent-runner.ts | core | routes turns, tool traces, resumes and dialogs |
+| agent-runner.ts | core | Routes turns with transcript tool metadata |
 | bg-continuation.ts | helper | forwards background continuation output |
 | bg-wait-guard.ts | guard | bounds the background task waiting window |
 | busy-tracker.ts | tracker | counts active LLM runs and signals busy state |
@@ -20,12 +20,12 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | durable-helpers.ts | util | builds durable post and update hooks |
 | lifecycle.ts | core | finalizes turns and attributes continuation costs |
 | manager-qa.ts | channel | durably relays subtask manager questions and answers |
-| mid-turn-inject.ts | core | lazily injects platform and Web files with prompts |
+| mid-turn-inject.ts | core | Injects turns with remote tool metadata |
 | orchestrator.ts | router | picks the thread or default routing branch |
 | pending-injection-recovery.ts | recovery | commits and recovers pending injected turns |
 | resume-dispatcher.ts | runner | Resumes paused work under runtime settings |
 | session-compact.ts | control | compacts an idle session's context |
-| session-events.ts | events | publishes session state events on the bus |
+| session-events.ts | events | Publishes session and remote tool metadata |
 | subagent-rows.ts | util | maps native-subagent attribution to history and payload fields |
 | session-rewind.ts | chat | restores and pins snapshots before Web resend |
 | session-retention-controller.ts | timer | serializes startup and periodic retention sweeps |

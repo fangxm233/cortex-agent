@@ -1,5 +1,5 @@
-// input:  histories, compact projections, pending data, and DEBUG gate
-// output: transcript grouping, compact summaries, subagent detail, interactions, and DEBUG tests
+// input:  histories, tool devices, compact data, DEBUG gate
+// output: transcript metadata, grouping, subagents, DEBUG tests
 // pos:    Authoritative sessions.transcript handler specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -86,7 +86,7 @@ test('sessions.transcript groups user/assistant/tool events by turn', async () =
     events: [
       { type: 'user', text: 'hi', ts: '2026-07-07T00:00:00.000Z', turnIndex: 0 },
       { type: 'assistant', text: 'hello', ts: '2026-07-07T00:00:01.000Z', turnIndex: 0 },
-      { type: 'tool', toolName: 'Read', toolInput: 'x.ts', ts: '2026-07-07T00:00:02.000Z', turnIndex: 0 },
+      { type: 'tool', toolName: 'remote_read', toolInput: 'x.ts', toolDevice: 'lab2', ts: '2026-07-07T00:00:02.000Z', turnIndex: 0 },
       { type: 'user', text: 'again', ts: '2026-07-07T00:00:03.000Z', turnIndex: 1 },
       { type: 'assistant', text: 'sure', ts: '2026-07-07T00:00:04.000Z', turnIndex: 1 },
     ],
@@ -102,7 +102,8 @@ test('sessions.transcript groups user/assistant/tool events by turn', async () =
     type: 'user', text: 'hi', toolName: null, toolInput: null, ts: '2026-07-07T00:00:00.000Z', elapsedMs: null,
   });
   assert.deepEqual(out.turns[0].messages[2], {
-    type: 'tool', text: null, toolName: 'Read', toolInput: 'x.ts', ts: '2026-07-07T00:00:02.000Z', elapsedMs: 1000,
+    type: 'tool', text: null, toolName: 'remote_read', toolInput: 'x.ts', toolDevice: 'lab2',
+    ts: '2026-07-07T00:00:02.000Z', elapsedMs: 1000,
   });
 
   assert.equal(out.turns[1].turnIndex, 1);

@@ -1,6 +1,6 @@
-// input:  persisted session JSONL lines plus DEBUG warning policy
-// output: collapsed SessionHistory snapshots or reusable incremental accumulators
-// pos:    Shared conversation-history parser for full and compact transcript reads
+// input:  persisted session JSONL and DEBUG warning policy
+// output: collapsed history with tool device metadata
+// pos:    Full and compact conversation-history parser
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { createReadStream } from 'fs';
@@ -170,6 +170,7 @@ function pushTool(state: ParseState, ev: RawEvent): void {
     type: 'tool',
     toolName: ev.toolName ?? '',
     toolInput: ev.toolInput ?? '',
+    ...(ev.toolDevice ? { toolDevice: ev.toolDevice } : {}),
     ts: ev.ts,
     turnIndex: turnFor(state),
     ...(debug ? { debug } : {}),
