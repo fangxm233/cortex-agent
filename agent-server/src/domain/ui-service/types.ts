@@ -263,7 +263,7 @@ export interface SessionsPendingInteractionParams {
 }
 
 export interface SessionsPendingInteraction {
-  askUser: { requestId: string; questions: { question: string; header: string; options: { label: string; description?: string }[]; multiSelect: boolean }[] } | null;
+  askUser: { requestId: string; questions: { question: string; header: string; options: { label: string; description?: string }[]; multiSelect: boolean }[]; blocking: boolean } | null;
   plan: { requestId: string; planContent: string; planFilePath: string | null } | null;
 }
 
@@ -924,6 +924,8 @@ export interface TranscriptInteractionDetail {
     questions?: InteractionQuestion[];
     /** Severity of an ask-user card ('info'|'warning'|'error') — absent = neutral look. */
     level?: ChatNoticeLevel;
+    /** False only on a non-blocking ask-user card (the agent did not wait for it). */
+    blocking?: boolean;
     planContent?: string;
     planFilePath?: string | null;
   };
@@ -2731,7 +2733,7 @@ export interface UiServiceDeps {
    * Return the pending ask-user question group for a channel, if any (web UI pending query).
    * Reads from the in-memory pendingAskUserQuestionGroups Map.
    */
-  getPendingAskUser?: (channel: string) => { requestId: string; questions: { question: string; header: string; options: { label: string; description?: string }[]; multiSelect: boolean }[] } | null;
+  getPendingAskUser?: (channel: string) => { requestId: string; questions: { question: string; header: string; options: { label: string; description?: string }[]; multiSelect: boolean }[]; blocking: boolean } | null;
   /**
    * Return the pending plan approval for a channel, if any (web UI pending query).
    * Reads from the in-memory planApprovals Map.

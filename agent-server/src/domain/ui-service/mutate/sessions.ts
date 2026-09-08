@@ -1,4 +1,4 @@
-// input:  UiServiceDeps and session mutation arguments
+// input:  UiServiceDeps, session mutation arguments, commission feature switch
 // output: create/send/cancel/compact/profile/rewind handlers
 // pos:    UI-service session mutation handlers
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -35,15 +35,30 @@ import type {
 } from '../types.js';
 import { removeDirectResume } from '@domain/costs/resume-registry.js';
 import { projectCommissionDecisionAction } from '@domain/commissions/decision-projection.js';
+import { getSettings } from '@core/settings.js';
 
 // Create a fresh, live direct session for the workbench "+ New session" control. Resolves the target
 // project (falling back to the default project when omitted), delegates the real creation to the
 // injected `createDirectSession` dep (domain primitive wired in entry/app.ts), and returns the new
 // session's id.
+/** Commission mode ships behind `settings.commissionEnabled` (off by default while the feature is
+ *  under test). The composer hides the opt-in when it is off, so reaching this is either a stale
+ *  client or a direct API call; answer with a 400 rather than letting createDirectSession throw. */
+function commissionDisabled(commission: unknown): Result<never> | null {
+  if (!commission || getSettings().commissionEnabled) return null;
+  return {
+    ok: false,
+    code: 'invalid-args',
+    message: 'Commission mode is disabled; enable settings.commissionEnabled to use it',
+  };
+}
+
 export async function handleCreateSession(
   deps: UiServiceDeps,
   args: SessionsCreateArgs,
 ): Promise<Result<SessionsCreateReturn>> {
+  const disabled = commissionDisabled(args.commission);
+  if (disabled) return disabled;
   const projectId = args.projectId ?? deps.projectStore.getDefault().id;
   const { sessionId } = await deps.createDirectSession({
     projectId, browser: args.browser ?? null, commission: args.commission ?? null,
@@ -160,6 +175,8 @@ export async function handleCreateAndSend(
   if (!args.text.trim() && (!args.attachments || args.attachments.length === 0)) {
     return { ok: false, code: 'invalid-args', message: 'Either text or attachments required' };
   }
+  const disabled = commissionDisabled(args.commission);
+  if (disabled) return disabled;
 
   const { sessionId, channel } = await deps.createDirectSession({
     projectId: args.projectId,

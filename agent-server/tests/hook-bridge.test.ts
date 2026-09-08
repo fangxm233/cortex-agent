@@ -178,3 +178,68 @@ test('cleanupStale resolves timed-out requests and fires the onStale callback', 
   assert.equal(stale[0].channel, 'web:sess-t');
   assert.equal(stale[0].sessionId, 'sess-t');
 });
+
+// ── (6) Non-blocking ask returns at once but stays under the TTL sweep ─────────
+
+test('registerAskQuestion with blocking=false resolves immediately and marks the event non-blocking', async () => {
+  const bus = new EventBus();
+  const hb = await freshHookBridge();
+  hb.initHookBridge(bus);
+
+  const received: CortexEvent[] = [];
+  bus.subscribe('ask-user.requested', (e) => { received.push(e); });
+
+  const result = await hb.registerAskQuestion('req-nb', 'web:sess-nb', 'sess-nb', [{ q: 'Which DB?' }], false, null, null, false);
+  assert.equal(result.posted, true);
+  assert.equal(result.requestId, 'req-nb');
+
+  const ev = received[0] as Extract<CortexEvent, { type: 'ask-user.requested' }>;
+  assert.equal(ev.blocking, false);
+
+  // hook-bridge keeps module-level state across tests: drop the entry so a later TTL sweep is clean.
+  hb.resolveRequest('req-nb', { answers: {} });
+});
+
+test('registerAskQuestion with blocking=true (default) leaves the event flag absent', async () => {
+  const bus = new EventBus();
+  const hb = await freshHookBridge();
+  hb.initHookBridge(bus);
+
+  const received: CortexEvent[] = [];
+  bus.subscribe('ask-user.requested', (e) => { received.push(e); });
+
+  const pending = hb.registerAskQuestion('req-b', 'web:sess-b', 'sess-b', [{ q: 'Which DB?' }]);
+  const ev = received[0] as Extract<CortexEvent, { type: 'ask-user.requested' }>;
+  assert.equal('blocking' in ev, false);
+  hb.resolveRequest('req-b', { answers: {} });
+  await pending;
+});
+
+test('an unanswered non-blocking ask is still swept by the TTL cleanup', async (t) => {
+  const bus = new EventBus();
+  const hb = await freshHookBridge();
+  hb.initHookBridge(bus);
+  t.onTestFinished(() => hb.setOnStale(null));
+
+  const stale: string[] = [];
+  hb.setOnStale((requestId) => { stale.push(requestId); });
+
+  await hb.registerAskQuestion('req-nb-ttl', 'web:sess-nb2', 'sess-nb2', [{ q: 'Which DB?' }], false, null, null, false);
+  hb.cleanupStale(Date.now() + 31 * 60 * 1000);
+  assert.deepEqual(stale, ['req-nb-ttl']);
+});
+
+test('an answered non-blocking ask is removed from the pending set before the TTL fires', async (t) => {
+  const bus = new EventBus();
+  const hb = await freshHookBridge();
+  hb.initHookBridge(bus);
+  t.onTestFinished(() => hb.setOnStale(null));
+
+  const stale: string[] = [];
+  hb.setOnStale((requestId) => { stale.push(requestId); });
+
+  await hb.registerAskQuestion('req-nb-answered', 'web:sess-nb3', 'sess-nb3', [{ q: 'Which DB?' }], false, null, null, false);
+  assert.equal(hb.resolveRequest('req-nb-answered', { answers: { 'Which DB?': 'sqlite' } }), true);
+  hb.cleanupStale(Date.now() + 31 * 60 * 1000);
+  assert.deepEqual(stale, []);
+});

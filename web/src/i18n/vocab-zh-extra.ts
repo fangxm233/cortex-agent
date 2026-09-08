@@ -136,6 +136,8 @@ export const zhExtra = {
   stAdvDisableUserDesc: '直接对话默认注入；线程步骤始终不注入',
   stAdvDisableUpdateTitle: '禁用自动更新检查',
   stAdvDisableUpdateDesc: '更新检查默认开启',
+  stAdvCommissionTitle: '委托模式',
+  stAdvCommissionDesc: '实验功能 · 以契约锚定的长任务，默认关闭',
   stAdvRetentionTitle: '会话保留天数',
   stAdvRetentionDesc: '同步到 Claude 用户设置的清理周期 · 来源按 settings provenance 展示',
   stAdvRetentionInvalid: '请输入安全保留范围内的整数天数',

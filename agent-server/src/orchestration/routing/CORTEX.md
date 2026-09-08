@@ -9,6 +9,6 @@ Covers chat messages, message edits, file attachments, agent hook requests and H
 | edit-handler.ts | core | restores and pins snapshots before edit retries |
 | file-handler.ts | util | downloads attachments and classifies types |
 | hook-bridge.ts | core | pairs hook requests with replies and blocking TTL |
-| hook-bridge-subscribers.ts | handlers | posts question and plan requests to users |
+| hook-bridge-subscribers.ts | handlers | posts question and plan requests to users, delivers non-blocking answers as user turns |
 | message-router.ts | entry | normalizes mentions and routes chat commands |
 | webhook.ts | entry | Serves authenticated confined thread roots, including single-root trial mode, Q&A and hooks |

@@ -187,26 +187,37 @@ test('a session still drafting its contract is told so, and pointed at cortex_co
 
 test('resolveConversationCommission loads the context only for commission-bound sessions', async () => {
   const load = (async (id: string) => ({ ...commissionCtx, id })) as typeof import('../src/domain/commissions/commission-context.js').loadCommissionPromptContext;
+  const enabled = () => true;
   const bound = await resolveConversationCommission('sess-1', {
-    getSession: async () => ({ commissionId: 'comm-9' }), load,
+    getSession: async () => ({ commissionId: 'comm-9' }), load, enabled,
   });
   assert.equal(bound?.phase === 'active' ? bound.id : null, 'comm-9');
 
   const unbound = await resolveConversationCommission('sess-1', {
-    getSession: async () => ({ commissionId: null }), load,
+    getSession: async () => ({ commissionId: null }), load, enabled,
   });
   assert.equal(unbound, null);
 
   // The drafting window: no commission id exists yet, so the draft directory is what gets injected.
   const drafting = await resolveConversationCommission('sess-1', {
     getSession: async () => ({ commissionId: null, commissionDraft: '_draft-cortex-4c80d3', projectId: 'proj-a' }),
-    load,
+    load, enabled,
     loadDraft: (projectId, draft) => ({ phase: 'draft', dir: `/ctx/${projectId}/commissions/${draft}` }),
   });
   assert.deepEqual(drafting, { phase: 'draft', dir: '/ctx/proj-a/commissions/_draft-cortex-4c80d3' });
 
   const failing = await resolveConversationCommission('sess-1', {
-    getSession: async () => { throw new Error('registry down'); }, load,
+    getSession: async () => { throw new Error('registry down'); }, load, enabled,
   });
   assert.equal(failing, null, 'injection is best-effort — failures inject nothing');
+});
+
+test('resolveConversationCommission injects nothing while the feature switch is off', async () => {
+  const load = (async (id: string) => ({ ...commissionCtx, id })) as typeof import('../src/domain/commissions/commission-context.js').loadCommissionPromptContext;
+  // settings.commissionEnabled defaults to false, so a session bound while the mode was on must
+  // stop receiving its contract block the moment the switch goes off.
+  const off = await resolveConversationCommission('sess-1', {
+    getSession: async () => ({ commissionId: 'comm-9' }), load, enabled: () => false,
+  });
+  assert.equal(off, null);
 });

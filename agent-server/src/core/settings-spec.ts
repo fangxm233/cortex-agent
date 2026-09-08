@@ -33,6 +33,7 @@ export interface Settings {
   serverUpdateDisable: boolean;
   clientHotReloadEnabled: boolean;
   hooksLegacy: boolean;
+  commissionEnabled: boolean;
   managerRotateSteps: number;
   waitingSweepMs: number;
   injectWaitMaxS: number;
@@ -179,6 +180,12 @@ export const SETTINGS_SPEC = {
   },
   hooksLegacy: {
     envVar: 'CORTEX_HOOKS_LEGACY',
+    type: 'boolean',
+    default: false,
+    legacyParse: (raw: string) => raw === '1',
+  },
+  commissionEnabled: {
+    envVar: 'CORTEX_COMMISSION_ENABLED',
     type: 'boolean',
     default: false,
     legacyParse: (raw: string) => raw === '1',

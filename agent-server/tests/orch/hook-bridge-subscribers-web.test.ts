@@ -12,6 +12,7 @@ import { PlanApprovals } from '../../src/orchestration/interactions/plan-approva
 import { InteractionRecords } from '../../src/orchestration/interactions/interaction-records.js';
 import { registerHookBridgeSubscribers } from '../../src/orchestration/routing/hook-bridge-subscribers.js';
 import { initHookBridge } from '../../src/orchestration/routing/hook-bridge.js';
+import * as askUserQuestion from '../../src/orchestration/interactions/ask-user-question.js';
 
 function makeFakeHistory() {
   const created: any[] = [];
@@ -32,10 +33,21 @@ function setup() {
   const interactions = new InteractionRecords();
   const fake = makeFakeHistory();
   interactions.init({ history: fake.history as any, bus });
-  registerHookBridgeSubscribers(bus, adapter as any, planApprovals, interactions);
+  const sent: { channel: string; text: string }[] = [];
+  registerHookBridgeSubscribers(bus, adapter as any, planApprovals, interactions, ({ channel, text }) => { sent.push({ channel, text }); });
   const events: CortexEvent[] = [];
   bus.subscribe('session.interaction', (e) => { events.push(e); });
-  return { bus, adapter, planApprovals, interactions, fake, events };
+  return { bus, adapter, planApprovals, interactions, fake, events, sent };
+}
+
+/** Answer every question in a posted group the way the Web/Slack surfaces do. */
+function answerGroup(requestId: string, answers: Record<string, string>): boolean {
+  const group = askUserQuestion.getGroupByHookRequestId(requestId);
+  if (!group) return false;
+  for (const q of group.questions) {
+    if (answers[q.question] !== undefined) group.answers.set(q.pendingId, { header: q.header, value: answers[q.question] });
+  }
+  return askUserQuestion.tryResolveHook(group);
 }
 
 const flush = () => new Promise((r) => setTimeout(r, 20));
@@ -170,4 +182,46 @@ test('non-web channels do not create interaction records', async () => {
   await flush();
 
   assert.equal(fake.created.length, 0, 'slack channel handled by adapter path, no entity');
+});
+
+test('a non-blocking ask records blocking:false and delivers the answer as a user message', async () => {
+  const { bus, fake, sent } = setup();
+
+  bus.publish({
+    type: 'ask-user.requested',
+    requestId: 'req-ask-nonblocking',
+    channel: 'web:sess-nb',
+    sessionId: 'agent-sess',
+    threadId: null,
+    blocking: false,
+    questions: [{ question: 'Which DB?', header: 'DB', options: [{ label: 'sqlite' }], multiSelect: false }],
+  });
+  await flush();
+
+  assert.equal(fake.created[0].args.payload.blocking, false);
+  assert.equal(sent.length, 0, 'nothing is sent until the human answers');
+
+  assert.equal(answerGroup('req-ask-nonblocking', { 'Which DB?': 'sqlite' }), true);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].channel, 'web:sess-nb');
+  assert.ok(sent[0].text.includes('Which DB?'), sent[0].text);
+  assert.ok(sent[0].text.includes('sqlite'), sent[0].text);
+});
+
+test('a blocking ask leaves the payload flag absent and never sends a user message', async () => {
+  const { bus, fake, sent } = setup();
+
+  bus.publish({
+    type: 'ask-user.requested',
+    requestId: 'req-ask-blocking',
+    channel: 'web:sess-b',
+    sessionId: 'agent-sess',
+    threadId: null,
+    questions: [{ question: 'Which DB?', header: 'DB', options: [{ label: 'sqlite' }], multiSelect: false }],
+  });
+  await flush();
+
+  assert.equal('blocking' in fake.created[0].args.payload, false);
+  assert.equal(answerGroup('req-ask-blocking', { 'Which DB?': 'sqlite' }), true);
+  assert.equal(sent.length, 0, 'the blocked tool_result carries the answer, not a new user turn');
 });

@@ -1,11 +1,28 @@
-// input:  active commissions from trpc.commissions.list
-// output: commission-mode options for the composer ＋ menu, and the request they encode
+// input:  active commissions from trpc.commissions.list, commissionEnabled from trpc.config.get
+// output: the commission feature switch, commission-mode options for the composer ＋ menu, and the
+//         request they encode
 // pos:    Commission-mode choice model (off / new / join an active one)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useQuery } from '@tanstack/react-query';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { useVocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
+
+/**
+ * The global commission feature switch (`settings.commissionEnabled`, off by default while the mode
+ * is under test). Read from the shared `config.get` snapshot the workbench already holds, so this
+ * costs no extra request.
+ *
+ * Fail-closed: while the snapshot is loading — or if an older server omits the settings array —
+ * this reports `false`. Showing the opt-in and then having the server reject the create would be a
+ * worse failure than a control that appears a moment late. The server enforces the same switch, so
+ * the UI answer is only ever about what is offered, never about what is permitted.
+ */
+export function useCommissionEnabled(): boolean {
+  const trpc = useTRPC();
+  const query = useQuery(trpc.config.get.queryOptions({}));
+  return query.data?.settings?.some((s) => s.key === 'commissionEnabled' && s.value === true) ?? false;
+}
 
 /** What the composer sends with sessions.create / createAndSend. null is "not a commission". */
 export type CommissionRequest = { mode: 'new' } | { mode: 'join'; commissionId: string };

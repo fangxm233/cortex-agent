@@ -124,6 +124,32 @@ describe('createDirectSession', () => {
     const b = await createDirectSession(deps, { projectId: 'p' });
     assert.notStrictEqual(a.sessionId, b.sessionId, 'unique ids');
   });
+
+  it('refuses a commission request while settings.commissionEnabled is off, creating nothing', async () => {
+    let registerCalls = 0;
+    const deps = {
+      sessionStore: {
+        generateSessionName: async () => 'cortex-x',
+        registerSession: async () => { registerCalls++; },
+      } as SessionRegistryWriter,
+      setChannelSession: async () => {},
+      initConversation: async () => {},
+      resolveBackend: () => 'claude',
+    };
+
+    // The switch defaults to off. Refusing beats downgrading: a caller that asked for a commission
+    // and silently got an ordinary session would only find out much later.
+    await assert.rejects(
+      () => createDirectSession(deps, { projectId: 'p', commission: { mode: 'new' } }),
+      /Commission mode is disabled/,
+    );
+    assert.strictEqual(registerCalls, 0, 'no session registered');
+
+    // A create without a commission is untouched by the switch.
+    const ordinary = await createDirectSession(deps, { projectId: 'p' });
+    assert.ok(ordinary.sessionId);
+    assert.strictEqual(registerCalls, 1);
+  });
 });
 
 // ── attachExistingSession ───────────────────────────────────────

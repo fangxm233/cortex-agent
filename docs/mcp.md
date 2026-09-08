@@ -191,8 +191,8 @@ file that a user uploads or that an agent sends with `send_file` opens as source
 text, not as a running document.
 
 `send_decision` is non-blocking: the agent announces choices it made on the
-user's behalf and keeps working, unlike `cortex_ask_user`, which waits for an
-answer. Each decision (up to 10 per call, title ≤120 chars, other fields ≤1000)
+user's behalf and keeps working, rather than putting a question to the user the
+way `cortex_ask_user` does. Each decision (up to 10 per call, title ≤120 chars, other fields ≤1000)
 renders as a collapsed card in the chat; opening it shows context, decision, and
 reasoning. The user can approve (recorded only — nothing is sent to the agent),
 request an explanation, or propose a revision; the latter two compose a
@@ -217,7 +217,19 @@ handlers in `agent-server/src/domain/mcp/tools/interaction-plan.ts` and
 |---|---|
 | `cortex_plan_enter` | Enters the shared read-only planning protocol |
 | `cortex_plan_exit` | Reads `plan_file_path`, submits the plan for human approval, and blocks until resolved |
-| `cortex_ask_user` | Asks one or more free-text or multiple-choice questions through the session platform and blocks for answers |
+| `cortex_ask_user` | Asks one or more free-text or multiple-choice questions through the session platform, waiting for the answers or continuing without them |
+
+`cortex_ask_user` posts its question card the same way in either mode; the
+`blocking` parameter decides how the answer comes back. Blocking is the default:
+the tool call waits up to the 30-minute interaction TTL and returns the answers
+in its own `tool_result`, so the agent cannot proceed without them. With
+`blocking: false` the call returns as soon as the card is posted and the agent
+keeps working; when the human answers, the answer is delivered to the session as
+an ordinary user message — folded into the running turn if one is still live,
+otherwise opening a fresh turn. An unanswered non-blocking card expires on the
+same TTL and simply never produces a message. In the workbench, only a blocking
+question marks a session as awaiting user action; a session that asked without
+blocking keeps rendering as running.
 
 The plan and question handlers are in
 `agent-server/src/domain/mcp/tools/interaction-plan.ts` and

@@ -1,6 +1,6 @@
 // input:  McpServer, InteractionToolDeps, interaction level codec
 // output: Shared ask-user MCP registration and handler
-// pos:    Implements blocking human questions for agent sessions
+// pos:    Implements blocking and non-blocking human questions for agent sessions
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { z } from 'zod';
@@ -29,6 +29,8 @@ interface AskUserArgs {
   questions: AskUserQuestion[];
   /** Optional severity of the card: 'info' | 'warn' | 'warning' | 'error'. */
   level?: string;
+  /** Default true. When false the call returns at once and the answer arrives later as a user message. */
+  blocking?: boolean;
 }
 
 /**
@@ -36,6 +38,10 @@ interface AskUserArgs {
  *   - Success: { answers: { [questionText]: <stringified value> } }
  *               (multi-select values are pre-joined with ", " by the platform)
  *   - Error:   { error: <code>, answers: {} }    (codes: 'timeout' | 'post_failed' | 'bus_not_initialized')
+ *
+ * With `blocking: false` the webhook answers immediately with { posted: true, requestId } and the
+ * human's answer is delivered later as an ordinary user message on the session's channel
+ * (orch/routing/hook-bridge-subscribers.ts), so nothing here waits on it.
  */
 export async function runAskUser(args: AskUserArgs, deps: InteractionToolDeps): Promise<CallToolResultShape> {
   if (!deps.channel) {
@@ -76,12 +82,15 @@ export async function runAskUser(args: AskUserArgs, deps: InteractionToolDeps): 
     return { content: [{ type: 'text', text: `cortex_ask_user error: invalid level '${args.level}' (valid: info, warn, warning, error)` }], isError: true };
   }
 
+  const blocking = args.blocking !== false;
+
   const body = {
     sessionId: deps.sessionId,
     channel: deps.channel,
     questions: normalizedQuestions,
     threadId: deps.threadId,
     ...(level ? { level } : {}),
+    ...(blocking ? {} : { blocking: false }),
   };
 
   let resp: { status: number; body: any };
@@ -93,6 +102,19 @@ export async function runAskUser(args: AskUserArgs, deps: InteractionToolDeps): 
   if (resp.status !== 200) {
     const detail = resp.body?.error ?? JSON.stringify(resp.body ?? {});
     return { content: [{ type: 'text', text: `cortex_ask_user error: webhook returned status ${resp.status}: ${detail}` }], isError: true };
+  }
+
+  // Non-blocking ask: the card is posted, nothing is awaited. Say so plainly, because the tool
+  // result is the only place the assistant learns that no answer is coming back through it.
+  if (!blocking) {
+    const heads = questions.map((q) => q.header ?? q.question).join(' · ');
+    return {
+      content: [{
+        type: 'text',
+        text: `cortex_ask_user: question posted without blocking (${heads}). Keep working — do NOT wait for a reply here. `
+          + 'If the user answers, the answer arrives later as an ordinary user message; it may land mid-turn or open a new turn.',
+      }],
+    };
   }
 
   // Explicit error/timeout from the bridge — surface to the assistant so it can decide what to do.
@@ -132,7 +154,8 @@ export async function runAskUser(args: AskUserArgs, deps: InteractionToolDeps): 
 export function registerInteractionAskTools(server: McpServer, deps: InteractionToolDeps): void {
   server.tool(
     'cortex_ask_user',
-    'Ask the human one or more clarifying questions and BLOCK until they answer (replaces native AskUserQuestion). Posts each question through the session interaction channel with optional multiple-choice options. Use this when you need clarification, a decision, or a choice from the user. Set `multiSelect=true` on a question to allow multi-pick. The answers are returned in the tool_result.',
+    'Ask the human one or more clarifying questions (replaces native AskUserQuestion). Posts each question through the session interaction channel with optional multiple-choice options. Use this when you need clarification, a decision, or a choice from the user. Set `multiSelect=true` on a question to allow multi-pick. '
+      + 'By default the call BLOCKS and the answers come back in the tool_result. Set `blocking=false` when the answer is useful but you can make progress without it: the call returns at once, you keep working, and if the user answers it arrives later as an ordinary user message.',
     {
       questions: z.array(
         z.object({
@@ -149,6 +172,8 @@ export function registerInteractionAskTools(server: McpServer, deps: Interaction
       ).min(1).describe('Questions to ask (at least one).'),
       level: z.enum(['info', 'warn', 'warning', 'error']).optional()
         .describe("Optional severity of the question card: 'info' (default look), 'warning', or 'error'. 'warn' is accepted as an alias."),
+      blocking: z.boolean().optional()
+        .describe('Default true: wait for the answer and return it in the tool_result. Set false to post the question and continue immediately — the answer, if any, is delivered later as a user message instead.'),
     },
     async (args) => (await runAskUser(args as AskUserArgs, deps)) as any,
   );

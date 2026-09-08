@@ -25,6 +25,7 @@ import {
   type CommissionPromptContext,
 } from '@domain/commissions/commission-context.js';
 import { sessionStore } from '@store/session-registry-repo.js';
+import { getSettings } from '@core/settings.js';
 import { runningExecutions } from '../core/running-executions.js';
 import { buildPrompt as buildAgentPrompt } from '../agent-adapter/normalize/prompt-builder.js';
 
@@ -139,9 +140,13 @@ export async function resolveConversationCommission(
     } | null>;
     load?: typeof loadCommissionPromptContext;
     loadDraft?: typeof loadCommissionDraftContext;
+    enabled?: () => boolean;
   } = {},
 ): Promise<CommissionPromptContext | null> {
   try {
+    // Global feature switch (off by default while commission mode is under test). Off means no
+    // contract block reaches any prompt, matching the tool/skill gate in agent-runner.
+    if (!(deps.enabled ?? (() => getSettings().commissionEnabled))()) return null;
     const getSession = deps.getSession ?? ((id: string) => sessionStore.getById(id));
     const session = await getSession(trackSessionId);
     if (session?.commissionId) {

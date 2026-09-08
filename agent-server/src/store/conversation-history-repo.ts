@@ -63,6 +63,9 @@ export interface InteractionPayload {
   questions?: InteractionQuestion[];
   /** Optional severity of an ask-user card ('info'|'warning'|'error') — absent = neutral look. */
   level?: 'info' | 'warning' | 'error';
+  /** Present and false only on a non-blocking ask-user card: the agent kept running, so the
+   *  session is not waiting on this answer. Absent = the default blocking ask. */
+  blocking?: boolean;
   planContent?: string;
   planFilePath?: string | null;
 }

@@ -60,7 +60,7 @@ import { MChatView, type MChatCopy, type MChatInteractions, type MRejectBar, typ
 import { MChatInlineThreadCard } from './MChatInlineThreadCard';
 import { DEFAULT_BROWSER_DEVICE } from '@/features/workbench/BrowserOptIn';
 import {
-  commissionRequestOf, useCommissionOptions, useSessionCommission,
+  commissionRequestOf, useCommissionEnabled, useCommissionOptions, useSessionCommission,
 } from '@/features/workbench/CommissionOptIn';
 import { listForwardDevices, type ForwardDevice } from '@/features/browser/forward';
 import { M_INT_COPY } from './MInteractionCards';
@@ -243,9 +243,14 @@ export function MChatScreen(): JSX.Element {
   const elapsed = useMemo(() => formatElapsed(currentTurnElapsedMs(transcriptQuery.data)), [transcriptQuery.data]);
 
   // ── pending interaction (scheme 4/5/6: cards + header override + composer routing) ──
+  // A non-blocking ask (cortex_ask_user blocking:false) never takes over the composer: the agent
+  // is still working and the user must stay free to type anything. Its card still renders inline
+  // in the stream and stays tappable there.
   const pendingInteraction = useMemo(() => {
     for (const r of rows) {
-      if (r.kind === 'interaction' && r.detail?.status === 'pending') return { detail: r.detail, ts: r.ts ?? null };
+      if (r.kind !== 'interaction' || r.detail?.status !== 'pending') continue;
+      if (r.detail.kind === 'ask-user' && r.detail.payload.blocking === false) continue;
+      return { detail: r.detail, ts: r.ts ?? null };
     }
     return null;
   }, [rows]);
@@ -321,6 +326,9 @@ export function MChatScreen(): JSX.Element {
   const [commissionSheetOpen, setCommissionSheetOpen] = useState(false);
   const commissionOptions = useCommissionOptions(commissionSheetOpen);
   const sessionCommission = useSessionCommission(active);
+  // settings.commissionEnabled — off by default while the mode is under test. A draft composer then
+  // offers no entry point; a live session's read-only capsule is unaffected.
+  const commissionEnabled = useCommissionEnabled();
   const [pendingCreatedSession, setPendingCreatedSession] = useState<PendingCreatedSession | null>(null);
   const transitionProfile = resolveTransitionProfile(
     active?.profileName,
@@ -581,7 +589,7 @@ export function MChatScreen(): JSX.Element {
             text: t,
             draftUploadId: sent.draftUploadId,
             ...(draftBrowserDevice ? { browser: { device: draftBrowserDevice } } : {}),
-            ...(commissionRequestOf(draftCommission)
+            ...(commissionEnabled && commissionRequestOf(draftCommission)
               ? { commission: commissionRequestOf(draftCommission) } : {}),
             ...(doneMetas.length > 0 ? { attachments: doneMetas } : {}),
           } as never)
@@ -777,11 +785,13 @@ export function MChatScreen(): JSX.Element {
           onClose: () => setBrowserSheetOpen(false),
           onPick: (device: string | null) => { setDraftBrowserDevice(device); setBrowserSheetOpen(false); },
         } : undefined}
-        commissionValue={isDraft ? draftCommission : (sessionCommission?.value ?? null)}
+        commissionValue={isDraft
+          ? (commissionEnabled ? draftCommission : null)
+          : (sessionCommission?.value ?? null)}
         commissionLabel={isDraft
-          ? (draftCommission === 'new' ? vocab.wbCommissionNewOption : null)
+          ? (commissionEnabled && draftCommission === 'new' ? vocab.wbCommissionNewOption : null)
           : (sessionCommission?.label ?? (sessionCommission ? vocab.wbCommissionUnnamed : null))}
-        onOpenCommission={isDraft ? () => setCommissionSheetOpen(true) : undefined}
+        onOpenCommission={isDraft && commissionEnabled ? () => setCommissionSheetOpen(true) : undefined}
         commissionSheet={commissionSheetOpen ? {
           items: commissionOptions.map((o) => ({ value: o.value, label: o.label, sub: o.sub })),
           title: vocab.wbCommissionMode,

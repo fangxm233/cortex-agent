@@ -557,7 +557,9 @@ process.on('SIGTERM', async () => {
     getPendingAskUser: (channel) => {
       const entry = interactionRecords.getPendingByChannel(channel).find((e) => e.kind === 'ask-user');
       if (!entry) return null;
-      return { requestId: entry.id, questions: entry.payload.questions ?? [] };
+      // `blocking` distinguishes a session stalled on the answer from one that asked and kept
+      // going (cortex_ask_user blocking:false) — only the former is "awaiting user action".
+      return { requestId: entry.id, questions: entry.payload.questions ?? [], blocking: entry.payload.blocking !== false };
     },
     getPendingPlan: (channel) => {
       const entry = interactionRecords.getPendingByChannel(channel).find((e) => e.kind === 'plan-approval');

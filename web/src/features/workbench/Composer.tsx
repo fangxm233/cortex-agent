@@ -32,7 +32,7 @@ import {
   ComposerActionRow, ComposerSlashMenu,
   type ComposerBrowserControl, type ComposerCommissionControl,
 } from './ComposerActionRow';
-import { commissionRequestOf } from './CommissionOptIn';
+import { commissionRequestOf, useCommissionEnabled } from './CommissionOptIn';
 import { SessionProfileSelectorView, useSessionProfileSelection } from './SessionProfileSelector';
 import type { ContextCompactAction } from './ContextUsageControl';
 import type { TodoSnapshot } from '@cortex-agent/ui-contract';
@@ -136,6 +136,10 @@ export function Composer({
   // Draft-only for the same reason as the browser, and deliberately NOT persisted into the
   // localStorage composer draft: reopening a tab must not silently re-arm commission mode.
   const [commissionChoice, setCommissionChoice] = useState<null | 'new' | string>(null);
+  // Commission mode is a switchable feature (settings.commissionEnabled); when it is off the
+  // composer offers no way in. A live session's read-only capsule still renders, so a session bound
+  // while the feature was on keeps saying what it serves.
+  const commissionEnabled = useCommissionEnabled();
   const sendMut = useMutation(trpc.sessions.send.mutationOptions());
   const cancelMut = useMutation(trpc.sessions.cancel.mutationOptions());
   const createAndSendMut = useMutation(trpc.sessions.createAndSend.mutationOptions());
@@ -341,7 +345,7 @@ export function Composer({
         ? createAndSendMut.mutateAsync({
             projectId, profileName: draftProfile ?? undefined, text,
             ...(browserDevice ? { browser: { device: browserDevice } } : {}),
-            ...(commissionRequestOf(commissionChoice)
+            ...(commissionEnabled && commissionRequestOf(commissionChoice)
               ? { commission: commissionRequestOf(commissionChoice) } : {}),
             draftUploadId: sent.draftUploadId,
             ...(metas.length > 0 ? { attachments: metas } : {}),
@@ -555,7 +559,9 @@ export function Composer({
                       ? { device: sessionBrowser.device }
                       : null}
                   commission={isDraft
-                    ? { value: commissionChoice, onChange: setCommissionChoice } satisfies ComposerCommissionControl
+                    ? commissionEnabled
+                      ? { value: commissionChoice, onChange: setCommissionChoice } satisfies ComposerCommissionControl
+                      : null
                     : sessionCommission
                       ? { value: sessionCommission.value, label: sessionCommission.label }
                       : null}

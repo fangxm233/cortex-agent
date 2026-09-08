@@ -42,6 +42,9 @@ vi.mock('@/lib/trpc', () => ({
       list: { queryOptions: () => ({ queryKey: ['commissions.list'] }) },
       get: { queryOptions: () => ({ queryKey: ['commissions.get'] }) },
     },
+    // The commission feature switch is read from the shared config.get snapshot; undefined data
+    // (the useQuery mock above) means "off", which is the default this suite renders under.
+    config: { get: { queryOptions: () => ({ queryKey: ['config.get'] }) } },
   }),
 }));
 

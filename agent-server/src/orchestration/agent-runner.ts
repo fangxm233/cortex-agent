@@ -28,6 +28,7 @@ import { consumePendingTurnSupersession, finishTurnTracking, handleAgentSuccess,
 import { buildSessionTag, buildUserProcessingMessage, makeFallbackNotifier, makeStreamingMessageCallback, computeElapsed, writeStatus, sealStatus, buildStatusActionBlocks, buildSealedStatusActionBlocks, initStatusBlocks } from './status-helpers.js';
 import { createLogger } from '@core/log.js';
 import { isDebugMode } from '@core/debug-mode.js';
+import { getSettings } from '@core/settings.js';
 import { Icons } from '../core/icons.js';
 import { t } from '../core/i18n.js';
 import { getOutboundQueue } from '@store/outbound-queue.js';
@@ -307,8 +308,12 @@ export class AgentRunner {
       backendSessionId = effectiveBackendSessionId(sessionLease.session);
       projectId = sessionLease.session.projectId ?? 'general';
       sessionBrowser = sessionLease.session.browser ?? null;
-      sessionCommissionDraft = sessionLease.session.commissionDraft ?? null;
-      sessionCommissionId = sessionLease.session.commissionId ?? null;
+      // settings.commissionEnabled is the global switch for the feature (off by default while it
+      // is under test). With it off, a session that was bound while it was on reverts to an
+      // ordinary session: no commission tools, no commission skill, no contract block.
+      const commissionOn = getSettings().commissionEnabled;
+      sessionCommissionDraft = commissionOn ? sessionLease.session.commissionDraft ?? null : null;
+      sessionCommissionId = commissionOn ? sessionLease.session.commissionId ?? null : null;
     } else {
       sessionId = crypto.randomUUID();
       projectId = (await adapter.resolveInboundProject(channel)) ?? 'general';

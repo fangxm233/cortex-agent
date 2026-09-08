@@ -1,4 +1,4 @@
-// input:  Session stores, conversation ledger, profile state
+// input:  Session stores, conversation ledger, profile state, commission feature switch
 // output: Session register/attach/create/adopt/reset primitives
 // pos:    Central session lifecycle shared by chat and TUI
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -12,6 +12,7 @@ import * as sessionBackup from './session-backup.js';
 import type { SessionOrigin } from '@store/session-registry-repo.js';
 import type { SessionBrowserOption } from '@store/session-registry-journal.js';
 import { resolveCommissionCreate, type CommissionCreateRequest } from '@domain/commissions/commission-draft.js';
+import { getSettings } from '@core/settings.js';
 
 export const SESSION_BACKENDS = ['claude', 'pi'] as const;
 
@@ -106,6 +107,17 @@ export async function createDirectSession(
     setActiveProfile(opts.profileName, channel);
   } else {
     backend = deps.resolveBackend(channel);
+  }
+
+  // Commission mode is off by default while the feature is under test (settings.commissionEnabled).
+  // Refuse here rather than downgrade: a caller that asked for a commission and silently got an
+  // ordinary session would only discover it much later. This is the server-side backstop for every
+  // create path; the UI hides the opt-in and the ui-service handlers reject earlier with a 400.
+  if (opts.commission && !getSettings().commissionEnabled) {
+    throw Object.assign(
+      new Error('Commission mode is disabled; enable settings.commissionEnabled to use it'),
+      { code: 'invalid-args' },
+    );
   }
 
   const sessionName = await registerNamedSession(deps.sessionStore, {

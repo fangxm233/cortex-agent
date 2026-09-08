@@ -102,9 +102,10 @@ export async function handleSessionsList(
     const running = inTurn || bgHeld;
     // Awaiting user action: the session is blocked on a pending ask-user question or plan approval
     // (keyed by the session's channel). This is the ONLY signal that turns the rail dot amber —
-    // running/background stay blue. Absent deps (fixtures/TUI) ⇒ false.
+    // running/background stay blue. A non-blocking ask does not stall the session, so it stays
+    // blue too. Absent deps (fixtures/TUI) ⇒ false.
     const awaitingInput =
-      !!deps.getPendingAskUser?.(s.channel) || !!deps.getPendingPlan?.(s.channel);
+      deps.getPendingAskUser?.(s.channel)?.blocking === true || !!deps.getPendingPlan?.(s.channel);
     return {
       sessionId: s.sessionId,
       // Backend CLI resume target (registry backendSessionId, legacy fallback to sessionId) — the

@@ -330,6 +330,39 @@ test('cortex_ask_user omits level from the body when not given', async () => {
   assert.equal('level' in calls[0].body, false);
 });
 
+test('cortex_ask_user omits blocking from the body by default (every legacy caller still waits)', async () => {
+  const { post, calls } = makeMockHttp([{ status: 200, body: { answers: { 'Q?': 'ok' } } }]);
+  await runAskUser({ questions: [{ question: 'Q?' }] }, makeDeps({ httpPost: post }));
+  assert.equal('blocking' in calls[0].body, false);
+});
+
+test('cortex_ask_user with blocking:false forwards the flag and returns without waiting for answers', async () => {
+  const { post, calls } = makeMockHttp([{ status: 200, body: { posted: true, requestId: 'req-nb-1' } }]);
+  const result = await runAskUser(
+    { questions: [{ question: 'Which DB?', header: 'DB' }], blocking: false },
+    makeDeps({ httpPost: post }),
+  );
+  assert.equal(calls[0].body.blocking, false);
+  // No answers came back, yet this is a success — the tool result only says the card was posted.
+  assert.equal(result.isError, undefined);
+  const text = result.content.map((c: any) => c.text).join('\n');
+  assert.ok(/without blocking/i.test(text), text);
+  assert.ok(text.includes('DB'));
+  assert.ok(/user message/i.test(text), text);
+});
+
+test('cortex_ask_user with blocking:false does not treat a missing answers payload as an error', async () => {
+  const { post } = makeMockHttp([{ status: 200, body: { posted: true } }]);
+  const result = await runAskUser({ questions: [{ question: 'Q?' }], blocking: false }, makeDeps({ httpPost: post }));
+  assert.equal(result.isError, undefined);
+});
+
+test('cortex_ask_user with blocking:false still surfaces a webhook failure', async () => {
+  const { post } = makeMockHttp([{ status: 500, body: { error: 'down' } }]);
+  const result = await runAskUser({ questions: [{ question: 'Q?' }], blocking: false }, makeDeps({ httpPost: post }));
+  assert.equal(result.isError, true);
+});
+
 test('cortex_ask_user rejects an invalid level without calling the webhook', async () => {
   const { post, calls } = makeMockHttp([]);
   const result = await runAskUser(

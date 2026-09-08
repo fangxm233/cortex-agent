@@ -286,6 +286,7 @@ valid settings. Either way the reason is logged. Unknown keys are ignored.
 | `diskMonitor` | boolean | `true` | Check free space on the filesystem containing `$CORTEX_HOME` every five minutes and send a system notice below 500 MiB. `false` stops the timer; switching back to `true` runs an immediate check | `CORTEX_DISK_MONITOR` |
 | `disableUserContext` | boolean | `false` | Set to `true` to stop injecting `USER.md` context into direct conversation turns (injected by default; multi-agent thread steps never receive it) | `CORTEX_DISABLE_USER_CONTEXT` |
 | `serverUpdateDisable` | boolean | `false` | Set to `true` to disable the server auto-update check (enabled by default) | `CORTEX_SERVER_UPDATE_DISABLE` |
+| `commissionEnabled` | boolean | `false` | Master switch for commission mode — contract-anchored long tasks. Off while the feature is under test: the composer offers no commission opt-in, `sessions.create` rejects one, and commission-bound sessions spawn without the commission tools, skill, or contract block. Existing commissions stay readable on the board | `CORTEX_COMMISSION_ENABLED` |
 | `hooksLegacy` | boolean | `false` | Bypass the hook registry and build Claude hook settings from the fixed built-in table instead. See [hooks.md](./hooks.md) | `CORTEX_HOOKS_LEGACY` |
 | `managerRotateSteps` | number | `10` | Steps a manager session runs before it is rotated into a fresh incarnation. See [threads.md](./threads.md) | `CORTEX_MANAGER_ROTATE_STEPS` |
 | `waitingSweepMs` | number | `60000` | Interval, in milliseconds, of the disk-driven sweep that reconciles waiting manager threads against on-disk task state. `0` disables the sweep (see the hot-reload exception below) | `CORTEX_WAITING_SWEEP_MS` |
@@ -307,8 +308,8 @@ valid settings. Either way the reason is logged. Unknown keys are ignored.
 The Web workbench writes a subset of these from **Settings → Notifications**
 (`turnNotify`, `autoResume`, `notifyCompaction`), **Settings → Advanced**
 (`eventLog`, `diskMonitor`, `showToolCalls`, `disableUserContext`,
-`serverUpdateDisable`, `sessionRetentionDays`, and the built-in job switches
-and intervals), and the desktop/mobile **Usage** screens (`providerRateLimits`).
+`serverUpdateDisable`, `commissionEnabled`, `sessionRetentionDays`, and the
+built-in job switches and intervals), and the desktop/mobile **Usage** screens (`providerRateLimits`).
 Every other key is edited by hand in the file.
 
 `providerRateLimits` is a `settings.json` object keyed by provider id. Each

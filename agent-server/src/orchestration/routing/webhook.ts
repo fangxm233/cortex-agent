@@ -129,6 +129,8 @@ async function resolveSessionChannel(sessionId: unknown): Promise<string | null>
 
 async function handleAskUserQuestion(data: any, res: http.ServerResponse): Promise<void> {
   const { sessionId, questions, dryRun, threadId } = data;
+  // Opt-in only: every caller that omits `blocking` (native hooks, TUI, PI) keeps waiting.
+  const blocking = data.blocking !== false;
   const level = data.level === undefined ? null : normalizeAskLevel(data.level);
   if (data.level !== undefined && !level) {
     res.writeHead(400);
@@ -143,7 +145,7 @@ async function handleAskUserQuestion(data: any, res: http.ServerResponse): Promi
   }
   try {
     const requestId = crypto.randomUUID();
-    const result = await registerAskQuestion(requestId, channel, sessionId, questions, dryRun === true, threadId, level);
+    const result = await registerAskQuestion(requestId, channel, sessionId, questions, dryRun === true, threadId, level, blocking);
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(result));
   } catch (e) {

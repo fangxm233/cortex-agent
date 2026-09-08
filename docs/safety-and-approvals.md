@@ -171,6 +171,13 @@ flow is structurally identical but uses different events:
 5. On modal submit, the handler publishes `ask-user.answered` and resolves the
    HTTP request with the user's answers.
 
+A question the agent raises through `cortex_ask_user` with `blocking: false`
+travels the same five steps, with one difference at each end: the HTTP request
+returns the moment the card is posted rather than waiting on step 5, and the
+answers collected in step 5 are routed into the session as an ordinary user
+message instead of into a pending `tool_result`. The pending record still exists
+so the 30-minute TTL expires an unanswered card and clears its question group.
+
 ### PI backend difference
 
 The PI backend resolves these dialogs differently. A PI session raises them

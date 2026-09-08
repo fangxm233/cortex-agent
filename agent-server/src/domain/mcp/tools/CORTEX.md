@@ -16,7 +16,7 @@ session's `CortexToolContext` instead of reading `process.env`.
 | task-ops.ts | tool | Runs remote operations over bounded loopback |
 | thread-ops.ts | tool | Controls caller threads over bounded loopback |
 | time.ts | tool | Reports wall-clock time |
-| interaction-ask.ts | tool | Handles shared blocking user questions |
+| interaction-ask.ts | tool | Handles shared blocking and non-blocking user questions |
 | interaction-plan.ts | tool | Handles shared plan approval |
 | commission-tools.ts | tool | Carries the commission creation protocol, contract approval and landing |
 | ui-file.ts | tool | Sends Web UI files over bounded loopback |

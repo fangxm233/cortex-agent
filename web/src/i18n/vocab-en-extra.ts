@@ -136,6 +136,8 @@ export const enExtra = {
   stAdvDisableUserDesc: 'direct turns inject by default; thread steps never do',
   stAdvDisableUpdateTitle: 'Disable auto-update check',
   stAdvDisableUpdateDesc: 'update check is on by default',
+  stAdvCommissionTitle: 'Commission mode',
+  stAdvCommissionDesc: 'experimental · contract-anchored long tasks; off by default',
   stAdvRetentionTitle: 'Session retention days',
   stAdvRetentionDesc: 'cleanup window synced to Claude user settings · source shown from settings provenance',
   stAdvRetentionInvalid: 'Enter a whole number of days within the safe retention range',

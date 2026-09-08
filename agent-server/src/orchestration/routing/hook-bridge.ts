@@ -41,7 +41,15 @@ function setPlanNotify(_cb: PlanNotify): void { /* no-op, deprecated */ }
 
 // --- Registration (called by webhook routes, blocks until Slack interaction completes) ---
 
-function registerAskQuestion(requestId: string, channel: string, sessionId: string, questions: any[], dryRun = false, threadId?: string | null, level?: ChatNoticeLevel | null): Promise<any> {
+/**
+ * Post a question group and, by default, block until it is answered.
+ *
+ * `blocking: false` posts the same card but returns at once: the caller keeps running and the
+ * answer is delivered later as an ordinary user message by the `ask-user.requested` subscriber.
+ * A pending entry is still recorded so the shared TTL sweep expires the card and cleans the group
+ * exactly as it does for a blocking ask — its resolve is a no-op because no caller is waiting.
+ */
+function registerAskQuestion(requestId: string, channel: string, sessionId: string, questions: any[], dryRun = false, threadId?: string | null, level?: ChatNoticeLevel | null, blocking = true): Promise<any> {
   return new Promise((resolve) => {
     if (!_bus) {
       log.error('bus not initialised; failing ask-user request immediately');
@@ -53,6 +61,12 @@ function registerAskQuestion(requestId: string, channel: string, sessionId: stri
       // Smoke-test path: publish event for journal capture, skip Slack interaction, resolve synthetically.
       _bus.publish({ type: 'ask-user.requested', requestId, channel, sessionId, threadId: threadId ?? null, questions, ...levelField, dryRun: true });
       resolve({ dryRun: true, answers: {} });
+      return;
+    }
+    if (!blocking) {
+      pendingRequests.set(requestId, { resolve: () => { /* nobody is waiting on a non-blocking ask */ }, channel, sessionId, createdAt: Date.now() });
+      _bus.publish({ type: 'ask-user.requested', requestId, channel, sessionId, threadId: threadId ?? null, questions, ...levelField, blocking: false });
+      resolve({ posted: true, requestId });
       return;
     }
     pendingRequests.set(requestId, { resolve, channel, sessionId, createdAt: Date.now() });

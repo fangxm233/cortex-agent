@@ -114,6 +114,11 @@ Cortex 将每个智能体操作分类到三个桶中。分类位于根 CORTEX.md
 4. 点击 Answer 打开一个模态表单（每问题单选、多选或文本输入）。
 5. 模态框提交时，处理程序发布 `ask-user.answered` 并以用户的答案解析 HTTP 请求。
 
+智能体通过 `cortex_ask_user` 且 `blocking: false` 发起的提问走同样这五步，只在两端不同：
+HTTP 请求在卡片贴出的那一刻就返回，不等第 5 步；第 5 步收集到的答案作为一条普通用户
+消息送进会话，而不是送进一个挂起的 `tool_result`。挂起记录仍然存在，因此 30 分钟 TTL
+照样让无人回答的卡片过期并清掉它的问题组。
+
 ### PI 后端的差异 {#pi-backend-difference}
 
 PI 后端解析这些对话的方式不同。PI 会话通过 PI 的扩展 UI 协议发起对话，该协议由 `agent-adapter/pi/ui-context.ts` 在服务器进程内承载：每个对话变成一条带自身 id 的 `extension_ui_request` 记录，答案经 `sendExtensionUiResponse()` 回传，而不是去解析一个挂起的 HTTP 请求。hook-bridge 为此路径提供非阻塞发布辅助函数（`publishPlanSubmitted`、`publishAskUserRequested`）。

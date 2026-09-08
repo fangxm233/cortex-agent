@@ -330,7 +330,7 @@ test('sessions.list awaitingInput: a pending ask-user OR plan on the channel →
   // and plain running stay blue — this flag is what distinguishes them.
   const deps = makeDeps({
     getPendingAskUser: (channel: string) =>
-      channel === 'C1' ? { requestId: 'r1', questions: [] } : null,
+      channel === 'C1' ? { requestId: 'r1', questions: [], blocking: true } : null,
     getPendingPlan: (channel: string) =>
       channel === 'C3' ? { requestId: 'r2', planContent: 'plan', planFilePath: null } : null,
   });
@@ -339,6 +339,18 @@ test('sessions.list awaitingInput: a pending ask-user OR plan on the channel →
   assert.equal(byId['s1'], true, 'pending ask-user → awaiting');
   assert.equal(byId['s3'], true, 'pending plan → awaiting');
   assert.equal(byId['s2'], false, 'no pending interaction → not awaiting');
+});
+
+test('sessions.list awaitingInput: a pending NON-blocking ask does not stall the session → false', async () => {
+  // cortex_ask_user blocking:false posts a card but the agent keeps running, so the rail dot must
+  // stay blue — the amber "needs you" state is reserved for a session that cannot proceed.
+  const deps = makeDeps({
+    getPendingAskUser: (channel: string) =>
+      channel === 'C1' ? { requestId: 'r1', questions: [], blocking: false } : null,
+  });
+  const result = await handleSessionsList(deps, {});
+  const byId = Object.fromEntries(result.map((s) => [s.sessionId, s.awaitingInput]));
+  assert.equal(byId['s1'], false, 'non-blocking ask → not awaiting');
 });
 
 test('sessions.list awaitingInput: without pending-interaction deps → false everywhere (fixtures/TUI)', async () => {

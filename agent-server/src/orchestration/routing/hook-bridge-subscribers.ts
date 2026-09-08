@@ -1,6 +1,7 @@
 // input:  EventBus, PlatformAdapter, PlanApprovals
 // output: registerHookBridgeSubscribers(bus, adapter, planApprovals) — extracts
-//         ask-user.requested / plan.submitted handler bodies from entry/app.ts into orch/
+//         ask-user.requested / plan.submitted handler bodies from entry/app.ts into orch/,
+//         plus non-blocking-ask answer delivery as an ordinary user turn
 // pos:    orch/routing/ — hook-bridge event subscribers (S13 composition-root extraction)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -13,21 +14,50 @@ import { sendPlanToSlack } from '@orch/interactions/plan-handler.js';
 import type { PlanApprovals } from '@orch/interactions/plan-approvals.js';
 import { interactionRecords as defaultInteractionRecords, type InteractionRecords } from '@orch/interactions/interaction-records.js';
 import { resolveRequest as resolveHookRequest, getStreamingCallback } from './hook-bridge.js';
+import { sendWebUserMessage } from '../session-send.js';
 
 const log = createLogger('hook-bridge');
+
+/** Delivery seam for a non-blocking ask's answer; production binds it to the web-user-turn sender. */
+export type UserMessageSender = (opts: { channel: string; text: string; adapter: PlatformAdapter }) => void;
+
+/**
+ * Non-blocking ask (`cortex_ask_user blocking:false`): the tool call already returned, so the
+ * answer cannot come back as a tool_result. It is delivered as a genuine user turn on the
+ * session's channel instead — the same seam a typed message uses, so it folds into a live turn
+ * when one is running and opens a fresh turn when the session is idle. Null ⇒ nothing to say.
+ */
+function askAnswerMessageText(answers: Record<string, unknown>): string | null {
+  const parts = Object.entries(answers ?? {})
+    .map(([question, value]) => {
+      const answer = Array.isArray(value) ? value.join(', ') : String(value ?? '');
+      return `Q: ${question}\nA: ${answer.trim() ? answer : '(no answer)'}`;
+    });
+  if (parts.length === 0) return null;
+  return `[Answer to the question you asked earlier via cortex_ask_user]\n\n${parts.join('\n\n')}`;
+}
 
 export function registerHookBridgeSubscribers(
   bus: EventBus,
   adapter: PlatformAdapter,
   planApprovals: PlanApprovals,
   interactions: InteractionRecords = defaultInteractionRecords,
+  sendUserMessage: UserMessageSender = sendWebUserMessage,
 ): void {
   bus.subscribe('ask-user.requested', async (e) => {
     const ev = e as Extract<CortexEvent, { type: 'ask-user.requested' }>;
     if (ev.dryRun) return; // smoke-test: event is journalled, skip Slack post
     try {
       const group = askUserQuestion.createHookGroup(ev.requestId, ev.channel, ev.sessionId, ev.questions, ev.extensionUiId, ev.threadId ?? null, ev.level ?? null);
-      askUserQuestion.registerHookResolver(ev.requestId, (data) => resolveHookRequest(ev.requestId, data));
+      const nonBlocking = ev.blocking === false;
+      askUserQuestion.registerHookResolver(ev.requestId, (data) => {
+        // Clearing the pending entry first keeps the TTL sweep off an answered non-blocking card;
+        // its resolve is a no-op, so nothing downstream depends on the return value.
+        resolveHookRequest(ev.requestId, data);
+        if (!nonBlocking) return;
+        const text = askAnswerMessageText(data?.answers ?? {});
+        if (text) sendUserMessage({ channel: ev.channel, text, adapter });
+      });
 
       // Web UI (web: conduit) has no PlatformAdapter — persist the interaction entity;
       // the create() publishes session.interaction and the frontend renders the card
@@ -46,6 +76,7 @@ export function registerHookBridgeSubscribers(
               multiSelect: !!q.multiSelect,
             })),
             ...(ev.level ? { level: ev.level } : {}),
+            ...(nonBlocking ? { blocking: false } : {}),
           },
         });
         return;
