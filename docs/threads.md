@@ -510,7 +510,7 @@ Agent prompts support template variables that are resolved at runtime:
 
 Each agent definition specifies which plugin directories to load via `pluginDirs`. Plugins are resolved relative to `DATA_DIR` (default: `~/.cortex/`). For example, `plugins/cortex-coder` resolves to `~/.cortex/plugins/cortex-coder/`.
 
-The plugin directories are passed to the LLM backend as `--plugin-dir` flags (Claude Code) or `--skill` flags (PI). The backend then scans for `SKILL.md` files and makes them available as invocable skills. See [skills-and-plugins.md](./skills-and-plugins.md) for the full skill and plugin system.
+Claude Code receives the plugin directories as `--plugin-dir` flags; PI receives them as additional skill paths on its in-process session. The backend then scans for `SKILL.md` files and makes them available as invocable skills. See [skills-and-plugins.md](./skills-and-plugins.md) for the full skill and plugin system.
 
 ## Manager Session Rotation & Rehydration (DR-0017)
 

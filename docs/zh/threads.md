@@ -511,7 +511,7 @@ Cortex 内部使用三种类型的线程记录：
 
 每个智能体定义通过 `pluginDirs` 指定要加载的插件目录。插件相对于 `DATA_DIR`（默认：`~/.cortex/`）解析。例如，`plugins/cortex-coder` 解析为 `~/.cortex/plugins/cortex-coder/`。
 
-插件目录作为 `--plugin-dir` 标志（Claude Code）或 `--skill` 标志（PI）传递给 LLM 后端。后端然后扫描 `SKILL.md` 文件并将其作为可调用技能提供。完整的技能和插件系统参见 [skills-and-plugins.md](./skills-and-plugins.md)。
+Claude Code 以 `--plugin-dir` 标志接收插件目录；PI 则把它们作为进程内 session 的附加 skill 路径接收。后端然后扫描 `SKILL.md` 文件并将其作为可调用技能提供。完整的技能和插件系统参见 [skills-and-plugins.md](./skills-and-plugins.md)。
 
 ## Manager 会话轮换与再水化（DR-0017） {#manager-session-rotation-rehydration-dr-0017}
 
