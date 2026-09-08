@@ -1,5 +1,5 @@
 // input:  onboarding controller, auth and profile fixtures
-// output: onboarding readiness and refresh regression tests
+// output: auth-type readiness and refresh regression tests
 // pos:    Provider setup behavior specification
 // >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
 import { describe, expect, it, vi } from 'vitest';
@@ -45,6 +45,13 @@ describe('provider onboarding', () => {
     expect(readyProfiles([cc], [auth], true, false)).toEqual([]);
     expect(readyProfiles([cc], [auth], false, true)).toEqual([cc]);
     expect(readyProfiles([cc], [auth], false, null)).toEqual([]);
+  });
+  it('matches Claude plan profiles to subscription credentials, not the active API key', () => {
+    const cc = profile({ backend: 'claude', provider: null, mode: 'plan' });
+    const api = account({ backend: 'claude', provider: 'anthropic', authType: 'api_key' });
+    expect(readyProfiles([cc], [api], true, true)).toEqual([]);
+    expect(readyProfiles([{ ...cc, mode: 'api' }], [api], true, true)).toHaveLength(1);
+    expect(readyProfiles([cc], [{ ...api, authType: 'oauth' }], true, true)).toEqual([cc]);
   });
   it('loads without installing or syncing, then rescans and syncs after login once', async () => {
     const { ports, controller } = fixture();

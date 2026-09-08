@@ -1,5 +1,5 @@
 // input:  auth status, config profiles and onboarding ports
-// output: readiness model and ProviderSetupController
+// output: auth-type readiness model and ProviderSetupController
 // pos:    Secret-free provider onboarding coordination
 // >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
 import type { AuthAccountStatus, AuthStatusSnapshot, ConfigProfileEntry, ConfigProfiles } from '@cortex-agent/ui-contract';
@@ -26,8 +26,8 @@ function matchesAccount(profile: ConfigProfileEntry, account: AuthAccountStatus)
   const backend = profile.backend ?? 'claude';
   const provider = backend === 'claude' ? 'anthropic' : profile.provider;
   if (account.backend !== backend || account.provider !== provider) return false;
-  const type = profile.mode === 'subscription' ? 'oauth' : profile.mode === 'api' ? 'api_key' : null;
-  if (backend === 'pi' || !type) return usable(account.state);
+  const type = profile.mode === 'api' ? 'api_key' : 'oauth';
+  if (backend === 'pi') return usable(account.state);
   return (account.authType === type && usable(account.state))
     || account.credentials.some(c => c.authType === type && usable(c.state));
 }

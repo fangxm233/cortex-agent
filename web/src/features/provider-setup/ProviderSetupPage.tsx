@@ -1,5 +1,5 @@
 // input:  setup controller, auth modal, native bridge and i18n
-// output: standalone provider setup route and compact view
+// output: provider setup route with compact native window chrome
 // pos:    New-install provider onboarding outside AppShell
 // >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
@@ -12,6 +12,9 @@ import { LoginFlowModal, type LoginFlowTarget } from '@/features/auth/LoginFlowM
 import { orderedProviders, ProviderSetupController } from './provider-setup';
 import { canSetupClaude, setupClaude, claudeInstallLine } from './setup-native';
 import { listenNativeEvent } from '@/lib/native-bridge';
+import { captionInsetLeft, titleBarMode } from '@/lib/desktop-platform';
+import { WindowControls } from '@/shell/WindowControls';
+import { useWindowActions } from '@/shell/menu/useWindowActions';
 
 const panel = 'rounded-card border border-proto-line-2 bg-surface-card p-2g';
 function statusCopy(account: AuthAccountStatus, L: Vocab): string {
@@ -60,7 +63,7 @@ function ClaudeSection({ controller, login }: {
       {s.claude === null ? <Button disabled={s.claudeBusy} onClick={controller.detectClaude}>{L.setupRetry}</Button> : null}
       {account && s.claude?.installed ? <AccountRow account={account} disabled={s.claudeBusy || s.busy} login={start} /> : null}
       {account && s.claude?.installed === false ? <><p className="text-caption text-state-muted">{L.setupCcConsent}</p>
-        <Button disabled={s.claudeBusy || s.busy || !account.capabilities.length} onClick={() => start({ backend: 'claude', provider: account.provider, authType: account.capabilities[0]! })}>{L.setupCcInstall}</Button></> : null}
+        <Button disabled={s.claudeBusy || s.busy || !account.capabilities.length} onClick={() => start({ backend: 'claude', provider: account.provider, authType: account.capabilities.includes('oauth') ? 'oauth' : account.capabilities[0]! })}>{L.setupCcInstall}</Button></> : null}
     </>}
     {s.claudeBusy ? <p role="status">{L.setupWorking}</p> : null}
     {log ? <pre className="max-h-24 overflow-auto whitespace-pre-wrap break-words text-caption">{log}</pre> : null}
@@ -129,6 +132,13 @@ export function ProviderSetupView({ controller, leave }: { controller: ProviderS
     <LoginFlowModal open={!!target} target={target} onClose={() => setTarget(null)} onFlowStateChange={flowChanged} />
   </main>;
 }
+function SetupWindowBar() {
+  const actions = useWindowActions();
+  return <div data-tauri-drag-region="deep" className="flex h-[40px] shrink-0 items-center border-b border-proto-line-2 bg-surface-card">
+    <span style={{ paddingLeft: captionInsetLeft() + 16 }} className="flex-1 text-caption">Cortex</span>
+    {titleBarMode() === 'custom' ? <WindowControls actions={actions} /> : null}
+  </div>;
+}
 export function ProviderSetupPage() {
   const client = useTRPCClient();
   const navigate = useNavigate();
@@ -139,5 +149,10 @@ export function ProviderSetupPage() {
     claude: () => setupClaude(false), install: () => setupClaude(true), canInstall: canSetupClaude,
   }), [client]);
   useEffect(() => { void controller.load(); }, [controller]);
-  return <ProviderSetupView controller={controller} leave={() => navigate('/workbench', { replace: true })} />;
+  return <div className="flex h-full flex-col">
+    {titleBarMode() !== 'native' ? <SetupWindowBar /> : null}
+    <div className="min-h-0 flex-1 overflow-y-auto">
+      <ProviderSetupView controller={controller} leave={() => navigate('/workbench', { replace: true })} />
+    </div>
+  </div>;
 }

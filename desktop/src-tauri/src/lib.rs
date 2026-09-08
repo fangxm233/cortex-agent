@@ -984,7 +984,7 @@ mod tests {
             mode: ConnectionMode::Local,
             cortex_bin: None,
             server_version: None,
-        });
+        }, "native");
         assert!(script.contains("\"mode\":\"local\""));
     }
 
@@ -994,7 +994,7 @@ mod tests {
             server_url: Some("https://cortex.example.com".into()),
             token: Some("secret-token".into()),
             ..ConnectionConfig::default()
-        });
+        }, "native");
         let guard = script.find("window !== window.top").expect("top-frame guard");
         let config = script.find("__CORTEX_DESKTOP_CONFIG").expect("baked config");
         let invoke = script.find("get_connection_config").expect("refresh invoke");
