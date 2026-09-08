@@ -1,5 +1,5 @@
 // input:  defaults, filesystem, MCP builders, setup
-// output: PI-first init, provider onboarding and configuration
+// output: localized PI-first init, provider onboarding and configuration
 // pos:    Initializes Cortex home and config surfaces
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -968,7 +968,7 @@ async function collectAnswersInteractive(paths: InitPaths): Promise<InitAnswers>
 
   // CC installation belongs to provider login, not machine configuration.
   const backends: InitBackend[] = ['pi'];
-  clack.log.info('PI is bundled. Add providers or install Claude Code in the login step.');
+  clack.log.info(t('init.auth.piFirst'));
 
   // Step 2: Platform selection (multi-select — Slack and Feishu can run simultaneously).
   // Leave empty to skip and configure platforms later by editing .env manually.

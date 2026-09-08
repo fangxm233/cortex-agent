@@ -1,5 +1,5 @@
 // input:  process argv, child processes, CLI handler modules
-// output: cortex CLI dispatch and process exit status
+// output: cortex CLI dispatch and clean init cancellation exit status
 // pos:    Top-level cortex command dispatcher
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -33,6 +33,8 @@ import {
   getTuiHelp,
 } from './cli-help.js';
 import { runUiCli } from './ui-cli.js';
+import { LoginCliError } from './auth-login-cli.js';
+import { t } from '@core/i18n.js';
 
 export { getAuthHelp, getCliHelp, getInitHelp, getSetupGatewayHelp, getTuiHelp, getUiHelp } from './cli-help.js';
 
@@ -466,6 +468,9 @@ async function runInitCli(args: string[]): Promise<CliResult> {
     });
     return { exitCode: 0, stdout: '', stderr: '' };
   } catch (error: any) {
+    if (error instanceof LoginCliError && error.exitCode === 130) {
+      return { exitCode: 130, stdout: '', stderr: t('init.cancel') };
+    }
     return { exitCode: 1, stdout: '', stderr: error.message || String(error) };
   }
 }

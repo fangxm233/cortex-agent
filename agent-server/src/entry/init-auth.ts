@@ -1,8 +1,9 @@
 // input:  auth snapshots, login CLI and terminal choices
-// output: init authentication state and usable backend selection
+// output: localized init authentication choices, usable backends and cancellation
 // pos:    Small shared init provider onboarding coordinator
 // >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
-import { defaultLoginDeps, runAuthLoginCli, type LoginCliDeps } from './auth-login-cli.js';
+import { defaultLoginDeps, LoginCliError, runAuthLoginCli, type LoginCliDeps } from './auth-login-cli.js';
+import { t } from '@core/i18n.js';
 import type { AuthStatusSnapshot } from '@domain/auth/auth-status.js';
 
 export function usableBackends(snapshot: AuthStatusSnapshot): Array<'pi' | 'claude'> {
@@ -23,18 +24,19 @@ export async function onboardInitAuth(interactive: boolean, emit: (event: Record
   if (!interactive) return snapshot ? usableBackends(snapshot) : [];
   while (true) {
     const available = snapshot ? usableBackends(snapshot) : [];
-    deps.ui.notify({ kind: 'info', message: snapshot ? snapshot.accounts.map(a => `${a.backend} / ${a.label}: ${a.state}`).join('\n') : 'Credential detection failed; rescan or skip.' });
-    const action = await deps.ui.select('Provider setup (local credentials, not inference verification)', [
-      ...(available.length ? [{ value: 'continue', label: 'Continue with configured providers' }] : []),
-      { value: 'login', label: 'Login / install and login Claude Code' },
-      { value: 'rescan', label: 'Rescan credentials' },
-      { value: 'skip', label: 'Configure later (Agent may be unavailable)' },
+    deps.ui.notify({ kind: 'info', message: snapshot ? snapshot.accounts.map(a => `${a.backend} / ${a.label}: ${t(`cmd.auth.state.${a.state}`)}`).join('\n') : t('init.auth.detectionFailed') });
+    const action = await deps.ui.select(t('init.auth.setup'), [
+      ...(available.length ? [{ value: 'continue', label: t('init.auth.continue') }] : []),
+      { value: 'login', label: t('init.auth.login') },
+      { value: 'rescan', label: t('init.auth.rescan') },
+      { value: 'skip', label: t('init.auth.skip') },
     ]);
     if (action === 'skip') return [];
     if (action === 'continue') return available;
     if (action === 'login') {
       const result = await runAuthLoginCli([], { ...deps, sync: async () => ({ configured: false, endpoints: 0, profiles: [], reason: 'deferred-to-init' }) });
-      deps.ui.notify({ kind: 'info', message: result.stderr || 'Credentials saved. Gateway/profile setup follows; no inference request was made.' });
+      if (result.exitCode === 130) throw new LoginCliError(t('init.cancel'), 130);
+      deps.ui.notify({ kind: 'info', message: result.stderr || t('init.auth.saved') });
     }
     snapshot = await scan(deps, emit);
   }
