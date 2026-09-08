@@ -25,15 +25,19 @@ cortex <command> [options]
 
 ### 命令 {#commands}
 
-**`cortex init [--home <path>] [--gateway-config-dir <path>] [--force]`**
+**`cortex init [--home <path>] [--gateway-config-dir <path>] [--force] [--answers <file>] [--json]`**
 
-交互式初始化向导。创建 `CORTEX_HOME` 目录结构，提示选择后端（Claude Code / PI）、交互平台（Slack）、网关使用和系统服务注册。生成带平台令牌的 `.env`，复制默认配置，并自动生成 `mcp-config.json` 和 `mode.json`。
+初始化 `CORTEX_HOME`。交互式向导默认使用内置 PI，不询问后端选择；收集平台（Slack / 飞书）、机器、用量报告与服务设置，写入 `.env`、复制默认配置，并生成 `mcp-config.json` 和 `mode.json`。
+
+写入配置后，向导检测本地 Provider 凭据，提供登录、重新检测、使用已配置的 Provider 继续，或带警告跳过。登录使用与 `cortex auth login` 相同的流程；选择 Claude Code 时复用已有安装，缺失时询问是否允许安装。继续操作会从检测到的端点配置 gateway 路由与 Profile。检测不会发起付费推理请求，也不验证模型是否可调用。
+
+使用 `--answers` 或 `--json` 运行时，不会启动 Provider 登录或等待输入；命令会报告凭据状态，并允许在 Provider 设置未完成时结束。
 
 选项：
 - `--home <path>` — 设置 `CORTEX_HOME`（默认：`$CORTEX_HOME` 或 `~/.cortex/`）
 - `--gateway-config-dir <path>` — 网关配置输出目录（默认：`~/.aistatus/`）
 - `--force` — 覆盖已有配置（`.env`、`budget.json`、`mode.json` 等）
-- `--answers <file>` — 从 JSON 文档读取全部回答，不再交互提问。每个字段都可省略，缺省时回退到向导的默认值，因此 `{}` 即可得到一台可用的单机安装。桌面应用的安装向导使用此选项。
+- `--answers <file>` — 从 JSON 文档读取回答，不进行交互提问。省略的字段使用默认值；`{}` 创建使用 PI 的单机安装，若未检测到凭据，仍需登录 Provider。桌面安装器使用此选项。显式 `backends` 数组保留指定的后端选择与安装语义（`claude`、`pi` 或两者）；显式空数组保留回退到 Claude 的行为。
 - `--json` — 在 stdout 输出按行分隔的 JSON 进度事件，并将面向人的输出改到 stderr。最后一条事件报告 home 目录、版本、客户端 token 与本地 Web UI 地址。
 
 **`cortex ui enable [--port <n>] [--home <path>] [--json]`**
@@ -86,14 +90,36 @@ API 模式下，如果 gateway 健康但本地没有 key，会显示 gateway 托
 读取归一化的 Claude Code 与 PI 认证快照。默认文本输出是简洁状态总览；`--json` 返回完整
 `AuthStatusSnapshot`，便于脚本处理。两种输出都不会包含凭据值或其片段。
 
-该子命令只读。远程登录从 Slack/飞书的 `!login` 或 Web UI 的 **设置 → 账号** 发起；
-移动端 drill-in 路径是 `/m/settings/accounts`。`cortex auth` 没有 OAuth 或 API-key 登录参数。
+该子命令只读，报告本地凭据状态，不做在线推理验证。本地登录使用 `cortex auth login`。
+远程登录从 Slack/飞书的 `!login` 或 Web UI 的**设置 → 账号**发起；
+移动端 drill-in 路径是 `/m/settings/accounts`。
 
 选项：
 - `--json` — 以 JSON 输出完整且不含凭据的状态快照
 - `--help`、`-h` — 显示 auth 命令帮助
 
 登录命令、provider 能力判据和过期处理参见[后端：远程登录](./backends.md#remote-login)。
+
+**`cortex auth login [--backend pi|claude] [--provider ID] [--auth-type oauth|api_key]`**
+
+从交互式终端登录 Provider，无需运行 daemon。省略的选项通过交互选择，Provider 与认证方式以所选后端支持的能力为准。PI 已内置。Claude Code 已安装时直接复用；缺失时必须确认后，Cortex 才会安装并开始登录。
+
+即使已提供全部选择参数，登录仍要求 stdin 和 stderr 都是 TTY。API key 与授权响应通过隐藏输入提示收集；此命令不接受密钥、token 或授权码参数。浏览器链接与设备授权指引显示在 stderr。非 TTY 登录会立即失败，不启动认证流程；帮助信息无需 TTY。
+
+结果以 JSON 写入 stdout，面向人的提示与错误写入 stderr；不需要也不接受 `--json` 参数。结果不含秘密值。登录成功后同步 gateway/Profile 配置，并报告同步结果与 `inferenceVerified: false`：凭据已配置，但未经推理测试，也不会发送付费模型请求。
+
+选项：
+- `--backend pi|claude` — 选择后端；省略时交互选择
+- `--provider ID` — 选择该后端运行时支持的 Provider
+- `--auth-type oauth|api_key` — 选择支持的认证方式
+- `--help`、`-h` — 显示登录帮助，不启动登录
+
+```bash
+cortex auth login
+cortex auth login --backend pi --provider anthropic --auth-type api_key
+cortex auth login --backend claude --provider anthropic --auth-type oauth
+cortex auth login --help
+```
 
 **`cortex auth provider <list|add|remove> [选项]`**
 
@@ -123,7 +149,7 @@ cortex auth provider list --json
 cortex auth provider remove --name my-vllm --dry-run
 ```
 
-两份写入的内容以及一条定义如何抵达 agent，参见[后端：自定义 provider](./backends.md#自定义-provider)。
+两份写入的内容以及一条定义如何抵达 agent，参见[后端：自定义 provider](./backends.md#custom-providers)。
 
 **`cortex setup-gateway [--dry-run] [--output-dir <path>]`**
 

@@ -11,7 +11,7 @@ prompt and shows you exactly where to click.
 
 ## Prefer not to use a terminal?
 
-The [desktop app](desktop-app.md) can install and configure the server for you: choose **Install on this computer** on its first screen, and it installs the package, runs the same setup this guide walks through, starts the daemon, and connects. Node.js is still a prerequisite, and Slack or Feishu is skipped entirely — the app is the interface. Come back here when you want a server that also talks to a chat platform.
+The [desktop app](desktop-app.md) can install and configure the server for you: choose **Install Cortex** on its first screen, enter the machine settings, then start and connect. A new installation opens provider setup for login and default-profile selection. Node.js, npm, and Git are prerequisites; Slack and Feishu setup is skipped — the app is the interface. Come back here when you want a server that also talks to a chat platform.
 
 ## Prerequisites
 
@@ -22,9 +22,10 @@ The [desktop app](desktop-app.md) can install and configure the server for you: 
 - **About 2 GB of free disk** for backends, plugins, and logs.
 
 You do **not** need to install a coding agent beforehand. The PI engine
-ships inside the Cortex server package, and `cortex init` installs Claude
-Code for you if you pick it. You do not need to install `git` beforehand,
-and you do not need to pre-create any directories or env files —
+ships inside the Cortex server package. Claude Code is optional; choosing
+its login flow offers installation if it is missing. You do not need to
+install `git` beforehand, and you do not need to pre-create any directories
+or env files —
 `cortex init` handles all of that.
 
 ### Checking your Node.js version
@@ -121,22 +122,17 @@ to your system locale, so a Chinese system pre-selects 中文. The choice
 is saved to `config/preferences.json` and you can change it later with
 the `!lang` command.
 
-### 2.2 Which backends?
+### 2.2 Bundled PI and optional Claude Code {#22-which-backends}
 
-```
-? Which coding-agent backends would you like to use?
-❯ ◯ Claude Code (recommended for Anthropic subscriptions)
-  ◯ PI (for other subscriptions)
-```
+Interactive `cortex init` uses **PI** by default without a backend-selection
+prompt. PI ships inside Cortex and needs provider credentials, not a
+separate installation. Continue with platform and machine settings; provider
+detection and login follow after configuration files are written in
+[section 2.10](#210-auto-detect-backends-for-gatewayprofiles).
 
-- **Claude Code** — recommended if you have an Anthropic subscription
-  (Claude Pro, Max, or API). Cortex installs it with `npm install -g` on
-  the next step.
-- **PI** — use if you subscribe to other LLM providers through PI. The PI
-  engine ships inside the Cortex server package, so there is nothing to
-  install; all PI needs is a provider you have logged in.
-
-You can pick both.
+**Claude Code** is optional and separate from the Anthropic provider in PI.
+Choosing Claude Code in the login step reuses an existing installation or
+asks permission to install it if missing.
 
 ### 2.3 Which interaction platform(s)?
 
@@ -344,31 +340,51 @@ displayed).
   daemon starts automatically on login.
 - **Windows** — not supported. Start manually with `cortex daemon`.
 
-### 2.10 Auto-detect backends for gateway/profiles?
+### 2.10 Detect credentials, sign in, and configure profiles {#210-auto-detect-backends-for-gatewayprofiles}
 
-Answer **Yes** if your backend is already logged in. Cortex scans your
-`~/.claude/.credentials.json` and `~/.pi/agent/` to discover endpoints
-and asks you to pick which discovered (mode, model) pair becomes the
-`plan` profile (used by executor agents — planner, doc-writer, coder,
-etc.) and which becomes the `execute` profile (used by reviewer agents).
+After writing the configuration files, Cortex automatically detects local
+Claude Code and PI credentials. This is credential detection, not a live
+inference test: it makes no paid inference request and does not guarantee
+that a model call will succeed.
 
-To log Claude Code in, open a new terminal and run `claude`. Inside that
-session type `/login` and follow the prompts — pick the login method that
-matches your subscription.
+The terminal offers these actions:
 
-![Backend login prompt](./images/backend-login.png)
+- **Continue with configured providers** — use detected credentials and
+  configure gateway routes and profiles from discovered endpoints. Choose
+  the discovered (mode, model) pairs for `plan` (executor agents such as
+  planner, doc-writer, and coder) and `execute` (reviewer agents).
+- **Login / install and login Claude Code** — choose a backend, provider,
+  and supported OAuth or API-key method. PI is bundled. Claude Code is
+  reused if installed; only choosing its login path prompts to install a
+  missing copy. Login returns to credential detection.
+- **Rescan credentials** — pick up credentials configured in another
+  terminal, then continue to synchronize gateway routes and profiles.
+- **Configure later** — finish setup with a warning that the Agent may be
+  unavailable until credentials and profiles are configured.
 
-PI logins run through Cortex itself: send `!login pi` in Slack or Feishu,
-or open **Settings → Accounts** in the Web UI, and pick the provider and
-authentication type from the selectors. See
+You can also sign in from a terminal without a running daemon:
+
+```bash
+cortex auth login
+cortex auth login --backend pi --provider anthropic --auth-type api_key
+cortex auth login --backend claude --provider anthropic --auth-type oauth
+cortex auth status
+```
+
+Login requires an interactive TTY. Keys and authorization responses are
+prompted, never passed as command arguments. The command writes its JSON
+result to stdout and human prompts and instructions to stderr.
+`cortex auth login --help` lists the options. See the
+[CLI reference](./cli-reference.md#commands).
+
+With `--answers <file>` or `--json`, init detects credentials and reports
+status without starting provider login or waiting for input. Omitted
+`backends` defaults to PI; explicit `backends` answers retain their supplied
+selection and installation behavior. These runs can finish without a
+configured provider. Sign in later with `cortex auth login` or
+**Settings → Accounts**, then use `cortex setup-gateway` to configure profiles.
+Remote login is also available through `!login` in Slack or Feishu; see
 [Backends: Remote login](./backends.md#remote-login).
-
-`cortex auth status` prints what is currently logged in, without showing
-any credential.
-
-If nothing is authenticated yet, answer **No** here, finish the wizard,
-log the backend in, then run `cortex setup-gateway` — the same step,
-available at any time.
 
 ### 2.11 When the backend login expires
 
@@ -380,8 +396,8 @@ Failed to authenticate. API Error: 401 OAuth access token has expired.
 Re-authenticate to continue.
 ```
 
-The fix is the same login flow as above: `claude` plus `/login` for
-Claude Code, `!login pi` or **Settings → Accounts** for a PI provider.
+Sign in again with `cortex auth login`, or use `!login` in Slack or Feishu
+or **Settings → Accounts**. Claude Code also supports `claude` plus `/login`.
 
 ![Backend login prompt](./images/backend-login.png)
 

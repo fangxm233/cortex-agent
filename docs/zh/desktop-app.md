@@ -35,13 +35,13 @@ Android APK 面向 arm64 设备，并通过 Play Store 之外的方式分发。�
 
 安装使用 `npm install -g @cortex-agent/server@latest`；已有受支持版本时直接复用。命令运行期间持续显示当前进度，**查看运行日志**可展开详细输出。失败时会显示出错的操作与重试入口。
 
-安装就绪后，填写机器名称、选择 Agent 后端，可选登录系统时自动启动，也可在**高级设置**中调整端口。点击**启动 Cortex**即自动保存配置、启动服务端、连接并打开工作台。
+安装就绪后，填写机器名称，可选登录系统时自动启动，也可在**高级设置**中调整端口。Cortex 已内置 PI，此步骤不询问后端选择。点击**启动 Cortex**即自动保存配置、启动服务端并连接。全新安装随后进入 `/setup/providers` 的 Provider 设置页，完成后再进入工作台。
 
 本地开发时，可将 `CORTEX_SETUP_SERVER_PACKAGE` 设置为本地打包 `.tgz` 的绝对路径，再启动原生应用。安装器通过 npm 安装该包，并检查其报告的版本是否达到最低要求；这一操作不会发布软件包。全新安装测试应使用独立的 home、npm prefix、凭据存储和网络。
 
-向导不询问 Slack 或飞书：应用本身就是交互界面，没有消息平台的服务端使用内置 gateway 运行。它同样不询问账号与模型。安装完成后在 **Settings → Accounts** 登录后端，服务端会据此重新生成 gateway 模式与 profile；进一步的模型选择由 **Settings → Profiles** 负责。
+安装步骤不询问 Slack 或飞书：应用本身就是交互界面，没有消息平台的服务端使用内置 gateway 运行。Provider 登录和默认 Profile 在服务端连接成功后配置。
 
-已有 Cortex 配置的机器会保留原设置，只开启或更新本地连接端点。选择**安装 Cortex**也表示允许将低于应用要求的已有服务端升级。
+已有 Cortex 配置的机器会保留原设置，只开启或更新本地连接端点；已有安装及连接不会自动进入 Provider 设置页。选择**安装 Cortex**也表示允许将低于应用要求的已有服务端升级。
 
 本机服务端没有其他进程负责拉起它，因此应用在启动时若发现服务端未响应就会启动 daemon。在向导中勾选开机自启，还会启用服务端写入的服务单元——Linux 上是 systemd user unit，macOS 上是 launchd agent——使定时任务在应用关闭时也能触发。Windows 没有服务注册，应用启动时拉起 daemon 是该平台上唯一的自启方式。
 
@@ -51,7 +51,19 @@ Android APK 面向 arm64 设备，并通过 Play Store 之外的方式分发。�
 cortex ui enable
 ```
 
-它会在需要时生成客户端 token，设置 `CORTEX_UI_HTTP` 与 `CORTEX_UI_PORT`，并把应用的 origin 合并进 `uiCorsOrigins`。当它提示配置已改变时，重启 daemon 生效。下一节说明如何手工完成同样的设置。
+它会在需要时生成客户端 token，设置 `CORTEX_UI_HTTP` 与 `CORTEX_UI_PORT`，并把应用的 origin 合并进 `uiCorsOrigins`。当它提示配置已改变时，重启 daemon 生效。[服务器配置](#server-configuration)一节说明如何手工完成同样的设置。
+
+## Provider 设置 {#provider-setup}
+
+Provider 设置页检测本地凭据，并提供可搜索的 PI Provider 列表，优先显示已检测到凭据的项。选择 Provider 及其支持的 OAuth 或 API key 认证方式，即可打开与**设置 → 账号**共用的登录弹窗。PI 无需单独安装。
+
+**Claude Code** 是可选项，与 PI 中的 Anthropic Provider 相互独立。在本机桌面初始化中，点击**安装并登录**即授权在这台电脑上安装 Claude Code，成功后打开登录流程。这是初始化过程中唯一提供 Claude Code 安装的步骤；已有 Claude Code 安装会被直接复用。
+
+凭据检测不等于在线推理测试：设置过程不会发起付费推理请求，也不保证模型调用一定成功。即使运行时已安装，凭据缺失、过期或状态未知仍需处理。
+
+登录后，页面会刷新凭据并同步模型与 Profile。**重新检测并同步模型**也可读取在其他位置配置的凭据。请将包含模型且匹配已配置账号的实际 Profile 选为**默认 Profile**；仅完成登录并不足以启用**进入工作台**。若当前默认项不匹配，请明确选择可用 Profile，已有 Profile 定义会保留。
+
+配置就绪后选择**进入工作台**，或选择**稍后配置**跳过。跳过警告会说明：在完成**设置 → 账号**与 **Settings → Profiles** 配置前，Agent 可能暂不可用。
 
 ## 服务器配置 {#server-configuration}
 

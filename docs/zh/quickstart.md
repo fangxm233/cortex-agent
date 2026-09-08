@@ -6,7 +6,7 @@ Cortex 通过 Slack 或飞书（Lark）与你对话——任选其一，或同�
 
 ## 不想用终端？ {#prefer-not-to-use-a-terminal}
 
-[桌面应用](desktop-app.md)可以替你安装并配置服务端：在首屏选择**在本机安装并启动**，它会安装软件包、执行本指南中同样的初始化、启动 daemon 并完成连接。Node.js 仍是前置条件，Slack 与飞书则被完全跳过——应用本身就是交互界面。如果你还想让服务端接入聊天平台，请继续阅读本指南。
+[桌面应用](desktop-app.md)可以替你安装并配置服务端：在首屏选择**安装 Cortex**，填写机器设置后启动并连接。全新安装会打开 Provider 设置页，供你登录并选择默认 Profile。Node.js、npm 和 Git 是前置条件；Slack 与飞书设置会被跳过——应用本身就是交互界面。如果你还想让服务端接入聊天平台，请继续阅读本指南。
 
 ## 前置条件 {#prerequisites}
 
@@ -14,7 +14,7 @@ Cortex 通过 Slack 或飞书（Lark）与你对话——任选其一，或同�
 - **一个 Slack 工作区或一个飞书（Lark）组织**，你可以在其中创建应用。
 - **大约 2 GB 空闲磁盘空间**，用于后端、插件和日志。
 
-你**不需要**预先安装编程智能体。PI 引擎随 Cortex 服务器包一起打包；若你选择 Claude Code，`cortex init` 会替你安装。也不需要预先安装 `git`，不需要预先创建任何目录或 env 文件——`cortex init` 都会处理。
+你**不需要**预先安装编程智能体。PI 引擎随 Cortex 服务器包一起打包。Claude Code 是可选项；选择其登录流程时，若尚未安装，会提供安装选项。也不需要预先安装 `git`，不需要预先创建任何目录或 env 文件——`cortex init` 都会处理。
 
 ### 检查 Node.js 版本 {#checking-your-nodejs-version}
 
@@ -98,18 +98,11 @@ Select language / 选择语言
 
 第一个提示选择 Cortex 用于系统生成消息以及本向导其余部分的语言。它默认采用你的系统区域设置，所以中文系统会预选 中文。该选择会保存到 `config/preferences.json`，之后可通过 `!lang` 命令更改。
 
-### 2.2 选择后端 {#22-which-backends}
+### 2.2 内置 PI 与可选 Claude Code {#22-which-backends}
 
-```
-? 你想使用哪些编程智能体后端？
-❯ ◯ Claude Code（推荐用于 Anthropic 订阅）
-  ◯ PI（用于其他订阅）
-```
+交互式 `cortex init` 默认使用 **PI**，不询问后端选择。PI 随 Cortex 一起打包，只需配置 Provider 凭据，无需单独安装。继续填写平台与机器设置；配置文件写入后，再进入[第 2.10 节](#210-auto-detect-backends-for-gatewayprofiles)的凭据检测与登录。
 
-- **Claude Code** — 如果你有 Anthropic 订阅（Claude Pro、Max 或 API），推荐使用。Cortex 会在下一步用 `npm install -g` 安装它。
-- **PI** — 如果你通过 PI 订阅其他 LLM 提供商，选此项。PI 引擎随 Cortex 服务器包一起打包，无需安装；它只需要一个你已登录的 provider。
-
-你可以两者都选。
+**Claude Code** 是可选项，与 PI 中的 Anthropic Provider 相互独立。在登录步骤选择 Claude Code 时，会复用已有安装，或在缺失时询问是否允许安装。
 
 ### 2.3 选择交互平台 {#23-which-interaction-platforms}
 
@@ -263,19 +256,29 @@ Cortex 运行 `nvidia-smi` 并打印数量。无需输入。如果没有 NVIDIA 
 - **Linux** — 创建 `systemd --user` 单元（无需 `sudo`）。守护进程在登录时自动启动。
 - **Windows** — 不支持。需手动运行 `cortex daemon`。
 
-### 2.10 自动检测后端用于网关/配置？ {#210-auto-detect-backends-for-gatewayprofiles}
+### 2.10 检测凭据、登录并配置 Profile {#210-auto-detect-backends-for-gatewayprofiles}
 
-如果后端已经登录，回答 **Yes**。Cortex 会扫描你的 `~/.claude/.credentials.json` 和 `~/.pi/agent/` 来发现端点，并让你选择哪个发现的（mode, model）对成为 `plan` 配置（由执行智能体使用——planner、doc-writer、coder 等），哪个成为 `execute` 配置（由审查智能体使用）。
+写入配置文件后，Cortex 自动检测本地 Claude Code 与 PI 凭据。这是凭据检测，不是在线推理测试：不会发起付费推理请求，也不保证模型调用一定成功。
 
-登录 Claude Code：新开一个终端，输入 `claude` 启动会话，然后在会话里输入 `/login`，按提示选择与你的订阅相符的登录方式。
+终端提供以下操作：
 
-![后端登录提示](./images/backend-login.png)
+- **使用已配置的服务商继续**（Continue with configured providers）——使用检测到的凭据，从发现的端点配置 gateway 路由与 Profile。选择用于 `plan`（planner、doc-writer、coder 等执行智能体）和 `execute`（审查智能体）的（mode, model）对。
+- **登录 / 安装并登录 Claude Code**（Login / install and login Claude Code）——选择后端、Provider 及其支持的 OAuth 或 API key 方式。PI 已内置；Claude Code 已安装时直接复用，只有选择其登录路径时才会询问是否安装缺失的程序。登录后返回凭据检测。
+- **重新扫描凭据**（Rescan credentials）——读取在其他终端配置的凭据，再继续同步 gateway 路由与 Profile。
+- **稍后配置**（Configure later）——完成初始化，同时警告：配置好凭据与 Profile 前，Agent 可能暂不可用。
 
-PI 的登录走 Cortex 自己的流程：在 Slack 或飞书里发送 `!login pi`，或在网页端打开**设置 → 账号**，然后在选择器里挑选 provider 与认证类型。参见[后端：远程登录](./backends.md#remote-login)。
+也可直接从终端登录，无需运行 daemon：
 
-`cortex auth status` 可以查看当前已登录的内容，且不会显示任何凭据。
+```bash
+cortex auth login
+cortex auth login --backend pi --provider anthropic --auth-type api_key
+cortex auth login --backend claude --provider anthropic --auth-type oauth
+cortex auth status
+```
 
-如果此时还没有任何后端完成认证，这一步回答 **No**，先走完向导，登录后端后再运行 `cortex setup-gateway`——同一步骤，随时可用。
+登录要求交互式 TTY。密钥与授权响应通过提示输入，不能作为命令参数传入。命令将 JSON 结果写入 stdout，将面向人的提示与指引写入 stderr。`cortex auth login --help` 列出选项，详见 [CLI 参考](./cli-reference.md#commands)。
+
+使用 `--answers <file>` 或 `--json` 时，init 检测凭据并报告状态，不会启动 Provider 登录或等待输入。省略 `backends` 时默认使用 PI；显式提供 `backends` 时保留所指定的后端选择与安装行为。即使尚未配置 Provider，这类运行也能完成。之后可用 `cortex auth login` 或**设置 → 账号**登录，再用 `cortex setup-gateway` 配置 Profile。Slack 或飞书中也可通过 `!login` 远程登录，参见[后端：远程登录](./backends.md#remote-login)。
 
 ### 2.11 后端登录过期怎么办 {#211-when-the-backend-login-expires}
 
@@ -286,7 +289,7 @@ Failed to authenticate. API Error: 401 OAuth access token has expired.
 Re-authenticate to continue.
 ```
 
-处理方法与上面的登录流程相同：Claude Code 用 `claude` 加 `/login`，PI provider 用 `!login pi` 或**设置 → 账号**。
+使用 `cortex auth login` 重新登录，或使用 Slack/飞书中的 `!login` 或**设置 → 账号**。Claude Code 也支持 `claude` 加 `/login`。
 
 ![后端登录提示](./images/backend-login.png)
 

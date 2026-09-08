@@ -25,19 +25,28 @@ Server lifecycle and initialization CLI.
 
 ### Commands
 
-**`cortex init [--home <path>] [--gateway-config-dir <path>] [--force]`**
+**`cortex init [--home <path>] [--gateway-config-dir <path>] [--force] [--answers <file>] [--json]`**
 
-Interactive initialization wizard. Creates the `CORTEX_HOME` directory
-structure, prompts for backends (Claude Code / PI), interaction platform
-(Slack), gateway usage, and system service registration.
-Generates `.env` with platform tokens, copies default configs, and
-auto-generates `mcp-config.json` and `mode.json`.
+Initialize `CORTEX_HOME`. The interactive wizard uses bundled PI by default
+without a backend-selection prompt, collects platform (Slack / Feishu),
+machine, usage-reporting, and service settings, writes `.env`, copies default
+configs, and generates `mcp-config.json` and `mode.json`.
+
+After writing configs, it detects local provider credentials and offers
+login, rescan, continue with configured providers, or a warned skip. Login
+uses the same flow as `cortex auth login`; choosing Claude Code reuses an
+existing installation or asks permission to install a missing copy. Continue
+configures gateway routes and profiles from detected endpoints. Detection
+makes no paid inference request and does not verify model access.
+
+`--answers` and `--json` runs do not start provider login or wait for input.
+They report credential status and can finish with provider setup incomplete.
 
 Options:
 - `--home <path>` — set `CORTEX_HOME` (default: `$CORTEX_HOME` or `~/.cortex/`)
 - `--gateway-config-dir <path>` — gateway config output directory (default: `~/.aistatus/`)
 - `--force` — overwrite existing configs (`.env`, `budget.json`, `mode.json`, etc.)
-- `--answers <file>` — read every answer from a JSON document instead of prompting. Each field is optional and falls back to what the wizard would default to, so `{}` yields a working single-machine install. Used by the desktop app's setup wizard.
+- `--answers <file>` — read answers from a JSON document without prompting. Omitted fields use defaults; `{}` creates a single-machine installation using PI, with provider login still required if no credentials are detected. Used by the desktop installer. An explicit `backends` array retains its selection and installation semantics (`claude`, `pi`, or both); an explicit empty array retains the Claude fallback.
 - `--json` — emit newline-delimited progress events on stdout and move human-readable output to stderr. The final event reports the home directory, the version, the client token, and the local Web UI URL.
 
 **`cortex ui enable [--port <n>] [--home <path>] [--json]`**
@@ -125,9 +134,10 @@ text output shows a concise status overview, while `--json` returns the full
 `AuthStatusSnapshot` for scripting. Both forms omit credential values and
 fragments.
 
-This subcommand is read-only. Remote login starts from `!login` in Slack or
-Feishu, or **Settings → Accounts** in the Web UI; mobile users drill in at
-`/m/settings/accounts`. There is no OAuth or API-key login flag on `cortex auth`.
+This subcommand is read-only and reports local credential state, not live
+inference validation. Sign in locally with `cortex auth login`. Remote login
+starts from `!login` in Slack or Feishu, or **Settings → Accounts** in the Web
+UI; mobile users drill in at `/m/settings/accounts`.
 
 Options:
 - `--json` — print the complete credential-free status snapshot as JSON
@@ -135,6 +145,39 @@ Options:
 
 See [Backends: Remote login](./backends.md#remote-login) for login commands,
 provider capability rules, and expiration handling.
+
+**`cortex auth login [--backend pi|claude] [--provider ID] [--auth-type oauth|api_key]`**
+
+Sign in to a provider from an interactive terminal without a running daemon.
+Omitted options are selected interactively from the backend's supported
+providers and authentication methods. PI is bundled. For Claude Code, an
+existing installation is reused; a missing installation requires confirmation
+before Cortex installs it and starts login.
+
+Login requires TTY stdin and stderr, even when all selectors are supplied.
+API keys and authorization responses are entered through secret prompts;
+this command accepts no key, token, or authorization-code arguments. Browser
+links and device instructions appear on stderr. Non-TTY login fails promptly
+without starting an authentication flow; help works without a TTY.
+
+The result is JSON on stdout, with human prompts and errors on stderr; no
+`--json` flag is needed or accepted. Results omit secrets. A successful login
+synchronizes gateway/profile configuration and reports the sync result with
+`inferenceVerified: false`: credentials are configured, not inference-tested,
+and no paid model request is sent.
+
+Options:
+- `--backend pi|claude` — choose the backend; omitted means select interactively
+- `--provider ID` — choose a provider supported by that backend's runtime
+- `--auth-type oauth|api_key` — choose a supported authentication method
+- `--help`, `-h` — show login help without starting login
+
+```bash
+cortex auth login
+cortex auth login --backend pi --provider anthropic --auth-type api_key
+cortex auth login --backend claude --provider anthropic --auth-type oauth
+cortex auth login --help
+```
 
 **`cortex auth provider <list|add|remove> [options]`**
 

@@ -37,13 +37,13 @@ Choose **Install Cortex** on the first screen. The app automatically checks Node
 
 Installation uses `npm install -g @cortex-agent/server@latest`; a supported existing installation is reused. Progress remains visible while commands run, and **Activity log** expands their output. Failures show the failing operation and a retry action.
 
-Once installation is ready, enter the machine name, choose agent backends, and optionally enable auto-start or change the port under **Advanced settings**. Clicking **Start Cortex** saves the configuration, starts the server, connects, and opens the workbench automatically.
+Once installation is ready, enter the machine name and optionally enable auto-start or change the port under **Advanced settings**. PI is bundled with Cortex; this step does not ask you to choose backends. Clicking **Start Cortex** saves the configuration, starts the server, and connects. A new installation then opens provider setup at `/setup/providers` before entering the workbench.
 
 For local development, launch the native app with `CORTEX_SETUP_SERVER_PACKAGE` set to an absolute path to a locally packed `.tgz`. The installer uses that package through npm and checks its reported version against the app's minimum. This does not publish the package; use an isolated home, npm prefix, credential store, and network for fresh-install testing.
 
-The wizard asks nothing about Slack or Feishu: the app is the interface, and a server with no messaging platform runs on its built-in gateway. It also asks nothing about accounts or models. Sign in to a backend afterwards under **Settings → Accounts**; the server regenerates the gateway modes and profiles for whatever that login makes reachable, and **Settings → Profiles** owns any further model choice.
+The installation step asks nothing about Slack or Feishu: the app is the interface, and a server with no messaging platform runs on its built-in gateway. Provider login and the default profile are configured after the server connects.
 
-A machine that already has a Cortex configuration keeps it. Setup enables or updates only the local connection endpoint. Choosing **Install Cortex** also authorizes upgrading an installed server that is older than the app requires.
+A machine that already has a Cortex configuration keeps it. Setup enables or updates only the local connection endpoint; existing installations and connections do not automatically enter provider setup. Choosing **Install Cortex** also authorizes upgrading an installed server that is older than the app requires.
 
 Because a local server has nothing else to start it, the app starts the daemon at launch whenever it is not already answering. Enabling autostart in the wizard additionally registers the service the server writes — a systemd user unit on Linux, a launchd agent on macOS — so scheduled tasks fire while the app is closed. Windows has no service registration, so the app's launch-time start is the only autostart there.
 
@@ -53,7 +53,19 @@ To enable the endpoint on an existing install without the wizard, run one comman
 cortex ui enable
 ```
 
-This generates the client token if needed, sets `CORTEX_UI_HTTP` and `CORTEX_UI_PORT`, and adds the app's origins to `uiCorsOrigins`. Restart the daemon afterwards when it reports that the configuration changed. The rest of this section describes the same settings by hand.
+This generates the client token if needed, sets `CORTEX_UI_HTTP` and `CORTEX_UI_PORT`, and adds the app's origins to `uiCorsOrigins`. Restart the daemon afterwards when it reports that the configuration changed. [Server configuration](#server-configuration) describes the same settings by hand.
+
+## Provider setup
+
+The provider setup page detects local credentials and offers a searchable list of PI providers. Detected credentials appear first. Choose a provider and a supported OAuth or API-key method to open the same login modal used by **Settings → Accounts**. PI needs no separate installation.
+
+**Claude Code** is optional and separate from the Anthropic provider in PI. In local desktop setup, **Install and sign in** authorizes installing Claude Code on this computer, then opens its login flow. This is the only onboarding step that offers its installation. An existing Claude Code installation is reused.
+
+Credential detection is not a live inference test: setup sends no paid inference request and does not prove that a model call will succeed. Missing, expired, or unknown credentials need attention even when the runtime is installed.
+
+After login, the page refreshes credentials and synchronizes models and profiles. **Rescan and sync models** also picks up credentials configured elsewhere. Select an actual profile with a model and a matching configured account as the **Default profile**; a login alone is not enough to enable **Enter workbench**. If the current default does not match, choose an available profile explicitly. Existing profile definitions are preserved.
+
+Choose **Enter workbench** when the configuration is ready, or **Set up later** to skip. The skip warning explains that the Agent may be unavailable until you finish **Settings → Accounts** and **Settings → Profiles**.
 
 ## Server configuration
 
