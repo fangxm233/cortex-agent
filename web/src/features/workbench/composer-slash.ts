@@ -1,5 +1,5 @@
 // input:  composer text, UI shortcut catalog and profile options
-// output: local slash suggestions, resolutions and action dispatch
+// output: slash suggestions, resolution, feedback keys and dispatch
 // pos:    Shared desktop/mobile slash-command model
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { SLASH_COMMANDS } from './chat-content';
@@ -23,6 +23,17 @@ export type SlashResolution =
   | { kind: 'invalid' }
   | { kind: 'disabled' }
   | { kind: 'action'; action: SlashAction };
+
+export function slashFeedbackKey(resolution: SlashResolution) {
+  const keys = {
+    none: null,
+    action: null,
+    invalid: 'wbSlashInvalid',
+    incomplete: 'wbSlashIncomplete',
+    disabled: 'wbSlashDisabled',
+  } as const;
+  return keys[resolution.kind];
+}
 
 export interface SlashSuggestion {
   command: string;

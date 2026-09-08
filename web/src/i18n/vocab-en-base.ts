@@ -1,5 +1,5 @@
 // input:  shared English product copy
-// output: English base vocabulary including browser status labels
+// output: English base vocabulary with browser status and slash feedback
 // pos:    Base English web vocabulary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -177,6 +177,9 @@ export const enBase = {
   wbNeedsNewSession: 'needs a new session (this conversation runs on a different backend)',
   wbNewConversation: 'New conversation',
   wbSend: 'send',
+  wbSlashInvalid: 'Message not sent: unrecognized command or invalid arguments. Text starting with / is treated as a command. For a normal message, rephrase it so it does not start with /.',
+  wbSlashIncomplete: 'Message not sent: command is incomplete. Complete it or select a command from the menu. For a normal message, do not start with /.',
+  wbSlashDisabled: 'Message not sent: this command is currently unavailable. Try again when it is available.',
   wbSendFailed: 'Send failed',
   wbDraftRestored: 'message restored',
   wbNavigate: 'navigate',

@@ -1,5 +1,5 @@
 // input:  Mobile session queries, shared run/attachment controllers, drafts, and mutations
-// output: Mobile chat with prioritized status, profile, Todo, attachments, and interactions
+// output: Mobile chat with status, attachments and slash feedback
 // pos:    Mobile session detail data orchestration and presentation composition
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -26,7 +26,7 @@ import { browserStartupHint, browserStartupPending } from '@/features/workbench/
 import { deriveSessionRunStatus } from '@/features/workbench/session-run-status';
 import { buildProfileOptions, currentBackendOf } from '@/features/workbench/profile-menu';
 import {
-  buildSlashSuggestions, resolveSlashInput, runSlashAction,
+  buildSlashSuggestions, resolveSlashInput, runSlashAction, slashFeedbackKey,
   type SlashAction, type SlashActionHandlers, type SlashSuggestion,
 } from '@/features/workbench/composer-slash';
 import {
@@ -525,6 +525,8 @@ export function MChatScreen(): JSX.Element {
     const resolution = resolveSlashInput(value, slashProfiles, slashAvailability);
     if (resolution.kind === 'none') return false;
     if (resolution.kind === 'action') executeSlashAction(resolution.action);
+    const feedbackKey = slashFeedbackKey(resolution);
+    if (feedbackKey) setSystemLines((prev) => [...prev, vocab[feedbackKey]]);
     return true;
   };
   const onSlashPick = (suggestion: SlashSuggestion): void => {

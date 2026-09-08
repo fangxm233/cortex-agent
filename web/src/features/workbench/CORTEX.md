@@ -75,12 +75,12 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | InlineThreadCardProto.tsx | view | Live thread card opening modal detail |
 | thread-card-proto.ts | vm | Maps thread detail to inline card rows, canonical USD labels and pill |
 | thread-card-proto.test.ts | test | Unit tests for the inline thread card model |
-| Composer.tsx | view | Maps drafts and chat drops to uploads and run state |
+| Composer.tsx | view | Handles drafts, uploads, run state and slash alerts |
 | session-run-status.ts | vm | Derives locale-free foreground, background, idle and fresh session facts |
 | session-run-status.test.ts | test | Tests run phases, active tone, metrics and finalized-cost visibility |
 | ComposerAttachmentChip.tsx | view | Renders queued, uploading, failed, and done neutral attachment items with retry/remove controls |
 | ComposerSendFailure.tsx | view | Presents localized rejected-send draft restoration feedback |
-| Composer.test.tsx | test | Tests shortcuts, browser/background status and rejected sends |
+| Composer.test.tsx | test | Tests slash feedback, status and rejected sends |
 | ComposerActionRow.tsx | view | Toolbar row: ＋ menu and browser capsule left, profile/context/send right |
 | BrowserOptIn.tsx | model | Browser device options for the composer ＋ menu |
 | CommissionOptIn.tsx | model | Commission-mode options for the composer ＋ menu, and the live session's capsule |
@@ -96,7 +96,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | useFileDropTarget.test.tsx | test | Tests chat-wide drops and non-file pass-through |
 | optimistic-message.test.ts | test | Tests stale rows, de-duplication and failure |
 | optimistic-message.integration.test.tsx | test | Tests mounted pending sends, restoration and authority races |
-| composer-slash.ts | util | Resolves shared UI-local slash actions |
+| composer-slash.ts | util | Resolves local slash actions and feedback keys |
 | composer-slash.test.ts | test | Tests shortcut parsing, availability and local dispatch |
 | ContextUsageControl.tsx | view | Context usage ring, details and compact action |
 | TodoRail.tsx | shared | Shows composer Todo summary or click-to-collapse list |

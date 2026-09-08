@@ -1,5 +1,5 @@
 // input:  Desktop composer, session status facts, UI handlers, and bilingual vocabulary
-// output: Slash routing, run-status priority, attachment gate, and failed-send regressions
+// output: Slash feedback, run status, attachments and failed sends
 // pos:    Desktop composer behavior specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { ComponentProps } from 'react';
@@ -136,6 +136,26 @@ describe('Composer draft project selector', () => {
 });
 
 describe('Composer UI slash shortcuts', () => {
+  it.each(['/unknown hello', '  /tmp/file', '/pro', '/profile', '/profile missing', '/new extra'])('explains blocked input %s and keeps the draft', (text) => {
+    const renderer = mountComposer(() => {});
+    enterCommand(renderer, text);
+    expect(renderer.root.findByProps({ 'data-slash-error': true }).props.children).toMatch(/not sent|未发送/i);
+    expect(renderer.root.findByProps({ 'data-composer-input': true }).props.value).toBe(text);
+    expect(harness.send).not.toHaveBeenCalled();
+    act(() => renderer.root.findByProps({ 'data-composer-input': true }).props.onChange({ target: { value: 'ordinary message' } }));
+    expect(renderer.root.findAllByProps({ 'data-slash-error': true })).toHaveLength(0);
+    act(() => renderer.unmount());
+  });
+
+  it('shows feedback when Send is clicked for an unavailable command', () => {
+    const renderer = mountComposer(() => {}, { running: false });
+    act(() => renderer.root.findByProps({ 'data-composer-input': true }).props.onChange({ target: { value: '/cancel' } }));
+    act(() => renderer.root.findByProps({ 'data-action': 'send' }).props.onClick());
+    expect(renderer.root.findByProps({ 'data-slash-error': true }).props.children).toMatch(/unavailable|不可用/i);
+    expect(renderer.root.findByProps({ 'data-composer-input': true }).props.value).toBe('/cancel');
+    act(() => renderer.unmount());
+  });
+
   it('routes all five commands locally instead of sending them', () => {
     const compact = vi.fn();
     const renderer = mountComposer(compact);
