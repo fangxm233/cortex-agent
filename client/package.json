@@ -1,6 +1,6 @@
 {
   "name": "@cortex-agent/client",
-  "version": "2026.7.30",
+  "version": "2026.9.8",
   "type": "module",
   "license": "MIT",
   "description": "Cortex remote agent client — receives commands from @cortex-agent/server via WebSocket",
