@@ -20,7 +20,7 @@ Handlers return DTOs only and never change state.
 | issues.ts | query | lists a project's issue entries |
 | notes.ts | query | lists a project's private notes |
 | cost.ts | query | reports the cost summary |
-| config.ts | query | Returns redacted config and settings provenance |
+| config.ts | query | Reads settings and redacted platform configuration |
 | hooks.ts | query | Builds the hook registry read model |
 | machines.ts | query | lists machines with live connection state |
 | machine-detail.ts | query | probes one machine and joins its running runs |

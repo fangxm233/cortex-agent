@@ -1,9 +1,10 @@
-// input:  plugin catalog, pluginDirs, data paths
-// output: catalog snapshots and plugin-dir helpers
-// pos:    Shared plugin helpers for ui-service
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+// input:  plugin catalog, settings and plugin directories
+// output: normalized plugin entries and effective scopes
+// pos:    Shared plugin helpers for UI service
+// >>> Once updated, update this header and parent CORTEX.md <<<
 
 import fs from 'node:fs';
+import { getSettings } from '@core/settings.js';
 import path from 'node:path';
 import { DATA_DIR, DEFAULTS_DIR, PLUGINS_DIR } from '@core/paths.js';
 import { CHANNEL_SCOPED_PLUGINS, COMMISSION_SCOPED_PLUGINS } from '@domain/agents/spawn-config.js';
@@ -123,6 +124,7 @@ export function readPluginCatalogSnapshot(): PluginCatalogSnapshot {
  *  knowledge the operator has to rediscover by debugging a session that silently lacks a skill. */
 function pluginScope(id: string): Pick<UiPluginCatalogEntry, 'scope' | 'scopePrefix'> {
   if (COMMISSION_SCOPED_PLUGINS.includes(id)) return { scope: 'commission' };
+  if (id === 'cortex-feishu' && getSettings().feishuSkillsInWeb) return { scope: 'channel', scopePrefix: 'feishu: / web:' };
   const rule = CHANNEL_SCOPED_PLUGINS.find((candidate) => candidate.plugin === id);
   return rule ? { scope: 'channel', scopePrefix: rule.channelPrefix } : { scope: 'always' };
 }

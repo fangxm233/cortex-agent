@@ -1,7 +1,10 @@
-// input:  domain, auth, settings, usage, and tool metadata
-// output: UI DTOs for sessions, policy, auth, and usage
-// pos:    Canonical transport-neutral UI contract
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+// input:  domain, platform, auth and runtime setting types
+// output: canonical UI DTOs and operation signatures
+// pos:    Transport-neutral UI service contract
+// >>> Once updated, update this header and parent CORTEX.md <<<
+
+import type { PlatformSettingsPatch, PlatformSettingsSnapshot } from '@core/platform-settings-spec.js';
+export type { PlatformSettingsPatch, PlatformSettingsSnapshot, PlatformFieldSnapshot, PlatformFieldKey } from '@core/platform-settings-spec.js';
 
 import type { Project, CreateProjectResult } from '@domain/projects/index.js';
 import type { CostSummary } from '@domain/costs/cost-tracker.js';
@@ -177,6 +180,7 @@ export type MutateOp =
   | 'notes.delete'
   | 'notes.clearCompleted'
   | 'config.set'
+  | 'config.setPlatform'
   | 'config.setProviderRateLimitPolicy'
   | 'auth.startLogin'
   | 'auth.respondPrompt'
@@ -1512,6 +1516,7 @@ export interface HooksTestReturn {
 }
 
 export interface ConfigSnapshot {
+  platforms?: PlatformSettingsSnapshot[];
   budget: ConfigBudget | null;
   profiles: ConfigProfiles | null;
   machines: ConfigMachine[];
@@ -2392,6 +2397,7 @@ export interface MutateArgsMap {
   'notes.delete': NoteActionArgs;
   'notes.clearCompleted': NotesClearCompletedArgs;
   'config.set': ConfigSetArgs;
+  'config.setPlatform': PlatformSettingsPatch;
   'config.setProviderRateLimitPolicy': ConfigSetProviderRateLimitPolicyArgs;
   'auth.startLogin': AuthStartLoginArgs;
   'auth.respondPrompt': AuthRespondPromptArgs;
@@ -2463,6 +2469,7 @@ export interface MutateReturnMap {
   'notes.delete': NotesDeleteReturn;
   'notes.clearCompleted': NotesClearCompletedReturn;
   'config.set': ConfigSetReturn;
+  'config.setPlatform': { written: true; restartRequired: true };
   'config.setProviderRateLimitPolicy': ConfigSetProviderRateLimitPolicyReturn;
   'auth.startLogin': LoginFlowState;
   'auth.respondPrompt': LoginFlowState;

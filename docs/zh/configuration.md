@@ -1,7 +1,7 @@
 # 配置 {#configuration}
 
 
-Cortex 在启动时从 `$CORTEX_HOME/config/` 加载所有配置。唯一必需的变量是 `CORTEX_PLATFORM` 和平台凭据（Slack）。其他所有内容都有合理的默认值，大多数用户无需修改。
+Cortex 从 `$CORTEX_HOME/config/` 读取配置。消息平台接入是可选的：网页和 App 会话可以在没有 Slack 或飞书机器人的情况下运行；每个启用的消息平台需要自己的凭据。
 
 ## 文件层次结构 {#file-hierarchy}
 
@@ -50,12 +50,35 @@ $CORTEX_HOME/
 ## 加载顺序和优先级 {#loading-order-and-precedence}
 
 1. **内置默认值**（`agent-server/defaults/`）随 npm 包一起发布，为每个配置文件提供回退值。
-2. **`$CORTEX_HOME/config/.env`** 在守护进程启动时通过 `dotenv` 加载。这些会覆盖守护进程和所有 fork 子进程的进程环境变量。
+2. **`$CORTEX_HOME/config/.env`** 在守护进程启动时通过 `dotenv` 加载。启动环境中已有的变量优先于文件，worker 继承 daemon 的环境。
 3. **`$CORTEX_HOME/config/settings.json`** 保存运行时行为设置。它在使用点按需读取，改动热更新生效；对它显式声明的每个键，它的优先级高于同一设置的旧环境变量。
 4. **`$CORTEX_HOME/config/profiles.json`** 在每次生成智能体时读取，用于解析模型、后端和额外环境变量。
 5. **`$CORTEX_HOME/.claude/settings.json`** 是 Cortex 脚手架生成的 Claude Code 项目设置文件。Claude Code 还可能读取 `<spawn cwd>/.claude/settings.local.json`、`<spawn cwd>/.claude/settings.json`，以及用户设置文件 `$CLAUDE_CONFIG_DIR/settings.json`（或 `~/.claude/settings.json`）。Cortex 只脚手架 `$CORTEX_HOME` 这一份；保留期助手会单独同步用户文件里的 `cleanupPeriodDays`。
 
 `.env` 文件支持标准的 `KEY=VALUE` 语法和 `#` 注释。已在 shell 中设置的环境变量优先于 `.env` 文件（dotenv 默认行为）。
+
+## 在 UI 中设置消息平台
+
+浏览器、桌面和手机 App 的 **设置 → 平台** 提供飞书/Lark 和 Slack 接入表单。
+启用平台、填写必填凭据后保存。密钥只写不回显：留空保留已保存值，输入新值替换，
+点击“清除已保存值”并确认后，在下次保存时清除。关闭平台会保留凭据。
+接入凭据仅可通过 HTTPS 或本机回环 API 地址提交；App 使用本地网页容器不代表
+它连接的远程 HTTP 服务是安全的。
+
+配置检查会列出缺失的必填字段，不代表已连接或已授权。接入配置写入 `config/.env`，
+需要重启 **daemon 守护进程**，仅重启 worker 不够。页面比较磁盘配置与在役服务环境，
+并标记差异；如果重启后仍有差异，请检查 daemon 启动环境中的同名变量。
+保存不会重启任何进程。
+
+各平台卡片可编辑通知目标：Slack 对应 `adminChannel`，飞书对应
+`feishuAdminChannel`。它们保存在运行时设置中，用于后续通知。留空保存会清除路由；
+飞书目标为空时，首次私聊可能自动注册通知目标。
+
+飞书卡片中的 **在网页 / App 会话加载飞书技能** 控制 `settings.feishuSkillsInWeb`，
+默认关闭。开启后，`web:` 会话（包括桌面和手机 App）可以加载已分配的
+`cortex-feishu` 技能插件。飞书会话保持原有范围，Slack 和 CLI 会话不会因此加载该插件。
+建议新建会话验证；仍需为 agent 分配插件并完成 `lark-cli` 登录与授权。
+此设置不改变飞书 MCP 加载，也不授予账号权限。
 
 ## 环境变量 {#environment-variables}
 

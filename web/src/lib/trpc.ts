@@ -1,13 +1,12 @@
-// input:  optional RemoteConfig { serverUrl, token } injected by the desktop shell
-// output: TRPCProvider/useTRPC/useTRPCClient context + createTrpcClient(config?) factory
-// pos:    tRPC transport layer (web SPA). Two modes:
-//          - Browser / ui-http (no config): relative /trpc, same-origin; proxy or ui-http-server
-//            injects the x-cortex-token header; native EventSource (no custom headers needed).
-//          - Desktop / remote (config injected): absolute ${serverUrl}/trpc; x-cortex-token in
-//            httpBatchLink headers; fetch-based EventSource ponyfill (eventsource pkg) carries
-//            the token on SSE because native EventSource cannot set custom headers cross-origin.
-//         Backward-compatible: callers that omit config get identical behaviour to the old code.
+// input:  optional remote server config and transport policy
+// output: tRPC client factory and React context
+// pos:    Browser and native-app tRPC transport
+// >>> Once updated, update this header and parent CORTEX.md <<<
 
+// Browser clients use same-origin /trpc; native apps use the configured server URL and
+// token. The subscription link supplies authentication through a fetch-based EventSource.
+
+import { credentialSafeFetch } from './sensitive-transport';
 import {
   createTRPCClient,
   httpBatchLink,
@@ -114,6 +113,7 @@ export function createTrpcClient(config?: RemoteConfig) {
         false: httpBatchLink({
           url,
           headers: () => headers,
+          fetch: credentialSafeFetch(config?.serverUrl),
         }),
       }),
     ],

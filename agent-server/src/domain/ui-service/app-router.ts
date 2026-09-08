@@ -1,8 +1,9 @@
-// input:  UiService, op schemas, tRPC init
-// output: createAppRouter with UI procedures incl usage
+// input:  UI service, operation schemas and tRPC
+// output: typed UI router including platform configuration
 // pos:    Typed tRPC mirror of UI operations
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+// >>> Once updated, update this header and parent CORTEX.md <<<
 
+import { platformSettingsInput } from '@core/platform-settings-spec.js';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { router, publicProcedure } from './trpc.js';
@@ -373,6 +374,7 @@ function configRouter(service: UiService) {
   return router({
     get: makeQuery(service, 'config.get', configGetInput),
     set: makeMutation(service, 'config.set', configSetInput),
+    setPlatform: makeMutation(service, 'config.setPlatform', platformSettingsInput),
     setProviderRateLimitPolicy: makeMutation(
       service,
       'config.setProviderRateLimitPolicy',

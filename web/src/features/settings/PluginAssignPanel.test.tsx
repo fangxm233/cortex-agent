@@ -1,5 +1,5 @@
 // input:  assignment view props, design mocks, language copy
-// output: plugin assignment gating, mode, and acknowledgement regressions
+// output: plugin assignment, effective scope and mode tests
 // pos:    Static plugin assignment control regressions
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -196,7 +196,7 @@ describe('PluginAssignView catalog rows', () => {
     const html = render({ plugins: [scoped] });
 
     expect(html).toContain('data-plugin-scope="channel"');
-    expect(html).toContain('only on channels starting with &quot;feishu:&quot;');
+    expect(html).toContain('Channel scope: feishu:.');
   });
 });
 

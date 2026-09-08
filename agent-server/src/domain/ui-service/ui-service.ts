@@ -1,7 +1,7 @@
-// input:  UiServiceDeps and UI op handlers
-// output: createUiService with query/mutate routing incl usage
+// input:  UI dependencies and operation handlers
+// output: UI dispatcher with credential-safe mutation audit
 // pos:    Transport-neutral UI-service dispatcher
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+// >>> Once updated, update this header and parent CORTEX.md <<<
 
 import type { UiServiceDeps, UiService, QueryScope, MutateOp, Result } from './types.js';
 import { handleProjectsList } from './query/projects.js';
@@ -27,6 +27,7 @@ import { handleApprovalsList } from './query/approvals.js';
 import { handleIssuesList } from './query/issues.js';
 import { handleNotesList } from './query/notes.js';
 import { handleCostSummary } from './query/cost.js';
+import { handlePlatformSettingsSet } from './mutate/platform-settings.js';
 import { handleConfigGet } from './query/config.js';
 import { handleAuthFlowState, handleAuthStatus } from './query/auth.js';
 import { handleCustomProvidersList } from './query/custom-providers.js';
@@ -204,6 +205,7 @@ const mutateHandlers: Record<string, MutateHandler> = {
   'notes.delete': (deps, args) => handleNotesDelete(deps, args),
   'notes.clearCompleted': (deps, args) => handleNotesClearCompleted(deps, args),
   'config.set': (deps, args) => handleConfigSet(deps, args),
+  'config.setPlatform': (_deps, args) => handlePlatformSettingsSet(args),
   'config.setProviderRateLimitPolicy': (deps, args) => handleConfigSetProviderRateLimitPolicy(deps, args),
   'auth.startLogin': (deps, args) => handleAuthStartLogin(deps, args),
   'auth.respondPrompt': (deps, args) => handleAuthRespondPrompt(deps, args),
@@ -238,6 +240,7 @@ const mutateHandlers: Record<string, MutateHandler> = {
 };
 
 export function redactMutationAuditArgs(op: MutateOp, args: unknown): unknown {
+  if (op === 'config.setPlatform') return { redacted: true };
   if (!args || typeof args !== 'object') return args;
   if (op === 'auth.respondPrompt') {
     const { flowId } = args as { flowId?: unknown };

@@ -1,7 +1,7 @@
-// input:  raw legacy environment values and provider/window policy shapes
-// output: settings types, defaults, exact-window policy forms, parsers, and value validators
+// input:  raw environment and runtime setting policy shapes
+// output: settings types, defaults, parsers and validators
 // pos:    Browser-safe runtime settings contract
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+// >>> Once updated, update this header and parent CORTEX.md <<<
 
 export interface ProviderRateLimitWindowPolicyOverride {
   type: string;
@@ -34,6 +34,7 @@ export interface Settings {
   clientHotReloadEnabled: boolean;
   hooksLegacy: boolean;
   commissionEnabled: boolean;
+  feishuSkillsInWeb: boolean;
   managerRotateSteps: number;
   waitingSweepMs: number;
   injectWaitMaxS: number;
@@ -184,6 +185,7 @@ export const SETTINGS_SPEC = {
     default: false,
     legacyParse: (raw: string) => raw === '1',
   },
+  feishuSkillsInWeb: { type: 'boolean', default: false },
   commissionEnabled: {
     envVar: 'CORTEX_COMMISSION_ENABLED',
     type: 'boolean',

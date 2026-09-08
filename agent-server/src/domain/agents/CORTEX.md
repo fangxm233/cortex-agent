@@ -10,4 +10,4 @@ Agent runtime domain for profiles and provider-attributed turns.
 | index.ts | entry | Re-exports the agents domain API |
 | profile-manager.ts | core | Resolves profile identities and output caps |
 | profile-switch.ts | core | Decides and applies channel profile switches |
-| spawn-config.ts | core | Builds canonical spawn, gate and evidence context |
+| spawn-config.ts | core | Builds spawns with settings-aware plugin scopes |

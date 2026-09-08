@@ -1,8 +1,9 @@
-// input:  language chunks, provider setup and plugin copy
+// input:  base, plugin, provider and platform copy
 // output: merged bilingual vocabulary and Vocab type
 // pos:    Web vocabulary composition root
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+// >>> Once updated, update this header and parent CORTEX.md <<<
 
+import { platformEn, platformZh } from './platform-settings-vocab';
 import { pluginEn, pluginZh } from './plugins-vocab';
 import { setupEn, setupZh } from './provider-setup-vocab';
 import { enBase } from './vocab-en-base';
@@ -15,6 +16,7 @@ export const en = {
   ...pluginEn,
   ...enExtra,
   ...setupEn,
+  ...platformEn,
 };
 
 export type Vocab = typeof en;
@@ -24,4 +26,5 @@ export const zh: Record<keyof Vocab, string> = {
   ...pluginZh,
   ...zhExtra,
   ...setupZh,
+  ...platformZh,
 };
