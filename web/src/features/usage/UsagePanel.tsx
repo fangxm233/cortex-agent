@@ -1,5 +1,5 @@
 // input:  shared usage hook, provider usage view, row policy state, and localized copy
-// output: desktop Usage header, provider cards, inline threshold controls, and spend
+// output: desktop usage cards, animated quota, policy, and spend
 // pos:    Independently queried desktop usage settings panel
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -83,7 +83,7 @@ function CardHeader({ provider }: { provider: ProviderUsageView }) {
 function UsageMeter({ window }: { window: UsageWindowView }) {
   return (
     <div style={{ height: 8, borderRadius: 999, background: 'var(--proto-gray)', overflow: 'hidden', marginTop: 6 }}>
-      <div style={{ width: window.utilizationWidth, height: '100%', borderRadius: 999, background: SEVERITY_FILL[window.severity] }} />
+      <div className="usage-meter-fill" style={{ width: window.utilizationWidth, height: '100%', borderRadius: 999, background: SEVERITY_FILL[window.severity] }} />
     </div>
   );
 }

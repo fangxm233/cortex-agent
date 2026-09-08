@@ -101,8 +101,8 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 | MAppearanceView.tsx | view | Language, theme, palette, accent and motion controls |
 | MAppearanceView.test.tsx | test | Tests mobile appearance control wiring |
 | MUsageScreen.tsx | screen | Binds localized Usage thresholds, saves, refresh, and settings back route |
-| MUsageView.tsx | view | Keeps drill header above usage controls |
-| MUsageView.test.tsx | test | Tests status omission, row saves, config gating, and refresh |
+| MUsageView.tsx | view | Renders usage header, animated quota and controls |
+| MUsageView.test.tsx | test | Tests quota motion, policies, gating and refresh |
 | m-settings-vm.ts | vm | Maps canonical config, cost and registry summaries |
 | m-settings-vm.test.ts | test | Tests runtime source and summary data mapping |
 | MAccountsScreen.tsx | screen | Adapts shared account/custom-provider controllers to mobile navigation and sheets |
