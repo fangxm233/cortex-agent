@@ -60,6 +60,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | domain/ | subdir | domain service, agent-run, MCP and UI tests |
 | entry/ | subdir | Runtime wiring and CLI entry-point tests |
 | events/ | subdir | event bus tests |
+| event-loop-monitor.test.ts | test | event-loop lag sampling, reset and stop lifecycle |
 | execution-lock-release.test.ts | test | task lock release on execution end |
 | execution-log-tailer.test.ts | test | live execution log tailing and refcounts |
 | facade-compact.test.ts | test | manual context compact via agent facade |

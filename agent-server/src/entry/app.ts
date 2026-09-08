@@ -108,6 +108,7 @@ import { syncClaudeUserCleanupPeriodDays } from '@domain/auth/claude-user-settin
 import { setSessionAsync } from '@domain/sessions/session.js';
 import { isSessionCompactionSupported, resolveBackendForChannel, switchChannelProfile } from '@domain/agents/index.js';
 import { initDiskMonitor, stopDiskMonitor } from '@domain/monitor/disk-monitor.js';
+import { startEventLoopMonitor, stopEventLoopMonitor } from '@domain/monitor/event-loop-monitor.js';
 import { loadMachinesFromFile, startMachineRegistryWatcher, stopMachineRegistryWatcher, setAdminNotifier as setMachineNotifier, getMachineRegistry } from '@domain/tasks/dispatch-utils.js';
 import { EventBus, createEventLogger } from '@events/index.js';
 import { registerHookBridgeSubscribers } from '@orch/routing/hook-bridge-subscribers.js';
@@ -348,6 +349,8 @@ setSchedulerRef(scheduler);
 // awaited sequence (initRateLimitRecovery) — it must run AFTER threadStore.load() so it can
 // reconcile orphaned rate-limited threads back into the resume queue.
 initDiskMonitor(adapter);
+// Agent sessions run in this process, so a stalled loop degrades all of them at once.
+startEventLoopMonitor();
 
 const commandRouter = new CommandActionRouter();
 
@@ -408,6 +411,7 @@ process.on('SIGTERM', async () => {
   forgetDeviceBrowsers();
   await _uiHttpServer?.close().catch(() => {});
   stopDiskMonitor();
+  stopEventLoopMonitor();
   // Stop scheduler timers BEFORE draining repo writes — otherwise a late-firing
   // timer can enqueue a mutate() after scheduleRepo.flush() resolves, losing that write.
   scheduler.stop();
