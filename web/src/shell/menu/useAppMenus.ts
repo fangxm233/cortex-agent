@@ -107,13 +107,13 @@ export function useAppMenus(): { menus: MenuDef[]; windowActions: WindowActions 
       id: 'edit',
       label: L.menuEdit,
       items: [
-        { kind: 'item', id: 'edit.undo', accelDisplayOnly: true, label: L.mEditUndo, accel: 'mod+z', run: () => exec('undo') },
-        { kind: 'item', id: 'edit.redo', accelDisplayOnly: true, label: L.mEditRedo, accel: 'mod+shift+z', run: () => exec('redo') },
+        { kind: 'item', id: 'edit.undo', accelDisplayOnly: true, role: 'undo', label: L.mEditUndo, accel: 'mod+z', run: () => exec('undo') },
+        { kind: 'item', id: 'edit.redo', accelDisplayOnly: true, role: 'redo', label: L.mEditRedo, accel: 'mod+shift+z', run: () => exec('redo') },
         separator,
-        { kind: 'item', id: 'edit.cut', accelDisplayOnly: true, label: L.mEditCut, accel: 'mod+x', run: () => exec('cut') },
-        { kind: 'item', id: 'edit.copy', accelDisplayOnly: true, label: L.mEditCopy, accel: 'mod+c', run: () => exec('copy') },
-        { kind: 'item', id: 'edit.paste', accelDisplayOnly: true, label: L.mEditPaste, accel: 'mod+v', run: () => void pasteFromClipboard() },
-        { kind: 'item', id: 'edit.selectAll', accelDisplayOnly: true, label: L.mEditSelectAll, accel: 'mod+a', run: () => exec('selectAll') },
+        { kind: 'item', id: 'edit.cut', accelDisplayOnly: true, role: 'cut', label: L.mEditCut, accel: 'mod+x', run: () => exec('cut') },
+        { kind: 'item', id: 'edit.copy', accelDisplayOnly: true, role: 'copy', label: L.mEditCopy, accel: 'mod+c', run: () => exec('copy') },
+        { kind: 'item', id: 'edit.paste', accelDisplayOnly: true, role: 'paste', label: L.mEditPaste, accel: 'mod+v', run: () => void pasteFromClipboard() },
+        { kind: 'item', id: 'edit.selectAll', accelDisplayOnly: true, role: 'selectAll', label: L.mEditSelectAll, accel: 'mod+a', run: () => exec('selectAll') },
         separator,
         {
           kind: 'item', id: 'edit.palette', accelDisplayOnly: true, label: L.mEditPalette, accel: 'mod+k',
@@ -170,7 +170,7 @@ export function useAppMenus(): { menus: MenuDef[]; windowActions: WindowActions 
         { kind: 'item', id: 'view.zoomOut', label: L.mViewZoomOut, accel: 'mod+-', disabled: !native, run: windowActions.zoomOut },
         { kind: 'item', id: 'view.zoomReset', label: L.mViewZoomReset, accel: 'mod+0', disabled: !native, run: windowActions.zoomReset },
         separator,
-        { kind: 'item', id: 'view.fullscreen', label: L.mViewFullScreen, accel: 'f11', disabled: !native, run: windowActions.toggleFullscreen },
+        { kind: 'item', id: 'view.fullscreen', role: 'fullscreen', label: L.mViewFullScreen, accel: 'f11', disabled: !native, run: windowActions.toggleFullscreen },
       ],
     };
 

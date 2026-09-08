@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { accelItems, flattenItems, formatAccel, matchesAccel, parseAccel, type MenuDef } from './menu-model';
+import { accelItems, flattenItems, formatAccel, matchesAccel, parseAccel, toNativeAccel, type MenuDef } from './menu-model';
 
 const key = (over: Partial<{ key: string; metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean }>) => ({
   key: 'a', metaKey: false, ctrlKey: false, shiftKey: false, altKey: false, ...over,
@@ -67,5 +67,22 @@ describe('flattenItems / accelItems', () => {
   });
   it('keeps only items that declare an accelerator', () => {
     expect(accelItems(menus).map((item) => item.id)).toEqual(['a']);
+  });
+});
+
+describe('toNativeAccel', () => {
+  it('names letters by physical code and uses CmdOrCtrl', () => {
+    expect(toNativeAccel('mod+n')).toBe('CmdOrCtrl+KeyN');
+    expect(toNativeAccel('mod+shift+z')).toBe('CmdOrCtrl+Shift+KeyZ');
+    expect(toNativeAccel('mod+alt+b')).toBe('CmdOrCtrl+Alt+KeyB');
+  });
+  it('maps punctuation and digits muda cannot take literally', () => {
+    expect(toNativeAccel('mod+=')).toBe('CmdOrCtrl+Equal');
+    expect(toNativeAccel('mod+-')).toBe('CmdOrCtrl+Minus');
+    expect(toNativeAccel('mod+,')).toBe('CmdOrCtrl+Comma');
+    expect(toNativeAccel('mod+0')).toBe('CmdOrCtrl+Digit0');
+  });
+  it('passes function keys through uppercased', () => {
+    expect(toNativeAccel('f11')).toBe('F11');
   });
 });

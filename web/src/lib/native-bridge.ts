@@ -84,6 +84,10 @@ interface NativeCommandMap {
   'plugin:webview|set_webview_zoom': { args: { label: string; value: number }; result: unknown };
   'plugin:webview|internal_toggle_devtools': { args: { label: string }; result: unknown };
   'plugin:app|version': { args: undefined; result: string };
+  // macOS system menu bar. The shell builds the real menu from the model the SPA already owns, so
+  // labels stay translated and check marks stay in sync without a second definition. Returns false
+  // on Windows / Linux, where the bar is drawn inside the window instead.
+  set_native_menu: { args: { spec: unknown }; result: boolean };
 }
 
 export type NativeCapability = 'invoke' | 'events' | 'back';
@@ -98,7 +102,7 @@ type CommandArgs<K extends NativeCommand> = NativeCommandMap[K]['args'] extends 
   ? [args?: undefined]
   : [args: NativeCommandMap[K]['args']];
 type CommandResult<K extends NativeCommand> = NativeCommandMap[K]['result'];
-type NativeEventName = 'app-update-available' | 'frontend-update-staged';
+type NativeEventName = 'app-update-available' | 'frontend-update-staged' | 'native-menu';
 
 function readNativeGlobal(): NativeGlobal | undefined {
   const value: unknown = Reflect.get(globalThis, '__TAURI__');

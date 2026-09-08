@@ -41,16 +41,6 @@ export function usesCommandKey(): boolean {
   return /Mac|iPhone|iPad/i.test(globalThis.navigator?.platform ?? globalThis.navigator?.userAgent ?? '');
 }
 
-/** Whether File/Edit/View/Help are drawn inside the window.
- *
- *  Always true for now. macOS convention puts them in the system menu bar instead, via a real
- *  `tauri::menu::Menu` on the Rust side — but no macOS hardware is available to verify that path,
- *  and shipping it blind would mean macOS could end up with no menus at all. Drawing them in-window
- *  everywhere is the honest fallback; this function is the seam where the native menu plugs in. */
-export function drawsInWindowMenus(): boolean {
-  return true;
-}
-
 /** Space the caption buttons need at the right edge (3 × 46px, Windows convention). */
 export function captionInsetRight(): number {
   return titleBarMode() === 'custom' ? 138 : 0;

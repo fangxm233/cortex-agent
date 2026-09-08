@@ -4,12 +4,13 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { useVocab } from '@/i18n';
-import { captionInsetLeft, drawsInWindowMenus, titleBarMode } from '@/lib/desktop-platform';
+import { captionInsetLeft, titleBarMode } from '@/lib/desktop-platform';
 import { usePaneState } from './PaneStateProvider';
 import { useNavigationHistory } from './NavigationHistoryProvider';
 import { MenuBar } from './menu/MenuBar';
 import { useAppMenus } from './menu/useAppMenus';
 import { useMenuShortcuts } from './menu/useMenuShortcuts';
+import { useNativeMenu } from './menu/useNativeMenu';
 import { WindowControls } from './WindowControls';
 
 export const TOP_BAR_HEIGHT = 50;
@@ -86,7 +87,10 @@ export function TopBar(): JSX.Element {
   const panes = usePaneState();
   const history = useNavigationHistory();
   const { menus, windowActions } = useAppMenus();
-  useMenuShortcuts(menus);
+  // On macOS the shell installs a real system menu and owns the accelerators; everywhere else this
+  // reports inactive and the bar draws the menus itself.
+  const nativeMenu = useNativeMenu(menus);
+  useMenuShortcuts(menus, !nativeMenu.active);
 
   const mode = titleBarMode();
   const style: CSSProperties = {
@@ -119,7 +123,7 @@ export function TopBar(): JSX.Element {
         </IconButton>
       </div>
 
-      {drawsInWindowMenus() && (
+      {!nativeMenu.active && (
         <div style={{ marginLeft: 14, flex: 'none' }}>
           <MenuBar menus={menus} />
         </div>

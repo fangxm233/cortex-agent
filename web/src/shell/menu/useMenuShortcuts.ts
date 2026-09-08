@@ -17,8 +17,11 @@ function inTextField(target: EventTarget | null): boolean {
   return EDITABLE.test(target.tagName) || target.isContentEditable;
 }
 
-export function useMenuShortcuts(menus: MenuDef[]): void {
+/** `enabled` is false once the macOS system menu owns the accelerators — the native menu fires them
+ *  itself, and a second binding here would run every item twice. */
+export function useMenuShortcuts(menus: MenuDef[], enabled = true): void {
   useEffect(() => {
+    if (!enabled) return;
     const items = accelItems(menus);
     const onKeyDown = (event: KeyboardEvent) => {
       const editing = inTextField(event.target);
@@ -33,5 +36,5 @@ export function useMenuShortcuts(menus: MenuDef[]): void {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [menus]);
+  }, [menus, enabled]);
 }

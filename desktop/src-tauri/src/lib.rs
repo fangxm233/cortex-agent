@@ -32,6 +32,10 @@ mod forward;
 #[path = "forward_stub.rs"]
 mod forward;
 
+// macOS system menu bar, built from the model the SPA sends. Compiled everywhere: the command must
+// exist on every platform so the JS side has one call path, and it answers `false` off macOS.
+mod native_menu;
+
 mod creds;
 mod mobile_notifications;
 // frontend (custom-scheme asset resolver) + ota (self-updating SPA) now run on BOTH desktop and
@@ -648,6 +652,15 @@ pub fn run() {
 
     #[allow(unused_mut)]
     let mut builder = tauri::Builder::default()
+        // A native menu click carries only its id; the SPA looks that id up in the same model it
+        // sent and runs the same handler the in-window bar would have. Failing to emit is a no-op
+        // (no window yet), never fatal.
+        .on_menu_event(|app, event| {
+            let id = event.id().0.clone();
+            if let Err(e) = app.emit(native_menu::MENU_EVENT, id) {
+                shell_log!("[cortex-desktop] emit {} failed: {e}", native_menu::MENU_EVENT);
+            }
+        })
         // Keep desktop delivery and Android permission prompts compatible with older frontends.
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_cortex_notifications::init())
@@ -685,6 +698,7 @@ pub fn run() {
             forward::forward_start,
             forward::forward_stop,
             forward::forward_list,
+            native_menu::set_native_menu,
         ]);
 
     // Both platforms: serve the SPA over the custom `cortexui://` scheme from the active frontend

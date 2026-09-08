@@ -73,6 +73,10 @@ export type MenuNode =
        *  state). Binding it twice would double-fire, and for ⌘K the synthetic re-dispatch would
        *  recurse. The shortcuts sheet still lists these — they are real, just not ours. */
       accelDisplayOnly?: boolean;
+      /** Maps to a macOS `PredefinedMenuItem`. Those carry real AppKit behaviour (a working Edit
+       *  menu, the standard fullscreen item), which is worth more than routing the click back
+       *  through the webview. Ignored by the in-window bar, which uses `run`. */
+      role?: 'undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'selectAll' | 'fullscreen' | 'closeWindow';
       checked?: boolean;
       disabled?: boolean;
       run: () => void;
@@ -108,4 +112,35 @@ export function flattenItems(menus: MenuDef[]): MenuItemNode[] {
 /** Items that declare an accelerator, in menu order. */
 export function accelItems(menus: MenuDef[]): AccelItemNode[] {
   return flattenItems(menus).filter((item): item is AccelItemNode => typeof item.accel === 'string');
+}
+
+// ── Native (muda) accelerator syntax ──────────────────────────────────────────
+// muda names keys by physical code — `KeyN`, `Digit0`, `Equal` — not by character, and takes
+// `CmdOrCtrl` for the primary modifier (muda-0.19.3/src/accelerator.rs). Translating here keeps the
+// declarations in `useAppMenus` written the one way the web handler understands.
+
+const NATIVE_KEYS: Record<string, string> = {
+  '=': 'Equal',
+  '-': 'Minus',
+  ',': 'Comma',
+  '.': 'Period',
+  '/': 'Slash',
+};
+
+function nativeKey(key: string): string {
+  if (NATIVE_KEYS[key]) return NATIVE_KEYS[key]!;
+  if (/^[a-z]$/.test(key)) return `Key${key.toUpperCase()}`;
+  if (/^[0-9]$/.test(key)) return `Digit${key}`;
+  if (/^f\d+$/.test(key)) return key.toUpperCase();
+  return key.toUpperCase();
+}
+
+export function toNativeAccel(accel: string): string {
+  const { key, mod, shift, alt } = parseAccel(accel);
+  const parts: string[] = [];
+  if (mod) parts.push('CmdOrCtrl');
+  if (shift) parts.push('Shift');
+  if (alt) parts.push('Alt');
+  parts.push(nativeKey(key));
+  return parts.join('+');
 }
