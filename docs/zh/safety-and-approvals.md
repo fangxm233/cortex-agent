@@ -116,7 +116,7 @@ Cortex 将每个智能体操作分类到三个桶中。分类位于根 CORTEX.md
 
 ### PI 后端的差异 {#pi-backend-difference}
 
-PI 编程智能体后端使用不同的解析机制。PI 的计划和问题响应不通过解析 HTTP 请求，而是通过 `sendExtensionUiResponse()`——一个 PI 原生的扩展 UI 回调。hook-bridge 为此路径提供非阻塞发布辅助函数（`publishPlanSubmitted`、`publishAskUserRequested`）。
+PI 后端解析这些对话的方式不同。PI 会话通过 PI 的扩展 UI 协议发起对话，该协议由 `agent-adapter/pi/ui-context.ts` 在服务器进程内承载：每个对话变成一条带自身 id 的 `extension_ui_request` 记录，答案经 `sendExtensionUiResponse()` 回传，而不是去解析一个挂起的 HTTP 请求。hook-bridge 为此路径提供非阻塞发布辅助函数（`publishPlanSubmitted`、`publishAskUserRequested`）。
 
 ## 为什么不给智能体 root 权限 {#why-the-agent-isnt-given-root}
 

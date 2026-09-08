@@ -218,9 +218,9 @@ uses. For a comparison of available backends, see
 | `profiles.<name>.backend` | string | no | Backend: `claude` or `pi` (default: `claude`) |
 | `profiles.<name>.mode` | string | no | Operational mode identifier (free-form, e.g. `plan`, `execute`) |
 | `profiles.<name>.extraEnv` | object | no | Extra environment variables passed to the backend process. Keys must match `^[A-Z_][A-Z0-9_]*$`. |
-| `profiles.<name>.extraOption` | object | no | Extra CLI flags passed to the backend. Keys must start with `--`. |
+| `profiles.<name>.extraOption` | object | no | Extra CLI flags passed to the Claude Code backend. Keys must start with `--`. On `pi` only `--thinking` is honored, as an override of the `thinking` field; any other key is logged and ignored, since there is no PI command line to hand it to. |
 | `profiles.<name>.claudeBackend` | string | no | Claude adapter mode: `print` (default, uses `-p` + stream-json) or `tui` (interactive Claude under tmux + jsonl tail). Ignored for non-claude backends. |
-| `profiles.<name>.thinking` | string | no | Thinking level, in the backend's native value set: for `claude` one of `low`/`medium`/`high`/`xhigh`/`max` (passed as `--effort`), for `pi` one of `off`/`minimal`/`low`/`medium`/`high`/`xhigh` (passed as `--thinking`). Absent → no flag is passed. Fallback entries do not inherit it — each declares its own. |
+| `profiles.<name>.thinking` | string | no | Thinking level, in the backend's native value set: for `claude` one of `low`/`medium`/`high`/`xhigh`/`max` (delivered as the `--effort` flag), for `pi` one of `off`/`minimal`/`low`/`medium`/`high`/`xhigh` (delivered as the session's thinking level). Absent → the backend's own default applies. Fallback entries do not inherit it — each declares its own. |
 | `profiles.<name>.fallback` | array | no | Ordered list of fallback profile entries. If the primary backend fails, Cortex tries each fallback in order. Each fallback inherits unspecified fields from the primary. |
 
 ### Profile resolution

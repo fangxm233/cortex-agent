@@ -9,10 +9,10 @@ MCP servers.
 ## What MCP is
 
 MCP is an open protocol that lets LLM applications expose tools to agents
-through a standardized JSON-RPC interface over stdio or HTTP. Cortex uses MCP
-to bridge between the agent process (which has no direct access to
-agent-server internals) and the server's capabilities. MCP support varies by
-backend — see the feature matrix in [backends.md](./backends.md).
+through a standardized JSON-RPC interface over stdio, HTTP, or an in-memory
+transport pair. Cortex uses MCP to bridge between the agent (which reaches no
+agent-server internals of its own) and the server's capabilities. MCP support
+varies by backend — see the feature matrix in [backends.md](./backends.md).
 
 Claude Code reads MCP server configurations from a JSON file and spawns each
 server as a child process. The agent can then call MCP tools just like
@@ -30,13 +30,16 @@ by reading shared files), and the result flows back to the agent.
 
 ## The bundled MCP servers
 
-The names below are logical capability bundles, not separate processes. Every
-non-empty Claude Code or PI backend process starts one Cortex-owned stdio child
-from `agent-server/src/domain/mcp/bundled-server.ts`; that child registers only
-the bundles selected for the session. Claude keeps the `cortex-core` server key,
-so core remote tools retain their existing raw names. Other bundled Claude tools
-share that prefix, such as `mcp__cortex-core__task_status`. PI continues to
-expose the same unprefixed tool names.
+The names below are logical capability bundles, not separate processes. Unless
+a session's MCP composition is empty, the session gets exactly one Cortex-owned
+server built from `agent-server/src/domain/mcp/bundled-server.ts`, registering
+only the bundles selected for it. Claude Code starts that server as a stdio
+child; PI runs it inside the agent-server process over an in-memory transport
+pair, bound to a tool context built for that one session. Claude keeps the
+`cortex-core` server key, so core remote tools retain their existing raw names.
+Other bundled Claude tools share that prefix, such as
+`mcp__cortex-core__task_status`. PI exposes the same tools under their
+unprefixed names.
 
 User-provided MCP is outside this bundle. Portable plugin servers, browser MCP,
 remote HTTP/SSE servers, and Claude-native MCP from an assigned legacy plugin
@@ -206,7 +209,7 @@ The tools are in `agent-server/src/domain/mcp/tools/ui-file.ts`,
 
 Direct Claude TUI sessions, user-initiated direct Claude print sessions, and
 user-initiated direct PI sessions select this interaction bundle in their
-single Cortex stdio process. All three modes share the registrations and
+single Cortex MCP server. All three modes share the registrations and
 handlers in `agent-server/src/domain/mcp/tools/interaction-plan.ts` and
 `agent-server/src/domain/mcp/tools/interaction-ask.ts`.
 
@@ -266,23 +269,25 @@ that the tools read.
 
 In `agent-adapter/claude/spawn-args.ts`, direct sessions load
 `mcp-config.json`, while thread/template sessions load only
-`mcp-config-thread.json`. The adapter writes the final logical selection to
-`CORTEX_MCP_BUNDLES` for each backend process, adding interaction and one
-eligible platform bundle when the session context permits them. Supplemental
-portable MCP and browser MCP remain separate config entries.
+`mcp-config-thread.json`. The Claude adapter writes the final logical selection
+to `CORTEX_MCP_BUNDLES` for the stdio child it spawns, adding interaction and
+one eligible platform bundle when the session context permits them.
+Supplemental portable MCP and browser MCP remain separate config entries.
 
-The thread branch is marked by `session.cortexContext.useCoreMcp`. The PI bridge
-computes the same logical selection and creates one built-in state plus any
-independent plugin states. PI `Agent` subagents select only cortex-core. Tool
+The thread branch is marked by `session.cortexContext.useCoreMcp`. PI's bridge
+computes the same logical selection from the session's own environment and
+hands it directly to the in-process bundled server, alongside one independent
+state per plugin server. PI `Agent` subagents select only cortex-core. Tool
 allowlists are validated against the selected logical union before the bundled
 server registers tools.
 
 ## How MCP tools communicate with agent-server
 
-Each backend process runs one Cortex-owned MCP child, while user-provided stdio
-MCP entries remain separate children. These processes cannot directly access
-agent-server in-process state (WebSocket connections, the schedule repo, or the
-execution registry). Instead, they communicate through two paths:
+User-provided stdio MCP entries are separate child processes under both
+backends, and Claude Code sessions run the Cortex-owned MCP server as a child
+too. Cortex MCP tools never reach agent-server in-process state (WebSocket
+connections, the schedule repo, or the execution registry) directly, wherever
+their server runs. They communicate through two paths:
 
 1. **HTTP loopback** — remote machine tools (`remote_bash`, `remote_read`,
    etc.) send HTTP POST to `http://127.0.0.1:3001/webhook/remote-command`.
@@ -307,7 +312,7 @@ Target-scoped third-party MCP belongs in a portable Agent Plugins package under 
 
 A legacy plugin directory is still passed through to its backend. Claude can load a Claude-native root `.mcp.json` from such a directory, but Cortex does not inventory, summarize, or acknowledgment-gate those native servers, and PI does not receive them. The guarantees in this section apply to portable root `mcp.json` only (`agent-server/src/domain/plugins/runtime.ts:546-562`; `agent-server/src/agent-adapter/claude/spawn-args.ts:224-238`).
 
-Cortex validates and normalizes the package once at spawn time. Claude receives a private supplemental configuration layered after the normal Cortex files. Stdio entries remain separate processes; each remote entry becomes a local stdio proxy whose private configuration holds its URL and headers. PI receives a private content-addressed configuration consumed by its MCP bridge. Both remote paths use the same manual-redirect fetch and reject every redirect before a configured header or request body can be replayed. Connection and tool registration are isolated by process. Materialization follows declared dependencies: unavailable plugin-scoped `PLUGIN_DATA` omits its stdio dependents while preserving remote MCP, skills, and bundled tools (`agent-server/src/agent-adapter/claude/mcp-config.ts:105-164`; `agent-server/src/agent-adapter/claude/remote-mcp-proxy.ts:48-82`; `agent-server/src/agent-adapter/pi/mcp-bridge.ts:279-476`).
+Cortex validates and normalizes the package once at spawn time. Claude receives a private supplemental configuration layered after the normal Cortex files. Stdio entries remain separate processes; each remote entry becomes a local stdio proxy whose private configuration holds its URL and headers. PI receives the normalized server list with its session request, and its bridge opens each entry's own transport — a stdio child for a stdio entry, a direct HTTP or SSE connection for a remote one. Both remote paths use the same manual-redirect fetch and reject every redirect before a configured header or request body can be replayed. Connection and tool registration are isolated by process. Materialization follows declared dependencies: unavailable plugin-scoped `PLUGIN_DATA` omits its stdio dependents while preserving remote MCP, skills, and bundled tools (`agent-server/src/agent-adapter/claude/mcp-config.ts:105-164`; `agent-server/src/agent-adapter/claude/remote-mcp-proxy.ts:48-82`; `agent-server/src/agent-adapter/pi/mcp-bridge.ts:279-476`).
 
 Portable MCP is omitted when the resolved MCP composition is `none`, and it is not exposed to restricted PI `Agent` subagents. Normal top-level Claude and PI sessions receive it only through an assigned plugin (`agent-server/src/domain/plugins/runtime.ts`; `agent-server/src/agent-adapter/pi/adapter.ts`; `agent-server/src/agent-adapter/pi/mcp-bridge.ts`).
 
@@ -328,7 +333,7 @@ not a sandbox or a separate authorization boundary. Legacy Claude-native MCP
 configuration remains outside that confirmation. Cortex applies the following
 controls:
 
-1. **Registration-level availability** — the bundled Cortex child registers
+1. **Registration-level availability** — the bundled Cortex server registers
    only the logical surfaces selected for that session, and an optional
    canonical tool allowlist filters them further. Both top-level direct and
    thread sessions receive manager-Q&A tools, only thread sessions receive

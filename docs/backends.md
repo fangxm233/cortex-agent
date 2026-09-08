@@ -1,17 +1,18 @@
 # Backends
 
-A backend is Cortex's adapter for a specific coding-agent CLI. Cortex
-does not call LLM APIs directly. It spawns a coding agent (Claude Code
-or PI) as a child process, sends messages to it, and consumes a
-normalized event stream. Each backend implements the `AgentAdapter`
-interface defined in `agent-server/src/agent-adapter/types.ts`.
+A backend is Cortex's adapter for a specific coding agent. Cortex does
+not call LLM APIs directly. It drives a coding agent — Claude Code as a
+child process, PI as a session inside the server process — sends
+messages to it, and consumes a normalized event stream. Each backend
+implements the `AgentAdapter` interface defined in
+`agent-server/src/agent-adapter/types.ts`.
 
 ## Supported backends
 
-| Backend | Status | Binary | npm package | Feature level |
+| Backend | Status | Engine | Requirement | Feature level |
 |---|---|---|---|---|
-| Claude Code | Supported | `claude` | `@anthropic-ai/claude-code` | Full (10/10 capabilities) |
-| PI | Supported | `pi` | `@mariozechner/pi-coding-agent` | Full (10/10 capabilities) |
+| Claude Code | Supported | `@anthropic-ai/claude-code` | the `claude` binary on `PATH` | Full (10/10 capabilities) |
+| PI | Supported | `@earendil-works/pi-coding-agent`, bundled inside the server package | none beyond a logged-in provider | Full (10/10 capabilities) |
 
 ## How backends work
 
@@ -22,8 +23,9 @@ It then calls `getAdapter(backend)` to get the adapter instance and calls
 
 The `AgentSpawnConfig` carries the full session context: system prompt,
 plugin directories, tool allowlist, MCP server config, hooks, model name,
-and backend-specific passthroughs. The adapter translates this into
-backend-native CLI arguments and spawns the coding agent.
+and backend-specific passthroughs. The adapter translates it into
+backend-native form: command-line arguments for the Claude Code child
+process, session options for the in-process PI session.
 
 From there, Cortex sends user messages and receives a normalized event
 stream. The normalization layer (`agent-adapter/normalize/`) translates
@@ -40,7 +42,7 @@ operations.
 | Capability | Claude Code | PI | Description |
 |---|---|---|---|
 | `hooks` | yes | yes | PreToolUse/PostToolUse/Stop hooks via hook-bridge |
-| `plugins` | yes | yes | Role-scoped skill plugins via `--skill` or equivalent |
+| `plugins` | yes | yes | Role-scoped skill plugins |
 | `mcp` | yes | yes | MCP tool server integration |
 | `plan-mode` | yes | yes | EnterPlanMode/ExitPlanMode tool support |
 | `ask-user-question` | yes | yes | AskUserQuestion tool support |
@@ -81,19 +83,76 @@ rewritten.
 
 ## PI
 
-PI provides the same Cortex capabilities through adapter extensions.
-`mcp-bridge.ts` connects PI to one composition-scoped Cortex MCP process and to
-independent assigned plugin MCP servers. User-initiated direct sessions include
-the interaction registrations in that Cortex process. Claude TUI, Claude print,
-and PI therefore expose the same `cortex_ask_user`, `cortex_plan_enter`, and
-`cortex_plan_exit` tools with the same blocking webhook handlers. `tool-shims.ts` supplies the remaining PI-local Agent,
-TodoWrite, WebFetch, and WebSearch tools. `hook-bridge.ts` translates PI tool
-events to Cortex hook scripts, and PI's native `--skill` flag carries Cortex
-plugin skills.
+PI runs inside the Cortex server process. The engine
+(`@earendil-works/pi-coding-agent`) is bundled into the published server
+package, so there is no separate `pi` command-line install and no PI process to
+supervise. `agent-server/src/core/pi-sdk.ts` imports the SDK once per daemon —
+on the first PI session or provider scan, since the entry pulls in every
+provider client — and every PI session is created from that one handle.
 
-PI sessions use `--session <path>` for resume and `--system-prompt` for
-system prompt override. The adapter handles LF-only NDJSON framing for
-PI's event stream.
+**Sessions.** Each Cortex session runs on one PI SDK `AgentSession`.
+`session-options.ts` resolves the spawn configuration into a session request,
+and `runtime.ts` builds the session from it: a `SettingsManager` for the working
+directory, a `ModelRuntime` reading `auth.json` and `models.json` from Cortex's
+private PI agent directory, then `createAgentSessionServices` and
+`createAgentSessionFromServices`. Sessions are pooled by session key and reused
+across turns. A pooled session is retired when its spawn identity changes — a
+different model, tool surface, or MCP set cannot be applied to a live session —
+and when it goes idle or an explicit teardown closes it. `pi-session.ts` owns
+the turn loop, mid-turn steering through the SDK's steer path, compaction, and
+re-pointing a live session at another transcript. Resume names a session id or a
+transcript path; `session-files.ts` maps the id to its file. Transcripts are
+written under `$CORTEX_HOME/logs/sessions-pi/`.
+
+**Cortex's glue.** Everything Cortex adds is a set of inline PI extensions
+assembled per session in `extensions.ts`:
+
+- **MCP bridge** (`mcp-bridge.ts`) — serves the composition-scoped Cortex tool
+  bundles in-process over an in-memory MCP transport pair, bound to a tool
+  context built for that one session. Assigned plugin MCP servers and browser
+  MCP keep their own stdio children or remote connections.
+- **Tool shims** (`tool-shims.ts`) — registers the PI-local `Agent`,
+  `TodoWrite`, `WebFetch`, and `WebSearch` tools, each subject to the session's
+  tool allowlist.
+- **Hook bridge** (`hook-bridge.ts`) — mounts the hook-registry entries that
+  target the `pi` backend as native PI event handlers, so Cortex hook scripts
+  see PI tool events. See [hooks.md](./hooks.md).
+- **Quota probe** (`quota-probe.ts`) — reads provider quota off response headers
+  on gateway-routed runs and hands each reading to the throttle.
+
+System prompt override, appended prompts, and Cortex plugin skill directories
+are session options (`systemPrompt`, `appendSystemPrompt`,
+`additionalSkillPaths`), not command-line flags.
+
+**Interaction tools.** User-initiated direct PI sessions add the interaction
+bundle to their in-process Cortex tool set, so PI exposes the same
+`cortex_ask_user`, `cortex_plan_enter`, and `cortex_plan_exit` tools as Claude
+TUI and Claude print. Their dialogs travel over PI's extension UI protocol,
+which `ui-context.ts` answers inside the server; see
+[safety-and-approvals.md](./safety-and-approvals.md).
+
+**Subagents.** The PI `Agent` tool runs each subagent on its own nested
+in-process session (`child-session.ts`): an in-memory session that writes no
+transcript, runs headless, and loads only Cortex's own extensions. A role is a
+markdown file with YAML frontmatter under `agents/` in the private PI agent
+directory; `explore`, `general-purpose`, and `plan` ship as defaults. The role
+body is appended to the child's system prompt and its `tools` frontmatter
+becomes the child's tool allowlist. The model is the task's explicit `model`
+when given, then the role's `model`, then the parent session's model. A subagent
+never receives the `Agent` tool itself and its MCP surface is the `cortex-core`
+bundle alone, so it can neither fan out further nor reach thread control. Its
+tool calls, results, and text are forwarded into the parent's transcript
+attributed to the subagent, and its token usage is rolled into the parent's. One
+`Agent` call runs a single task, up to eight in parallel, or up to eight
+chained.
+
+**Credentials.** PI provider credentials are managed by Cortex — `!login pi` in
+chat or **Settings → Accounts** on the web — and stored in PI's own auth file at
+`~/.pi/agent/auth.json`. Cortex makes that file visible inside its private PI
+agent directory (a symlink on Linux and macOS, a copy on Windows) so the SDK
+reads it, and it reads user-defined providers from `~/.pi/agent/models.json`. An
+installation that also has the terminal `pi` CLI therefore shares one set of
+credentials and one provider catalog with Cortex.
 
 PI transcript retention is filesystem-based. Active PI backend session ids are
 protected during retention sweeps, while orphan transcript bundles under
@@ -246,12 +305,12 @@ agents in the same pipeline to use different backends. See
 
 ## Thinking level
 
-The optional `thinking` profile field sets the backend's reasoning depth.
-Each backend receives it in its native flag: Claude Code as
-`--effort <level>` (`low`/`medium`/`high`/`xhigh`/`max`), PI as
-`--thinking <level>` (`off`/`minimal`/`low`/`medium`/`high`/`xhigh`).
-When the field is absent no flag is passed and the backend uses its own
-default, so existing profiles behave unchanged.
+The optional `thinking` profile field sets the backend's reasoning depth,
+in the backend's own value set. Claude Code accepts
+`low`/`medium`/`high`/`xhigh`/`max` and receives it as the `--effort`
+flag; PI accepts `off`/`minimal`/`low`/`medium`/`high`/`xhigh` and
+receives it as the session's thinking level. When the field is absent the
+backend applies its own default.
 Fallback entries do not inherit the primary's value — each entry declares
 its own.
 
@@ -342,8 +401,11 @@ Cost reporting differs by backend:
 - **Claude Code** — reverse-derives USD cost from `message.usage` token
   counts (input/output) using Anthropic's published per-model pricing.
   Costs are written to `$CORTEX_HOME/data/costs.jsonl`.
-- **PI** — cost reporting depends on the PI coding agent's provider
-  configuration. The adapter captures whatever cost metadata PI emits.
+- **PI** — reads the usage the session reports on each assistant message
+  (`input`, `output`, `cacheRead`, `cacheWrite`, and `cost.total`) and sums
+  it per turn into one record naming the provider and model that served it.
+  A token field the provider does not report is recorded as unknown rather
+  than as zero. Records land in the same `$CORTEX_HOME/data/costs.jsonl`.
 
 All cost records follow the same JSONL format and are subject to a 90-day
 rolling retention window. Cost queries via MCP tools aggregate across all

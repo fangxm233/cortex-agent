@@ -173,11 +173,13 @@ flow is structurally identical but uses different events:
 
 ### PI backend difference
 
-The PI coding-agent backend uses a different resolution mechanism. Instead of
-resolving an HTTP request, PI's plan and question responses go through
-`sendExtensionUiResponse()` — a PI-native extension UI callback. The
-hook-bridge provides non-blocking publish helpers (`publishPlanSubmitted`,
-`publishAskUserRequested`) for this path.
+The PI backend resolves these dialogs differently. A PI session raises them
+through PI's extension UI protocol, which
+`agent-adapter/pi/ui-context.ts` hosts inside the server process: each dialog
+becomes an `extension_ui_request` record carrying its own id, and the answer
+travels back through `sendExtensionUiResponse()` instead of resolving a pending
+HTTP request. The hook-bridge provides non-blocking publish helpers
+(`publishPlanSubmitted`, `publishAskUserRequested`) for this path.
 
 ## Why the agent isn't given root
 

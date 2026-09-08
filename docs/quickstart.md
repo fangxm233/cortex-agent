@@ -21,10 +21,11 @@ The [desktop app](desktop-app.md) can install and configure the server for you: 
   create an app.
 - **About 2 GB of free disk** for backends, plugins, and logs.
 
-You do **not** need to install `claude` (Claude Code) or `pi`
-(pi-coding-agent) beforehand. You do not need to install `git`
-beforehand. You do not need to pre-create any directories or env files.
-`cortex init` installs all of these for you.
+You do **not** need to install a coding agent beforehand. The PI engine
+ships inside the Cortex server package, and `cortex init` installs Claude
+Code for you if you pick it. You do not need to install `git` beforehand,
+and you do not need to pre-create any directories or env files —
+`cortex init` handles all of that.
 
 ### Checking your Node.js version
 
@@ -129,11 +130,13 @@ the `!lang` command.
 ```
 
 - **Claude Code** — recommended if you have an Anthropic subscription
-  (Claude Pro, Max, or API). Cortex will install it automatically.
-- **PI** — use if you subscribe to other LLM providers through PI.
+  (Claude Pro, Max, or API). Cortex installs it with `npm install -g` on
+  the next step.
+- **PI** — use if you subscribe to other LLM providers through PI. The PI
+  engine ships inside the Cortex server package, so there is nothing to
+  install; all PI needs is a provider you have logged in.
 
-You can pick both. Cortex runs `npm install -g` for whichever you
-select on the next step.
+You can pick both.
 
 ### 2.3 Which interaction platform(s)?
 
@@ -343,24 +346,29 @@ displayed).
 
 ### 2.10 Auto-detect backends for gateway/profiles?
 
-Answer **Yes** if you already logged in to your backend in another
-shell. Cortex scans your `~/.claude/.credentials.json` and
-`~/.pi/agent/` to discover endpoints and asks you to pick which
-discovered (mode, model) pair becomes the `plan` profile (used by
-executor agents — planner, doc-writer, coder, etc.) and which becomes
-the `execute` profile (used by reviewer agents).
+Answer **Yes** if your backend is already logged in. Cortex scans your
+`~/.claude/.credentials.json` and `~/.pi/agent/` to discover endpoints
+and asks you to pick which discovered (mode, model) pair becomes the
+`plan` profile (used by executor agents — planner, doc-writer, coder,
+etc.) and which becomes the `execute` profile (used by reviewer agents).
 
-If you have not logged in yet, open a new terminal and run `claude`
-(or `pi`, depending on the backend you selected in step 2.2). Inside
-that session type `/login` and follow the prompts — pick the login
-method that matches your subscription.
+To log Claude Code in, open a new terminal and run `claude`. Inside that
+session type `/login` and follow the prompts — pick the login method that
+matches your subscription.
 
 ![Backend login prompt](./images/backend-login.png)
 
-Once the login finishes, come back to the wizard and answer **Yes** so
-the credentials are picked up.
+PI logins run through Cortex itself: send `!login pi` in Slack or Feishu,
+or open **Settings → Accounts** in the Web UI, and pick the provider and
+authentication type from the selectors. See
+[Backends: Remote login](./backends.md#remote-login).
 
-You can also run this later with `cortex setup-gateway`.
+`cortex auth status` prints what is currently logged in, without showing
+any credential.
+
+If nothing is authenticated yet, answer **No** here, finish the wizard,
+log the backend in, then run `cortex setup-gateway` — the same step,
+available at any time.
 
 ### 2.11 When the backend login expires
 
@@ -372,12 +380,15 @@ Failed to authenticate. API Error: 401 OAuth access token has expired.
 Re-authenticate to continue.
 ```
 
-The fix is the same login flow as above. Open a new terminal and run
-`claude` (or `pi`, depending on the backend you use). Inside that
-session type `/login` and follow the prompts — pick the login method
-that matches your subscription.
+The fix is the same login flow as above: `claude` plus `/login` for
+Claude Code, `!login pi` or **Settings → Accounts** for a PI provider.
 
 ![Backend login prompt](./images/backend-login.png)
+
+Cortex also notices this for you. When a running agent hits expired
+authentication, it posts a card naming the backend and provider with a
+one-click re-login button, and a daily scan warns about credentials that
+are close to expiring.
 
 Once the login finishes, the refreshed credentials are picked up on the
 next agent run. If the endpoint or model changed, re-run

@@ -183,9 +183,9 @@ $CORTEX_HOME/
 | `profiles.<name>.backend` | string | 否 | 后端：`claude` 或 `pi`（默认：`claude`） |
 | `profiles.<name>.mode` | string | 否 | 运行模式标识符（自由格式，如 `plan`、`execute`） |
 | `profiles.<name>.extraEnv` | object | 否 | 传递给后端进程的额外环境变量。键必须匹配 `^[A-Z_][A-Z0-9_]*$`。 |
-| `profiles.<name>.extraOption` | object | 否 | 传递给后端的额外 CLI 标志。键必须以 `--` 开头。 |
+| `profiles.<name>.extraOption` | object | 否 | 传递给 Claude Code 后端的额外 CLI 标志。键必须以 `--` 开头。在 `pi` 上只有 `--thinking` 生效（作为 `thinking` 字段的覆盖值），其余键会被记录日志并忽略——PI 没有可接收它们的命令行。 |
 | `profiles.<name>.claudeBackend` | string | 否 | Claude 适配器模式：`print`（默认，使用 `-p` + stream-json）或 `tui`（在 tmux 下交互式 Claude + jsonl tail）。非 claude 后端忽略。 |
-| `profiles.<name>.thinking` | string | 否 | 思考档位，取后端原生值域：`claude` 为 `low`/`medium`/`high`/`xhigh`/`max` 之一（以 `--effort` 传递），`pi` 为 `off`/`minimal`/`low`/`medium`/`high`/`xhigh` 之一（以 `--thinking` 传递）。不写则不传任何标志。fallback 条目不继承——每条自行声明。 |
+| `profiles.<name>.thinking` | string | 否 | 思考档位，取后端原生值域：`claude` 为 `low`/`medium`/`high`/`xhigh`/`max` 之一（以 `--effort` 标志传递），`pi` 为 `off`/`minimal`/`low`/`medium`/`high`/`xhigh` 之一（作为会话的 thinking level 传递）。不写则使用后端自身默认值。fallback 条目不继承——每条自行声明。 |
 | `profiles.<name>.fallback` | array | 否 | 有序的回退配置项列表。如果主后端失败，Cortex 按顺序尝试每个回退项。每个回退项继承主配置中未指定的字段。 |
 
 ### 配置解析 {#profile-resolution}

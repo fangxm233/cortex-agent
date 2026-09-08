@@ -1,20 +1,20 @@
 # 后端 {#backends}
 
 
-后端是 Cortex 对特定编程智能体 CLI 的适配器。Cortex 不直接调用 LLM API。它将编程智能体（Claude Code 或 PI）作为子进程启动，向其发送消息，并消费标准化的事件流。每个后端实现 `agent-server/src/agent-adapter/types.ts` 中定义的 `AgentAdapter` 接口。
+后端是 Cortex 对特定编程智能体的适配器。Cortex 不直接调用 LLM API，而是驱动一个编程智能体——Claude Code 以子进程运行，PI 以服务器进程内的会话运行——向其发送消息，并消费标准化的事件流。每个后端实现 `agent-server/src/agent-adapter/types.ts` 中定义的 `AgentAdapter` 接口。
 
 ## 支持的后端 {#supported-backends}
 
-| 后端 | 状态 | 可执行文件 | npm 包 | 功能级别 |
+| 后端 | 状态 | 引擎 | 前置要求 | 功能级别 |
 |---|---|---|---|---|
-| Claude Code | 已支持 | `claude` | `@anthropic-ai/claude-code` | 完整（10/10 能力） |
-| PI | 已支持 | `pi` | `@mariozechner/pi-coding-agent` | 完整（10/10 能力） |
+| Claude Code | 已支持 | `@anthropic-ai/claude-code` | `PATH` 上有 `claude` 可执行文件 | 完整（10/10 能力） |
+| PI | 已支持 | `@earendil-works/pi-coding-agent`，随服务器包一起打包 | 除已登录的 provider 外无需任何额外安装 | 完整（10/10 能力） |
 
 ## 后端如何工作 {#how-backends-work}
 
 当智能体会话开始时，Cortex 解析活动配置（从 `profiles.json` 或 `--profile` 标志）以确定使用哪个后端。然后它调用 `getAdapter(backend)` 获取适配器实例，并调用 `adapter.spawn(config)` 启动会话。
 
-`AgentSpawnConfig` 携带完整的会话上下文：系统提示、插件目录、工具允许列表、MCP 服务器配置、钩子、模型名称和后端特定的透传参数。适配器将其转换为后端原生的 CLI 参数并启动编程智能体。
+`AgentSpawnConfig` 携带完整的会话上下文：系统提示、插件目录、工具允许列表、MCP 服务器配置、钩子、模型名称和后端特定的透传参数。适配器把它翻译成后端原生形式：对 Claude Code 是子进程的命令行参数，对 PI 是进程内会话的 session options。
 
 从那里，Cortex 发送用户消息并接收标准化的事件流。标准化层（`agent-adapter/normalize/`）将每个后端的原生事件格式转换为公共的 `NormalizedEvent` 可区分联合类型，因此编排层永远不需要知道运行的是哪个后端。
 
@@ -25,7 +25,7 @@ Cortex 定义了后端可能支持的十种能力。编排层在尝试后端特�
 | 能力 | Claude Code | PI | 描述 |
 |---|---|---|---|
 | `hooks` | 是 | 是 | 通过 hook-bridge 的 PreToolUse/PostToolUse/Stop 钩子 |
-| `plugins` | 是 | 是 | 通过 `--skill` 或等效方式的角色限定技能插件 |
+| `plugins` | 是 | 是 | 角色限定的技能插件 |
 | `mcp` | 是 | 是 | MCP 工具服务器集成 |
 | `plan-mode` | 是 | 是 | EnterPlanMode/ExitPlanMode 工具支持 |
 | `ask-user-question` | 是 | 是 | AskUserQuestion 工具支持 |
@@ -49,9 +49,24 @@ session-retention 协调器还会把 Claude 用户级 `cleanupPeriodDays` 同步
 
 ## PI
 
-PI 通过适配器扩展提供与 Claude Code 对等的 Cortex 能力。`mcp-bridge.ts` 将 PI 连接到一个按 composition 限定的 Cortex MCP 进程，并分别连接 assigned plugin MCP servers。用户发起的直接会话会在这个 Cortex 进程中加入 interaction registrations。因此 Claude TUI、Claude print 和 PI 会暴露相同的 `cortex_ask_user`、`cortex_plan_enter` 与 `cortex_plan_exit` 工具，并使用相同的阻塞式 webhook 处理器。`tool-shims.ts` 提供其余 PI 本地 Agent、TodoWrite、WebFetch 和 WebSearch 工具。`hook-bridge.ts` 把 PI 工具事件转换为 Cortex 钩子脚本，PI 原生的 `--skill` 标志承载 Cortex 插件 skill。
+PI 在 Cortex 服务器进程内运行。引擎（`@earendil-works/pi-coding-agent`）随发布的服务器包一起打包，因此既不需要安装 `pi` 可执行文件，也没有 PI 进程需要看管。`agent-server/src/core/pi-sdk.ts` 每个守护进程只导入一次 SDK——因为入口会拉起全部 provider 客户端，所以推迟到第一次 PI 会话或 provider 扫描时才导入——之后所有 PI 会话都由这一个句柄创建。
 
-PI 会话使用 `--session <path>` 进行恢复，使用 `--system-prompt` 覆盖系统提示。适配器处理 PI 事件流的 LF-only NDJSON 帧格式。
+**会话。** 每个 Cortex 会话跑在一个 PI SDK `AgentSession` 上。`session-options.ts` 把 spawn 配置解析成 session request，`runtime.ts` 据此构建会话：为工作目录创建 `SettingsManager`，创建从 Cortex 私有 PI agent 目录读取 `auth.json` 与 `models.json` 的 `ModelRuntime`，再依次调用 `createAgentSessionServices` 与 `createAgentSessionFromServices`。会话按 session key 池化并跨回合复用。当 spawn identity 改变时池中会话会被退休——模型、工具面或 MCP 集合的变化无法应用到一个活着的会话上——空闲超时或显式关闭时同样退休。`pi-session.ts` 负责回合循环、通过 SDK steer 路径的回合中插话、compaction，以及把活会话重新指向另一份 transcript。恢复既可以给出 session id，也可以给出 transcript 路径；`session-files.ts` 负责由 id 找到对应文件。Transcript 写在 `$CORTEX_HOME/logs/sessions-pi/` 下。
+
+**Cortex 的粘合层。** Cortex 附加的一切都是按会话在 `extensions.ts` 中装配的 inline PI extension：
+
+- **MCP 桥接**（`mcp-bridge.ts`）——把按 composition 限定的 Cortex 工具 bundle 以进程内方式经一对内存 MCP transport 提供出来，并绑定到专为该会话构建的 tool context。被指派的 plugin MCP server 与 browser MCP 仍各自保有独立的 stdio 子进程或远程连接。
+- **工具垫片**（`tool-shims.ts`）——注册 PI 本地的 `Agent`、`TodoWrite`、`WebFetch` 与 `WebSearch` 工具，每个都受会话的工具允许列表约束。
+- **钩子桥接**（`hook-bridge.ts`）——把注册表中挂在 `pi` 后端的条目挂成 PI 原生事件处理器，Cortex 钩子脚本因此能看到 PI 的工具事件。参见 [hooks.md](./hooks.md)。
+- **额度探针**（`quota-probe.ts`）——在经网关路由的运行中从响应头读取 provider 额度，并把每次读数交给限流器。
+
+系统提示覆盖、追加提示与 Cortex 插件 skill 目录都是 session options（`systemPrompt`、`appendSystemPrompt`、`additionalSkillPaths`），而不是命令行标志。
+
+**交互工具。** 用户发起的直接 PI 会话会把 interaction bundle 加入其进程内的 Cortex 工具集，因此 PI 暴露与 Claude TUI、Claude print 相同的 `cortex_ask_user`、`cortex_plan_enter` 与 `cortex_plan_exit` 工具。它们的对话走 PI 的 extension UI 协议，由 `ui-context.ts` 在服务器内应答；参见 [safety-and-approvals.md](./safety-and-approvals.md)。
+
+**子智能体。** PI 的 `Agent` 工具把每个子智能体跑在自己的嵌套进程内会话上（`child-session.ts`）：一个不写 transcript 的内存会话，以 headless 方式运行，且只加载 Cortex 自己的 extension。角色是私有 PI agent 目录下 `agents/` 中带 YAML frontmatter 的 markdown 文件；`explore`、`general-purpose` 与 `plan` 是随附的默认角色。角色正文追加到子会话的系统提示，其 frontmatter 中的 `tools` 成为子会话的工具允许列表。模型的选择顺序是：任务显式指定的 `model`，其次角色的 `model`，最后父会话的模型。子智能体自身永远拿不到 `Agent` 工具，其 MCP 面只有 `cortex-core` bundle，因此既不能继续向下扇出，也够不到线程控制。它的工具调用、结果与文本会转发进父会话的 transcript 并标注归属，token 用量并入父会话。一次 `Agent` 调用可以跑单个任务、最多八个并行任务，或最多八个串行任务。
+
+**凭据。** PI 的 provider 凭据由 Cortex 管理——聊天里的 `!login pi`，或网页端的**设置 → 账号**——并保存在 PI 自己的认证文件 `~/.pi/agent/auth.json` 中。Cortex 会让该文件在其私有 PI agent 目录内可见（Linux 与 macOS 用符号链接，Windows 用复制）供 SDK 读取，并从 `~/.pi/agent/models.json` 读取用户自定义的 provider。因此同时装有终端 `pi` CLI 的机器与 Cortex 共用同一份凭据和同一份 provider catalog。
 
 PI transcript retention 走文件系统扫描：仍在使用的 PI backend session id 会在保留扫描中被保护，而 `$CORTEX_HOME/logs/sessions-pi/` 下失去引用的 transcript bundle 只有在超过保留截止线且连续两轮确认后才会删除。
 
@@ -171,7 +186,7 @@ MiB 大小，可直接修改。网关会自己热重载配置，路由和请求�
 
 ## 思考档位 {#thinking-level}
 
-可选的 `thinking` 配置字段设置后端的推理深度。每个后端以其原生标志接收：Claude Code 为 `--effort <level>`（`low`/`medium`/`high`/`xhigh`/`max`），PI 为 `--thinking <level>`（`off`/`minimal`/`low`/`medium`/`high`/`xhigh`）。字段缺省时不传递任何标志，后端使用自身默认值，因此现有配置行为不变。fallback 条目不继承主配置的值——每条自行声明。
+可选的 `thinking` 配置字段设置后端的推理深度，取值使用后端各自的值域。Claude Code 接受 `low`/`medium`/`high`/`xhigh`/`max`，以 `--effort` 标志传入；PI 接受 `off`/`minimal`/`low`/`medium`/`high`/`xhigh`，作为会话的 thinking level 传入。字段缺省时后端使用自身默认值。fallback 条目不继承主配置的值——每条自行声明。
 
 ## 回退行为 {#fallback-behavior}
 
@@ -212,7 +227,7 @@ MiB 大小，可直接修改。网关会自己热重载配置，路由和请求�
 费用报告因后端而异：
 
 - **Claude Code** — 从 `message.usage` 令牌计数（输入/输出）逆向推导 USD 费用，使用 Anthropic 发布的每模型定价。费用写入 `$CORTEX_HOME/data/costs.jsonl`。
-- **PI** — 费用报告取决于 PI 编程智能体的提供商配置。适配器捕获 PI 发出的任何费用元数据。
+- **PI** — 读取会话在每条 assistant 消息上报告的用量（`input`、`output`、`cacheRead`、`cacheWrite` 与 `cost.total`），按回合汇总为一条记录，并标注实际服务的 provider 与模型。provider 未报告的 token 字段记为未知，而不是记为 0。记录同样写入 `$CORTEX_HOME/data/costs.jsonl`。
 
 所有费用记录遵循相同的 JSONL 格式，并受 90 天滚动保留窗口的约束。通过 MCP 工具的费用查询汇总所有后端——`cost_query` 工具参见 [mcp.md](./mcp.md)。
 
