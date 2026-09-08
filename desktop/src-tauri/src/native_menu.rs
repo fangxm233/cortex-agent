@@ -14,6 +14,7 @@ use serde::Deserialize;
 
 /// Emitted to the webview when the user picks a native menu item; the payload is the item id from
 /// the SPA's own model, which dispatches it back into the same `run()` the in-window bar calls.
+#[cfg_attr(target_os = "android", allow(dead_code))]
 pub const MENU_EVENT: &str = "native-menu";
 
 // Off macOS nothing reads these fields — the spec is still deserialized so the command validates

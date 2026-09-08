@@ -652,15 +652,6 @@ pub fn run() {
 
     #[allow(unused_mut)]
     let mut builder = tauri::Builder::default()
-        // A native menu click carries only its id; the SPA looks that id up in the same model it
-        // sent and runs the same handler the in-window bar would have. Failing to emit is a no-op
-        // (no window yet), never fatal.
-        .on_menu_event(|app, event| {
-            let id = event.id().0.clone();
-            if let Err(e) = app.emit(native_menu::MENU_EVENT, id) {
-                shell_log!("[cortex-desktop] emit {} failed: {e}", native_menu::MENU_EVENT);
-            }
-        })
         // Keep desktop delivery and Android permission prompts compatible with older frontends.
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_cortex_notifications::init())
@@ -702,6 +693,20 @@ pub fn run() {
             forward::forward_list,
             native_menu::set_native_menu,
         ]);
+
+    // A native menu click carries only its id; the SPA looks that id up in the same model it sent
+    // and runs the same handler the in-window bar would have. Failing to emit is a no-op (no window
+    // yet), never fatal. Desktop only: `Builder::on_menu_event` is `cfg(desktop)` in Tauri v2 — menus
+    // do not exist on the mobile shell, so hooking it there does not compile.
+    #[cfg(not(target_os = "android"))]
+    {
+        builder = builder.on_menu_event(|app, event| {
+            let id = event.id().0.clone();
+            if let Err(e) = app.emit(native_menu::MENU_EVENT, id) {
+                shell_log!("[cortex-desktop] emit {} failed: {e}", native_menu::MENU_EVENT);
+            }
+        });
+    }
 
     // Both platforms: serve the SPA over the custom `cortexui://` scheme from the active frontend
     // directory (env override → OTA-downloaded current → bundled seed), so the frontend can be
