@@ -21,7 +21,8 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 | MInteractionCards.tsx | view | Ask-user bottom-input and plan-approval cards |
 | MDecisionCards.tsx | view | Decision cards that expand in place, with responses |
 | MSessionListScreen.tsx | screen | Binds sessions and the sentinel-safe editor-capable Scheduled sheet |
-| MSessionListView.tsx | view | Day-grouped session rows with clock entry |
+| MSessionListView.tsx | view | Day-grouped session rows with clock entry and a live-run accent edge |
+| MSessionListView.test.tsx | test | Tests run-edge gating, unread independence and card geometry |
 | MScheduleSheet.tsx | view | One compact list/runs/editor bottom-sheet state machine with level-aware back |
 | MScheduleSheetLevels.tsx | view | Presents canonical-USD Scheduled list/run levels as DOM-stable components |
 | MScheduleSheet.test.tsx | test | Tests SessionInfo runs, edits and nested sheet behavior |

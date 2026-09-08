@@ -98,8 +98,18 @@ function ScheduledButton({ unread, onClick }: { unread: number; onClick: () => v
 function Row({ row, byId, onOpen }: { row: MSessionGroup['rows'][number]; byId: Map<string, SessionInfo>; onOpen: (id: string) => void }) {
   const s = byId.get(row.id);
   const status = s ? sessionStatusLine(s) : { kind: 'idle' as const, text: '空闲' };
+  // Live = a turn or a background task is actually advancing. `awaiting` is blocked ON the user, so
+  // it keeps its amber semantics and stays out of this; `idle` gets no run treatment at all.
+  const live = status.kind === 'running' || status.kind === 'background';
   return (
-    <MCard radius={12} padding="12px 13px" onClick={() => onOpen(row.id)}>
+    <MCard
+      radius={9}
+      padding="12px 13px"
+      onClick={() => onOpen(row.id)}
+      // Run marker as an INSET shadow, so the accent edge costs no layout: card geometry, padding
+      // and text positions are byte-identical between a live row and an idle one.
+      style={live ? { boxShadow: `inset 2px 0 0 ${MC.run}` } : undefined}
+    >
       <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
         {/* Unread marker (honest addition, mirrors desktop LeftRail): an accent dot leads unread
             rows and their title keeps full ink + semibold, while read rows soften — so unread reads
@@ -132,7 +142,9 @@ function Row({ row, byId, onOpen }: { row: MSessionGroup['rows'][number]; byId: 
         {status.kind === 'background' && <MDot color={MC.run} pulse />}
         {/* Amber is reserved for「需要你」— a pending ask-user question / plan approval. */}
         {status.kind === 'awaiting' && <MDot color={MC.amber} pulse />}
-        <span style={{ font: `400 10px ${MONO}`, color: MC.muted }}>{status.text}</span>
+        {/* The status line joins the run accent while live; unread keeps its own weight/colour on
+            the title line above, so "running" never masquerades as "unread". */}
+        <span style={{ font: `400 10px ${MONO}`, color: live ? MC.run : MC.muted }}>{status.text}</span>
       </div>
     </MCard>
   );
