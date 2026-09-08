@@ -19,6 +19,8 @@ import type {
 } from '../../../src/domain/auth/auth-status.js';
 import type { PiRuntimeLoadResult } from '../../../src/domain/auth/pi-runtime.js';
 
+const PI_SDK = { package: '@earendil-works/pi-coding-agent', version: '0.82.1' };
+
 // ─── helpers ──────────────────────────────────────────────────────
 
 /** A trivial KEY=value parser sufficient for tests. */
@@ -90,6 +92,7 @@ function baseDeps(over: Partial<DoctorDeps> = {}): DoctorDeps {
     commandExists: () => true,
     pidAlive: () => true,
     probeGateway: async () => true,
+    resolvePiSdk: () => ({ ...PI_SDK }),
     loadPiRuntime: async () => healthyPiRuntime(),
     getAuthStatus: async () => authSnapshot(),
     ...over,
@@ -120,16 +123,18 @@ describe('runDiagnostics — all green', () => {
     assert.equal(checks['anthropic-key'].status, 'pass');
   });
 
-  it('checks the PI binary for a PI mode file', async () => {
+  it('never looks for a pi binary when the PI backend is selected', async () => {
     const deps = baseDeps();
     const readText = deps.readText;
     const checked: string[] = [];
     deps.readText = (p) => p === '/s/mode.json' ? '{"backend":"pi"}' : readText(p);
     deps.commandExists = (bin) => { checked.push(bin); return true; };
 
-    await runDiagnostics(deps);
+    const checks = byId(await runDiagnostics(deps));
 
-    assert.ok(checked.includes('pi'));
+    assert.equal(checked.includes('pi'), false);
+    assert.equal(checks['backend-runtime'].status, 'pass');
+    assert.match(checks['backend-runtime'].detail, /in-process/);
   });
 });
 
@@ -167,20 +172,48 @@ describe('runDiagnostics — auth tokens', () => {
 // ─── PI runtime and backend authentication ───────────────────────
 
 describe('runDiagnostics — PI runtime', () => {
-  it('passes only when the installed runtime exposes login', async () => {
+  it('passes with the bundled SDK version when the runtime exposes login', async () => {
     const checks = byId(await runDiagnostics(baseDeps()));
     assert.equal(checks['pi-runtime'].status, 'pass');
+    assert.match(checks['pi-runtime'].detail, /in-process SDK @earendil-works\/pi-coding-agent 0\.82\.1/);
   });
 
-  it('skips the runtime smoke test when PI is not installed', async () => {
+  it('runs the runtime check without a pi binary on PATH', async () => {
     let loadCalls = 0;
     const deps = baseDeps({
       commandExists: bin => bin !== 'pi',
       loadPiRuntime: async () => { loadCalls += 1; return healthyPiRuntime(); },
     });
     const checks = byId(await runDiagnostics(deps));
-    assert.equal(checks['pi-runtime'].status, 'skip');
+    assert.equal(checks['pi-runtime'].status, 'pass');
+    assert.equal(loadCalls, 1);
+  });
+
+  it('warns without loading the runtime when the bundled SDK is unresolvable', async () => {
+    let loadCalls = 0;
+    const result = await runDiagnostics(baseDeps({
+      resolvePiSdk: () => null,
+      loadPiRuntime: async () => { loadCalls += 1; return healthyPiRuntime(); },
+    }));
+    const check = byId(result)['pi-runtime'];
+    assert.equal(check.status, 'warn');
     assert.equal(loadCalls, 0);
+    assert.match(check.hint ?? '', /Reinstall the Cortex server package/);
+    assert.equal(result.ok, true);
+  });
+
+  it('never tells the user to install a pi CLI', async () => {
+    const reports = await Promise.all([
+      runDiagnostics(baseDeps()),
+      runDiagnostics(baseDeps({ resolvePiSdk: () => null })),
+      runDiagnostics(baseDeps({ loadPiRuntime: async () => healthyPiRuntime(null) })),
+    ]);
+    for (const report of reports) {
+      const rendered = JSON.stringify(byId(report)['pi-runtime']);
+      assert.doesNotMatch(rendered, /pi CLI/i);
+      assert.doesNotMatch(rendered, /pi not installed/i);
+      assert.doesNotMatch(rendered, /npm install/i);
+    }
   });
 
   it('warns without failing doctor when the PI runtime cannot load', async () => {

@@ -54,6 +54,7 @@ function greenDeps(over: Partial<DoctorDeps> = {}): DoctorDeps {
     readText: p => (p in GREEN_TEXTS ? GREEN_TEXTS[p] : null),
     parseDotenv: parseEnv, commandExists: () => true, pidAlive: () => true,
     probeGateway: async () => true,
+    resolvePiSdk: () => ({ package: '@earendil-works/pi-coding-agent', version: '0.82.1' }),
     loadPiRuntime: async () => greenPiRuntime(),
     getAuthStatus: async () => ({
       generatedAt: '2026-08-02T00:00:00.000Z', accounts: [],

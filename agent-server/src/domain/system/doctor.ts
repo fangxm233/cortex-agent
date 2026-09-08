@@ -7,6 +7,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import * as http from 'node:http';
+import { fileURLToPath } from 'node:url';
 import { parse as parseDotenvLib } from 'dotenv';
 
 import { DATA_DIR, CONFIG_DIR, STORE_DIR, GATEWAY_MANAGED_KEY_PLACEHOLDER } from '@core/utils.js';
@@ -19,6 +20,7 @@ import {
 } from '../auth/auth-status.js';
 import {
   loadPiRuntime as loadInstalledPiRuntime,
+  PI_SDK_PACKAGE,
   type PiRuntimeLoadResult,
 } from '../auth/pi-runtime.js';
 
@@ -48,6 +50,12 @@ export interface DoctorReport {
   ok: boolean;
 }
 
+/** Where the in-process PI SDK was found, and which version ships with this install. */
+export interface PiSdkInfo {
+  package: string;
+  version: string | null;
+}
+
 export interface DoctorPaths {
   DATA_DIR: string;
   CONFIG_DIR: string;
@@ -68,6 +76,8 @@ export interface DoctorDeps {
   commandExists(bin: string): boolean;
   pidAlive(pid: number): boolean;
   probeGateway(): Promise<boolean>;
+  /** Locate the bundled PI SDK without importing it; null when it cannot be resolved. */
+  resolvePiSdk(): PiSdkInfo | null;
   loadPiRuntime(): Promise<PiRuntimeLoadResult>;
   getAuthStatus(): Promise<AuthStatusSnapshot>;
 }
@@ -130,14 +140,18 @@ function sectionRuntime(deps: DoctorDeps): DoctorSection {
     ? { id: 'git', label: 'git', status: 'pass', detail: 'found on PATH' }
     : { id: 'git', label: 'git', status: 'fail', detail: 'not found on PATH', hint: 'Install git — required for context sync' });
 
-  // Backend binary, per mode.json backend selection.
+  // Backend runtime, per mode.json backend selection. PI runs in-process from the SDK bundled
+  // with this package, so only the Claude backend still needs a CLI on PATH.
   const modeText = deps.readText(path.join(deps.paths.STORE_DIR, 'mode.json'));
   let backend = 'claude';
   try { if (modeText) { const m = JSON.parse(modeText); if (typeof m.backend === 'string') backend = m.backend; } } catch { /* fall back to claude */ }
-  const bin = backend === 'pi' ? 'pi' : 'claude';
-  checks.push(deps.commandExists(bin)
-    ? { id: 'backend-binary', label: 'Backend binary', status: 'pass', detail: `${bin} found on PATH (backend: ${backend})` }
-    : { id: 'backend-binary', label: 'Backend binary', status: 'warn', detail: `${bin} not on PATH (backend: ${backend})`, hint: `Install/login the ${bin} CLI` });
+  if (backend === 'pi') {
+    checks.push({ id: 'backend-runtime', label: 'Backend runtime', status: 'pass', detail: 'backend: pi runs in-process from the bundled SDK (no CLI needed)' });
+  } else {
+    checks.push(deps.commandExists('claude')
+      ? { id: 'backend-runtime', label: 'Backend runtime', status: 'pass', detail: `claude found on PATH (backend: ${backend})` }
+      : { id: 'backend-runtime', label: 'Backend runtime', status: 'warn', detail: `claude not on PATH (backend: ${backend})`, hint: 'Install/login the claude CLI' });
+  }
 
   // Daemon — informational only.
   const pidPath = path.join(deps.paths.STORE_DIR, 'daemon.pid');
@@ -233,22 +247,32 @@ function pushConfigChecks(checks: CheckResult[], deps: DoctorDeps): void {
 const BACKEND_DOC_HINT = 'See docs/backends.md#remote-login';
 const UNHEALTHY_AUTH_STATES = new Set(['expired', 'logged-out']);
 
+const PI_SDK_HINT = 'Reinstall the Cortex server package — the PI SDK ships with it';
+
 async function checkPiRuntime(deps: DoctorDeps): Promise<CheckResult> {
-  if (!deps.commandExists('pi')) {
-    return { id: 'pi-runtime', label: 'PI runtime', status: 'skip', detail: 'pi not installed' };
+  const sdk = deps.resolvePiSdk();
+  if (!sdk) {
+    return {
+      id: 'pi-runtime', label: 'PI runtime', status: 'warn',
+      detail: `bundled PI SDK not resolvable (${PI_SDK_PACKAGE})`, hint: PI_SDK_HINT,
+    };
   }
   try {
     const result = await deps.loadPiRuntime();
     if (result.available && typeof result.runtime.login === 'function') {
-      const version = result.version ? ` (${result.version})` : '';
-      return { id: 'pi-runtime', label: 'PI runtime', status: 'pass', detail: `available${version}; login export found` };
+      const version = result.version ?? sdk.version;
+      const suffix = version ? ` ${version}` : '';
+      return {
+        id: 'pi-runtime', label: 'PI runtime', status: 'pass',
+        detail: `in-process SDK ${sdk.package}${suffix}; login export found`,
+      };
     }
   } catch {
     // Report the stable diagnostic only; dependency errors may contain sensitive paths or values.
   }
   return {
     id: 'pi-runtime', label: 'PI runtime', status: 'warn',
-    detail: 'installed PI runtime or login export unavailable', hint: BACKEND_DOC_HINT,
+    detail: 'bundled PI runtime or login export unavailable', hint: BACKEND_DOC_HINT,
   };
 }
 
@@ -476,6 +500,31 @@ function commandExistsOnPath(bin: string): boolean {
   return false;
 }
 
+/**
+ * Locate the bundled PI SDK by resolving its entry and reading the owning package manifest.
+ * Resolution alone is the signal doctor needs — importing the entry costs ~100 MB RSS, and
+ * `loadPiRuntime` already pays that price when it exercises the runtime.
+ */
+function resolveBundledPiSdk(): PiSdkInfo | null {
+  let dir: string;
+  try {
+    dir = path.dirname(fileURLToPath(import.meta.resolve(PI_SDK_PACKAGE)));
+  } catch {
+    return null;
+  }
+  for (;;) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
+      if (parsed?.name === PI_SDK_PACKAGE) {
+        return { package: PI_SDK_PACKAGE, version: typeof parsed.version === 'string' ? parsed.version : null };
+      }
+    } catch { /* keep walking up to the package root */ }
+    const parent = path.dirname(dir);
+    if (parent === dir) return { package: PI_SDK_PACKAGE, version: null };
+    dir = parent;
+  }
+}
+
 function probeGatewayHttp(): Promise<boolean> {
   return new Promise((resolve) => {
     const req = http.get(`http://${GW_HOST}:${GW_PORT}/status`, { timeout: 5000 }, (res) => {
@@ -501,6 +550,7 @@ export function createDefaultDoctorDeps(): DoctorDeps {
     commandExists: commandExistsOnPath,
     pidAlive: (pid) => { try { process.kill(pid, 0); return true; } catch { return false; } },
     probeGateway: probeGatewayHttp,
+    resolvePiSdk: resolveBundledPiSdk,
     loadPiRuntime: () => loadInstalledPiRuntime(),
     getAuthStatus: () => readAuthStatus(),
   };

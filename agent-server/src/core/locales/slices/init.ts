@@ -12,12 +12,13 @@ export const initEn = {
 
   // ── Backend install ──
   'init.backend.alreadyInstalled': '${label} is already installed.',
+  'init.backend.bundled': '${label} ships with Cortex and runs in-process — nothing to install.',
   'init.backend.installing': 'Installing ${label}...',
   'init.backend.installed': '${label} installed successfully.',
   'init.backend.installFailed': 'Failed to install ${label}.',
   'init.backend.installFailedHint': 'Installation failed. Install manually: ${command}',
   'init.backend.loginHint.claude': 'Run `claude login` to authenticate.',
-  'init.backend.loginHint.pi': 'Configure your provider in PI settings.',
+  'init.backend.loginHint.pi': 'Log a PI provider in from the Cortex web UI (Settings > Auth); verify with `cortex auth status`.',
   'init.backend.label.claude': 'Claude Code',
   'init.backend.label.pi': 'PI',
 
@@ -219,12 +220,13 @@ export const initZh: Record<keyof typeof initEn, string> = {
 
   // ── Backend install ──
   'init.backend.alreadyInstalled': '${label} 已安装。',
+  'init.backend.bundled': '${label} 随 Cortex 内置并在进程内运行——无需安装。',
   'init.backend.installing': '正在安装 ${label}...',
   'init.backend.installed': '${label} 安装成功。',
   'init.backend.installFailed': '安装 ${label} 失败。',
   'init.backend.installFailedHint': '安装失败。请手动安装：${command}',
   'init.backend.loginHint.claude': '运行 `claude login` 进行认证。',
-  'init.backend.loginHint.pi': '在 PI 设置中配置你的服务提供商。',
+  'init.backend.loginHint.pi': '在 Cortex 网页端（设置 > 认证）登录 PI 服务提供商；用 `cortex auth status` 验证。',
   'init.backend.label.claude': 'Claude Code',
   'init.backend.label.pi': 'PI',
 

@@ -336,7 +336,12 @@ export function formatConfigOutput(paths: InitPaths & { INSTALL_ROOT: string }, 
 
 // ─── Backend detection & installation ────────────────────────────
 
-const BACKEND_INFO: Record<InitBackend, { bin: string; npmPackage: string; labelKey: string; loginHintKey: string }> = {
+/**
+ * Per-backend install metadata. `bin`/`npmPackage` are null for backends that ship inside the
+ * server package: PI runs in-process from its bundled SDK, so there is nothing to put on PATH —
+ * only a provider to log in.
+ */
+const BACKEND_INFO: Record<InitBackend, { bin: string | null; npmPackage: string | null; labelKey: string; loginHintKey: string }> = {
   claude: {
     bin: 'claude',
     npmPackage: '@anthropic-ai/claude-code',
@@ -344,8 +349,8 @@ const BACKEND_INFO: Record<InitBackend, { bin: string; npmPackage: string; label
     loginHintKey: 'init.backend.loginHint.claude',
   },
   pi: {
-    bin: 'pi',
-    npmPackage: '@mariozechner/pi-coding-agent',
+    bin: null,
+    npmPackage: null,
     labelKey: 'init.backend.label.pi',
     loginHintKey: 'init.backend.loginHint.pi',
   },
@@ -521,10 +526,11 @@ function parseExistingEnvSlackConfig(envPath: string): { signingSecret?: string;
   }
 }
 
-/** Check whether a backend binary is on PATH. */
+/** Check whether a backend is usable: bundled backends always are, CLI backends need the binary. */
 export function isBackendInstalled(backend: InitBackend): boolean {
-  const cmd = process.platform === 'win32' ? 'where' : 'which';
   const { bin } = BACKEND_INFO[backend];
+  if (!bin) return true;
+  const cmd = process.platform === 'win32' ? 'where' : 'which';
   try {
     execSync(`${cmd} ${bin}`, { stdio: 'pipe' });
     return true;
@@ -533,9 +539,10 @@ export function isBackendInstalled(backend: InitBackend): boolean {
   }
 }
 
-/** Return the npm install command for a backend. */
-export function getInstallCommand(backend: InitBackend): string {
-  return `npm install -g ${BACKEND_INFO[backend].npmPackage}`;
+/** Return the npm install command for a backend, or null when the backend is bundled. */
+export function getInstallCommand(backend: InitBackend): string | null {
+  const { npmPackage } = BACKEND_INFO[backend];
+  return npmPackage ? `npm install -g ${npmPackage}` : null;
 }
 
 /** Detect GPU count via nvidia-smi. Returns 0 if nvidia-smi is unavailable or no GPUs found. */
@@ -558,19 +565,21 @@ async function checkAndInstallBackends(backends: InitBackend[]): Promise<void> {
   for (const backend of backends) {
     const info = BACKEND_INFO[backend];
     const label = t(info.labelKey);
-    const installed = isBackendInstalled(backend);
+    const command = getInstallCommand(backend);
 
-    if (installed) {
+    if (!command) {
+      clack.log.success(t('init.backend.bundled', { label }));
+    } else if (isBackendInstalled(backend)) {
       clack.log.success(t('init.backend.alreadyInstalled', { label }));
     } else {
       const s = clack.spinner();
       s.start(t('init.backend.installing', { label }));
       try {
-        execSync(getInstallCommand(backend), { stdio: 'pipe', timeout: 120_000 });
+        execSync(command, { stdio: 'pipe', timeout: 120_000 });
         s.stop(t('init.backend.installed', { label }));
-      } catch (err: any) {
+      } catch {
         s.stop(t('init.backend.installFailed', { label }));
-        clack.log.error(t('init.backend.installFailedHint', { command: getInstallCommand(backend) }));
+        clack.log.error(t('init.backend.installFailedHint', { command }));
       }
     }
 

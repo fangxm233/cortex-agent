@@ -464,8 +464,12 @@ test('getInstallCommand returns correct command for claude', () => {
   assert.equal(getInstallCommand('claude'), 'npm install -g @anthropic-ai/claude-code');
 });
 
-test('getInstallCommand returns correct command for pi', () => {
-  assert.equal(getInstallCommand('pi'), 'npm install -g @mariozechner/pi-coding-agent');
+test('getInstallCommand returns null for the bundled pi backend', () => {
+  assert.equal(getInstallCommand('pi'), null);
+});
+
+test('isBackendInstalled is always true for the bundled pi backend', () => {
+  assert.equal(isBackendInstalled('pi'), true);
 });
 
 // ─── isGitInstalled ────────────────────────────────────────────
