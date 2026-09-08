@@ -26,7 +26,7 @@
     return { serverUrl: el('cx-server-url').value.trim().replace(/\/+$/, ''), token: el('cx-token').value.trim() };
   }
   async function probe(connection) {
-    var response = await fetch(connection.serverUrl + '/trpc', {
+    var response = await fetch(connection.serverUrl + '/trpc/', {
       headers: { 'x-cortex-token': connection.token }, signal: AbortSignal.timeout(8000),
     });
     if (response.status === 401) throw new Error(t('The client token was not accepted. Check the server’s CORTEX_CLIENT_TOKEN.', '令牌未通过验证，请检查服务端的 CORTEX_CLIENT_TOKEN。'));
