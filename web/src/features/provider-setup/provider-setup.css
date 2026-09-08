@@ -1,0 +1,96 @@
+/* input:  shared proto theme tokens and provider setup markup
+   output: scoped styles matching desktop/ui/shell.css
+   pos:    Installation-wizard appearance for the provider step
+   >>> Once updated, update this header and the parent CORTEX.md <<< */
+.provider-setup {
+  height: 100%; display: flex; flex-direction: column;
+  background: var(--proto-alt); color: var(--proto-ink);
+  font: 13px/1.55 -apple-system, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+.provider-setup * { box-sizing: border-box; }
+.provider-setup p { margin: 0; }
+.provider-setup button, .provider-setup input, .provider-setup select { font-family: inherit; }
+.provider-setup button { cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
+.provider-setup button:disabled { cursor: default; opacity: .55; }
+.provider-setup :where(button, input, select):focus-visible { outline: 2px solid var(--proto-accent); outline-offset: 3px; }
+.provider-setup svg { flex: none; }
+.provider-setup .setup-header {
+  height: 56px; flex: none; display: flex; align-items: center; gap: 12px;
+  padding: 0 28px; background: var(--proto-rail); border-bottom: 1px solid var(--proto-line);
+}
+.provider-setup .setup-header[data-caption='custom'] { padding-right: 0; }
+.provider-setup .setup-brand { display: inline-flex; gap: 9px; align-items: center; font-size: 14px; font-weight: 650; }
+.provider-setup .setup-brand-mark {
+  display: flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 7px;
+  background: var(--brand-badge-bg); border: 1px solid var(--brand-badge-border);
+}
+.provider-setup .setup-header-label { border-left: 1px solid var(--proto-line); padding-left: 12px; color: var(--proto-muted-2); font-size: 12px; }
+.provider-setup .setup-header-actions { margin-left: auto; display: flex; align-items: center; gap: 14px; }
+.provider-setup .setup-lang-toggle { display: flex; padding: 2px; background: var(--proto-alt); border: 1px solid var(--proto-line); border-radius: 7px; }
+.provider-setup .setup-lang-toggle button { border: 0; background: transparent; color: var(--proto-muted); border-radius: 4px; padding: 2px 7px; font-size: 11px; }
+.provider-setup .setup-lang-toggle button[aria-pressed='true'] { background: var(--proto-card); color: var(--proto-ink); box-shadow: var(--shadow-card-subtle); }
+.provider-setup .setup-theme-toggle { border: 0; background: transparent; color: var(--proto-muted); display: flex; padding: 5px; border-radius: 6px; }
+.provider-setup .setup-theme-toggle:hover { background: var(--proto-gray); }
+.provider-setup .setup-scroll { min-height: 0; flex: 1; overflow-y: auto; }
+.provider-setup .setup-workspace { width: min(640px, calc(100% - 48px)); margin: clamp(40px, 10vh, 96px) auto 40px; }
+.provider-setup .setup-eyebrow { font-size: 11px; font-weight: 600; color: var(--proto-accent); margin-bottom: 12px; display: flex; align-items: center; gap: 7px; }
+.provider-setup .setup-eyebrow::before { content: ''; height: 6px; width: 6px; border-radius: 50%; background: currentColor; }
+.provider-setup h1 { font-size: 28px; line-height: 1.25; font-weight: 650; letter-spacing: -.7px; margin: 0 0 10px; }
+.provider-setup .setup-intro { font-size: 14px; color: var(--proto-muted); margin: 0 0 28px; max-width: 580px; }
+.provider-setup h2 { font-size: 14px; font-weight: 650; margin: 0; }
+.provider-setup .setup-card { background: var(--proto-card); border: 1px solid var(--proto-line); border-radius: 10px; box-shadow: var(--shadow-card-subtle); overflow: hidden; margin-top: 14px; }
+.provider-setup .setup-card-header { padding: 14px 20px; border-bottom: 1px solid var(--proto-line-2); display: flex; align-items: center; gap: 10px; }
+.provider-setup .setup-card-body { padding: 16px 20px; }
+.provider-setup .setup-pill { border-radius: 5px; padding: 2px 7px; font-size: 10px; font-weight: 550; white-space: nowrap; color: var(--proto-muted); background: var(--proto-alt); border: 1px solid var(--proto-line-2); }
+.provider-setup .setup-good { background: var(--proto-accent-bg); color: var(--proto-accent); border-color: var(--proto-accent-border); }
+.provider-setup .setup-button {
+  border: 1px solid var(--proto-line); border-radius: 8px; padding: 8px 14px; min-height: 36px;
+  font-size: 12px; line-height: 1.55; font-weight: 600; color: var(--proto-ink-2); background: var(--proto-card);
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap;
+}
+.provider-setup .setup-button:hover:not(:disabled) { background: var(--proto-gray); }
+.provider-setup .setup-primary { background: var(--proto-accent); border-color: var(--proto-accent); color: var(--ink-solid-fg); }
+.provider-setup .setup-primary:hover:not(:disabled) { background: var(--proto-accent-strong); border-color: var(--proto-accent-strong); }
+.provider-setup .setup-rescan { margin-left: auto; font-size: 11px; font-weight: 500; min-height: 26px; padding: 2px 0; border: 0; color: var(--proto-muted); background: transparent; }
+.provider-setup .setup-search { padding: 12px 20px 4px; }
+.provider-setup .setup-input { width: 100%; border: 1px solid var(--proto-line); border-radius: 7px; background: var(--proto-alt); color: var(--proto-ink); padding: 8px 11px; font-size: 12px; line-height: 1.55; }
+.provider-setup .setup-input:focus { border-color: var(--proto-accent); background: var(--proto-card); }
+.provider-setup .setup-input::placeholder { color: var(--proto-muted-3); }
+.provider-setup .setup-input:disabled { opacity: .65; }
+.provider-setup .setup-providers { padding: 0 20px; max-height: 250px; overflow-y: auto; }
+.provider-setup .setup-account { display: flex; align-items: center; gap: 12px; padding: 11px 0; min-height: 58px; }
+.provider-setup .setup-account + .setup-account { border-top: 1px solid var(--proto-line-2); }
+.provider-setup .setup-provider-icon { display: flex; align-items: center; justify-content: center; width: 26px; flex: none; color: var(--proto-ink-2); }
+.provider-setup .setup-account-copy { flex: 1; min-width: 0; }
+.provider-setup .setup-account-copy strong { font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
+.provider-setup .setup-account-status { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--proto-muted-3); margin-top: 2px; }
+.provider-setup .setup-state-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex: none; }
+.provider-setup [data-account-state='logged-in'] .setup-account-status { color: var(--proto-accent); }
+.provider-setup [data-account-state='expiring'] .setup-account-status { color: var(--state-wait); }
+.provider-setup [data-account-state='expired'] .setup-account-status { color: var(--state-fail); }
+.provider-setup .setup-account-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.provider-setup .setup-account-actions .setup-button { min-height: 28px; padding: 4px 9px; font-size: 11px; font-weight: 550; border-radius: 6px; }
+.provider-setup .setup-install-row { display: flex; gap: 16px; align-items: center; justify-content: space-between; }
+.provider-setup .setup-install-row .setup-button { flex: none; }
+.provider-setup .setup-hint { color: var(--proto-muted); font-size: 12px; }
+.provider-setup .setup-profile-body .setup-hint { margin-top: 7px; font-size: 11px; }
+.provider-setup .setup-cc-body .setup-account { padding: 0; min-height: 36px; }
+.provider-setup .setup-footer { margin-top: 20px; }
+.provider-setup .setup-footer-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+.provider-setup .setup-footnote { margin-top: 14px; color: var(--proto-muted-3); font-size: 11px; text-align: center; }
+.provider-setup .setup-footnote + .setup-footnote { margin-top: 5px; }
+.provider-setup .setup-feedback { margin-top: 10px; color: var(--proto-accent); font-size: 12px; }
+.provider-setup .setup-error { margin: 12px 20px; color: var(--state-fail); font-size: 12px; overflow-wrap: anywhere; }
+.provider-setup .setup-log { font: 11px/1.7 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--proto-alt); color: var(--proto-muted); border: 1px solid var(--proto-line-2); border-radius: 7px; padding: 12px; max-height: 120px; overflow: auto; margin: 12px 0 0; }
+@media (max-width: 600px) {
+  .provider-setup .setup-header { padding-left: 20px; padding-right: 20px; }
+  .provider-setup .setup-header-label { display: none; }
+  .provider-setup .setup-header-actions { gap: 8px; }
+  .provider-setup .setup-workspace { width: calc(100% - 32px); margin-top: 36px; }
+  .provider-setup h1 { font-size: 24px; }
+  .provider-setup .setup-card-header, .provider-setup .setup-card-body { padding-left: 16px; padding-right: 16px; }
+  .provider-setup .setup-account { flex-wrap: wrap; }
+  .provider-setup .setup-account-actions { margin-left: auto; }
+  .provider-setup .setup-install-row { flex-wrap: wrap; gap: 10px; }
+}

@@ -1,8 +1,14 @@
-// input:  provider onboarding product copy
-// output: English and Chinese setup vocabulary
+// input:  provider onboarding and appearance-control copy
+// output: English and Chinese setup and header vocabulary
 // pos:    Compact provider onboarding translations
 // >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
 export const setupEn = {
+  setupHeader: 'Setup',
+  setupEyebrow: 'SERVER READY',
+  setupBundled: 'Built in',
+  setupOptional: 'Optional',
+  setupToggleTheme: 'Toggle light / dark theme',
+  setupLanguage: 'Language',
   setupTitle: 'Connect a provider',
   setupDescription: 'PI is bundled with Cortex. Choose a provider or use detected credentials.',
   setupHonesty: 'Local credential detection is not live validation. No paid inference requests are made.',
@@ -34,6 +40,12 @@ export const setupEn = {
   setupWorking: 'Working…',
 };
 export const setupZh: Record<keyof typeof setupEn, string> = {
+  setupHeader: '初始设置',
+  setupEyebrow: '服务已启动',
+  setupBundled: '已内置',
+  setupOptional: '可选',
+  setupToggleTheme: '切换浅色 / 深色主题',
+  setupLanguage: '语言',
   setupTitle: '接入 Provider',
   setupDescription: 'Cortex 已内置 PI。请选择 Provider，或使用检测到的凭据。',
   setupHonesty: '本地凭据检测不等于在线验证。此步骤不会发起付费推理请求。',
