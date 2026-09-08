@@ -411,12 +411,17 @@ function subagentEvents(notice: SubagentNotice): NormalizedEvent[] {
     model: notice.model,
   };
   if (notice.kind === 'tool_use') {
+    // A child's tool name is a PI-native label just like the parent's, and the subagent forwards it
+    // raw. Canonicalize it exactly as handleToolExecutionStart does — falling back to the raw name
+    // for tools the map does not know — so one tool never reads two ways depending on who ran it.
+    const name = toCanonical('pi', notice.name!) ?? notice.name!;
     return [{
-      type: 'tool_use', toolUseId: notice.toolUseId!, name: notice.name!,
+      type: 'tool_use', toolUseId: notice.toolUseId!, name,
       input: notice.input ?? {}, subagent,
     }];
   }
   if (notice.kind === 'tool_result') {
+    // Results carry no tool name (they join their tool_use by id), so nothing to canonicalize here.
     return [{
       type: 'tool_result', toolUseId: notice.toolUseId!,
       ok: notice.ok !== false, content: notice.content ?? '', subagent,

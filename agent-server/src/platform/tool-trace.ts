@@ -34,6 +34,33 @@ function stripMcpPrefix(name: string): string {
   return m ? m[1] : name;
 }
 
+/** Description (else declared role) of one task in a PI `agent` batch; '' when it is malformed. */
+function batchTaskLabel(task: unknown): string {
+  if (!task || typeof task !== 'object') return '';
+  const record = task as Record<string, unknown>;
+  const label = typeof record.description === 'string' && record.description
+    ? record.description
+    : typeof record.subagent_type === 'string' ? record.subagent_type : '';
+  return firstLine(label).slice(0, 40);
+}
+
+/** Summarize a subagent spawn for both spellings: Claude's `Agent` and PI's `agent`. PI also
+ *  accepts `parallel`/`chain` batches, where one call stands for up to eight children — those read
+ *  as the first task plus how many follow, since the whole batch shares a single trace line. */
+function summarizeAgentInput(input: any): string {
+  const parallel = Array.isArray(input.parallel) ? (input.parallel as unknown[]) : null;
+  const chain = !parallel && Array.isArray(input.chain) ? (input.chain as unknown[]) : null;
+  const tasks = parallel ?? chain;
+  if (!tasks) {
+    return firstLine(String(input.description ?? input.subagent_type ?? '')).slice(0, 60);
+  }
+  const mode = parallel ? 'parallel' : 'chain';
+  const head = tasks.length > 0 ? batchTaskLabel(tasks[0]) : '';
+  const rest = tasks.length > 1 ? tasks.length - 1 : 0;
+  const tail = rest > 0 ? `(+${rest} ${mode})` : `(${mode})`;
+  return head ? `${head} ${tail}` : tail;
+}
+
 /** One-line summary of a single tool invocation's params — short enough to chain. */
 function summarizeToolInput(name: string, input: any): string {
   if (!input || typeof input !== 'object') return '';
@@ -65,7 +92,8 @@ function summarizeToolInput(name: string, input: any): string {
     case 'Skill':
       return String(input.skill ?? '');
     case 'Agent':
-      return firstLine(String(input.description ?? input.subagent_type ?? '')).slice(0, 60);
+    case 'agent':
+      return summarizeAgentInput(input);
     case 'TodoWrite':
     case 'todo_write': {
       const snapshot = parseTodoSnapshot(input);

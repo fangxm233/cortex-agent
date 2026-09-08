@@ -208,6 +208,76 @@ test('tool_result: missing toolCallId → []', () => {
 });
 
 // ---------------------------------------------------------------------------
+// 4b. cortex_subagent_event — a child's events, attributed to the child that ran them
+// ---------------------------------------------------------------------------
+
+function subagentNotice(extra: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ref: 'agent-call#1',
+    type: 'explore',
+    description: 'Inspect the adapter',
+    model: 'pi-model',
+    ...extra,
+  };
+}
+
+test('subagent tool_use: the child tool name is canonicalized, attribution preserved', () => {
+  const state = freshState();
+  const events = piEventToNormalized(ev({
+    type: 'cortex_subagent_event',
+    notice: subagentNotice({
+      kind: 'tool_use', toolUseId: 'agent-call#1:c1', name: 'web_search', input: { query: 'pi' },
+    }),
+  }), state);
+
+  assert.equal(events.length, 1);
+  const child = events[0] as any;
+  assert.equal(child.type, 'tool_use');
+  assert.equal(child.name, 'web_search', 'the canonical spelling, not whatever the child reported');
+  assert.deepEqual(child.input, { query: 'pi' });
+  assert.deepEqual(child.subagent, {
+    parentToolUseId: 'agent-call#1', type: 'explore',
+    description: 'Inspect the adapter', model: 'pi-model',
+  });
+});
+
+test('subagent tool_use: child names normalize exactly like the parent path', () => {
+  // The PI table currently spells every canonical name the way PI does, so this asserts parity with
+  // the parent's own canonicalization rather than a literal rename: whichever way the table moves,
+  // one tool must never read two ways depending on whether a child or the parent called it.
+  const state = freshState();
+  for (const name of ['web_search', 'todo_write', 'read', 'mcp__cortex-core__remote_bash', 'agent']) {
+    const parent = piEventToNormalized(
+      ev({ type: 'tool_execution_start', toolCallId: 'p1', toolName: name, args: {} }),
+      state,
+    ).find((event) => event.type === 'tool_use') as any;
+    const child = piEventToNormalized(ev({
+      type: 'cortex_subagent_event',
+      notice: subagentNotice({ kind: 'tool_use', toolUseId: 'agent-call#1:c1', name, input: {} }),
+    }), state)[0] as any;
+    assert.equal(child.name, parent.name, `child and parent must agree on ${name}`);
+  }
+});
+
+test('subagent tool_result: joins its call by id and keeps attribution', () => {
+  const state = freshState();
+  const events = piEventToNormalized(ev({
+    type: 'cortex_subagent_event',
+    notice: subagentNotice({
+      kind: 'tool_result', toolUseId: 'agent-call#1:c1', ok: false, content: 'no match',
+    }),
+  }), state);
+
+  assert.deepEqual(events, [{
+    type: 'tool_result', toolUseId: 'agent-call#1:c1', ok: false, content: 'no match',
+    subagent: {
+      parentToolUseId: 'agent-call#1', type: 'explore',
+      description: 'Inspect the adapter', model: 'pi-model',
+    },
+  }]);
+});
+
+// ---------------------------------------------------------------------------
 // 5. Shared interaction MCP tools use the ordinary tool event path
 // ---------------------------------------------------------------------------
 

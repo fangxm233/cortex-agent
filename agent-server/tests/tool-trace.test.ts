@@ -12,7 +12,7 @@ import {
   _testResetRetryDelays,
 } from '../src/platform/adapters/slack-output-stream.js';
 import type { Destination, OutputStream } from '../src/platform/index.js';
-import { ToolTrace, createToolTrace, isToolTraceEnabled } from '../src/platform/tool-trace.js';
+import { ToolTrace, createToolTrace, isToolTraceEnabled, _test } from '../src/platform/tool-trace.js';
 import { resetSettingsForTests } from '../src/core/settings.js';
 import { subagentSpawnsFromToolCall } from '../src/agent-adapter/normalize/event-types.js';
 
@@ -45,6 +45,36 @@ test('subagent spawn parser preserves exact prompts and backend child ids', () =
     subagentSpawnsFromToolCall('mcp__third_party__agent', { prompt: 'private MCP input' }, 'tu_mcp'),
     [],
     'an MCP tool named agent is not a native subagent spawn',
+  );
+});
+
+test('tool summaries name the delegated task for both Agent spellings', () => {
+  const { summarizeToolInput } = _test;
+  const task = (description: string, subagent_type: string) => ({ description, prompt: 'p', subagent_type });
+
+  assert.equal(summarizeToolInput('Agent', task('Map the event flow', 'explore')), 'Map the event flow');
+  assert.equal(summarizeToolInput('agent', task('List files', 'explore')), 'List files');
+  assert.equal(
+    summarizeToolInput('agent', { prompt: 'p', subagent_type: 'explore' }),
+    'explore',
+    'a single call without a description falls back to the declared role',
+  );
+  assert.equal(
+    summarizeToolInput('agent', { parallel: [task('List files', 'explore'), task('Read docs', 'explore')] }),
+    'List files (+1 parallel)',
+    'a batch reads as its first task plus how many follow',
+  );
+  assert.equal(
+    summarizeToolInput('agent', {
+      chain: [task('Draft', 'writer'), task('Review', 'reviewer'), task('Polish', 'writer')],
+    }),
+    'Draft (+2 chain)',
+  );
+  assert.equal(summarizeToolInput('agent', { parallel: [task('Only task', 'explore')] }), 'Only task (parallel)');
+  assert.equal(
+    summarizeToolInput('agent', { parallel: ['malformed'] }),
+    '(parallel)',
+    'a batch whose tasks cannot be read is still reported as a batch',
   );
 });
 
