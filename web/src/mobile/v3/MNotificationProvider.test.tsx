@@ -112,7 +112,7 @@ describe('mobile notification delivery', () => {
     h.owned.mockReturnValue(true);
     await expect(h.feed?.externalDelivery?.(item())).resolves.toBe(true);
     expect(h.send).not.toHaveBeenCalled();
-    const notice = { ...item(), id: 'n2', sessionId: null, projectId: null };
+    const notice = { ...item(), id: 'n2', sessionId: '', projectId: null };
     await expect(h.feed?.externalDelivery?.(notice)).resolves.toBe(true);
     expect(h.send).toHaveBeenCalledWith({ title: 'Inbox', body: 'Done' }, { kind: 'sessions' });
   });
