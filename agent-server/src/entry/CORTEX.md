@@ -7,9 +7,11 @@ Composes the runtime from the other layers and starts the server, daemon, CLI, a
 |---|---|---|
 | admin-channel-hot-reload.ts | wiring | creates adapter with live admin settings |
 | app.ts | entry | Wires guarded boot jobs, immutable trial config and attempt evidence |
-| auth-cli.ts | cli | handles auth status arguments and rendering |
+| auth-cli.ts | cli | routes auth status, login and provider commands |
+| auth-login-cli.ts | cli | coordinates TTY login with shared auth service |
+| auth-login-terminal.ts | adapter | prompts secrets and confirms Claude installation |
 | boot-jobs.ts | wiring | registers optional client publisher and archive timer |
-| cli-help.ts | cli | builds top-level and subcommand help |
+| cli-help.ts | cli | builds help including provider login entry |
 | cli.ts | entry | dispatches the full operator CLI handlers |
 | cortex-cli.ts | entry | boots the operator CLI package command |
 | daemon.ts | entry | supervises app with shared resilient monitors |
@@ -19,7 +21,8 @@ Composes the runtime from the other layers and starts the server, daemon, CLI, a
 | hook-cli.ts | cli | Inspects hooks and runs blocking user asks |
 | fast-install.ts | build | syncs build outputs into the install root |
 | feishu-login.ts | cli | handles Feishu login and serialized env updates |
-| init.ts | cli | creates Cortex home and optional usage config |
+| init.ts | cli | creates PI-first home and starts provider setup |
+| init-auth.ts | cli | detects credentials and offers login or rescan |
 | local-ui.ts | config | enables the loopback Web UI endpoint idempotently |
 | production-app-bootstrap.ts | entry | Consumes one-shot server auth before importing the sealed production app |
 | production-evidence-export-cli.ts | cli | Publishes production benchmark evidence v2 |

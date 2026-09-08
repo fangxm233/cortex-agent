@@ -1,5 +1,5 @@
 // input:  defaults, filesystem, MCP builders, setup
-// output: runInit and optional shared configuration
+// output: PI-first init, provider onboarding and configuration
 // pos:    Initializes Cortex home and config surfaces
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -11,6 +11,7 @@ import * as os from 'os';
 import { fileURLToPath } from 'url';
 import { createInterface } from 'readline/promises';
 import { stdin as processStdin } from 'process';
+import { onboardInitAuth } from './init-auth.js';
 import * as clack from '@clack/prompts';
 import * as yaml from 'yaml';
 import {
@@ -195,7 +196,7 @@ export function parseInitAnswersJson(raw: string): InitAnswers {
 
   return {
     lang: typeof input.lang === 'string' ? normalizeLocale(input.lang) : detectSystemLocale(),
-    backends: backends.length > 0 ? backends : ['claude'],
+    backends: backends.length > 0 ? backends : (input.backends === undefined ? ['pi'] : ['claude']),
     machineName: typeof input.machineName === 'string' && input.machineName.trim()
       ? input.machineName.trim()
       : os.hostname(),
@@ -583,7 +584,7 @@ async function checkAndInstallBackends(backends: InitBackend[]): Promise<void> {
       }
     }
 
-    clack.log.info(t(info.loginHintKey));
+    // Authentication is detected and offered after local configuration, not during installation.
   }
 }
 
@@ -965,20 +966,9 @@ async function collectAnswersInteractive(paths: InitPaths): Promise<InitAnswers>
 
   clack.intro(t('init.intro'));
 
-  // Step 1: Backend selection
-  clack.note(
-    t('init.backend.noteBody'),
-    t('init.backend.noteTitle'),
-  );
-  const backends = await clack.multiselect({
-    message: t('init.backend.prompt'),
-    options: [
-      { value: 'claude' as InitBackend, label: t('init.backend.claudeLabel'), hint: t('init.backend.claudeHint') },
-      { value: 'pi' as InitBackend, label: t('init.backend.piLabel'), hint: t('init.backend.piHint') },
-    ],
-    required: true,
-  });
-  handleCancel(backends);
+  // CC installation belongs to provider login, not machine configuration.
+  const backends: InitBackend[] = ['pi'];
+  clack.log.info('PI is bundled. Add providers or install Claude Code in the login step.');
 
   // Step 2: Platform selection (multi-select — Slack and Feishu can run simultaneously).
   // Leave empty to skip and configure platforms later by editing .env manually.
@@ -1103,7 +1093,7 @@ async function collectAnswersNonInteractive(): Promise<InitAnswers> {
   // `platform` is a comma-separated list (e.g. "slack,feishu"); single values are back-compat.
   const [backendsRaw, platformRaw, gatewayEnabledRaw, name, org, email, installServiceRaw] = lines;
 
-  const backends = (backendsRaw || 'claude')
+  const backends = (backendsRaw || 'pi')
     .split(',')
     .map(s => s.trim())
     .filter((s): s is InitBackend => s === 'claude' || s === 'pi');
@@ -1619,6 +1609,7 @@ async function runGatewaySetup(
   paths: InitPaths,
   gatewayConfigDir?: string,
   answers?: Pick<InitAnswers, 'planChoice' | 'executeChoice' | 'extraProfiles'>,
+  interactive = false,
 ): Promise<boolean> {
   // Discover endpoints from Claude/PI local configs — filtered by user-selected backends
   const endpoints = await discoverEndpoints(backends);
@@ -1655,7 +1646,7 @@ async function runGatewaySetup(
   let extraProfiles = answers?.extraProfiles;
   let overwrite: boolean;
 
-  if (processStdin.isTTY) {
+  if (interactive) {
     // Interactive: prompt for selection (with overwrite confirmation if needed)
     const picked = await pickPlanExecuteInteractive(endpoints, paths.CONFIG_DIR);
     planChoice = picked.planChoice ?? planChoice;
@@ -1668,7 +1659,7 @@ async function runGatewaySetup(
     // Non-interactive: stdin already provided choices (or empty → lex-first default).
     // Fallback chains are not configurable via stdin in this iteration — extend the stdin
     // protocol if scripted installs need fallback.
-    overwrite = true;
+    overwrite = !!(answers?.planChoice || answers?.executeChoice || answers?.extraProfiles);
   }
 
   // Generate profiles.json
@@ -1762,13 +1753,12 @@ async function runInitSteps(
 ): Promise<void> {
   const emit = (event: Record<string, unknown>): void => emitter?.emit(event);
 
-  // 1. Collect user choices. Supplied answers win over both prompt paths; a TTY without answers
-  //    still gets the full interactive wizard, so `cortex init` by hand is unchanged.
+  // 1. Scripted answers and JSON mode never prompt. Interactive installs start with bundled PI.
   const answers = options.answers
-    ?? (processStdin.isTTY
+    ?? (processStdin.isTTY && !options.jsonEvents
       ? await collectAnswersInteractive(paths)
-      : await collectAnswersNonInteractive());
-  const interactive = !options.answers && processStdin.isTTY;
+      : options.jsonEvents && processStdin.isTTY ? parseInitAnswersJson('{}') : await collectAnswersNonInteractive());
+  const interactive = !options.answers && !options.jsonEvents && processStdin.isTTY;
   emit({ step: 'answers', state: 'ok', machine: answers.machineName, backends: answers.backends });
 
   // 2. Check & install backends
@@ -1809,47 +1799,15 @@ async function runInitSteps(
     emit({ step: 'service', state: 'ok' });
   }
 
-  // 7. Gateway & profile auto-setup (detect from Claude/PI local configs)
+  // 7. Detect credentials automatically. Login/install is only offered here.
+  const authBackends = await onboardInitAuth(!!interactive, event => {
+    emit(event);
+    if (!emitter && !interactive) process.stdout.write(`${JSON.stringify(event)}\n`);
+  });
   if (interactive) {
-    const loginHints = answers.backends.map(b => {
-      const info = BACKEND_INFO[b];
-      return `  • ${t(info.labelKey)}:  ${t(info.loginHintKey).replace(/^Run /, '').replace(/\.$/, '')}`;
-    }).join('\n');
-
-    clack.note(
-      t('init.gatewayProfile.note', { loginHints }),
-      t('init.gatewayProfile.noteTitle'),
-    );
-
-    let gatewayDone = false;
-    while (!gatewayDone) {
-      const ready = await clack.confirm({
-        message: t('init.gatewayProfile.readyPrompt'),
-        initialValue: true,
-      });
-      handleCancel(ready);
-
-      if (ready) {
-        await runGatewaySetup(answers.backends, paths, options.gatewayConfigDir, answers);
-        gatewayDone = true;
-      } else {
-        // User hasn't logged in yet — let them choose to go log in or skip entirely
-        clack.log.info(t('init.gatewayProfile.loginNow', { loginHints }));
-        const action = await clack.select({
-          message: t('init.gatewayProfile.actionPrompt'),
-          options: [
-            { value: 'retry', label: t('init.gatewayProfile.retryLabel') },
-            { value: 'skip', label: t('init.gatewayProfile.skipLabel') },
-          ],
-        });
-        handleCancel(action);
-        if (action === 'skip') {
-          clack.log.info(t('init.gatewayProfile.skipped'));
-          gatewayDone = true;
-        }
-        // action === 'retry' → loop continues, re-prompt the confirm
-      }
-    }
+    const configured = authBackends.length > 0
+      && await runGatewaySetup(authBackends, paths, options.gatewayConfigDir, answers, true);
+    emit({ step: 'gateway', state: configured ? 'ok' : 'skip' });
   } else {
     // Non-interactive: auto-detect silently, passing caller-supplied choices. A machine with no
     // backend logged in yet yields no endpoints — expected on a fresh desktop install, where the

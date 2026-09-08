@@ -1,5 +1,5 @@
 // input:  init module, MCP builders, temporary filesystem
-// output: init path, env, config, and platform verification
+// output: PI defaults, legacy answers and init config verification
 // pos:    Cortex init pure-logic tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -602,7 +602,7 @@ test('runFeishuUserLogin omits FEISHU_DOMAIN when unset and surfaces stderr on f
 test('parseInitAnswersJson preserves shared usage config for an empty document', () => {
   const answers = parseInitAnswersJson('{}');
 
-  assert.deepEqual(answers.backends, ['claude']);
+  assert.deepEqual(answers.backends, ['pi']);
   assert.deepEqual(answers.platforms, []);
   assert.equal(answers.installService, false);
   assert.equal(answers.gatewayUsage, undefined);

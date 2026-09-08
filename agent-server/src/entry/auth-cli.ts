@@ -1,6 +1,6 @@
 // input:  auth snapshot getter, shared formatter, localized CLI copy
 // output: auth subcommand parser and result
-// pos:    Authentication status CLI handler
+// pos:    Authentication status, login and provider CLI handler
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import { formatError } from '@core/cli-utils.js';
@@ -10,6 +10,7 @@ import type { AuthStatusSnapshot } from '@domain/auth/auth-status.js';
 import type { CustomProviderStores } from '@domain/pi-providers/index.js';
 import { getAuthHelp } from './cli-help.js';
 import { runProviderCli } from './provider-cli.js';
+import { runAuthLoginCli } from './auth-login-cli.js';
 
 export interface AuthCliDeps {
   getAuthStatus?: () => Promise<AuthStatusSnapshot>;
@@ -37,7 +38,7 @@ function parseAuthCommand(args: string[]): AuthCliResult | string[] {
   if (args[0] === 'status') return args.slice(1);
   const message = t('cmd.auth.cli.unknownSubcommand', { command: args[0] });
   const stderr = formatError(message, {
-    validValues: ['status', 'provider'], hint: 'cortex auth --help', labels: authErrorLabels(),
+    validValues: ['status', 'login', 'provider'], hint: 'cortex auth --help', labels: authErrorLabels(),
   });
   return { exitCode: 1, stdout: '', stderr };
 }
@@ -60,6 +61,7 @@ export async function runAuthCli(
   readStatus: () => Promise<AuthStatusSnapshot>,
   stores?: CustomProviderStores,
 ): Promise<AuthCliResult> {
+  if (args[0] === 'login') return runAuthLoginCli(args.slice(1));
   // Custom providers are part of the account surface, so they hang off `cortex auth`.
   if (args[0] === 'provider') {
     if (!stores) {

@@ -1,5 +1,5 @@
 // input:  shared CLI formatter and localized auth vocabulary
-// output: help text for the top-level, auth, init, gateway, TUI
+// output: CLI help including auth login discovery
 // pos:    Cortex CLI help-family definitions
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -140,9 +140,10 @@ export function getAuthHelp(): string {
   return formatHelp({
     name: 'cortex auth',
     description: t('cmd.auth.cli.description'),
-    usage: 'cortex auth <status|provider> [options]',
+    usage: 'cortex auth <status|login|provider> [options]',
     commands: [
       { name: 'status', description: t('cmd.auth.cli.statusDescription') },
+      { name: 'login', description: 'Interactive provider login (PI bundled; Claude installed only on confirmation)' },
       { name: 'provider', description: t('provider.cli.description') },
     ],
     options: [

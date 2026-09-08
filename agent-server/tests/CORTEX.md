@@ -83,7 +83,9 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | hook-bus.test.ts | test | HookBus ordering, timeout and diagnostics |
 | hook-callers.test.ts | test | Session timeout, diagnostics and injection |
 | hook-exec.test.ts | test | Hook subprocess output, status and stdin |
-| init.test.ts | test | init paths, env and bundled MCP generation |
+| init.test.ts | test | PI defaults, legacy answers and init config |
+| init-auth.test.ts | test | onboarding and confirmed installer boundaries |
+| auth-login-cli.test.ts | test | login validation, secrets and flow lifecycle |
 | integration-init-answers.test.ts | e2e | init answers, local UI and usage preservation |
 | integration-init-startup.test.ts | e2e | init, MCP configs and lifecycle hooks |
 | integration-settings-hotreload.test.ts | e2e | Settings migration and live reload behavior |
