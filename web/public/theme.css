@@ -44,24 +44,24 @@
   --surface-base: oklch(calc(0.928 + var(--bg-light)) calc(0.007 * var(--bg-chroma)) var(--bg-hue));
   --surface-canvas: oklch(calc(1 + 0.45 * var(--bg-light)) 0 var(--bg-hue));
   --surface-canvas-alt: oklch(calc(0.979 + 0.45 * var(--bg-light)) calc(0.0029 * var(--bg-chroma)) var(--bg-hue));
-  --surface-rail: oklch(calc(0.988 + 0.45 * var(--bg-light)) calc(0.0013 * var(--bg-chroma)) var(--bg-hue));
+  --surface-rail: oklch(calc(0.979 + 0.45 * var(--bg-light)) calc(0.0029 * var(--bg-chroma)) var(--bg-hue));
   --surface-raised: oklch(calc(0.961 + 0.45 * var(--bg-light)) calc(0.0041 * var(--bg-chroma)) var(--bg-hue));
 
   --proto-base: oklch(calc(0.928 + var(--bg-light)) calc(0.007 * var(--bg-chroma)) var(--bg-hue));
   --proto-card: oklch(calc(1 + 0.45 * var(--bg-light)) 0 var(--bg-hue));
   --proto-card-transparent: oklch(calc(1 + 0.45 * var(--bg-light)) 0 var(--bg-hue) / 0);
-  --proto-rail: oklch(calc(0.988 + 0.45 * var(--bg-light)) calc(0.0013 * var(--bg-chroma)) var(--bg-hue));
+  --proto-rail: oklch(calc(0.979 + 0.45 * var(--bg-light)) calc(0.0029 * var(--bg-chroma)) var(--bg-hue));
   --proto-alt: oklch(calc(0.979 + 0.45 * var(--bg-light)) calc(0.0029 * var(--bg-chroma)) var(--bg-hue));
   --proto-gray: oklch(calc(0.961 + 0.45 * var(--bg-light)) calc(0.0041 * var(--bg-chroma)) var(--bg-hue));
   --proto-ink: oklch(calc(0.226 - var(--ink-contrast)) calc(0.0125 * var(--ink-chroma)) var(--ink-hue));
   --proto-ink-2: oklch(calc(0.268 - var(--ink-contrast)) calc(0.016 * var(--ink-chroma)) var(--ink-hue));
   --proto-ink-3: oklch(calc(0.362 - var(--ink-contrast)) calc(0.0191 * var(--ink-chroma)) var(--ink-hue));
-  --proto-muted: oklch(calc(0.501 - var(--ink-contrast)) calc(0.025 * var(--ink-chroma)) var(--ink-hue));
-  --proto-muted-2: oklch(calc(0.661 - var(--ink-contrast)) calc(0.0246 * var(--ink-chroma)) var(--ink-hue));
-  --proto-muted-3: oklch(calc(0.707 - var(--ink-contrast)) calc(0.0242 * var(--ink-chroma)) var(--ink-hue));
-  --proto-faint: oklch(calc(0.797 - var(--ink-contrast)) calc(0.0186 * var(--ink-chroma)) var(--ink-hue));
+  --proto-muted: oklch(calc(0.469 - var(--ink-contrast)) calc(0.032 * var(--ink-chroma)) var(--ink-hue));
+  --proto-muted-2: oklch(calc(0.588 - var(--ink-contrast)) calc(0.0315 * var(--ink-chroma)) var(--ink-hue));
+  --proto-muted-3: oklch(calc(0.611 - var(--ink-contrast)) calc(0.0284 * var(--ink-chroma)) var(--ink-hue));
+  --proto-faint: oklch(calc(0.658 - var(--ink-contrast)) calc(0.026 * var(--ink-chroma)) var(--ink-hue));
   --proto-disabled: oklch(calc(0.894 + 0.45 * var(--bg-light)) calc(0.0101 * var(--bg-chroma)) var(--bg-hue));
-  --proto-line: oklch(calc(0.934 + 0.45 * var(--bg-light)) calc(0.0071 * var(--bg-chroma)) var(--bg-hue));
+  --proto-line: oklch(calc(0.931 + 0.45 * var(--bg-light)) calc(0.0098 * var(--bg-chroma)) var(--bg-hue));
   --proto-line-2: oklch(calc(0.958 + 0.45 * var(--bg-light)) calc(0.0058 * var(--bg-chroma)) var(--bg-hue));
   --proto-line-3: oklch(calc(0.894 + 0.45 * var(--bg-light)) calc(0.0101 * var(--bg-chroma)) var(--bg-hue));
   --proto-line-4: oklch(calc(0.926 + 0.45 * var(--bg-light)) calc(0.0139 * var(--bg-chroma)) var(--bg-hue));
@@ -171,7 +171,7 @@
   --log-fg: #c9ceda;
   --log-border: #2a2f3a;
 
-  --m-canvas: oklch(calc(0.963 + var(--bg-light)) calc(0.0066 * var(--bg-chroma)) var(--bg-hue));
+  --m-canvas: oklch(calc(0.973 + var(--bg-light)) calc(0.0029 * var(--bg-chroma)) var(--bg-hue));
   --m-page-header: oklch(calc(1 + var(--bg-light)) 0 var(--bg-hue));
   --m-card: oklch(calc(1 + 0.45 * var(--bg-light)) 0 var(--bg-hue));
   --m-tabbar-bg: oklch(calc(1 + var(--bg-light)) 0 var(--bg-hue));
@@ -179,11 +179,11 @@
   --m-ink: oklch(calc(0.226 - var(--ink-contrast)) calc(0.0125 * var(--ink-chroma)) var(--ink-hue));
   --m-sub: oklch(calc(0.501 - var(--ink-contrast)) calc(0.025 * var(--ink-chroma)) var(--ink-hue));
   --m-body: oklch(calc(0.268 - var(--ink-contrast)) calc(0.016 * var(--ink-chroma)) var(--ink-hue));
-  --m-muted: oklch(calc(0.661 - var(--ink-contrast)) calc(0.0246 * var(--ink-chroma)) var(--ink-hue));
-  --m-faint: oklch(calc(0.797 - var(--ink-contrast)) calc(0.0186 * var(--ink-chroma)) var(--ink-hue));
-  --m-hairline: oklch(calc(0.934 + 0.45 * var(--bg-light)) calc(0.0071 * var(--bg-chroma)) var(--bg-hue));
+  --m-muted: oklch(calc(0.598 - var(--ink-contrast)) calc(0.0346 * var(--ink-chroma)) var(--ink-hue));
+  --m-faint: oklch(calc(0.658 - var(--ink-contrast)) calc(0.0278 * var(--ink-chroma)) var(--ink-hue));
+  --m-hairline: oklch(calc(0.925 + 0.45 * var(--bg-light)) calc(0.0098 * var(--bg-chroma)) var(--bg-hue));
   --m-divider: oklch(calc(0.967 + 0.45 * var(--bg-light)) calc(0.0041 * var(--bg-chroma)) var(--bg-hue));
-  --m-card-border: oklch(calc(0.934 + 0.45 * var(--bg-light)) calc(0.0071 * var(--bg-chroma)) var(--bg-hue));
+  --m-card-border: oklch(calc(0.925 + 0.45 * var(--bg-light)) calc(0.0098 * var(--bg-chroma)) var(--bg-hue));
   --m-run: var(--accent-main);
   --m-run-bg: var(--accent-soft);
   --m-run-border: var(--accent-border);
