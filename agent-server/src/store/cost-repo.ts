@@ -1,7 +1,8 @@
 // input:  costs.jsonl + budget.json
 // output: CostRepo (recordEntry / recordEntryBatch / readCosts / readBudget / writeBudget /
 //         invalidateBudget / flush) + migrateBudget
-// pos:    Cost + Budget persistence layer. Costs use JSONL + append-only (avoiding repeated full-file reads/writes),
+// pos:    Cost + Budget persistence layer. Costs use JSONL + append-only (avoiding repeated full-file reads/writes)
+//         and reads are served from an incremental cache that only parses newly appended bytes,
 //         Budget still uses the JsonRepository abstraction. Budget carries global limits plus an
 //         optional per-project override map (pair-only overrides).
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -78,6 +79,14 @@ function resolveBudgetPath(): string {
 export class CostRepo {
   private costMutex = new AsyncMutex();
   private _ready = false;
+  /**
+   * Incremental read cache. costs.jsonl is append-only, so a re-read only has to parse the bytes
+   * added since the last one; re-parsing the whole file per query (getCostSummary calls readCosts
+   * every time) allocated the entire file plus one object per line as a transient, and this process
+   * never returns freed native memory to the OS. `size` always sits on a line boundary. A file that
+   * shrank or whose mtime moved without appending (startup prune, out-of-band rewrite) drops it.
+   */
+  private _cache: { path: string; size: number; mtimeMs: number; entries: CostEntry[] } | null = null;
   private _budgetRepo: JsonRepository<BudgetConfig> | null = null;
   private readonly _costsPath: string | null;
   private readonly _budgetPath: string | null;
@@ -128,6 +137,33 @@ export class CostRepo {
     this._ready = true;
   }
 
+  /**
+   * Parse the JSONL byte range [start, end) into entries. Stops at the last complete line and
+   * reports how far it consumed, so an append that is still in flight is simply picked up by the
+   * next read instead of being parsed as a torn line.
+   */
+  private async _readEntriesRange(
+    filePath: string,
+    start: number,
+    end: number,
+  ): Promise<{ entries: CostEntry[]; consumedTo: number }> {
+    if (end <= start) return { entries: [], consumedTo: start };
+    const handle = await fs.open(filePath, 'r');
+    try {
+      const buf = Buffer.allocUnsafe(end - start);
+      const { bytesRead } = await handle.read(buf, 0, buf.length, start);
+      const lastNewline = bytesRead > 0 ? buf.lastIndexOf(0x0a, bytesRead - 1) : -1;
+      if (lastNewline < 0) return { entries: [], consumedTo: start };
+      const entries = buf.toString('utf8', 0, lastNewline + 1)
+        .split('\n')
+        .filter(l => l.trim() !== '')
+        .map(l => JSON.parse(l) as CostEntry);
+      return { entries, consumedTo: start + lastNewline + 1 };
+    } finally {
+      await handle.close();
+    }
+  }
+
   /** Read raw JSONL file — no side effects. */
   private async _readFileEntries(filePath: string): Promise<CostEntry[]> {
     try {
@@ -168,8 +204,33 @@ export class CostRepo {
    */
   async readCosts(): Promise<CostsData> {
     await this._ensureReady();
-    const entries = await this._readFileEntries(this.costFilePath);
-    return { entries };
+    const filePath = this.costFilePath;
+    let size: number;
+    let mtimeMs: number;
+    try {
+      const stat = await fs.stat(filePath);
+      size = stat.size;
+      mtimeMs = stat.mtimeMs;
+    } catch (err: any) {
+      if (err.code !== 'ENOENT') throw err;
+      this._cache = null;
+      return { entries: [] };
+    }
+
+    const cached = this._cache?.path === filePath ? this._cache : null;
+    if (cached && size === cached.size && mtimeMs === cached.mtimeMs) {
+      return { entries: cached.entries.slice() };
+    }
+    if (cached && size > cached.size) {
+      const { entries, consumedTo } = await this._readEntriesRange(filePath, cached.size, size);
+      const merged = cached.entries.concat(entries);
+      this._cache = { path: filePath, size: consumedTo, mtimeMs, entries: merged };
+      return { entries: merged.slice() };
+    }
+    // Cold, or the file shrank / was rewritten in place — reparse from the top.
+    const { entries, consumedTo } = await this._readEntriesRange(filePath, 0, size);
+    this._cache = { path: filePath, size: consumedTo, mtimeMs, entries };
+    return { entries: entries.slice() };
   }
 
   async readBudget(): Promise<BudgetConfig> {
@@ -206,6 +267,7 @@ export class CostRepo {
   _testReset(): void {
     this._budgetRepo = null;
     this._ready = false;
+    this._cache = null;
   }
 }
 

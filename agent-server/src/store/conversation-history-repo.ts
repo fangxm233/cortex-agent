@@ -749,16 +749,38 @@ export class ConversationHistoryRepo {
   /** True when a recovered pending injection has already appended its committed user row. */
   async hasUserSourceId(sessionId: string, sourceId: string): Promise<boolean> {
     await this.awaitWriteChain(sessionId);
-    const raw = await this.readHistoryFile(sessionId);
-    if (raw === null) return false;
-    for (const line of raw.split('\n')) {
-      if (!line.trim()) continue;
-      try {
-        const event = JSON.parse(line) as RawEvent;
-        if (event.type === 'user' && event.sourceId === sourceId) return true;
-      } catch { /* malformed lines are ignored like getHistory */ }
+    const found = await this.findInHistoryLines(sessionId, (event) =>
+      event.type === 'user' && event.sourceId === sourceId ? true : undefined);
+    return found === true;
+  }
+
+  /**
+   * Stream a session's JSONL and stop at the first event the visitor accepts. The "find the first
+   * matching event" reads used to load the entire file for a line that is usually near the top;
+   * on a 44MB transcript that is a 44MB+ transient, and freed native memory is never returned to
+   * the OS, so the spike would stick as RSS.
+   */
+  private async findInHistoryLines<T>(
+    sessionId: string,
+    visit: (event: RawEvent) => T | undefined,
+  ): Promise<T | undefined> {
+    const stream = createReadStream(sessionFilePath(this.historyDir, sessionId), { encoding: 'utf8' });
+    const lines = createInterface({ input: stream, crlfDelay: Infinity });
+    try {
+      for await (const line of lines) {
+        if (!line.trim()) continue;
+        let event: RawEvent;
+        try { event = JSON.parse(line) as RawEvent; } catch { continue; }
+        const hit = visit(event);
+        if (hit !== undefined) return hit;
+      }
+      return undefined;
+    } catch {
+      return undefined; // absent or unreadable file
+    } finally {
+      lines.close();
+      stream.destroy();
     }
-    return false;
   }
 
   /**
@@ -768,18 +790,12 @@ export class ConversationHistoryRepo {
    */
   async getFirstUserText(sessionId: string): Promise<string | null> {
     await this.awaitWriteChain(sessionId);
-    const raw = await this.readHistoryFile(sessionId);
-    if (raw === null) return null;
-    for (const line of raw.split('\n')) {
-      if (!line.trim()) continue;
-      let ev: RawEvent;
-      try { ev = JSON.parse(line) as RawEvent; } catch { continue; }
-      if (ev.type === 'user') {
-        const text = (ev.text ?? '').trim();
-        return text.length ? text : null;
-      }
-    }
-    return null;
+    const found = await this.findInHistoryLines<string | null>(sessionId, (ev) => {
+      if (ev.type !== 'user') return undefined;
+      const text = (ev.text ?? '').trim();
+      return text.length ? text : null;
+    });
+    return found ?? null;
   }
 
   async clear(sessionId: string): Promise<void> {

@@ -3,7 +3,8 @@
 // pos:    Feishu PlatformAdapter implementation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import * as lark from '@larksuiteoapi/node-sdk';
+import type * as lark from '@larksuiteoapi/node-sdk';
+import { createRequire } from 'node:module';
 import type { PlatformAdapter } from '../adapter.js';
 import type {
   MessageRef,
@@ -35,6 +36,18 @@ import { ProjectConduitsStore } from './project-conduits.js';
 import { reactionFailureReason, shouldWarnReactionFailure } from '../utils/reaction-diagnostics.js';
 
 const log = createLogger('feishu');
+
+/**
+ * The Lark SDK is a single 5MB CJS bundle. Its Chinese doc comments force V8 to hold the source as
+ * a two-byte string (9.6MB), and a static `import` makes Node keep a second copy for ESM↔CJS interop
+ * — ~20MB of heap, 11% of a running server's. `createRequire` drops the interop copy, and deferring
+ * the load to the first adapter construction keeps Slack-only deployments from paying for it at all.
+ */
+let larkSdk: typeof lark | null = null;
+function sdk(): typeof lark {
+  if (!larkSdk) larkSdk = createRequire(import.meta.url)('@larksuiteoapi/node-sdk') as typeof lark;
+  return larkSdk;
+}
 
 /** Waiting behind other work. Feishu rejects `hourglass` with 231001; OnIt is the closest valid type. */
 const QUEUED_EMOJI = 'OnIt';
@@ -81,19 +94,19 @@ export class FeishuAdapter implements PlatformAdapter {
 
   constructor(config: FeishuAdapterConfig) {
     this.config = config;
-    const domain = config.domain === 'lark' ? lark.Domain.Lark : lark.Domain.Feishu;
+    const domain = config.domain === 'lark' ? sdk().Domain.Lark : sdk().Domain.Feishu;
     this.domain = domain;
 
-    this.client = new lark.Client({
+    this.client = new (sdk().Client)({
       appId: config.appId,
       appSecret: config.appSecret,
-      appType: lark.AppType.SelfBuild,
+      appType: sdk().AppType.SelfBuild,
       domain,
     });
 
     // EventDispatcher handles both regular events and card action callbacks
     // via WebSocket long connection.
-    this.eventDispatcher = new lark.EventDispatcher({
+    this.eventDispatcher = new (sdk().EventDispatcher)({
       encryptKey: config.encryptKey || '',
       verificationToken: config.verificationToken || '',
     });
@@ -148,11 +161,11 @@ export class FeishuAdapter implements PlatformAdapter {
     // Construct the WSClient here (not in the constructor): it opens a libuv
     // handle on creation, so deferring it until start() keeps adapter
     // instantiation side-effect-free (see wsClient field comment).
-    this.wsClient = new lark.WSClient({
+    this.wsClient = new (sdk().WSClient)({
       appId: this.config.appId,
       appSecret: this.config.appSecret,
       domain: this.domain,
-      loggerLevel: lark.LoggerLevel.info,
+      loggerLevel: sdk().LoggerLevel.info,
     });
     await this.wsClient.start({
       eventDispatcher: this.eventDispatcher,

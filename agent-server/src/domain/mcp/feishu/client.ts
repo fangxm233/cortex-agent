@@ -6,8 +6,20 @@
 //         (platform/adapters/feishu.ts) is separate and always stays bot/app identity.
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import * as lark from '@larksuiteoapi/node-sdk';
+import type * as lark from '@larksuiteoapi/node-sdk';
+import { createRequire } from 'node:module';
 import { getValidUserAccessToken, type FeishuDomain } from './user-auth.js';
+
+/**
+ * Lazy SDK handle — see platform/adapters/feishu.ts for the full rationale: a static `import` of
+ * this 5MB CJS bundle costs ~20MB of heap because Node keeps a second interop copy of the source.
+ * `createRequire` drops that copy, and deferring the load keeps merely importing this module cheap.
+ */
+let larkSdk: typeof lark | null = null;
+function sdk(): typeof lark {
+  if (!larkSdk) larkSdk = createRequire(import.meta.url)('@larksuiteoapi/node-sdk') as typeof lark;
+  return larkSdk;
+}
 
 export type LarkClient = lark.Client;
 
@@ -34,15 +46,15 @@ export const stderrLogger = {
 
 /** Construct a Feishu OpenAPI client (mirrors FeishuAdapter's constructor). */
 export function createFeishuClient(config: FeishuClientConfig): LarkClient {
-  const domain = config.domain === 'lark' ? lark.Domain.Lark : lark.Domain.Feishu;
-  return new lark.Client({
+  const domain = config.domain === 'lark' ? sdk().Domain.Lark : sdk().Domain.Feishu;
+  return new (sdk().Client)({
     appId: config.appId,
     appSecret: config.appSecret,
-    appType: lark.AppType.SelfBuild,
+    appType: sdk().AppType.SelfBuild,
     domain,
     // Force SDK logs to stderr — stdout carries the MCP JSON-RPC protocol (see stderrLogger).
     logger: stderrLogger,
-    loggerLevel: lark.LoggerLevel.warn,
+    loggerLevel: sdk().LoggerLevel.warn,
   });
 }
 
@@ -64,7 +76,7 @@ export function wrapWithUserToken(client: LarkClient, getToken: () => Promise<st
         if (typeof value === 'function') {
           return (payload: unknown, options?: { lark?: Record<string | symbol, unknown> }) =>
             getToken().then((token) => {
-              const tokenOpt = lark.withUserAccessToken(token);
+              const tokenOpt = sdk().withUserAccessToken(token);
               const merged = { ...(options ?? {}), lark: { ...(options?.lark ?? {}), ...tokenOpt.lark } };
               return value.call(t, payload, merged);
             });
