@@ -22,7 +22,7 @@ Launcher tests cover production arm routing, admission and evidence recording.
 | test_codex_refresh_binding.py | test | Verifies OAuth refresh material binds to the adapter and never travels |
 | test_host_credential_vault.py | test | Verifies opaque credential transfer |
 | test_host_finalization.py | test | Verifies envelopes, leak gates and scan diagnostics |
-| test_live_handshake_permit.py | test | Verifies native-default bootstrap bounds and safe diagnostics |
+| test_live_handshake_permit.py | test | Verifies bound proofs, permits and diagnostics |
 | test_leak_scan_finalization_docker.py | test | Proves clean publication after verifier alias cleanup |
 | test_paid_campaign_launch.py | test | Verifies hermetic launch, auth and provenance gates |
 | test_production_arms.py | test | Verifies committed arm bundles |

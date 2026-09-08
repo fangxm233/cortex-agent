@@ -1,4 +1,4 @@
-# input:  offline rows, one-use permits, synthetic response failures
+# input:  bound offline proofs, permits, synthetic responses
 # output: admission, bounds, provider-identifier-safe diagnostics, and evidence proofs
 # pos:    Live-handshake bootstrap authorization tests
 # >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -237,7 +237,7 @@ def run_codex_handshake(
     rows = dict(CAPABILITY_REGISTRY)
     rows[key] = replace(
         rows[key], state="offline-contract-passed",
-        evidence_sha256="a3969d3ee461145f126aacfd5ba73b329df360259ed4d2bc550d0fb4ad0e67e0",
+        evidence_sha256="daac711074cb77d5dd341f4ba7e21718fdd9bd0b88a0443b51fe528976a64cd3",
     )
     monkeypatch.setattr(capabilities, "CAPABILITY_REGISTRY", rows)
     spec = handshake_spec(access_expires_at_ms=CODEX_EXPIRY_SECONDS * 1000)

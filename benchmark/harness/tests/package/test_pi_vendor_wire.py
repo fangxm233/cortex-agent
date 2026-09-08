@@ -1,4 +1,4 @@
-# input:  current PI CLI, historical fixtures, capture script
+# input:  current PI CLI, historical fixtures, bounded capture
 # output: historical evidence and current wire behavior assertions
 # pos:    PI historical evidence and current CLI compatibility tests
 # >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
@@ -120,10 +120,11 @@ def test_current_pi_satisfies_wire_contract_without_egress(tmp_path: Path) -> No
     env = {**os.environ, "PI_CODING_AGENT_DIR": str(tmp_path / "host-agent"),
            "PATH": f"{tmp_path / 'host-bin'}:{os.environ['PATH']}",
            "DEEPSEEK_API_KEY": "host-secret"}
+    # Version, success and error each have a 30s child budget; allow teardown too.
     completed = subprocess.run(
         [sys.executable, str(CAPTURE_SCRIPT), "--output-dir", str(output_dir),
          "--pi-command", executable],
-        capture_output=True, text=True, timeout=60, env=env,
+        capture_output=True, text=True, timeout=120, env=env,
     )
     assert completed.returncode == 0, f"{completed.stdout}\n{completed.stderr}"
     result = json.loads(completed.stdout)

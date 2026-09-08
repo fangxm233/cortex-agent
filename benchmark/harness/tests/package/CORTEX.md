@@ -13,7 +13,7 @@ Package tests cover build reproducibility and the production Harbor wrapper.
 | test_cwd.py | test | Verifies container cwd resolution |
 | test_harbor_agent.py | test | Verifies offline setup and production Harbor lifecycle |
 | test_manifest.py | test | Verifies harness manifest records |
-| test_pi_vendor_wire.py | test | Verifies current PI wire and runtime identity |
+| test_pi_vendor_wire.py | test | Checks bounded PI capture and runtime identity |
 | test_runtime_image_builder.py | test | Verifies role-safe images with bounded fixtures |
 | test_runtime_image_builder_fixtures.py | test | Checks fake Python staging and tool contracts |
 | test_synthetic_deepseek.py | test | Verifies synthetic DeepSeek turns |
