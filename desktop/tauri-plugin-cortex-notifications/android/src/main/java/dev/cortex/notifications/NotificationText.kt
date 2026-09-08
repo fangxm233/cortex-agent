@@ -1,5 +1,5 @@
 // input:  Device locale and authoritative running count
-// output: Short private notification labels
+// output: Short private notification and completion labels
 // pos:    Native notification localization
 // >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
 package dev.cortex.notifications
@@ -11,6 +11,10 @@ internal class NotificationText(locale: String) {
     val attention get() = label("Cortex needs your attention", "Cortex 待处理提醒")
     val replies get() = label("Cortex replies", "Cortex 回复")
     val privateContent get() = label("Open Cortex to view", "打开 Cortex 查看")
+    val completion get() = label("Turn complete — tap to view", "本轮已完成，点击查看")
+
+    fun session(name: String?): String =
+        name?.takeIf { it.isNotBlank() } ?: label("Cortex session", "Cortex 会话")
 
     fun summary(count: Int?): String = when (count) {
         null -> label("Connecting — status unavailable", "连接中，状态暂不可用")

@@ -20,5 +20,5 @@ Owns Android background lifecycle and compatibility with older native shells.
 | useSystemNotices.ts | hook | Feeds system notice events to a callback |
 | os-notify.ts | util | Posts native replies and normalizes legacy taps |
 | os-notify.test.ts | test | Tests permission, native post and legacy fallback |
-| mobile-notifications.ts | core | Owns visible native lifecycle and device toggle |
-| mobile-notifications.test.ts | test | Tests permission, resume and disabled native sync |
+| mobile-notifications.ts | core | Owns native lifecycle, toggle and completion ownership |
+| mobile-notifications.test.ts | test | Tests permission, resume, ownership and disabled sync |

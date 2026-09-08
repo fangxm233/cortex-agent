@@ -1,5 +1,5 @@
 // input:  Tauri Invoke commands, Activity intents, native state
-// output: Notification bridge and durable actionPerformed events
+// output: Notification bridge, visible session and actionPerformed events
 // pos:    Android Cortex notification plugin entry point
 // >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
 package dev.cortex.notifications
@@ -25,6 +25,7 @@ class ConfigureArgs {
     lateinit var token: String
     var enabled: Boolean = true
     var locale: String = "en"
+    var completionNotifications: Boolean = false
 }
 
 @InvokeArg
@@ -37,13 +38,19 @@ class PostArgs {
 @InvokeArg
 class AckActionArgs { lateinit var actionId: String }
 
+@InvokeArg
+class VisibleSessionArgs { var sessionId: String = "" }
+
 @TauriPlugin
 class NotificationsPlugin(private val activity: Activity) : Plugin(activity) {
     private val state = NotificationState.get(activity)
     private val presenter = NotificationPresenter(activity, state)
     @Volatile private var visible = false
 
-    override fun onPause() { visible = false }
+    override fun onPause() {
+        visible = false
+        state.visibleSessionId = null // Leaving the foreground ends visible suppression at once.
+    }
     override fun load(webView: WebView) { capture(activity.intent) }
     override fun onNewIntent(intent: Intent) { capture(intent) }
 
@@ -63,6 +70,7 @@ class NotificationsPlugin(private val activity: Activity) : Plugin(activity) {
         } else {
             val next = Connection.create(args.serverUrl, args.token, args.enabled, args.locale)
             if (state.configure(next)) { NotificationService.stop(activity); presenter.clear() }
+            state.completionNotifications = args.completionNotifications
             state.save()
             startIfAllowed()
         }
@@ -88,6 +96,13 @@ class NotificationsPlugin(private val activity: Activity) : Plugin(activity) {
         presenter.channels()
         presenter.post(args.title, args.body, args.data?.get("sessionId")?.takeIf { it.isNotBlank() },
             args.data?.get("projectId")?.takeIf { it.isNotBlank() })
+        JSONObject()
+    }
+
+    @Command
+    fun visibleSession(invoke: Invoke) = command(invoke, "Unable to record the visible session") {
+        val args = invoke.parseArgs(VisibleSessionArgs::class.java)
+        state.visibleSessionId = args.sessionId.takeIf { it.isNotBlank() }
         JSONObject()
     }
 
@@ -128,6 +143,7 @@ class NotificationsPlugin(private val activity: Activity) : Plugin(activity) {
     private fun statusJson(): JSONObject = JSONObject().put("enabled", state.connection.enabled)
         .put("running", state.running).put("permissionGranted", presenter.permissionGranted())
         .put("scope", state.connection.scope)
+        .put("completionNotifications", state.completionNotifications)
 
     private fun capture(intent: Intent?) {
         if (intent == null) return

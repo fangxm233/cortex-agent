@@ -37,6 +37,16 @@ describe('retained Android actions', () => {
     await expect(mobileNotificationStatus()).rejects.toThrow('Invalid native');
   });
 
+  it('reads completion ownership as an optional capability of newer shells', async () => {
+    const shell = { enabled: true, running: true, permissionGranted: true, scope: 'server-a' };
+    invoke.mockResolvedValueOnce(shell);
+    expect((await mobileNotificationStatus())?.completionNotifications).toBeUndefined();
+    invoke.mockResolvedValueOnce({ ...shell, completionNotifications: true });
+    expect((await mobileNotificationStatus())?.completionNotifications).toBe(true);
+    invoke.mockResolvedValueOnce({ ...shell, completionNotifications: 'yes' });
+    await expect(mobileNotificationStatus()).rejects.toThrow('Invalid native');
+  });
+
   it('serializes different taps so slower earlier routing cannot overwrite the latest target', async () => {
     let resolve!: () => void;
     const handled = vi.fn().mockImplementationOnce(() => new Promise<void>((done) => { resolve = done; }));

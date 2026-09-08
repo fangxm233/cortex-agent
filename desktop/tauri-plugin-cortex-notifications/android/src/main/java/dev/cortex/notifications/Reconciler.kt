@@ -1,9 +1,10 @@
 // input:  Scoped state, presenter, tRPC transport
-// output: Reconciled running count and pending alerts
+// output: Reconciled running count, pending alerts and turn completions
 // pos:    Background snapshot and SSE coordination
 // >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
 package dev.cortex.notifications
 
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import java.util.concurrent.Executors
@@ -83,29 +84,69 @@ internal class Reconciler(
     private fun refresh() {
         if (closed.get()) return
         val version = revision.get()
-        refreshSessions(version)
+        // Executions are listed before sessions so every row's session is already present
+        // in that snapshot; an unknown session is genuinely not a direct conversation.
+        val executions = executions()
+        refreshSessions(version)?.let { refreshCompletions(version, executions, it) }
         refreshApprovals()
     }
 
-    private fun refreshSessions(version: Long) {
-        try {
+    private fun refreshSessions(version: Long): List<Session>? {
+        return try {
             val sessions = Protocol.sessions(transport.query("sessions.list", JSONObject().put("origin", "direct")).toString())
             val awaiting = sessions.filter { it.awaiting }
             applySnapshot(version) {
                 presenter.updateSummary(if (connected) sessions.count { it.running } else null)
                 presenter.removeInactiveSessions(awaiting.map { it.id }.toSet())
             }
-            for (session in awaiting) {
-                if (closed.get() || version != revision.get()) return
-                val alerts = pending(session) ?: continue
-                applySnapshot(version) { presenter.reconcile("session:${session.id}", alerts) }
-            }
+            refreshInteractions(version, awaiting)
+            sessions
         } catch (_: Exception) {
             applySnapshot(version) {
                 transport.interruptSubscription()
                 presenter.updateSummary(null)
             }
+            null
         }
+    }
+
+    private fun refreshInteractions(version: Long, awaiting: List<Session>) {
+        for (session in awaiting) {
+            if (closed.get() || version != revision.get()) return
+            val alerts = pending(session) ?: continue
+            applySnapshot(version) { presenter.reconcile("session:${session.id}", alerts) }
+        }
+    }
+
+    // One extra list request per refresh while the page owns completions; details are read
+    // only for rows this device has never decided, so steady state adds nothing.
+    private fun executions(): List<ExecutionRow>? {
+        if (!state.completionNotifications) return null
+        return runCatching {
+            val input = JSONObject().put("status", JSONArray(listOf("completed"))).put("limit", WINDOW)
+            Protocol.executions(transport.query("executions.list", input).toString())
+        }.getOrNull()
+    }
+
+    private fun refreshCompletions(version: Long, rows: List<ExecutionRow>?, sessions: List<Session>) {
+        if (rows == null || version != revision.get()) return
+        val checkpoint = checkpoint() ?: return
+        val scan = Completions.scan(rows, checkpoint.second, sessions.associateBy { it.id }, checkpoint.first, ::detail)
+        applySnapshot(version) { presenter.completions(scan, state.visibleSessionId) }
+    }
+
+    // A failed query keeps its checkpoint, so nothing is decided without an answer.
+    private fun checkpoint(): Pair<Boolean, Set<String>>? {
+        var value: Pair<Boolean, Set<String>>? = null
+        apply { value = state.ledger.completionBaseline to state.ledger.completions.toSet() }
+        return value
+    }
+
+    private fun detail(id: String): ExecutionDetail? {
+        if (closed.get()) return null
+        return runCatching {
+            Protocol.executionDetail(transport.query("executions.get", JSONObject().put("executionId", id)) as JSONObject)
+        }.getOrNull()
     }
 
     private fun applySnapshot(version: Long, block: () -> Unit) {
@@ -146,5 +187,10 @@ internal class Reconciler(
         transport.close()
         snapshots.shutdownNow()
         stream.shutdownNow()
+    }
+
+    companion object {
+        // Bounds one snapshot: far more finished runs than a device can fall behind by.
+        const val WINDOW = 50
     }
 }

@@ -1,5 +1,5 @@
 // input:  App-private storage, connection and action ledger
-// output: Synchronized durable connection state and generation gate
+// output: Durable connection state, completion ownership and generation gate
 // pos:    Shared plugin and service state owner
 // >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
 package dev.cortex.notifications
@@ -20,6 +20,13 @@ internal class NotificationState private constructor(context: Context) {
         private set
     var running = false
 
+    // The page declares whether it owns turn-completion notifications on every sync, so a
+    // cached page that predates them silently takes them back and nothing is posted twice.
+    @Volatile var completionNotifications = false
+
+    // In-memory only: a rebuilt process suppresses nothing until the page reports again.
+    @Volatile var visibleSessionId: String? = null
+
     init {
         runCatching {
             val json = JSONObject(file.openRead().bufferedReader().use { it.readText() })
@@ -28,6 +35,7 @@ internal class NotificationState private constructor(context: Context) {
             connection = if (url.isBlank()) Connection("", "", enabled, json.optString("locale", "en"))
                 else Connection.create(url, json.getString("token"), enabled, json.optString("locale", "en"))
             ledger = ActionLedger(json.optJSONObject("ledger")?.toString() ?: "{}")
+            completionNotifications = json.optBoolean("completionNotifications", false)
         }.onFailure {
             connection = Connection("", "", true, "en")
             ledger = ActionLedger()
@@ -51,6 +59,7 @@ internal class NotificationState private constructor(context: Context) {
     fun save() {
         val json = JSONObject().put("serverUrl", connection.serverUrl).put("token", connection.token)
             .put("enabled", connection.enabled).put("locale", connection.locale)
+            .put("completionNotifications", completionNotifications)
             .put("ledger", JSONObject(ledger.json()))
         val stream = file.startWrite()
         try {

@@ -117,9 +117,9 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 | m-hooks-vm.test.ts | test | Tests mobile hook row/detail projection over shared grouping |
 | MPlanReadScreen.tsx | screen | Loads a plan from the compact transcript and handles approve or reject |
 | MPlanReadView.tsx | view | Full plan text with scroll progress and actions |
-| MNotificationProvider.tsx | provider | Owns native lifecycle and scoped tap routing |
-| MNotificationProvider.test.tsx | test | Tests visibility, target routing and late cleanup |
-| m-notification-routing.ts | util | Validates server targets and encodes mobile routes |
+| MNotificationProvider.tsx | provider | Owns native lifecycle, tap routing and on-screen sync |
+| MNotificationProvider.test.tsx | test | Tests routing, completion ownership and late cleanup |
+| m-notification-routing.ts | util | Validates targets and reads the on-screen session |
 | m-notification-routing.test.ts | test | Tests unsafe, deleted and encoded tap targets |
 | MNotificationToaster.tsx | view | Independently selects and renders stacked tappable top notification banners |
 | MUpdateProvider.tsx | provider | Renders the one shared-priority mobile update prompt |

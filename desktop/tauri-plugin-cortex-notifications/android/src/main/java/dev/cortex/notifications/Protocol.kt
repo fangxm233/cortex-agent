@@ -54,6 +54,7 @@ internal fun JSONObject.optional(key: String): String? =
 
 internal data class Session(
     val id: String, val projectId: String?, val running: Boolean, val awaiting: Boolean,
+    val background: Boolean = false, val name: String? = null,
 )
 internal data class Alert(
     val key: String, val owner: String, val kind: String,
@@ -67,12 +68,25 @@ internal object Protocol {
         .filter { it.optString("origin", "direct") == "direct" }
         .map {
             Session(requiredId(it, "sessionId"), it.optional("projectId"),
-                boolean(it, "running"), boolean(it, "awaitingInput"))
+                boolean(it, "running"), boolean(it, "awaitingInput"),
+                it.optBoolean("backgroundRunning", false), it.optional("label") ?: it.optional("name"))
         }.groupBy { it.id }.values.map { rows ->
             // Count IDs, not rows. An inactive duplicate must not hide another
             // row's live turn/background hold or pending interaction.
-            rows.first().copy(running = rows.any { it.running }, awaiting = rows.any { it.awaiting })
+            rows.first().copy(running = rows.any { it.running }, awaiting = rows.any { it.awaiting },
+                background = rows.any { it.background })
         }
+
+    // Only identity and outcome are read. Prompts, labels and final agent output
+    // stay on the server: a background notification never carries transcript text.
+    fun executions(body: String): List<ExecutionRow> = objects(JSONArray(body)).map {
+        // optString disagrees on JSON null between Android and the JVM test artifact.
+        ExecutionRow(requiredId(it, "id"), it.optional("sessionId"), it.optional("finishedAt") ?: "")
+    }
+
+    fun executionDetail(body: JSONObject): ExecutionDetail = ExecutionDetail(
+        body.getString("status"), body.getString("kind"), body.optional("threadId"),
+        body.optional("sessionId"), body.optional("projectId"))
 
     fun interactions(session: Session, body: JSONObject): List<Alert> =
         listOf("askUser", "plan").mapNotNull { kind -> interaction(session, body, kind) }

@@ -25,6 +25,8 @@ export interface NativeNotificationStatus {
   running: boolean;
   permissionGranted: boolean;
   scope: string;
+  /** Absent on shells that predate native turn-completion notifications. */
+  completionNotifications?: boolean;
 }
 
 export interface NativeNotificationAction {
@@ -38,7 +40,8 @@ export interface NativeNotificationAction {
 
 interface NativeCommandMap {
   mobile_notifications_configure: {
-    args: { enabled: boolean; locale: string }; result: NativeNotificationStatus;
+    args: { enabled: boolean; locale: string; completionNotifications: boolean };
+    result: NativeNotificationStatus;
   };
   mobile_notifications_status: { args: undefined; result: NativeNotificationStatus };
   'plugin:cortex-notifications|post': {
@@ -48,6 +51,7 @@ interface NativeCommandMap {
     args: undefined; result: { actions: NativeNotificationAction[] };
   };
   'plugin:cortex-notifications|ack_action': { args: { actionId: string }; result: unknown };
+  'plugin:cortex-notifications|visible_session': { args: { sessionId: string }; result: unknown };
   disconnect: { args: undefined; result: unknown };
   get_app_update: { args: undefined; result: unknown };
   install_app_update: { args: undefined; result: unknown };
@@ -166,11 +170,18 @@ export async function mobileNotificationStatus(): Promise<NativeNotificationStat
   if (isNativeCommandMissing(result)) return null;
   if (!result.ok) throw new Error('Unable to read native notification status');
   const status = result.value;
+  const owned: unknown = status && Reflect.get(status, 'completionNotifications');
   if (!status || typeof status.scope !== 'string'
-    || !['enabled', 'running', 'permissionGranted'].every((key) => typeof Reflect.get(status, key) === 'boolean')) {
+    || !['enabled', 'running', 'permissionGranted'].every((key) => typeof Reflect.get(status, key) === 'boolean')
+    || (owned !== undefined && typeof owned !== 'boolean')) {
     throw new Error('Invalid native notification status');
   }
   return status;
+}
+
+/** Which session is on screen; older shells lack the command and simply keep posting. */
+export async function setNativeVisibleSession(sessionId: string | null): Promise<void> {
+  await safeInvoke('plugin:cortex-notifications|visible_session', { sessionId: sessionId ?? '' });
 }
 
 function notificationAction(value: unknown): NativeNotificationAction | null {

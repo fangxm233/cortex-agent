@@ -38,6 +38,11 @@ async fn post<R: Runtime>(
 }
 
 #[tauri::command]
+async fn visible_session<R: Runtime>(app: tauri::AppHandle<R>, session_id: String) -> Result<Value, String> {
+    app.state::<CortexNotifications<R>>().call("visibleSession", json!({"sessionId": session_id}))
+}
+
+#[tauri::command]
 async fn pending_actions<R: Runtime>(app: tauri::AppHandle<R>) -> Result<Value, String> {
     app.state::<CortexNotifications<R>>().call("pendingActions", json!({}))
 }
@@ -49,7 +54,7 @@ async fn ack_action<R: Runtime>(app: tauri::AppHandle<R>, action_id: String) -> 
 
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::new("cortex-notifications")
-        .invoke_handler(tauri::generate_handler![post, pending_actions, ack_action])
+        .invoke_handler(tauri::generate_handler![post, visible_session, pending_actions, ack_action])
         .setup(|app, _api| {
             #[cfg(target_os = "android")]
             let state = CortexNotifications {

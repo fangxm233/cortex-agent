@@ -1,5 +1,5 @@
 // input:  native status/configuration and OS notification permission
-// output: device-local notification state and visible reconciliation
+// output: device-local state, completion ownership and visible reconciliation
 // pos:    Android background notification lifecycle owner
 // >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
 
@@ -25,10 +25,18 @@ function publish(update: Partial<MobileNotificationState>): void {
   listeners.forEach((listener) => listener());
 }
 
+// The page declares completion ownership on every sync, so an older cached page
+// silently takes it back and keeps posting its own turn notifications.
 async function configure(enabled: boolean, locale: string): Promise<NativeNotificationStatus> {
-  const result = await safeInvoke('mobile_notifications_configure', { enabled, locale });
+  const result = await safeInvoke('mobile_notifications_configure',
+    { enabled, locale, completionNotifications: true });
   if (!result.ok) throw new Error('Native notification configuration failed');
   return result.value;
+}
+
+/** True while the native service, not this page, posts turn-completion notifications. */
+export function nativeCompletionNotifications(): boolean {
+  return state.status?.completionNotifications === true && state.status.enabled;
 }
 
 function enqueue(operation: () => Promise<void>): Promise<void> {

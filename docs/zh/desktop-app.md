@@ -113,7 +113,9 @@ Android 使用四个底部 Tab：Sessions、Threads、Tasks 与 Project。会话
 
 授予通知权限后，**设置 → 通知 → 后台通知**可启用 Android 原生后台连接，页面切到后台后仍继续监听。一条静默常驻通知显示跨项目运行中的 direct session 数量，包含后台延续任务；数量为零时显示后台通知已连接，断线重连时明确显示状态暂不可用，不保留假实时数字。关闭这个本设备开关或断开服务器连接会停止服务并清理相关通知（`desktop/tauri-plugin-cortex-notifications/android/src/main/java/dev/cortex/notifications/NotificationService.kt`；`Reconciler.kt`）。
 
-待回答问题和待审批计划各自发出通知。会话通知点击后打开对应对话，冷启动也可恢复目标；审批中心条目则打开审批页面并选中条目。原生端保存点击目标，直到页面处理完成，并在重连及定期刷新时核对待处理请求。锁屏通知隐藏私密内容。后台连接要求 HTTPS，仍受 Android Doze、厂商省电策略、网络及用户强制停止影响，不能保证强制停止后继续送达。待交互详情目前要求会话使用 Web channel。普通 turn 完成提醒由页面存活期间的实时消息流生成（`NotificationsPlugin.kt`；`Protocol.kt`；`web/src/mobile/v3/MNotificationProvider.tsx`）。
+待回答问题和待审批计划各自发出通知。会话通知点击后打开对应对话，冷启动也可恢复目标；审批中心条目则打开审批页面并选中条目。原生端保存点击目标，直到页面处理完成，并在重连及定期刷新时核对待处理请求。锁屏通知隐藏私密内容。后台连接要求 HTTPS，仍受 Android Doze、厂商省电策略、网络及用户强制停止影响，不能保证强制停止后继续送达。待交互详情目前要求会话使用 Web channel（`NotificationsPlugin.kt`；`Protocol.kt`）。
+
+后台服务同样负责 turn 完成提醒。当一个 direct session 的运行在服务器上进入完成终态，且该会话不再运行、不在等待回答、也没有后台任务占用时，通知显示会话名称和一句提示，邀请你打开查看，不获取任何 transcript 文本。被取消、失败以及仍在等待的运行保持静默，正在屏幕上查看的会话也不会弹出提醒。首次连接某台服务器只记录已有运行而不提醒，因此启用功能不会重放旧对话。后台服务负责这类提醒期间，页面不再重复发送；关闭本设备开关，或使用早于该能力的应用壳与缓存页面时，仍由页面实时消息流生成（`Completions.kt`；`Reconciler.kt`；`web/src/mobile/v3/MNotificationProvider.tsx`）。
 
 Cortex 下载的文件会交给 Android `DownloadManager`，写入公共 Downloads collection，并显示系统完成通知。
 

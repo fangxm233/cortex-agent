@@ -14,6 +14,7 @@ pub static CONNECTION_CHANGE: std::sync::Mutex<()> = std::sync::Mutex::new(());
 #[tauri::command]
 pub async fn mobile_notifications_configure(
     app: tauri::AppHandle, state: State<'_, AppState>, enabled: bool, locale: String,
+    completion_notifications: Option<bool>,
 ) -> Result<Value, String> {
     let _change = CONNECTION_CHANGE.lock().unwrap();
     let config = state.config.lock().unwrap().clone();
@@ -22,6 +23,8 @@ pub async fn mobile_notifications_configure(
         "token": config.token.unwrap_or_default(),
         "enabled": enabled,
         "locale": locale,
+        // A cached page that predates native completions leaves them to the page itself.
+        "completionNotifications": completion_notifications.unwrap_or(false),
     }))
 }
 
