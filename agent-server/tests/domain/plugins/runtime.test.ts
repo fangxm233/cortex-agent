@@ -336,15 +336,40 @@ test('portable runtime names stay distinct across pair-boundary collisions', () 
   assert.notEqual(resolved.mcpServers?.[0]?.name, resolved.mcpServers?.[1]?.name);
 });
 
-test('rejects duplicate portable skill names', () => {
+test('gives a duplicate portable skill name to the first selected plugin', () => {
   const harness = makeHarness();
   portablePlugin(harness, { id: 'portable-one', skills: [{ name: 'shared-skill' }] });
   portablePlugin(harness, { id: 'portable-two', skills: [{ name: 'shared-skill' }] });
 
-  assert.throws(
-    () => resolveRuntime(harness, ['plugins/portable-one', 'plugins/portable-two']),
-    /Duplicate portable skill name: shared-skill/,
-  );
+  const resolved = resolveRuntime(harness, ['plugins/portable-one', 'plugins/portable-two'], { backend: 'pi' });
+
+  // The loser is dropped rather than fatal: one skill path, and it belongs to the winner.
+  assert.equal(resolved.pluginSkillDirs?.length, 1);
+  assert.match(resolved.pluginSkillDirs?.[0] ?? '', /portable-one/);
+});
+
+test('selection order decides which plugin keeps a duplicated skill name', () => {
+  const harness = makeHarness();
+  portablePlugin(harness, { id: 'portable-one', skills: [{ name: 'shared-skill' }] });
+  portablePlugin(harness, { id: 'portable-two', skills: [{ name: 'shared-skill' }] });
+
+  const resolved = resolveRuntime(harness, ['plugins/portable-two', 'plugins/portable-one'], { backend: 'pi' });
+
+  assert.equal(resolved.pluginSkillDirs?.length, 1);
+  assert.match(resolved.pluginSkillDirs?.[0] ?? '', /portable-two/);
+});
+
+test('a duplicated skill name does not cost the plugin its other skills', () => {
+  const harness = makeHarness();
+  portablePlugin(harness, { id: 'portable-one', skills: [{ name: 'shared-skill' }] });
+  portablePlugin(harness, {
+    id: 'portable-two', skills: [{ name: 'shared-skill' }, { name: 'own-skill' }],
+  });
+
+  const resolved = resolveRuntime(harness, ['plugins/portable-one', 'plugins/portable-two'], { backend: 'pi' });
+
+  assert.equal(resolved.pluginSkillDirs?.length, 2);
+  assert.ok(resolved.pluginSkillDirs?.some((dir) => /own-skill/.test(dir)));
 });
 
 test('rejects duplicate portable MCP namespaces', () => {
@@ -531,7 +556,7 @@ test('capability fingerprint changes when validated SKILL.md bytes change', () =
   assert.notEqual(before.pluginCapabilityFingerprint, after.pluginCapabilityFingerprint);
 });
 
-test('rejects collisions between selected managed legacy skills and portable skills', () => {
+test('a legacy plugin sharing a skill name with a portable one still resolves', () => {
   const harness = makeHarness();
   portablePlugin(harness, { id: 'portable-skill', skills: [{ name: 'shared-skill' }] });
   const legacyRoot = legacyPlugin(harness, 'legacy-skill');
@@ -539,10 +564,13 @@ test('rejects collisions between selected managed legacy skills and portable ski
   fs.mkdirSync(legacySkillDir, { recursive: true });
   fs.writeFileSync(path.join(legacySkillDir, 'SKILL.md'), '# legacy skill\n');
 
-  assert.throws(
-    () => resolveRuntime(harness, ['plugins/portable-skill', 'plugins/legacy-skill']),
-    /Duplicate portable skill name: shared-skill/,
-  );
+  // A legacy plugin is passed through whole, so neither side can be dropped — but a stale copy of
+  // one skill must not cost the operator every agent spawn.
+  const resolved = resolveRuntime(harness, ['plugins/portable-skill', 'plugins/legacy-skill'], { backend: 'pi' });
+
+  assert.equal(resolved.pluginSkillDirs?.length, 1);
+  assert.match(resolved.pluginSkillDirs?.[0] ?? '', /shared-skill/);
+  assert.ok(resolved.pluginDirs?.some((dir) => /legacy-skill/.test(dir)));
 });
 
 test('portable stdio runtime creates writable PLUGIN_DATA only for selected plugins', () => {

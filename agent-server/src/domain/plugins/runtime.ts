@@ -66,10 +66,16 @@ type SelectedRuntimeItem =
   | { kind: 'portable'; id: string }
   | { kind: 'preserved'; path: string };
 
+/** A skill offered by a selected legacy plugin, carried with its owner so a collision can name it. */
+interface LegacySkillRef {
+  name: string;
+  pluginId: string;
+}
+
 interface ClassifiedSelections {
   items: SelectedRuntimeItem[];
   portableSelections: Map<string, PortableSelection>;
-  selectedLegacySkillNames: string[];
+  selectedLegacySkills: LegacySkillRef[];
 }
 
 function stablePrimitive(value: unknown): string | undefined {
@@ -478,9 +484,10 @@ function portableRuntimeDetail(
   backend: Backend,
   runtimeDir: string,
   includePortableMcp: boolean,
+  claims: SkillClaims,
 ): PortableRuntimeDetail {
   const skills = materializedSkills(
-    selection, portableSkills(selection), runtimeDir, backend,
+    selection, claimPortableSkills(selection, portableSkills(selection), claims), runtimeDir, backend,
   );
   return {
     namespace: portableNamespace(selection.entry),
@@ -553,7 +560,8 @@ function addClassifiedSelection(
 ): void {
   if (entry?.kind === 'portable') return addPortableSelection(entry, roots, result);
   if (entry?.kind === 'legacy') {
-    result.selectedLegacySkillNames.push(...entry.skills.map((skill) => skill.name));
+    result.selectedLegacySkills.push(
+      ...entry.skills.map((skill) => ({ name: skill.name, pluginId: entry.id })));
   }
   const preservedPath = real ?? absolute;
   if (preserved.has(preservedPath)) return;
@@ -569,7 +577,7 @@ function classifySelections(
 ): ClassifiedSelections {
   const lookup = catalogEntriesByPath(entries, roots);
   const result: ClassifiedSelections = {
-    items: [], portableSelections: new Map(), selectedLegacySkillNames: [],
+    items: [], portableSelections: new Map(), selectedLegacySkills: [],
   };
   const preserved = new Set<string>();
   for (const value of selectedPluginDirs) {
@@ -586,8 +594,44 @@ function addUniqueName(seen: Set<string>, name: string, label: string): void {
   seen.add(name);
 }
 
-function collectSkillNames(detail: PortableRuntimeDetail, skillNames: Set<string>): void {
-  for (const skill of detail.skills) addUniqueName(skillNames, skill.name, 'skill name');
+/** Skill name -> the portable plugin id providing it. A second plugin offering the same name loses
+ *  it: two skills answering to one name is a coin flip for the model, and the alternative — refusing
+ *  to spawn at all — lets one stale directory turn every agent into a dead one. First selected wins,
+ *  so pluginDirs order is the tie-break, which is a thing the operator can see and edit. */
+type SkillClaims = Map<string, string>;
+
+/** Keep only the skills whose names are still unclaimed, naming both sides of every drop so the
+ *  loser is diagnosable from the log alone. */
+function claimPortableSkills(
+  selection: PortableSelection,
+  skills: PortableSkillDetail[],
+  claims: SkillClaims,
+): PortableSkillDetail[] {
+  const kept: PortableSkillDetail[] = [];
+  for (const skill of skills) {
+    const owner = claims.get(skill.name);
+    if (owner !== undefined) {
+      log.warn(`Skipping skill '${skill.name}' from plugin '${selection.entry.id}': `
+        + `'${owner}' is already selected and provides that name.`);
+      continue;
+    }
+    claims.set(skill.name, selection.entry.id);
+    kept.push(skill);
+  }
+  return kept;
+}
+
+/** A failed projection empties a plugin's skill list after it staked its claims. Hand those names
+ *  back, so a plugin that lost a name to one that ended up providing nothing can still supply it. */
+function releaseUnusedClaims(
+  claims: SkillClaims,
+  pluginId: string,
+  skills: readonly PortableSkillDetail[],
+): void {
+  const live = new Set(skills.map((skill) => skill.name));
+  for (const [name, owner] of claims) {
+    if (owner === pluginId && !live.has(name)) claims.delete(name);
+  }
 }
 
 function collectMcpNames(detail: PortableRuntimeDetail, mcpNames: Set<string>): void {
@@ -599,24 +643,31 @@ function collectPortableDetails(
   backend: Backend,
   runtimeDir: string,
   includePortableMcp: boolean,
-): { details: Map<string, PortableRuntimeDetail>; skillNames: Set<string> } {
+): { details: Map<string, PortableRuntimeDetail>; skillClaims: SkillClaims } {
   const details = new Map<string, PortableRuntimeDetail>();
   const namespaces = new Set<string>();
-  const skillNames = new Set<string>();
+  const claims: SkillClaims = new Map();
   const mcpNames = new Set<string>();
   for (const [id, selection] of portableSelections) {
-    const detail = portableRuntimeDetail(selection, backend, runtimeDir, includePortableMcp);
+    const detail = portableRuntimeDetail(selection, backend, runtimeDir, includePortableMcp, claims);
     addUniqueName(namespaces, detail.namespace, 'MCP namespace');
-    collectSkillNames(detail, skillNames);
+    releaseUnusedClaims(claims, id, detail.skills);
     collectMcpNames(detail, mcpNames);
     details.set(id, detail);
   }
-  return { details, skillNames };
+  return { details, skillClaims: claims };
 }
 
-function assertLegacySkillCollisions(skillNames: ReadonlySet<string>, legacySkillNames: readonly string[]): void {
-  for (const name of legacySkillNames) {
-    if (skillNames.has(name)) throw new Error(`Duplicate portable skill name: ${name}`);
+/** A legacy plugin is handed to the backend as a whole directory, so a single skill cannot be
+ *  dropped out of it the way a portable one can. Report the overlap and let the backend resolve it:
+ *  PI takes the first skill path, which is the portable copy, and Claude Code keeps both apart under
+ *  their `<plugin>:<skill>` identities. */
+function warnLegacySkillCollisions(claims: SkillClaims, legacySkills: readonly LegacySkillRef[]): void {
+  for (const { name, pluginId } of legacySkills) {
+    const owner = claims.get(name);
+    if (owner === undefined) continue;
+    log.warn(`Skill '${name}' is provided by both portable plugin '${owner}' and legacy plugin `
+      + `'${pluginId}'. Deselect one of them to make the choice explicit.`);
   }
 }
 
@@ -684,6 +735,6 @@ export function resolvePluginRuntime(options: ResolvePluginRuntimeOptions): Reso
   const portable = collectPortableDetails(
     classified.portableSelections, options.backend, runtimeDir, portableMcpEnabled(options.mcpComposition),
   );
-  assertLegacySkillCollisions(portable.skillNames, classified.selectedLegacySkillNames);
+  warnLegacySkillCollisions(portable.skillClaims, classified.selectedLegacySkills);
   return resolvedRuntime(options.backend, classified.items, portable.details);
 }
