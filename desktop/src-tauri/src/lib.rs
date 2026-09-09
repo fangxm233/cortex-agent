@@ -1,5 +1,5 @@
-// input:  app config, credential store, OTA modules, native plugins
-// output: Shell config, setup IPC and app-drawn desktop chrome
+// input:  App config, credentials, update coordinator, native plugins
+// output: Shell config, setup and update IPC, desktop chrome
 // pos:    Cortex native shell composition root
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -47,6 +47,9 @@ mod app_update;
 mod setup;
 mod frontend;
 mod ota;
+mod update_checks;
+#[cfg(test)]
+mod update_checks_tests;
 // Android-only: the embedded SPA seed materialized onto disk on first run (desktop uses the real
 // files under resource_dir/frontend-seed instead, so this module is not compiled there).
 #[cfg(any(target_os = "android", test))]
@@ -207,97 +210,6 @@ async fn disconnect(app: tauri::AppHandle, state: State<'_, AppState>) -> Result
     creds::clear(&app);
     *state.config.lock().unwrap() = ConnectionConfig::default();
     Ok(())
-}
-
-/// Tauri event raised (to the SPA) when a newer frontend has been downloaded and staged for the next
-/// launch — the SPA listens for it to raise the hot-update prompt (design 21a / mobile 3a). Payload is
-/// a serialized `ota::StagedUpdate` (`{ version, fromVersion, size }`).
-const FRONTEND_UPDATE_STAGED_EVENT: &str = "frontend-update-staged";
-
-/// Apply a staged frontend update by relaunching the app so startup `promote_staged()` swaps the new
-/// version in. Called from the hot-update prompt's primary button.
-///
-/// Desktop relaunches in place (`app.restart()` — never returns). Android has no reliable in-process
-/// relaunch, so it exits (design 3a "退出 App"): the process ends and the user / system reopens it,
-/// at which point `promote_staged()` applies the update. Either way the running work is untouched —
-/// threads execute server-side, not in the app.
-#[tauri::command]
-fn apply_frontend_update(app: tauri::AppHandle) {
-    #[cfg(target_os = "android")]
-    {
-        app.exit(0);
-    }
-    #[cfg(not(target_os = "android"))]
-    {
-        app.restart();
-    }
-}
-
-/// Return the currently staged frontend update, if any, as a backstop for a missed
-/// `frontend-update-staged` event (e.g. the SPA mounted its listener after the event fired). Size is
-/// not persisted on disk, so it is reported as 0 here; the live event carries the real size.
-#[tauri::command]
-fn get_staged_update(app: tauri::AppHandle) -> Option<ota::StagedUpdate> {
-    let data = app.path().app_data_dir().ok()?;
-    let store = ota::UiStore::new(&data);
-    let staged = store.staged_version()?;
-    // Only a staged version that actually differs from what is installed is a pending update.
-    if store.installed_version().as_deref() == Some(staged.as_str()) {
-        return None;
-    }
-    Some(ota::StagedUpdate {
-        version: staged,
-        from_version: store.installed_version(),
-        size: 0,
-    })
-}
-
-/// Tauri event raised (to the SPA) when a newer app shell has been downloaded + sha256-verified and
-/// is ready to install. Payload is a serialized `app_update::AppUpdate`
-/// (`{ version, releaseUrl, notes, size, kind }`). Supersedes the SPA-only hot-update prompt.
-const APP_UPDATE_AVAILABLE_EVENT: &str = "app-update-available";
-
-/// Return the prepared app shell update, if any — the SPA's backstop for a missed
-/// `app-update-available` event (mirror of `get_staged_update`).
-#[tauri::command]
-fn get_app_update(state: State<AppState>) -> Option<app_update::AppUpdate> {
-    state.app_update.lock().unwrap().clone()
-}
-
-/// Install the prepared app shell update. Re-verifies the on-disk file against the manifest sha256
-/// first (the download could have been tampered with between staging and install), then hands off
-/// per platform (see app_update::install). Returns the opened installer path for the assisted
-/// flows (dmg/deb/rpm), None when the shell handed off and is exiting.
-#[tauri::command]
-fn install_app_update(
-    app: tauri::AppHandle,
-    state: State<AppState>,
-) -> Result<Option<String>, String> {
-    let update = state
-        .app_update
-        .lock()
-        .unwrap()
-        .clone()
-        .ok_or("no app update prepared")?;
-    let actual = app_update::hash_file(&update.path).map_err(|e| e.to_string())?;
-    if !actual.eq_ignore_ascii_case(&update.sha256) {
-        return Err("update file failed verification".to_string());
-    }
-    app_update::install(&app, &update)
-}
-
-/// Skip the offered app version: persist it shell-side (survives SPA OTA swaps) and clear the
-/// pending update so this run stops offering it. The next release clears the skip naturally
-/// (different version string).
-#[tauri::command]
-fn skip_app_update(app: tauri::AppHandle, state: State<AppState>) -> Result<(), String> {
-    let Some(update) = state.app_update.lock().unwrap().take() else {
-        return Ok(());
-    };
-    let data = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    app_update::UpdateStore::new(&data)
-        .set_skipped(&update.version)
-        .map_err(|e| e.to_string())
 }
 
 /// Save agent-sent (or user-downloaded) file bytes to disk. A plain browser `<a download>` /
@@ -651,11 +563,12 @@ pub fn run() {
             disconnect,
             mobile_notifications::mobile_notifications_configure,
             mobile_notifications::mobile_notifications_status,
-            apply_frontend_update,
-            get_staged_update,
-            get_app_update,
-            install_app_update,
-            skip_app_update,
+            update_checks::check_for_updates,
+            update_checks::apply_frontend_update,
+            update_checks::get_staged_update,
+            update_checks::get_app_update,
+            update_checks::install_app_update,
+            update_checks::skip_app_update,
             save_download,
             open_path,
             reveal_path,
@@ -820,101 +733,7 @@ pub fn run() {
             }
             win.build()?;
 
-            // ── Background OTA check (both platforms) ──
-            // Fetch the manifest, download + verify a newer bundle, and stage it for the next launch.
-            // Non-blocking and offline-safe — any failure is a logged no-op and the current version
-            // keeps serving.
-            if let Ok(data) = app.path().app_data_dir() {
-                let cfg = app.state::<AppState>().config.lock().unwrap().clone();
-                if let (Some(url), Some(token)) = (cfg.server_url, cfg.token) {
-                    // Clone the handle so the background thread can emit the staged-update event to the
-                    // SPA (raises the hot-update prompt, design 21a / mobile 3a).
-                    let handle = app.handle().clone();
-                    std::thread::spawn(move || {
-                        shell_log!("[cortex-desktop] ota check starting: {url}");
-                        let store = ota::UiStore::new(&data);
-                        match ota::check_and_stage(&url, &token, &store) {
-                            Ok(Some(update)) => {
-                                shell_log!(
-                                    "[cortex-desktop] staged frontend update {} (applies next launch)",
-                                    update.version
-                                );
-                                // Tell the SPA a new version is ready so it can prompt the user to
-                                // restart. Non-fatal if no window is listening yet — the
-                                // `get_staged_update` command is the backstop.
-                                if let Err(e) = handle.emit(FRONTEND_UPDATE_STAGED_EVENT, &update) {
-                                    shell_log!(
-                                        "[cortex-desktop] emit {FRONTEND_UPDATE_STAGED_EVENT} failed: {e}"
-                                    );
-                                }
-                            }
-                            Ok(None) => shell_log!("[cortex-desktop] ota: already up to date"),
-                            Err(e) => shell_log!("[cortex-desktop] ota check skipped: {e}"),
-                        }
-                    });
-                } else {
-                    shell_log!("[cortex-desktop] ota check not started: no credentials");
-                }
-            }
-
-            // ── Background app-shell update check (both platforms) ──
-            // Asks the connected server's /api/app-update/manifest.json for a newer shell (capped
-            // at the server's own version), downloads + verifies it, then emits
-            // `app-update-available` so the SPA raises the ONE update prompt. Re-checks daily for
-            // long-running instances. Dev runs (CORTEX_FRONTEND_DIR serving a local SPA) and
-            // unstamped builds (non-CalVer version, e.g. 0.0.1) never check.
-            {
-                let own_version = app.package_info().version.to_string();
-                let cfg = app.state::<AppState>().config.lock().unwrap().clone();
-                let data = app.path().app_data_dir().ok();
-                let env_disable = std::env::var("CORTEX_APP_UPDATE_DISABLE").ok();
-                let dev_dir = std::env::var("CORTEX_FRONTEND_DIR").ok();
-                if let Some(reason) = app_update::check_disabled_reason(
-                    env_disable.as_deref(),
-                    dev_dir.as_deref(),
-                    &own_version,
-                ) {
-                    shell_log!("[cortex-desktop] app-update check skipped: {reason}");
-                } else if let (Some(data), Some(url), Some(token)) =
-                    (data, cfg.server_url, cfg.token)
-                {
-                    let handle = app.handle().clone();
-                    std::thread::spawn(move || loop {
-                        let store = app_update::UpdateStore::new(&data);
-                        let kind = app_update::wanted_kind();
-                        match app_update::check_and_prepare(
-                            &url,
-                            &token,
-                            &own_version,
-                            app_update::OS_NAME,
-                            app_update::ARCH_NAME,
-                            &kind,
-                            &store,
-                        ) {
-                            Ok(Some(update)) => {
-                                shell_log!(
-                                    "[cortex-desktop] app update {} ready ({} {})",
-                                    update.version,
-                                    update.kind,
-                                    update.size
-                                );
-                                *handle.state::<AppState>().app_update.lock().unwrap() =
-                                    Some(update.clone());
-                                if let Err(e) = handle.emit(APP_UPDATE_AVAILABLE_EVENT, &update) {
-                                    shell_log!(
-                                        "[cortex-desktop] emit {APP_UPDATE_AVAILABLE_EVENT} failed: {e}"
-                                    );
-                                }
-                            }
-                            Ok(None) => shell_log!("[cortex-desktop] app update: none applicable"),
-                            Err(e) => shell_log!("[cortex-desktop] app update check skipped: {e}"),
-                        }
-                        std::thread::sleep(std::time::Duration::from_secs(24 * 60 * 60));
-                    });
-                } else {
-                    shell_log!("[cortex-desktop] app-update check not started: no credentials");
-                }
-            }
+            update_checks::start_background(app.handle().clone());
 
             Ok(())
         })

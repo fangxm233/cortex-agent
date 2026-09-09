@@ -1,21 +1,24 @@
-Please update me when files in this folder change
+Please update me when files in this folder change.
 
 Native shell startup, credentials, local setup, and frontend delivery.
-Provides SPA commands, native plugins, frontend delivery, and updates.
+Coordinates native update checks and user-confirmed installation.
 
 | filename | role | function |
 |---|---|---|
-| main.rs | entry | starts the native application |
-| lib.rs | core | Register shell IPC and compact desktop chrome |
-| mobile_notifications.rs | adapter | Configure native notifications with shell credentials |
-| creds.rs | core | stores and loads the server credentials |
-| app_update.rs | core | checks, downloads and installs shell updates |
-| frontend.rs | core | Resolves embedded setup assets and OTA workbench |
-| ota.rs | core | fetches and stages new frontend versions |
+| main.rs | entry | Start the native application |
+| lib.rs | core | Register shell IPC and desktop chrome |
+| mobile_notifications.rs | adapter | Configure native notification credentials |
+| native_menu.rs | adapter | Synchronize the macOS application menu |
+| creds.rs | core | Store and load server credentials |
+| app_update.rs | core | Select, verify, and install shell updates |
+| update_checks.rs | core | Coordinate update checks and guarded update IPC |
+| update_checks_tests.rs | test | Test update outcomes, HTTP, and mutual exclusion |
+| frontend.rs | core | Resolve embedded setup assets and OTA workbench |
+| ota.rs | core | Fetch fresh manifests and preserve staged UI |
 | setup.rs | core | Compose local setup and startup lifecycle |
-| setup_claude.rs | core | Guard local Claude Code detection and installation |
-| setup_package.rs | util | Validates setup package and installed version |
-| setup_process.rs | util | Resolve CLIs and stream token-safe setup progress |
-| forward.rs | core | forwards a server loopback port to a local port (desktop) |
-| forward_stub.rs | core | refusing stand-in for the forward on Android |
-| seed.rs | util | Restore compatible frontend on APK or legacy OTA |
+| setup_claude.rs | core | Guard Claude Code detection and installation |
+| setup_package.rs | utility | Validate setup package and installed version |
+| setup_process.rs | utility | Resolve CLIs and stream safe setup progress |
+| forward.rs | core | Forward server loopback ports on desktop |
+| forward_stub.rs | core | Refuse port forwarding on Android |
+| seed.rs | utility | Restore compatible frontend seeds |

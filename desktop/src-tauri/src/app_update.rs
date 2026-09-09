@@ -1,4 +1,7 @@
-// App shell self-updater (sibling of ota.rs, which updates only the SPA).
+// input:  Shell manifests, download store, platform installers
+// output: Typed check outcomes and verified installable shell assets
+// pos:    App shell update selection, preparation and installation
+// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
 //
 // Server side: agent-server `platform/ui-http/app-update.ts` serves /api/app-update/manifest.json —
 // the newest GitHub release carrying native app assets, CAPPED at the server's own version, so this
@@ -18,6 +21,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use crate::update_checks::ChannelOutcome;
 
 /// Same-origin manifest path served by agent-server `platform/ui-http/app-update.ts`.
 pub const MANIFEST_PATH: &str = "/api/app-update/manifest.json";
@@ -346,10 +350,8 @@ pub fn wanted_kind() -> String {
 
 // ─── Check + download (network; thin wrapper over the tested pieces) ────────
 
-/// Fetch the manifest and, when it advertises a newer shell for this platform, download the asset
-/// from the GitHub CDN (streamed to disk), verify its sha256, and keep it in the store. Returns the
-/// ready-to-install update, or None when up to date / skipped / no matching asset. A dev (non-
-/// CalVer) own version disables the check entirely.
+/// Fetch fresh metadata, preserving version/asset/skip policy. The caller holds
+/// the shared update operation guard through preparation and state publication.
 #[allow(clippy::too_many_arguments)]
 pub fn check_and_prepare(
     server_url: &str,
@@ -359,77 +361,90 @@ pub fn check_and_prepare(
     arch: &str,
     kind: &str,
     store: &UpdateStore,
-) -> Result<Option<AppUpdate>, String> {
+) -> Result<ChannelOutcome<AppUpdate>, String> {
     if !is_calver(own_version) {
-        return Ok(None);
+        return Ok(ChannelOutcome::skipped("dev_version"));
     }
-    let base = server_url.trim_end_matches('/');
     let client = crate::ota::build_http_client()?;
-    let manifest: Manifest = client
-        .get(format!("{base}{MANIFEST_PATH}"))
-        .header("x-cortex-token", token)
-        .send()
-        .map_err(|e| e.to_string())?
-        .error_for_status()
-        .map_err(|e| e.to_string())?
-        .json()
-        .map_err(|e| e.to_string())?;
-
-    let version = match manifest.version {
-        Some(v) if !v.is_empty() => v,
-        _ => return Ok(None), // `{}` manifest = no qualifying release
+    let manifest: Manifest = crate::ota::fetch_manifest(&client, server_url, token, MANIFEST_PATH)?;
+    let Some(version) = manifest.version.as_deref().filter(|v| !v.is_empty()) else {
+        return Ok(ChannelOutcome::current()); // `{}` = no qualifying release
     };
-    if compare_calver(&version, own_version) != Ordering::Greater {
-        return Ok(None);
+    if compare_calver(version, own_version) != Ordering::Greater {
+        return Ok(ChannelOutcome::current());
     }
-    if store.skipped_version().as_deref() == Some(version.as_str()) {
-        return Ok(None);
-    }
-    let asset = match select_asset(&manifest.assets, os, arch, kind) {
-        Some(a) => a.clone(),
-        None => return Ok(None),
-    };
+    prepare_selected(&client, &manifest, version, (os, arch, kind), store)
+}
 
+fn prepare_selected(
+    client: &reqwest::blocking::Client,
+    manifest: &Manifest,
+    version: &str,
+    platform: (&str, &str, &str),
+    store: &UpdateStore,
+) -> Result<ChannelOutcome<AppUpdate>, String> {
+    if store.skipped_version().as_deref() == Some(version) {
+        return Ok(ChannelOutcome::skipped("version_skipped"));
+    }
+    let Some(asset) = select_asset(&manifest.assets, platform.0, platform.1, platform.2) else {
+        return Ok(ChannelOutcome::skipped("no_matching_asset"));
+    };
+    let dest = prepare_asset(client, asset, store)?;
+    Ok(ChannelOutcome::available(AppUpdate {
+        version: version.into(),
+        release_url: manifest.release_url.clone(),
+        notes: manifest.notes.clone(),
+        size: asset.size,
+        kind: asset.kind.clone(),
+        path: dest,
+        sha256: asset.sha256.clone(),
+    }))
+}
+
+pub(crate) fn verified(update: &AppUpdate) -> bool {
+    hash_file(&update.path).is_ok_and(|hash| hash.eq_ignore_ascii_case(&update.sha256))
+}
+
+fn store_error(error: io::Error) -> String {
+    format!("could not prepare shell update: {}", error.kind())
+}
+
+fn prepare_asset(
+    client: &reqwest::blocking::Client,
+    asset: &Asset,
+    store: &UpdateStore,
+) -> Result<PathBuf, String> {
     let dest = store.asset_path(&asset.name);
-    let cached = dest.is_file()
-        && hash_file(&dest)
-            .map(|h| h.eq_ignore_ascii_case(&asset.sha256))
-            .unwrap_or(false);
+    let cached = hash_file(&dest).is_ok_and(|hash| hash.eq_ignore_ascii_case(&asset.sha256));
     if !cached {
-        store.ensure_root().map_err(|e| e.to_string())?;
-        let part = path_with_suffix(&dest, ".part");
-        // NO token header here: the URL is the GitHub CDN, never the Cortex server — the token
-        // must not leak to a third party.
-        let mut resp = client
-            .get(&asset.url)
-            .send()
-            .map_err(|e| e.to_string())?
-            .error_for_status()
-            .map_err(|e| e.to_string())?;
-        let mut file = std::fs::File::create(&part).map_err(|e| e.to_string())?;
-        resp.copy_to(&mut file).map_err(|e| e.to_string())?;
-        file.flush().map_err(|e| e.to_string())?;
-        drop(file);
-        let actual = hash_file(&part).map_err(|e| e.to_string())?;
-        if !actual.eq_ignore_ascii_case(&asset.sha256) {
-            let _ = std::fs::remove_file(&part);
-            return Err(format!("asset sha256 mismatch for {}", asset.name));
-        }
-        std::fs::rename(&part, &dest).map_err(|e| e.to_string())?;
+        store.ensure_root().map_err(store_error)?;
+        download_asset(client, asset, &dest)?;
     }
     if let Some(keep) = dest.file_name().and_then(|s| s.to_str()) {
         store.prune_except(keep);
     }
+    Ok(dest)
+}
 
-    Ok(Some(AppUpdate {
-        version,
-        release_url: manifest.release_url,
-        notes: manifest.notes,
-        size: asset.size,
-        kind: asset.kind,
-        path: dest,
-        sha256: asset.sha256,
-    }))
+fn download_asset(
+    client: &reqwest::blocking::Client,
+    asset: &Asset,
+    dest: &Path,
+) -> Result<(), String> {
+    let part = path_with_suffix(dest, ".part");
+    // No Cortex token on CDN requests, including their redirects.
+    let mut response = client.get(&asset.url).send().map_err(crate::ota::http_error)?
+        .error_for_status().map_err(crate::ota::http_error)?;
+    let mut file = std::fs::File::create(&part).map_err(store_error)?;
+    response.copy_to(&mut file).map_err(crate::ota::http_error)?;
+    file.flush().map_err(store_error)?;
+    drop(file);
+    let actual = hash_file(&part).map_err(store_error)?;
+    if !actual.eq_ignore_ascii_case(&asset.sha256) {
+        let _ = std::fs::remove_file(&part);
+        return Err("asset sha256 mismatch".into());
+    }
+    std::fs::rename(&part, dest).map_err(store_error)
 }
 
 // ─── Install (platform-branched) ────────────────────────────────────────────

@@ -1,5 +1,8 @@
-// Frontend OTA updater.
-//
+// input:  Server manifests, reqwest, SHA-256, frontend store
+// output: Verified staged frontend bundles and fresh manifest reads
+// pos:    Frontend OTA download and staging implementation
+// >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
+
 // Downloads a newer SPA bundle from the connected server and stages it for the NEXT launch, so the
 // running SPA is never swapped underneath itself. Layout under `<appDataDir>/ui/`:
 //   current/           the active frontend (served by the cortexui:// handler)
@@ -138,6 +141,18 @@ impl UiStore {
         read_trimmed(&self.staged_version_path())
     }
 
+    /// A complete pending bundle, also used by the missed-event query backstop.
+    pub fn pending_update(&self) -> Option<StagedUpdate> {
+        let version = self.staged_version()?;
+        let from_version = self.installed_version();
+        if from_version.as_deref() == Some(&version)
+            || !self.staged_dir().join("index.html").is_file()
+        {
+            return None;
+        }
+        Some(StagedUpdate { version, from_version, size: 0 })
+    }
+
     /// Extract verified bundle bytes into a temp dir, require an index.html, then atomically rename
     /// into `staged/` and record `staged.version` last (so a crash mid-extract never leaves a
     /// staged.version pointing at a partial dir).
@@ -227,59 +242,78 @@ pub(crate) fn build_http_client_with_timeout(
         .map_err(|e| e.to_string())
 }
 
-/// Fetch the manifest, and if a new version is available (and not already staged), download the
-/// bundle, verify its sha256, and stage it for next launch. Returns the staged update (new version +
-/// the version it replaces + size) on success, None when already up to date. Errors are surfaced for
-/// logging but are non-fatal to the caller.
+/// HTTP errors must never expose request URLs (userinfo/query secrets) or tokens.
+pub(crate) fn http_error(error: reqwest::Error) -> String {
+    if let Some(status) = error.status() {
+        return format!("update server returned HTTP {}", status.as_u16());
+    }
+    if error.is_timeout() {
+        return "update request timed out".into();
+    }
+    if error.is_decode() {
+        return "invalid update response".into();
+    }
+    "update request failed; check the connection and server address".into()
+}
+
+/// Always revalidate the manifest, including when the payload is already cached.
+pub(crate) fn fetch_manifest<T: serde::de::DeserializeOwned>(
+    client: &reqwest::blocking::Client,
+    server_url: &str,
+    token: &str,
+    path: &str,
+) -> Result<T, String> {
+    client.get(format!("{}{path}", server_url.trim_end_matches('/')))
+        .header("x-cortex-token", token)
+        .header("Cache-Control", "no-cache")
+        .send().map_err(http_error)?
+        .error_for_status().map_err(http_error)?
+        .json().map_err(http_error)
+}
+
+/// Fetch fresh metadata even with a staged bundle. Keep an existing complete staged
+/// UI until the user restarts: content hashes are not ordered, and replacing it on
+/// a recheck could discard an update the user has already been offered.
+/// The caller must hold the shared update operation guard.
 pub fn check_and_stage(
     server_url: &str,
     token: &str,
     store: &UiStore,
 ) -> Result<Option<StagedUpdate>, String> {
-    let base = server_url.trim_end_matches('/');
     let client = build_http_client()?;
-
-    let manifest: Manifest = client
-        .get(format!("{base}{MANIFEST_PATH}"))
-        .header("x-cortex-token", token)
-        .send()
-        .map_err(|e| e.to_string())?
-        .error_for_status()
-        .map_err(|e| e.to_string())?
-        .json()
-        .map_err(|e| e.to_string())?;
-
-    // Already the current version, or already downloaded as staged → nothing to do.
+    let manifest: Manifest = fetch_manifest(&client, server_url, token, MANIFEST_PATH)?;
+    if let Some(mut pending) = store.pending_update() {
+        if pending.version == manifest.version {
+            pending.size = manifest.size;
+        }
+        return Ok(Some(pending));
+    }
     let installed = store.installed_version();
-    if !needs_update(installed.as_deref(), &manifest.version)
-        || store.staged_version().as_deref() == Some(manifest.version.as_str())
-    {
+    if !needs_update(installed.as_deref(), &manifest.version) {
         return Ok(None);
     }
+    download_and_stage(&client, server_url, token, store, manifest, installed).map(Some)
+}
 
-    let bundle_url = format!("{base}{}", manifest.url);
-    let bytes = client
-        .get(bundle_url)
+fn download_and_stage(
+    client: &reqwest::blocking::Client,
+    server_url: &str,
+    token: &str,
+    store: &UiStore,
+    manifest: Manifest,
+    installed: Option<String>,
+) -> Result<StagedUpdate, String> {
+    let bytes = client.get(format!("{}{}", server_url.trim_end_matches('/'), manifest.url))
         .header("x-cortex-token", token)
-        .send()
-        .map_err(|e| e.to_string())?
-        .error_for_status()
-        .map_err(|e| e.to_string())?
-        .bytes()
-        .map_err(|e| e.to_string())?;
-
+        .send().map_err(http_error)?
+        .error_for_status().map_err(http_error)?
+        .bytes().map_err(http_error)?;
     if !verify_sha256(&bytes, &manifest.sha256) {
-        return Err("bundle sha256 mismatch".to_string());
+        return Err("bundle sha256 mismatch".into());
     }
-
-    store
-        .stage_bundle(&manifest.version, &bytes)
-        .map_err(|e| e.to_string())?;
-    Ok(Some(StagedUpdate {
-        version: manifest.version,
-        from_version: installed,
-        size: manifest.size,
-    }))
+    store.stage_bundle(&manifest.version, &bytes)
+        .map_err(|e| format!("could not stage frontend: {}", e.kind()))?;
+    Ok(StagedUpdate { version: manifest.version, from_version: installed, size: manifest.size })
 }
 
 #[cfg(test)]
