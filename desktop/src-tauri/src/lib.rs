@@ -801,12 +801,12 @@ pub fn run() {
                     .disable_drag_drop_handler();
                 // macOS keeps its decorations: Overlay is the supported way to run content under
                 // the title bar, and it preserves the native traffic lights, fullscreen button
-                // and window menu. The lights are nudged to sit centred in the SPA's 50px bar.
+                // and window menu. The lights are nudged to sit centred in the SPA's 34px bar.
                 #[cfg(target_os = "macos")]
                 {
                     win = win
                         .title_bar_style(tauri::TitleBarStyle::Overlay)
-                        .traffic_light_position(tauri::LogicalPosition::new(20.0, 19.0))
+                        .traffic_light_position(tauri::LogicalPosition::new(20.0, 11.0))
                         .hidden_title(true);
                 }
                 // Windows / Linux draw nothing: the SPA paints the caption buttons. `shadow`

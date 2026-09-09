@@ -1,5 +1,5 @@
 // input:  pane state, the navigation stack, the app menus and the window chrome mode
-// output: the 50px application bar: sidebar toggle, history arrows, menus, drag region, caption
+// output: 34px app bar with navigation, menus and window controls
 // pos:    The window's single top bar, above the pane row
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useState, type CSSProperties, type ReactNode } from 'react';
@@ -13,7 +13,7 @@ import { useMenuShortcuts } from './menu/useMenuShortcuts';
 import { useNativeMenu } from './menu/useNativeMenu';
 import { WindowControls } from './WindowControls';
 
-export const TOP_BAR_HEIGHT = 50;
+export const TOP_BAR_HEIGHT = 34;
 
 // Left-loaded by design: the right side is nothing but drag region and caption buttons. An earlier
 // draft put live status chips there; they were dropped so the bar stays a command surface.
@@ -95,6 +95,7 @@ export function TopBar(): JSX.Element {
   const mode = titleBarMode();
   const style: CSSProperties = {
     height: TOP_BAR_HEIGHT,
+    boxSizing: 'border-box',
     flex: 'none',
     display: 'flex',
     alignItems: 'center',
