@@ -760,7 +760,7 @@ export const enBase = {
   mHelpShortcuts: 'Keyboard shortcuts',
   mHelpDaemon: 'Daemon status',
   mHelpUpdates: 'Check for updates',
-  mHelpDevTools: 'Toggle developer tools',
+  mHelpDevTools: 'Developer tools',
   mHelpAbout: 'About Cortex',
   shortcutsTitle: 'Keyboard shortcuts',
   shortcutsHint: 'Shortcuts are active everywhere except while typing in a text field.',

@@ -760,7 +760,7 @@ export const zhBase = {
   mHelpShortcuts: '键盘快捷键',
   mHelpDaemon: '守护进程状态',
   mHelpUpdates: '检查更新',
-  mHelpDevTools: '切换开发者工具',
+  mHelpDevTools: '开发者工具',
   mHelpAbout: '关于 Cortex',
   shortcutsTitle: '键盘快捷键',
   shortcutsHint: '除在文本框内输入时外，快捷键在任何位置都生效。',
