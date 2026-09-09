@@ -1,10 +1,11 @@
-// input:  app-update store, native bridge lifecycle, and shared typing gate
-// output: gated shell-update state with install, skip, and run-local dismissal actions
-// pos:    Headless app-update source consumed only by the shared update prompt owner
+// input:  app-update store, manual results, and typing gate
+// output: gated shell updates, install, skip and dismissal actions
+// pos:    Shell update source for the shared prompt owner
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { useUpdateGating } from '@/features/update/useUpdateGating';
+import { subscribeManualCheckResult } from '@/features/update/manual-update-check';
 import {
   getAppUpdateSnapshot,
   installAppUpdate,
@@ -65,6 +66,11 @@ export function useAppUpdate(): AppUpdateState {
   const update = useUpdateGating(candidate);
   const installState = useAppInstall(pending?.version ?? update?.version ?? null, setHiddenVersion);
   useAppUpdateBridge();
+  useEffect(() => subscribeManualCheckResult(({ shell }) => {
+    if (!shell.update) return;
+    setHiddenVersion(null);
+    publishAppUpdate(shell.update);
+  }), []);
 
   const skip = useCallback(() => { void skipAppUpdate(); }, []);
   const dismiss = useCallback(() => {

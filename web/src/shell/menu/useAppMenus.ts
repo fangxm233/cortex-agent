@@ -1,5 +1,5 @@
-// input:  every window-level provider plus the native window actions
-// output: the File / Edit / View / Help model shared by the menu bar, shortcuts and macOS menu
+// input:  window providers, native actions and manual update checks
+// output: shared menus with async update progress and disabled state
 // pos:    Single definition of the desktop application menus
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useMemo } from 'react';
@@ -16,7 +16,7 @@ import { useSetTheme, useTheme } from '@/theme/ThemeProvider';
 import { safeInvoke } from '@/lib/native-bridge';
 import { isDesktopShell } from '@/lib/desktop-config';
 import { openExternalUrl } from '@/lib/external-navigation';
-import { applyFrontendUpdate, getStagedUpdate } from '@/features/hot-update/frontend-update';
+import { useManualUpdateCheck } from '@/features/update/useManualUpdateCheck';
 import { usePaneState } from '../PaneStateProvider';
 import { useShellModals } from '../ShellModalsProvider';
 import { useWindowActions, type WindowActions } from './useWindowActions';
@@ -25,7 +25,7 @@ import type { MenuDef, MenuNode } from './menu-model';
 export const DOCS_URL = 'https://fangxm233.github.io/cortex-agent/';
 
 // Every menu item is declared exactly once, here. The HTML menu bar (Windows / Linux), the global
-// shortcut handler and the Help → Keyboard shortcuts sheet all read this model, and the macOS
+// shortcut handler and the keyboard shortcuts sheet all read this model, and the macOS
 // native menu is built from the same list on the Rust side by id.
 //
 // Clipboard note: `execCommand` still drives cut/copy/select-all inside the webview, but paste is
@@ -62,13 +62,13 @@ export function useAppMenus(): { menus: MenuDef[]; windowActions: WindowActions 
   const dock = useDock();
   const theme = useTheme();
   const setTheme = useSetTheme();
-  const { currentProjectId, projects } = useCurrentProject();
+  const { currentProjectId } = useCurrentProject();
   const { selectedSessionId, setSelectedSession } = useSelectedSession();
   const windowActions = useWindowActions();
   const native = isDesktopShell();
+  const { busy: checkingUpdates, check: checkUpdates } = useManualUpdateCheck();
 
   const menus = useMemo<MenuDef[]>(() => {
-    const projectDir = projects.find((project) => project.id === currentProjectId)?.contextDir ?? null;
     const realSession = selectedSessionId && selectedSessionId !== DRAFT_SENTINEL ? selectedSessionId : null;
 
     const file: MenuDef = {
@@ -83,11 +83,6 @@ export function useAppMenus(): { menus: MenuDef[]; windowActions: WindowActions 
         {
           kind: 'item', id: 'file.newSchedule', label: L.mFileNewSchedule,
           run: () => scheduleModal.open(currentProjectId ? { projectId: currentProjectId } : undefined),
-        },
-        separator,
-        {
-          kind: 'item', id: 'file.reveal', label: L.mFileReveal, disabled: !native || !projectDir,
-          run: () => { if (projectDir) void safeInvoke('reveal_path', { path: projectDir }); },
         },
         separator,
         { kind: 'item', id: 'file.settings', label: L.mFileSettings, accel: 'mod+,', run: settings.open },
@@ -153,8 +148,6 @@ export function useAppMenus(): { menus: MenuDef[]; windowActions: WindowActions 
         { kind: 'item', id: 'view.workbench', label: L.mViewWorkbench, run: () => navigate('/workbench') },
         { kind: 'item', id: 'view.overview', label: L.mViewOverview, run: () => navigate('/overview') },
         { kind: 'item', id: 'view.memory', label: L.mViewMemory, run: () => navigate('/memory') },
-        { kind: 'item', id: 'view.skills', label: L.mViewSkills, run: () => navigate('/skills') },
-        { kind: 'item', id: 'view.tasks', label: L.mViewTasks, run: () => navigate('/tasks') },
         separator,
         {
           kind: 'submenu', id: 'view.appearance', label: L.mViewAppearance,
@@ -179,18 +172,11 @@ export function useAppMenus(): { menus: MenuDef[]; windowActions: WindowActions 
       label: L.menuHelp,
       items: [
         { kind: 'item', id: 'help.docs', label: L.mHelpDocs, run: () => void openExternalUrl(DOCS_URL).catch(() => {}) },
-        { kind: 'item', id: 'help.shortcuts', label: L.mHelpShortcuts, run: modals.openShortcuts },
         separator,
         { kind: 'item', id: 'help.daemon', label: L.mHelpDaemon, run: modals.openDaemonStatus },
         {
-          kind: 'item', id: 'help.updates', label: L.mHelpUpdates, disabled: !native,
-          // The shell checks in the background on launch; there is no re-check command yet, so this
-          // applies a bundle that is already staged and otherwise reports that none is.
-          run: () => void (async () => {
-            const staged = await getStagedUpdate();
-            if (staged) await applyFrontendUpdate();
-            else toast?.toast({ title: L.mHelpUpdates, description: L.upToDate, tone: 'done' });
-          })().catch(() => {}),
+          kind: 'item', id: 'help.updates', label: checkingUpdates ? L.updateCheckBusy : L.mHelpUpdates,
+          disabled: !native || checkingUpdates, run: () => void checkUpdates(),
         },
         { kind: 'item', id: 'help.devtools', label: L.mHelpDevTools, disabled: !native, run: windowActions.toggleDevTools },
         separator,
@@ -200,7 +186,7 @@ export function useAppMenus(): { menus: MenuDef[]; windowActions: WindowActions 
 
     return [file, edit, view, help];
   }, [L, navigate, toast, settings, scheduleModal, modals, panes, dock, theme, setTheme,
-    currentProjectId, projects, selectedSessionId, setSelectedSession, windowActions, native]);
+    currentProjectId, selectedSessionId, setSelectedSession, windowActions, native, checkingUpdates, checkUpdates]);
 
   return { menus, windowActions };
 }

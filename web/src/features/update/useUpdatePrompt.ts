@@ -1,8 +1,10 @@
-// input:  app-shell and staged-frontend update hook states
+// input:  update source hooks and manual check busy state
 // output: one surface-neutral prompt model with app-update priority
 // pos:    Shared headless owner of both native update hooks
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
+import { useSyncExternalStore } from 'react';
+import { getManualCheckBusy, subscribeManualCheck } from './manual-update-check';
 import { useAppUpdate } from '@/features/app-update/useAppUpdate';
 import { useHotUpdate } from '@/features/hot-update/useHotUpdate';
 import type { AppUpdateInfo } from '@/features/app-update/app-update';
@@ -21,6 +23,8 @@ export type UpdatePrompt =
 export function useUpdatePrompt(): UpdatePrompt {
   const app = useAppUpdate();
   const hot = useHotUpdate();
+  const checking = useSyncExternalStore(subscribeManualCheck, getManualCheckBusy);
+  if (checking) return null;
   if (app.update) {
     return {
       kind: 'app', update: app.update, busy: app.busy, error: app.error,
