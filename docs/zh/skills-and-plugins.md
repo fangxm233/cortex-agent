@@ -130,7 +130,7 @@ Assignment 继续写入 agent 和 template JSON 的 `pluginDirs`，不引入第�
   "name": "researcher",
   "profile": "claude-sonnet",
   "pluginDirs": [
-    "plugins/cortex-common",
+    "plugins/cortex-system",
     "plugins/my-plugin"
   ]
 }
@@ -173,7 +173,7 @@ Plugins 页面只管理 inventory 与 assignment。其 MCP inventory 与 acknowl
 
 ## 技能发现与调用 {#skill-discovery-and-invocation}
 
-`!skills` 命令按插件分组显示已发现技能。Plugin skill 使用 `cortex-common:synthesize` 这样的 plugin-qualified discovery identity，standalone user skill 使用 bare name。消息开头的已知 bare command 可以在调用前规范化为 slash form。
+`!skills` 命令按插件分组显示已发现技能。Plugin skill 使用 `cortex-system:schedule` 这样的 plugin-qualified discovery identity，standalone user skill 使用 bare name。消息开头的已知 bare command 可以在调用前规范化为 slash form。
 
 通过 `Skill` 工具调用技能时，Cortex hook bridge 会由 session activity tracker 记录活动。它复用 experiment 与 knowledge 文件的 access-tracking infrastructure；hook bridge 详见 [hooks.md](./hooks.md)。
 

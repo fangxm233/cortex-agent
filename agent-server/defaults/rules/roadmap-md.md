@@ -9,7 +9,7 @@ Project roadmap and milestones. The machine uses this to determine phase progres
 
 ## Hard Constraints
 
-- **Stable file**: Milestone structure changes should be triggered by reorient/decision.
+- **Stable file**: Milestone structure changes should be triggered by a re-orientation or a recorded decision.
 - **Each milestone must contain testable verification conditions** (checklist format). A milestone without a checklist is invalid.
 - Completed milestones are retained with check marks, not deleted (for reviewing roadmap history).
 - Length suggestion: ≤ 250 lines. If exceeded, consider splitting sub-projects or archiving completed phases.

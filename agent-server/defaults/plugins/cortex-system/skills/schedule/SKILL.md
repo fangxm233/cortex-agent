@@ -61,17 +61,17 @@ mcp__cortex__cortex_schedule_resume({ id })
 
 **Worked examples:**
 
-> User: "Remind me to run /orient every morning at 9, send results to current channel"
+> User: "Give me a status roundup of this project every morning at 9, in this channel"
 >
-> Call `mcp__cortex__cortex_schedule_add({ type: 'daily', time: '09:00', message: '/orient', target: 'current-project' })` — done. No need to call `cortex_context` first; the shorthand resolves automatically.
+> Call `mcp__cortex__cortex_schedule_add({ type: 'daily', time: '09:00', message: 'Review STATUS.md and the actionable task queue for this project, then post a short roundup', target: 'current-project' })` — done. No need to call `cortex_context` first; the shorthand resolves automatically.
 
 > User: "Report training status in this thread after 30 minutes"
 >
 > Call `mcp__cortex__cortex_schedule_add({ type: 'once', delay: '30m', message: 'Check training results on <machine> and report', target: 'current-thread' })` — the schedule continues the current thread (valid while it is running/waiting), so prior context is intact.
 
-> User: "Run deep retrospective every Monday at 9 PM"
+> User: "Mine last week's sessions for lessons every Monday at 9 PM"
 >
-> Call `mcp__cortex__cortex_schedule_add({ type: 'weekly', dayOfWeek: 'mon', time: '21:00', message: '/deep-retrospective' })` — `target` defaults to `fresh`, which is the right choice for a standalone weekly job.
+> Call `mcp__cortex__cortex_schedule_add({ type: 'weekly', dayOfWeek: 'mon', time: '21:00', message: 'Read this week\'s session logs and record any recurring failure or lesson worth keeping' })` — `target` defaults to `fresh`, which is the right choice for a standalone weekly job.
 
 If `current-thread` is requested but the context lacks the field, the tool throws — it does NOT silently fall back to fresh. Re-issue with `target: 'fresh'` if that's actually what you want.
 
@@ -139,7 +139,7 @@ Interpret the user's natural language description to determine:
 **Interpretation examples:**
 - "Check GPU status every 30 minutes" → interval, 30m, "Check GPU status (nvidia-smi) and report a one-line summary"
 - "Generate a daily project report every morning at 9" → daily, 09:00, "Generate a brief daily status report for all active projects"
-- "Do retrospection every Monday at 9 PM" → weekly, mon 21:00, "Execute /deep-retrospective — weekly knowledge mining"
+- "Do retrospection every Monday at 9 PM" → weekly, mon 21:00, "Mine this week's session logs for recurring failures and lessons worth keeping"
 - "Remind me to check training results in 2 hours" → once, 2h, "Check training results on <machine> and report to user"
 
 **Compute the new task object** using the canonical schedule CLI add command. The CLI currently defaults `channel` to `cli` unless an explicit channel override is provided.
@@ -147,7 +147,7 @@ Interpret the user's natural language description to determine:
 Examples:
 - `npx tsx agent-server/src/schedule-cli.ts add interval 30m "Check GPU status on <machine> (nvidia-smi) and report a one-line summary"`
 - `npx tsx agent-server/src/schedule-cli.ts add daily 09:00 "Generate a brief daily status report for all active projects"`
-- `npx tsx agent-server/src/schedule-cli.ts add weekly mon 21:00 "Execute /deep-retrospective — weekly knowledge mining"`
+- `npx tsx agent-server/src/schedule-cli.ts add weekly mon 21:00 "Mine this week's session logs for recurring failures and lessons worth keeping"`
 - `npx tsx agent-server/src/schedule-cli.ts add once 2h "Check training results on <machine> and report to user"`
 
 Confirm the plan in the output before writing, showing:

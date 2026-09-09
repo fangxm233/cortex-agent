@@ -28,4 +28,4 @@ Search command: `grep -r "EXP-035" context/`
 | knowledge/K-005.md | needs-update | "data scaling most effective" | Needs modality distinction |
 ```
 
-Search + classification takes about 5 minutes. Corrections without Downstream Impact are flagged in the compound step.
+Search + classification takes about 5 minutes. Corrections without Downstream Impact are still worth a one-line note, so a later reader can see the check was done.

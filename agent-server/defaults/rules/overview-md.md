@@ -5,7 +5,7 @@ paths:
 
 # OVERVIEW.md Convention
 
-Cross-project global view: one-line status per project + current focus. Primary input for `/orient`.
+Cross-project global view: one-line status per project + current focus. Primary input whenever a session needs to re-establish where everything stands.
 
 ## Hard Constraints
 

@@ -59,7 +59,7 @@
   "directive": "你是一个研究规划器。将问题分解为可测试的假设。",
   "promptTemplate": "file:planner-prompt.md",
   "tools": "Agent,AskUserQuestion,Bash,Read,Grep,Glob,Write,Edit,WebSearch,WebFetch,Skill",
-  "pluginDirs": ["plugins/cortex-common", "plugins/cortex-surveyor"]
+  "pluginDirs": ["plugins/cortex-system", "plugins/my-plugin"]
 }
 ```
 
@@ -101,7 +101,7 @@
       "description": "审查实现"
     }
   },
-  "pluginDirs": ["plugins/cortex-coder"]
+  "pluginDirs": ["plugins/my-plugin"]
 }
 ```
 
@@ -509,7 +509,7 @@ Cortex 内部使用三种类型的线程记录：
 
 ## 插件加载 {#plugin-loading}
 
-每个智能体定义通过 `pluginDirs` 指定要加载的插件目录。插件相对于 `DATA_DIR`（默认：`~/.cortex/`）解析。例如，`plugins/cortex-coder` 解析为 `~/.cortex/plugins/cortex-coder/`。
+每个智能体定义通过 `pluginDirs` 指定要加载的插件目录。插件相对于 `DATA_DIR`（默认：`~/.cortex/`）解析。例如，`plugins/cortex-system` 解析为 `~/.cortex/plugins/cortex-system/`。
 
 Claude Code 以 `--plugin-dir` 标志接收插件目录；PI 则把它们作为进程内 session 的附加 skill 路径接收。后端然后扫描 `SKILL.md` 文件并将其作为可调用技能提供。完整的技能和插件系统参见 [skills-and-plugins.md](./skills-and-plugins.md)。
 

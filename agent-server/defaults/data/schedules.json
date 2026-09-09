@@ -1,18 +1,6 @@
 {
   "tasks": [
     {
-      "id": "seed0004",
-      "type": "interval",
-      "intervalMs": 86400000,
-      "message": "[Scheduled Task] Execute /orient full — comprehensive situational assessment. Full project scan, machine state, cross-session patterns, task inventory, mission gap analysis, gravity signals, compound opportunities, risks.",
-      "channel": "__ADMIN_CHANNEL__",
-      "profile": null,
-      "preCheck": "bash agent-server/src/orient-precheck.sh",
-      "target": { "kind": "fresh" },
-      "isPaused": false,
-      "createdAt": 0
-    },
-    {
       "id": "seed0005",
       "type": "daily",
       "time": "08:30",
@@ -20,7 +8,9 @@
       "message": "Daily auth expiry scan at 08:30 local time: warn before daytime use while avoiding midnight maintenance activity.",
       "channel": "__ADMIN_CHANNEL__",
       "profile": null,
-      "target": { "kind": "fresh" },
+      "target": {
+        "kind": "fresh"
+      },
       "isPaused": false,
       "createdAt": 0
     }

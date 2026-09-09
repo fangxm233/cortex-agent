@@ -71,7 +71,7 @@ When the user responds with approval/rejection:
 
 ## Step 4: Cleanup
 
-If all entries in PENDING_APPROVALS.md are resolved (no `Status: pending` remaining), the file stays as a historical log. Old resolved entries can be cleaned up periodically during `/evolve`.
+If all entries in PENDING_APPROVALS.md are resolved (no `Status: pending` remaining), the file stays as a historical log. Old resolved entries can be pruned whenever the log gets long enough to slow a read.
 
 ## Principles
 - Present enough context for the user to decide quickly — no back-and-forth needed

@@ -11,9 +11,9 @@ Root directory for project context. All project state, experiment records, knowl
 | `projects/` | Project context | One subdirectory per active project |
 | `scans/` | Knowledge scan reports | Named by date `YYYY-MM-DD.md`, each scan outputs here |
 | `ideas/` | Idea incubation library | Directions in Incubating status, promoted to project when mature |
-| `retrospectives/` | Experience distillation reports | Mined by `/deep-retrospective` from historical logs for cross-session knowledge, named as `YYYY-MM-DD-<topic>.md` |
+| `retrospectives/` | Experience distillation reports | Distilled from historical logs for cross-session knowledge, named as `YYYY-MM-DD-<topic>.md` |
 | `user/` | User profile | Cross-project user personal preferences (identity, communication style, output format, etc.), maintained by `/user-learn`, hard limit 3KB |
-| `PENDING_APPROVALS.md` | Approval queue | Operations requiring user confirmation, written by need-approval, managed by /approval |
+| `PENDING_APPROVALS.md` | Approval queue | Operations requiring user confirmation, managed by /approval |
 
 ## Lookup Rules
 

@@ -58,7 +58,7 @@ Each file under `agents/` defines one agent — an independent entity with its o
   "directive": "You are a research planner. Break down problems into testable hypotheses.",
   "promptTemplate": "file:planner-prompt.md",
   "tools": "Agent,AskUserQuestion,Bash,Read,Grep,Glob,Write,Edit,WebSearch,WebFetch,Skill",
-  "pluginDirs": ["plugins/cortex-common", "plugins/cortex-surveyor"]
+  "pluginDirs": ["plugins/cortex-system", "plugins/my-plugin"]
 }
 ```
 
@@ -100,7 +100,7 @@ An agent can declare multiple **stages** via the `stages` field. When stages are
       "description": "Review the implementation"
     }
   },
-  "pluginDirs": ["plugins/cortex-coder"]
+  "pluginDirs": ["plugins/my-plugin"]
 }
 ```
 
@@ -508,7 +508,7 @@ Agent prompts support template variables that are resolved at runtime:
 
 ## Plugin Loading
 
-Each agent definition specifies which plugin directories to load via `pluginDirs`. Plugins are resolved relative to `DATA_DIR` (default: `~/.cortex/`). For example, `plugins/cortex-coder` resolves to `~/.cortex/plugins/cortex-coder/`.
+Each agent definition specifies which plugin directories to load via `pluginDirs`. Plugins are resolved relative to `DATA_DIR` (default: `~/.cortex/`). For example, `plugins/cortex-system` resolves to `~/.cortex/plugins/cortex-system/`.
 
 Claude Code receives the plugin directories as `--plugin-dir` flags; PI receives them as additional skill paths on its in-process session. The backend then scans for `SKILL.md` files and makes them available as invocable skills. See [skills-and-plugins.md](./skills-and-plugins.md) for the full skill and plugin system.
 

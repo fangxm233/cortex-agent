@@ -10,7 +10,7 @@ The project's "constitution": defines goals and success conditions. It is the ba
 ## Hard Constraints
 
 - **Stable file**: Can only be modified after user confirmation. Cortex must not rewrite or expand scope on its own.
-- **Modification trigger condition**: User explicitly directs reorient / pivot / scope change. Do not touch in any other case.
+- **Modification trigger condition**: User explicitly directs a re-orientation, pivot, or scope change. Do not touch in any other case.
 - **Limit: 100 lines AND 8KB**. Too long means content that belongs in roadmap/STATUS or a project-pitch document has been mixed in; trimming also requires user confirmation.
 
 ## Required Sections
@@ -45,4 +45,4 @@ The project's "constitution": defines goals and success conditions. It is the ba
 
 ## Modification Process
 
-For major reorient-type changes: first use the `reorient` skill to jointly update STATUS / roadmap / project CORTEX.md to avoid context inconsistency.
+For major re-orientations: update STATUS / roadmap / project CORTEX.md in the same pass to avoid context inconsistency.

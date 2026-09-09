@@ -130,7 +130,7 @@ Assignments continue to use `pluginDirs` in the agent and template JSON files. A
   "name": "researcher",
   "profile": "claude-sonnet",
   "pluginDirs": [
-    "plugins/cortex-common",
+    "plugins/cortex-system",
     "plugins/my-plugin"
   ]
 }
@@ -173,7 +173,7 @@ The Plugins page manages inventory and assignment only. Its MCP inventory and ac
 
 ## Skill discovery and invocation
 
-The `!skills` command displays discovered skills grouped by plugin. Plugin skills use a plugin-qualified discovery identity such as `cortex-common:synthesize`, while standalone user skills use their bare name. A known bare command at the start of a message can be normalized to its slash form before invocation.
+The `!skills` command displays discovered skills grouped by plugin. Plugin skills use a plugin-qualified discovery identity such as `cortex-system:schedule`, while standalone user skills use their bare name. A known bare command at the start of a message can be normalized to its slash form before invocation.
 
 When the `Skill` tool invokes a skill, Cortex's hook bridge records the activity through the session activity tracker. This uses the same access-tracking infrastructure as experiment and knowledge files; [hooks.md](./hooks.md) describes the hook bridge.
 
