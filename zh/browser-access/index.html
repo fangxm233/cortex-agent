@@ -1,0 +1,1491 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Autonomous agent system for long-running projects">
+      
+      
+        <meta name="author" content="Cortex Team">
+      
+      
+        <link rel="canonical" href="https://fangxm233.github.io/cortex-agent/zh/browser-access/">
+      
+      
+        <link rel="prev" href="../desktop-app/">
+      
+      
+        <link rel="next" href="../slack-setup/">
+      
+      
+        
+          <link rel="alternate" href="../../browser-access/" hreflang="en">
+        
+          <link rel="alternate" href="./" hreflang="zh">
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>浏览器访问 - Cortex</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#browser-access-deployment" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href="../" title="Cortex" class="md-header__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cortex
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              浏览器访问
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="选择当前语言">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="../../browser-access/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="zh" class="md-select__link">
+              中文
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fangxm233/cortex-agent" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../" title="Cortex" class="md-nav__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cortex
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fangxm233/cortex-agent" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    首页
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    快速入门
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    桌面应用
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    浏览器访问
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    浏览器访问
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-in-core-web-ui-transport" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        内置的 Web UI 传输层
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deployment-runbook-source-running-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        部署运行手册（源码 → 运行中的服务器）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="部署运行手册（源码 → 运行中的服务器）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. 前置条件
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-build-the-spa" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. 构建 SPA
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-where-webdist-is-served-from" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. web/dist 从何处被提供
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-enable-the-web-ui-endpoint" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. 启用 Web UI 端点
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-restart-the-daemon-to-apply" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. 重启守护进程以生效
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#authentication" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        认证
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#browser-access-via-cloudflare-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        经 Cloudflare Access 的浏览器访问
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="经 Cloudflare Access 的浏览器访问">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-create-a-dedicated-ui-hostname-and-tunnel-route" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. 建立专用 UI hostname 与隧道路由
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-add-a-cloudflare-access-application-account-side-ops" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. 添加 Cloudflare Access 应用（账户侧运维）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-configure-the-server-to-verify-access-jwts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. 配置服务器校验 Access JWT
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-open-the-workbench" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. 打开工作台
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#browser-path-vs-desktop-bearer-token-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        浏览器路径与桌面 Bearer-Token 路径的区别
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        故障排查
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slack-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Slack 设置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    配置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI 参考
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    后端
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    架构
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../threads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    线程
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    任务
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    记忆
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills-and-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    技能与插件
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    调度
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../safety-and-approvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    安全与审批
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    钩子
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cross-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    跨机器
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-in-core-web-ui-transport" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        内置的 Web UI 传输层
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deployment-runbook-source-running-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        部署运行手册（源码 → 运行中的服务器）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="部署运行手册（源码 → 运行中的服务器）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. 前置条件
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-build-the-spa" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. 构建 SPA
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-where-webdist-is-served-from" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. web/dist 从何处被提供
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-enable-the-web-ui-endpoint" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. 启用 Web UI 端点
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-restart-the-daemon-to-apply" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. 重启守护进程以生效
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#authentication" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        认证
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#browser-access-via-cloudflare-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        经 Cloudflare Access 的浏览器访问
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="经 Cloudflare Access 的浏览器访问">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-create-a-dedicated-ui-hostname-and-tunnel-route" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. 建立专用 UI hostname 与隧道路由
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-add-a-cloudflare-access-application-account-side-ops" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. 添加 Cloudflare Access 应用（账户侧运维）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-configure-the-server-to-verify-access-jwts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. 配置服务器校验 Access JWT
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-open-the-workbench" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. 打开工作台
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#browser-path-vs-desktop-bearer-token-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        浏览器路径与桌面 Bearer-Token 路径的区别
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        故障排查
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="browser-access-deployment">浏览器访问与部署<a class="headerlink" href="#browser-access-deployment" title="Permanent link">&para;</a></h1>
+<p>Cortex 提供一个浏览器工作台——与<a href="../desktop-app/">桌面应用</a>所包装的是同一个 SPA——
+无需安装任何东西，即可从任意浏览器访问。本页同时覆盖<strong>部署运行手册</strong>（构建 SPA、
+在服务器上启用 Web UI 端点）和<strong>浏览器访问路径</strong>（经 Cloudflare Access 边缘登录访问）。</p>
+<p>访问工作台有两条彼此独立的路径，它们的认证方式不同：</p>
+<table>
+<thead>
+<tr>
+<th>路径</th>
+<th>使用者</th>
+<th>认证方式</th>
+<th>是否持有 <code>clientToken</code>？</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>浏览器</strong></td>
+<td>任何有浏览器的人</td>
+<td>Cloudflare Access 边缘登录（邮箱 / IdP），由服务器以 JWT 校验</td>
+<td><strong>否</strong>——浏览器从不接触令牌</td>
+</tr>
+<tr>
+<td><strong>桌面（Tauri）</strong></td>
+<td>已安装的桌面应用</td>
+<td>存于操作系统密钥链的 Bearer <code>x-cortex-token</code>（即 <code>clientToken</code>）</td>
+<td>是</td>
+</tr>
+</tbody>
+</table>
+<p>本页是浏览器访问 + 部署参考。安装原生桌面应用请见 <a href="../desktop-app/">桌面应用</a>。</p>
+<h2 id="the-in-core-web-ui-transport">内置的 Web UI 传输层<a class="headerlink" href="#the-in-core-web-ui-transport" title="Permanent link">&para;</a></h2>
+<p>Web UI 传输层<strong>内置</strong>于 <code>@cortex-agent/server</code>，按需在 <code>CORTEX_UI_HTTP</code> 标志后加载。它携带
+<code>@trpc/server</code> 与 <code>jose</code>，但二者是<strong>运行期惰性</strong>的：服务器仅通过一个只有在标志设置时才会到达
+的动态 import 加载传输层。标志未设置时，传输层代码与 <code>@trpc/server</code> / <code>jose</code> 都不会进入运行时
+模块图，因此仅用 Slack 或 TUI 的部署不承担任何 UI 负担——同时安装与升级仍是一条
+<code>npm install -g @cortex-agent/server</code>。</p>
+<p>启用后，该传输层：</p>
+<ul>
+<li>以<strong>同源</strong>方式提供构建后的 SPA（<code>web/dist</code>）与 tRPC API——同一端口、同一 origin，
+  浏览器加载 <code>index.html</code> + 资源并调用 <code>/trpc</code>，无需任何跨域处理；</li>
+<li>在 <code>/trpc</code> 暴露 tRPC API（查询/变更走 HTTP 批量，订阅走 SSE），进程内直连服务器的
+  domain 服务（无代理、无 sidecar）；</li>
+<li>每个 <code>/trpc</code> 请求都经过<strong>双路认证</strong>门控（见 <a href="#authentication">认证</a>）。</li>
+</ul>
+<p>它与服务器运行在同一进程中，绑定到 <code>127.0.0.1</code>，设计上只应通过隧道对外暴露。</p>
+<h2 id="deployment-runbook-source-running-server">部署运行手册（源码 → 运行中的服务器）<a class="headerlink" href="#deployment-runbook-source-running-server" title="Permanent link">&para;</a></h2>
+<p>以下步骤将你从全新检出带到一台提供浏览器工作台的 Cortex 服务器。</p>
+<h3 id="1-prerequisites">1. 前置条件<a class="headerlink" href="#1-prerequisites" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Node.js ≥ 20 与 <a href="https://pnpm.io">pnpm</a>（本仓库是 pnpm workspace）。</li>
+<li>一台运行中的 Cortex 服务器（见 <a href="../quickstart/">快速入门</a>）。</li>
+</ul>
+<h3 id="2-build-the-spa">2. 构建 SPA<a class="headerlink" href="#2-build-the-spa" title="Permanent link">&para;</a></h3>
+<p>网页 SPA 构建产物位于 <code>web/dist</code>。在仓库根目录：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pnpm<span class="w"> </span>install<span class="w">            </span><span class="c1"># 安装 workspace 依赖</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>pnpm<span class="w"> </span>-r<span class="w"> </span>run<span class="w"> </span>build<span class="w">       </span><span class="c1"># 构建每个 workspace 包，包括 web → web/dist</span>
+</code></pre></div>
+<p>只构建 SPA 及其依赖：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pnpm<span class="w"> </span>--filter<span class="w"> </span>@cortex-agent/ui-contract<span class="w"> </span>run<span class="w"> </span>build
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pnpm<span class="w"> </span>--filter<span class="w"> </span>web<span class="w"> </span>run<span class="w"> </span>build<span class="w">      </span><span class="c1"># 产出 web/dist</span>
+</code></pre></div>
+<p><code>web/dist</code> 是一个纯静态产物（<code>index.html</code> + 带哈希的资源）。发布 <code>@cortex-agent/server</code> 包时，
+<code>web/dist</code> 会被打包进包内（通过 <code>prepack</code> 步骤）并随包的 <code>files</code> 一同发布，因此已安装的服务器
+无需额外构建即可提供 SPA。从源码检出时，你用上面的步骤自行构建它。</p>
+<h3 id="3-where-webdist-is-served-from">3. <code>web/dist</code> 从何处被提供<a class="headerlink" href="#3-where-webdist-is-served-from" title="Permanent link">&para;</a></h3>
+<p>服务器按以下顺序解析 SPA 目录：</p>
+<ol>
+<li>你显式传给它的目录；</li>
+<li><code>CORTEX_UI_SPA_DIR</code> 环境变量；</li>
+<li>包根目录的 <code>web/dist</code>（存在于已安装/已发布的包中）；</li>
+<li>monorepo 的 <code>web/dist</code>（从源码检出运行时）。</li>
+</ol>
+<p>如果你部署已安装的包，第 3 项开箱即用。如果你从仓库检出部署，第 4 项无需配置即可生效——
+就地构建 <code>web/dist</code> 便会被自动提供。如果你把构建后的 SPA 部署到其他位置，用
+<code>CORTEX_UI_SPA_DIR</code> 指向它。如果目录不存在（SPA 未构建），非 <code>/trpc</code> 路径返回 404 占位，
+而 <code>/trpc</code> 仍可工作。</p>
+<h3 id="4-enable-the-web-ui-endpoint">4. 启用 Web UI 端点<a class="headerlink" href="#4-enable-the-web-ui-endpoint" title="Permanent link">&para;</a></h3>
+<p>在服务器的 <code>~/.cortex/config/.env</code> 中添加：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nv">CORTEX_UI_HTTP</span><span class="o">=</span><span class="m">1</span><span class="w">          </span><span class="c1"># 主动开启：启动 tRPC HTTP + SSE 端点（必需）</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nv">CORTEX_UI_PORT</span><span class="o">=</span><span class="m">3004</span><span class="w">       </span><span class="c1"># 可选，默认为 3004</span>
+</code></pre></div>
+<p><code>CORTEX_UI_HTTP</code> 接受 <code>1</code>、<code>true</code>、<code>on</code> 或 <code>yes</code>。未设置时，该端点——以及 Web UI 传输层
+连同 <code>@trpc/server</code> / <code>jose</code>——都不会加载。</p>
+<h3 id="5-restart-the-daemon-to-apply">5. 重启守护进程以生效<a class="headerlink" href="#5-restart-the-daemon-to-apply" title="Permanent link">&para;</a></h3>
+<p>守护进程在启动时读取 SPA 与环境变量，因此新的构建或环境变量更改需在重启后生效：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>cortex<span class="w"> </span>daemon<span class="w">   </span><span class="c1"># 或：systemctl --user restart cortex（如果已注册系统服务）</span>
+</code></pre></div>
+<div class="admonition warning">
+<p class="admonition-title">重启具有中断性</p>
+<p>重启守护进程会中断所有进行中的智能体、线程与定时任务。请将其视为一次审慎、
+受控的操作——在系统空闲时执行；如果你的 Cortex 实例运行在审批策略之下，
+请让重启走该审批步骤，而非随意重启。</p>
+</div>
+<p>此时服务器<strong>仅在服务器主机上</strong>可通过 <code>http://127.0.0.1:3004</code> 访问。把它暴露给浏览器
+是下一节的内容。</p>
+<h2 id="authentication">认证<a class="headerlink" href="#authentication" title="Permanent link">&para;</a></h2>
+<p><code>/trpc</code> 认证门在<strong>任一</strong>凭据有效时放行请求，否则在 tRPC 运行前返回 <code>401</code>：</p>
+<ol>
+<li><strong><code>x-cortex-token</code> 头</strong> 等于服务器的 <code>clientToken</code>——桌面 / 机器路径。优先检查，
+   使用常量时间比较。与此前完全一致。</li>
+<li><strong>有效的 <code>Cf-Access-Jwt-Assertion</code> 头</strong>——浏览器路径。Cloudflare 边缘在认证用户后
+   注入该 JWT，由服务器校验。<strong>浏览器从不持有 <code>clientToken</code>。</strong></li>
+</ol>
+<p>服务器针对你的 Cloudflare Access team-domain JWKS 校验 Access JWT，检查签名（仅
+RS256 / ES256）、受众（AUD）标签、签发者与过期时间。如果服务器上<strong>未</strong>配置 Access，
+JWT 路径被禁用，认证门安全降级为仅令牌——未配置的 Access 路径绝不放行任何请求。</p>
+<h2 id="browser-access-via-cloudflare-access">经 Cloudflare Access 的浏览器访问<a class="headerlink" href="#browser-access-via-cloudflare-access" title="Permanent link">&para;</a></h2>
+<p>浏览器路径在一个<strong>专用 UI hostname 前放置 Cloudflare Access 边缘登录</strong>，用户在边缘用
+邮箱 / IdP 登录，服务器只会看到已被验证的请求。</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>浏览器
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>  │  https（Cloudflare Access：在边缘用邮箱 / IdP 登录）
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>  ▼
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>Cloudflare Tunnel   (cortex-ui.example.com  →  服务器 localhost:3004)
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>  │  边缘在每个请求上注入  Cf-Access-Jwt-Assertion
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>  ▼
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>agent-server Web UI 传输层  （校验 JWT；浏览器从不持有 clientToken）
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>  ├─ 提供 web/dist  （同源 SPA）
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>  └─ 提供 /trpc     （同源真实数据，进程内直连）
+</code></pre></div>
+<h3 id="1-create-a-dedicated-ui-hostname-and-tunnel-route">1. 建立专用 UI hostname 与隧道路由<a class="headerlink" href="#1-create-a-dedicated-ui-hostname-and-tunnel-route" title="Permanent link">&para;</a></h3>
+<p>将一条 Cloudflare Tunnel 路由从一个<strong>新的</strong>公开 hostname（例如 <code>cortex-ui.example.com</code>）
+指向服务器的 loopback 端点（<code>http://127.0.0.1:3004</code>，或你的 <code>CORTEX_UI_PORT</code>）。</p>
+<div class="admonition danger">
+<p class="admonition-title">与 cortex-client 端点使用不同的 hostname</p>
+<p>你的远程 <code>cortex-client</code> 实例所连接的 hostname <strong>绝不能</strong>放在 Cloudflare Access 之后
+——Access 会挡住这些 WebSocket 客户端。始终给浏览器 UI 一个<strong>独立</strong>的 hostname，
+只对这一个应用 Access。</p>
+</div>
+<h3 id="2-add-a-cloudflare-access-application-account-side-ops">2. 添加 Cloudflare Access 应用（账户侧运维）<a class="headerlink" href="#2-add-a-cloudflare-access-application-account-side-ops" title="Permanent link">&para;</a></h3>
+<p>在 Cloudflare Zero Trust 面板中，为该 UI hostname 创建一个 <strong>self-hosted Access 应用</strong>，
+策略放行你的登录邮箱（或 IdP 群组）。这是在 Cloudflare 面板中执行的账户级操作，不在
+Cortex 配置里。记下该应用的 <strong>AUD 标签</strong>——下一步需要用到。</p>
+<h3 id="3-configure-the-server-to-verify-access-jwts">3. 配置服务器校验 Access JWT<a class="headerlink" href="#3-configure-the-server-to-verify-access-jwts" title="Permanent link">&para;</a></h3>
+<p>在服务器的 <code>~/.cortex/config/.env</code> 中添加：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nv">CORTEX_ACCESS_TEAM_DOMAIN</span><span class="o">=</span>your-team<span class="w">      </span><span class="c1"># 裸 team 名，或 your-team.cloudflareaccess.com</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nv">CORTEX_ACCESS_AUD</span><span class="o">=</span>&lt;你的-Access-应用-AUD&gt;<span class="w">  </span><span class="c1"># Access 应用的 AUD 标签</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="c1"># CORTEX_ACCESS_CERTS_URL=...            # 可选：覆盖推导出的 JWKS URL</span>
+</code></pre></div>
+<p>服务器从 <code>CORTEX_ACCESS_TEAM_DOMAIN</code> 推导出签发者
+（<code>https://your-team.cloudflareaccess.com</code>）与 JWKS URL
+（<code>https://your-team.cloudflareaccess.com/cdn-cgi/access/certs</code>）。如果
+<code>CORTEX_ACCESS_TEAM_DOMAIN</code> 或 <code>CORTEX_ACCESS_AUD</code> 有<strong>任一</strong>未设置，浏览器路径保持禁用
+（仅令牌）。更改这些值后需重启守护进程。</p>
+<h3 id="4-open-the-workbench">4. 打开工作台<a class="headerlink" href="#4-open-the-workbench" title="Permanent link">&para;</a></h3>
+<p>访问 <code>https://cortex-ui.example.com</code>。Cloudflare Access 要求你用邮箱 / IdP 登录；认证后，
+边缘在每个请求上转发经校验的 <code>Cf-Access-Jwt-Assertion</code>，服务器提供同源 SPA，工作台加载
+真实 tRPC 数据——无需令牌，无需本地安装。</p>
+<h2 id="browser-path-vs-desktop-bearer-token-path">浏览器路径与桌面 Bearer-Token 路径的区别<a class="headerlink" href="#browser-path-vs-desktop-bearer-token-path" title="Permanent link">&para;</a></h2>
+<p>两条路径都到达同一个 <code>/trpc</code> API 与同一个工作台，但在<strong>何处</strong>及<strong>如何</strong>认证上不同：</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>浏览器</th>
+<th>桌面（Tauri）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Hostname</td>
+<td>专用 UI hostname，<strong>位于</strong> Cloudflare Access 之后</td>
+<td>一个<strong>不在</strong> Access 之后的 hostname</td>
+</tr>
+<tr>
+<td>登录</td>
+<td>Cloudflare Access 边缘登录（邮箱 / IdP）</td>
+<td>一次性输入 <code>serverUrl</code> + <code>clientToken</code></td>
+</tr>
+<tr>
+<td>请求上的凭据</td>
+<td><code>Cf-Access-Jwt-Assertion</code>（由边缘签发）</td>
+<td><code>x-cortex-token</code> 头</td>
+</tr>
+<tr>
+<td>何处校验认证</td>
+<td>服务器校验 JWT</td>
+<td>服务器校验令牌</td>
+</tr>
+<tr>
+<td><code>clientToken</code> 暴露</td>
+<td><strong>从不接触浏览器</strong></td>
+<td>存于操作系统密钥链</td>
+</tr>
+<tr>
+<td>SPA origin</td>
+<td>同源（SPA + <code>/trpc</code> 同一主机）</td>
+<td>直连 <code>/trpc</code>（启用 CORS）</td>
+</tr>
+</tbody>
+</table>
+<p>由于桌面应用发送 <code>x-cortex-token</code>，它必须通过一个<strong>不在</strong> Cloudflare Access 之后的
+hostname 连接（Access 会在边缘挡住 bearer 请求）。浏览器路径正相反：由 Access 完成登录，
+浏览器<strong>无需</strong>持有令牌即可进入。当你想要原生窗口且愿意在本地存储令牌时，选择桌面应用；
+当你想要零安装、由 IdP 管理的访问时，选择浏览器路径。</p>
+<h2 id="troubleshooting">故障排查<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
+<p><strong>浏览器出现 Cloudflare 登录循环或边缘 <code>403</code></strong></p>
+<p>Access 应用策略未放行你的身份。检查 Cloudflare Zero Trust 面板中该 UI hostname 上
+Access 应用的策略。</p>
+<p><strong>浏览器在边缘登录成功，但工作台显示 <code>401</code> / 无数据</strong></p>
+<p>边缘已认证你，但服务器拒绝了 JWT。在服务器上确认 <code>CORTEX_ACCESS_TEAM_DOMAIN</code> 与你的
+team 匹配、<code>CORTEX_ACCESS_AUD</code> 与 Access 应用的 AUD 标签完全一致，且设置后已重启守护
+进程。若这些未设置，浏览器路径被禁用，每个浏览器请求都是 <code>401</code>。</p>
+<p><strong>页面加载但 <code>/trpc</code> 调用返回 <code>404</code></strong></p>
+<p>未找到 <code>web/dist</code>，因此只提供了 API。构建 SPA（<code>pnpm --filter web run build</code>）或将
+<code>CORTEX_UI_SPA_DIR</code> 指向你构建的产物，然后重启。</p>
+<p><strong>UI hostname 完全不可达</strong></p>
+<ol>
+<li>确认已设置 <code>CORTEX_UI_HTTP=1</code> 且添加后已重启守护进程。</li>
+<li>在服务器上确认端点已启动：<code>curl http://127.0.0.1:3004/trpc</code> 应返回 tRPC 错误
+   （而非连接拒绝）。</li>
+<li>确认 Cloudflare Tunnel 正在运行且其路由指向正确端口。</li>
+</ol>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
