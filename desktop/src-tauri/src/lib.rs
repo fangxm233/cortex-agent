@@ -1,5 +1,5 @@
 // input:  app config, credential store, OTA modules, native plugins
-// output: Shell configuration, local setup IPC and app window
+// output: Shell config, setup IPC and app-drawn desktop chrome
 // pos:    Cortex native shell composition root
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -488,27 +488,6 @@ const PLATFORM_FLAG: &str = "linux";
 #[cfg(target_os = "android")]
 const PLATFORM_FLAG: &str = "android";
 
-/// Frontend version from which the SPA draws its own title bar.
-///
-/// This is the gate that makes an OTA swap safe in either order. The frontend hot-updates while the
-/// Rust shell updates on its own schedule, so the two are routinely out of step. Stripping the
-/// decorations for a frontend that has no drag region and no caption buttons would leave a window
-/// the user cannot move or close — the one failure mode here that is not recoverable from inside
-/// the app. The window is built AFTER `promote_staged()`, so the installed version is already known.
-const TITLEBAR_MIN_UI_VERSION: &str = "2026.9.8";
-
-/// Whether the installed frontend can draw the window chrome itself.
-///
-/// `None` means no OTA bundle is installed, so we are serving the seed that shipped inside this very
-/// shell — which by construction matches it. Only an actually-older OTA bundle forces native chrome.
-#[cfg(not(target_os = "android"))]
-fn draws_own_titlebar(installed: Option<&str>) -> bool {
-    match installed {
-        Some(version) => setup::version_at_least(version, TITLEBAR_MIN_UI_VERSION),
-        None => true,
-    }
-}
-
 /// The full initialization script: platform flag + **synchronously baked** credentials + shared body.
 ///
 /// The credentials known at window-build time (loaded from the credential store) are serialized
@@ -765,7 +744,6 @@ pub fn run() {
             // running SPA is never swapped underneath itself. On Android, if `ui/current` is still
             // empty afterwards (first run / offline), materialize the embedded seed into it so the
             // cortexui:// resolver has something to serve (desktop falls back to resource_dir instead).
-            let mut installed_ui: Option<String> = None;
             if let Ok(data) = app.path().app_data_dir() {
                 let store = ota::UiStore::new(&data);
                 match store.promote_staged() {
@@ -781,21 +759,16 @@ pub fn run() {
                         Err(e) => shell_log!("[cortex-desktop] seed extract failed: {e}"),
                     }
                 }
-                installed_ui = store.installed_version();
                 shell_log!(
                     "[cortex-desktop] frontend dir: installed_version={:?}",
-                    installed_ui
+                    store.installed_version()
                 );
             }
 
-            // Chrome mode is decided here, before the builder runs, and is handed to the SPA in the
-            // same breath so the two can never disagree about who draws the title bar.
+            // Desktop always uses app-drawn chrome, independent of the OTA content hash.
+            // Hand the same mode to the SPA so its window controls match the native window.
             #[cfg(not(target_os = "android"))]
-            let custom_chrome = draws_own_titlebar(installed_ui.as_deref());
-            #[cfg(not(target_os = "android"))]
-            let title_bar_mode = if !custom_chrome {
-                "native"
-            } else if cfg!(target_os = "macos") {
+            let title_bar_mode = if cfg!(target_os = "macos") {
                 "overlay"
             } else {
                 "custom"
@@ -826,25 +799,23 @@ pub fn run() {
                     .inner_size(1400.0, 900.0)
                     .resizable(true)
                     .disable_drag_drop_handler();
-                if custom_chrome {
-                    // macOS keeps its decorations: Overlay is the supported way to run content under
-                    // the title bar, and it preserves the native traffic lights, fullscreen button
-                    // and window menu. The lights are nudged to sit centred in the SPA's 50px bar.
-                    #[cfg(target_os = "macos")]
-                    {
-                        win = win
-                            .title_bar_style(tauri::TitleBarStyle::Overlay)
-                            .traffic_light_position(tauri::LogicalPosition::new(20.0, 19.0))
-                            .hidden_title(true);
-                    }
-                    // Windows / Linux draw nothing: the SPA paints the caption buttons. `shadow`
-                    // keeps the drop shadow (and, on Windows 11, the rounded corners) that an
-                    // undecorated window otherwise loses; tao still handles the resize borders and
-                    // Aero Snap for undecorated windows.
-                    #[cfg(not(target_os = "macos"))]
-                    {
-                        win = win.decorations(false).shadow(true);
-                    }
+                // macOS keeps its decorations: Overlay is the supported way to run content under
+                // the title bar, and it preserves the native traffic lights, fullscreen button
+                // and window menu. The lights are nudged to sit centred in the SPA's 50px bar.
+                #[cfg(target_os = "macos")]
+                {
+                    win = win
+                        .title_bar_style(tauri::TitleBarStyle::Overlay)
+                        .traffic_light_position(tauri::LogicalPosition::new(20.0, 19.0))
+                        .hidden_title(true);
+                }
+                // Windows / Linux draw nothing: the SPA paints the caption buttons. `shadow`
+                // keeps the drop shadow (and, on Windows 11, the rounded corners) that an
+                // undecorated window otherwise loses; tao still handles the resize borders and
+                // Aero Snap for undecorated windows.
+                #[cfg(not(target_os = "macos"))]
+                {
+                    win = win.decorations(false).shadow(true);
                 }
             }
             win.build()?;

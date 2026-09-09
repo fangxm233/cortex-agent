@@ -6,7 +6,7 @@ Provides SPA commands, native plugins, frontend delivery, and updates.
 | filename | role | function |
 |---|---|---|
 | main.rs | entry | starts the native application |
-| lib.rs | core | Register shell, local setup and notification IPC |
+| lib.rs | core | Register shell IPC and app-drawn desktop chrome |
 | mobile_notifications.rs | adapter | Configure native notifications with shell credentials |
 | creds.rs | core | stores and loads the server credentials |
 | app_update.rs | core | checks, downloads and installs shell updates |

@@ -7,6 +7,7 @@ Owns transport, native capabilities, retained actions and file utilities.
 |---|---|---|
 | trpc.ts | core | Creates tRPC clients with credential safeguards |
 | trpc.test.ts | test | Unit tests for URL and headers per transport mode |
+| desktop-platform.ts | util | Reads platform and desktop window chrome mode |
 | desktop-config.ts | util | Detects guarded native shells and supplies auth details |
 | desktop-config.test.ts | test | Unit tests for shell detection and auth headers |
 | external-navigation.ts | util | Opens HTTP links in browser and native shells |
