@@ -31,7 +31,7 @@ class PackController:
         self._flock(lock_file, operation)
 
     def run(self, command: list[str], _cwd: Path, _environment: dict[str, str]) -> None:
-        if command[:2] != ["npm", "pack"]:
+        if command[:2] != ["node", "scripts/pack-offline.mjs"]:
             return
         with self._state_lock:
             self._pack_calls += 1

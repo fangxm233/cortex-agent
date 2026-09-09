@@ -56,6 +56,10 @@ def _checkout_pack_lock(repo_root: Path) -> Iterator[None]:
 def build_offline_npm_artifact(repo_root: Path, output_dir: Path) -> Path:
     """Build the web SPA, then pack the production agent-server tarball into `output_dir`.
 
+    Packing goes through `scripts/pack-offline.mjs` rather than `npm pack`, because the published
+    package is thin and only this path adds the bundled runtime closure the offline containers
+    install from.
+
     `npm pack` will not create its destination, and fails late and confusingly when it is missing
     -- after the whole build has already run -- so it is created here.
     """
@@ -64,7 +68,7 @@ def build_offline_npm_artifact(repo_root: Path, output_dir: Path) -> Path:
         environment = build_environment()
         output_dir.mkdir(parents=True, exist_ok=True)
         _run(["pnpm", "--filter", "@cortex-agent/web...", "run", "build"], repo_root, environment)
-        _run(["npm", "pack", "--offline", "--pack-destination", str(output_dir)],
+        _run(["node", "scripts/pack-offline.mjs", "--pack-destination", str(output_dir)],
              server_root, environment)
         artifacts = sorted(output_dir.glob(NPM_ARTIFACT_GLOB))
         if len(artifacts) != 1:

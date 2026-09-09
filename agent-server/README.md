@@ -69,7 +69,8 @@ stage, not a polite suggestion.
 
 ## Quickstart
 
-Requirements: Node 20+ and an installed coding agent backend (Claude Code or PI).
+Requirements: Node 20+. The PI backend ships inside the server package; the
+Claude Code backend is a separate install that `cortex init` performs for you.
 
 ```bash
 # Install

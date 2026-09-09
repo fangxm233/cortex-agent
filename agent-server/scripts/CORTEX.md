@@ -7,10 +7,11 @@ They support packaging and manual verification outside the running daemon.
 |---|---|---|
 | copy-assets.js | build | makes package command binaries executable and copies hooks |
 | copy-web-dist.js | build | stages the built web UI into the package |
-| install-bundled-dependencies.mjs | build | Synchronizes packaged runtime dependencies |
+| install-bundled-dependencies.mjs | build | synchronizes packaged runtime dependencies, a no-op when the tarball carries none |
 | lint-no-slack-shortcodes.ts | lint | flags Slack emoji shortcodes in source |
-| stage-bundled-dependencies.mjs | build | Stages direct bundles and the workspace-resolved runtime closure, nested conflicts included |
+| stage-bundled-dependencies.mjs | build | stages direct bundles and the workspace-resolved runtime closure for pack-offline.mjs, nested conflicts included |
 | migrate-tasks-to-yaml.ts | migrate | converts task files from Markdown to YAML |
+| pack-offline.mjs | build | packs the benchmark tarball that carries its whole runtime closure |
 | postinstall-restart-trigger.mjs | install | signals a running daemon to restart |
 | run-tests.sh | test | runs the test suite (isolated + shared shards) in a temporary home, serialized machine-wide via flock and niced |
 | seed-test-config.sh | test | writes test machine and Claude/PI profiles |
