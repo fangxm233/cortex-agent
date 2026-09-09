@@ -1,10 +1,11 @@
-// input:  staged-update bridge events, backstop query, and shared typing gate
-// output: gated frontend-update state with apply and run-local dismissal actions
-// pos:    Headless hot-update source consumed only by the shared update prompt owner
+// input:  native events, manual check results, and typing gate
+// output: gated frontend updates, apply and dismissal actions
+// pos:    Frontend update source for the shared prompt owner
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { useUpdateGating } from '@/features/update/useUpdateGating';
+import { subscribeManualCheckResult } from '@/features/update/manual-update-check';
 import {
   applyFrontendUpdate,
   getStagedUpdate,
@@ -18,7 +19,7 @@ export interface HotUpdateState {
   dismiss: () => void;
 }
 
-function useHotUpdateSource(dismissed: RefObject<boolean>) {
+function useHotUpdateSource(dismissed: MutableRefObject<boolean>) {
   const [pending, setPending] = useState<StagedUpdate | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -31,9 +32,15 @@ function useHotUpdateSource(dismissed: RefObject<boolean>) {
       else unlisten = cleanup;
     });
     void getStagedUpdate().then((update) => { if (update) accept(update); });
+    const offManual = subscribeManualCheckResult(({ ui }) => {
+      if (!ui.update) return;
+      dismissed.current = false;
+      setPending(ui.update);
+    });
     return () => {
       cancelled = true;
       unlisten();
+      offManual();
     };
   }, [dismissed]);
   return [pending, setPending] as const;

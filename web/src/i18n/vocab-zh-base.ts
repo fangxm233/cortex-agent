@@ -1,5 +1,5 @@
 // input:  shared Chinese product copy
-// output: Chinese base vocabulary with browser status and slash feedback
+// output: Chinese base vocabulary including About dialog copy
 // pos:    Base Chinese web vocabulary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -768,6 +768,12 @@ export const zhBase = {
   aboutFrontend: '前端构建',
   aboutShell: '桌面外壳',
   aboutShellBrowser: '运行于浏览器',
+  aboutDescription: '为你的项目提供自主研究支持的智能体。',
+  aboutShellLoading: '正在读取版本…',
+  aboutShellFailed: '无法读取版本',
+  aboutDocs: '使用文档',
+  aboutProject: 'GitHub 项目',
+  aboutLinkError: '无法打开链接，请重试。',
   winMinimize: '最小化',
   winMaximize: '最大化',
   winRestore: '还原',

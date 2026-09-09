@@ -55,6 +55,7 @@ interface NativeCommandMap {
   'plugin:cortex-notifications|ack_action': { args: { actionId: string }; result: unknown };
   'plugin:cortex-notifications|visible_session': { args: { sessionId: string }; result: unknown };
   disconnect: { args: undefined; result: unknown };
+  check_for_updates: { args: undefined; result: import('@/features/update/manual-update-check').NativeCheckReport };
   get_app_update: { args: undefined; result: unknown };
   install_app_update: { args: undefined; result: unknown };
   skip_app_update: { args: undefined; result: unknown };
