@@ -1,5 +1,5 @@
 // input:  the route's pane children
-// output: the single full-window frame: top bar above the pane row
+// output: Viewport-filling frame without fixed minimum dimensions
 // pos:    Shared frame for every desktop route
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { ReactNode } from 'react';
@@ -11,9 +11,9 @@ export function AppFrame({ children }: { children: ReactNode }): JSX.Element {
   return (
     <div
       style={{
-        height: '100vh',
-        minHeight: 640,
-        minWidth: 1280,
+        height: '100dvh',
+        minHeight: 0,
+        minWidth: 0,
         display: 'flex',
         flexDirection: 'column',
         background: 'var(--proto-card)',
@@ -21,7 +21,7 @@ export function AppFrame({ children }: { children: ReactNode }): JSX.Element {
       }}
     >
       <TopBar />
-      <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
+      <div data-app-panes style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
         {children}
       </div>
     </div>

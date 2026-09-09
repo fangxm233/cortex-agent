@@ -10,6 +10,9 @@ Manual update checks expose busy state without owning update prompts.
 | useAppMenus.ts | core | Assembles menus and manual update check action |
 | useAppMenus.test.tsx | test | Tests removed entries, separators and busy action |
 | useMenuShortcuts.ts | core | Runs menu accelerators on keyboard input |
+| window-commands.ts | core | Serialize fullscreen and restore window state |
+| window-commands.test.ts | test | Check Windows fullscreen transition ordering |
+| useWindowActions.test.tsx | test | Check Escape, native state and failure feedback |
 | useWindowActions.ts | core | Controls native window, zoom and devtools |
 | MenuBar.tsx | view | Renders dropdowns, submenus and check marks |
 | useNativeMenu.ts | core | Synchronizes macOS menus and routes clicks |

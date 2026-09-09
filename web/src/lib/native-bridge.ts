@@ -79,6 +79,8 @@ interface NativeCommandMap {
   // plus `internal_toggle_maximize`, so an ungranted command fails silently.
   'plugin:window|start_dragging': { args: { label: string }; result: unknown };
   'plugin:window|minimize': { args: { label: string }; result: unknown };
+  'plugin:window|maximize': { args: { label: string }; result: unknown };
+  'plugin:window|unmaximize': { args: { label: string }; result: unknown };
   'plugin:window|toggle_maximize': { args: { label: string }; result: unknown };
   'plugin:window|close': { args: { label: string }; result: unknown };
   'plugin:window|is_maximized': { args: { label: string }; result: boolean };

@@ -24,6 +24,7 @@ export function useMenuShortcuts(menus: MenuDef[], enabled = true): void {
     if (!enabled) return;
     const items = accelItems(menus);
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.repeat) return;
       const editing = inTextField(event.target);
       for (const item of items) {
         if (item.disabled || item.accelDisplayOnly) continue;

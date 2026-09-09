@@ -1,5 +1,5 @@
 // input:  pane state, the navigation stack, the app menus and the window chrome mode
-// output: 34px app bar with navigation, menus and window controls
+// output: Compact app bar; no reserved space while fullscreen
 // pos:    The window's single top bar, above the pane row
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useState, type CSSProperties, type ReactNode } from 'react';
@@ -97,7 +97,7 @@ export function TopBar(): JSX.Element {
     height: TOP_BAR_HEIGHT,
     boxSizing: 'border-box',
     flex: 'none',
-    display: 'flex',
+    display: windowActions.isFullscreen ? 'none' : 'flex',
     alignItems: 'center',
     background: 'var(--proto-rail)',
     borderBottom: '1px solid var(--proto-line)',
@@ -108,7 +108,7 @@ export function TopBar(): JSX.Element {
     // clickable ancestor — buttons and role="menuitem" rows block the drag before it reaches here
     // (tauri/src/window/scripts/drag.js). Without `deep`, only direct hits on the bar element would
     // drag and every gap inside a wrapper div would be a dead zone.
-    <div style={style} data-tauri-drag-region="deep">
+    <div style={style} data-app-topbar data-tauri-drag-region="deep">
       {/* macOS keeps its native traffic lights under TitleBarStyle::Overlay; reserve their strip. */}
       <div style={{ width: captionInsetLeft(), flex: 'none' }} />
 

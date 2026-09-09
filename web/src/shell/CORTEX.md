@@ -7,6 +7,7 @@ Hosts global detail state, live events and native shell actions.
 |---|---|---|
 | AppShell.tsx | core | Mounts project scope, routes, overlays and updates |
 | AppFrame.tsx | view | Renders the top bar and desktop pane row |
+| AppFrame.test.tsx | test | Checks fullscreen space and compact header |
 | TopBar.tsx | view | Render the 34px navigation and window-control bar |
 | WindowControls.tsx | view | Renders native window controls |
 | PaneStateProvider.tsx | core | Owns left rail and right panel collapse state |

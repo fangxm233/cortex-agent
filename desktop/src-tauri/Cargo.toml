@@ -66,6 +66,9 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 #     apple-native          → macOS Keychain
 #     sync-secret-service   → Linux Secret Service (D-Bus); crypto-rust = pure-Rust session crypto (no OpenSSL)
 [target.'cfg(not(target_os = "android"))'.dependencies]
+# The desktop Help menu explicitly opens DevTools, including release builds.
+# No remote-debugging listener is enabled. Android keeps its default feature set.
+tauri = { version = "2", features = ["devtools"] }
 # Port forwarding (desktop only — see src/forward.rs). tokio gives the local TcpListener and the
 # per-connection relay tasks; tokio-tungstenite dials the server's `/forward` WebSocket. rustls with
 # the **webpki roots** matches the OTA client's choice: the platform verifier needs an OS trust store

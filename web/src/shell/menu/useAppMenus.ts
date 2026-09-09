@@ -163,7 +163,7 @@ export function useAppMenus(): { menus: MenuDef[]; windowActions: WindowActions 
         { kind: 'item', id: 'view.zoomOut', label: L.mViewZoomOut, accel: 'mod+-', disabled: !native, run: windowActions.zoomOut },
         { kind: 'item', id: 'view.zoomReset', label: L.mViewZoomReset, accel: 'mod+0', disabled: !native, run: windowActions.zoomReset },
         separator,
-        { kind: 'item', id: 'view.fullscreen', role: 'fullscreen', label: L.mViewFullScreen, accel: 'f11', disabled: !native, run: windowActions.toggleFullscreen },
+        { kind: 'item', id: 'view.fullscreen', role: 'fullscreen', label: windowActions.isFullscreen ? L.windowExitFullscreen : L.mViewFullScreen, checked: windowActions.isFullscreen, accel: 'f11', disabled: !native, run: windowActions.toggleFullscreen },
       ],
     };
 

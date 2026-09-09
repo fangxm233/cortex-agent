@@ -6,7 +6,7 @@ Holds the app manifest, native plugin dependencies, capabilities, and icons.
 | filename | role | function |
 |---|---|---|
 | build.rs | script | generates Tauri build artifacts |
-| Cargo.toml | config | Declare the shell and background notification plugin |
+| Cargo.toml | config | Declare native plugins and desktop DevTools |
 | Cargo.lock | config | Pins exact dependency versions |
 | tauri.conf.json | config | configures the app bundle and window |
 | capabilities/ | subdir | Grant downloads, notifications and native listeners |

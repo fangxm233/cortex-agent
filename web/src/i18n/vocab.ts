@@ -3,6 +3,7 @@
 // pos:    Web vocabulary composition root
 // >>> Once updated, update this header and parent CORTEX.md <<<
 
+import { windowActionsEn, windowActionsZh } from './window-actions-vocab';
 import { updateCheckEn, updateCheckZh } from './update-check-vocab';
 import { platformEn, platformZh } from './platform-settings-vocab';
 import { pluginEn, pluginZh } from './plugins-vocab';
@@ -19,6 +20,7 @@ export const en = {
   ...setupEn,
   ...platformEn,
   ...updateCheckEn,
+  ...windowActionsEn,
 };
 
 export type Vocab = typeof en;
@@ -30,4 +32,5 @@ export const zh: Record<keyof Vocab, string> = {
   ...setupZh,
   ...platformZh,
   ...updateCheckZh,
+  ...windowActionsZh,
 };

@@ -1,104 +1,131 @@
-// input:  the native bridge and the persisted webview zoom level
-// output: window chrome, zoom and devtools operations for the menu bar and caption buttons
-// pos:    Native window-control adapter for the app-drawn title bar
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-import { useCallback, useEffect, useState } from 'react';
+// input:  native bridge, platform, viewport events and stored zoom
+// output: observable window state and failure-reporting actions
+// pos:    Native controls for menus and app-drawn window buttons
+// >>> Once updated, update this header and parent CORTEX.md <<<
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { safeInvoke } from '@/lib/native-bridge';
+import { desktopPlatform } from '@/lib/desktop-platform';
+import { useToastOptional } from '@/design/Toast';
+import { useVocab } from '@/i18n';
+import { checked, createFullscreenController } from './window-commands';
 
-// The shell builds exactly one window under this label (desktop/src-tauri/src/lib.rs), and every
-// `plugin:window|*` command is addressed by label — see node_modules/@tauri-apps/api/window.js.
-const WINDOW_LABEL = 'main';
+const LABEL = { label: 'main' };
 const ZOOM_KEY = 'cortex:webview-zoom';
 const ZOOM_STEPS = [0.7, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2] as const;
 const DEFAULT_ZOOM = 1;
+type ReportFailure = () => void;
+// Route frames can remount while fullscreen; keep the restore state window-scoped.
+let fullscreenController: ReturnType<typeof createFullscreenController> | undefined;
 
 function readZoom(): number {
   try {
     const raw = Number(window.localStorage.getItem(ZOOM_KEY));
     return ZOOM_STEPS.includes(raw as (typeof ZOOM_STEPS)[number]) ? raw : DEFAULT_ZOOM;
-  } catch {
-    return DEFAULT_ZOOM;
-  }
+  } catch { return DEFAULT_ZOOM; }
 }
 
-/** Nearest step in the given direction; clamps at both ends so repeated presses are harmless. */
 export function stepZoom(current: number, direction: -1 | 1): number {
   const index = ZOOM_STEPS.indexOf(current as (typeof ZOOM_STEPS)[number]);
   const from = index === -1 ? ZOOM_STEPS.indexOf(DEFAULT_ZOOM) : index;
-  const next = Math.min(ZOOM_STEPS.length - 1, Math.max(0, from + direction));
-  return ZOOM_STEPS[next]!;
+  return ZOOM_STEPS[Math.min(ZOOM_STEPS.length - 1, Math.max(0, from + direction))]!;
+}
+
+function useWindowState() {
+  const [state, setState] = useState({ isMaximized: false, isFullscreen: false });
+  const alive = useRef(false);
+  const sync = useCallback(async () => {
+    const [max, full] = await Promise.all([
+      safeInvoke('plugin:window|is_maximized', LABEL), safeInvoke('plugin:window|is_fullscreen', LABEL),
+    ]);
+    if (alive.current) setState(previous => ({
+      isMaximized: max.ok ? max.value : previous.isMaximized,
+      isFullscreen: full.ok ? full.value : previous.isFullscreen,
+    }));
+  }, []);
+  useEffect(() => {
+    alive.current = true;
+    void sync();
+    window.addEventListener('resize', sync);
+    window.addEventListener('focus', sync);
+    return () => {
+      alive.current = false;
+      window.removeEventListener('resize', sync);
+      window.removeEventListener('focus', sync);
+    };
+  }, [sync]);
+  return { ...state, sync };
+}
+
+function useZoom(report: ReportFailure) {
+  const [zoom, setZoom] = useState(readZoom);
+  const busy = useRef(false);
+  const apply = useCallback(async (value: number) => {
+    if (busy.current) return;
+    busy.current = true;
+    try {
+      checked(await safeInvoke('plugin:webview|set_webview_zoom', { ...LABEL, value }));
+      setZoom(value);
+      try { window.localStorage.setItem(ZOOM_KEY, String(value)); } catch { /* optional persistence */ }
+    } catch { report(); } finally { busy.current = false; }
+  }, [report]);
+  useEffect(() => {
+    const initial = readZoom();
+    if (initial !== DEFAULT_ZOOM) void apply(initial);
+  }, [apply]);
+  return { zoom, zoomIn: () => void apply(stepZoom(zoom, 1)),
+    zoomOut: () => void apply(stepZoom(zoom, -1)), zoomReset: () => void apply(DEFAULT_ZOOM) };
+}
+
+function escapeIsAvailable(event: KeyboardEvent): boolean {
+  if (event.key !== 'Escape' || event.repeat || event.defaultPrevented) return false;
+  // Let Radix dialogs and menu dismissal consume their Escape first.
+  return !document.querySelector('[role="dialog"], [role="menu"], [role="alertdialog"]');
+}
+
+function useFullscreen(isFullscreen: boolean, sync: () => Promise<void>, report: ReportFailure) {
+  const controller = fullscreenController ??= createFullscreenController(desktopPlatform());
+  const run = useCallback(async (exitOnly = false) => {
+    try { await (exitOnly ? controller.exit() : controller.toggle()); }
+    catch { report(); }
+    finally { await sync(); }
+  }, [controller, report, sync]);
+  useEffect(() => {
+    const escape = (event: KeyboardEvent) => {
+      if (!isFullscreen || !escapeIsAvailable(event)) return;
+      event.preventDefault();
+      void run(true);
+    };
+    window.addEventListener('keydown', escape);
+    return () => window.removeEventListener('keydown', escape);
+  }, [isFullscreen, run]);
+  return () => void run();
 }
 
 export interface WindowActions {
-  minimize: () => void;
-  toggleMaximize: () => void;
-  close: () => void;
-  startDragging: () => void;
-  isMaximized: boolean;
-  toggleFullscreen: () => void;
-  zoom: number;
-  zoomIn: () => void;
-  zoomOut: () => void;
-  zoomReset: () => void;
+  minimize: () => void; toggleMaximize: () => void; close: () => void; startDragging: () => void;
+  isMaximized: boolean; isFullscreen: boolean; toggleFullscreen: () => void;
+  zoom: number; zoomIn: () => void; zoomOut: () => void; zoomReset: () => void;
   toggleDevTools: () => void;
 }
 
 export function useWindowActions(): WindowActions {
-  const [isMaximized, setIsMaximized] = useState(false);
-  const [zoom, setZoom] = useState<number>(readZoom);
-
-  // Re-read the maximize state on every resize: the window can also be maximized by an OS gesture
-  // (double-clicking the drag region, Aero Snap, the keyboard), none of which route through us.
-  useEffect(() => {
-    let alive = true;
-    const sync = async () => {
-      const result = await safeInvoke('plugin:window|is_maximized', { label: WINDOW_LABEL });
-      if (alive && result.ok) setIsMaximized(result.value);
-    };
-    void sync();
-    window.addEventListener('resize', sync);
-    return () => {
-      alive = false;
-      window.removeEventListener('resize', sync);
-    };
-  }, []);
-
-  const applyZoom = useCallback((value: number) => {
-    setZoom(value);
-    try {
-      window.localStorage.setItem(ZOOM_KEY, String(value));
-    } catch {
-      /* persistence is best-effort */
-    }
-    void safeInvoke('plugin:webview|set_webview_zoom', { label: WINDOW_LABEL, value });
-  }, []);
-
-  // Re-apply the stored zoom on mount: `set_webview_zoom` is per-process, so a relaunch starts at 1.
-  useEffect(() => {
-    if (zoom !== DEFAULT_ZOOM) void safeInvoke('plugin:webview|set_webview_zoom', { label: WINDOW_LABEL, value: zoom });
-    // Intentionally mount-only.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const toggleFullscreen = useCallback(() => {
-    void (async () => {
-      const current = await safeInvoke('plugin:window|is_fullscreen', { label: WINDOW_LABEL });
-      const value = current.ok ? !current.value : true;
-      await safeInvoke('plugin:window|set_fullscreen', { label: WINDOW_LABEL, value });
-    })();
-  }, []);
-
+  const L = useVocab();
+  const toast = useToastOptional();
+  const report = useCallback(() => { toast?.toast({ title: L.windowActionFailed,
+    description: L.windowActionFailedHint, tone: 'failed' }); }, [L, toast]);
+  const { sync, ...state } = useWindowState();
+  const toggleFullscreen = useFullscreen(state.isFullscreen, sync, report);
+  const zoom = useZoom(report);
+  type Action = 'minimize' | 'toggle_maximize' | 'close' | 'start_dragging';
+  const act = (command: Action) => {
+    void safeInvoke(`plugin:window|${command}`, LABEL).then(checked).catch(report);
+  };
   return {
-    minimize: () => void safeInvoke('plugin:window|minimize', { label: WINDOW_LABEL }),
-    toggleMaximize: () => void safeInvoke('plugin:window|toggle_maximize', { label: WINDOW_LABEL }),
-    close: () => void safeInvoke('plugin:window|close', { label: WINDOW_LABEL }),
-    startDragging: () => void safeInvoke('plugin:window|start_dragging', { label: WINDOW_LABEL }),
-    isMaximized,
-    toggleFullscreen,
-    zoom,
-    zoomIn: () => applyZoom(stepZoom(zoom, 1)),
-    zoomOut: () => applyZoom(stepZoom(zoom, -1)),
-    zoomReset: () => applyZoom(DEFAULT_ZOOM),
-    toggleDevTools: () => void safeInvoke('plugin:webview|internal_toggle_devtools', { label: WINDOW_LABEL }),
+    ...state, ...zoom, toggleFullscreen,
+    minimize: () => act('minimize'), toggleMaximize: () => act('toggle_maximize'),
+    close: () => act('close'), startDragging: () => act('start_dragging'),
+    toggleDevTools: () => { void safeInvoke('plugin:webview|internal_toggle_devtools', LABEL)
+      .then(checked).catch(() => toast?.toast({ title: L.windowDevtoolsFailed,
+        description: L.windowDevtoolsFailedHint, tone: 'failed' })); },
   };
 }
