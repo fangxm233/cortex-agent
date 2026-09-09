@@ -12,8 +12,8 @@ Language stays in local storage and falls back to browser choice.
 | vocab.ts | entry | Composes bilingual UI vocabulary |
 | provider-setup-vocab.ts | copy | Provider setup and appearance-control copy |
 | plugins-vocab.ts | copy | Defines plugin settings and scope copy |
-| vocab-en-base.ts | copy | English core, status and slash feedback copy |
+| vocab-en-base.ts | copy | English core, About, status and slash feedback copy |
 | vocab-en-extra.ts | copy | English product and device notification copy |
-| vocab-zh-base.ts | copy | Chinese core, status and slash feedback copy |
+| vocab-zh-base.ts | copy | Chinese core, About, status and slash feedback copy |
 | vocab-zh-extra.ts | copy | Chinese product and device notification copy |
 | platform-settings-vocab.ts | copy | Defines bilingual platform configuration copy |

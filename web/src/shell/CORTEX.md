@@ -1,20 +1,22 @@
 Please update me when files in this folder change
 
-The persistent desktop frame that stays mounted across route changes.
-Keeps global overlays, task/thread detail state, neutral project selection, and live events mounted.
-Native actions exposed by shell surfaces, including disconnect, route through the shared typed bridge in `lib/`.
+Persistent desktop frame, navigation and window-level overlays.
+Hosts global detail state, live events and native shell actions.
 
 | filename | role | function |
 |---|---|---|
-| AppShell.tsx | core | Mounts project scope, routes, overlays, notes and one prioritized update provider |
-| AppFrame.tsx | view | The single full-window frame every desktop route renders: top bar above the pane row |
+| AppShell.tsx | core | Mounts project scope, routes, overlays and updates |
+| AppFrame.tsx | view | Renders the top bar and desktop pane row |
 | TopBar.tsx | view | Render the 34px navigation and window-control bar |
-| WindowControls.tsx | view | App-drawn minimize / maximize / close buttons for Windows and Linux |
-| PaneStateProvider.tsx | core | Owns the left rail and right panel collapse flags for every surface |
-| NavigationHistoryProvider.tsx | core | App navigation stack over route, project and session |
-| navigation-history.ts | util | Push, replace and dedupe rules behind the back and forward arrows |
-| ShellModalsProvider.tsx | core | Owns the window-level modals the menu bar must be able to open |
-| ShortcutsModal.tsx | view | Help → Keyboard shortcuts, generated from the menu model |
-| AboutModal.tsx | view | Help → About: frontend build stamp and native shell version |
-| DaemonStatusModal.tsx | view | Adapts the shared daemon resource to desktop confirmation, status, restart and bridge-backed disconnect controls |
+| WindowControls.tsx | view | Renders native window controls |
+| PaneStateProvider.tsx | core | Owns left rail and right panel collapse state |
+| NavigationHistoryProvider.tsx | core | Owns route, project and session navigation history |
+| navigation-history.ts | util | Pushes, replaces and deduplicates navigation |
+| navigation-history.test.ts | test | Covers navigation history transitions |
+| ShellModalsProvider.tsx | core | Owns window-level menu dialogs |
+| ShortcutsModal.tsx | view | Displays menu keyboard shortcuts |
+| AboutModal.tsx | view | Shows Cortex branding, versions and project links |
+| about-modal.css | style | Styles the responsive, theme-aware About dialog |
+| AboutModal.test.tsx | test | Covers About rendering, version states and links |
+| DaemonStatusModal.tsx | view | Shows daemon status, restart and disconnect |
 | EmptyPane.tsx | view | Titled placeholder for unbuilt routes |

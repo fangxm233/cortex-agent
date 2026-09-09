@@ -1,5 +1,5 @@
 // input:  shared English product copy
-// output: English base vocabulary with browser status and slash feedback
+// output: English base vocabulary including About dialog copy
 // pos:    Base English web vocabulary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -767,7 +767,13 @@ export const enBase = {
   aboutTitle: 'About Cortex',
   aboutFrontend: 'Frontend build',
   aboutShell: 'Desktop shell',
-  aboutShellBrowser: 'running in a browser',
+  aboutShellBrowser: 'Running in a browser',
+  aboutDescription: 'An autonomous research agent for your projects.',
+  aboutShellLoading: 'Reading version…',
+  aboutShellFailed: 'Could not read version',
+  aboutDocs: 'Documentation',
+  aboutProject: 'GitHub project',
+  aboutLinkError: 'Could not open the link. Please try again.',
   winMinimize: 'Minimize',
   winMaximize: 'Maximize',
   winRestore: 'Restore',
