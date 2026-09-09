@@ -398,7 +398,9 @@ const migrations: Migration[] = [
 
 // ── Versions file I/O ──────────────────────────────────────────
 
-async function loadVersionsFrom(filePath: string): Promise<Record<string, string>> {
+/** Exported for plugin-retirement.ts, which guards its own one-shot rewrite with a sentinel key
+ *  in the same versions.json. Keeping one reader means one definition of "corrupt → reset". */
+export async function loadVersionsFrom(filePath: string): Promise<Record<string, string>> {
   try {
     const raw = await fs.readFile(filePath, 'utf8');
     const parsed = JSON.parse(raw);
@@ -421,7 +423,7 @@ async function loadVersionsFrom(filePath: string): Promise<Record<string, string
   }
 }
 
-async function saveVersionsTo(filePath: string, versions: Record<string, string>): Promise<void> {
+export async function saveVersionsTo(filePath: string, versions: Record<string, string>): Promise<void> {
   await atomicWrite(filePath, JSON.stringify(versions, null, 2) + '\n');
 }
 

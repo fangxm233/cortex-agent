@@ -99,6 +99,7 @@ import { loadHookRegistry, type HookEntry } from '@store/hook-registry.js';
 import { emitCortexEvent, initHookBus } from '@core/hook-bus.js';
 import { CORTEX_VERSION } from '@core/version.js';
 import { syncManagedPlugins } from '@store/plugin-sync.js';
+import { retireTemplatePluginRefs } from '@store/plugin-retirement.js';
 import { costRepo } from '@store/cost-repo.js';
 import { getProfileConfigRevision, PROFILES_FILE, profileRepo, startProfileWatcher, setAdminNotifier as setProfileNotifier } from '@store/profile-repo.js';
 import { sessionStore } from '@store/session-registry-repo.js';
@@ -453,6 +454,16 @@ process.on('SIGTERM', async () => {
   // Deploy new plugins and refresh updated skills in DATA_DIR/plugins from the shipped defaults.
   // A sealed production trial declares no plugins and keeps its attested config immutable.
   if (syncManagedAssets) await syncManagedPlugins();
+  // Deploying a plugin is only half of shipping it: config/thread-templates/ is written by
+  // `cortex init` and never by an upgrade, so an install created before a plugin was added or
+  // retired keeps referencing the old set. One-shot rewrite, guarded by its own versions.json key.
+  if (syncManagedAssets) {
+    try {
+      await retireTemplatePluginRefs();
+    } catch (e) {
+      log.warn(`Startup: retireTemplatePluginRefs failed: ${(e as Error).message}`);
+    }
+  }
   // DR-0012 §3.6: clean up orphan TUI tmux sessions from a previous agent-server lifetime.
   // We can't re-adopt them (sessionKey↔tmux mapping was never persisted) so the honest move
   // is to kill any leftovers — otherwise a later session that reuses the same sessionId will

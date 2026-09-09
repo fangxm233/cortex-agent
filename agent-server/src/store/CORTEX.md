@@ -32,3 +32,4 @@ Also manages schedules, provider state, migrations, hooks, and plugin sync.
 | hook-writer.ts | config | Creates, edits, removes and toggles hook declarations |
 | hook-sync.ts | startup | Syncs and diagnoses managed hook assets |
 | plugin-sync.ts | startup | Refreshes deployed plugins from defaults and prunes retired paths |
+| plugin-retirement.ts | startup | Unwires retired plugins from deployed agent templates and wires newly shipped ones |

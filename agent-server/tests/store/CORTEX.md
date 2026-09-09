@@ -16,6 +16,7 @@ and the persisted registries for sessions, tasks, schedules, providers and costs
 | outbound-queue.test.ts | test | Covers outbound WAL enqueue, drain and compact |
 | pending-injection-repo.test.ts | test | Covers pending message persistence and removal |
 | plugin-sync.test.ts | test | Covers managed plugin deploy and refresh rules |
+| plugin-retirement.test.ts | test | Covers retired and newly shipped plugin ref rewrites |
 | profile-repo.test.ts | test | Covers profile reads, writes and file watching |
 | profile-watcher-fallback.test.ts | test | Covers profile polling after watcher failure |
 | project-dir-repo.test.ts | test | Covers per-machine project directory mapping |

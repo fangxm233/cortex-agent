@@ -31,6 +31,9 @@ const MANIFEST_REL = path.join('.claude-plugin', 'plugin.json');
 export const RETIRED_PLUGIN_PATHS: ReadonlyArray<readonly [string, string]> = [
   // Moved to cortex-commission, which loads only in commission mode (DR-0037 v2).
   ['cortex-system', 'skills/commission'],
+  // Moved to cortex-system in 2026.9.8. Left in place it shadows the maintained copy: an install
+  // that still loads cortex-stage-gate would offer two skills named `task` with diverged content.
+  ['cortex-stage-gate', 'skills/task'],
 ];
 
 /** Remove retired paths from the deployed tree. Returns the plugin-relative ids actually removed. */
