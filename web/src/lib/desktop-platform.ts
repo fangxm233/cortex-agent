@@ -6,10 +6,9 @@
 // The Rust shell bakes these into the initialization script (desktop/src-tauri/src/lib.rs), so they
 // are readable synchronously before React mounts — the top bar must not flash the wrong chrome.
 //
-// `titleBarMode` is a CAPABILITY flag, not a platform guess. The shell decides whether it stripped
-// the native decorations, and it only does so once a frontend new enough to draw its own is
-// installed. A frontend that finds 'native' must not draw caption buttons; a frontend rolled back
-// below the gate sees 'native' again and behaves like the browser build.
+// The desktop shell always uses app-drawn chrome: custom on Windows/Linux, overlay on macOS.
+// Follow the injected mode rather than guessing from the OS. Missing flags (browser or older
+// shells) fall back to native and must not draw a second set of caption buttons.
 
 export type DesktopPlatform = 'macos' | 'windows' | 'linux';
 
