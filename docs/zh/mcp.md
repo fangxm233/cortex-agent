@@ -295,4 +295,4 @@ MCP 工具赋予智能体在远程机器上执行 shell 命令、读写文件、
 
 - `cortex-client` WebSocket 端口（3002）不暴露到公网。使用 Tailscale、VPN 或 localhost-only 绑定（网络拓扑选项参见 [cross-machine.md](./cross-machine.md)）。
 - Webhook HTTP 端口（3001）仅绑定到 `127.0.0.1`——MCP 服务器通过环回而不是网络与之通信。
-- 智能体在与 [safety-and-approvals.md](./safety-and-approvals.md) 中记录的相同影响范围安全边界内运行。MCP 工具不能绕过对高权限操作的 need-approval 门控。
+- 智能体在与 [safety-and-approvals.md](./safety-and-approvals.md) 中记录的相同影响范围安全边界内运行。MCP 工具不会让高权限操作豁免于该边界。

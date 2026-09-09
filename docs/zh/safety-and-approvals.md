@@ -52,26 +52,18 @@ Cortex 将每个智能体操作分类到三个桶中。分类位于根 CORTEX.md
 | 在预算内启动 GPU 训练 | 自助 | 预算内，但需要 GPU preflight |
 | 修改 CORTEX.md 规则 | 需要审批 | 系统约定变更 |
 
-## 智能体如何决策：`need-approval` 技能 {#how-the-agent-decides-the-need-approval-skill}
+## 操作如何进入队列 {#how-an-operation-reaches-the-queue}
 
-在执行任何非平凡操作之前，智能体运行 `need-approval` 技能（位于 `plugins/cortex-stage-gate/skills/need-approval/`）。该技能执行三步流程：
+需要签字的操作会被写入 `~/.cortex/context/PENDING_APPROVALS.md` 并暂不执行。每个条目是一个 `##` 标题加若干字段，带着足够的细节让你无需追问即可决定：
 
-1. **分类**操作，对照 CORTEX.md 的安全边界规则。该技能有分类表的同步副本，并应用相同的判断启发式。
-
-2. **如果需要审批**，将操作记录到 `~/.cortex/context/PENDING_APPROVALS.md`，附带足够的细节让你无需追问即可决定。条目格式为：
-
-   ```markdown
-   ## [timestamp]
-   - **操作**：[将要做什么的简洁描述]
-   - **原因**：[为什么需要此操作]
-   - **影响**：[它影响什么——文件、机器、资源]
-   - **命令/动作**：[要执行的具体命令或更改]
-   - **状态**：pending
-   ```
-
-   然后智能体输出 `Queued for approval: [一行摘要]` 并阻止进一步操作。
-
-3. **如果不需要审批**，智能体输出 `No approval needed — safe to execute.` 并直接继续。
+```markdown
+## [timestamp]
+- **操作**：[将要做什么的简洁描述]
+- **原因**：[为什么需要此操作]
+- **影响**：[它影响什么——文件、机器、资源]
+- **命令/动作**：[要执行的具体命令或更改]
+- **状态**：pending
+```
 
 指导原则是：有疑问时，排队。宁可过度询问也不要破坏东西。
 
@@ -139,7 +131,7 @@ Cortex 以启动它的用户相同的权限运行。没有 `sudo`、没有 Docke
 
 ## 配置 {#configuration}
 
-安全边界分类位于 `~/.cortex/CORTEX.md` 的根 CORTEX.md 中"安全边界"部分。`need-approval` 技能维护一个同步副本。如果你修改安全边界规则，更新两个位置。
+安全边界分类位于根 CORTEX.md（`~/.cortex/CORTEX.md`）的"安全边界"部分，你在那里编辑它。
 
 PENDING_APPROVALS.md 文件位于 `~/.cortex/context/PENDING_APPROVALS.md`。首次使用时自动创建。
 

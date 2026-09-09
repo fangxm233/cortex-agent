@@ -71,34 +71,21 @@ classifying an edge case:
 | Start GPU training within budget | Self-serve | Within budget, but GPU preflight required |
 | Modify CORTEX.md rules | Needs approval | System convention change |
 
-## How the agent decides: the `need-approval` skill
+## How an operation reaches the queue
 
-Before executing any non-trivial operation, the agent runs the `need-approval`
-skill (located in `plugins/cortex-stage-gate/skills/need-approval/`). The
-skill performs a three-step process:
+An operation that needs sign-off is written to
+`~/.cortex/context/PENDING_APPROVALS.md` and left unexecuted. Each entry is a
+`##` heading followed by its fields, carrying enough detail for you to decide
+without asking follow-up questions:
 
-1. **Classify** the operation against the safety boundary rules from
-   CORTEX.md. The skill has a synced copy of the classification table and
-   applies the same judgment heuristics.
-
-2. **If approval is needed**, record the operation to
-   `~/.cortex/context/PENDING_APPROVALS.md` with enough detail for you to
-   decide without asking follow-up questions. The entry format is:
-
-   ```markdown
-   ## [timestamp]
-   - **Operation**: [concise description of what will be done]
-   - **Reason**: [why this operation is needed]
-   - **Impact**: [what it affects — files, machines, resources]
-   - **Command/Action**: [the specific command or change to execute]
-   - **Status**: pending
-   ```
-
-   The agent then outputs `Queued for approval: [one-line summary]` and blocks
-   further action.
-
-3. **If no approval is needed**, the agent outputs `No approval needed — safe
-   to execute.` and proceeds directly.
+```markdown
+## [timestamp]
+- **Operation**: [concise description of what will be done]
+- **Reason**: [why this operation is needed]
+- **Impact**: [what it affects — files, machines, resources]
+- **Command/Action**: [the specific command or change to execute]
+- **Status**: pending
+```
 
 The guiding principle is: when in doubt, queue it. Better to over-ask than to
 break something.
@@ -218,9 +205,7 @@ Approvals are logged in three places:
 ## Configuration
 
 The safety boundary classification lives in the root CORTEX.md at
-`~/.cortex/CORTEX.md` under the "安全边界" (Safety Boundary) section. The
-`need-approval` skill maintains a synced copy. If you modify the safety
-boundary rules, update both locations.
+`~/.cortex/CORTEX.md`, which is where you edit it.
 
 The PENDING_APPROVALS.md file lives at `~/.cortex/context/PENDING_APPROVALS.md`.
 It is created automatically on first use.

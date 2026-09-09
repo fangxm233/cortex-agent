@@ -407,5 +407,5 @@ security posture assumes:
 - The webhook HTTP port (3001) is bound to `127.0.0.1` only — MCP servers
   talk to it via loopback, not over the network.
 - The agent operates within the same blast-radius safety boundaries documented
-  in [safety-and-approvals.md](./safety-and-approvals.md). MCP tools cannot
-  bypass the need-approval gating for high-privilege operations.
+  in [safety-and-approvals.md](./safety-and-approvals.md). MCP tools do not
+  exempt a high-privilege operation from that boundary.
