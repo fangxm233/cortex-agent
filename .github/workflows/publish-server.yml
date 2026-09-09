@@ -37,8 +37,9 @@ jobs:
       - name: Build server, UI contract, and Web SPA
         run: pnpm --filter '@cortex-agent/web...' run build
 
+      - name: Upgrade npm for trusted publishing
+        run: npm install -g npm@latest   # OIDC trusted publishing needs npm >= 11.5.1
+
       - name: Publish package
         working-directory: agent-server
-        run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
