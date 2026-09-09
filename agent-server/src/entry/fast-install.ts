@@ -91,6 +91,21 @@ export function dependencyFingerprint(manifest: Record<string, unknown>): string
 }
 
 /**
+ * Node's directory lookup for `name` starting at `from`: the nearest enclosing node_modules holding
+ * it. Deliberately not `require.resolve`, which additionally evaluates the package's `exports` map
+ * and can refuse a probe for a dependency that is installed and loadable.
+ */
+function dependencyReachable(from: string, name: string): boolean {
+  let directory = from;
+  for (;;) {
+    if (fs.existsSync(path.join(directory, 'node_modules', name, 'package.json'))) return true;
+    const parent = path.dirname(directory);
+    if (parent === directory) return false;
+    directory = parent;
+  }
+}
+
+/**
  * Decide whether the build outputs can be synced in place. Every rejection reason is returned as
  * text so the caller can log why it fell back to the full install rather than silently doing the
  * slow thing forever.
@@ -118,12 +133,16 @@ export function planFastInstall(dirs: FastInstallDirs): FastInstallPlan {
     return blockedPlan('dependency closure changed');
   }
 
-  // node_modules/ is produced by the postinstall script, never by the tarball extraction alone.
-  // If a previous install died before postinstall the closure is missing, and copying dist over it
-  // would leave a package that cannot boot — force the full path to rebuild it.
-  if (!fs.existsSync(path.join(installRoot, 'node_modules'))) {
-    return blockedPlan('installed node_modules missing');
-  }
+  // Dependencies arrive from the installer, never from the tarball extraction alone. If an install
+  // died before they landed, copying dist over the result leaves a package that cannot boot —
+  // force the full path to rebuild it.
+  //
+  // The test is not whether a *package-local* node_modules exists: only a tarball that bundles its
+  // own closure produces one, and the published package is thin, so its dependencies are hoisted
+  // into the installer's tree instead. Ask the question Node will ask at require time.
+  const declared = Object.keys((installedManifest.dependencies ?? {}) as Record<string, string>);
+  const missing = declared.find((name) => !dependencyReachable(installRoot, name));
+  if (missing) return blockedPlan(`installed dependency missing: ${missing}`);
 
   const candidates: SyncTarget[] = [
     { name: 'dist', source: path.join(repoDir, 'dist'), destination: path.join(installRoot, 'dist') },

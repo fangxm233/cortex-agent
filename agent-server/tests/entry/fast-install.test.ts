@@ -43,15 +43,19 @@ function makeTrees(overrides: { repoManifest?: object; installManifest?: object 
     JSON.stringify({ ...base, ...(overrides.repoManifest ?? {}) }),
   );
 
+  const installManifest = { ...base, ...(overrides.installManifest ?? {}) };
   fs.mkdirSync(path.join(installRoot, 'dist', 'entry'), { recursive: true });
-  fs.mkdirSync(path.join(installRoot, 'node_modules', 'ws'), { recursive: true });
   fs.writeFileSync(path.join(installRoot, 'dist', 'entry', 'app.js'), 'old-build');
   fs.writeFileSync(path.join(installRoot, 'dist', 'stale.js'), 'removed-by-sync');
-  fs.writeFileSync(path.join(installRoot, 'node_modules', 'ws', 'index.js'), 'vendored');
-  fs.writeFileSync(
-    path.join(installRoot, 'package.json'),
-    JSON.stringify({ ...base, ...(overrides.installManifest ?? {}) }),
-  );
+  fs.writeFileSync(path.join(installRoot, 'package.json'), JSON.stringify(installManifest));
+  // A finished install has every declared dependency on disk; the fast path checks for exactly
+  // that, so the fixture must materialize whatever the manifest under test declares.
+  for (const [name, version] of Object.entries(installManifest.dependencies ?? {})) {
+    const installed = path.join(installRoot, 'node_modules', name);
+    fs.mkdirSync(installed, { recursive: true });
+    fs.writeFileSync(path.join(installed, 'index.js'), 'vendored');
+    fs.writeFileSync(path.join(installed, 'package.json'), JSON.stringify({ name, version }));
+  }
 
   return { repoDir, monorepoRoot, installRoot };
 }
@@ -113,11 +117,24 @@ test('planFastInstall refuses when package.json files grew an entry it cannot sy
   assert.match(planFastInstall(dirs).blocked ?? '', /`files` changed/);
 });
 
-test('planFastInstall refuses when the installed closure is missing', () => {
+test('planFastInstall refuses when a declared dependency was never installed', () => {
   const dirs = makeTrees();
   fs.rmSync(path.join(dirs.installRoot, 'node_modules'), { recursive: true, force: true });
 
-  assert.equal(planFastInstall(dirs).blocked, 'installed node_modules missing');
+  assert.equal(planFastInstall(dirs).blocked, 'installed dependency missing: ws');
+});
+
+// The published package is thin, so npm hoists its dependencies into the installer's tree and the
+// package's own directory has no node_modules at all. That layout is a complete install, not a
+// broken one, and the fast path must accept it.
+test('planFastInstall accepts dependencies hoisted above the install root', () => {
+  const dirs = makeTrees();
+  fs.rmSync(path.join(dirs.installRoot, 'node_modules'), { recursive: true, force: true });
+  const hoisted = path.join(path.dirname(dirs.installRoot), 'node_modules', 'ws');
+  fs.mkdirSync(hoisted, { recursive: true });
+  fs.writeFileSync(path.join(hoisted, 'package.json'), JSON.stringify({ name: 'ws', version: '8.0.0' }));
+
+  assert.equal(planFastInstall(dirs).blocked, null);
 });
 
 test('planFastInstall refuses when the package was never installed', () => {
