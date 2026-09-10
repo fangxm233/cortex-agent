@@ -6,7 +6,7 @@ Serves the TUI dashboard directly and the Web UI through the tRPC router bound h
 | filename | role | function |
 |---|---|---|
 | types.ts | type | Defines UI DTOs and platform configuration contract |
-| query-input-schemas.ts | schemas | Validates extracted session/query read inputs including compact transcript detail routes |
+| query-input-schemas.ts | schemas | Validates extracted session/query read inputs including compact transcript detail routes and delta cursors |
 | input-schemas.ts | schema | Validates UI operations and platform patches |
 | plugins-shared.ts | utility | Normalizes plugin catalogs and effective scopes |
 | ui-service.ts | core | Dispatches UI operations with safe mutation audit |

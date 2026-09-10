@@ -13,6 +13,7 @@ import { Composer } from './Composer';
 import { ContextUsageControl } from './ContextUsageControl';
 import { useSessionCompact } from './useSessionCompact';
 import { invalidateActiveSubagentTranscriptQueries, useSessionMessageLiveSync } from './useSessionMessageLiveSync';
+import { useTranscriptQuery } from './useTranscriptQuery';
 import { useInteractionActions } from './useInteractionActions';
 import { useMarkSessionRead } from './useMarkSessionRead';
 import { buildTranscriptRows, turnCount, resolveTurns, currentTurnElapsedMs, formatElapsed, formatDividerFromVocab } from './transcript-vm';
@@ -99,10 +100,7 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
       ? runTitle ?? active.label ?? active.name
       : 'No session';
 
-  const transcriptQuery = useQuery({
-    ...trpc.sessions.transcript.queryOptions({ sessionId, compactSubagents: true }),
-    enabled: !!sessionId,
-  });
+  const transcriptQuery = useTranscriptQuery(sessionId);
 
   // `deltas: true` — this is the surface that shows a live preview, so it opens the session-scoped
   // delta subscription. The reply then appears token by token instead of arriving whole after the

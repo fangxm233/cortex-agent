@@ -4,10 +4,9 @@
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
 import { ChatRows } from '@/features/workbench/MessageStream';
+import { useTranscriptQuery } from '@/features/workbench/useTranscriptQuery';
 import { useSessionMessageLiveSync } from '@/features/workbench/useSessionMessageLiveSync';
 import { buildTranscriptRows, formatDividerFromVocab } from '@/features/workbench/transcript-vm';
 
@@ -23,13 +22,9 @@ import { buildTranscriptRows, formatDividerFromVocab } from '@/features/workbenc
 const EMPTY_TRANSCRIPT = { sessionId: '', turns: [] };
 
 export function ThreadStepChat({ sessionId, live }: { sessionId: string | null; live: boolean }): JSX.Element {
-  const trpc = useTRPC();
   const L = useVocab();
 
-  const transcriptQuery = useQuery({
-    ...trpc.sessions.transcript.queryOptions({ sessionId: sessionId ?? '', compactSubagents: true }),
-    enabled: !!sessionId,
-  });
+  const transcriptQuery = useTranscriptQuery(sessionId ?? '');
 
   // Only subscribe to the live stream for the running step (passing '' disables the subscription).
   const { liveTail, streaming, running } = useSessionMessageLiveSync(live && sessionId ? sessionId : '', undefined, undefined, {

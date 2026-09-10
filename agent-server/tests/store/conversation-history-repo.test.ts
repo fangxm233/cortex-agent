@@ -729,3 +729,186 @@ test('a killed subagent is sealed by its reported end, and a new user turn seals
     'the turn boundary is the backstop for a child whose end was never reported',
   );
 });
+
+test('a warm model resumes from its byte cursor instead of re-reading the session', async () => {
+  let scanCount = 0;
+  const repo = new ConversationHistoryRepo(CUSTOM_HISTORY_DIR, {
+    compactHistoryAccumulatorReader: async (sessionId, filePath, options) => {
+      scanCount += 1;
+      return readHistoryAccumulator(sessionId, filePath, options);
+    },
+  });
+  const sid = 'sess-resume-cursor';
+  const file = path.join(CUSTOM_HISTORY_DIR, `${sid}.jsonl`);
+  await fs.rm(file, { force: true });
+
+  await repo.appendUser(sid, { text: 'first', ts: '2026-09-09T00:00:00.000Z' });
+  assert.equal((await repo.getCompactHistory(sid))!.events.length, 1);
+  assert.equal(scanCount, 1, 'cold start reads the file once');
+
+  await repo.appendAssistant(sid, { text: 'reply', ts: '2026-09-09T00:00:01.000Z' });
+  const grown = await repo.getCompactHistory(sid);
+  assert.deepEqual(grown!.events.map((event) => event.text), ['first', 'reply']);
+  assert.equal(scanCount, 1, 'the append is folded from the cursor, not by re-scanning');
+
+  // A line written by someone other than this repo (a restarted writer, an external tool) is still
+  // picked up: the cursor is against the FILE, not against this process's own appends.
+  await fs.appendFile(file, `${JSON.stringify({ type: 'assistant', text: 'out of band', ts: '2026-09-09T00:00:02.000Z' })}\n`, 'utf8');
+  const external = await repo.getCompactHistory(sid);
+  assert.deepEqual(external!.events.map((event) => event.text), ['first', 'reply', 'out of band']);
+  assert.equal(scanCount, 1, 'an out-of-band append still resumes rather than re-scans');
+});
+
+test('a half-written line is left for the next read instead of being folded as a row', async () => {
+  const repo = new ConversationHistoryRepo(CUSTOM_HISTORY_DIR);
+  const sid = 'sess-torn-line';
+  const file = path.join(CUSTOM_HISTORY_DIR, `${sid}.jsonl`);
+  await fs.rm(file, { force: true });
+  await repo.appendUser(sid, { text: 'complete', ts: '2026-09-09T00:00:00.000Z' });
+  assert.equal((await repo.getCompactHistory(sid))!.events.length, 1);
+
+  // A multi-megabyte tool result is not one atomic write, so a reader can observe a fragment.
+  const whole = `${JSON.stringify({ type: 'assistant', text: 'torn then whole', ts: '2026-09-09T00:00:01.000Z' })}\n`;
+  const split = Math.floor(whole.length / 2);
+  await fs.appendFile(file, whole.slice(0, split), 'utf8');
+  const torn = await repo.getCompactHistory(sid);
+  assert.deepEqual(torn!.events.map((event) => event.text), ['complete'], 'the fragment produces no row');
+
+  await fs.appendFile(file, whole.slice(split), 'utf8');
+  const healed = await repo.getCompactHistory(sid);
+  assert.deepEqual(healed!.events.map((event) => event.text), ['complete', 'torn then whole'],
+    'the row appears once the line is complete');
+});
+
+test('a rewind rebuilds the model and moves the cursor epoch; an appended read does not', async () => {
+  let scanCount = 0;
+  const repo = new ConversationHistoryRepo(CUSTOM_HISTORY_DIR, {
+    compactHistoryAccumulatorReader: async (sessionId, filePath, options) => {
+      scanCount += 1;
+      return readHistoryAccumulator(sessionId, filePath, options);
+    },
+  });
+  const sid = 'sess-cursor-epoch';
+  await fs.rm(path.join(CUSTOM_HISTORY_DIR, `${sid}.jsonl`), { force: true });
+
+  await repo.appendUser(sid, { text: 'turn one', ts: '2026-09-09T00:00:00.000Z' });
+  await repo.appendAssistant(sid, { text: 'answer one', ts: '2026-09-09T00:00:01.000Z' });
+  const first = await repo.getCompactHistoryAt(sid);
+  assert.equal(scanCount, 1);
+  const [firstEpoch, firstRevision] = first.cursor.split(':');
+
+  await repo.appendUser(sid, { text: 'turn two', ts: '2026-09-09T00:00:02.000Z' });
+  const second = await repo.getCompactHistoryAt(sid);
+  const [secondEpoch, secondRevision] = second.cursor.split(':');
+  assert.equal(secondEpoch, firstEpoch, 'an append keeps the epoch — a held cursor stays valid');
+  assert.ok(Number(secondRevision) > Number(firstRevision), 'the revision advances');
+  assert.equal(scanCount, 1);
+
+  assert.ok(await repo.truncateFromTurn(sid, 1));
+  const rewound = await repo.getCompactHistoryAt(sid);
+  assert.notEqual(rewound.cursor.split(':')[0], firstEpoch, 'a rewind voids every held cursor');
+  assert.deepEqual(rewound.value!.events.map((event) => event.text), ['turn one', 'answer one']);
+  assert.equal(scanCount, 2, 'only the rewind forces a full re-read');
+});
+
+test('full, compact and subagent reads share one resident model', async () => {
+  let scanCount = 0;
+  const repo = new ConversationHistoryRepo(CUSTOM_HISTORY_DIR, {
+    compactHistoryAccumulatorReader: async (sessionId, filePath, options) => {
+      scanCount += 1;
+      return readHistoryAccumulator(sessionId, filePath, options);
+    },
+  });
+  const sid = 'sess-shared-model';
+  const child = { id: 'shared-child-1', type: 'explore', description: 'Look around' } as const;
+  await fs.rm(path.join(CUSTOM_HISTORY_DIR, `${sid}.jsonl`), { force: true });
+
+  await repo.appendUser(sid, { text: 'go', ts: '2026-09-09T00:00:00.000Z' });
+  await repo.appendTool(sid, {
+    toolName: 'Agent', toolInput: 'Look around', ts: '2026-09-09T00:00:01.000Z',
+    subagentSpawns: [{ id: child.id, type: child.type, description: child.description, prompt: 'Look around.' }],
+  });
+  await repo.appendTool(sid, { toolName: 'Grep', toolInput: 'needle', ts: '2026-09-09T00:00:02.000Z', subagent: child });
+
+  const compact = await repo.getCompactHistory(sid);
+  const full = await repo.getHistory(sid, { includeToolDebug: false });
+  const detail = await repo.getSubagentHistory(sid, child.id);
+
+  assert.equal(scanCount, 1, 'three read shapes, one cold scan');
+  assert.equal(compact!.events.length, 2, 'the child row is folded into a summary');
+  assert.equal(full!.events.length, 3, 'the full read keeps every row');
+  assert.deepEqual(detail.events.map((event) => event.toolName), ['Grep']);
+});
+
+test('concurrent reads of a cold session share a single scan', async () => {
+  let scanCount = 0;
+  const repo = new ConversationHistoryRepo(CUSTOM_HISTORY_DIR, {
+    compactHistoryAccumulatorReader: async (sessionId, filePath, options) => {
+      scanCount += 1;
+      return readHistoryAccumulator(sessionId, filePath, options);
+    },
+  });
+  const sid = 'sess-shared-refresh';
+  await fs.rm(path.join(CUSTOM_HISTORY_DIR, `${sid}.jsonl`), { force: true });
+  await repo.appendUser(sid, { text: 'only turn', ts: '2026-09-09T00:00:00.000Z' });
+
+  const results = await Promise.all([
+    repo.getCompactHistory(sid),
+    repo.getCompactHistory(sid),
+    repo.getHistory(sid, { includeToolDebug: false }),
+  ]);
+  assert.equal(scanCount, 1, 'the in-flight fold is shared instead of raced');
+  assert.equal(results[0]!.events.length, 1);
+  assert.equal(results[2]!.events.length, 1);
+});
+
+test('the cache byte budget tracks a growing model instead of drifting', async () => {
+  const repo = new ConversationHistoryRepo(CUSTOM_HISTORY_DIR, { compactCacheEntries: 4, compactCacheBytes: 1024 * 1024 });
+  const sid = 'sess-budget-drift';
+  await fs.rm(path.join(CUSTOM_HISTORY_DIR, `${sid}.jsonl`), { force: true });
+
+  for (let i = 0; i < 5; i++) {
+    await repo.appendAssistant(sid, { text: `row ${i}`, ts: `2026-09-09T00:00:0${i}.000Z` });
+    await repo.getCompactHistory(sid); // a warm refresh grows the entry in place
+  }
+  const bytes = (repo as any).compactCacheBytes as number;
+  const entry = (repo as any).compactCache.get(sid);
+  assert.ok(bytes > 0, 'the budget still accounts for the entry');
+  assert.equal(bytes, entry.bytes, 'the running total matches what the single entry claims');
+  assert.equal(entry.bytes, (await fs.stat(path.join(CUSTOM_HISTORY_DIR, `${sid}.jsonl`))).size);
+
+  await repo.clear(sid);
+  assert.equal((repo as any).compactCacheBytes, 0, 'clearing releases exactly what was counted');
+});
+
+test('the large-payload warning is measured on the row itself, on DEBUG and plain reads alike', async (t) => {
+  const previous = process.env.CORTEX_DEBUG_TOOL_WARNING_CHARS;
+  t.onTestFinished(() => {
+    if (previous === undefined) delete process.env.CORTEX_DEBUG_TOOL_WARNING_CHARS;
+    else process.env.CORTEX_DEBUG_TOOL_WARNING_CHARS = previous;
+  });
+  process.env.CORTEX_DEBUG_TOOL_WARNING_CHARS = '2000';
+  const repo = new ConversationHistoryRepo();
+  const sid = 'sess-debug-size';
+  await repo.appendTool(sid, {
+    toolName: 'Write', toolInput: 'write /x.ts', toolUseId: 'toolu-big',
+    fullInput: { file_path: '/x.ts', content: 'a'.repeat(5_000) },
+  });
+  await repo.appendTool(sid, {
+    toolName: 'Bash', toolInput: 'pwd', toolUseId: 'toolu-small', fullInput: { command: 'pwd' },
+  });
+
+  const plain = await repo.getHistory(sid, { includeToolDebug: false });
+  assert.deepEqual(plain!.events[0].debug, { toolRef: 'toolu-big', overCharacterThreshold: true });
+  assert.deepEqual(plain!.events[1].debug, { toolRef: 'toolu-small' });
+
+  // The DEBUG read carries the same verdict, so nothing downstream has to weigh the payload again.
+  const debugRead = await repo.getHistory(sid);
+  assert.equal(debugRead!.events[0].debug?.overCharacterThreshold, true);
+  assert.equal(debugRead!.events[1].debug?.overCharacterThreshold, undefined);
+
+  const big = await repo.getToolDebugDetails(sid, 'toolu-big');
+  assert.equal(big?.overCharacterThreshold, true);
+  const small = await repo.getToolDebugDetails(sid, 'toolu-small');
+  assert.equal(small?.overCharacterThreshold, undefined);
+});

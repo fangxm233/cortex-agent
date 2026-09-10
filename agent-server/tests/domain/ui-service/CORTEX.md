@@ -39,6 +39,7 @@ Scopes cover approvals, config, executions, issues, memory, plugins, projects, s
 | query-schedules.test.ts | test | Covers schedule list filters and fields |
 | commissions.test.ts | test | Covers commission list/get/decisions and close |
 | query-sessions-transcript.test.ts | test | Covers transcript tool metadata and subagents |
+| transcript-delta-convergence.test.ts | test | Replays deltas and asserts they equal a whole read |
 | query-sessions.test.ts | test | Covers session list filters and run state |
 | query-skills.test.ts | test | Covers skills list grouping by source |
 | plugins.test.ts | test | Covers plugin list, assignment and hot reload |

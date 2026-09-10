@@ -124,6 +124,8 @@ export type {
   TranscriptTurn,
   TranscriptMessage,
   TranscriptSubagentSummary,
+  TranscriptDelta,
+  TranscriptDeltaRow,
   ThreadInfo,
   ThreadDetail,
   ThreadStepDetail,

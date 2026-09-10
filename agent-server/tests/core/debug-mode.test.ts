@@ -1,5 +1,5 @@
-// input:  DEBUG env maps plus complete tool inputs/results
-// output: gate, threshold parsing, character count, and warning tests
+// input:  DEBUG env maps plus serialized row sizes
+// output: gate, threshold parsing, and large-payload warning tests
 // pos:    specifies process-wide DEBUG behavior and large-tool policy
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -7,10 +7,9 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {
   DEFAULT_DEBUG_TOOL_WARNING_CHARS,
-  debugToolCharacterCount,
   debugToolWarningChars,
   isDebugMode,
-  isDebugToolOverWarningThreshold,
+  isOverDebugToolWarningChars,
 } from '../../src/core/debug-mode.js';
 
 test('isDebugMode follows the existing non-empty DEBUG environment contract', () => {
@@ -29,16 +28,14 @@ test('debug tool warning threshold accepts positive safe integers and otherwise 
   }
 });
 
-test('debug tool character count matches displayed pretty JSON plus result Unicode code points', () => {
-  const toolInput = { command: 'echo 😀', nested: { keep: true } };
-  const formatted = JSON.stringify(toolInput, null, 2);
-  const expected = Array.from(formatted).length + Array.from('结果').length;
-  assert.equal(debugToolCharacterCount({ toolInput, toolResult: { content: '结果', isError: false } }), expected);
+test('large-payload warning is strict greater-than at the configured threshold', () => {
+  const env = { CORTEX_DEBUG_TOOL_WARNING_CHARS: '10000' };
+  assert.equal(isOverDebugToolWarningChars(9_999, env), false);
+  assert.equal(isOverDebugToolWarningChars(10_000, env), false);
+  assert.equal(isOverDebugToolWarningChars(10_001, env), true);
 });
 
-test('debug tool warning is strict greater-than at the configured threshold', () => {
-  const env = { CORTEX_DEBUG_TOOL_WARNING_CHARS: '10000' };
-  assert.equal(isDebugToolOverWarningThreshold({ toolInput: 'x'.repeat(9_999) }, env), false);
-  assert.equal(isDebugToolOverWarningThreshold({ toolInput: 'x'.repeat(10_000) }, env), false);
-  assert.equal(isDebugToolOverWarningThreshold({ toolInput: 'x'.repeat(10_001) }, env), true);
+test('large-payload warning falls back to the default threshold', () => {
+  assert.equal(isOverDebugToolWarningChars(DEFAULT_DEBUG_TOOL_WARNING_CHARS, {}), false);
+  assert.equal(isOverDebugToolWarningChars(DEFAULT_DEBUG_TOOL_WARNING_CHARS + 1, {}), true);
 });

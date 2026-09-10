@@ -54,6 +54,9 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | ChatNotice.test.tsx | test | Tests semantic roles, action gating and safe auth activation |
 | MessageEdit.tsx | view | Bare message actions with success-only clipboard feedback, edit box and rewind |
 | chat-content.ts | types | Defines workbench tool-call types and the local shortcut catalog |
+| transcript-delta.ts | vm | Folds a cursor delta onto the cached transcript |
+| transcript-delta.test.ts | test | Tests delta merge, truncation and bail-out |
+| useTranscriptQuery.ts | hook | Reads sessions.transcript, refetching as a delta when it can |
 | transcript-vm.ts | vm | Builds device-aware compact transcript rows |
 | transcript-vm.test.ts | test | Tests remote labels, rows, tails and decisions |
 | ToolCallsRow.tsx | view | Expands tool chips with row-scoped debug actions |
