@@ -3,7 +3,7 @@
 // pos:    Pulls public/main changes into a source checkout
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { execFileSync } from 'child_process';
+import { runFile } from '@core/exec-async.js';
 import * as path from 'path';
 import { register, ctx } from '../job-registry.js';
 import { Icons } from '../../../core/icons.js';
@@ -21,11 +21,10 @@ register('sync-public', async (payload: unknown) => {
   try {
     const syncScript = resolveSyncPublicScript();
     if (!syncScript) throw new Error('CORTEX_REPO is unset; public sync requires a source checkout');
-    const output = execFileSync('bash', [syncScript], {
-      timeout: 30_000,
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
+    // Async: this is a scheduled job inside the long-lived server process.
+    const synced = await runFile('bash', [syncScript], { timeoutMs: 30_000 });
+    if (!synced.ok) throw new Error((synced.stderr || synced.error || 'sync script failed').trim());
+    const output = synced.stdout;
     const lines = output.trim().split('\n');
     const lastLine = lines[lines.length - 1] || '';
     if (lastLine.includes('0 failed') || lastLine.includes('everything in sync') || lastLine.includes('OK:') || lastLine.includes('SKIP:')) {
