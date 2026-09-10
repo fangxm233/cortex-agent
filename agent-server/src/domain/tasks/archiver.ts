@@ -5,12 +5,12 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { execSync } from 'child_process';
+import { runFile } from '@core/exec-async.js';
 import { PROJECTS_DIR, DATA_DIR } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
 import { type Task } from '@core/task-parser.js';
 import {
-  readTasks, withTaskFileMutationLock, writeTasks,
+  readTasks, withTaskFileMutationLockAsync, writeTasks,
 } from './system/task-lifecycle-edit.js';
 import { taskStore } from './store.js';
 
@@ -76,11 +76,11 @@ function processProjectUnlocked(projectName: string): { project: string; ids: st
   return { project: projectName, ids: archivedIds };
 }
 
-function processProject(projectName: string): { project: string; ids: string[] } | null {
-  return withTaskFileMutationLock(projectName, () => processProjectUnlocked(projectName));
+async function processProject(projectName: string): Promise<{ project: string; ids: string[] } | null> {
+  return withTaskFileMutationLockAsync(projectName, async () => processProjectUnlocked(projectName));
 }
 
-function gitCommit(results: Array<{ project: string; ids: string[] }>) {
+async function gitCommit(results: Array<{ project: string; ids: string[] }>): Promise<void> {
   const files: string[] = [];
   for (const r of results) {
     const projectDir = path.join(PROJECTS_DIR, r.project);
@@ -89,18 +89,26 @@ function gitCommit(results: Array<{ project: string; ids: string[] }>) {
   }
 
   try {
-    const gitArgs = files.map((f) => `"${f}"`).join(' ');
-    execSync(`git add ${gitArgs}`, { cwd: DATA_DIR, stdio: 'pipe' });
+    // Async git (was execSync): this job runs inside the shared server process.
+    const added = await runFile('git', ['add', ...files], { cwd: DATA_DIR, timeoutMs: 10000 });
+    if (!added.ok) {
+      log.error('Git add failed:', (added.stderr || added.error || '').trim());
+      return;
+    }
 
-    const status = execSync('git diff --cached --stat', { cwd: DATA_DIR, encoding: 'utf8' });
-    if (!status.trim()) {
+    const status = await runFile('git', ['diff', '--cached', '--stat'], { cwd: DATA_DIR, timeoutMs: 5000 });
+    if (!status.ok || !status.stdout.trim()) {
       log.info('No changes to commit');
       return;
     }
 
     const summary = results.map((r) => `${r.project}: ${r.ids.length} tasks`).join('; ');
     const msg = `auto-archive: completed tasks (${summary})`;
-    execSync(`git commit -m "${msg}"`, { cwd: DATA_DIR, stdio: 'pipe' });
+    const committed = await runFile('git', ['commit', '-m', msg], { cwd: DATA_DIR, timeoutMs: 10000 });
+    if (!committed.ok) {
+      log.error('Git commit failed:', (committed.stderr || committed.stdout || '').trim());
+      return;
+    }
     log.info(`Committed: ${msg}`);
   } catch (e: any) {
     log.error('Git commit failed:', e.message);
@@ -108,7 +116,7 @@ function gitCommit(results: Array<{ project: string; ids: string[] }>) {
 }
 
 async function runTaskArchiver() {
-  return taskStore.runExclusive(() => {
+  return taskStore.runExclusive(async () => {
     log.info('Starting scan...');
     const results: { archived: Array<{ project: string; ids: string[] }>; skipped: string[]; errors: string[] } = {
       archived: [], skipped: [], errors: [],
@@ -125,7 +133,7 @@ async function runTaskArchiver() {
 
     for (const name of projectNames) {
       try {
-        const result = processProject(name);
+        const result = await processProject(name);
         if (result) results.archived.push(result);
         else results.skipped.push(name);
       } catch (e: any) {
@@ -134,7 +142,7 @@ async function runTaskArchiver() {
       }
     }
 
-    if (results.archived.length > 0) gitCommit(results.archived);
+    if (results.archived.length > 0) await gitCommit(results.archived);
 
     const archivedCount = results.archived.reduce((sum, r) => sum + r.ids.length, 0);
     log.info(`Done. Archived ${archivedCount} tasks from ${results.archived.length} project(s)`);

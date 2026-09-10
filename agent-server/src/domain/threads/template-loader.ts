@@ -3,8 +3,7 @@
 // pos:    Thread template configuration loader and watcher
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { readFileSync, writeFileSync, readdirSync, renameSync, existsSync, mkdirSync, watch, type FSWatcher } from 'fs';
-import { createHash } from 'node:crypto';
+import { readFileSync, writeFileSync, readdirSync, renameSync, existsSync, mkdirSync, statSync, watch, type FSWatcher } from 'fs';
 import { isDeepStrictEqual } from 'node:util';
 import * as path from 'path';
 import { CONFIG_DIR, DATA_DIR, PROMPTS_DIR } from '@core/utils.js';
@@ -367,10 +366,13 @@ function scheduleConfigReload(label: string): void {
   }, 300);
 }
 
+/** Stat stamp instead of a content hash: this runs on every fs event (and on the 5s polling
+ *  fallback), and reading + sha256'ing all 40+ template files per event costs ~5x a stat. Any
+ *  save, replace or in-place edit moves mtime/ctime, so the snapshot still detects it. */
 function pathStamp(filePath: string): string {
   try {
-    const digest = createHash('sha256').update(readFileSync(filePath)).digest('hex');
-    return `${filePath}:${digest}`;
+    const stat = statSync(filePath);
+    return `${filePath}:${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}:${stat.ino}`;
   } catch {
     return `${filePath}:missing`;
   }

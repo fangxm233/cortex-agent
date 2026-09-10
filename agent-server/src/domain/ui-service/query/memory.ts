@@ -6,7 +6,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { runFile } from '@core/exec-async.js';
 import type {
   UiServiceDeps,
   MemoryTreeParams,
@@ -112,21 +112,16 @@ export async function handleMemoryTree(
 // never fabricated) when the project dir is not a git work tree, git is unavailable, or the diff is
 // binary/unresolvable. Read-only; array args (no shell) — `relPath` is the already-validated
 // project-relative path, so there is no injection surface.
-function gitLineDiff(root: string, relPath: string): MemoryLineDiff | null {
-  let out: string;
-  try {
-    out = execFileSync('git', ['diff', '--numstat', 'HEAD', '--', relPath], {
-      cwd: root,
-      encoding: 'utf8',
-      timeout: 5000,
-      maxBuffer: 1024 * 1024,
-      stdio: ['ignore', 'pipe', 'ignore'],
-      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
-    });
-  } catch {
-    // git missing / not a repo / non-zero exit → unknown, not fabricated.
-    return null;
-  }
+async function gitLineDiff(root: string, relPath: string): Promise<MemoryLineDiff | null> {
+  const result = await runFile('git', ['diff', '--numstat', 'HEAD', '--', relPath], {
+    cwd: root,
+    timeoutMs: 5000,
+    maxBuffer: 1024 * 1024,
+    env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+  });
+  // git missing / not a repo / non-zero exit → unknown, not fabricated.
+  if (!result.ok) return null;
+  const out = result.stdout;
   const line = out.split('\n').find((l) => l.trim().length > 0);
   // No diff vs HEAD (e.g. a clean auto-committed file) → the real answer is 0/0.
   if (!line) return { added: 0, removed: 0 };
@@ -183,22 +178,16 @@ export function parseBlamePorcelain(out: string): MemoryBlameLine[] {
 // Real per-line blame (commit hash + parsed task ref). Returns null (honest placeholder, never
 // fabricated) when the project dir is not a git work tree, git is unavailable, or the file is
 // binary/unblameable. Read-only; array args (no shell) — `relPath` is already validated.
-function gitBlame(root: string, relPath: string): MemoryBlameLine[] | null {
-  let out: string;
-  try {
-    out = execFileSync('git', ['blame', '--line-porcelain', 'HEAD', '--', relPath], {
-      cwd: root,
-      encoding: 'utf8',
-      timeout: 5000,
-      maxBuffer: 8 * 1024 * 1024,
-      stdio: ['ignore', 'pipe', 'ignore'],
-      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
-    });
-  } catch {
-    // git missing / not a repo / binary / non-zero exit → unknown, not fabricated.
-    return null;
-  }
-  return parseBlamePorcelain(out);
+async function gitBlame(root: string, relPath: string): Promise<MemoryBlameLine[] | null> {
+  const result = await runFile('git', ['blame', '--line-porcelain', 'HEAD', '--', relPath], {
+    cwd: root,
+    timeoutMs: 5000,
+    maxBuffer: 8 * 1024 * 1024,
+    env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+  });
+  // git missing / not a repo / binary / non-zero exit → unknown, not fabricated.
+  if (!result.ok) return null;
+  return parseBlamePorcelain(result.stdout);
 }
 
 export async function handleMemoryFile(
@@ -210,13 +199,18 @@ export async function handleMemoryFile(
 
   const st = fs.statSync(abs);
   const content = fs.readFileSync(abs, 'utf8');
+  // Both git probes are independent child processes: run them concurrently.
+  const [lineDiff, blame] = await Promise.all([
+    gitLineDiff(root, params.path),
+    gitBlame(root, params.path),
+  ]);
   return {
     projectId: params.projectId,
     path: params.path,
     content,
     sizeBytes: st.size,
     modifiedAt: st.mtime.toISOString(),
-    lineDiff: gitLineDiff(root, params.path),
-    blame: gitBlame(root, params.path),
+    lineDiff,
+    blame,
   };
 }

@@ -5,7 +5,8 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as path from 'path';
-import { execSync, execFileSync, spawn } from 'child_process';
+import { spawn } from 'child_process';
+import { runFile } from '@core/exec-async.js';
 import { PROJECTS_DIR, DATA_DIR } from '@core/utils.js';
 import {
   scanAllTasks,
@@ -121,7 +122,8 @@ export class TaskRepo {
    * Wait for any in-flight `runExclusive` / mutation to drain.
    * Acquire-release the mutex; FIFO ordering guarantees all preceding
    * operations have completed when this resolves.
-   * Git sync is synchronous so it's always done by the time mutex releases.
+   * Mutations await `commitAndPush` inside the mutex, so git sync is always done by the time
+   * the mutex releases.
    * Known limitation: asyncPush errors may be lost during SIGTERM drain —
    * matching current task-store.ts behavior.
    */
@@ -131,24 +133,38 @@ export class TaskRepo {
 
   // --- Git sync ---
 
-  /** Commit TASKS.yaml changes and push to origin/main */
-  commitAndPush(message: string): void {
+  /** Commit TASKS.yaml changes and push to origin/main.
+   *  Async: git runs on the shared event loop, so the three commands are awaited instead of
+   *  blocking every session/socket in the process (they used to run via execSync). */
+  async commitAndPush(message: string): Promise<void> {
     if (this.skipGit) return;
     try {
       const rel = path.relative(DATA_DIR, PROJECTS_DIR);
       const glob = `${rel}/*/TASKS.yaml`;
-      execSync(`git add "${glob}"`, { cwd: DATA_DIR, timeout: 10000 });
+      const added = await runFile('git', ['add', glob], { cwd: DATA_DIR, timeoutMs: 10000 });
+      if (!added.ok) {
+        log.error(`Git add failed: ${(added.stderr || added.stdout || added.error || '').trim()}`);
+        return;
+      }
 
-      const status = execSync(`git status --porcelain -- "${glob}"`, {
-        cwd: DATA_DIR, encoding: 'utf8', timeout: 5000,
-      }).trim();
+      const status = await runFile('git', ['status', '--porcelain', '--', glob], {
+        cwd: DATA_DIR, timeoutMs: 5000,
+      });
+      if (!status.ok) {
+        log.error(`Git status failed: ${(status.stderr || status.error || '').trim()}`);
+        return;
+      }
 
-      if (status) {
-        execFileSync('git', ['commit', '-m', message], { cwd: DATA_DIR, timeout: 10000 });
+      if (status.stdout.trim()) {
+        const committed = await runFile('git', ['commit', '-m', message], { cwd: DATA_DIR, timeoutMs: 10000 });
+        if (!committed.ok) {
+          log.error(`Git commit failed: ${(committed.stderr || committed.stdout || '').trim()}`);
+          return;
+        }
         log.info(`Committed: ${message}`);
         this.asyncPush();
       }
-    } catch (e) {
+    } catch (e: any) {
       log.error(`Git sync failed: ${e.message}`);
     }
   }

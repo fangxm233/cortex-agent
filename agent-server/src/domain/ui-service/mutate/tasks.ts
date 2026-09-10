@@ -3,7 +3,7 @@
 // pos:    mutate handlers for 'tasks.{claim,unclaim,complete,block,unblock}'
 
 import { taskMutator } from '@domain/tasks/mutator.js';
-import { acquireLock, releaseLock, getOwnerIdentity } from '@domain/tasks/system/task-lock.js';
+import { acquireLockAsync, releaseLockAsync, getOwnerIdentity } from '@domain/tasks/system/task-lock.js';
 import type { UiServiceDeps, Result } from '../types.js';
 
 async function withTaskLock<T>(
@@ -12,7 +12,8 @@ async function withTaskLock<T>(
   fn: () => Promise<T>,
 ): Promise<Result<T>> {
   const owner = getOwnerIdentity();
-  const acq = acquireLock(projectId, { owner });
+  // Async lock: the UI mutation must not park the event loop while another process holds the lock.
+  const acq = await acquireLockAsync(projectId, { owner });
   if (!acq.acquired) {
     return { ok: false, code: 'task-lock-busy', message: acq.message || 'Task lock is busy' };
   }
@@ -20,7 +21,7 @@ async function withTaskLock<T>(
     const result = await fn();
     return { ok: true, data: result };
   } finally {
-    releaseLock(projectId, owner);
+    await releaseLockAsync(projectId, owner);
   }
 }
 

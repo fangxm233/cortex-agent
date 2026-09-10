@@ -367,7 +367,7 @@ function createSkillSnapshot(
 ): boolean {
   const tmp = projectionTemp(path.dirname(target), target);
   try {
-    copyProjectedSkillTree(selection.root.real, skill.target, skill.tree, tmp);
+    copyProjectedSkillTree(selection.root.real, skill.target, skill.tree, tmp, { requireSourceSignature: true });
     fs.renameSync(tmp, target);
     return true;
   } catch (error) {

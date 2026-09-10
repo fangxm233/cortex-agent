@@ -4,8 +4,8 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { watch, FSWatcher } from 'fs';
-import { execSync } from 'child_process';
 import { randomBytes } from 'crypto';
+import { runShell } from '@core/exec-async.js';
 import { Icons } from '../../core/icons.js';
 import { DATA_DIR } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
@@ -494,16 +494,19 @@ class Scheduler {
         if (task.preCheck) {
           const freshTask = await this._repo.findTask(task.id);
           if (freshTask?.preCheck) {
-            try {
-              execSync(freshTask.preCheck, {
-                timeout: 15000,
-                env: { ...process.env, PRECHECK_LAST_RUN: String(freshTask.lastRun || 0) },
-                stdio: 'pipe',
-                cwd: DATA_DIR,
-              });
-            } catch (e: any) {
-              const output = (e.stdout || e.stderr || '').toString().trim();
-              log.info(`Pre-check skip for ${task.id}: ${output || 'exit ' + e.status}`);
+            // Async: a preCheck is arbitrary user shell, so it must never block the event loop
+            // (execSync here stalled every session, socket and timer for up to the timeout).
+            const precheck = await runShell(freshTask.preCheck, {
+              timeoutMs: 15000,
+              env: { ...process.env, PRECHECK_LAST_RUN: String(freshTask.lastRun || 0) },
+              cwd: DATA_DIR,
+            });
+            if (!precheck.ok) {
+              const output = (precheck.stdout || precheck.stderr || '').trim();
+              const outcome = precheck.timedOut
+                ? 'timeout'
+                : `exit ${precheck.code ?? precheck.signal ?? 'unknown'}`;
+              log.info(`Pre-check skip for ${task.id}: ${output || outcome}`);
               await this._withWriteGuard(() => this._repo.updateTask(task.id, (t) => {
                 const nextDelayMs = getNextDelay(t);
                 t.nextRun = Date.now() + nextDelayMs;

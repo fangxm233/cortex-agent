@@ -8,9 +8,10 @@ import * as path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { type Task, type TaskGenerationExpectation } from '@core/task-parser.js';
 import { DATA_DIR, INSTALL_ROOT, PROJECTS_DIR, STORE_DIR, WORKSPACE_DIR } from '@core/utils.js';
+import { runFile } from '@core/exec-async.js';
 import {
   clearDependsOnAll, findTask, getTasksPath, readTasks, taskFileProjects,
-  withTaskFileMutationLock, withTaskFileMutationLocks, writeTasks,
+  withTaskFileMutationLock, withTaskFileMutationLockAsync, withTaskFileMutationLocks, withTaskFileMutationLocksAsync, writeTasks,
 } from './task-lifecycle-edit.js';
 
 const EXPLICIT_SHA = /\b(?:implementation\s+sha|commit(?:\s+sha)?|sha)\s*[:=#]?\s*`?([0-9a-f]{7,40})(?![0-9a-f])`?/gi;
@@ -23,6 +24,14 @@ function runGit(repo: string, args: string[], input?: string): string | null {
   } catch {
     return null;
   }
+}
+
+/** Async twin of `runGit`: same argv, same 5s timeout, no event-loop block. The server's
+ *  completion path uses this; the CLI keeps the synchronous original. */
+async function runGitAsync(repo: string, args: string[], input?: string): Promise<string | null> {
+  const result = await runFile('git', ['-C', repo, ...args], { timeoutMs: 5000, stdin: input });
+  if (!result.ok) return null;
+  return result.stdout.trim();
 }
 
 function extractExplicitShas(note: string): string[] {
@@ -157,10 +166,45 @@ function loadCompletionTask(taskText: string | null, project: string, taskId: st
 function completionWarning(
   project: string, task: Task, completionNote: string,
   skipVerify: boolean, skipVerifyReason: string | null,
+  precomputedEvidence: boolean | null = null,
 ): string | null {
   if (skipVerify) return `verify skipped: ${skipVerifyReason ?? 'no reason given'}`;
-  if (verifyCompletionEvidence(project, task.id, task.done_when, completionNote)) return null;
+  const verified = precomputedEvidence ?? verifyCompletionEvidence(project, task.id, task.done_when, completionNote);
+  if (verified) return null;
   return 'no evidence of work: no verified implementation SHA, persisted thread artifact, matching git commit, or Done-when artifact. Re-run with --skip-verify to bypass.';
+}
+
+/** Async twin of `verifyCompletionEvidence` for callers that must not block on git. Same order and
+ *  same short-circuiting as the sync version, so both reach the same verdict. */
+async function verifyCompletionEvidenceAsync(
+  project: string,
+  taskId: string | null,
+  doneWhen: string | null,
+  completionNote: string,
+): Promise<boolean> {
+  if (await hasVerifiedImplementationShaAsync(completionNote, project)) return true;
+  if (hasCompletionArtifact(project, taskId)) return true;
+  if (await hasTaskCommitAsync(taskId)) return true;
+  return hasDoneWhenArtifact(doneWhen);
+}
+
+async function hasVerifiedImplementationShaAsync(note: string, project: string): Promise<boolean> {
+  const refs = extractExplicitShas(note).map((sha) => `${sha}^{commit}`);
+  if (refs.length === 0) return false;
+  const repos = [...new Set([process.cwd(), INSTALL_ROOT, DATA_DIR, ...readConfiguredProjectRepos(project)])];
+  for (const repo of repos) {
+    const out = await runGitAsync(repo, ['cat-file', '--batch-check=%(objecttype)'], `${refs.join('\n')}\n`);
+    if (out !== null && out.split('\n').includes('commit')) return true;
+  }
+  return false;
+}
+
+async function hasTaskCommitAsync(taskId: string | null): Promise<boolean> {
+  if (!taskId) return false;
+  const out = await runGitAsync(DATA_DIR, ['log', '--oneline', `--grep=${taskId}`]);
+  if (out === null) return false;
+  return out.split('\n').filter(Boolean)
+    .some((line) => !/task-store:\s+(claim|unclaim)/i.test(line));
 }
 
 function markTaskCompleted(
@@ -184,6 +228,7 @@ function completeTaskUnlocked(
   completionNote: string = '', taskId: string | null = null,
   skipVerify: boolean = false, skipVerifyReason: string | null = null,
   ownership?: TaskGenerationExpectation,
+  precomputedEvidence: boolean | null = null,
 ) {
   const loaded = loadCompletionTask(taskText, project, taskId);
   if ('error' in loaded) return { success: false, message: loaded.error };
@@ -193,7 +238,7 @@ function completeTaskUnlocked(
   }
   const stateError = completionStateError(task);
   if (stateError) return { success: false, message: stateError };
-  const verifyWarning = completionWarning(project, task, completionNote, skipVerify, skipVerifyReason);
+  const verifyWarning = completionWarning(project, task, completionNote, skipVerify, skipVerifyReason, precomputedEvidence);
   const completedAt = new Date().toISOString();
   const today = completedAt.slice(0, 10);
   markTaskCompleted(task, completionNote, completedAt, ownership);
@@ -245,4 +290,41 @@ const completeTask = ((...args: Parameters<typeof completeTaskUnlocked>) =>
   )) as typeof completeTaskUnlocked;
 const uncompleteTask = lockCompletionMutation(uncompleteTaskUnlocked);
 
-export { completeTask, uncompleteTask };
+/** Async twin of `completeTask` for the server's completion path: the evidence probes
+ *  (`git cat-file` / `git log`) run through runFile instead of execFileSync, so completing a task
+ *  no longer stalls every session in the process. The sync export stays for the CLI and tests. */
+async function completeTaskAsync(
+  taskText: string | null, project: string,
+  completionNote: string = '', taskId: string | null = null,
+  skipVerify: boolean = false, skipVerifyReason: string | null = null,
+  ownership?: TaskGenerationExpectation,
+): Promise<ReturnType<typeof completeTaskUnlocked>> {
+  return withTaskFileMutationLocksAsync([...taskFileProjects(), project], async () => {
+    // Probe the (read-only) evidence while holding the mutation lock — same window as the sync
+    // path, which runs execFileSync there — but without parking the event loop. A failed pre-read
+    // passes null, and completeTaskUnlocked then returns its own load error before verifying.
+    let precomputedEvidence: boolean | null = null;
+    if (!skipVerify) {
+      const loaded = loadCompletionTask(taskText, project, taskId);
+      if (!('error' in loaded)) {
+        precomputedEvidence = await verifyCompletionEvidenceAsync(
+          project, loaded.task.id, loaded.task.done_when, completionNote,
+        );
+      }
+    }
+    return completeTaskUnlocked(
+      taskText, project, completionNote, taskId, skipVerify, skipVerifyReason, ownership, precomputedEvidence,
+    );
+  });
+}
+
+async function uncompleteTaskAsync(
+  taskText: string | null, project: string, taskId: string | null = null,
+  ownership?: TaskGenerationExpectation,
+): Promise<ReturnType<typeof uncompleteTaskUnlocked>> {
+  return withTaskFileMutationLockAsync(project, async () => uncompleteTaskUnlocked(
+    taskText, project, taskId, ownership,
+  ));
+}
+
+export { completeTask, completeTaskAsync, uncompleteTask, uncompleteTaskAsync };

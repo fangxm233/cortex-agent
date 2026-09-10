@@ -14,6 +14,7 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | cli-utils.ts | util | formats CLI help/errors and reads stdin as text or raw bytes |
 | config-generator.ts | config | generates bundled and gated MCP configs |
 | debug-mode.ts | config | reports DEBUG state and tool size limits |
+| exec-async.ts | util | runs subprocesses without blocking the event loop (hot-path execSync replacement) |
 | gateway-generator.ts | config | scans PI models through the bundled SDK and builds bounded gateway.yaml |
 | hook-bus.ts | core | dispatches hooks with safe arguments and diagnostics |
 | hook-exec.ts | util | runs hooks and captures bounded output and exit status |

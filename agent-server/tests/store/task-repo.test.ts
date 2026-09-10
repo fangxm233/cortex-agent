@@ -304,6 +304,6 @@ test('orphan sweep — pre-planted TASKS.yaml.tmp.* files removed on first write
 test('commitAndPush — no-op when skipGit is true', async () => {
   const repo = new TaskRepo({ skipGit: true });
   // Should not throw despite no git repo existing
-  repo.commitAndPush('should be ignored');
+  await repo.commitAndPush('should be ignored');
   assert.ok(true, 'commitAndPush with skipGit: true did not throw');
 });
