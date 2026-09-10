@@ -84,6 +84,21 @@ export async function handleSessionsList(
       lastRunByChannel.set(channel, { startedAt, numTurns, costUsd: typeof costUsd === 'number' ? costUsd : null });
     }
   }
+
+  // Every row asks the same question — can this session's profile compact? — and the answer is a
+  // function of (backend, profileName) alone, of which a list holds a handful. Asking per row made
+  // a 300-session list resolve (and revalidate) profiles.json 300 times per request.
+  const compactionByProfile = new Map<string, boolean>();
+  const supportsCompaction = (session: { backend: string; profileName: string | null }): boolean => {
+    if (!deps.supportsSessionCompaction) return false;
+    const key = `${session.backend}\u0000${session.profileName ?? ''}`;
+    const known = compactionByProfile.get(key);
+    if (known !== undefined) return known;
+    const supported = deps.supportsSessionCompaction(session);
+    compactionByProfile.set(key, supported);
+    return supported;
+  };
+
   const resolveNumTurns = (channel: string | undefined, running: boolean): number | null => {
     if (running) return liveTurnsForChannel(channel);
     return channel ? (lastRunByChannel.get(channel)?.numTurns ?? null) : null;
@@ -129,7 +144,7 @@ export async function handleSessionsList(
       browser: s.browser ?? null,
       contextUsage: s.contextUsage ?? null,
       todos: deps.getSessionTodos?.(s.sessionId) ?? null,
-      contextCompactionSupported: deps.supportsSessionCompaction?.(s) ?? false,
+      contextCompactionSupported: supportsCompaction({ backend: s.backend, profileName: s.profileName ?? null }),
       running,
       backgroundRunning: bgHeld,
       awaitingInput,

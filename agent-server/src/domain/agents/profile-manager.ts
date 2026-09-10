@@ -68,10 +68,24 @@ const THINKING_LEVELS_BY_BACKEND: Record<Backend, Set<string>> = {
   pi: new Set(['off', 'minimal', 'low', 'medium', 'high', 'xhigh']),
 };
 
+/** The profiles object whose validation already passed. `profileRepo` caches the PARSE; the
+ *  validation was left to run again on every call, and every caller of this module goes through
+ *  here — a 300-session `sessions.list` revalidated the whole file 300 times per request. */
+let validatedProfiles: ProfilesFile | null = null;
+
+/**
+ * Identity, not a revision counter, is what makes this safe: every path that can change the
+ * profiles — `save`, `mutate`, and the hot-reload watcher's `invalidate` + `readSync` — installs a
+ * NEW object, so a stale verdict cannot outlive a change. A file that fails validation is never
+ * recorded, so it keeps throwing until it is fixed.
+ */
 function loadProfilesFile(): ProfilesFile {
   try {
     const data = profileRepo.readSync();
-    validateProfilesFile(data);
+    if (data !== validatedProfiles) {
+      validateProfilesFile(data);
+      validatedProfiles = data;
+    }
     return data;
   } catch (error) {
     throw new Error(`Failed to load profiles.json: ${(error as Error).message}`);

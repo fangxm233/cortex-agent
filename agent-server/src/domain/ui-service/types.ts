@@ -2575,8 +2575,10 @@ export interface UiServiceDeps {
      *  facade/test fixtures need not provide it (the handler no-ops when absent). */
     markRead?(sessionId: string): Promise<void>;
   };
-  /** Capability hint for sessions.list; execution revalidates inside orchestration. */
-  supportsSessionCompaction?: (session: Session) => boolean;
+  /** Capability hint for sessions.list; execution revalidates inside orchestration. Narrowed to
+   *  the two fields the answer depends on so the list can answer it once per distinct profile
+   *  instead of once per row. */
+  supportsSessionCompaction?: (session: Pick<Session, 'backend' | 'profileName'>) => boolean;
   /** Latest task-list snapshot for a session (in-memory registry). Optional so facade/test
    *  fixtures need not provide it — absent means the session reports no task list. */
   getSessionTodos?: (sessionId: string) => TodoSnapshot | null;
