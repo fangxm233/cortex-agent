@@ -1,5 +1,6 @@
-// input:  PI session events, parser state, and the notices subagents forward
-// output: Normalized events, including a child's events attributed to the subagent that ran them
+// input:  PI session events, parser state, and the notices and spend reports subagents raise
+// output: Normalized events, including a child's events attributed to the subagent that ran them,
+//         and a cost_record for each child's spend
 // pos:    Translates PI session events
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -69,8 +70,9 @@ export function createPIEventParserState(): PIEventParserState {
 
 /**
  * Translate one PI session event (as delivered by `AgentSession.subscribe`, an
- * `extension_ui_request` the host raised for an extension, or a `cortex_subagent_event` the Agent
- * tool forwarded from a nested session) to zero or more NormalizedEvents.
+ * `extension_ui_request` the host raised for an extension, or a `cortex_subagent_event` /
+ * `cortex_subagent_usage` record the Agent tool raised for a nested session) to zero or more
+ * NormalizedEvents.
  *
  * Dropped events (return []): turn_start, turn_end, message_start, agent_start,
  * queue_update, compaction_end, auto_retry_start/end, message_update without text_delta,
@@ -154,6 +156,11 @@ export function piEventToNormalized(
   if (type === 'cortex_subagent_event') {
     const notice = subagentNoticeFrom(ev['notice']);
     return notice ? subagentEvents(notice) : [];
+  }
+
+  // --- cortex_subagent_usage → one cost_record for the child that just ended ---
+  if (type === 'cortex_subagent_usage') {
+    return subagentUsageEvents(ev['report'], state);
   }
 
   // --- extension_error → error (non-fatal) ---
@@ -364,6 +371,41 @@ function sumNullableCosts(left: number | null, right: number | null): number | n
   return (left ?? 0) + (right ?? 0);
 }
 
+/**
+ * One finished child's spend → the `cost_record` that files it, plus its cost added to the turn
+ * the child ran inside. The turn's own `numTurns` is left alone: a subagent is work the parent
+ * delegated, not another turn the parent took.
+ *
+ * Unlike the parent's `agent_end`, a child's accumulator has already collapsed "the provider did
+ * not report this category" into 0, so these counts are what was observed rather than a proven
+ * exact total. Filed anyway: the alternative on record today is nothing at all.
+ */
+function subagentUsageEvents(value: unknown, state: PIEventParserState): NormalizedEvent[] {
+  const report = asRecord(value);
+  const provider = report['provider'];
+  if (typeof provider !== 'string' || provider === '') return [];
+  const usage = asRecord(report['usage']);
+  const input = nonNegativeCount(usage['input']);
+  const output = nonNegativeCount(usage['output']);
+  const cacheRead = nonNegativeCount(usage['cacheRead']);
+  const cacheCreation = nonNegativeCount(usage['cacheWrite']);
+  const turns = nonNegativeCount(usage['turns']);
+  const cost = nullableNonNegativeNumber(usage['cost']);
+  state.pendingCompletion.totalCostUsd = sumNullableCosts(state.pendingCompletion.totalCostUsd, cost);
+  const model = report['model'];
+  return [{
+    type: 'cost_record',
+    provider,
+    model: typeof model === 'string' ? model : '',
+    tokens_in: input, tokens_out: output,
+    prompt_tokens: input + cacheRead + cacheCreation, cached_tokens: cacheRead,
+    input_tokens: input, output_tokens: output,
+    cache_read_tokens: cacheRead, cache_creation_tokens: cacheCreation,
+    provider_requests: turns > 0 ? turns : null,
+    cost_usd: cost,
+  }];
+}
+
 /** Shape-check a forwarded notice. Strict on purpose: a half-formed notice would produce a row
  *  attributed to a subagent that cannot be named, which is worse than dropping the row. */
 function subagentNoticeFrom(value: unknown): SubagentNotice | null {
@@ -479,6 +521,11 @@ export function piContextUsageFromStats(data: unknown): ContextUsage | null {
     percent: nullableNonNegativeNumber(usage['percent']),
     accuracy: 'estimate',
   };
+}
+
+/** A count the child reported, floored at 0: the accumulator only ever holds finite numbers. */
+function nonNegativeCount(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
 }
 
 function nullableNonNegativeNumber(value: unknown): number | null {

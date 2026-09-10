@@ -128,3 +128,79 @@ test('pi-cost-record: agent_end records cost before agent_settled completes', as
   assert.equal(entry.project, 'pi-cost-test', 'project should match runWithAdapter options');
   assert.equal(entry.trigger, 'test', 'trigger should match runWithAdapter options');
 });
+
+// ---------------------------------------------------------------------------
+// Integration test: a subagent's spend reaches the ledger as its own entry
+// ---------------------------------------------------------------------------
+
+test('pi-cost-record: a subagent files its own entry and joins the turn cost', async () => {
+  process.env['CORTEX_COSTS_FILE'] = COSTS_FILE;
+  costRepo._testReset();
+
+  const fake = makeFakeRuntimeFactory({ sessionId: 'pi-test-002' });
+  const piAdapter = new PIAdapter(fake.factory, SESSION_DIR);
+  const adapter: AgentAdapter = {
+    backend: 'pi',
+    capabilities: CAPABILITIES_BY_BACKEND['pi'],
+    spawn: (config: AgentSpawnConfig) => piAdapter.spawn(config),
+    close: (key: string) => piAdapter.close(key),
+    kill: (key: string) => piAdapter.kill(key),
+    listSessions: () => piAdapter.listSessions(),
+  };
+
+  const handle = runWithAdapter(
+    adapter,
+    'delegate it',
+    { project: 'pi-subagent-cost-test', trigger: 'test' },
+    { model: '', backend: 'pi', mode: 'api' },
+    undefined,
+  );
+
+  const runtime = await fake.runtime();
+  await runtime.nextCall('prompt');
+  runtime.emitAgentStart();
+  // The Agent tool raises this once the child ends, mid-turn — before the parent settles.
+  runtime.emit({
+    type: 'cortex_subagent_usage',
+    report: {
+      provider: 'openai-codex',
+      model: 'gpt-5-codex',
+      usage: {
+        input: 300, output: 120, cacheRead: 40, cacheWrite: 0,
+        cost: 0.25, contextTokens: 460, turns: 2,
+      },
+    },
+  });
+  runtime.emit({
+    type: 'agent_end',
+    messages: [{
+      role: 'assistant', provider: 'openai-codex', model: 'gpt-5-codex',
+      usage: { input: 20, output: 10, cost: { total: 0.5 } },
+    }],
+  });
+  runtime.emit({ type: 'agent_settled' });
+
+  const result = await handle.promise;
+  for (const key of piAdapter.listSessions()) await piAdapter.close(key);
+  await costRepo.flush();
+
+  const entries = readFileSync(COSTS_FILE, 'utf8')
+    .trim().split('\n').filter(Boolean)
+    .map(line => JSON.parse(line) as CostEntry)
+    .filter(entry => entry.project === 'pi-subagent-cost-test');
+
+  assert.equal(entries.length, 2, 'the child and the parent each file one entry');
+  const child = entries.find(entry => entry.input_tokens === 300);
+  assert.ok(child, 'the child filed an entry of its own');
+  assert.equal(child.provider, 'openai-codex');
+  assert.equal(child.model, 'gpt-5-codex');
+  assert.equal(child.output_tokens, 120);
+  assert.equal(child.prompt_tokens, 340, 'prompt total includes the cache reads');
+  assert.equal(child.cache_read_tokens, 40);
+  assert.equal(child.provider_requests, 2, 'two assistant messages inside the child');
+  assert.ok(Math.abs((child.cost_usd ?? 0) - 0.25) < 0.0001);
+  assert.ok(
+    Math.abs((result.total_cost_usd ?? 0) - 0.75) < 0.0001,
+    `turn cost should include the child's spend, got ${result.total_cost_usd}`,
+  );
+});

@@ -1,5 +1,5 @@
 // input:  PI Agent tool calls, role files under the agent dir, a nested PI session factory
-// output: Single, parallel and chain subagent runs with attributed child events and usage
+// output: Single, parallel and chain subagent runs with attributed child events and reported spend
 // pos:    PI Agent tool: runs role-scoped subagents as nested in-process PI sessions
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -87,8 +87,18 @@ export interface SubagentResult {
   output: string;
   usage: SubagentUsage;
   model?: string;
+  /** The provider that answered, as the child's own messages reported it. */
+  provider?: string;
   stopReason?: string;
   errorMessage?: string;
+}
+
+/** One child's spend, handed to the host when that child ends. The ledger's unit is the child, not
+ *  the message: a run of eight children files eight records, each naming who answered it. */
+export interface SubagentUsageReport {
+  provider: string;
+  model: string;
+  usage: SubagentUsage;
 }
 
 export interface SubagentDetails {
@@ -103,18 +113,24 @@ export interface SubagentToolDeps {
   ensureRoles(): void;
   /** Creates one nested in-process PI session per child. */
   createSession: ChildSessionFactory;
-  /** The Cortex extensions a child session runs with, closed over the child's env. */
-  childExtensions: (env: NodeJS.ProcessEnv) => InlineExtension[];
+  /** The Cortex extensions a child session runs with, closed over the child's env and the provider
+   *  the child declared — null whenever the selection names a model without one, which is the only
+   *  honest answer before PI's resolver has run. */
+  childExtensions: (env: NodeJS.ProcessEnv, childProvider: string | null) => InlineExtension[];
   /** The parent session's env; each child's env is derived from it. */
   parentEnv: NodeJS.ProcessEnv;
   /** Receives every forwarded child event for the parent's transcript. Absent: no attribution. */
   onEvent?: (notice: SubagentNotice) => void;
+  /** Receives each finished child's spend so it reaches the cost ledger. Absent: the child's
+   *  tokens stay in the tool result and are never accounted. */
+  onUsage?: (report: SubagentUsageReport) => void;
 }
 
 interface ChildAccumulator {
   output: string;
   usage: SubagentUsage;
   model?: string;
+  provider?: string;
   stopReason?: string;
   errorMessage?: string;
 }
@@ -403,6 +419,9 @@ function recordAssistantMessage(
   if (message.role !== 'assistant') return;
   accumulator.output = textFromMessage(message) || accumulator.output;
   accumulator.model = stringOrPrevious(message.model, accumulator.model);
+  // Read off the child's own messages, never inherited from the parent: a child may run on another
+  // provider entirely, and a guessed name would file its spend under a provider it never used.
+  accumulator.provider = stringOrPrevious(message.provider, accumulator.provider);
   recordTerminalState(accumulator, message);
 }
 
@@ -441,6 +460,7 @@ function createChildResult(task: SubagentTask, accumulator: ChildAccumulator): S
     output: accumulator.output,
     usage: accumulator.usage,
     model: accumulator.model,
+    provider: accumulator.provider,
     stopReason: accumulator.stopReason,
     errorMessage: accumulator.errorMessage,
   };
@@ -463,7 +483,10 @@ async function runChild(
     model: selection.model ?? null,
     tools: role.tools,
     appendSystemPrompt: role.systemPrompt ? [role.systemPrompt] : [],
-    extensions: deps.childExtensions(buildChildEnv(deps.parentEnv, deps.agentDir)),
+    extensions: deps.childExtensions(
+      buildChildEnv(deps.parentEnv, deps.agentDir),
+      selection.provider ?? null,
+    ),
   });
   try {
     return await collectChild(handle, task, signal, forward);
@@ -511,6 +534,25 @@ function failedChildResult(task: SubagentTask, error: unknown): SubagentResult {
   return createChildResult(task, accumulator);
 }
 
+/**
+ * Hand this child's spend to the host, once, as the child ends.
+ *
+ * Reported only when the child's own messages named the provider that answered: without one the
+ * ledger has nowhere honest to file the record, and a child that never reached a provider (a
+ * session that failed to start) spent nothing to file. Best-effort by contract — accounting must
+ * never fail a subagent that already did its work.
+ */
+function reportChildUsage(deps: SubagentToolDeps, result: SubagentResult): void {
+  if (!deps.onUsage || !result.provider || result.usage.turns === 0) return;
+  try {
+    deps.onUsage({
+      provider: result.provider,
+      model: result.model ?? '',
+      usage: result.usage,
+    });
+  } catch { /* best-effort */ }
+}
+
 async function runTask(
   task: SubagentTask,
   roles: AgentRole[],
@@ -523,10 +565,15 @@ async function runTask(
   try {
     const result = await runChild(task, role, ctx, signal, deps, forward);
     if (!result.model) result.model = selectedModel(task, role, ctx).model;
+    reportChildUsage(deps, result);
     return result;
   } catch (error) {
+    // An aborted child keeps whatever it spent to itself: the accumulator dies with the run that
+    // was cancelled mid-flight, so there is no complete record to file.
     if (signal?.aborted) throw error;
-    return failedChildResult(task, error);
+    const failed = failedChildResult(task, error);
+    reportChildUsage(deps, failed);
+    return failed;
   }
 }
 

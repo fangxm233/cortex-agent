@@ -165,6 +165,9 @@ export async function createPiRuntime(
     onProviderQuota: callbacks.onProviderQuota,
     // A subagent's events reach the parent's stream as one raw record per event, no codec in between.
     onSubagentEvent: (notice) => callbacks.onEvent({ type: 'cortex_subagent_event', notice }),
+    // Spend travels its own record rather than riding the transcript channel: the parser turns it
+    // into a cost_record, and the transcript never renders it.
+    onSubagentUsage: (report) => callbacks.onEvent({ type: 'cortex_subagent_usage', report }),
   });
   const sessionManager = openSessionManager(sdk, request);
   const runtime = await sdk.createAgentSessionRuntime(runtimeFactory(sdk, request, extensions), {

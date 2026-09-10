@@ -7,10 +7,12 @@ import { afterEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { join as pathJoin } from 'node:path';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
 import type { PIAgentProcess } from '../src/agent-adapter/pi/adapter.js';
 import { installToolShims } from '../src/agent-adapter/pi/tool-shims.js';
+import type { ChildSessionRequest } from '../src/agent-adapter/pi/child-session.js';
+import type { CodexQuotaReading } from '../src/domain/costs/codex-quota.js';
 import { makeFakeRuntimeFactory, type FakeRuntime } from './agent-adapter/pi-fake-runtime.js';
 
 const SESSION_DIR = pathJoin(tmpdir(), 'pi-shims-test-' + process.pid);
@@ -534,6 +536,92 @@ test('K2: spawn omits CORTEX_PI_ALLOWED_TOOLS when rawTools is unset', async () 
   } finally {
     if (prev !== undefined) process.env.CORTEX_PI_ALLOWED_TOOLS = prev;
   }
+});
+
+// ─── Subagent quota probe (a child's provider calls are the parent's spend) ───
+
+/** A nested session that answers one prompt with nothing and ends: enough to observe what
+ *  extensions the child was built with, which is all these tests are about. */
+function stubChildSession() {
+  return {
+    session: {
+      subscribe: () => () => {},
+      prompt: async () => {},
+      abort: async () => {},
+    },
+    dispose: () => {},
+  } as any;
+}
+
+/** A role that pins its own model, so the child's provider cannot be known before PI resolves it. */
+function writePinnedRole(agentDir: string): void {
+  mkdirSync(pathJoin(agentDir, 'agents'), { recursive: true });
+  writeFileSync(pathJoin(agentDir, 'agents', 'pinned.md'), [
+    '---', 'name: pinned', 'description: pinned role', 'model: some-other-model', '---', '',
+    'You are the pinned role.',
+  ].join('\n'));
+}
+
+/** Install the shims over a throwaway agent dir, run one subagent, and hand back the requests the
+ *  child session factory saw. */
+async function childRequestsFor(
+  hooks: { onProviderQuota?: (reading: CodexQuotaReading) => void },
+  role = 'explore',
+): Promise<ChildSessionRequest[]> {
+  const agentDir = mkdtempSync(pathJoin(tmpdir(), 'pi-shims-child-'));
+  const model = { provider: 'openai-codex', id: 'active-model' };
+  try {
+    writePinnedRole(agentDir);
+    const requests: ChildSessionRequest[] = [];
+    const { pi, definitions, emit } = makeMockPi();
+    installToolShims(pi, { PI_CODING_AGENT_DIR: agentDir }, {
+      ...hooks,
+      createChildSession: async (request) => { requests.push(request); return stubChildSession(); },
+    });
+    await emit('session_start', {
+      cwd: agentDir,
+      model,
+      modelRegistry: { getAvailable: () => [] },
+    });
+    await definitions.get('agent').execute(
+      'tool-quota',
+      { description: 'Inspect code', prompt: 'Find it.', subagent_type: role },
+      undefined,
+      undefined,
+      { cwd: agentDir, model },
+    );
+    return requests;
+  } finally {
+    rmSync(agentDir, { recursive: true, force: true });
+  }
+}
+
+test('L: a child inheriting the session model carries the quota probe', async () => {
+  const requests = await childRequestsFor({ onProviderQuota: () => {} });
+  assert.equal(requests.length, 1);
+  assert.deepEqual(
+    requests[0].extensions.map((extension) => extension.name),
+    ['cortex-mcp-bridge', 'cortex-tool-shims', 'cortex-quota-probe'],
+  );
+});
+
+test('L2: a run that reports no quota builds its children without the probe', async () => {
+  const requests = await childRequestsFor({});
+  assert.equal(requests.length, 1);
+  assert.deepEqual(
+    requests[0].extensions.map((extension) => extension.name),
+    ['cortex-mcp-bridge', 'cortex-tool-shims'],
+  );
+});
+
+test('L3: a child on a role-pinned model reports no quota, since its provider is unproven', async () => {
+  const requests = await childRequestsFor({ onProviderQuota: () => {} }, 'pinned');
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].provider, null, 'a pinned role carries no provider of its own');
+  assert.deepEqual(
+    requests[0].extensions.map((extension) => extension.name),
+    ['cortex-mcp-bridge', 'cortex-tool-shims'],
+  );
 });
 
 console.error("All tests registered");

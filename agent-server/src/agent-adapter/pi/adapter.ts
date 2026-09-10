@@ -214,10 +214,17 @@ export class PIAdapter implements AgentAdapter {
     });
   }
 
+  /**
+   * Report quota under the provider this run was routed as. A profile may name its codex provider
+   * anything (`my-codex`), so the label comes from the run's own config and never from the
+   * reading — see quota-sink's `resolveQuotaSource`. Keeping a child's reading honest is the
+   * subagent tool's job: it installs the probe only on children that inherit this routing.
+   */
   private quotaReporter(config: AgentSpawnConfig): ((reading: CodexQuotaReading) => void) | undefined {
     if (!config.piGatewayBaseUrl) return undefined;
+    const source = resolveQuotaSource(config);
     return (reading) => {
-      void reportCodexQuota(reading, resolveQuotaSource(config), { usageStore: this.usageStore })
+      void reportCodexQuota(reading, source, { usageStore: this.usageStore })
         .catch((error) => log.error('reportCodexQuota error:', error));
     };
   }

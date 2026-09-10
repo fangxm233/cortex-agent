@@ -502,6 +502,61 @@ test('cost_record: multiple messages sum tokens and use the first identity', () 
   assert.deepEqual(events[1], { type: 'turn_complete', numTurns: 2, totalCostUsd: 0.005 });
 });
 
+// ---------------------------------------------------------------------------
+// 8c. cortex_subagent_usage — a finished child's spend joins the turn it ran inside
+// ---------------------------------------------------------------------------
+
+const CHILD_USAGE = {
+  input: 300, output: 120, cacheRead: 40, cacheWrite: 10,
+  cost: 0.004, contextTokens: 470, turns: 2,
+};
+
+test('cortex_subagent_usage: one cost_record per finished child', () => {
+  const events = piEventToNormalized(
+    ev({
+      type: 'cortex_subagent_usage',
+      report: { provider: 'openai-codex', model: 'gpt-5-codex', usage: CHILD_USAGE },
+    }),
+    freshState(),
+  );
+  assert.deepEqual(events, [{
+    type: 'cost_record', provider: 'openai-codex', model: 'gpt-5-codex',
+    tokens_in: 300, tokens_out: 120, prompt_tokens: 350, cached_tokens: 40,
+    input_tokens: 300, output_tokens: 120, cache_read_tokens: 40,
+    cache_creation_tokens: 10, provider_requests: 2, cost_usd: 0.004,
+  }]);
+});
+
+test("cortex_subagent_usage: the child's cost joins the turn total, its turns do not", () => {
+  const state = freshState();
+  const child = piEventToNormalized(
+    ev({
+      type: 'cortex_subagent_usage',
+      report: { provider: 'openai-codex', model: 'gpt-5-codex', usage: CHILD_USAGE },
+    }),
+    state,
+  );
+  assert.equal(child.length, 1);
+  const events = agentEndThenSettle(state, { type: 'agent_end', messages: [{
+    role: 'assistant', provider: 'openai-codex', model: 'gpt-5-codex',
+    usage: { input: 10, output: 5, cost: { total: 0.001 } },
+  }] });
+  assert.deepEqual(events.at(-1), { type: 'turn_complete', numTurns: 1, totalCostUsd: 0.005 });
+});
+
+test('cortex_subagent_usage: a report without a provider is dropped', () => {
+  for (const report of [
+    { model: 'gpt-5-codex', usage: CHILD_USAGE },
+    { provider: '', model: 'gpt-5-codex', usage: CHILD_USAGE },
+    undefined,
+  ]) {
+    assert.deepEqual(
+      piEventToNormalized(ev({ type: 'cortex_subagent_usage', report }), freshState()),
+      [],
+    );
+  }
+});
+
 test('cost_record: missing or empty provider emits no low-level cost event', () => {
   for (const provider of [undefined, '']) {
     const state = freshState();
