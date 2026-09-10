@@ -666,6 +666,35 @@ test('compact projection LRU evicts by count and estimated bytes', async () => {
   assert.ok((repo as any).compactCacheBytes <= 220, 'byte budget is enforced');
 });
 
+test('a transcript larger than the whole budget is refused without evicting the warm entries', async () => {
+  // The per-entry guard must stay tied to the total budget: admitting an entry that alone exceeds
+  // it would make trimCompactCache evict every other session (insertion order) and then this entry
+  // too, emptying the cache. Proven by the sweep below; pinned here so it cannot regress.
+  const repo = new ConversationHistoryRepo(CUSTOM_HISTORY_DIR, { compactCacheEntries: 8, compactCacheBytes: 1000 });
+  for (const [sid, chars] of [['oversized-a', 300], ['oversized-b', 300], ['oversized-huge', 6000]] as const) {
+    await repo.appendUser(sid, { text: 'x'.repeat(chars), ts: '2026-09-10T00:00:00.000Z' });
+  }
+
+  await repo.getCompactHistory('oversized-a');
+  await repo.getCompactHistory('oversized-b');
+  const warm = [...(repo as any).compactCache.keys()];
+  assert.deepEqual(warm, ['oversized-a', 'oversized-b']);
+
+  await repo.getCompactHistory('oversized-huge');
+
+  assert.deepEqual(
+    [...(repo as any).compactCache.keys()], ['oversized-a', 'oversized-b'],
+    'the oversized transcript must not displace the warm entries',
+  );
+  assert.ok((repo as any).compactCacheBytes <= 1000, 'budget still holds');
+});
+
+test('the default byte budget leaves room for several long sessions', async () => {
+  const repo = new ConversationHistoryRepo(CUSTOM_HISTORY_DIR);
+  const budget = (repo as any).compactCacheByteLimit as number;
+  assert.equal(budget, 128 * 1024 * 1024, 'a 40MB transcript must fit: refusing it costs a full re-fold per read');
+});
+
 test('a subagent stays open beside the main agent until its end is reported', async () => {
   const repo = new ConversationHistoryRepo(CUSTOM_HISTORY_DIR);
   const sid = 'sess-bg-subagent-open';

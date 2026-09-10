@@ -250,7 +250,11 @@ interface CompactCacheEntry {
 }
 
 const DEFAULT_COMPACT_CACHE_ENTRIES = 32;
-const DEFAULT_COMPACT_CACHE_BYTES = 32 * 1024 * 1024;
+/** Total resident budget for folded transcripts. Sized to hold several long sessions at once:
+ *  a session whose model is dropped here is re-folded from byte 0 on every read (~1s of
+ *  synchronous JSON parsing for a 40MB transcript, measured), so the budget is the difference
+ *  between a warm read (~1ms) and a repeated full scan. */
+const DEFAULT_COMPACT_CACHE_BYTES = 128 * 1024 * 1024;
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -401,6 +405,11 @@ export class ConversationHistoryRepo {
 
   private storeCompactCache(sessionId: string, entry: CompactCacheEntry): void {
     this.dropCompactCache(sessionId);
+    // A transcript that alone exceeds the WHOLE budget is not retained. This is the total-budget
+    // invariant, not an independent per-file size cap: without it `trimCompactCache` (which walks
+    // insertion order) would evict every other session trying to make room and then evict this
+    // entry too, leaving the cache empty — measurably worse than not admitting it. Raising the
+    // budget is what makes longer sessions cacheable; this line only bounds a single outlier.
     if (entry.bytes > this.compactCacheByteLimit) return;
     this.compactCache.set(sessionId, entry);
     this.compactCacheBytes += entry.bytes;
