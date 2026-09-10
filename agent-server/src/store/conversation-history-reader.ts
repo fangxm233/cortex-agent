@@ -314,7 +314,7 @@ async function consumeHistoryIterable(
 }
 
 const NEWLINE = 0x0a;
-const EMPTY = Buffer.alloc(0);
+const CARRIAGE_RETURN = 0x0d;
 
 /**
  * Fold a JSONL file into `accumulator`, starting at its byte cursor, and stop at the last COMPLETE
@@ -335,21 +335,40 @@ async function foldFileInto(
   start: number,
 ): Promise<void> {
   const stream = createReadStream(filePath, { start });
-  let pending: Buffer = EMPTY;
+  /** Pieces of a line whose newline has not arrived yet, kept UNJOINED until it does. Re-joining
+   *  the tail onto every chunk instead is quadratic in the line's length, and a row here is a whole
+   *  tool result: the largest in this store is 43MB, which that shape folds in 3.6 minutes against
+   *  1.8 seconds for one join at the end. Rows are joined once, when their newline lands. */
+  let pending: Buffer[] = [];
+  let pendingBytes = 0;
   let consumed = start;
   try {
     for await (const chunk of stream as AsyncIterable<Buffer>) {
-      const buf = pending.length ? Buffer.concat([pending, chunk]) : chunk;
       let from = 0;
       for (;;) {
-        const nl = buf.indexOf(NEWLINE, from);
+        // Only the new chunk is searched: everything before it has already been scanned.
+        const nl = chunk.indexOf(NEWLINE, from);
         if (nl < 0) break;
-        const end = nl > from && buf[nl - 1] === 0x0d ? nl - 1 : nl; // tolerate CRLF
-        accumulator.consumeLine(buf.toString('utf8', from, end));
-        consumed += nl - from + 1;
+        let line: Buffer;
+        if (pendingBytes > 0) {
+          pending.push(chunk.subarray(from, nl));
+          line = Buffer.concat(pending, pendingBytes + (nl - from));
+          pending = [];
+          pendingBytes = 0;
+        } else {
+          line = chunk.subarray(from, nl);
+        }
+        consumed += line.length + 1;
+        const end = line.length > 0 && line[line.length - 1] === CARRIAGE_RETURN
+          ? line.length - 1 : line.length; // tolerate CRLF
+        accumulator.consumeLine(line.toString('utf8', 0, end));
         from = nl + 1;
       }
-      pending = from < buf.length ? buf.subarray(from) : EMPTY;
+      if (from < chunk.length) {
+        const tail = chunk.subarray(from);
+        pending.push(tail);
+        pendingBytes += tail.length;
+      }
     }
   } finally {
     accumulator.advanceCursor(consumed);

@@ -912,3 +912,40 @@ test('the large-payload warning is measured on the row itself, on DEBUG and plai
   const small = await repo.getToolDebugDetails(sid, 'toolu-small');
   assert.equal(small?.overCharacterThreshold, undefined);
 });
+
+test('a row larger than the read buffer is joined once, not re-joined on every chunk', async () => {
+  const repo = new ConversationHistoryRepo(CUSTOM_HISTORY_DIR);
+  const sid = 'sess-huge-row';
+  const file = path.join(CUSTOM_HISTORY_DIR, `${sid}.jsonl`);
+  await fs.rm(file, { force: true });
+
+  // One tool result far larger than the stream's 64KB chunk. Not hypothetical: the largest row in
+  // the operator's own store is 43MB.
+  const HUGE = 4_000_000;
+  await repo.appendTool(sid, { toolName: 'Read', toolInput: 'read /big', toolUseId: 'toolu-huge', ts: '2026-09-09T00:00:00.000Z' });
+  await repo.appendToolResult(sid, { toolUseId: 'toolu-huge', content: 'a'.repeat(HUGE), isError: false, ts: '2026-09-09T00:00:01.000Z' });
+  await repo.appendAssistant(sid, { text: 'after the big row', ts: '2026-09-09T00:00:02.000Z' });
+
+  const realConcat = Buffer.concat;
+  let copied = 0;
+  Buffer.concat = ((list: readonly Uint8Array[], totalLength?: number) => {
+    const joined = realConcat(list as Uint8Array[], totalLength);
+    copied += joined.length;
+    return joined;
+  }) as typeof Buffer.concat;
+  let accumulator;
+  try {
+    accumulator = await readHistoryAccumulator(sid, file, { includeToolDebug: true });
+  } finally {
+    Buffer.concat = realConcat;
+  }
+  const history = accumulator.snapshot();
+
+  // The cursor is what makes the next read resume; a row spanning chunks must not disturb it.
+  assert.equal(accumulator.bytesConsumed, (await fs.stat(file)).size);
+  assert.deepEqual(history!.events.map((event) => event.type), ['tool', 'assistant']);
+  assert.equal(history!.events[0].debug?.toolResult?.content.length, HUGE);
+  // Re-joining the pending tail onto every chunk copies the row once per chunk — quadratic in the
+  // row, and 3.6 minutes for that 43MB one. Joining when the newline lands copies it once.
+  assert.ok(copied <= 2 * HUGE, `Buffer.concat copied ${copied} bytes to fold a ${HUGE}-byte row`);
+});
