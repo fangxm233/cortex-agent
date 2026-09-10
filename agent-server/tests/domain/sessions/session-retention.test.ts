@@ -52,7 +52,7 @@ async function makeHarness() {
     claudeProjectDir,
     registry: new SessionRegistryRepo(path.join(storeDir, 'session-registry.jsonl')),
     bindings: new SessionRepo(path.join(storeDir, 'sessions.json')),
-    ledger: new ConversationLedgerRepo(path.join(storeDir, 'conversation-ledger.json')),
+    ledger: new ConversationLedgerRepo(path.join(storeDir, 'conversation-ledger.jsonl')),
     history: new ConversationHistoryRepo(historyDir),
     candidates: new RetentionCandidateRepo(path.join(storeDir, 'retention-candidates.json')),
   };

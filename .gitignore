@@ -18,6 +18,7 @@ agent-server/costs.jsonl
 agent-server/pending-tasks.json
 agent-server/threads.json
 agent-server/conversation-ledger.json
+agent-server/conversation-ledger.jsonl
 agent-server/schedules.json
 agent-server/orient-state.json
 agent-server/executions.json

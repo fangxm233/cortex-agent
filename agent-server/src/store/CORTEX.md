@@ -11,6 +11,7 @@ Also manages schedules, provider state, migrations, hooks, and plugin sync.
 | session-repo.ts | store | Session record persistence |
 | session-registry-journal.ts | store | Session registry JSONL journal I/O and compaction |
 | session-registry-repo.ts | store | Session identity, delete intents and admission |
+| conversation-ledger-journal.ts | store | Conversation ledger JSONL journal I/O, replay and compaction |
 | conversation-ledger-repo.ts | store | Turn to message mapping per conduit |
 | conversation-history-reader.ts | parser | Folds history from a resumable byte cursor and stamps per-row revisions |
 | conversation-display-projection.ts | projection | Projects compact titles, summaries, details and per-row revisions |
