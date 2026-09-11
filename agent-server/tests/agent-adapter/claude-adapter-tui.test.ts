@@ -7,7 +7,7 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'events';
 import * as fs from 'fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import * as path from 'node:path';
 
 import { ClaudeTuiSession, type TuiSessionDeps } from '../../src/agent-adapter/claude/adapter-tui.js';
@@ -731,7 +731,7 @@ test('jsonl path follows ~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl conv
 
   assert.equal(tails.length, 1);
   // Encoded cwd: leading slash becomes leading dash, then dashes for each /
-  assert.match(tails[0].path, /\/home\/.*\/\.claude\/projects\/-home-foo-Cortex\/sid-aaaa-bbbb\.jsonl$/);
+  assert.equal(tails[0].path, path.join(homedir(), '.claude', 'projects', '-home-foo-Cortex', 'sid-aaaa-bbbb.jsonl'));
 
   tails[0].finishTurn();
   await p;
@@ -750,7 +750,7 @@ test('jsonl path encodes BOTH slashes AND dots in cwd (regression: DATA_DIR /hom
 
   assert.equal(tails.length, 1);
   // Note: `--cortex` (double dash) — leading `/` AND `.` both became dashes.
-  assert.match(tails[0].path, /\/home\/.*\/\.claude\/projects\/-home-foo--cortex\/sid-aaaa-bbbb\.jsonl$/);
+  assert.equal(tails[0].path, path.join(homedir(), '.claude', 'projects', '-home-foo--cortex', 'sid-aaaa-bbbb.jsonl'));
 
   tails[0].finishTurn();
   await p;
