@@ -197,14 +197,20 @@ test('discoverEndpoints: claude plan endpoint exposes canonical model ids + [1m]
   assert.ok(plan, 'plan endpoint should be generated');
   const models = plan!.models;
 
-  // Canonical opus ids (4.6 / 4.7 / 4.8) are present, no "claude-4-8" shorthand.
-  for (const id of ['claude-opus-4-6', 'claude-opus-4-7', 'claude-opus-4-8']) {
+  // Canonical ids for every current generation are present, no "claude-4-8" shorthand.
+  for (const id of [
+    'claude-fable-5-1', 'claude-fable-5', 'claude-opus-5', 'claude-opus-4-8', 'claude-opus-4-7',
+    'claude-opus-4-6', 'claude-sonnet-5', 'claude-sonnet-4-6', 'claude-haiku-4-5',
+  ]) {
     assert.ok(models.includes(id), `expected base model ${id}`);
   }
   assert.ok(!models.includes('claude-4-8'), 'legacy claude-4-8 shorthand must be replaced');
 
   // Every 1M-capable model carries a [1m] context-window variant; haiku (200K) does not.
-  for (const base of ['claude-fable-5', 'claude-opus-4-8', 'claude-opus-4-7', 'claude-opus-4-6', 'claude-sonnet-4-6']) {
+  for (const base of [
+    'claude-fable-5-1', 'claude-fable-5', 'claude-opus-5', 'claude-opus-4-8', 'claude-opus-4-7',
+    'claude-opus-4-6', 'claude-sonnet-5', 'claude-sonnet-4-6',
+  ]) {
     assert.ok(models.includes(`${base}[1m]`), `expected 1M variant ${base}[1m]`);
   }
   assert.ok(!models.includes('claude-haiku-4-5[1m]'), 'haiku 4.5 is 200K — no [1m] variant');
