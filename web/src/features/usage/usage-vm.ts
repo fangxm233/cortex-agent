@@ -8,6 +8,7 @@ import type {
   ProviderRateLimitWindowPolicyOverride,
   ProviderRateLimits,
   ProviderUsage,
+  UsageBilling,
   UsageFreshness,
   UsageWindow,
 } from '@cortex-agent/ui-contract';
@@ -60,7 +61,10 @@ export interface ProviderSpendView {
 }
 
 export interface ProviderUsageView {
+  /** Unique per row: one provider can appear twice, once per billing kind. */
+  key: string;
   provider: string;
+  billing: UsageBilling | null;
   displayName: string;
   modes: string[];
   windows: UsageWindowView[];
@@ -95,11 +99,14 @@ const WINDOW_LABELS: Record<Lang, Record<string, string>> = {
   },
 };
 
+/**
+ * Only pins the two providers that carry quota bars, so they stay at the top where the
+ * user looks first. Everything else is discovered at runtime and ranked by the comparator
+ * below — no provider may be listed here just to give it a fixed slot.
+ */
 const PROVIDER_ORDER: Record<string, number> = {
   anthropic: 0,
   'openai-codex': 1,
-  deepseek: 2,
-  'qwen-ksu': 3,
 };
 
 const WEEKLY_WINDOW_TYPES = new Set(['seven_day', 'seven_day_overage_included']);
@@ -258,7 +265,9 @@ function buildProvider(
   const windows = record.windows.filter(isRenderableWindow);
   const showPolicy = status !== 'unsupported';
   return {
+    key: usageRowKey(record),
     provider: record.provider,
+    billing: record.billing ?? null,
     displayName: record.displayName,
     modes: [...record.modes],
     windows: windows.map((window: UsageWindow) => buildWindow(record.provider, window, showPolicy, providerRateLimits, nowSec, lang)),
@@ -272,9 +281,23 @@ function buildProvider(
   };
 }
 
-function providerCompare(a: ProviderUsageView, b: ProviderUsageView): number {
-  const rank = (PROVIDER_ORDER[a.provider] ?? 100) - (PROVIDER_ORDER[b.provider] ?? 100);
-  return rank || a.displayName.localeCompare(b.displayName) || a.provider.localeCompare(b.provider);
+export function usageRowKey(record: Pick<ProviderUsage, 'provider' | 'billing'>): string {
+  return record.billing ? `${record.provider}::${record.billing}` : record.provider;
+}
+
+/**
+ * Ranks rows by how much attention they deserve, because the provider list is discovered at
+ * runtime and can hold anything: pinned quota providers, then rows that actually show a quota
+ * bar, then subscription rows, then metered rows by monthly spend. Names only break ties.
+ */
+function providerCompare(a: ProviderUsage, b: ProviderUsage): number {
+  const pinned = (PROVIDER_ORDER[a.provider] ?? 100) - (PROVIDER_ORDER[b.provider] ?? 100);
+  const quota = Number(b.windows.length > 0) - Number(a.windows.length > 0);
+  const subscription = Number(a.billing === 'api') - Number(b.billing === 'api');
+  const spend = (b.spend?.month ?? 0) - (a.spend?.month ?? 0);
+  return pinned || quota || subscription || spend
+    || a.displayName.localeCompare(b.displayName)
+    || usageRowKey(a).localeCompare(usageRowKey(b));
 }
 
 export function buildUsageView(
@@ -284,8 +307,8 @@ export function buildUsageView(
   lang: Lang,
 ): UsageView {
   return {
-    providers: (status ?? [])
-      .map((record) => buildProvider(record, providerRateLimits, nowSec, lang))
-      .sort(providerCompare),
+    providers: [...(status ?? [])]
+      .sort(providerCompare)
+      .map((record) => buildProvider(record, providerRateLimits, nowSec, lang)),
   };
 }

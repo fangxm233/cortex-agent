@@ -140,6 +140,7 @@ const COMMAND_USAGE: ProviderUsage[] = [{
   ],
   observedAt: 1_799_999_000,
   freshness: 'live',
+  billing: 'subscription',
 }, {
   provider: 'openai-codex',
   displayName: 'OpenAI Codex',
@@ -150,6 +151,7 @@ const COMMAND_USAGE: ProviderUsage[] = [{
   ],
   observedAt: 1_799_998_000,
   freshness: 'stale',
+  billing: 'subscription',
   note: 'push-only observation is stale',
 }, {
   provider: 'deepseek',
@@ -159,15 +161,19 @@ const COMMAND_USAGE: ProviderUsage[] = [{
   spend: { today: 1.25, month: 4.5 },
   observedAt: null,
   freshness: 'unsupported',
+  billing: 'api',
   note: 'gateway usage collection failed (month: timeout)',
 }, {
-  provider: 'qwen-ksu',
-  displayName: 'Qwen KSU',
-  modes: ['qwen-ksu'],
+  // A provider the formatter has never heard of: the report is built from whatever
+  // collection observed, so an unknown id must render like any other.
+  provider: 'moonshot-ai',
+  displayName: 'Moonshot Ai',
+  modes: ['moonshot-ai'],
   windows: [],
   spend: { today: 0, month: 2.75 },
   observedAt: null,
   freshness: 'unsupported',
+  billing: 'api',
 }];
 
 test('usage formatter renders quota windows, spend, freshness, and stale error notes', () => {
@@ -184,7 +190,7 @@ test('usage formatter renders quota windows, spend, freshness, and stale error n
   assert.match(text, /DeepSeek.*quota unsupported/);
   assert.match(text, /today \$1\.25.*month \$4\.50/);
   assert.match(text, /gateway usage collection failed \(month: timeout\)/);
-  assert.match(text, /Qwen KSU.*quota unsupported/);
+  assert.match(text, /Moonshot Ai.*quota unsupported/);
 });
 
 test('usage formatter preserves unknown window names and never freshness', () => {
@@ -205,7 +211,7 @@ test('usage formatter distinguishes an empty store from an unknown provider filt
   assert.match(formatUsageReport([]), /No provider usage data has been collected yet/);
   assert.match(
     formatUsageReport(COMMAND_USAGE, 'missing-provider'),
-    /Unknown usage provider: `missing-provider`.*anthropic, openai-codex, deepseek, qwen-ksu/,
+    /Unknown usage provider: `missing-provider`.*anthropic, openai-codex, deepseek, moonshot-ai/,
   );
 });
 

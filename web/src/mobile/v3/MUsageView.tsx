@@ -367,7 +367,10 @@ function ProviderCard(props: {
   const { provider, copy } = props;
   return (
     <MCard padding={0}>
-      <div data-usage-provider={provider.provider} style={{ padding: '11px 13px 8px' }}>
+      <div
+        data-usage-provider={provider.provider} data-usage-billing={provider.billing ?? ''}
+        style={{ padding: '11px 13px 8px' }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 13.5, fontWeight: 650, color: MC.ink }}>{provider.displayName}</span>
         </div>
@@ -437,7 +440,7 @@ export function MUsageView(props: MUsageViewProps) {
         {!isLoading && !queryError && !hasProviders ? <div style={{ color: MC.muted, fontSize: 12 }}>{copy.empty}</div> : null}
         {view.providers.map((provider) => (
           <ProviderCard
-            key={provider.provider} provider={provider} copy={copy}
+            key={provider.key} provider={provider} copy={copy}
             policyControlsState={policyControlsState} isPolicySaving={isPolicySaving}
             getPolicyError={getPolicyError} onSavePolicy={onSavePolicy}
           />

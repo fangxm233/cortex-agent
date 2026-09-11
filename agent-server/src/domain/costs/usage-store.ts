@@ -8,6 +8,13 @@ import { providerStateRepo } from '@store/provider-state-repo.js';
 
 export type UsageFreshness = 'live' | 'stale' | 'never' | 'unsupported';
 
+/**
+ * How a row's traffic is billed. Subscription rows carry quota windows and never
+ * carry spend (their gateway cost is an imputed API-equivalent price, not a bill);
+ * metered rows carry spend and have no quota windows.
+ */
+export type UsageBilling = 'subscription' | 'api';
+
 export interface UsageWindow {
   type: string;
   label?: string;
@@ -26,7 +33,18 @@ export interface ProviderUsage {
   };
   observedAt: number | null;
   freshness: UsageFreshness;
+  /** Absent on legacy records written before billing rows were split. */
+  billing?: UsageBilling;
   note?: string;
+}
+
+/**
+ * Identity of a usage row. Rows are keyed by provider *and* billing kind so one
+ * provider can hold both a subscription row and a metered row. Legacy records
+ * without `billing` collapse onto the bare provider key.
+ */
+export function usageRecordKey(record: Pick<ProviderUsage, 'provider' | 'billing'>): string {
+  return record.billing ? `${record.provider}::${record.billing}` : record.provider;
 }
 
 export interface UsagePersistence {
@@ -44,9 +62,11 @@ function cloneRecord(record: ProviderUsage): ProviderUsage {
 }
 
 function canonicalRecords(records: ProviderUsage[]): ProviderUsage[] {
-  const byProvider = new Map<string, ProviderUsage>();
-  for (const record of records) byProvider.set(record.provider, cloneRecord(record));
-  return [...byProvider.values()].sort((a, b) => a.provider.localeCompare(b.provider));
+  const byKey = new Map<string, ProviderUsage>();
+  for (const record of records) byKey.set(usageRecordKey(record), cloneRecord(record));
+  return [...byKey.values()].sort(
+    (a, b) => a.provider.localeCompare(b.provider) || usageRecordKey(a).localeCompare(usageRecordKey(b)),
+  );
 }
 
 function canReplace(existing: ProviderUsage, next: ProviderUsage): boolean {
@@ -69,14 +89,19 @@ export class UsageStore {
     return canonicalRecords(await this.persistence.load());
   }
 
-  async get(provider: string): Promise<ProviderUsage | null> {
-    return (await this.list()).find((record) => record.provider === provider) ?? null;
+  /** Omit `billing` to match the first row of a provider regardless of billing kind. */
+  async get(provider: string, billing?: UsageBilling): Promise<ProviderUsage | null> {
+    const records = await this.list();
+    if (billing === undefined) return records.find((record) => record.provider === provider) ?? null;
+    const key = usageRecordKey({ provider, billing });
+    return records.find((record) => usageRecordKey(record) === key) ?? null;
   }
 
   async update(record: ProviderUsage): Promise<void> {
     await this.mutationMutex.run(async () => {
       const records = canonicalRecords(await this.persistence.load());
-      const existingIndex = records.findIndex((candidate) => candidate.provider === record.provider);
+      const key = usageRecordKey(record);
+      const existingIndex = records.findIndex((candidate) => usageRecordKey(candidate) === key);
       if (existingIndex !== -1 && !canReplace(records[existingIndex], record)) return;
       if (existingIndex === -1) records.push(record);
       else records[existingIndex] = record;
@@ -86,6 +111,27 @@ export class UsageStore {
 
   async replace(records: ProviderUsage[]): Promise<void> {
     await this.mutationMutex.run(() => this.persistence.save(canonicalRecords(records)));
+  }
+
+  /**
+   * Write a freshly composed table, dropping rows it omits. Unlike `replace`, a row whose
+   * stored quota observation is newer than the incoming one keeps that observation: the
+   * composed table is built from a snapshot read before the write, so a live quota push
+   * landing mid-collection must not be rolled back. Spend and labels always take the
+   * incoming values, which are authoritative for the cycle.
+   */
+  async commit(records: ProviderUsage[]): Promise<void> {
+    await this.mutationMutex.run(async () => {
+      const stored = new Map(
+        canonicalRecords(await this.persistence.load()).map((record) => [usageRecordKey(record), record]),
+      );
+      const merged = records.map((record) => {
+        const existing = stored.get(usageRecordKey(record));
+        if (!existing || canReplace(existing, record)) return record;
+        return { ...record, windows: existing.windows.map((w) => ({ ...w })), observedAt: existing.observedAt, freshness: existing.freshness };
+      });
+      await this.persistence.save(canonicalRecords(merged));
+    });
   }
 }
 

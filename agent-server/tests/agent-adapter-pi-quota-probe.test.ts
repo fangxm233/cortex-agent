@@ -202,6 +202,7 @@ test('persists usage under source provider and displayName even when the reading
     windows: READING.windows,
     observedAt: 1_786_000_000,
     freshness: 'stale',
+    billing: 'subscription',
   }]);
 });
 
@@ -241,6 +242,7 @@ test('persists every below-threshold window across restart with its observation 
       windows: reading.windows,
       observedAt: 1_786_000_000,
       freshness: 'stale',
+      billing: 'subscription',
     });
     assert.deepEqual(calls, reading.windows.map((window) => ({
       info: {

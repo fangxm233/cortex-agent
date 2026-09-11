@@ -688,3 +688,81 @@ test('migrateAistatusConfigLocation: deletes malformed old config without copyin
   const targetExists = await fs.stat(targetPath).catch(() => null);
   assert.equal(targetExists, null, 'malformed config must not be copied to the target');
 });
+
+// ── provider usage billing split (M11) ─────────────────────────
+
+const PROVIDER_STATE_FILE = 'data/provider-state.json';
+
+async function migrateProviderUsage(idx: number, providerUsage: unknown[]): Promise<any[]> {
+  const { dataDir, storeDir, defaultsDir } = setupDirs(idx);
+  const target = path.join(dataDir, PROVIDER_STATE_FILE);
+  await writeJson(target, { rateLimitThrottle: null, resumeQueue: [], providerUsage });
+  await runMigrations({ dataDir, storeDir, defaultsDir });
+  return ((await readJson(target)) as { providerUsage: any[] }).providerUsage;
+}
+
+function legacyRow(provider: string, extra: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    provider, displayName: provider, modes: [provider],
+    windows: [], observedAt: null, freshness: 'unsupported', ...extra,
+  };
+}
+
+test('provider usage migration drops rows that never carried an observation', async () => {
+  const rows = await migrateProviderUsage(_testIdx++, [
+    // The reported ghost: fabricated by the old hardcoded provider table.
+    legacyRow('qwen-ksu', { spend: { today: 0, month: 0 } }),
+    // A quota row that never received a reading is equally uninformative.
+    legacyRow('openai-codex', { freshness: 'stale' }),
+    legacyRow('deepseek', { spend: { today: 0.31, month: 0.31 } }),
+  ]);
+
+  assert.deepEqual(rows.map((row) => row.provider), ['deepseek']);
+});
+
+test('provider usage migration stamps survivors with their billing kind', async () => {
+  const rows = await migrateProviderUsage(_testIdx++, [
+    legacyRow('anthropic', {
+      freshness: 'stale', observedAt: 1_789_149_559,
+      windows: [{ type: 'five_hour', utilization: 0.6, resetsAt: 1_789_165_200 }],
+    }),
+    legacyRow('deepseek', { spend: { today: 0.31, month: 0.31 } }),
+  ]);
+
+  assert.deepEqual(
+    rows.map((row) => [row.provider, row.billing]),
+    [['anthropic', 'subscription'], ['deepseek', 'api']],
+  );
+});
+
+test('provider usage migration keeps an existing billing tag and is idempotent', async () => {
+  const idx = _testIdx++;
+  const { dataDir, storeDir, defaultsDir } = setupDirs(idx);
+  const target = path.join(dataDir, PROVIDER_STATE_FILE);
+  // A quota-bearing row already tagged 'api' must not be re-classified.
+  await writeJson(target, {
+    rateLimitThrottle: null, resumeQueue: [],
+    providerUsage: [legacyRow('vendor', {
+      billing: 'api', observedAt: 10,
+      windows: [{ type: 'five_hour', utilization: 0.1, resetsAt: null }],
+    })],
+  });
+
+  await runMigrations({ dataDir, storeDir, defaultsDir });
+  const once = await fs.readFile(target, 'utf8');
+  await runMigrations({ dataDir, storeDir, defaultsDir });
+
+  assert.equal(await fs.readFile(target, 'utf8'), once, 'second run must be a no-op');
+  assert.equal(((JSON.parse(once) as any).providerUsage[0]).billing, 'api');
+});
+
+test('provider usage migration leaves an unrecognised file shape untouched', async () => {
+  const idx = _testIdx++;
+  const { dataDir, storeDir, defaultsDir } = setupDirs(idx);
+  const target = path.join(dataDir, PROVIDER_STATE_FILE);
+  await writeJson(target, { rateLimitThrottle: null, resumeQueue: [] });
+
+  await runMigrations({ dataDir, storeDir, defaultsDir });
+
+  assert.deepEqual(await readJson(target), { rateLimitThrottle: null, resumeQueue: [] });
+});

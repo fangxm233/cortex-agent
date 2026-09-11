@@ -172,4 +172,65 @@ describe('buildUsageView', () => {
       thresholdPercent: 80,
     });
   });
+
+  it('gives a provider billed both ways two rows with distinct keys', () => {
+    const vm = buildUsageView([
+      {
+        provider: 'anthropic', displayName: 'Anthropic', modes: ['api'], freshness: 'unsupported',
+        billing: 'api', observedAt: null, windows: [], spend: { today: 2.25, month: 8.5 },
+      },
+      {
+        provider: 'anthropic', displayName: 'Anthropic', modes: ['plan'], freshness: 'stale',
+        billing: 'subscription', observedAt: NOW - 60,
+        windows: [{ type: 'five_hour', utilization: 0.4, resetsAt: NOW + 3600 }],
+      },
+    ], null, NOW, 'en');
+
+    expect(vm.providers.map((provider) => provider.key)).toEqual([
+      'anthropic::subscription', 'anthropic::api',
+    ]);
+    expect(vm.providers[0].spend).toBeNull();
+    expect(vm.providers[0].windows).toHaveLength(1);
+    expect(vm.providers[1].spend).toEqual({ today: '$2.25', month: '$8.50' });
+    expect(vm.providers[1].windows).toEqual([]);
+  });
+
+  it('ranks unpinned providers by quota, then billing, then monthly spend', () => {
+    const row = (
+      provider: string,
+      extra: Partial<SystemUsageStatus[number]>,
+    ): SystemUsageStatus[number] => ({
+      provider, displayName: provider, modes: [], freshness: 'unsupported',
+      observedAt: null, windows: [], ...extra,
+    });
+    const vm = buildUsageView([
+      row('cheap', { billing: 'api', spend: { today: 0, month: 1 } }),
+      row('pricey', { billing: 'api', spend: { today: 0, month: 90 } }),
+      row('covered', { billing: 'subscription' }),
+      row('metered-with-quota', {
+        billing: 'api', freshness: 'stale', observedAt: NOW - 5,
+        windows: [{ type: 'five_hour', utilization: 0.1, resetsAt: null }],
+      }),
+    ], null, NOW, 'en');
+
+    expect(vm.providers.map((provider) => provider.provider)).toEqual([
+      'metered-with-quota', 'covered', 'pricey', 'cheap',
+    ]);
+  });
+
+  it('passes an unknown provider through without inventing or dropping it', () => {
+    const vm = buildUsageView([{
+      provider: 'moonshot-ai', displayName: 'Moonshot Ai', modes: ['moonshot-ai'],
+      freshness: 'unsupported', billing: 'api', observedAt: null, windows: [],
+      spend: { today: 0.5, month: 3.25 },
+    }], null, NOW, 'en');
+
+    expect(vm.providers).toHaveLength(1);
+    expect(vm.providers[0]).toMatchObject({
+      key: 'moonshot-ai::api',
+      provider: 'moonshot-ai',
+      billing: 'api',
+      displayName: 'Moonshot Ai',
+    });
+  });
 });

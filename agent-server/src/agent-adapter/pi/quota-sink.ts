@@ -54,6 +54,9 @@ function providerUsage(
     windows: reading.windows.map((window) => ({ ...window })),
     observedAt: Math.floor(observedAtMs / 1000),
     freshness: 'stale',
+    // Quota windows only exist for plan-backed traffic, so this row is the provider's
+    // subscription row — it must share a key with the one usage collection composes.
+    billing: 'subscription',
   };
 }
 

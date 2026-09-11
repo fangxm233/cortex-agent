@@ -9,7 +9,7 @@ export type { PlatformSettingsPatch, PlatformSettingsSnapshot, PlatformFieldSnap
 import type { Project, CreateProjectResult } from '@domain/projects/index.js';
 import type { CostSummary } from '@domain/costs/cost-tracker.js';
 import type { ProviderUsage } from '@domain/costs/usage-store.js';
-export type { ProviderUsage, UsageFreshness, UsageWindow } from '@domain/costs/usage-store.js';
+export type { ProviderUsage, UsageBilling, UsageFreshness, UsageWindow } from '@domain/costs/usage-store.js';
 import type { EventBus } from '@events/index.js';
 import type { RunningExecutions } from '@core/running-executions.js';
 import type {

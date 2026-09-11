@@ -41,6 +41,7 @@ export interface Settings {
   threadMaxDepth: number;
   taskArtifactTemplates: string[];
   anthropicSubscriptionModes: string[];
+  subscriptionBillingModes: string[];
   providerUsageCollectionEnabled: boolean;
   providerUsageCollectionIntervalMs: number;
   providerRateLimits: ProviderRateLimits;
@@ -228,9 +229,21 @@ export const SETTINGS_SPEC = {
     default: ['manager'],
     legacyParse: (raw: string) => raw.split(',').map((value) => value.trim()).filter(Boolean),
   },
+  // Which gateway modes count as an Anthropic subscription for *quota collection*.
+  // Narrow and Anthropic-specific: an empty list disables Anthropic quota polling.
+  // Distinct from subscriptionBillingModes below, which governs cost suppression
+  // across all providers. Kept as-is to avoid breaking existing user config.
   anthropicSubscriptionModes: {
     type: 'string[]',
     default: ['plan'],
+  },
+  // Gateway billing modes whose spend is covered by a subscription. The gateway
+  // still prices these requests (an API-equivalent imputed cost), but that figure
+  // is not a bill, so usage rows for these modes show quota only and suppress cost.
+  // Defaults cover the known OAuth subscription providers; users can extend it.
+  subscriptionBillingModes: {
+    type: 'string[]',
+    default: ['plan', 'openai-codex', 'google-gemini-cli', 'google-antigravity'],
   },
   providerUsageCollectionEnabled: {
     type: 'boolean',

@@ -394,6 +394,44 @@ const migrations: Migration[] = [
     migrate: (data) => typeof data === 'string'
       ? applyReplacements(data, STATUS_REGISTER_REPLACEMENTS) : data,
   })),
+  // M11: Usage rows became observation-only and split by billing kind.
+  // Older builds fabricated a row for every provider in a hardcoded table, so users
+  // carry rows for providers they never used (a zero-spend "Qwen KSU" being the
+  // reported case). Drop rows that hold no observation at all — collection recreates
+  // them the moment real traffic or a quota reading appears — and stamp the survivors
+  // with the billing kind that now forms part of their identity, so the first
+  // collection after upgrade updates them in place instead of duplicating them.
+  {
+    filePath: 'data/provider-state.json',
+    version: '2026.9.11',
+    migrate(data: unknown): unknown {
+      if (typeof data !== 'object' || data === null || Array.isArray(data)) return data;
+      const state = data as Record<string, unknown>;
+      if (!Array.isArray(state.providerUsage)) return data;
+
+      const kept = state.providerUsage.filter((row: unknown) => {
+        if (typeof row !== 'object' || row === null) return false;
+        const record = row as Record<string, unknown>;
+        const hasWindows = Array.isArray(record.windows) && record.windows.length > 0;
+        const hasObservation = typeof record.observedAt === 'number';
+        const spend = record.spend as { today?: unknown; month?: unknown } | undefined;
+        const hasSpend = Boolean(spend)
+          && ((Number(spend?.today) || 0) !== 0 || (Number(spend?.month) || 0) !== 0);
+        return hasWindows || hasObservation || hasSpend;
+      }).map((row: unknown) => {
+        const record = { ...(row as Record<string, unknown>) };
+        if (typeof record.billing === 'string') return record;
+        // Spend without quota is metered; anything carrying a quota window or a
+        // quota observation is the provider's subscription row.
+        const hasWindows = Array.isArray(record.windows) && record.windows.length > 0;
+        const hasObservation = typeof record.observedAt === 'number';
+        record.billing = hasWindows || hasObservation ? 'subscription' : 'api';
+        return record;
+      });
+
+      return { ...state, providerUsage: kept };
+    },
+  },
 ];
 
 // ── Versions file I/O ──────────────────────────────────────────

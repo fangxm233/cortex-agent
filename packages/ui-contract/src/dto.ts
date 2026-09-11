@@ -282,6 +282,7 @@ export type {
   SystemRefreshUsageArgs,
   SystemRefreshUsageReturn,
   ProviderUsage,
+  UsageBilling,
   UsageFreshness,
   UsageWindow,
   SystemRestartArgs,

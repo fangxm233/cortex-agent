@@ -32,8 +32,8 @@ const usage: SystemUsageStatus = [
     windows: [], spend: { today: 1.25, month: 9.5 },
   },
   {
-    provider: 'qwen-ksu', displayName: 'Qwen KSU', modes: ['qwen-ksu'], freshness: 'unsupported', observedAt: null,
-    windows: [], spend: { today: 0, month: 2 },
+    provider: 'zai', displayName: 'Z.ai', modes: ['zai'], freshness: 'unsupported', observedAt: null,
+    windows: [], spend: { today: 0, month: 2 }, billing: 'api',
   },
   {
     provider: 'openrouter', displayName: 'OpenRouter', modes: ['openrouter'], freshness: 'never', observedAt: null,

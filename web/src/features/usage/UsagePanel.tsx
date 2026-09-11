@@ -68,7 +68,10 @@ function Observation({ provider }: { provider: ProviderUsageView }) {
 
 function CardHeader({ provider }: { provider: ProviderUsageView }) {
   return (
-    <header style={{ padding: '11px 14px 10px', borderBottom: '1px solid var(--proto-line-2)' }}>
+    <header
+      data-usage-provider={provider.provider} data-usage-billing={provider.billing ?? ''}
+      style={{ padding: '11px 14px 10px', borderBottom: '1px solid var(--proto-line-2)' }}
+    >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: 13, fontWeight: 650, color: 'var(--proto-ink)' }}>{provider.displayName}</span>
       </div>
@@ -441,7 +444,7 @@ function UsageContent({ usage }: { usage: ReturnType<typeof useUsage> }) {
   }
   return (
     <div data-usage-cards style={{ marginTop: 12, columnWidth: 380, columnCount: 2, columnGap: 12 }}>
-      {usage.view.providers.map((provider) => <ProviderCard key={provider.provider} provider={provider} usage={usage} />)}
+      {usage.view.providers.map((provider) => <ProviderCard key={provider.key} provider={provider} usage={usage} />)}
     </div>
   );
 }

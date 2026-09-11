@@ -27,7 +27,7 @@ Also manages schedules, provider state, migrations, hooks, and plugin sync.
 | profile-repo.ts | store | Reloads profiles and tracks config revisions |
 | task-repo.ts | store | TASKS.yaml read, write, lock, and git sync |
 | prompt-migration-replacements.ts | config | Defines coder, reviewer, manager and STATUS-register prompt replacements |
-| version-migrations.ts | startup | Migrates config, stock prompts, and hook collisions |
+| version-migrations.ts | startup | Migrates config, stock prompts, hook collisions, and usage rows |
 | hook-registry.ts | config | Validates event capabilities, loads and classifies mounted hook declarations |
 | hook-writer.ts | config | Creates, edits, removes and toggles hook declarations |
 | hook-sync.ts | startup | Syncs and diagnoses managed hook assets |
