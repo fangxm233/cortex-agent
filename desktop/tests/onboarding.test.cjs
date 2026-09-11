@@ -155,3 +155,85 @@ test('all onboarding colors use defined shared tokens', () => {
   const theme = readFileSync(join(__dirname, '../../web/public/theme.css'), 'utf8');
   for (const [, token] of css.matchAll(/var\((--[\w-]+)\)/g)) assert.ok(theme.includes(token + ':'), token);
 });
+
+// ── App-drawn title bar ────────────────────────────────────────────────────
+// The shell opens the window undecorated (custom) or content-under-decorations
+// (overlay), so these pages must paint their own title bar. A regression here
+// leaves the whole onboarding flow with no way to drag or close the window.
+const shellSource = readFileSync(join(ui, 'shell.js'), 'utf8');
+function node(tag) {
+  return {
+    tag, children: [], attributes: {}, events: {}, style: {}, innerHTML: '', title: '', type: '',
+    className: '', classList: { toggle() {}, add() {}, remove() {} },
+    setAttribute(name, value) { this.attributes[name] = String(value); },
+    getAttribute(name) { return name in this.attributes ? this.attributes[name] : null; },
+    appendChild(child) { this.children.push(child); return child; },
+    addEventListener(type, fn) { (this.events[type] = this.events[type] || []).push(fn); },
+    click() { (this.events.click || []).forEach((fn) => fn()); },
+  };
+}
+function shellFixture({ titleBar, platform, maximized = false, native = true } = {}) {
+  const header = node('header');
+  const byId = { 'cx-lang-en': node('button'), 'cx-lang-zh': node('button'), 'cx-theme': node('button') };
+  const calls = [];
+  const context = {
+    __CORTEX_TITLEBAR__: titleBar, __CORTEX_PLATFORM__: platform,
+    navigator: { language: 'en-US' },
+    localStorage: { getItem: () => null, setItem: () => {} },
+    Event: class { constructor(type) { this.type = type; } },
+    document: {
+      documentElement: node('html'),
+      createElement: (tag) => node(tag),
+      getElementById: (id) => byId[id],
+      querySelector: (selector) => (selector === '.app-header' ? header : null),
+      querySelectorAll: () => [],
+    },
+    listeners: {},
+    addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); },
+    dispatchEvent(event) { (this.listeners[event.type] || []).forEach((fn) => fn(event)); },
+  };
+  context.window = context;
+  if (native) {
+    context.__TAURI__ = { core: { invoke: (command) => {
+      calls.push(command);
+      if (command === 'plugin:window|is_maximized') return Promise.resolve(maximized);
+      return Promise.resolve();
+    } } };
+  }
+  runInNewContext(shellSource, context);
+  return { header, calls, context, captions: header.children[0] };
+}
+test('an undecorated window gets a draggable bar with working caption buttons', async () => {
+  const { header, captions, calls } = shellFixture({ titleBar: 'custom', platform: 'linux' });
+  assert.equal(header.getAttribute('data-caption'), 'custom');
+  assert.equal(header.getAttribute('data-tauri-drag-region'), 'deep');
+  assert.equal(captions.className, 'caption-buttons');
+  assert.deepEqual(captions.children.map((b) => b.getAttribute('aria-label')), ['Minimize', 'Maximize', 'Close']);
+  // Caption buttons must never double as a drag surface under the deep drag region.
+  for (const button of captions.children) assert.equal(button.getAttribute('data-tauri-drag-region'), 'false');
+  captions.children.forEach((button) => button.click());
+  await Promise.resolve();
+  assert.deepEqual(calls.filter((c) => !c.endsWith('is_maximized')),
+    ['plugin:window|minimize', 'plugin:window|toggle_maximize', 'plugin:window|close']);
+});
+test('a maximized window offers restore, and the label follows the language', async () => {
+  const { captions, context } = shellFixture({ titleBar: 'custom', platform: 'windows', maximized: true });
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(captions.children[1].getAttribute('aria-label'), 'Restore');
+  assert.match(captions.children[1].innerHTML, /caption-glyph/);
+  context.document.getElementById('cx-lang-zh').click();
+  assert.deepEqual(captions.children.map((b) => b.getAttribute('aria-label')), ['最小化', '还原', '关闭']);
+});
+test('macOS keeps its real traffic lights and draws no second set of buttons', () => {
+  const { header } = shellFixture({ titleBar: 'overlay', platform: 'macos' });
+  assert.equal(header.getAttribute('data-tauri-drag-region'), 'deep');
+  assert.equal(header.style.paddingLeft, '94px');
+  assert.deepEqual(header.children, []);
+});
+test('a natively decorated shell draws no chrome of its own', () => {
+  const { header } = shellFixture({ titleBar: 'native', platform: 'android' });
+  assert.equal(header.getAttribute('data-caption'), 'native');
+  assert.equal(header.getAttribute('data-tauri-drag-region'), null);
+  assert.deepEqual(header.children, []);
+});

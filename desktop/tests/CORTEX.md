@@ -4,4 +4,4 @@ Focused checks for the native first-run installation flow.
 
 | filename | role | function |
 |---|---|---|
-| onboarding.test.cjs | test | Check PI-only setup, retry and provider handoff |
+| onboarding.test.cjs | test | Check PI-only setup, retry, provider handoff and the app-drawn title bar |

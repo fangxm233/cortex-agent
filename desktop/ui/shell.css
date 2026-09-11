@@ -1,5 +1,5 @@
-/* input:  shared theme tokens, native setup markup
-   output: unified connection and installation appearance
+/* input:  shared theme tokens, native setup markup, title-bar caption mode
+   output: unified connection and installation appearance with an app-drawn title bar
    pos:    Settings-style chrome for native onboarding
    >>> Once updated, update this header and the parent CORTEX.md <<< */
 * { box-sizing: border-box; }
@@ -25,6 +25,18 @@ svg { flex: none; }
   background: var(--proto-rail); border-bottom: 1px solid var(--proto-line);
   padding: 0 28px; padding-top: env(safe-area-inset-top);
 }
+/* The window is undecorated on Windows/Linux, so this bar IS the title bar: it is
+   the drag region and it carries the caption buttons, which sit flush in the corner. */
+.app-header[data-caption='custom'], .app-header[data-caption='overlay'] { user-select: none; -webkit-user-select: none; }
+.app-header[data-caption='custom'] { padding-right: 0; }
+.caption-buttons { display: flex; flex: none; align-self: stretch; }
+.caption-button {
+  width: 46px; align-self: stretch; border: 0; padding: 0; cursor: default;
+  display: grid; place-items: center; background: transparent; color: var(--proto-ink);
+}
+.caption-button:hover { background: var(--caption-hover); }
+.caption-button.danger:hover { background: var(--caption-close-hover); color: var(--caption-close-hover-fg); }
+.caption-glyph { font-family: 'Segoe Fluent Icons', 'Segoe MDL2 Assets', sans-serif; font-size: 10px; }
 .brand { display: inline-flex; gap: 9px; align-items: center; font-size: 14px; font-weight: 650; }
 .brand-mark {
   display: flex; align-items: center; justify-content: center;
@@ -125,6 +137,8 @@ summary { cursor: pointer; color: var(--proto-muted); font-size: 12px; }
 .connection-status[data-tone='ok'] { color: var(--proto-accent); }
 @media (max-width: 600px) {
   .app-header { padding-left: 20px; padding-right: 20px; }
+  .app-header[data-caption='custom'] { padding-right: 0; }
+  .header-actions { gap: 8px; }
   .workspace { width: calc(100% - 32px); margin-top: 36px; }
   h1 { font-size: 24px; }
   .card-body { padding: 20px; }
