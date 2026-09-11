@@ -3,9 +3,9 @@
 // pos:    Shared desktop/mobile budget writer integration specification
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
-import { act, create } from 'react-test-renderer';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   useBudgetWriter,
   type BudgetWriter,
@@ -38,6 +38,7 @@ vi.mock('@/lib/trpc', () => ({
 }));
 
 let writer: BudgetWriter | null = null;
+let renderer: ReactTestRenderer | null = null;
 
 function Probe() {
   writer = useBudgetWriter();
@@ -54,7 +55,7 @@ async function mount() {
   const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
   const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
   await act(async () => {
-    create(
+    renderer = create(
       <QueryClientProvider client={queryClient}>
         <Probe />
       </QueryClientProvider>,
@@ -66,6 +67,13 @@ async function mount() {
 beforeEach(() => {
   writer = null;
   adapter.set.mockReset();
+});
+
+// A still-mounted Probe from an earlier test re-renders on its QueryClient's
+// deferred notify and would overwrite `writer` with a hook bound to that client.
+afterEach(() => {
+  act(() => renderer?.unmount());
+  renderer = null;
 });
 
 describe('useBudgetWriter', () => {
