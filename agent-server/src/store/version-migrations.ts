@@ -745,10 +745,13 @@ export async function migrateSessionHooksToRegistry(dataDir: string): Promise<vo
  * to ~/.aistatus/config.yaml (correct location read by aistatus).
  * Idempotent: if target already exists and is valid YAML, source is deleted without copying.
  * If source is malformed YAML, it's deleted to avoid interfering with aistatus.
+ * `dstPath` is injectable so tests never read or write the real ~/.aistatus.
  */
-export async function migrateAistatusConfigLocation(dataDir: string): Promise<void> {
+export async function migrateAistatusConfigLocation(
+  dataDir: string,
+  dstPath = path.join(os.homedir(), '.aistatus', 'config.yaml'),
+): Promise<void> {
   const srcPath = path.join(dataDir, 'config', 'config.yaml');
-  const dstPath = path.join(os.homedir(), '.aistatus', 'config.yaml');
 
   // Check if source exists
   let srcExists = false;

@@ -305,10 +305,16 @@ test('Test 2: Server starts and shuts down cleanly in initialized environment', 
     // Fork app.ts directly with test platform
     const webhookPort = String(randomPort());
     const clientPort = String(randomPort());
+    // The server resolves ~/.aistatus via os.homedir(): its gateway child reads gateway.yaml and
+    // records usage under ~/.aistatus/usage. Point HOME into tempDir so none of that reaches the
+    // real home directory.
+    const isolatedHome = path.join(tempDir, 'home');
+    mkdirSync(isolatedHome, { recursive: true });
 
     child = trackedSpawn(NODE, [...TSX_FLAGS, APP_TS], {
       env: {
         ...process.env,
+        HOME: isolatedHome,
         CORTEX_HOME: tempDir,
         CORTEX_PLATFORM: 'test',
         WEBHOOK_PORT: webhookPort,

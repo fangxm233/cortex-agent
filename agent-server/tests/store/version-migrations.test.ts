@@ -633,13 +633,17 @@ test('applyReplacements - replaces every occurrence of a `from`', () => {
 });
 
 // ── migrateAistatusConfigLocation ──────────────────────────────
+// Every call passes a temp target: the default is the real ~/.aistatus/config.yaml.
 
-test('migrateAistatusConfigLocation: deletes old config when target does not exist', async () => {
-  // This test verifies the function tries to create the target.
-  // Due to mocking limitations with dynamic imports, we test the core logic:
-  // if old file exists and is valid YAML, the function reads it and attempts to write to target.
+/** Stand-in for ~/.aistatus/config.yaml inside the test's own temp dir. */
+function aistatusTarget(dataDir: string): string {
+  return path.join(dataDir, 'home', '.aistatus', 'config.yaml');
+}
+
+test('migrateAistatusConfigLocation: moves old config when target does not exist', async () => {
   const idx = _testIdx++;
   const { dataDir } = setupDirs(idx);
+  const targetPath = aistatusTarget(dataDir);
 
   // Create old config file at the wrong location
   const oldPath = path.join(dataDir, 'config', 'config.yaml');
@@ -647,18 +651,11 @@ test('migrateAistatusConfigLocation: deletes old config when target does not exi
   await fs.mkdir(path.dirname(oldPath), { recursive: true });
   await fs.writeFile(oldPath, content);
 
-  // Call migration — it will try to migrate (target location depends on real homedir)
-  // We just verify old file is deleted/handled without error
-  await migrateAistatusConfigLocation(dataDir);
+  await migrateAistatusConfigLocation(dataDir, targetPath);
 
-  // Verify: if migration succeeded, old file should be deleted or target should exist
+  assert.equal(await fs.readFile(targetPath, 'utf8'), content, 'target should receive the old config');
   const oldExists = await fs.stat(oldPath).catch(() => null);
-  const targetPath = path.join(os.homedir(), '.aistatus', 'config.yaml');
-  const targetExists = await fs.stat(targetPath).catch(() => null);
-
-  // Either old file was deleted (best case) or target now exists
-  assert.ok(oldExists === null || targetExists !== null,
-    'old file should be deleted when target is created, or target should exist');
+  assert.equal(oldExists, null, 'old file should be deleted after a successful copy');
 });
 
 test('migrateAistatusConfigLocation: skips when old file does not exist', async () => {
@@ -666,7 +663,7 @@ test('migrateAistatusConfigLocation: skips when old file does not exist', async 
   const { dataDir } = setupDirs(idx);
 
   // Should not throw
-  await migrateAistatusConfigLocation(dataDir);
+  await migrateAistatusConfigLocation(dataDir, aistatusTarget(dataDir));
 
   // Nothing to verify beyond: function should return without error
   assert.ok(true, 'should complete without error when source does not exist');
@@ -676,15 +673,18 @@ test('migrateAistatusConfigLocation: deletes malformed old config without copyin
   const idx = _testIdx++;
   const { dataDir } = setupDirs(idx);
 
-  // Create malformed config (not valid YAML-like)
+  // Create malformed config: does not open with a `key:` line, which is what the migration
+  // accepts as YAML (so a `word: ...` string would count as valid and be copied).
   const oldPath = path.join(dataDir, 'config', 'config.yaml');
   await fs.mkdir(path.dirname(oldPath), { recursive: true });
-  await fs.writeFile(oldPath, 'not: valid: yaml: because: starts: with: invalid');
+  await fs.writeFile(oldPath, '{{ not yaml');
 
-  // Call migration
-  await migrateAistatusConfigLocation(dataDir);
+  const targetPath = aistatusTarget(dataDir);
+  await migrateAistatusConfigLocation(dataDir, targetPath);
 
   // Old file should be deleted (malformed files are cleaned up)
   const oldExists = await fs.stat(oldPath).catch(() => null);
   assert.equal(oldExists, null, 'malformed old file should be deleted');
+  const targetExists = await fs.stat(targetPath).catch(() => null);
+  assert.equal(targetExists, null, 'malformed config must not be copied to the target');
 });
