@@ -84,7 +84,8 @@ import { CommandActionRouter } from '@orch/interactions/command-action-router.js
 import { createUpdatePrompt } from '@orch/interactions/update-prompt.js';
 import { registerMessageHandler } from '@orch/routing/message-router.js';
 import { initRateLimitThrottle, clearThrottle, RATE_LIMIT_CLEAR_ACTION_ID } from '@domain/costs/rate-limit-throttle.js';
-import { initResumeRegistry, getResumeCount, pendingDirectTrackSessionIds, recordResume } from '@domain/costs/resume-registry.js';
+import { initResumeRegistry, getResumeCount, pendingDirectTrackSessionIds } from '@domain/costs/resume-registry.js';
+import { recordThreadResume } from '@domain/runs/observers/resume-recorder.js';
 import {
   dispatchPendingResumes,
   registerResumeWakeOnAgentSettle,
@@ -738,10 +739,10 @@ process.on('SIGTERM', async () => {
   let reQueuedRateLimited = 0;
   for (const t of threadStore.getAll()) {
     if (t.status === 'rate_limited') {
-      recordResume({
-        kind: 'thread', provider: t.metadata?.rateLimitProvider ?? null,
+      recordThreadResume({
+        provider: t.metadata?.rateLimitProvider ?? null,
         threadId: t.id, channel: t.channel,
-        userMessage: t.userMessage ?? '', recordedAt: Date.now(),
+        userMessage: t.userMessage ?? '',
       });
       reQueuedRateLimited++;
     }

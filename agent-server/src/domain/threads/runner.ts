@@ -39,7 +39,8 @@ import {
   isProviderRateLimited,
   isProviderUsageRateLimited,
 } from '../costs/rate-limit-throttle.js';
-import { recordResume, removeThreadResume } from '../costs/resume-registry.js';
+import { removeThreadResume } from '../costs/resume-registry.js';
+import { recordThreadResume } from '../runs/observers/resume-recorder.js';
 import type { ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
 import { Icons } from '../../core/icons.js';
 import { engines } from '../runs/engines.js';
@@ -717,9 +718,9 @@ async function handleRateLimitInterruption(
       if (slot) slot.interruptedBackendSessionId = interrupted.backendSessionId;
     });
   }
-  recordResume({
-    kind: 'thread', provider, threadId, channel: opts.channel,
-    userMessage: threadStore.get(threadId)?.userMessage ?? '', recordedAt: Date.now(),
+  recordThreadResume({
+    provider, threadId, channel: opts.channel,
+    userMessage: threadStore.get(threadId)?.userMessage ?? '',
   });
   return true;
 }

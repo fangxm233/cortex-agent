@@ -37,7 +37,7 @@ import { buildContinuationSink } from './bg-continuation.js';
 import { startBgWaitGuard } from './bg-wait-guard.js';
 import { recordCost } from '@domain/costs/cost-tracker.js';
 import type { ContinuationSink } from '../agent-adapter/types.js';
-import { recordResume } from '@domain/costs/resume-registry.js';
+import { recordDirectResume } from '@domain/runs/observers/resume-recorder.js';
 import { isApiRateLimitError } from '@domain/agents/config.js';
 import { isProviderRateLimited } from '@domain/costs/rate-limit-throttle.js';
 import { normalizeSkillCommandPrefix } from '@domain/memory/skill-scanner.js';
@@ -133,9 +133,7 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
         finalized = true;
         // Record for auto-resume when the rate-limit window resets.
         const provider = contResult.rateLimitProvider ?? result?.rateLimitProvider ?? null;
-        if (isProviderRateLimited(provider)) {
-          recordResume({ kind: 'direct', provider, channel, trackSessionId, userMessage, recordedAt: Date.now() });
-        }
+        recordDirectResume({ provider, channel, trackSessionId, userMessage });
         const { elapsedStr: fullElapsed } = computeElapsed(startTime);
         const metrics = formatMetricsSuffix({ costUsd: (result?.total_cost_usd ?? 0) + (contResult?.total_cost_usd ?? 0), numTurns: (result?.num_turns ?? 0) + (contResult?.num_turns ?? 0) });
         const rateLimitText = `${Icons.warning} ${sessionTag}${t('status.rateLimitedExhausted')} (${fullElapsed}${metrics})`;
@@ -310,10 +308,7 @@ export async function handleAgentError({ error, channel, adapter, statusMsg, sta
   // callers without it fall through to the normal error path.
   if (userMessage && isApiRateLimitError(error.message) && isProviderRateLimited(error.rateLimitProvider)) {
     finalizeLocalExecution({ executionId, status: 'failed', error: { message: 'Rate limited' }, durationS: elapsedS });
-    recordResume({
-      kind: 'direct', provider: error.rateLimitProvider ?? null,
-      channel, trackSessionId: sessionId, userMessage, recordedAt: Date.now(),
-    });
+    recordDirectResume({ provider: error.rateLimitProvider, channel, trackSessionId: sessionId, userMessage });
     const rateLimitText = `${Icons.warning} ${sessionTag}${t('status.rateLimitedExhausted')} (${elapsedStr})`;
     await sealStatus(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));
     return;
@@ -580,12 +575,7 @@ export async function runRetryAgent({ channel, text, adapter, statusMsg, startTi
 
     if (result?.rateLimited) {
       // Record the interrupted edit-retry conversation for auto-resume when the window resets.
-      if (isProviderRateLimited(result.rateLimitProvider)) {
-        recordResume({
-          kind: 'direct', provider: result.rateLimitProvider ?? null,
-          channel, trackSessionId: sessionId, userMessage: text, recordedAt: Date.now(),
-        });
-      }
+      recordDirectResume({ provider: result.rateLimitProvider, channel, trackSessionId: sessionId, userMessage: text });
       const { elapsedStr } = computeElapsed(startTime);
       const rateLimitText = `${Icons.warning} ${buildSessionTag(sessionName, sessionId)}${t('status.rateLimitedExhausted')} (${elapsedStr})`;
       await sealStatus(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));

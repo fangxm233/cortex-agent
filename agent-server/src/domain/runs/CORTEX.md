@@ -19,3 +19,4 @@ paths all build a `RunRequest` and open a run. Phases 2–4 replace the engine p
 | run.ts | core | AgentRun state machine wrapping facade.runAgent directly; phases, results, cancel, steer (mid-turn injection + ack events), fan-out |
 | spec-loader.ts | core | AgentSpec + the three loaders that build one: bareSpec / fromAgentSlot / fromRole |
 | service.ts | entry | startRun(request, observers) — opens the execution record and returns an AgentRun |
+| observers/ | dir | run-event consumers and the policies they carry (see its own CORTEX.md) |

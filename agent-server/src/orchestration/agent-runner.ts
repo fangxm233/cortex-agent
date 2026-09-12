@@ -42,8 +42,7 @@ import { isInjectableMessage, tryInjectIntoLiveTurn, type MidTurnInjectDeps } fr
 import { commitPendingInjection } from './pending-injection-recovery.js';
 import { getStreamingCallback } from './routing/hook-bridge.js';
 import { runRegistry } from '@core/run-registry.js';
-import { recordResume } from '@domain/costs/resume-registry.js';
-import { isProviderRateLimited } from '@domain/costs/rate-limit-throttle.js';
+import { recordDirectResume } from '@domain/runs/observers/resume-recorder.js';
 import { getAgent } from '@domain/threads/index.js';
 import { runConversation } from './conversation-runner.js';
 import { runToContinuationSink } from '@domain/runs/continuation-sink.js';
@@ -607,12 +606,7 @@ export class AgentRunner {
           },
           onRateLimited: (continuation) => {
             const provider = continuation.rateLimitProvider ?? convResult.result.rateLimitProvider ?? null;
-            if (!isProviderRateLimited(provider)) return false;
-            recordResume({
-              kind: 'direct', provider, channel, trackSessionId: sid,
-              userMessage, recordedAt: Date.now(),
-            });
-            return true;
+            return recordDirectResume({ provider, channel, trackSessionId: sid, userMessage });
           },
         });
       }
@@ -704,12 +698,7 @@ async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, s
   if (result?.rateLimited) {
     // Record the interrupted conversation so it auto-resumes when the rate-limit window
     // resets (rate-limit-throttle onResume → resume-dispatcher).
-    if (isProviderRateLimited(result.rateLimitProvider)) {
-      recordResume({
-        kind: 'direct', provider: result.rateLimitProvider ?? null,
-        channel, trackSessionId: sessionId, userMessage, recordedAt: Date.now(),
-      });
-    }
+    recordDirectResume({ provider: result.rateLimitProvider, channel, trackSessionId: sessionId, userMessage });
     const { elapsedStr } = computeElapsed(startTime);
     const rateLimitText = `${Icons.warning} ${buildSessionTag(sessionName, sessionId)}${t('status.rateLimitedExhausted')} (${elapsedStr})`;
     await sealStatus(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));
