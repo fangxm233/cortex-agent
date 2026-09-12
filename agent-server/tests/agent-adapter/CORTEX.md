@@ -30,6 +30,7 @@ Agent adapter tests: Claude and PI streams normalized into shared events, plus s
 | pi-adapter.test.ts | test | PI session event to normalized event replay |
 | pi-browser-mcp.test.ts | test | PI browser opt-in, plugin server list and pool identity |
 | pi-discovery.test.ts | test | forced PI provider refresh and retry policy |
+| pi-engine.test.ts | test | PI EngineSession parity with spawn(): events, result, steer acks, run-scoped cancel |
 | pi-fake-runtime.ts | helper | in-memory PI runtime double for adapter and session tests |
 | pi-mid-turn-inject.test.ts | test | PI switch guard and mid-turn prompt steering |
 | pi-run-phases.test.ts | test | PI run phases: steer form per loop state, deferred turn_complete, refusal acks, session_started placement |

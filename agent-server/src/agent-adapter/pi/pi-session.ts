@@ -599,12 +599,17 @@ export class PISession {
    * Answer a pending extension dialog. Payload fields depend on the dialog method:
    *   select/input/editor: { value: string } or { cancelled: true }
    *   confirm: { confirmed: boolean } or { cancelled: true }
+   *
+   * Returns false when the session is closed or no live dialog waits on the id. The legacy
+   * `AgentProcess` callers ignored the result; P2.2b's `EngineSession.respondToDialog` surfaces it.
    */
-  sendExtensionUiResponse(id: string, payload: Record<string, unknown>): void {
-    if (!this.alive) return;
+  sendExtensionUiResponse(id: string, payload: Record<string, unknown>): boolean {
+    if (!this.alive) return false;
     if (!this.handle?.respondToUi(id, payload)) {
       log.debug(`PI session ${this.sessionKey}: no dialog waits on ui request ${id}`);
+      return false;
     }
+    return true;
   }
 
   /** Begin a new turn: set up the pendingTurn accumulator before the prompt is dispatched.

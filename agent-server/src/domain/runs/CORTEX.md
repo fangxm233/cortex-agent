@@ -9,7 +9,7 @@ paths all build a `RunRequest` and open a run. Phases 2–4 replace the engine p
 | filename | role | function |
 |---|---|---|
 | continuation-sink.ts | core | runToContinuationSink(run, sink) — replays a run's background events as legacy ContinuationSink callbacks |
-| events.ts | core | re-exports RunPhase/RunEvent from agent-adapter and translates NormalizedEvent/ContinuationSink into them |
+| events.ts | core | re-exports RunPhase/RunEvent/toRunEvent from agent-adapter and translates ContinuationSink callbacks into them |
 | engine-spec.ts | core | buildEngineSpec + engineIdentity(); owns the scoped-plugin gate and PI gateway-path derivation |
 | request.ts | core | RunRequest, AgentSpec (with appendSystemPrompt), RunObserver and the RunResult alias (nullable session id, legacy useCoreMcp) |
 | run.ts | core | AgentRun state machine wrapping facade.runAgent directly; phases, results, cancel, steer (mid-turn injection + ack events), fan-out |

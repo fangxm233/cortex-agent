@@ -6,6 +6,7 @@ Adds Cortex MCP tools, hooks, subagents, shims, and web tools as inline extensio
 | filename | role | function |
 |---|---|---|
 | adapter.ts | adapter | Pools sessions by request identity and coordinates interaction eligibility |
+| engine.ts | adapter | PIEngineSession: EngineSession surface over one PISession (run/steer/dialog/compact/lifecycle) |
 | pi-session.ts | core | One pooled in-process PI session: turns, steering, compaction, lifecycle |
 | runtime.ts | core | Creates and owns the PI SDK session runtime behind a PISession |
 | child-session.ts | core | Builds the nested in-memory PI sessions subagents run on |

@@ -1,12 +1,12 @@
-// input:  core agent types and normalized subagent attribution
-// output: RunPhase, AttemptLabel and the phased RunEvent union
+// input:  core agent types, normalized backend events and subagent attribution
+// output: RunPhase, AttemptLabel, the phased RunEvent union and the NormalizedEvent translation
 // pos:    Backend-neutral run event vocabulary shared by engine sessions and the run layer
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type {
   AgentResult, ChatNoticeLevel, ContextUsage, NoticeAction, TodoSnapshot,
 } from '@core/types/agent-types.js';
-import type { ToolUseSubagent } from './normalize/event-types.js';
+import type { NormalizedEvent, ToolUseSubagent } from './normalize/event-types.js';
 
 /** Where in the run's lifetime an event was produced.
  *  - `foreground` — the awaited turn the caller asked for.
@@ -83,3 +83,89 @@ export type RunEvent =
   | { type: 'foreground_result'; result: AgentResult }
   | { type: 'background_result'; result: AgentResult }
   | { type: 'error'; message: string; fatal: boolean };
+
+/** Compile-time guard: a future `NormalizedEvent` member makes `toRunEvent` fail to typecheck
+ *  instead of silently falling through. */
+function unhandled(event: never): never {
+  throw new Error(`Unhandled NormalizedEvent: ${JSON.stringify(event)}`);
+}
+
+/**
+ * `NormalizedEvent.turn_complete` is the stream's terminal marker and carries only the turn count
+ * and cost; the authoritative `AgentResult` is returned by `AgentProcess.send()` /
+ * `ContinuationSink.onResult`. `RunEvent`'s result kinds are typed to carry a full `AgentResult`
+ * (plan §3.3), so the fields the marker cannot supply degrade to their absent values. The run layer
+ * (P1.3) must prefer the resolved `send()` result when it needs an authoritative one.
+ */
+function resultFromTurnComplete(
+  event: Extract<NormalizedEvent, { type: 'turn_complete' }>,
+): AgentResult {
+  return {
+    sessionId: null,
+    total_cost_usd: event.totalCostUsd,
+    num_turns: event.numTurns,
+    rateLimited: false,
+    rateLimitMessage: null,
+    planFilePath: null,
+    enteredPlanMode: false,
+    exitedPlanMode: false,
+    finalOutput: null,
+  };
+}
+
+/** Total translation of the current `NormalizedEvent` union into a phased `RunEvent`. */
+export function toRunEvent(event: NormalizedEvent, phase: RunPhase): RunEvent {
+  switch (event.type) {
+    case 'session_started':
+      return {
+        type: 'engine_started',
+        backendSessionId: event.sessionId,
+        ...(event.sessionFile !== undefined ? { sessionFile: event.sessionFile } : {}),
+      };
+    case 'assistant_text':
+      return { ...event, phase };
+    case 'assistant_delta':
+      return { ...event, phase };
+    case 'tool_use':
+      return { ...event, phase };
+    case 'tool_result':
+      return { ...event, phase };
+    case 'todo_update':
+      return { ...event, phase };
+    case 'ask_user_question':
+      return {
+        type: 'dialog_request',
+        dialogId: event.toolUseId,
+        kind: 'ask_user',
+        payload: event.questions,
+      };
+    case 'plan_mode_entered':
+      return { ...event, phase };
+    case 'plan_written':
+      return { ...event, phase };
+    case 'context_compacted':
+      return { ...event, phase };
+    case 'model_fallback':
+      return { ...event, phase };
+    case 'context_usage':
+      return { ...event, phase };
+    case 'rate_limit':
+      return { type: 'rate_limit', raw: event.raw };
+    case 'cost_record':
+      return { ...event };
+    case 'turn_progress':
+      return { ...event };
+    case 'turn_complete':
+      return phase === 'background'
+        ? { type: 'background_result', result: resultFromTurnComplete(event) }
+        : { type: 'foreground_result', result: resultFromTurnComplete(event) };
+    case 'subagent_activity':
+      return { ...event, phase };
+    case 'subagent_end':
+      return { ...event, phase };
+    case 'error':
+      return { ...event };
+    default:
+      return unhandled(event);
+  }
+}

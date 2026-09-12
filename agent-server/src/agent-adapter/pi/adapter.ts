@@ -9,7 +9,7 @@ import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../capabilities.js';
 import type {
-  AgentAdapter, EngineSpec, AgentUsageScope, Backend, UserMessage,
+  AgentAdapter, EngineAdapter, EngineSession, EngineSpec, AgentUsageScope, Backend, UserMessage,
 } from '../types.js';
 import type { AgentResult } from '@core/types/agent-types.js';
 import {
@@ -25,6 +25,7 @@ import { CODEX_PROVIDER, type CodexQuotaReading } from '@domain/costs/codex-quot
 import type { ProviderUsage, UsageStore } from '@domain/costs/usage-store.js';
 import type { PIProviderDiscovery } from './discovery.js';
 import { PISession, turnStreamIterable } from './pi-session.js';
+import { PIEngineSession } from './engine.js';
 import { createPiRuntime, type PiRuntimeFactory } from './runtime.js';
 import {
   buildSessionRequest, sessionIdentity, unsupportedExtraOptions, type PiSessionRequest,
@@ -104,7 +105,7 @@ export interface PIAdapterHooks {
   usageStore?: Pick<UsageStore, 'get' | 'update'>;
 }
 
-export class PIAdapter implements AgentAdapter {
+export class PIAdapter implements AgentAdapter, EngineAdapter {
   readonly backend: Backend = 'pi';
   readonly capabilities: Set<Capability> = CAPABILITIES_BY_BACKEND.pi;
   private readonly sessions = new Map<string, PISession>();
@@ -336,6 +337,25 @@ export class PIAdapter implements AgentAdapter {
     const session = this.reusableSession(spec.engineKey, identity)
       ?? this.startSession(spec, request, identity);
     return this.createAgentProcess(spec.engineKey, session, session.openTurnStream());
+  }
+
+  /**
+   * Construct a session without pooling or registering it: per plan §3.3 `open()` is pure
+   * construction, and `SessionEngines` (P2.2c) owns the lifetime/reuse decision. `prepareRequest`
+   * and the `PISession` options mirror `spawn()`/`startSession` exactly; the only difference is the
+   * absent `this.sessions` entry and pool `onClose` eviction hook.
+   */
+  open(spec: EngineSpec): EngineSession {
+    const request = this.prepareRequest(spec);
+    const identity = sessionIdentity(request);
+    const session = new PISession({
+      request,
+      runtimeFactory: this.runtimeFactory,
+      identity,
+      registry: this.sessionPathRegistry,
+      onProviderQuota: this.quotaReporter(spec),
+    });
+    return new PIEngineSession(session, request);
   }
 
   /** The pooled session for this key when it can serve the turn: alive, and created from the exact
