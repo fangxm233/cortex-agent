@@ -12,12 +12,13 @@ import * as os from 'os';
 
 import { registerCommands as createCommandDispatcher } from '../src/orchestration/routing/commands/index.js';
 import { CommandActionRouter } from '../src/orchestration/interactions/command-action-router.js';
-import { handleBackendCmd } from '../src/orchestration/routing/commands/mode.js';
+import { handleBackendCmd, handleModelCmd } from '../src/orchestration/routing/commands/mode.js';
 import { handleBudgetCmd } from '../src/orchestration/routing/commands/cost.js';
 import { formatUsageReport } from '../src/orchestration/routing/commands/usage.js';
 import type { ProviderUsage } from '../src/domain/costs/usage-store.js';
 import { projectStore } from '../src/domain/projects/index.js';
-import { getActiveBackend, setActiveBackend } from '../src/domain/agents/config.js';
+import { clearChannelProfile, setChannelModelOverride } from '../src/domain/agents/config.js';
+import { resolveRunConfig } from '../src/domain/runs/config-resolver.js';
 import { getDefaultProfileName } from '../src/domain/agents/profile-manager.js';
 import { costRepo } from '../src/store/cost-repo.js';
 import { MockAdapter } from '../src/platform/testing.js';
@@ -92,15 +93,100 @@ function withTempCostData(t, entries) {
 }
 
 
-test('!backend selects PI and reports the live backend label', async (t) => {
-  const previous = getActiveBackend();
-  t.onTestFinished(() => setActiveBackend(previous));
+// D5/P3.1c: `!backend` moves THIS CHANNEL to that backend's default profile. There is no global
+// backend field any more — a backend is a property of a profile, so switching one means switching
+// the other, through the same rule `!profile` uses.
+test('!backend moves the channel to that backend default profile', async (t) => {
+  t.onTestFinished(() => clearChannelProfile('C-backend'));
   const adapter = new MockAdapter();
 
+  assert.equal(resolveRunConfig({ channel: 'C-backend' }).profile.backend, 'claude');
   await handleBackendCmd('C-backend', adapter, '!backend pi');
 
-  assert.equal(getActiveBackend(), 'pi');
-  assert.match(adapter.posted[0].content.text, /PI/);
+  // `execute` is the only pi profile in the fixture, so it is that backend's default.
+  const after = resolveRunConfig({ channel: 'C-backend' });
+  assert.equal(after.profileName, 'execute');
+  assert.equal(after.profile.backend, 'pi');
+  // A sibling channel is untouched — the point of making this channel-scoped.
+  assert.equal(resolveRunConfig({ channel: 'C-other' }).profile.backend, 'claude');
+});
+
+test('!backend on a backend with no profile refuses instead of switching to something else', async (t) => {
+  t.onTestFinished(() => clearChannelProfile('C-noprofile'));
+  const adapter = new MockAdapter();
+  const before = resolveRunConfig({ channel: 'C-noprofile' }).profileName;
+
+  fs.writeFileSync(path.join(CONFIG_DIR, 'profiles.json'), JSON.stringify({
+    defaultProfile: 'plan',
+    profiles: { plan: { model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' } },
+  }));
+  profileRepo.invalidate();
+  t.onTestFinished(() => {
+    fs.writeFileSync(path.join(CONFIG_DIR, 'profiles.json'), JSON.stringify({
+      defaultProfile: 'plan',
+      profiles: {
+        plan: { model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' },
+        execute: { model: 'claude-sonnet-4-6', backend: 'pi', provider: 'anthropic', mode: 'plan' },
+        qa: { model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' },
+      },
+    }));
+    profileRepo.invalidate();
+  });
+
+  await handleBackendCmd('C-noprofile', adapter, '!backend pi');
+  assert.match(adapter.posted[0].content.text, /No profile|没有使用/);
+  assert.equal(resolveRunConfig({ channel: 'C-noprofile' }).profileName, before);
+});
+
+test('!backend honours defaultProfileByBackend over declaration order', async (t) => {
+  t.onTestFinished(() => clearChannelProfile('C-declared'));
+  fs.writeFileSync(path.join(CONFIG_DIR, 'profiles.json'), JSON.stringify({
+    defaultProfile: 'plan',
+    defaultProfileByBackend: { pi: 'pi-b' },
+    profiles: {
+      plan: { model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' },
+      'pi-a': { model: 'm', backend: 'pi', provider: 'anthropic', mode: 'plan' },
+      'pi-b': { model: 'm', backend: 'pi', provider: 'anthropic', mode: 'plan' },
+    },
+  }));
+  profileRepo.invalidate();
+  t.onTestFinished(() => {
+    fs.writeFileSync(path.join(CONFIG_DIR, 'profiles.json'), JSON.stringify({
+      defaultProfile: 'plan',
+      profiles: {
+        plan: { model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' },
+        execute: { model: 'claude-sonnet-4-6', backend: 'pi', provider: 'anthropic', mode: 'plan' },
+        qa: { model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' },
+      },
+    }));
+    profileRepo.invalidate();
+  });
+
+  await handleBackendCmd('C-declared', new MockAdapter(), '!backend pi');
+  assert.equal(resolveRunConfig({ channel: 'C-declared' }).profileName, 'pi-b');
+});
+
+test('!model sets, reports and resets a channel-scoped override', async (t) => {
+  t.onTestFinished(() => setChannelModelOverride('C-model', null));
+
+  const show = new MockAdapter();
+  await handleModelCmd('C-model', show, '!model');
+  assert.match(show.posted[0].content.text, /claude-sonnet-4-6/, 'with no override the profile model is shown');
+
+  const set = new MockAdapter();
+  await handleModelCmd('C-model', set, '!model haiku-test');
+  assert.equal(resolveRunConfig({ channel: 'C-model' }).modelOverride, 'haiku-test');
+  // The profile itself is untouched, which is what makes `reset` a real undo.
+  assert.equal(resolveRunConfig({ channel: 'C-model' }).profile.model, 'claude-sonnet-4-6');
+  assert.equal(resolveRunConfig({ channel: 'C-elsewhere' }).modelOverride, null);
+
+  const shown = new MockAdapter();
+  await handleModelCmd('C-model', shown, '!model');
+  assert.match(shown.posted[0].content.text, /haiku-test/);
+
+  const reset = new MockAdapter();
+  await handleModelCmd('C-model', reset, '!model reset');
+  assert.equal(resolveRunConfig({ channel: 'C-model' }).modelOverride, null);
 });
 
 test('!cost <project> filters report to the requested project scope', async (t) => {

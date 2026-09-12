@@ -52,7 +52,7 @@ import { runConversation } from '../../src/orchestration/conversation-runner.js'
 import { cancelChannelRuns } from '../../src/orchestration/routing/commands/cancel.js';
 import { sessionStore } from '../../src/store/session-registry-repo.js';
 import { getSessionAsync, setSessionAsync } from '../../src/domain/sessions/session.js';
-import { getActiveBackend } from '../../src/domain/agents/index.js';
+import { resolveRunBackend } from '../../src/domain/runs/config-resolver.js';
 import { runRegistry } from '../../src/core/run-registry.js';
 
 function makeCancelledHandle(backendSessionId: string) {
@@ -145,7 +145,7 @@ test('interrupt on a RESUMED turn leaves the stored backend session id untouched
 // ── (2) cancelLive must not rebind the channel to the backend id ────────────
 
 test('cancelChannelRuns keeps the channel bound to the stable track id', async () => {
-  const backend = getActiveBackend();
+  const backend = resolveRunBackend({ channel: 'slack:C-keep' });
   await setSessionAsync('slack:C-keep', 'TRACK-3', backend);
   runRegistry.register({
     threadId: null,

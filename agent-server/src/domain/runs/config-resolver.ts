@@ -116,3 +116,16 @@ export function resolveRunConfig(query: RunConfigQuery = {}): ResolvedRunConfig 
 export function resolveRunBackend(query: RunConfigQuery = {}): ResolvedProfileConfig['backend'] {
   return resolveRunConfig(query).profile.backend;
 }
+
+/**
+ * The profile a run actually executes: the resolved profile with the channel's `!model` override
+ * applied to its primary model.
+ *
+ * The fallback chain is deliberately untouched. It is the profile's stated recovery path for when
+ * the primary model is unavailable, not a second model choice the user made — overriding it too
+ * would mean a `!model` on a rate-limited channel silently disabled the profile's own escape.
+ */
+export function effectiveProfile(config: ResolvedRunConfig): ResolvedProfileConfig {
+  if (!config.modelOverride) return config.profile;
+  return { ...config.profile, model: config.modelOverride };
+}

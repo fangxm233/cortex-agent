@@ -8,8 +8,10 @@ import type { CommandResult } from './command-context.js';
 import { Icons } from '../../../core/icons.js';
 import { t } from '../../../core/i18n.js';
 import type { CommandActionRouter } from '@orch/interactions/command-action-router.js';
-import { switchMode, getActiveBackend, setActiveBackend, getClaudeModel, setClaudeModel, getActiveProfile, setActiveProfile, clearChannelProfile, getDefaultAgent, setDefaultAgent, switchChannelProfile } from '@domain/agents/index.js';
-import { getDefaultProfileName, listProfiles, resolveProfile } from '@domain/agents/profile-manager.js';
+import { setChannelModelOverride, getActiveProfile, setActiveProfile, clearChannelProfile, getDefaultAgent, setDefaultAgent, switchChannelProfile } from '@domain/agents/index.js';
+import { getDefaultProfileForBackend, getDefaultProfileName, listProfiles, resolveProfile } from '@domain/agents/profile-manager.js';
+import { resolveRunConfig } from '@domain/runs/config-resolver.js';
+import type { Backend } from '@core/types/agent-types.js';
 import { getDisplaySkillGroups } from '@domain/memory/skill-scanner.js';
 import { getAgent, listAgents } from '@domain/threads/index.js';
 import { handleNewCmd } from './session.js';
@@ -30,36 +32,106 @@ function formatProfileList(channel?: string): string {
   }).join('\n');
 }
 
+/**
+ * `!mode` — report the plan/api routing this channel runs under (D5).
+ *
+ * It used to flip a daemon-wide plan/api flag. That flag stopped routing anything the moment the
+ * run path started resolving `mode` from the profile: `configureRunRoute` builds the gateway URL
+ * from `config.mode`, which is the profile's, so the toggle moved a field nobody read. Rather than
+ * keep a control that silently does nothing, the command now says where the value comes from.
+ */
 export async function handleModeCmd(channel: string, adapter: PlatformAdapter): Promise<void> {
-  const { newMode } = switchMode();
   const dest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: '' };
-  await adapter.postMessage(dest, { text: `${Icons.refresh} ${t('cmd.mode.switched', { mode: newMode === 'api' ? t('cmd.mode.apiLabel') : t('cmd.mode.planLabel') })}` });
-}
-
-export async function handleBackendCmd(channel: string, adapter: PlatformAdapter, trimmedMessage: string): Promise<void> {
-  const arg = trimmedMessage.split(/\s+/)[1];
-  const newBackend = (arg === 'claude' || arg === 'pi') ? arg : (getActiveBackend() === 'claude' ? 'pi' : 'claude');
-  setActiveBackend(newBackend);
-  const dest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: '' };
+  const { profileName, profile } = resolveRunConfig({ channel });
+  const mode = profile.mode === 'plan' ? t('cmd.mode.planLabel') : t('cmd.mode.apiLabel');
   await adapter.postMessage(dest, {
-    text: `${Icons.refresh} ${t('cmd.backend.switched', { backend: newBackend === 'claude' ? t('cmd.backend.claudeLabel') : t('cmd.backend.piLabel') })}`,
+    text: t('cmd.mode.fromProfile', { mode, profile: profileName }),
   });
 }
 
+/**
+ * `!backend <claude|pi>` — move THIS CHANNEL to that backend's default profile (D5).
+ *
+ * Before D5 this flipped a daemon-wide `backend` field that the run path then contradicted with
+ * the channel's own profile. There is no such field any more: a backend is a property of a
+ * profile, so switching backend means switching profile, and it goes through exactly the rule
+ * `!profile` uses — including the refusal to move a conversation that already has history, which
+ * no backend can resume on the other side.
+ */
+export async function handleBackendCmd(channel: string, adapter: PlatformAdapter, trimmedMessage: string): Promise<void> {
+  const dest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: '' };
+  const arg = trimmedMessage.split(/\s+/)[1];
+  const current = resolveRunConfig({ channel });
+  // No argument keeps the old affordance: toggle to the other backend.
+  const target: Backend = arg === 'claude' || arg === 'pi'
+    ? arg
+    : (current.profile.backend === 'claude' ? 'pi' : 'claude');
+  if (arg && arg !== 'claude' && arg !== 'pi') {
+    await adapter.postMessage(dest, { text: `${Icons.error} ${t('cmd.backend.usage')}` });
+    return;
+  }
+
+  const label = target === 'claude' ? t('cmd.backend.claudeLabel') : t('cmd.backend.piLabel');
+  if (current.resolved && current.profile.backend === target) {
+    await adapter.postMessage(dest, {
+      text: t('cmd.backend.already', { backend: label, profile: current.profileName }),
+    });
+    return;
+  }
+
+  const name = getDefaultProfileForBackend(target);
+  if (!name) {
+    await adapter.postMessage(dest, { text: `${Icons.error} ${t('cmd.backend.noProfile', { backend: label })}` });
+    return;
+  }
+  await adapter.postMessage(dest, { text: await switchChannelProfileReply(channel, name) });
+}
+
+/**
+ * `!model` — show, set or clear THIS CHANNEL's model override (D5).
+ *
+ * The override is stored per channel and layered on top of whatever profile the channel resolves
+ * to; the profile keeps its own model, so `!model reset` is a real undo. It replaces a global
+ * `claudeModel` that only ever applied to Claude and that the profile silently outranked.
+ *
+ * The value is not validated here: which ids a backend accepts is the backend's business, and its
+ * own rejection names the problem better than a guess would.
+ */
 export async function handleModelCmd(channel: string, adapter: PlatformAdapter, trimmedMessage: string): Promise<void> {
   const args = trimmedMessage.split(/\s+/).slice(1);
   const dest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: '' };
+  const config = resolveRunConfig({ channel });
+
   if (args.length === 0) {
-    await adapter.postMessage(dest, { text: t('cmd.model.current', { model: getClaudeModel() }) });
+    await adapter.postMessage(dest, {
+      text: config.modelOverride
+        ? t('cmd.model.overridden', {
+            model: config.modelOverride, profile: config.profileName, profileModel: config.profile.model,
+          })
+        : t('cmd.model.current', { model: config.profile.model, profile: config.profileName }),
+    });
     return;
   }
-  const model = args.join(' ').trim();
-  if (!model) {
+
+  const arg = args.join(' ').trim();
+  if (arg === 'reset' || arg === 'clear' || arg === 'off') {
+    const had = config.modelOverride !== null;
+    setChannelModelOverride(channel, null);
+    await adapter.postMessage(dest, {
+      text: had
+        ? `${Icons.ok} ${t('cmd.model.cleared', { profile: config.profileName, model: config.profile.model })}`
+        : t('cmd.model.noOverride', { profile: config.profileName, model: config.profile.model }),
+    });
+    return;
+  }
+  if (!arg) {
     await adapter.postMessage(dest, { text: `${Icons.error} ${t('cmd.model.usage')}` });
     return;
   }
-  setClaudeModel(model);
-  await adapter.postMessage(dest, { text: `${Icons.ok} ${t('cmd.model.set', { model: getClaudeModel() })}` });
+  setChannelModelOverride(channel, arg);
+  await adapter.postMessage(dest, {
+    text: `${Icons.ok} ${t('cmd.model.set', { model: arg, profile: config.profileName })}`,
+  });
 }
 
 const MAX_PROFILE_BUTTONS = 10;

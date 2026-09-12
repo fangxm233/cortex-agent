@@ -4,7 +4,7 @@ import type { CommandResult } from './command-context.js';
 import { Icons } from '../../../core/icons.js';
 import { t } from '../../../core/i18n.js';
 import type { CommandActionRouter } from '@orch/interactions/command-action-router.js';
-import { getActiveBackend, getActiveProfile } from '@domain/agents/index.js';
+import { getActiveProfile } from '@domain/agents/index.js';
 import { engines } from '@domain/runs/engines.js';
 
 import { fireAndForgetPreCloseHook } from '@domain/sessions/session-hooks.js';

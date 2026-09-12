@@ -14,8 +14,9 @@
 import { randomUUID } from 'node:crypto';
 import type { Destination, PlatformAdapter, MessageRef, DownloadedFile } from '@platform/index.js';
 import type { AgentResult } from '@core/types/agent-types.js';
-import { getActiveProfile, getDefaultAgent } from '@domain/agents/index.js';
-import { resolveProfileConfig, type ResolvedProfileConfig } from '@domain/agents/profile-manager.js';
+import { getDefaultAgent } from '@domain/agents/index.js';
+import { getDefaultProfileName } from '@domain/agents/profile-manager.js';
+import { effectiveProfile, resolveRunConfig } from '@domain/runs/config-resolver.js';
 import { resolveAgentSlotConfigByName, resolveSystemVars, buildConversationPrompt } from '@domain/threads/index.js';
 import { projectStore } from '@domain/projects/index.js';
 import type { Project } from '@domain/projects/index.js';
@@ -94,19 +95,6 @@ export function registerConversationHandle(
 function buildBackendPrompt(prompt: string, files: DownloadedFile[]): string {
   const attachments = files.map((file) => ({ mimeType: file.mimetype, path: file.localPath }));
   return buildAgentPrompt(prompt, attachments);
-}
-
-/**
- * Resolve the profile the run spawns. Unknown names (e.g. a channel profile that was renamed or
- * removed since it was persisted) fall back to the profiles.json default instead of taking the
- * turn down; P3.1's `resolveRunConfig` replaces this with the full priority chain.
- */
-function resolveConversationProfile(name: string): ResolvedProfileConfig {
-  try {
-    return resolveProfileConfig(name);
-  } catch {
-    return resolveProfileConfig(null);
-  }
 }
 
 /**
@@ -214,12 +202,20 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
   // no message ever mentions X literally (that mismatch previously dumped everything into 'general').
   const project = opts.projectId;
 
-  // Resolve profile: hardcoded agent profiles win; __active__ honors the optional override
-  // (scheduler) then the channel's active profile.
-  const profileName = agentConfig.profile === '__active__'
-    ? (opts.profileOverride || getActiveProfile(opts.channel))
-    : agentConfig.profile;
-  const profile = resolveConversationProfile(profileName);
+  // D5: one resolution for name, profile and the channel's `!model` override. A hardcoded agent
+  // profile is an explicit override; `__active__` means "whatever this channel resolves to", and
+  // the scheduler's own override still comes first.
+  const runConfig = resolveRunConfig({
+    channel: opts.channel,
+    override: agentConfig.profile === '__active__' ? (opts.profileOverride ?? null) : agentConfig.profile,
+  });
+  // An unknown name here is not the user naming a bad profile — it is a channel profile that was
+  // renamed or deleted since it was persisted, so the turn falls back to the default rather than
+  // dying. (Named-profile errors surface through `!profile`, which validates before it writes.)
+  const profileName = runConfig.resolved ? runConfig.profileName : getDefaultProfileName();
+  const profile = runConfig.resolved
+    ? effectiveProfile(runConfig)
+    : effectiveProfile({ ...resolveRunConfig({ channel: opts.channel, override: profileName }) });
 
   const trigger = opts.trigger || 'user';
   const spec: AgentSpec = {

@@ -23,7 +23,7 @@ import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import * as sessionBackup from '@domain/sessions/session-backup.js';
 import { isOnMessageEndHookConfigured, runMessageEndSessionHook } from '@domain/sessions/session-hooks.js';
 import * as askUserQuestion from './interactions/ask-user-question.js';
-import { getClaudeMode, getActiveProfile, resolveBackendForChannel } from '@domain/agents/index.js';
+import { getActiveProfile, resolveBackendForChannel } from '@domain/agents/index.js';
 import { resolveProfileConfig, type ResolvedProfileConfig } from '@domain/agents/profile-manager.js';
 import { startRun } from '@domain/runs/service.js';
 import type { AgentRun } from '@domain/runs/run.js';

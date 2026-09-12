@@ -19,7 +19,7 @@ import { conduitQueues } from '../conduit-queue.js';
 import { setSessionAsync, deleteSessionAsync } from '@domain/sessions/session.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
-import { getActiveBackend, getActiveProfile, setActiveProfile, resolveBackendForChannel } from '@domain/agents/index.js';
+import { getActiveProfile, setActiveProfile, resolveBackendForChannel } from '@domain/agents/index.js';
 import { engines } from '@domain/runs/engines.js';
 import { fireAndForgetPreCloseHook } from '@domain/sessions/session-hooks.js';
 import { Icons } from '../../core/icons.js';

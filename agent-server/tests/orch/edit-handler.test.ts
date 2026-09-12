@@ -15,8 +15,8 @@ import {
   setActiveProfile,
   clearChannelProfile,
   resolveBackendForChannel,
-  getActiveBackend,
 } from '../../src/domain/agents/config.js';
+import { resolveRunBackend } from '../../src/domain/runs/config-resolver.js';
 import * as sessionBackup from '../../src/domain/sessions/session-backup.js';
 import { sessionStore } from '../../src/store/session-registry-repo.js';
 import { resolveProfileConfig } from '../../src/domain/agents/profile-manager.js';
@@ -153,14 +153,16 @@ async function cleanupPIEditFixture(fixture: PIEditFixture): Promise<void> {
 
 // ── Bug 2 (root cause): channel-aware backend resolution ─────────────────────
 
-test('resolveBackendForChannel returns global activeBackend when channel has no profile', () => {
+// D5: "global activeBackend" is retired — a channel with no profile of its own falls through to
+// the default profile's backend, which is what `resolveRunBackend` reports.
+test('resolveBackendForChannel returns the default profile backend when the channel has no profile', () => {
   const ch = freshChannel();
   clearChannelProfile(ch); // ensure clean state
-  assert.equal(resolveBackendForChannel(ch), getActiveBackend());
+  assert.equal(resolveBackendForChannel(ch), resolveRunBackend({ channel: ch }));
 });
 
-test('resolveBackendForChannel falls back to global activeBackend when channel arg is undefined', () => {
-  assert.equal(resolveBackendForChannel(), getActiveBackend());
+test('resolveBackendForChannel falls back to the default profile backend with no channel', () => {
+  assert.equal(resolveBackendForChannel(), resolveRunBackend());
 });
 
 test('resolveBackendForChannel returns profile backend when channel has a profile override', () => {

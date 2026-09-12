@@ -14,7 +14,6 @@ import { noticesFor } from '../../../agent-adapter/pi/child-events.js';
 import { getEngineAdapter } from '../../runs/adapters.js';
 import { resolveRunConfig } from '../../runs/config-resolver.js';
 import { GATEWAY_URL } from '../../costs/gateway-manager.js';
-import { getClaudeMode, getClaudeModel } from '../config.js';
 import { roleToolsForBackend, type AgentRole } from '@core/agents/roles.js';
 import { buildPiGatewaySubPath, type AgentConfig } from '../spawn-config.js';
 import type { ResolvedProfileConfig } from '../profile-manager.js';

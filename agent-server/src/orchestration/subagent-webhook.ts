@@ -5,7 +5,6 @@
 
 import { createLogger } from '@core/log.js';
 import type { Backend } from '../agent-adapter/types.js';
-import { getActiveBackend, getClaudeMode, getClaudeModel } from '@domain/agents/config.js';
 import { resolveProfileConfig } from '@domain/agents/profile-manager.js';
 import {
   getSubagentRun, listSubagentRuns, stopSubagentRun, waitForSubagentRun,

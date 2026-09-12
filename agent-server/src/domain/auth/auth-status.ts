@@ -10,10 +10,9 @@ import { readFileSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import type { Backend } from '../../agent-adapter/types.js';
+import { resolveRunConfig } from '../runs/config-resolver.js';
 import {
-  getActiveBackend as readActiveBackend,
   getActiveProfile,
-  getClaudeMode as readClaudeMode,
   getSavedApiEnv as readSavedApiEnv,
 } from '../agents/config.js';
 import {
@@ -412,6 +411,16 @@ function defaultActiveProfileConfig(): ActiveProfileReference {
   return { backend: profile.backend, provider: profile.provider };
 }
 
+/** The backend and Claude mode a channel with no selection of its own will run (D5): the default
+ *  profile's, replacing the retired daemon-wide `backend` / `claudeMode` fields. */
+function defaultRunBackend(): Backend {
+  return resolveRunConfig().profile.backend;
+}
+
+function defaultClaudeMode(): string {
+  return resolveRunConfig().profile.mode ?? 'plan';
+}
+
 function collectInUse(options: GetAuthStatusOptions): InUseAccounts {
   const usage: InUseAccounts = { claude: false, pi: new Set<string>() };
   try {
@@ -419,7 +428,9 @@ function collectInUse(options: GetAuthStatusOptions): InUseAccounts {
   } catch {
     // A broken profile file must not hide credential state.
   }
-  const backend = (options.getActiveBackend ?? readActiveBackend)();
+  // D5: there is no daemon-wide backend. What "in use" means for a credential is the backend the
+  // default profile runs, which is what an unconfigured channel will pick up.
+  const backend = (options.getActiveBackend ?? defaultRunBackend)();
   if (backend === 'claude') usage.claude = true;
   if (backend !== 'pi') return usage;
   try {
@@ -481,7 +492,7 @@ export async function getAuthStatus(options: GetAuthStatusOptions = {}): Promise
   const claude = buildClaudeAccount(
     readClaudeOAuth(claudePath), apiEnv.ANTHROPIC_API_KEY, cliLoggedIn,
     apiEnv.CLAUDE_CODE_OAUTH_TOKEN,
-    (options.getClaudeMode ?? readClaudeMode)(), now.getTime(), usage.claude,
+    (options.getClaudeMode ?? defaultClaudeMode)(), now.getTime(), usage.claude,
   );
   const accounts = [claude];
   if (pi.available) appendPiAccounts(accounts, pi, piAuthPath, now.getTime(), usage.pi);

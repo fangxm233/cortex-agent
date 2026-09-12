@@ -9,7 +9,7 @@ import { createLogger } from '@core/log.js';
 import { Icons } from '../../../core/icons.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { getOutboundQueue, durableUpdate } from '@store/outbound-queue.js';
-import { getActiveBackend, getActiveProfile } from '../../agents/index.js';
+import { getActiveProfile } from '../../agents/index.js';
 import { resolveRunBackend } from '@domain/runs/config-resolver.js';
 
 const log = createLogger('scheduler');

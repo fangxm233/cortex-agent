@@ -55,7 +55,7 @@ import { executionRepo } from '@store/execution-repo.js';
 import { getThreadConfigRevision, loadConfig as loadThreadConfig, startConfigWatcher as startThreadConfigWatcher, setAdminNotifier as setConfigNotifier, migrateThreadTemplatesToDir, mergeThreadTemplates } from '@domain/threads/index.js';
 import { initializeProductionAttemptIdentity } from '@domain/agent-run/production-attempt-identity.js';
 import { startMemoryWatcher } from '@domain/memory/watcher.js';
-import { getActiveBackend, applyAuthEnv } from '@domain/agents/index.js';
+import { applyAuthEnv } from '@domain/agents/index.js';
 import { createEditHandler } from '@orch/routing/edit-handler.js';
 import { setLocale, normalizeLocale } from '@core/i18n.js';
 import { loadLang } from '@domain/system/preferences.js';
@@ -854,6 +854,12 @@ process.on('SIGTERM', async () => {
   // D5: there is no global backend any more — the default profile's is what a channel with no
   // selection of its own will use, and that is what belongs in the banner.
   const bootConfig = resolveRunConfig();
+  // The "daemon's Claude model" PI's subagent catalog and the MCP tool context read. Seeded from
+  // the migrated state at config.ts import; corrected here to the default profile's model, which
+  // is where D5 says a model lives.
+  if (bootConfig.profile.backend === 'claude' && bootConfig.profile.model) {
+    process.env.CORTEX_CLAUDE_MODEL = bootConfig.profile.model;
+  }
   log.info(
     `Cortex agent is running (${adapter.name}) — profile: ${bootConfig.profileName}`
     + ` · backend: ${bootConfig.profile.backend}`,

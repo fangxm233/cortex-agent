@@ -3,14 +3,14 @@
 // pos:    Agent runtime configuration and failure policy
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync } from 'fs';
 import { parse as parseDotenv } from 'dotenv';
 import { mutateFileAtomically } from '@core/atomic-write.js';
 import * as os from 'node:os';
 import * as path from 'path';
 import * as http from 'http';
-import { STORE_DIR, CONFIG_DIR, GATEWAY_MANAGED_KEY_PLACEHOLDER } from '@core/utils.js';
-import { getProfileModel, resolveProfileConfig } from './profile-manager.js';
+import { CONFIG_DIR, GATEWAY_MANAGED_KEY_PLACEHOLDER } from '@core/utils.js';
+import { resolveProfileConfig } from './profile-manager.js';
 import { GATEWAY_URL, isGatewayHealthy } from '../costs/gateway-manager.js';
 import { classifyAuthError } from '../auth/auth-events.js';
 import { createLogger } from '@core/log.js';
@@ -242,70 +242,34 @@ function normalizeClaudeMode(mode: string): string {
   return mode === 'plan' ? 'plan' : 'api';
 }
 
-export function loadMode(): string {
-  return agentState.claudeMode ?? DEFAULT_CLAUDE_MODE;
-}
-
-export function loadBackend(): Backend {
-  return agentState.backend === 'pi' ? 'pi' : 'claude';
-}
-
 let agentState: AgentState = loadAgentState();
-let claudeMode: string = loadMode();
-let activeBackend: Backend = loadBackend();
-let claudeModel: string = agentState.claudeModel || DEFAULT_CLAUDE_MODEL;
 let activeProfile: string | null = agentState.activeProfile;
 let channelProfiles: Record<string, string> = agentState.channelProfiles;
 let defaultAgent: string | null = agentState.defaultAgent;
-process.env.CORTEX_CLAUDE_MODEL = claudeModel;
+// Seeded from the migrated state so a CLI process that never reaches the daemon's composition root
+// still has a value; `entry/app.ts` overwrites it at boot with the default profile's model, which
+// is the D5-correct answer. Read by PI's subagent catalog and the MCP tool context.
+process.env.CORTEX_CLAUDE_MODEL = agentState.claudeModel || DEFAULT_CLAUDE_MODEL;
 
 /** Persist every field this module owns. `agentState` stays the one object on disk, so a field
- *  this module does not know about (channelOverrides, written by the command layer) survives. */
+ *  this module does not know about (channelOverrides, written by the command layer) survives.
+ *
+ *  backend / claudeMode / claudeModel are carried through UNCHANGED. Nothing writes them any more
+ *  (D5 moved all three onto the profile), so they stay at whatever the migrated mode.json held —
+ *  which is exactly what a rollback to the pre-P3.1 build should find, since this build never
+ *  acted on them either. */
 function persist(): void {
-  agentState = {
-    ...agentState,
-    activeProfile,
-    channelProfiles,
-    defaultAgent,
-    backend: activeBackend,
-    claudeMode: normalizeClaudeMode(claudeMode),
-    claudeModel,
-  };
+  agentState = { ...agentState, activeProfile, channelProfiles, defaultAgent };
   saveAgentState(agentState);
 }
 
 function saveModeFile(
-  mode: string,
-  backend: Backend,
-  model: string = claudeModel,
   profile: string | null = activeProfile,
   agent: string | null = defaultAgent,
 ): void {
-  claudeMode = normalizeClaudeMode(mode);
-  activeBackend = backend;
-  claudeModel = model;
   activeProfile = profile;
   defaultAgent = agent;
   persist();
-}
-
-export function saveMode(mode: string): void {
-  saveModeFile(mode, activeBackend);
-}
-
-export function getClaudeMode(): string { return claudeMode; }
-export function getActiveBackend(): Backend { return activeBackend; }
-export function getClaudeModel(): string { return claudeModel; }
-
-export function setActiveBackend(backend: Backend): void {
-  activeBackend = backend;
-  saveModeFile(claudeMode, activeBackend, claudeModel);
-}
-
-export function setClaudeModel(model: string): void {
-  claudeModel = model;
-  process.env.CORTEX_CLAUDE_MODEL = claudeModel;
-  saveModeFile(claudeMode, activeBackend, claudeModel);
 }
 
 export function getActiveProfile(channel?: string): string | null {
@@ -336,10 +300,12 @@ export function resolveBackendForChannel(channel?: string): Backend {
       const cfg = resolveProfileConfig(profileName);
       if (cfg.backend) return cfg.backend;
     } catch {
-      // Profile referenced by channelProfiles no longer exists — fall through to global
+      // Profile referenced by channelProfiles no longer exists — fall through to the default.
     }
   }
-  return activeBackend;
+  // D5: with no daemon-wide backend left, the floor is the default profile's, and 'claude' only
+  // when profiles.json itself cannot be read.
+  try { return resolveProfileConfig(null).backend; } catch { return 'claude'; }
 }
 
 export function setActiveProfile(profileName: string | null, channel?: string): void {
@@ -352,12 +318,12 @@ export function setActiveProfile(profileName: string | null, channel?: string): 
   } else {
     activeProfile = profileName;
   }
-  saveModeFile(claudeMode, activeBackend, claudeModel, activeProfile);
+  saveModeFile(activeProfile);
 }
 
 export function clearChannelProfile(channel: string): void {
   delete channelProfiles[channel];
-  saveModeFile(claudeMode, activeBackend, claudeModel, activeProfile);
+  saveModeFile(activeProfile);
 }
 
 export function getChannelProfiles(): Record<string, string> {
@@ -385,14 +351,7 @@ export function getDefaultAgent(): string | null { return defaultAgent; }
 
 export function setDefaultAgent(name: string | null): void {
   defaultAgent = name;
-  saveModeFile(claudeMode, activeBackend, claudeModel, activeProfile, defaultAgent);
-}
-
-export function switchMode(): { oldMode: string; newMode: string } {
-  const oldMode = claudeMode;
-  claudeMode = claudeMode === 'plan' ? 'api' : 'plan';
-  saveModeFile(claudeMode, activeBackend, claudeModel);
-  return { oldMode, newMode: claudeMode };
+  saveModeFile(activeProfile, defaultAgent);
 }
 
 export function isApiRateLimitError(errorMessage: string | null | undefined): boolean {
@@ -520,16 +479,6 @@ export function setGatewayMode(mode: string): Promise<string> {
     req.write(payload);
     req.end();
   });
-}
-
-export function resolveAgentModel({ profileName = null, modelOverride = null }: { profileName?: string | null; modelOverride?: string | null } = {}): string {
-  if (modelOverride) return modelOverride;
-  if (profileName) return getProfileModel(profileName);
-  return claudeModel;
-}
-
-export function detectBillingMode(): string {
-  return claudeMode === 'plan' ? 'plan' : 'api';
 }
 
 // NOTE: deliberately NO env write at module scope. This module is imported transitively by CLI
