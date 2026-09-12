@@ -7,7 +7,7 @@ Defines shared contracts, capabilities, and normalized backend events.
 |---|---|---|
 | index.ts | entry | selects the Claude pooled adapter and exposes the stateless PI engine adapter |
 | types.ts | types | Shared adapter, EngineSpec/CortexContextEnv, usage, tool-gate, out-of-band turn event and plugin contracts |
-| run-events.ts | types | RunPhase/RunEvent vocabulary and the NormalizedEvent → RunEvent translation shared by engine sessions and the run layer |
+| run-events.ts | types | RunPhase/RunEvent vocabulary, the NormalizedEvent → RunEvent translation and the RunEventQueue backing EngineRun.events |
 | mcp-private-dir.ts | util | Guards private physical MCP directories |
 | mcp-remote-fetch.ts | util | Rejects remote MCP HTTP redirects |
 | browser-mcp-server.ts | core | Defines the Playwright MCP server every backend uses for browser control |

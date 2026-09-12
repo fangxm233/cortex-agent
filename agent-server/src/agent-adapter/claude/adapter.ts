@@ -17,9 +17,10 @@ import { Capability, CAPABILITIES_BY_BACKEND } from '../capabilities.js';
 import { resolveMcpComposition } from '../types.js';
 import type {
   AgentAdapter, AgentCompactResult, AgentCompactUsage, AgentProcess, AgentProcessSpawner,
-  AgentProcessSupervision, EngineSpec, Backend, ContinuationSink,
+  AgentProcessSupervision, EngineAdapter, EngineSpec, Backend, ContinuationSink,
   InjectionAckSink, McpComposition, SpawnedAgentProcess, UserMessage,
 } from '../types.js';
+import { ClaudeEngineSession } from './engine.js';
 import type { AgentResult, ContextUsage, ReportedAccountingSnapshot } from '@core/types/agent-types.js';
 import { encodeMcpBundles, MCP_BUNDLES_ENV } from '@core/mcp-bundles.js';
 import type { NormalizedEvent, ToolUseSubagent } from '../normalize/event-types.js';
@@ -258,7 +259,7 @@ function deriveClaudeSpawnOptions(fields: ClaudeSpawnFields): ClaudeSpawnOptions
   };
 }
 
-interface ClaudeSpawnCompatibility {
+export interface ClaudeSpawnCompatibility {
   cwd: string;
   /** Endpoint plus credential digests. A mode switch changes it, and a live process cannot be
    *  re-pointed once spawned, so a difference must force a fresh one. */
@@ -298,7 +299,7 @@ function sameOptionalTextArray(
   return sameTextArray(left, right);
 }
 
-function sameClaudeSpawnCompatibility(
+export function sameClaudeSpawnCompatibility(
   left: ClaudeSpawnCompatibility,
   right: ClaudeSpawnCompatibility,
 ): boolean {
@@ -332,6 +333,37 @@ function compatibilityFromOptions(options: ClaudeSessionOptions): ClaudeSpawnCom
     supplementalMcpConfigIdentity: options.supplementalMcpConfigIdentity ?? null,
     browserMcpConfigIdentity: options.browserMcpConfigIdentity ?? null,
   };
+}
+
+/**
+ * A string whose equality is exactly {@link sameClaudeSpawnCompatibility}'s predicate — the pool key
+ * `EngineSession.identity` needs (P2.3c). Serialized as an explicit, literal field list rather than
+ * `Object.keys`, so the order is stable and a future field cannot silently change the encoding.
+ *
+ * `null` and `[]` stay distinct for `mcpToolAllowlist` (sameOptionalTextArray is identity-sensitive
+ * when either side is null) and arrays keep their order (sameTextArray is order-sensitive).
+ */
+export function claudeCompatibilityIdentity(compatibility: ClaudeSpawnCompatibility): string {
+  const fields: Array<[string, unknown]> = [
+    ['cwd', compatibility.cwd],
+    ['routeIdentity', compatibility.routeIdentity],
+    ['composition', compatibility.composition],
+    ['interactionBridge', compatibility.interactionBridge],
+    ['commissionTools', compatibility.commissionTools],
+    ['tools', compatibility.tools],
+    ['pluginCapabilityFingerprint', compatibility.pluginCapabilityFingerprint],
+    ['supplementalMcpConfigIdentity', compatibility.supplementalMcpConfigIdentity],
+    ['browserMcpConfigIdentity', compatibility.browserMcpConfigIdentity],
+    ['pluginDirs', compatibility.pluginDirs],
+    ['mcpConfigPaths', compatibility.mcpConfigPaths],
+    ['mcpToolAllowlist', compatibility.mcpToolAllowlist],
+  ];
+  return JSON.stringify(fields);
+}
+
+/** The resolved-spec identity: the compatibility record the pool would compare, serialized. */
+export function claudeSpecIdentity(spec: EngineSpec): string {
+  return claudeCompatibilityIdentity(compatibilityFromOptions(sessionOptionsFromSpec(spec)));
 }
 
 /** Resolve per-session settings from the spawn cwd without falling through a pinned trial's config. */
@@ -1654,9 +1686,33 @@ function computeSpawnArgsForSpec(spec: EngineSpec): string[] {
   return buildSpawnArgs(spawnOptions);
 }
 
-export class ClaudeAdapter implements AgentAdapter {
+export class ClaudeAdapter implements AgentAdapter, EngineAdapter {
   readonly backend: Backend = 'claude';
   readonly capabilities: Set<Capability> = CAPABILITIES_BY_BACKEND.claude;
+
+  /**
+   * Pure construction (plan §3.3): resolve the spec exactly as `spawn()` does, build a fresh
+   * `ClaudeSession` and wrap it in an engine. No pool read, no pool write, no `getOrCreateSession`.
+   * Later turns on the same session reuse the original snapshot, as the spawn path already does.
+   */
+  open(spec: EngineSpec): ClaudeEngineSession {
+    const { sessionIdEffective, ...sessionOptions } = sessionOptionsFromSpec(spec);
+    // Same resume gate as spawn(): a pre-registered sessionId with no transcript yet must create.
+    sessionOptions.needsResume = resolveResumeForPrint(
+      sessionOptions.needsResume,
+      sessionIdEffective,
+      undefined,
+      sessionOptions.cwd,
+    );
+    const channel = spec.context.channel ?? spec.env.sets?.SLACK_CHANNEL ?? spec.engineKey;
+    // `getOrCreateSession` keys the session on `options.sessionKey || channel`; preserve that.
+    const key = sessionOptions.sessionKey || channel;
+    const session = new ClaudeSession(channel, sessionIdEffective, {
+      ...sessionOptions,
+      sessionKey: key,
+    });
+    return new ClaudeEngineSession(session, spec, claudeSpecIdentity(spec));
+  }
 
   spawn(spec: EngineSpec): AgentProcess {
     // DR-0012: route to TUI implementation when profile selects it.

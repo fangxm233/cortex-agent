@@ -5,7 +5,7 @@
 
 import type { AgentResult } from '@core/types/agent-types.js';
 import { CAPABILITIES_BY_BACKEND, type Capability } from '../capabilities.js';
-import { toRunEvent, type RunEvent } from '../run-events.js';
+import { RunEventQueue, toRunEvent, type RunEvent } from '../run-events.js';
 import type {
   AgentCompactResult, Backend, EngineRun, EngineSession, UserMessage,
 } from '../types.js';
@@ -32,38 +32,6 @@ function errorValue(error: unknown): Error {
 interface PendingInjection {
   id: string;
   text: string;
-}
-
-/**
- * A FIFO queue of `RunEvent`s. `PISession` hands its normalized events to the run through an
- * `EventQueue`; injection acks arrive out of band through `setInjectionAckSink`, so the engine
- * multiplexes both onto this one RunEvent stream. Mirrors `session-support.EventQueue` so a run's
- * consumer sees a normal async iterable that ends at `phase: done`.
- */
-class RunEventQueue {
-  private readonly pending: RunEvent[] = [];
-  private readonly waiters: ((result: IteratorResult<RunEvent>) => void)[] = [];
-  private closed = false;
-
-  push(event: RunEvent): void {
-    if (this.closed) return;
-    const waiter = this.waiters.shift();
-    if (waiter) waiter({ value: event, done: false });
-    else this.pending.push(event);
-  }
-
-  next(): Promise<IteratorResult<RunEvent>> {
-    const buffered = this.pending.shift();
-    if (buffered) return Promise.resolve({ value: buffered, done: false });
-    if (this.closed) return Promise.resolve({ value: undefined, done: true });
-    return new Promise((resolve) => this.waiters.push(resolve));
-  }
-
-  close(): void {
-    if (this.closed) return;
-    this.closed = true;
-    for (const waiter of this.waiters.splice(0)) waiter({ value: undefined, done: true });
-  }
 }
 
 /** The pending injection whose text matches, removed FIFO; undefined for an unmatched ack. */

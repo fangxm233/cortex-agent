@@ -14,6 +14,7 @@ Agent adapter tests: Claude and PI streams normalized into shared events, plus s
 | claude-cost-from-usage.test.ts | test | Claude TUI cost reconstruction from usage |
 | claude-jsonl-tail.test.ts | test | Claude transcript, plans and exact accounting |
 | claude-subagent-jsonl-mux.test.ts | test | Claude TUI sidecar attribution and lifecycle |
+| claude-engine.test.ts | test | Claude EngineSession parity with spawn(): events, result, steer acks, run-scoped cancel, pool identity |
 | claude-mid-turn-inject.test.ts | test | Claude mid-turn user message injection |
 | claude-print-resume.test.ts | test | print-mode resume guard on fresh sessions |
 | claude-run-phases.test.ts | test | Claude run phases: background continuation, mid-turn injection fold-in and post-result, orphan subagent, resume notification turn |

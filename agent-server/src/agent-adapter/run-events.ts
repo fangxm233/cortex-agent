@@ -1,5 +1,5 @@
 // input:  core agent types, normalized backend events and subagent attribution
-// output: RunPhase, AttemptLabel, the phased RunEvent union and the NormalizedEvent translation
+// output: RunPhase, AttemptLabel, the phased RunEvent union, its translation and the RunEvent queue
 // pos:    Backend-neutral run event vocabulary shared by engine sessions and the run layer
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -167,5 +167,40 @@ export function toRunEvent(event: NormalizedEvent, phase: RunPhase): RunEvent {
       return { ...event };
     default:
       return unhandled(event);
+  }
+}
+
+/**
+ * A FIFO queue of `RunEvent`s backing an `EngineRun.events` iterable. An engine hands its events to
+ * `push`; the run's consumer pulls them through `next`. `close` resolves every pending waiter with
+ * `done`, so a cancelled or finished run ends its async iteration deterministically.
+ *
+ * Backends feed this from different sources (PI from its turn stream, Claude from the turn
+ * callbacks plus the terminal phase), so queue semantics live here rather than in either engine.
+ * Extracted from `pi/engine.ts` in P2.3b; P2.3d/P4.1 may fold it into the run layer.
+ */
+export class RunEventQueue {
+  private readonly pending: RunEvent[] = [];
+  private readonly waiters: ((result: IteratorResult<RunEvent>) => void)[] = [];
+  private closed = false;
+
+  push(event: RunEvent): void {
+    if (this.closed) return;
+    const waiter = this.waiters.shift();
+    if (waiter) waiter({ value: event, done: false });
+    else this.pending.push(event);
+  }
+
+  next(): Promise<IteratorResult<RunEvent>> {
+    const buffered = this.pending.shift();
+    if (buffered) return Promise.resolve({ value: buffered, done: false });
+    if (this.closed) return Promise.resolve({ value: undefined, done: true });
+    return new Promise((resolve) => this.waiters.push(resolve));
+  }
+
+  close(): void {
+    if (this.closed) return;
+    this.closed = true;
+    for (const waiter of this.waiters.splice(0)) waiter({ value: undefined, done: true });
   }
 }
