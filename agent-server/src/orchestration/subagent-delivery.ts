@@ -6,7 +6,7 @@
 import { createLogger } from '@core/log.js';
 import { runRegistry } from '@core/run-registry.js';
 import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
-import type { SubagentToolResult } from '@domain/agents/subagent/orchestrate.js';
+import type { SubagentToolResult } from '@core/agents/subagent/orchestrate.js';
 import {
   stopSubagentRun, type StartSubagentRunOptions, type SubagentRunView,
 } from '@domain/agents/subagent/registry.js';

@@ -6,7 +6,7 @@
 import * as path from 'node:path';
 import { createLogger } from '@core/log.js';
 import type { AgentResult } from '@core/types/agent-types.js';
-import type { CodexQuotaReading } from '@domain/costs/codex-quota.js';
+import type { CodexQuotaReading } from '@core/codex-quota.js';
 import type {
   AgentCompactResult, AgentCompactUsage, InjectionAckSink, UserMessage,
 } from '../types.js';

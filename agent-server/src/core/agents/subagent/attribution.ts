@@ -4,7 +4,7 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { NormalizedEvent, ToolUseSubagent } from '../../../agent-adapter/normalize/event-types.js';
-import { toCanonical } from '../../../agent-adapter/normalize/tool-names.js';
+import { toCanonical } from '@core/tool-names.js';
 import type { SubagentNotice } from '../../../agent-adapter/pi/event-parser.js';
 
 /**

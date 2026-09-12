@@ -10,7 +10,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, test } from 'vitest';
 import { AGENT_PLUGIN_V1_MCP_SCHEMA_URL, AGENT_PLUGIN_V1_PLUGIN_SCHEMA_URL } from '../../../src/domain/plugins/agent-plugins-v1.js';
-import { safeClaudeManifestName, safeNativeComposite } from '../../../src/domain/plugins/native-name.js';
+import { safeClaudeManifestName, safeNativeComposite } from '@core/native-name.js';
 import { resolvePluginRuntime } from '../../../src/domain/plugins/runtime.js';
 import { buildProjectedSkillTree, copyProjectedSkillTree } from '../../../src/domain/plugins/skill-projection.js';
 

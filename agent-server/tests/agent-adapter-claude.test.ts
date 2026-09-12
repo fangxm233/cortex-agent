@@ -53,7 +53,7 @@ import { ClaudeAdapter, _test as adapterTest, recoverTuiOrphans } from '../src/a
 import { claudePool } from './agent-adapter/claude-pool-fixture.js';
 import type { TmuxExecResult } from '../src/agent-adapter/claude/tmux-control.js';
 import { CONFIG_DIR, DEFAULTS_DIR, HOOKS_DIR } from '../src/core/paths.js';
-import { safeNativeName } from '../src/domain/plugins/native-name.js';
+import { safeNativeName } from '@core/native-name.js';
 import type { McpServerConfig } from '../src/agent-adapter/types.js';
 import type { HookEntry } from '../src/store/hook-registry.js';
 

@@ -17,7 +17,7 @@ import {
   parseRole,
   roleToolsForBackend,
   type AgentRole,
-} from '../src/domain/agents/roles.js';
+} from '@core/agents/roles.js';
 
 const temps: string[] = [];
 

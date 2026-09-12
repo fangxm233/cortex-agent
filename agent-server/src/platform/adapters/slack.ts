@@ -34,6 +34,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { writeFile } from 'fs/promises';
 import { updateSettings } from '@core/settings.js';
+import { IMAGE_MIMES } from '@core/media-types.js';
 import { reactionFailureReason, shouldWarnReactionFailure } from '../utils/reaction-diagnostics.js';
 
 const log = createLogger('slack');
@@ -43,7 +44,6 @@ const QUEUED_REACTION = 'hourglass';
 /** Picked up by the agent — the ⏳ is replaced by this once the message is consumed. */
 const CONSUMED_REACTION = 'white_check_mark';
 
-const IMAGE_MIMES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
 const IMAGE_MAGIC: Record<string, string> = {
   '\x89PNG': 'image/png',
   '\xFF\xD8\xFF': 'image/jpeg',

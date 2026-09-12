@@ -5,7 +5,7 @@
 
 import { resolveMcpComposition } from '../types.js';
 import type { CortexContextEnv, EngineSpec, McpComposition, McpServerConfig } from '../types.js';
-import { fromCanonical } from '../normalize/tool-names.js';
+import { fromCanonical } from '@core/tool-names.js';
 import { browserMcpServer } from '../browser-mcp-server.js';
 import { MCP_TOOL_ALLOWLIST_ENV } from '@core/mcp-tool-gate.js';
 

@@ -4,7 +4,7 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { ExtensionFactory } from '@earendil-works/pi-coding-agent';
-import { parseCodexQuotaHeaders, type CodexQuotaReading } from '@domain/costs/codex-quota.js';
+import { parseCodexQuotaHeaders, type CodexQuotaReading } from '@core/codex-quota.js';
 
 interface AfterProviderResponseEvent {
   status?: number;

@@ -20,10 +20,10 @@ import {
 import {
   _resetSubagentRuns, startSubagentRun, waitForSubagentRun,
 } from '../src/domain/agents/subagent/registry.js';
-import { emptyUsage } from '../src/domain/agents/subagent/usage.js';
-import type { SubagentToolResult } from '../src/domain/agents/subagent/orchestrate.js';
+import { emptyUsage } from '@core/agents/subagent/usage.js';
+import type { SubagentToolResult } from '@core/agents/subagent/orchestrate.js';
 import type { SubagentRunStatus } from '../src/domain/agents/subagent/registry.js';
-import type { Invocation } from '../src/domain/agents/subagent/types.js';
+import type { Invocation } from '@core/agents/subagent/types.js';
 
 const SESSION = 'sess-bg';
 const CHANNEL = 'web:7';

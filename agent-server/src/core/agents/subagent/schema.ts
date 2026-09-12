@@ -3,7 +3,7 @@
 // pos:    The one shape of the `agent` tool, dialect-independent
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import type { Backend } from '../../../agent-adapter/types.js';
+import type { Backend } from '@core/types/agent-types.js';
 import type { Invocation, SubagentMode, SubagentTask } from './types.js';
 
 export const MAX_SUBAGENT_TASKS = 8;

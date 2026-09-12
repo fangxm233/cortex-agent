@@ -19,7 +19,7 @@ import { getSettings } from '@core/settings.js';
 import { materializeMcpToolAllowlistConfigs } from '@core/config-generator.js';
 import { MCP_INFRASTRUCTURE_TIMEOUT_MS } from '@core/mcp-timeout.js';
 import { SUBAGENT_TOOLS } from '@core/mcp-tool-gate.js';
-import { encodeSubagentModels, piModelOptions } from '@domain/agents/subagent/catalog.js';
+import { encodeSubagentModels, piModelOptions } from '@core/agents/subagent/catalog.js';
 import type { McpBundleName } from '@core/mcp-bundles.js';
 import type { McpComposition } from '../types.js';
 import { piProviderDiscovery } from '../pi/discovery.js';

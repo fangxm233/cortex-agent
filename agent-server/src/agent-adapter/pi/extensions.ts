@@ -4,7 +4,7 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { InlineExtension } from '@earendil-works/pi-coding-agent';
-import type { CodexQuotaReading } from '@domain/costs/codex-quota.js';
+import type { CodexQuotaReading } from '@core/codex-quota.js';
 import type { PiSessionRequest } from './session-options.js';
 import type { SubagentNotice } from './event-parser.js';
 import type { RunForeignSubagent } from './subagent.js';

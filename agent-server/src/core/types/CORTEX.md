@@ -4,5 +4,5 @@ Shared type definitions for agent execution and the thread system, imported acro
 
 | filename | role | function |
 |---|---|---|
-| agent-types.ts | types | Defines results, auth actions and exact token-split accounting |
+| agent-types.ts | types | Defines results, auth actions, the Backend union and exact token-split accounting |
 | thread-types.ts | types | Defines runtime, evidence, input and lifecycle types |

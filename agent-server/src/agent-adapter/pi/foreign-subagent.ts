@@ -4,7 +4,7 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { ForeignSubagentRequest } from './subagent.js';
-import type { SubagentResult } from '@domain/agents/subagent/types.js';
+import type { SubagentResult } from '@core/agents/subagent/types.js';
 
 /**
  * Runs a non-`pi` child on the daemon's own runner.

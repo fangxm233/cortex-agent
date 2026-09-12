@@ -3,8 +3,8 @@
 // pos:    Default bridge from the PI shim to the daemon's background subagent machinery
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import type { SubagentChannel } from '@domain/agents/subagent/orchestrate.js';
-import type { Invocation, RunChildFn } from '@domain/agents/subagent/types.js';
+import type { SubagentChannel } from '@core/agents/subagent/orchestrate.js';
+import type { Invocation, RunChildFn } from '@core/agents/subagent/types.js';
 
 export interface BackgroundSubagentRequest {
   invocation: Invocation;
@@ -47,7 +47,7 @@ export async function startBackgroundSubagent(
     // The tool call that started this has already returned, so its own signal is gone; the
     // registry's is the only one that can still stop these children.
     execute: async (signal) => {
-      const { runInvocation } = await import('@domain/agents/subagent/orchestrate.js');
+      const { runInvocation } = await import('@core/agents/subagent/orchestrate.js');
       return runInvocation(request.invocation, request.runChild, signal, request.channel);
     },
   }), request.conduit);

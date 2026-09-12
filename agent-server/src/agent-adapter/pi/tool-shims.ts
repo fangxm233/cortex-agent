@@ -6,10 +6,10 @@ import { Type } from '@sinclair/typebox';
 import type { ExtensionAPI, ExtensionContext, InlineExtension } from '@earendil-works/pi-coding-agent';
 import * as path from 'node:path';
 import { PI_AGENT_DIR, ensurePIAgentRoles } from './agent-dir.js';
-import { loadRoles } from '@domain/agents/roles.js';
+import { loadRoles } from '@core/agents/roles.js';
 import {
   claudeModelOptions, piModelOptions, roleOptionsFrom, type SubagentCatalog,
-} from '@domain/agents/subagent/catalog.js';
+} from '@core/agents/subagent/catalog.js';
 import { createChildSession, type ChildSessionFactory } from './child-session.js';
 import type { SubagentNotice } from './event-parser.js';
 import { createMcpBridgeDeps, installMcpBridge } from './mcp-bridge.js';

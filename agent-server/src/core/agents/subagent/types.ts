@@ -3,7 +3,7 @@
 // pos:    Vocabulary of one delegated subagent run
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import type { Backend } from '../../../agent-adapter/types.js';
+import type { Backend } from '@core/types/agent-types.js';
 
 export type SubagentMode = 'single' | 'parallel' | 'chain';
 

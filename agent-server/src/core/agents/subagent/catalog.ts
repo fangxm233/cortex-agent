@@ -4,7 +4,7 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { ANTHROPIC_MODELS } from '@core/anthropic-models.js';
-import type { Backend } from '../../../agent-adapter/types.js';
+import type { Backend } from '@core/types/agent-types.js';
 import type { AgentRole } from '../roles.js';
 import { SUBAGENT_BACKEND_DESCRIPTION, SUBAGENT_MODEL_DESCRIPTION } from './schema.js';
 

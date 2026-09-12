@@ -5,7 +5,7 @@
 
 import { handleRateLimitEvent, type RateLimitSource } from '@domain/costs/rate-limit-throttle.js';
 import { usageStore, type ProviderUsage, type UsageStore } from '@domain/costs/usage-store.js';
-import type { CodexQuotaReading } from '@domain/costs/codex-quota.js';
+import type { CodexQuotaReading } from '@core/codex-quota.js';
 
 /** Signature of the throttle entry point; injected in tests, defaulted to the real one. */
 type SubmitRateLimit = (

@@ -5,17 +5,17 @@
 
 import { Type } from '@sinclair/typebox';
 import type { ExtensionContext, InlineExtension, ToolDefinition } from '@earendil-works/pi-coding-agent';
-import { findRole, loadRoles, type AgentRole } from '@domain/agents/roles.js';
+import { findRole, loadRoles, type AgentRole } from '@core/agents/roles.js';
 import {
   MAX_SUBAGENT_TASKS, SUBAGENT_DESCRIPTION, resolveInvocation,
-} from '@domain/agents/subagent/schema.js';
+} from '@core/agents/subagent/schema.js';
 import {
   describeSubagent, type SubagentCatalog, type SubagentFieldDescriptions,
-} from '@domain/agents/subagent/catalog.js';
-import { failedChildResult, runInvocation } from '@domain/agents/subagent/orchestrate.js';
+} from '@core/agents/subagent/catalog.js';
+import { failedChildResult, runInvocation } from '@core/agents/subagent/orchestrate.js';
 import type {
   ChildEventForwarder, Invocation, RunChildFn, SubagentDetails, SubagentResult, SubagentTask,
-} from '@domain/agents/subagent/types.js';
+} from '@core/agents/subagent/types.js';
 import type { Backend } from '../types.js';
 import type { ChildSessionFactory } from './child-session.js';
 import type {
@@ -25,11 +25,11 @@ import { subagentChannel } from './child-events.js';
 import { runPiChild, selectPiModel } from './child-runner.js';
 import type { SubagentNotice } from './event-parser.js';
 
-export { MAX_SUBAGENT_TASKS, MAX_SUBAGENT_CONCURRENCY } from '@domain/agents/subagent/schema.js';
+export { MAX_SUBAGENT_TASKS, MAX_SUBAGENT_CONCURRENCY } from '@core/agents/subagent/schema.js';
 export {
   MAX_SUBAGENT_MODEL_CHOICES, MAX_SUBAGENT_MODEL_LIST_CHARS,
-} from '@domain/agents/subagent/catalog.js';
-export type { SubagentModelOption } from '@domain/agents/subagent/catalog.js';
+} from '@core/agents/subagent/catalog.js';
+export type { SubagentModelOption } from '@core/agents/subagent/catalog.js';
 
 /** The field descriptions track the live catalog, so the schema is built per tool instead of being
  *  frozen at import time. */
@@ -124,7 +124,7 @@ export interface SubagentToolDeps {
 
 export type {
   SubagentResult, SubagentUsage, SubagentDetails,
-} from '@domain/agents/subagent/types.js';
+} from '@core/agents/subagent/types.js';
 
 function fallbackModel(ctx: ExtensionContext) {
   return ctx.model ? { id: ctx.model.id, provider: ctx.model.provider } : null;

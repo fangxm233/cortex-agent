@@ -15,7 +15,7 @@ export * from './types.js';
 export * from './capabilities.js';
 export * from './normalize/event-types.js';
 export * from './normalize/hooks.js';
-export * from './normalize/tool-names.js';
+export * from '@core/tool-names.js';
 
 // The daemon's PI collaborators are injected here rather than defaulted inside the adapter: the host
 // PI home, its cached provider scan and its auth mirroring are exactly the ambient reaches a trial

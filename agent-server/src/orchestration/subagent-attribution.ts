@@ -7,7 +7,7 @@ import { createLogger } from '@core/log.js';
 import { runRegistry, type RunningExecution } from '@core/run-registry.js';
 import type { AgentProcess } from '../agent-adapter/types.js';
 import type { SubagentNotice } from '../agent-adapter/pi/event-parser.js';
-import { subagentNoticeEvents } from '@domain/agents/subagent/attribution.js';
+import { subagentNoticeEvents } from '@core/agents/subagent/attribution.js';
 
 const log = createLogger('subagent-attribution');
 

@@ -11,7 +11,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createQuotaProbe } from '../src/agent-adapter/pi/quota-probe.js';
-import type { CodexQuotaReading } from '../src/domain/costs/codex-quota.js';
+import type { CodexQuotaReading } from '@core/codex-quota.js';
 import { reportCodexQuota, resolveQuotaSource } from '../src/agent-adapter/pi/quota-sink.js';
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
 import { piPool } from './agent-adapter/pi-pool-fixture.js';

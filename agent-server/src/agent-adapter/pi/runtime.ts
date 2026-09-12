@@ -12,7 +12,7 @@ import type {
 } from '@earendil-works/pi-coding-agent';
 import { createLogger } from '@core/log.js';
 import { loadPiSdk, type PiSdkModule } from '@core/pi-sdk.js';
-import type { CodexQuotaReading } from '@domain/costs/codex-quota.js';
+import type { CodexQuotaReading } from '@core/codex-quota.js';
 import type { PiSessionRequest } from './session-options.js';
 import { createPiUiContext } from './ui-context.js';
 import { createCortexExtensions } from './extensions.js';

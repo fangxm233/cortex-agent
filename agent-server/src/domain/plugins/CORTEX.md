@@ -10,7 +10,6 @@ Plugin catalog and spawn runtime for skills, MCP, and backend projections.
 | catalog.ts | core | Load entries and validate portable skill trees |
 | fs-helpers.ts | util | Guard plugin path containment and child listing |
 | mcp.ts | core | Load MCP views and attach private runtimes |
-| native-name.ts | util | Build safe native plugin names |
 | runtime.ts | core | Isolate projected skills and MCP runtimes |
 | resources/ | asset | Store Agent Plugins 1.0.0 schema files |
 | skill-projection.ts | core | Snapshot and verify private skill copies |

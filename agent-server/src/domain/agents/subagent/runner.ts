@@ -14,16 +14,16 @@ import { noticesFor } from '../../../agent-adapter/pi/child-events.js';
 import { getEngineAdapter } from '../../../agent-adapter/index.js';
 import { GATEWAY_URL } from '../../costs/gateway-manager.js';
 import { getClaudeMode, getClaudeModel } from '../config.js';
-import { roleToolsForBackend, type AgentRole } from '../roles.js';
+import { roleToolsForBackend, type AgentRole } from '@core/agents/roles.js';
 import { buildPiGatewaySubPath, type AgentConfig } from '../spawn-config.js';
 import type { ResolvedProfileConfig } from '../profile-manager.js';
 import { startRun } from '../../runs/service.js';
 import type { RunObserver, RunRequest } from '../../runs/request.js';
 import type { RunEvent } from '../../runs/events.js';
-import { emptyUsage } from './usage.js';
+import { emptyUsage } from '@core/agents/subagent/usage.js';
 import type {
   ChildAccumulator, ChildEventForwarder, SubagentResult, SubagentTask, SubagentUsage,
-} from './types.js';
+} from '@core/agents/subagent/types.js';
 
 const log = createLogger('subagent-runner');
 

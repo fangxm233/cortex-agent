@@ -15,7 +15,7 @@ import { startDaemonSubagentRun } from '@domain/agents/subagent/service.js';
 import { parentNoticeSink } from './subagent-attribution.js';
 import { startBackgroundSubagentRun } from './subagent-delivery.js';
 import type { SubagentParentContext } from '@domain/agents/subagent/runner.js';
-import type { SubagentToolResult } from '@domain/agents/subagent/orchestrate.js';
+import type { SubagentToolResult } from '@core/agents/subagent/orchestrate.js';
 
 const log = createLogger('subagent-webhook');
 

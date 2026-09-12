@@ -10,7 +10,10 @@ import type { NormalizedEvent, ToolUseSubagent } from './normalize/event-types.j
 import type { RunEvent } from './run-events.js';
 import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
 
-export type Backend = 'claude' | 'pi';
+// Re-exported so every `import { Backend } from '.../agent-adapter/types.js'` keeps working;
+// the definition moved to core so `core/agents/*` can name a backend without importing up.
+import type { Backend } from '@core/types/agent-types.js';
+export type { Backend };
 export type McpComposition = 'direct' | 'thread-control' | 'none';
 
 /** Cortex execution context surfaced to child processes as CORTEX_* env vars. */

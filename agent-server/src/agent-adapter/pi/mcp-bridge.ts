@@ -39,7 +39,7 @@ import {
 import {
   PI_COMMISSION_TOOLS_ENV, PI_INTERACTION_BRIDGE_ENV, PI_MCP_COMPOSITION_ENV,
 } from './session-options.js';
-import { safeNativeComposite, safeNativeName } from '../../domain/plugins/native-name.js';
+import { safeNativeComposite, safeNativeName } from '@core/native-name.js';
 import { createBundledServer } from '../../domain/mcp/bundled-server.js';
 import { toolContextFromEnv } from '../../domain/mcp/tools/context.js';
 

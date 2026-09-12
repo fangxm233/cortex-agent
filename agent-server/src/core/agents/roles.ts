@@ -13,8 +13,8 @@ import { parse as yamlParse } from 'yaml';
 import { CONFIG_DIR, DEFAULTS_DIR } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
 import { MCP_TOOLS_BY_SERVER } from '@core/mcp-tool-gate.js';
-import { fromCanonical } from '../../agent-adapter/normalize/tool-names.js';
-import type { Backend } from '../../agent-adapter/types.js';
+import { fromCanonical } from '@core/tool-names.js';
+import type { Backend } from '@core/types/agent-types.js';
 
 const log = createLogger('agent-roles');
 

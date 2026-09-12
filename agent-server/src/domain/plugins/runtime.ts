@@ -12,7 +12,7 @@ import type { Backend, McpComposition, McpServerConfig } from '../../agent-adapt
 import { atomicWriteSync } from '../../core/atomic-write.js';
 import { loadPluginCatalog } from './catalog.js';
 import { pluginMcpRuntime, type PluginCatalogEntry, type PluginMcpServer } from './catalog-types.js';
-import { safeClaudeManifestName, safeClaudeManifestVersion, safeNativeComposite } from './native-name.js';
+import { safeClaudeManifestName, safeClaudeManifestVersion, safeNativeComposite } from '@core/native-name.js';
 import {
   buildProjectedSkillTree,
   copyProjectedSkillTree,

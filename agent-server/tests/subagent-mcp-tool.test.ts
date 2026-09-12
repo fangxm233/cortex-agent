@@ -20,8 +20,8 @@ import {
 } from '../src/agent-adapter/claude/defaults.js';
 import {
   decodeSubagentModels, encodeSubagentModels,
-} from '../src/domain/agents/subagent/catalog.js';
-import { SUBAGENT_MODEL_DESCRIPTION } from '../src/domain/agents/subagent/schema.js';
+} from '@core/agents/subagent/catalog.js';
+import { SUBAGENT_MODEL_DESCRIPTION } from '@core/agents/subagent/schema.js';
 import type { CortexToolContext } from '../src/domain/mcp/tools/context.js';
 
 const requestLoopbackJson = vi.hoisted(() => vi.fn());

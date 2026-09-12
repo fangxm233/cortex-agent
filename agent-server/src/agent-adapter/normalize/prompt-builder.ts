@@ -1,4 +1,4 @@
-import { IMAGE_MIMES, VIDEO_MIMES } from '@orch/routing/file-handler.js';
+import { IMAGE_MIMES, VIDEO_MIMES } from '@core/media-types.js';
 import * as path from 'path';
 
 interface FileAttachment {

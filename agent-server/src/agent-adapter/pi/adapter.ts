@@ -20,7 +20,7 @@ import {
 import { readCustomProviderEntries } from './custom-catalog.js';
 import { findPISessionFilePath } from './session-files.js';
 import { reportCodexQuota, resolveQuotaSource } from './quota-sink.js';
-import { CODEX_PROVIDER, type CodexQuotaReading } from '@domain/costs/codex-quota.js';
+import { CODEX_PROVIDER, type CodexQuotaReading } from '@core/codex-quota.js';
 import type { ProviderUsage, UsageStore } from '@domain/costs/usage-store.js';
 import type { PIProviderDiscovery } from './discovery.js';
 import { PISession } from './pi-session.js';

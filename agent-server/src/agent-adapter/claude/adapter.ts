@@ -9,7 +9,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import { AGENT_CWD, resolveSpawnCwd } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
-import { fromCanonical } from '../normalize/tool-names.js';
+import { fromCanonical } from '@core/tool-names.js';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../capabilities.js';
 import { resolveMcpComposition } from '../types.js';
 import type {

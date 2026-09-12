@@ -13,7 +13,7 @@ import {
   MAX_SUBAGENT_TASKS,
   type SubagentToolDeps,
 } from '../src/agent-adapter/pi/subagent.js';
-import type { SubagentCatalog } from '../src/domain/agents/subagent/catalog.js';
+import type { SubagentCatalog } from '@core/agents/subagent/catalog.js';
 import type { ChildSessionHandle, ChildSessionRequest } from '../src/agent-adapter/pi/child-session.js';
 import { PI_INTERACTION_BRIDGE_ENV } from '../src/agent-adapter/pi/session-options.js';
 import {
