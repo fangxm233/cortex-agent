@@ -498,7 +498,7 @@ class ClaudeSession implements TurnHost {
       this.spawnProcess();
     }
     this.resetIdleTimer();
-    const prompt = buildPrompt(userMessage, options.files || []);
+    const prompt = buildPrompt(userMessage, options.attachments ?? []);
     const streams = this.turns.createTurnStreams(userMessage);
 
     const turnPromise = new Promise<any>((resolve, reject) => {

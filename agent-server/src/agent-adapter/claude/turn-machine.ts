@@ -331,10 +331,7 @@ export class ClaudeTurnMachine {
     // turn whose reply nobody is awaiting; the caller must enqueue it as a normal turn instead.
     if (!this.currentTurn) return false;
 
-    const files = (message.attachments || []).map((a) => ({
-      mimetype: a.mimeType, localPath: a.path, name: path.basename(a.path),
-    }));
-    const prompt = buildPrompt(message.text, files);
+    const prompt = buildPrompt(message.text, message.attachments ?? []);
     try {
       this.host.writeTurnStdin(prompt);
     } catch {

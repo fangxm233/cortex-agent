@@ -1,7 +1,9 @@
 import { IMAGE_MIMES, VIDEO_MIMES } from '@core/media-types.js';
 import * as path from 'path';
 
-interface FileAttachment {
+/** Exactly `UserMessage['attachments']` element shape (D6): the attachment travels from the
+ *  RunRequest to the prompt without an intermediate per-backend form. */
+export interface FileAttachment {
   mimeType: string;
   path: string;
 }

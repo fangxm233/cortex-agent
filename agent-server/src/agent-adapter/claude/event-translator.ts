@@ -8,6 +8,7 @@ import type { NormalizedEvent, ToolUseSubagent } from '../normalize/event-types.
 import { parseTodoWrite } from '../normalize/todo.js';
 import type { ModelFallbackEvent } from './event-parser.js';
 import type { SubagentEndStatus } from './bg-task-tracker.js';
+import type { UserMessage } from '../types.js';
 
 export type SubagentActivityKind = 'assistant' | 'tool_result';
 
@@ -40,7 +41,7 @@ export function promptAccounting(usage: TurnTokenUsage | null) {
 
 /** Options bag accepted by `ClaudeSession.sendMessage`. */
 export interface ClaudeTurnCallbacks {
-  files?: any[];
+  attachments?: UserMessage['attachments'];
   callbackSource?: string | null;
   scheduleTaskId?: string | null;
   isUserInitiated?: boolean;

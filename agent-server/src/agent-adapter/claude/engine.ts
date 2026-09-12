@@ -3,7 +3,6 @@
 // pos:    Claude backend's session surface: RunEvent runs over one ClaudeSession
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import * as path from 'path';
 import type { AgentResult } from '@core/types/agent-types.js';
 import { CAPABILITIES_BY_BACKEND, type Capability } from '../capabilities.js';
 import { RunEventQueue, toRunEvent, type RunEvent } from '../run-events.js';
@@ -142,10 +141,7 @@ export class ClaudeEngineSession implements EngineSession {
     }
 
     const push = (event: NormalizedEvent) => queue.push(toRunEvent(event, 'foreground'));
-    const files = (prompt.attachments || []).map((a) => ({
-      mimetype: a.mimeType, localPath: a.path, name: path.basename(a.path),
-    }));
-    const result = this.driveTurn(prompt, files, push, queue);
+    const result = this.driveTurn(prompt, push, queue);
     // The caller observes rejection through `EngineRun.result`; this only prevents an unhandled
     // rejection when a consumer reads `events` without awaiting `result`.
     result.catch(() => undefined);
@@ -164,13 +160,12 @@ export class ClaudeEngineSession implements EngineSession {
 
   private async driveTurn(
     prompt: UserMessage,
-    files: Array<{ mimetype: string; localPath: string; name: string }>,
     push: (event: NormalizedEvent) => void,
     queue: RunEventQueue,
   ): Promise<AgentResult> {
     try {
       const result = await this.session.sendMessage(prompt.text, {
-        files,
+        attachments: prompt.attachments,
         ...claudeTurnCallbacks(push),
       });
       pushDerivedTurnEvents(
@@ -236,12 +231,9 @@ export class ClaudeEngineSession implements EngineSession {
           stream.push({ type: 'session_started', sessionId: session.sessionId });
           started = true;
         }
-        const files = (message.attachments || []).map((a) => ({
-          mimetype: a.mimeType, localPath: a.path, name: path.basename(a.path),
-        }));
         try {
           const result = await session.sendMessage(message.text, {
-            files,
+            attachments: message.attachments,
             ...claudeTurnCallbacks(stream.push),
           });
           pushDerivedTurnEvents(stream.push, result, session, spec.flags.preserveUnreportedAccounting === true);
