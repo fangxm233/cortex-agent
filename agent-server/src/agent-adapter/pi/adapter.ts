@@ -19,7 +19,9 @@ import {
 } from './providers-config.js';
 import { readCustomProviderEntries } from './custom-catalog.js';
 import { findPISessionFilePath } from './session-files.js';
-import { reportCodexQuota, resolveQuotaSource } from './quota-sink.js';
+import { reportCodexQuota, resolveQuotaSource, type CodexQuotaSinkDeps } from './quota-sink.js';
+
+type SubmitRateLimit = CodexQuotaSinkDeps['submit'];
 import { CODEX_PROVIDER, type CodexQuotaReading } from '@core/codex-quota.js';
 import type { ProviderUsage, UsageStore } from '@domain/costs/usage-store.js';
 import type { PIProviderDiscovery } from './discovery.js';
@@ -104,6 +106,10 @@ export interface PIAdapterHooks {
   userModelsPath?: string;
   /** Daemon-owned push usage cache. Trials omit it and observe only a cold state. */
   usageStore?: Pick<UsageStore, 'get' | 'update'>;
+  /** Host throttle entry point for Codex quota windows read off provider responses. Injected
+   *  rather than defaulted (D10): the throttle is domain state, and an omitted sink means this
+   *  instance reports nothing rather than writing the daemon's. */
+  submitRateLimit?: SubmitRateLimit;
 }
 
 export class PIAdapter implements EngineAdapter {
@@ -120,6 +126,7 @@ export class PIAdapter implements EngineAdapter {
   /** Injected user catalog path, or undefined when this instance mirrors no custom provider. */
   private readonly userModelsPath: string | undefined;
   private readonly usageStore: Pick<UsageStore, 'get' | 'update'> | undefined;
+  private readonly submitRateLimit: SubmitRateLimit | undefined;
   /** sessionDir for the <sessionId>.jsonl path convention. Exposed for tests. */
   readonly sessionDir: string;
 
@@ -136,6 +143,7 @@ export class PIAdapter implements EngineAdapter {
     this.prepareAgentDir = hooks.prepareAgentDir;
     this.userModelsPath = hooks.userModelsPath;
     this.usageStore = hooks.usageStore;
+    this.submitRateLimit = hooks.submitRateLimit;
   }
 
   async getUsage(scope: AgentUsageScope): Promise<ProviderUsage[] | null> {
@@ -281,12 +289,19 @@ export class PIAdapter implements EngineAdapter {
     return this.buildRequest(spec, sessionPath);
   }
 
+  /** Undefined unless this instance was given somewhere to put a reading: no gateway route means
+   *  no plan-backed quota to read, and no injected store/throttle means nothing may be written
+   *  (D10 — the sink used to fall back to the daemon's singletons, so an unhooked instance wrote
+   *  the real throttle). `extensions.ts` skips the probe entirely when this returns undefined. */
   private quotaReporter(spec: EngineSpec): ((reading: CodexQuotaReading) => void) | undefined {
     if (!spec.route.gatewayBaseUrl) return undefined;
+    const usageStore = this.usageStore;
+    const submit = this.submitRateLimit;
+    if (!usageStore || !submit) return undefined;
     return (reading) => {
       void reportCodexQuota(reading, resolveQuotaSource({
         provider: spec.model.provider, gatewayPath: spec.route.gatewayPath,
-      }), { usageStore: this.usageStore })
+      }), { usageStore, submit })
         .catch((error) => log.error('reportCodexQuota error:', error));
     };
   }

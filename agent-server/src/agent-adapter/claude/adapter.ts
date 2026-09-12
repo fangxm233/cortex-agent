@@ -15,7 +15,8 @@ import { resolveMcpComposition } from '../types.js';
 import type {
   AgentCompactResult, AgentProcessSpawner,
   AgentProcessSupervision, EngineAdapter, EngineSpec, Backend, ContinuationSink,
-  InjectionAckSink, McpComposition, SpawnedAgentProcess, UserMessage,
+  InjectionAckSink, McpComposition, RateLimitObservation, RateLimitOrigin, RateLimitReporter,
+  SpawnedAgentProcess, UserMessage,
 } from '../types.js';
 import { ClaudeEngineSession, type ClaudeEngineOpenHooks } from './engine.js';
 import type { AgentResult } from '@core/types/agent-types.js';
@@ -121,6 +122,8 @@ interface ClaudeSessionOptions {
   /** Pool hooks (P2.3c): the owner's eviction callbacks. See `ClaudeEngineOpenHooks`. */
   onSelfClose?: ClaudeEngineOpenHooks['onSelfClose'];
   onEvict?: ClaudeEngineOpenHooks['onEvict'];
+  /** Host throttle entry point (P2.5b). Absent ⇒ observations are dropped; see `ClaudeAdapterHooks`. */
+  onRateLimit?: RateLimitReporter;
 }
 
 interface ClaudeSpawnFields extends ClaudeSpawnOptions {
@@ -317,6 +320,9 @@ class ClaudeSession implements TurnHost {
    *  the fatal stdin-write path it replaced. */
   private readonly onSelfClose: ClaudeEngineOpenHooks['onSelfClose'];
   private readonly onEvict: ClaudeEngineOpenHooks['onEvict'];
+  /** Injected throttle sink (P2.5b/D10). Unset in a trial, wired to `handleRateLimitEvent` by
+   *  `domain/runs/adapters.ts` in the daemon. */
+  private readonly onRateLimit: RateLimitReporter | undefined;
   /** The turn half. Built before the process is spawned, so the first line has a home. */
   private readonly turns: ClaudeTurnMachine;
   private alive: boolean = false;
@@ -329,6 +335,7 @@ class ClaudeSession implements TurnHost {
     this.channel = channel;
     this.sessionId = sessionId;
     this.sessionKey = options.sessionKey || channel;
+    this.onRateLimit = options.onRateLimit;
     this.needsResume = options.needsResume;
     this.modelName = options.model || null;
     this.cwd = resolveSpawnCwd(options.cwd);
@@ -610,6 +617,12 @@ class ClaudeSession implements TurnHost {
     this.turnIdleTimer = null;
   }
 
+  /** Forward a provider rate-limit window to the host's throttle. With no sink injected the
+   *  observation is dropped — the adapter has no opinion about quota policy (D10). */
+  reportRateLimit(info: RateLimitObservation, origin: RateLimitOrigin): Promise<void> {
+    return this.onRateLimit ? this.onRateLimit(info, origin) : Promise.resolve();
+  }
+
   // --- Turn delegation. Thin by design: `ClaudeAdapter.spawn` and the unit tests still reach the
   //     turn through the session. P2.3d/e retire every member below. ---
 
@@ -802,9 +815,22 @@ function computeSpawnArgsForSpec(spec: EngineSpec): string[] {
 /** D9: `claudeBackend: 'tui'` is accepted but deprecated; warn once per process, then run print. */
 let warnedTuiDeprecated = false;
 
+/** Collaborators the daemon owns and a trial replaces — the Claude twin of `PIAdapterHooks`.
+ *  Left unset, a rate-limit window the CLI reports is observed and discarded; the daemon wires the
+ *  real throttle in `domain/runs/adapters.ts`. */
+export interface ClaudeAdapterHooks {
+  /** Where `rate_limit_event` lines go. Injected because the throttle is domain state (D10). */
+  onRateLimit?: RateLimitReporter;
+}
+
 export class ClaudeAdapter implements EngineAdapter {
   readonly backend: Backend = 'claude';
   readonly capabilities: Set<Capability> = CAPABILITIES_BY_BACKEND.claude;
+  private readonly onRateLimit: RateLimitReporter | undefined;
+
+  constructor(hooks: ClaudeAdapterHooks = {}) {
+    this.onRateLimit = hooks.onRateLimit;
+  }
 
   /**
    * Pure construction (plan §3.3): resolve the spec exactly as the old `spawn()` did, build a
@@ -837,6 +863,7 @@ export class ClaudeAdapter implements EngineAdapter {
       sessionKey: key,
       onSelfClose: hooks.onSelfClose,
       onEvict: hooks.onEvict,
+      onRateLimit: this.onRateLimit,
     });
     return new ClaudeEngineSession(session, spec, claudeSpecIdentity(spec));
   }

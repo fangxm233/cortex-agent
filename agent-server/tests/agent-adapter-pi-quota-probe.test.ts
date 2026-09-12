@@ -16,7 +16,7 @@ import { reportCodexQuota, resolveQuotaSource } from '../src/agent-adapter/pi/qu
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
 import { piPool } from './agent-adapter/pi-pool-fixture.js';
 import {
-  initRateLimitThrottle, getThrottleState, _testReset,
+  initRateLimitThrottle, getThrottleState, handleRateLimitEvent, _testReset,
   type RateLimitThrottleState,
 } from '../src/domain/costs/rate-limit-throttle.js';
 import { MockAdapter } from '../src/platform/testing.js';
@@ -276,7 +276,14 @@ test('a quota reading from the PI session throttles the provider it was routed u
   );
 
   const fake = makeFakeRuntimeFactory();
-  const adapter = new PIAdapter(fake.factory);
+  // The throttle and the usage cache are injected, not defaulted (D10/P2.5b): this is the wiring
+  // `domain/runs/adapters.ts` performs for the daemon, and an adapter built without it reports
+  // nothing rather than writing the real singletons.
+  const persisted: unknown[] = [];
+  const adapter = new PIAdapter(fake.factory, undefined, undefined, {
+    usageStore: { get: async () => null, update: async (record) => { persisted.push(record); } },
+    submitRateLimit: handleRateLimitEvent,
+  });
   const proc = piPool(adapter).spawn(engineSpecFixture({
     sessionId: null,
     sessionKey: 'quota-wire',
@@ -305,6 +312,45 @@ test('a quota reading from the PI session throttles the provider it was routed u
   assert.deepEqual(state.providers.map((p) => p.provider), ['openai-codex']);
   assert.deepEqual(state.providers[0].modes, ['openai-codex']);
   assert.deepEqual(state.providers[0].windows.map((w) => w.type), ['codex_primary']);
+  assert.equal(persisted.length, 1, 'the same reading also lands in the injected usage cache');
+});
+
+test('an unwired PI adapter surfaces the reading but never reaches the daemon throttle', async (t) => {
+  t.onTestFinished(() => _testReset());
+  let saved: RateLimitThrottleState | null = null;
+  await initRateLimitThrottle(
+    new MockAdapter({ adminChannel: 'mock-admin' }) as never,
+    { save: async (state) => { saved = state; }, load: async () => saved },
+  );
+
+  const fake = makeFakeRuntimeFactory();
+  const proc = piPool(new PIAdapter(fake.factory)).spawn(engineSpecFixture({
+    sessionId: null,
+    sessionKey: 'quota-unwired',
+    resume: false,
+    piProvider: 'openai-codex',
+    piGatewayPath: '/m/openai-codex/openai-codex',
+    piGatewayBaseUrl: 'http://127.0.0.1:9880',
+  }));
+  const reading: CodexQuotaReading = {
+    provider: 'openai-codex',
+    planType: 'pro',
+    windows: [{ type: 'codex_primary', utilization: 0.96, resetsAt: Math.floor(Date.now() / 1000) + 3600 }],
+  };
+  const runtime = await fake.runtime();
+  runtime.emitQuota(reading);
+
+  // The transcript-facing half is unchanged — the reading still becomes a normalized event.
+  const started = await proc.events[Symbol.asyncIterator]().next();
+  assert.equal(started.value?.type, 'session_started');
+  const rateLimit = await proc.events[Symbol.asyncIterator]().next();
+  assert.deepEqual(rateLimit.value, { type: 'rate_limit', raw: reading });
+  // What changed (D10/P2.5b): with no injected sink the reading activates no throttle. Before this
+  // slice the sink defaulted to the daemon's `handleRateLimitEvent` and a bare adapter — a trial,
+  // a test — wrote the real one.
+  await waitForThrottle(10);
+  assert.deepEqual(getThrottleState().providers, []);
+  proc.kill();
 });
 
 test('resolves the provider and mode that the dispatch gate looks up', () => {

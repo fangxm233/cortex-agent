@@ -5,7 +5,7 @@ Defines shared contracts, capabilities, and normalized backend events.
 
 | filename | role | function |
 |---|---|---|
-| index.ts | entry | selects the stateless Claude and PI engine adapters |
+| index.ts | entry | re-exports the shared adapter contract (types, capabilities, events, hooks); the daemon assembly lives in domain/runs/adapters.ts |
 | types.ts | types | Shared adapter, EngineSpec/CortexContextEnv, usage, tool-gate, out-of-band turn event and plugin contracts |
 | run-events.ts | types | RunPhase/RunEvent vocabulary, the NormalizedEvent → RunEvent translation and the RunEventQueue backing EngineRun.events |
 | mcp-private-dir.ts | util | Guards private physical MCP directories |

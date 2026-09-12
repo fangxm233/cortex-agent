@@ -8,13 +8,12 @@ import assert from 'node:assert/strict';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join as pathJoin } from 'node:path';
 import {
-  getAdapter,
-  getEngineAdapter,
   toCanonical,
   fromCanonical,
   type Backend,
   type NormalizedEvent,
 } from '../src/agent-adapter/index.js';
+import { getAdapter, getEngineAdapter } from '../src/domain/runs/adapters.js';
 import { engines } from '../src/domain/runs/engines.js';
 import { claudePool } from './agent-adapter/claude-pool-fixture.js';
 

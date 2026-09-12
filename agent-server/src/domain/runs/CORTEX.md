@@ -11,6 +11,7 @@ paths all build a `RunRequest` and open a run. Phases 2–4 replace the engine p
 | continuation-sink.ts | core | runToContinuationSink(run, sink) — replays a run's background events as legacy ContinuationSink callbacks |
 | events.ts | core | re-exports RunPhase/RunEvent/toRunEvent from agent-adapter and translates ContinuationSink callbacks into them |
 | engine-spec.ts | core | buildEngineSpec + engineIdentity(); owns the scoped-plugin gate and PI gateway-path derivation |
+| adapters.ts | entry | builds the daemon's Claude and PI engine adapters, injecting the collaborators the adapter may not import (usage store, rate-limit throttle, PI home) — getAdapter/getEngineAdapter |
 | engines.ts | core | SessionEngines — the one owner of pooled engine sessions for both backends (acquire/close/kill/closeByPrefix/closeAll/registerSessionPath); module singleton `engines` + transitional PI and Claude run adapters |
 | request.ts | core | RunRequest, AgentSpec (with appendSystemPrompt), RunObserver and the RunResult alias (nullable session id, legacy useCoreMcp) |
 | run.ts | core | AgentRun state machine wrapping facade.runAgent directly; phases, results, cancel, steer (mid-turn injection + ack events), fan-out |

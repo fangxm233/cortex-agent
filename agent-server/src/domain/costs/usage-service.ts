@@ -3,7 +3,7 @@
 // pos:    Public orchestration service for provider usage visibility
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { getAdapter as getDaemonAdapter, getEngineAdapter } from '../../agent-adapter/index.js';
+import { getAdapter as getDaemonAdapter, getEngineAdapter } from '../runs/adapters.js';
 import { Capability } from '../../agent-adapter/capabilities.js';
 import type { AgentAdapter, AgentUsageScope, Backend } from '../../agent-adapter/types.js';
 import { getSettings as readSettings, type Settings } from '@core/settings.js';

@@ -4,7 +4,7 @@
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { createLogger } from '@core/log.js';
-import { getAdapter, getEngineAdapter } from '../../agent-adapter/index.js';
+import { getAdapter, getEngineAdapter } from './adapters.js';
 import type {
   AgentAdapter, AgentCompactResult, AgentProcess, Backend, EngineSpec,
 } from '../../agent-adapter/types.js';

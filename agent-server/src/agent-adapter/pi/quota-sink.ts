@@ -1,13 +1,15 @@
-// input:  provider/gateway route, Codex quota readings, usage store, and throttle
+// input:  provider/gateway route, Codex quota readings, an injected usage writer and throttle
 // output: resolveQuotaSource and durable labeled reportCodexQuota
 // pos:    Persists PI quota under routed provider keys and feeds throttle
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { handleRateLimitEvent, type RateLimitSource } from '@domain/costs/rate-limit-throttle.js';
-import { usageStore, type ProviderUsage, type UsageStore } from '@domain/costs/usage-store.js';
+import type { RateLimitSource } from '@domain/costs/rate-limit-throttle.js';
+import type { ProviderUsage, UsageStore } from '@domain/costs/usage-store.js';
 import type { CodexQuotaReading } from '@core/codex-quota.js';
 
-/** Signature of the throttle entry point; injected in tests, defaulted to the real one. */
+/** Signature of the throttle entry point. Always injected: which throttle a reading activates and
+ *  which store it lands in are the host's decisions, and an adapter that defaulted to the daemon's
+ *  singletons would let a trial write the real ones (D10). */
 type SubmitRateLimit = (
   info: { rateLimitType: string; rateLimitLabel?: string; utilization: number; resetsAt: number },
   source: RateLimitSource,
@@ -16,8 +18,8 @@ type SubmitRateLimit = (
 type UsageWriter = Pick<UsageStore, 'update'>;
 
 export interface CodexQuotaSinkDeps {
-  submit?: SubmitRateLimit;
-  usageStore?: UsageWriter;
+  submit: SubmitRateLimit;
+  usageStore: UsageWriter;
   now?: () => number;
 }
 
@@ -81,14 +83,14 @@ async function submitWindows(
 export async function reportCodexQuota(
   reading: CodexQuotaReading,
   source: RateLimitSource,
-  deps: CodexQuotaSinkDeps = {},
+  deps: CodexQuotaSinkDeps,
 ): Promise<void> {
-  const persisted = (deps.usageStore ?? usageStore)
+  const persisted = deps.usageStore
     .update(providerUsage(reading, source, (deps.now ?? Date.now)()))
     .then(() => null, (error: unknown) => ({ error }));
   let submitError: unknown;
   try {
-    await submitWindows(reading, source, deps.submit ?? handleRateLimitEvent);
+    await submitWindows(reading, source, deps.submit);
   } catch (error) {
     submitError = error;
   }

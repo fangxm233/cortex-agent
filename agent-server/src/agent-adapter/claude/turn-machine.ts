@@ -8,9 +8,9 @@ import { Writable } from 'stream';
 import * as path from 'path';
 import { readableTimestamp } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
-import { handleRateLimitEvent } from '@domain/costs/rate-limit-throttle.js';
 import type {
-  AgentCompactUsage, ContinuationSink, InjectionAckSink, UserMessage,
+  AgentCompactUsage, ContinuationSink, InjectionAckSink, RateLimitObservation, RateLimitOrigin,
+  UserMessage,
 } from '../types.js';
 import type { AgentResult, ContextUsage, ReportedAccountingSnapshot } from '@core/types/agent-types.js';
 import type { ToolUseSubagent } from '../normalize/event-types.js';
@@ -155,6 +155,11 @@ export interface TurnHost {
   readonly captureTranscriptLogs: boolean;
   readonly preserveUnreportedAccounting: boolean;
   readonly anthropicBaseUrl: string | undefined;
+  /** Hand a provider rate-limit window to whoever owns throttle policy. Deliberately NOT a turn
+   *  event: the CLI emits `rate_limit_event` with no turn in flight (between turns, and during a
+   *  spontaneous continuation turn), which is exactly when the notice matters most, so routing it
+   *  through the per-turn callback bag or the run's event stream would drop it. */
+  reportRateLimit(info: RateLimitObservation, origin: RateLimitOrigin): Promise<void>;
   /** `this.alive && !!this.proc?.stdin` — the injectUserMessage guard, named. */
   canWriteStdin(): boolean;
   writeTurnStdin(prompt: string): void;
@@ -676,7 +681,7 @@ export class ClaudeTurnMachine {
       this.emitModelFallback(data);
       if (data.type === 'rate_limit_event' && data.rate_limit_info) {
         const mode = this.host.anthropicBaseUrl?.match(/\/m\/([^/]+)\//)?.[1] || undefined;
-        handleRateLimitEvent(data.rate_limit_info, {
+        this.host.reportRateLimit(data.rate_limit_info, {
           provider: 'anthropic', displayName: 'Anthropic', mode,
         }).catch(e => log.error('handleRateLimitEvent error:', e));
       }

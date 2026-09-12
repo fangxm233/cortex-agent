@@ -62,7 +62,10 @@ function scriptedChild(scripts: unknown[][]) {
   return child;
 }
 
-function specFor(sessionKey: string, scripts: unknown[][], children: any[] = []) {
+function specFor(
+  sessionKey: string, scripts: unknown[][], children: any[] = [],
+  extra: Record<string, unknown> = {},
+) {
   return engineSpecFixture({
     sessionId: 'engine-equiv',
     sessionKey,
@@ -73,6 +76,7 @@ function specFor(sessionKey: string, scripts: unknown[][], children: any[] = [])
       children.push(child);
       return { process: child };
     }) as any,
+    ...extra,
   });
 }
 
@@ -259,4 +263,45 @@ test('claudeCompatibilityIdentity string equality is exactly sameClaudeSpawnComp
     claudeCompatibilityIdentity({ ...BASE, mcpToolAllowlist: null }),
     claudeCompatibilityIdentity({ ...BASE, mcpToolAllowlist: [] }),
   );
+});
+
+// --- (5) Provider rate-limit signals (P2.5b) ----------------------------------------------------
+
+test('Claude forwards rate_limit_event to the injected reporter, with no turn in flight', async () => {
+  const seen: Array<{ info: unknown; origin: unknown }> = [];
+  const adapter = new ClaudeAdapter({
+    onRateLimit: async (info, origin) => { seen.push({ info, origin }); },
+  });
+  const children: any[] = [];
+  const engine = adapter.open(specFor('engine-ratelimit', [], children, {
+    anthropicBaseUrl: 'http://127.0.0.1:9881/m/max20/anthropic',
+  }));
+
+  const info = { rateLimitType: 'five_hour', utilization: 0.93, resetsAt: 1786160107 };
+  // Staged directly on stdout with no prompt written: this is the case the plan's "emit a
+  // rate_limit event" instruction would have dropped, because there is no turn to carry it.
+  children[0].emitLines([{ type: 'rate_limit_event', rate_limit_info: info }]);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(seen, [{
+    info,
+    // `mode` is recovered from the gateway sub-path, exactly as the inline call did.
+    origin: { provider: 'anthropic', displayName: 'Anthropic', mode: 'max20' },
+  }]);
+  await engine.close();
+});
+
+test('Claude with no reporter injected drops the rate-limit line instead of reaching a throttle', async () => {
+  const adapter = new ClaudeAdapter();
+  const children: any[] = [];
+  const engine = adapter.open(specFor('engine-ratelimit-bare', [], children, {
+    anthropicBaseUrl: 'http://127.0.0.1:9881/m/max20/anthropic',
+  }));
+  children[0].emitLines([
+    { type: 'rate_limit_event', rate_limit_info: { rateLimitType: 'five_hour', utilization: 0.93, resetsAt: 1 } },
+  ]);
+  await new Promise((resolve) => setImmediate(resolve));
+  // No throw, no unhandled rejection: an unwired adapter simply has nowhere to put the reading.
+  assert.equal(engine.isAlive(), true);
+  await engine.close();
 });

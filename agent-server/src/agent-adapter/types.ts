@@ -16,6 +16,33 @@ import type { Backend } from '@core/types/agent-types.js';
 export type { Backend };
 export type McpComposition = 'direct' | 'thread-control' | 'none';
 
+/** One provider rate-limit window as the backend reported it. Declared structurally here rather
+ *  than imported from `domain/costs`: the adapter's job ends at observing the window, and what a
+ *  throttle *means* is the host's decision (D10). Shaped to match the throttle's own input. */
+export interface RateLimitObservation {
+  status?: string;
+  resetsAt?: number;
+  rateLimitType?: string;
+  rateLimitLabel?: string;
+  utilization?: number;
+  isUsingOverage?: boolean;
+  surpassedThreshold?: number;
+}
+
+/** Who the observation is attributed to — the gateway route the session actually used. */
+export interface RateLimitOrigin {
+  provider: string;
+  displayName: string;
+  mode?: string;
+}
+
+/** The host's throttle entry point, injected into an adapter at construction. Returns the
+ *  submission promise so the caller can log a failure without owning the policy. */
+export type RateLimitReporter = (
+  info: RateLimitObservation,
+  origin: RateLimitOrigin,
+) => Promise<void>;
+
 /** Cortex execution context surfaced to child processes as CORTEX_* env vars. */
 export interface CortexContextEnv {
   threadId?: string | null;
