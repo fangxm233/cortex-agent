@@ -14,8 +14,7 @@ import { resolveProfileConfig, type ResolvedProfileConfig } from '@domain/agents
 import { startRun } from '@domain/runs/service.js';
 import type { AgentSpec, RunObserver, RunRequest } from '@domain/runs/request.js';
 import type { RunEvent } from '@domain/runs/events.js';
-import { getAdapter } from '../../agent-adapter/index.js';
-import type { Backend } from '../../agent-adapter/index.js';
+import { engines } from '@domain/runs/engines.js';
 import { getSessionAsync } from '@domain/sessions/session.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
@@ -151,7 +150,7 @@ const defaultInjectDeps: InjectDeps = {
   startRun,
   closeInjectedSession: async (channel: string, sessionKey: string) => {
     try {
-      await getAdapter(resolveBackendForChannel(channel) as Backend).close(sessionKey);
+      await engines.close(sessionKey);
     } catch (e: any) {
       log.warn(`closeInjectedSession failed (${sessionKey}): ${e?.message || e}`);
     }

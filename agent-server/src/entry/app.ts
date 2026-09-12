@@ -22,7 +22,6 @@ import { loadRuntimeDotenv } from '@core/runtime-env.js';
 import { migrateEnvToSettings } from '@core/settings-migration.js';
 import { tryAcquireSingletonLock, releaseSingletonLock } from '@core/singleton-lock.js';
 import { closeAllSessions, closeSession as closePooledSession } from '@domain/agents/index.js';
-import { closeAllAdapters } from '../agent-adapter/index.js';
 import { recoverTuiOrphans } from '../agent-adapter/claude/adapter.js';
 import { startWebhookServer } from '@orch/routing/webhook.js';
 import * as pendingTaskTracker from '@domain/tasks/pending-tracker.js';
@@ -415,7 +414,7 @@ process.on('SIGTERM', async () => {
   }).catch(() => {});
   await stopBuiltinJobs();
   await retentionController.stop().catch(() => {});
-  closeAllSessions(); closeAllAdapters().catch(() => {}); await stopClientManager(); stopMachineRegistryWatcher(); _stopProfileWatcher?.();
+  closeAllSessions(); await stopClientManager(); stopMachineRegistryWatcher(); _stopProfileWatcher?.();
   // A Chrome that outlives the daemon keeps the profile locked, so the next launch would attach to
   // an instance nothing is supervising.
   stopBrowser();

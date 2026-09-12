@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { isRetryableError } from '../src/domain/agents/config.js';
 import { allConfigsRateLimited, runAgent } from '../src/domain/agents/facade.js';
-import { getAdapter } from '../src/agent-adapter/index.js';
+import { getRunAdapter } from '../src/domain/runs/engines.js';
 import type { AgentProcess, Backend } from '../src/agent-adapter/types.js';
 import type { AgentResult } from '../src/core/types/agent-types.js';
 import { EventBus } from '../src/events/event-bus.js';
@@ -251,7 +251,7 @@ function createAuthRunHarness(authCase: AuthBackendCase): AuthRunHarness {
   initAuthEvents(bus);
   const authError = new Error(authCase.message);
   const nonAuthError = new Error('context window exceeded');
-  const spawn = vi.spyOn(getAdapter(authCase.backend), 'spawn')
+  const spawn = vi.spyOn(getRunAdapter(authCase.backend), 'spawn')
     .mockReturnValueOnce(makeProcess(authError))
     .mockReturnValueOnce(makeProcess(nonAuthError))
     .mockReturnValueOnce(makeProcess(RATE_LIMIT_RESULT))
@@ -309,11 +309,11 @@ for (const authCase of AUTH_BACKEND_CASES) {
 
 test('runAgent falls back after PI exhausts a generic provider-retry error', async () => {
   installFallbackProfile();
-  const primary = vi.spyOn(getAdapter('pi'), 'spawn')
+  const primary = vi.spyOn(getRunAdapter('pi'), 'spawn')
     .mockReturnValue(makeProcess(new Error(
       'Codex error: An error occurred while processing your request. You can retry your request. Request ID: req_123',
     )));
-  const fallback = vi.spyOn(getAdapter('claude'), 'spawn')
+  const fallback = vi.spyOn(getRunAdapter('claude'), 'spawn')
     .mockReturnValue(makeProcess(SUCCESS_RESULT));
   const transitions: string[] = [];
   const notices: Array<{ text: string; level?: string }> = [];
@@ -337,9 +337,9 @@ test('runAgent falls back after PI exhausts a generic provider-retry error', asy
 
 test('runAgent emits one terminal error notice for a deterministic authentication failure', async () => {
   installFallbackProfile();
-  vi.spyOn(getAdapter('pi'), 'spawn')
+  vi.spyOn(getRunAdapter('pi'), 'spawn')
     .mockReturnValue(makeProcess(new Error('HTTP 401 unauthorized')));
-  const fallback = vi.spyOn(getAdapter('claude'), 'spawn')
+  const fallback = vi.spyOn(getRunAdapter('claude'), 'spawn')
     .mockReturnValue(makeProcess(SUCCESS_RESULT));
   const notices: Array<{ text: string; level?: string }> = [];
 
@@ -359,7 +359,7 @@ test('provider outage gates automated configs but not direct interactive session
   installSingleProfile();
   await activateProviderOutage();
   t.onTestFinished(() => throttleReset());
-  const spawn = vi.spyOn(getAdapter('pi'), 'spawn').mockReturnValue(makeProcess(SUCCESS_RESULT));
+  const spawn = vi.spyOn(getRunAdapter('pi'), 'spawn').mockReturnValue(makeProcess(SUCCESS_RESULT));
 
   assert.equal(allConfigsRateLimited('single-test'), true);
   const result = await runAgent('test', {
@@ -376,7 +376,7 @@ test('runAgent shows a warning when a user chat rate-limit result will auto-resu
   installSingleProfile();
   await activateProviderThrottle();
   t.onTestFinished(() => throttleReset());
-  vi.spyOn(getAdapter('pi'), 'spawn').mockReturnValue(makeProcess(RATE_LIMIT_RESULT));
+  vi.spyOn(getRunAdapter('pi'), 'spawn').mockReturnValue(makeProcess(RATE_LIMIT_RESULT));
   const notices: Array<{ text: string; level?: string }> = [];
 
   const result = await runAgent('test', {
@@ -397,7 +397,7 @@ test('runAgent shows the auto-resume warning for a thrown user-chat rate-limit e
   installSingleProfile();
   await activateProviderThrottle();
   t.onTestFinished(() => throttleReset());
-  vi.spyOn(getAdapter('pi'), 'spawn').mockReturnValue(makeProcess(new Error('HTTP 429 rate limit exceeded')));
+  vi.spyOn(getRunAdapter('pi'), 'spawn').mockReturnValue(makeProcess(new Error('HTTP 429 rate limit exceeded')));
   const notices: Array<{ text: string; level?: string }> = [];
 
   await assert.rejects(
@@ -420,7 +420,7 @@ test('runAgent keeps a non-resumable rate-limit result as an error notice', asyn
   throttleReset();
   t.onTestFinished(() => throttleReset());
   installSingleProfile();
-  vi.spyOn(getAdapter('pi'), 'spawn').mockReturnValue(makeProcess(RATE_LIMIT_RESULT));
+  vi.spyOn(getRunAdapter('pi'), 'spawn').mockReturnValue(makeProcess(RATE_LIMIT_RESULT));
   const notices: Array<{ text: string; level?: string }> = [];
 
   await runAgent('test', {
@@ -436,9 +436,9 @@ test('runAgent keeps a non-resumable rate-limit result as an error notice', asyn
 test('runAgent does not duplicate an API Error event when the attempt terminates with the same error', async () => {
   installFallbackProfile();
   const message = 'API Error: 400 invalid_request';
-  vi.spyOn(getAdapter('pi'), 'spawn')
+  vi.spyOn(getRunAdapter('pi'), 'spawn')
     .mockReturnValue(makeProcess(new Error(message), [{ type: 'assistant_text', text: message }], 'after-result'));
-  const fallback = vi.spyOn(getAdapter('claude'), 'spawn')
+  const fallback = vi.spyOn(getRunAdapter('claude'), 'spawn')
     .mockReturnValue(makeProcess(SUCCESS_RESULT));
   const notices: Array<{ text: string; level?: string }> = [];
 
@@ -459,9 +459,9 @@ test('runAgent does not duplicate an API Error event when the attempt terminates
 test('runAgent resets terminal-error deduplication when moving to a fallback attempt', async () => {
   installFallbackProfile();
   const firstError = 'API Error: Unable to connect to API (ECONNRESET)';
-  vi.spyOn(getAdapter('pi'), 'spawn')
+  vi.spyOn(getRunAdapter('pi'), 'spawn')
     .mockReturnValue(makeProcess(new Error(firstError), [{ type: 'assistant_text', text: firstError }]));
-  vi.spyOn(getAdapter('claude'), 'spawn')
+  vi.spyOn(getRunAdapter('claude'), 'spawn')
     .mockReturnValue(makeProcess(new Error('HTTP 401 unauthorized')));
   const notices: Array<{ text: string; level?: string }> = [];
 
@@ -483,7 +483,7 @@ test('runAgent resets terminal-error deduplication when moving to a fallback att
 
 test('runAgent single-config kill suppresses a generic process-exit error notice', async () => {
   installSingleProfile();
-  vi.spyOn(getAdapter('pi'), 'spawn')
+  vi.spyOn(getRunAdapter('pi'), 'spawn')
     .mockReturnValue(makeProcess(new Error('pi exited with code 143')));
   const notices: Array<{ text: string; level?: string }> = [];
 
@@ -500,7 +500,7 @@ test('runAgent single-config kill suppresses a generic process-exit error notice
 
 test('runAgent does not synthesize terminal chat notices for non-Web channels', async () => {
   installFallbackProfile();
-  vi.spyOn(getAdapter('pi'), 'spawn')
+  vi.spyOn(getRunAdapter('pi'), 'spawn')
     .mockReturnValue(makeProcess(new Error('HTTP 401 unauthorized')));
   const notices: Array<{ text: string; level?: string }> = [];
 
@@ -519,7 +519,7 @@ test('runAgent does not synthesize terminal chat notices for non-Web channels', 
 test('runAgent does not turn user cancellation into an error notice', async () => {
   installFallbackProfile();
   const cancelled = Object.assign(new Error('Cancelled by user'), { cancelled: true });
-  vi.spyOn(getAdapter('pi'), 'spawn').mockReturnValue(makeProcess(cancelled));
+  vi.spyOn(getRunAdapter('pi'), 'spawn').mockReturnValue(makeProcess(cancelled));
   const notices: Array<{ text: string; level?: string }> = [];
 
   await assert.rejects(

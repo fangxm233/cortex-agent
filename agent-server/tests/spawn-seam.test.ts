@@ -36,6 +36,7 @@ import {
   resolveClaudeMcpBundles,
 } from '../src/agent-adapter/claude/spawn-args.js';
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
+import { piPool } from './agent-adapter/pi-pool-fixture.js';
 import {
   buildServerStates,
   pluginServerStateName,
@@ -489,7 +490,7 @@ test('PI carries the empty MCP composition strictly', () => {
   const fake = makeFakeRuntimeFactory();
   const adapter = new PIAdapter(fake.factory, root);
 
-  adapter.spawn(engineSpecFixture({
+  piPool(adapter).spawn(engineSpecFixture({
     sessionId: null, sessionKey: 'pi-none', resume: false,
     mcpComposition: 'none',
   }));
@@ -500,7 +501,7 @@ test('PI carries the empty MCP composition strictly', () => {
 });
 
 function spawnPrivatePluginServer(adapter: PIAdapter): void {
-  adapter.spawn(engineSpecFixture({
+  piPool(adapter).spawn(engineSpecFixture({
     sessionId: null,
     sessionKey: 'pi-plugin-mcp',
     resume: false,

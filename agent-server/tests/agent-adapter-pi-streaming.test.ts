@@ -7,7 +7,8 @@ import { engineSpecFixture } from './engine-spec-fixture.js';
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
+import { PIAdapter, type PIAgentProcess } from '../src/agent-adapter/pi/adapter.js';
+import { piPool } from './agent-adapter/pi-pool-fixture.js';
 import type { NormalizedEvent } from '../src/agent-adapter/normalize/event-types.js';
 import { resetSettingsForTests } from '../src/core/settings.js';
 import { makeFakeRuntimeFactory, type FakeRuntime } from './agent-adapter/pi-fake-runtime.js';
@@ -36,11 +37,11 @@ async function collect(proc: { events: AsyncIterable<NormalizedEvent> }, n: numb
 }
 
 async function spawnStreaming(sessionKey: string): Promise<{
-  proc: ReturnType<PIAdapter['spawn']>; runtime: FakeRuntime;
+  proc: PIAgentProcess; runtime: FakeRuntime;
 }> {
   const fake = makeFakeRuntimeFactory();
   const adapter = new PIAdapter(fake.factory);
-  const proc = adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey, resume: false }));
+  const proc = piPool(adapter).spawn(engineSpecFixture({ sessionId: null, sessionKey, resume: false }));
   const runtime = await fake.runtime();
   return { proc, runtime };
 }

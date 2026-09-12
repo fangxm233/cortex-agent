@@ -2,7 +2,7 @@
 // output: exact transcript rollback and reprocessing
 // pos:    Platform message edit retry orchestration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-import { registerPISessionPath } from '../../agent-adapter/index.js';
+import { engines } from '@domain/runs/engines.js';
 import type { PlatformAdapter, MessageEditContext } from '@platform/index.js';
 import type { LedgerTurn, ChannelConversation } from '@store/conversation-ledger-repo.js';
 import { effectiveBackendSessionId, sessionStore } from '@store/session-registry-repo.js';
@@ -271,7 +271,10 @@ async function processEditLocked(args: ProcessEditArgs): Promise<void> {
   const rollback = await rollbackEditedTurn(args);
   if (!rollback) return;
   const state = await restoreEditedSession(args, backend, rollback.targetBackupPath);
-  registerRestoredEditPath(backend, state, deps.registerPISessionPath ?? registerPISessionPath);
+  registerRestoredEditPath(
+    backend, state,
+    deps.registerPISessionPath ?? ((id, path) => engines.registerSessionPath(id, path)),
+  );
   deps.closePooledSession?.(channel, backend);
   await conversationLedger.truncateTurns(channel, turnIndex);
   cleanupEditedSession(backend, turnIndex, state);

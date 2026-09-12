@@ -9,6 +9,7 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
 import { PIAdapter } from '../../src/agent-adapter/pi/adapter.js';
+import { piPool } from './pi-pool-fixture.js';
 import type { AgentProcess, InjectionAckSink } from '../../src/agent-adapter/types.js';
 import type { AgentResult } from '../../src/core/types/agent-types.js';
 import type { NormalizedEvent } from '../../src/agent-adapter/normalize/event-types.js';
@@ -34,7 +35,7 @@ function spawnConfig(sessionKey: string): EngineSpecFixtureInput {
 async function spawnProcess(sessionKey: string): Promise<Fixture> {
   const fake = makeFakeRuntimeFactory();
   const adapter = new PIAdapter(fake.factory);
-  const proc = adapter.spawn(engineSpecFixture(spawnConfig(sessionKey)));
+  const proc = piPool(adapter).spawn(engineSpecFixture(spawnConfig(sessionKey)));
   const runtime = await fake.runtime(0);
   return { adapter, fake, proc, runtime };
 }
@@ -296,7 +297,7 @@ test('session_started lands on the stream of the first turn, never on a reused o
 
   // A second spawn reuses the pooled runtime, so its stream starts at PI's own events: the
   // announcement belongs to the stream that was open when the runtime was created.
-  const second = adapter.spawn(engineSpecFixture(spawnConfig('pi-phases-session-start')));
+  const second = piPool(adapter).spawn(engineSpecFixture(spawnConfig('pi-phases-session-start')));
   t.onTestFinished(() => second.close());
   const reused = collect(second);
   const secondTurn = second.send({ text: 'second' });

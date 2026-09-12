@@ -62,7 +62,7 @@ export interface WriteProvidersOpts {
  * `baseUrl` pointing to `<gatewayUrl><basePath>`; no apiKey is written so PI resolves credentials
  * from auth.json (or environment variables) per PI's auth resolution order.
  *
- * Called by PIAdapter.spawn() — sole writer of this file, no other code path touches it.
+ * Called by PIAdapter.prepareRequest() — sole writer of this file, no other code path touches it.
  */
 export function writeProvidersConfig(
   providers: ProviderOverride[],

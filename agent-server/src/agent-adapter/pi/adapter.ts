@@ -1,6 +1,6 @@
 // input:  Spawn config, provider caches, MCP policy, a PI runtime factory
-// output: Pooled in-process PI sessions, interaction eligibility, usage, events
-// pos:    Coordinates PI session lifecycles for the Cortex agent-adapter contract
+// output: PI engine sessions (open), identity, usage, interaction eligibility, events
+// pos:    PI backend's stateless EngineAdapter; SessionEngines owns pooling and lifetime
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { existsSync, mkdirSync } from 'fs';
@@ -9,9 +9,8 @@ import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../capabilities.js';
 import type {
-  AgentAdapter, EngineAdapter, EngineSession, EngineSpec, AgentUsageScope, Backend, UserMessage,
+  EngineAdapter, EngineSpec, AgentUsageScope, Backend,
 } from '../types.js';
-import type { AgentResult } from '@core/types/agent-types.js';
 import {
   writeProvidersConfig,
   buildProviderOverrides,
@@ -24,15 +23,21 @@ import { reportCodexQuota, resolveQuotaSource } from './quota-sink.js';
 import { CODEX_PROVIDER, type CodexQuotaReading } from '@domain/costs/codex-quota.js';
 import type { ProviderUsage, UsageStore } from '@domain/costs/usage-store.js';
 import type { PIProviderDiscovery } from './discovery.js';
-import { PISession, turnStreamIterable } from './pi-session.js';
-import { PIEngineSession } from './engine.js';
+import { PISession } from './pi-session.js';
+import { PIEngineSession, type PIEngineOpenHooks } from './engine.js';
 import { createPiRuntime, type PiRuntimeFactory } from './runtime.js';
 import {
   buildSessionRequest, sessionIdentity, unsupportedExtraOptions, type PiSessionRequest,
 } from './session-options.js';
-import type { EventQueue, PIAgentProcess, SwitchResult } from './session-support.js';
+import type { SwitchResult } from './session-support.js';
 import { DEFAULT_SESSION_DIR, PI_AGENT_DIR, piModelsPath } from './defaults.js';
 export type { PIAgentProcess } from './session-support.js';
+
+/** Transitional (deleted in P4.1): the pool SessionEngines registers on the adapter so
+ *  `switchSession` can reach the live engine without the adapter importing domain. */
+export interface PIEnginePoolLookup {
+  get(key: string): PIEngineSession | undefined;
+}
 
 const log = createLogger('pi-adapter');
 
@@ -43,10 +48,6 @@ const NO_PROVIDER_DISCOVERY: PIProviderDiscovery = {
   peekModels: () => [],
   refresh: () => {},
 };
-
-function errorValue(error: unknown): Error {
-  return error instanceof Error ? error : new Error(String(error));
-}
 
 function neverCodexUsage(mode: string): ProviderUsage {
   return {
@@ -105,10 +106,10 @@ export interface PIAdapterHooks {
   usageStore?: Pick<UsageStore, 'get' | 'update'>;
 }
 
-export class PIAdapter implements AgentAdapter, EngineAdapter {
+export class PIAdapter implements EngineAdapter {
   readonly backend: Backend = 'pi';
   readonly capabilities: Set<Capability> = CAPABILITIES_BY_BACKEND.pi;
-  private readonly sessions = new Map<string, PISession>();
+  private poolLookup: PIEnginePoolLookup | null = null;
   private readonly runtimeFactory: PiRuntimeFactory;
   private readonly providerDiscovery: PIProviderDiscovery;
   private readonly configuredProviderOverrides = new Map<string, ProviderOverride>();
@@ -250,6 +251,25 @@ export class PIAdapter implements AgentAdapter, EngineAdapter {
     this.syncGatewayConfig(spec, this.agentDir);
   }
 
+  /** The one construction of a `PiSessionRequest`; `specIdentity` and `prepareRequest` both come
+   *  through here so the identity the pool compares can never drift from the request `open` builds. */
+  private buildRequest(spec: EngineSpec, sessionPath: string | null): PiSessionRequest {
+    return buildSessionRequest(spec, {
+      agentDir: this.agentDir,
+      sessionDir: this.sessionDir,
+      sessionPath,
+      cwd: resolveSpawnCwd(spec.cwd),
+      streamDeltas: spec.flags.streamDeltas ?? getSettings().streamDeltas,
+    });
+  }
+
+  /** The comparable identity of the session this spec *would* open. Read-only: no mkdir, no
+   *  models.json write, no warnings, no PISession (whose constructor starts a runtime). */
+  specIdentity(spec: EngineSpec): string {
+    // sessionPath is excluded from the identity, so resolving it here would only add effects.
+    return sessionIdentity(this.buildRequest(spec, null));
+  }
+
   private prepareRequest(spec: EngineSpec): PiSessionRequest {
     const agentDir = this.agentDir;
     mkdirSync(this.sessionDir, { recursive: true });
@@ -258,13 +278,7 @@ export class PIAdapter implements AgentAdapter, EngineAdapter {
     for (const key of unsupportedExtraOptions(spec)) {
       log.warn(`PI extraOption ${key} was a CLI flag; the in-process backend ignores it`);
     }
-    return buildSessionRequest(spec, {
-      agentDir,
-      sessionDir: this.sessionDir,
-      sessionPath,
-      cwd: resolveSpawnCwd(spec.cwd),
-      streamDeltas: spec.flags.streamDeltas ?? getSettings().streamDeltas,
-    });
+    return this.buildRequest(spec, sessionPath);
   }
 
   private quotaReporter(spec: EngineSpec): ((reading: CodexQuotaReading) => void) | undefined {
@@ -277,75 +291,13 @@ export class PIAdapter implements AgentAdapter, EngineAdapter {
     };
   }
 
-  /** Drop a pooled entry only while it is still the one this key points at: a self-closing session
-   *  (idle timeout) can finish long after the pool moved on to its replacement. */
-  private evictSession(sessionKey: string, session: unknown): void {
-    if (this.sessions.get(sessionKey) === session) this.sessions.delete(sessionKey);
-  }
-
-  private sendSpawnedTurn(session: PISession, msg: UserMessage): Promise<AgentResult> {
-    return new Promise<AgentResult>((resolve, reject) => {
-      session.beginTurn(resolve, reject);
-      const targetId = session.sessionId;
-      const targetPath = targetId === null ? null : this.resolveSessionPath(targetId);
-      session.sendTurn(targetId, targetPath, msg)
-        .catch((error) => session.beginTurnReject(errorValue(error)));
-    });
-  }
-
-  private async closeSpawnedSession(sessionKey: string, session: PISession): Promise<void> {
-    await session.close();
-    this.evictSession(sessionKey, session);
-  }
-
-  private killSpawnedSession(sessionKey: string, session: PISession): boolean {
-    const killed = session.kill();
-    if (killed) this.evictSession(sessionKey, session);
-    return killed;
-  }
-
-  private createAgentProcess(
-    sessionKey: string, session: PISession, turnStream: EventQueue,
-  ): PIAgentProcess {
-    return {
-      sessionKey,
-      get sessionId(): string | null { return session.sessionId; },
-      send: (msg) => this.sendSpawnedTurn(session, msg),
-      compact: () => session.compact(),
-      sendExtensionUiResponse: (id, payload) => session.sendExtensionUiResponse(id, payload),
-      injectUserMessage: (msg) => session.injectUserMessage(msg),
-      setInjectionAckSink: (sink) => session.setInjectionAckSink(sink),
-      events: turnStreamIterable(turnStream),
-      // Out-of-band attribution (see AgentProcess.pushTurnEvent). Bound to THIS run's queue, so a
-      // late push from an abandoned run cannot leak into the turn that replaced it.
-      pushTurnEvent: (event) => {
-        if (turnStream.isClosed) return false;
-        turnStream.push(event);
-        return true;
-      },
-      // Ends this run, not the session: the session is pooled per sessionKey and serves the
-      // next turn. Session teardown goes through PIAdapter.close(key) / kill(key), which
-      // is what !new, Stop, thread cleanup and rewind reach.
-      close: async () => { session.closeTurnStreamFor(turnStream); },
-      kill: () => this.killSpawnedSession(sessionKey, session),
-    };
-  }
-
-  spawn(spec: EngineSpec): PIAgentProcess {
-    const request = this.prepareRequest(spec);
-    const identity = sessionIdentity(request);
-    const session = this.reusableSession(spec.engineKey, identity)
-      ?? this.startSession(spec, request, identity);
-    return this.createAgentProcess(spec.engineKey, session, session.openTurnStream());
-  }
-
   /**
-   * Construct a session without pooling or registering it: per plan §3.3 `open()` is pure
-   * construction, and `SessionEngines` (P2.2c) owns the lifetime/reuse decision. `prepareRequest`
-   * and the `PISession` options mirror `spawn()`/`startSession` exactly; the only difference is the
-   * absent `this.sessions` entry and pool `onClose` eviction hook.
+   * Construct a session without pooling: per plan §3.3 `open()` is pure construction and
+   * `SessionEngines` (P2.2c) owns the lifetime/reuse decision. `prepareRequest` and the
+   * `PISession` options are exactly what the old pooled `startSession` used; the pool passes the
+   * self-close and eviction hooks through `hooks`.
    */
-  open(spec: EngineSpec): EngineSession {
+  open(spec: EngineSpec, hooks: PIEngineOpenHooks = {}): PIEngineSession {
     const request = this.prepareRequest(spec);
     const identity = sessionIdentity(request);
     const session = new PISession({
@@ -353,42 +305,19 @@ export class PIAdapter implements AgentAdapter, EngineAdapter {
       runtimeFactory: this.runtimeFactory,
       identity,
       registry: this.sessionPathRegistry,
+      onClose: hooks.onSelfClose,
       onProviderQuota: this.quotaReporter(spec),
     });
-    return new PIEngineSession(session, request);
-  }
-
-  /** The pooled session for this key when it can serve the turn: alive, and created from the exact
-   *  configuration this spawn resolved to. Anything else is retired here so the caller creates a
-   *  fresh session — a live session cannot be re-pointed at a different model, tool surface or
-   *  MCP set, so reusing one across such a change would silently run the wrong configuration. */
-  private reusableSession(sessionKey: string, identity: string): PISession | null {
-    const session = this.sessions.get(sessionKey);
-    if (!session) return null;
-    if (session.isAlive() && session.matchesSpawn(identity)) return session;
-    log.info(
-      `PI session ${sessionKey} retired (${session.isAlive() ? 'spawn config changed' : 'session gone'});`
-      + ' creating a new session',
-    );
-    void this.closeSpawnedSession(sessionKey, session)
-      .catch((error) => log.warn(`retiring PI session ${sessionKey} failed: ${errorValue(error).message}`));
-    this.sessions.delete(sessionKey);
-    return null;
-  }
-
-  private startSession(
-    spec: EngineSpec, request: PiSessionRequest, identity: string,
-  ): PISession {
-    const session = new PISession({
-      request,
-      runtimeFactory: this.runtimeFactory,
-      identity,
-      registry: this.sessionPathRegistry,
-      onClose: (key, closing) => this.evictSession(key, closing),
-      onProviderQuota: this.quotaReporter(spec),
+    return new PIEngineSession(session, request, {
+      onEvict: hooks.onEvict,
+      resolveSessionPath: (sessionId) => this.resolveSessionPath(sessionId),
     });
-    this.sessions.set(spec.engineKey, session);
-    return session;
+  }
+
+  /** Transitional (P2.2c): SessionEngines registers itself so `switchSession` can find the live
+   *  engine. Replaced by direct ownership in P2.4. */
+  setEnginePool(pool: PIEnginePoolLookup): void {
+    this.poolLookup = pool;
   }
 
   /** Record the exact transcript path restored by rewind before the next resume spawn. */
@@ -410,33 +339,15 @@ export class PIAdapter implements AgentAdapter, EngineAdapter {
   }
 
   /**
-   * Switch the pooled session under `onSessionKey` to serve a different PI transcript.
-   * Returns {ok:false, cancelled:false} if the session key or target session ID is unknown.
+   * Switch the pooled session under `onSessionKey` to serve a different PI transcript, via the
+   * pool registered by SessionEngines (P2.2c). Returns {ok:false, cancelled:false} if the session
+   * key or target session ID is unknown.
    */
   async switchSession(sessionId: string, onSessionKey: string): Promise<SwitchResult> {
-    const session = this.sessions.get(onSessionKey);
-    if (!session) return { ok: false, cancelled: false };
+    const engine = this.poolLookup?.get(onSessionKey);
+    if (!engine) return { ok: false, cancelled: false };
     const targetPath = this.resolveSessionPath(sessionId);
     if (targetPath === null) return { ok: false, cancelled: false };
-    const result = await session.sendSwitchSession(targetPath);
-    if (result.ok) session.currentSessionId = sessionId;
-    return result;
-  }
-
-  async close(sessionKey: string): Promise<void> {
-    const session = this.sessions.get(sessionKey);
-    if (!session) return;
-    await session.close();
-    this.evictSession(sessionKey, session);
-  }
-
-  kill(sessionKey: string): boolean {
-    const session = this.sessions.get(sessionKey);
-    if (!session) return false;
-    return this.killSpawnedSession(sessionKey, session);
-  }
-
-  listSessions(): string[] {
-    return Array.from(this.sessions.keys());
+    return engine.switchSession(sessionId, targetPath);
   }
 }

@@ -11,7 +11,7 @@ import { Capability, CAPABILITIES_BY_BACKEND } from '../../../agent-adapter/capa
 import type { Backend } from '../../../agent-adapter/types.js';
 import type { SubagentNotice } from '../../../agent-adapter/pi/event-parser.js';
 import { noticesFor } from '../../../agent-adapter/pi/child-events.js';
-import { getAdapter } from '../../../agent-adapter/index.js';
+import { getEngineAdapter } from '../../../agent-adapter/index.js';
 import { GATEWAY_URL } from '../../costs/gateway-manager.js';
 import { getClaudeMode, getClaudeModel } from '../config.js';
 import { roleToolsForBackend, type AgentRole } from '../roles.js';
@@ -142,7 +142,7 @@ async function runPiSubagent(request: SubagentRunRequest): Promise<SubagentResul
   const inherited = parentModel(request);
   const spec = resolveSpec(request);
   const provider = spec.provider ?? inherited.provider;
-  const adapter = getAdapter('pi') as unknown as {
+  const adapter = getEngineAdapter('pi') as unknown as {
     agentDir: string;
     ensureProviderRouting?: (opts: {
       provider: string; gatewayPath?: string | null; gatewayBaseUrl: string; model?: string;

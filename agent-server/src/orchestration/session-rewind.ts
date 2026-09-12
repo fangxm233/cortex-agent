@@ -3,7 +3,7 @@
 // pos:    Web message edit rollback orchestration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { registerPISessionPath } from '../agent-adapter/index.js';
+import { engines } from '@domain/runs/engines.js';
 import type { PlatformAdapter } from '@platform/index.js';
 import { createLogger } from '@core/log.js';
 import { runRegistry } from '@core/run-registry.js';
@@ -68,7 +68,7 @@ function defaultDeps(): RewindDeps {
     sessionStore,
     backup: sessionBackup,
     resolveBackend: (channel) => resolveBackendForChannel(channel),
-    registerPISessionPath,
+    registerPISessionPath: (sessionId, sessionPath) => engines.registerSessionPath(sessionId, sessionPath),
     // Backend-neutral: every backend pools its subprocess, and a live one would keep the
     // pre-rewind history in memory and ignore the rolled-back transcript on disk.
     closePooledSession: (channel) => closePooledSession(channel),

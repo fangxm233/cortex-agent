@@ -19,10 +19,12 @@ export {
   compactAgentContext,
   allConfigsRateLimited,
   _test,
-  closeSession, killSession, closeSessionsByPrefix, closeAllSessions,
   claudeTest,
   getCurrentPlanFilePath,
 } from './facade.js';
+export {
+  closeSession, killSession, closeSessionsByPrefix, closeAllSessions,
+} from '../runs/engines.js';
 export type {
   AgentConfig, RunAgentOptions, RunObserver, CompactAgentRequest, CompactAgentDeps,
 } from './facade.js';

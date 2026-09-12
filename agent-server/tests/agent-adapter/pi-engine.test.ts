@@ -8,6 +8,7 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
 import { PIAdapter } from '../../src/agent-adapter/pi/adapter.js';
+import { piPool } from './pi-pool-fixture.js';
 import { toRunEvent, type RunEvent } from '../../src/agent-adapter/run-events.js';
 import type { EngineSpec } from '../../src/agent-adapter/types.js';
 import type { AgentResult } from '../../src/core/types/agent-types.js';
@@ -34,7 +35,7 @@ async function driveSpawn(
   fake: FakeRuntimeFactory, adapter: PIAdapter, sessionKey: string,
   script: (runtime: FakeRuntime) => void,
 ): Promise<{ events: NormalizedEvent[]; result: AgentResult }> {
-  const proc = adapter.spawn(spec(sessionKey));
+  const proc = piPool(adapter).spawn(spec(sessionKey));
   const events = collect(proc.events);
   const runtime = await fake.runtime(0);
   const turn = proc.send({ text: 'opening' });
@@ -65,7 +66,7 @@ test('open().run() yields the same phased events, in order, as spawn().send()', 
   const engineResult = await run.result;
   const engineEvents = await collect(run.events);
 
-  t.onTestFinished(async () => { await Promise.allSettled([spawnAdapter.close(sessionKey), engine.close()]); });
+  t.onTestFinished(async () => { await Promise.allSettled([piPool(spawnAdapter).close(sessionKey), engine.close()]); });
 
   const expected = [...spawn.events.map((event) => toRunEvent(event, 'foreground')), DONE];
   assert.deepEqual(engineEvents, expected);
@@ -81,7 +82,7 @@ test('open().run() rejects a failed turn exactly as spawn().send() does', async 
 
   const spawnFake = makeFakeRuntimeFactory();
   const spawnAdapter = new PIAdapter(spawnFake.factory);
-  const proc = spawnAdapter.spawn(spec(sessionKey));
+  const proc = piPool(spawnAdapter).spawn(spec(sessionKey));
   const spawnRuntime = await spawnFake.runtime(0);
   const spawnTurn = proc.send({ text: 'opening' });
   await spawnRuntime.nextCall('prompt');
@@ -103,7 +104,7 @@ test('open().run() rejects a failed turn exactly as spawn().send() does', async 
     (error: Error) => error,
   );
 
-  t.onTestFinished(async () => { await Promise.allSettled([spawnAdapter.close(sessionKey), engine.close()]); });
+  t.onTestFinished(async () => { await Promise.allSettled([piPool(spawnAdapter).close(sessionKey), engine.close()]); });
 
   assert.equal(engineError.message, spawnError.message);
   assert.equal(

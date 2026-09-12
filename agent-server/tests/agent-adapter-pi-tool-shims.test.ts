@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os';
 import { join as pathJoin } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
+import { piPool } from './agent-adapter/pi-pool-fixture.js';
 import type { PIAgentProcess } from '../src/agent-adapter/pi/adapter.js';
 import { installToolShims } from '../src/agent-adapter/pi/tool-shims.js';
 import { makeFakeRuntimeFactory, type FakeRuntime } from './agent-adapter/pi-fake-runtime.js';
@@ -33,7 +34,7 @@ afterEach(() => {
 async function spawnSession(sessionKey: string, sessionId = 'sess-abc', config: Record<string, unknown> = {}) {
   const fake = makeFakeRuntimeFactory({ sessionId });
   const adapter = new PIAdapter(fake.factory, SESSION_DIR);
-  const proc = adapter.spawn(engineSpecFixture({ sessionKey, sessionId: null, resume: false, ...config })) as PIAgentProcess;
+  const proc = piPool(adapter).spawn(engineSpecFixture({ sessionKey, sessionId: null, resume: false, ...config })) as PIAgentProcess;
   const runtime: FakeRuntime = await fake.runtime();
   return { fake, adapter, proc, runtime };
 }
@@ -126,7 +127,7 @@ test('H: session closed before turn_complete', async () => {
   const { adapter, proc } = await spawnSession('k8');
   const turnPromise = proc.send({ text: 'do work' });
   const rejection = assert.rejects(turnPromise, /closed before turn_complete/i);
-  await adapter.close('k8');
+  await piPool(adapter).close('k8');
   await rejection;
   await proc.close().catch(() => {});
 });

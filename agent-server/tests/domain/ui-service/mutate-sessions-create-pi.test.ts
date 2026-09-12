@@ -10,6 +10,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'vitest';
 
 import { PIAdapter } from '../../../src/agent-adapter/pi/adapter.js';
+import { piPool } from '../../agent-adapter/pi-pool-fixture.js';
 import { PI_MODELS_PATH, PI_SESSIONS_DIR } from '../../../src/agent-adapter/pi/agent-dir.js';
 import { createPIProviderDiscovery } from '../../../src/agent-adapter/pi/discovery.js';
 import type { PiDiscoveredModel } from '../../../src/core/gateway-generator.js';
@@ -58,7 +59,7 @@ test('fresh PI createAndSend responds and exposes the user event before slow dis
         timeline.push('user-event-visible');
         markVisible();
       });
-      agentProcess = adapter.spawn(engineSpecFixture({
+      agentProcess = piPool(adapter).spawn(engineSpecFixture({
         sessionId: null,
         sessionKey: 'fresh-web-pi',
         resume: false,
@@ -103,6 +104,6 @@ test('fresh PI createAndSend responds and exposes the user event before slow dis
     assert.equal(discoverySettled, true);
   } finally {
     await agentProcess?.close();
-    await adapter.close('fresh-web-pi');
+    await piPool(adapter).close('fresh-web-pi');
   }
 });

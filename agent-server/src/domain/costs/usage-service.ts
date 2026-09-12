@@ -3,7 +3,7 @@
 // pos:    Public orchestration service for provider usage visibility
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { getAdapter as getDaemonAdapter } from '../../agent-adapter/index.js';
+import { getAdapter as getDaemonAdapter, getEngineAdapter } from '../../agent-adapter/index.js';
 import { Capability } from '../../agent-adapter/capabilities.js';
 import type { AgentAdapter, AgentUsageScope, Backend } from '../../agent-adapter/types.js';
 import { getSettings as readSettings, type Settings } from '@core/settings.js';
@@ -31,6 +31,11 @@ type GatewayPeriod = 'today' | 'month';
 
 type UsageAdapter = Pick<AgentAdapter, 'capabilities' | 'getUsage'>;
 type AdapterResolver = (backend: Backend) => UsageAdapter;
+
+/** PI is no longer a pooled AgentAdapter (P2.2c); its usage probe lives on the engine adapter. */
+function defaultUsageAdapter(backend: Backend): UsageAdapter {
+  return backend === 'pi' ? getEngineAdapter('pi') : getDaemonAdapter(backend);
+}
 type SettingsReader = () => Pick<Settings, 'anthropicSubscriptionModes' | 'subscriptionBillingModes'>;
 
 export interface UsageServiceStore {
@@ -362,7 +367,7 @@ export class UsageService {
 
   constructor(dependencies: UsageServiceDependencies = {}) {
     this.store = dependencies.store ?? usageStore;
-    this.getAdapter = dependencies.getAdapter ?? getDaemonAdapter;
+    this.getAdapter = dependencies.getAdapter ?? defaultUsageAdapter;
     this.getSettings = dependencies.getSettings ?? readSettings;
     this.fetch = dependencies.fetch ?? globalThis.fetch;
     this.gatewayUrl = dependencies.gatewayUrl ?? GATEWAY_URL;

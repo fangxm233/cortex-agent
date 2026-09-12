@@ -10,6 +10,7 @@ import { join as pathJoin } from 'node:path';
 import { mkdirSync, existsSync, readFileSync, unlinkSync } from 'node:fs';
 
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
+import { piPool } from './agent-adapter/pi-pool-fixture.js';
 import { makeFakeRuntimeFactory } from './agent-adapter/pi-fake-runtime.js';
 import { _test as modeManagerTest } from '../src/domain/agents/index.js';
 import type { AgentAdapter } from '../src/agent-adapter/index.js';
@@ -55,14 +56,15 @@ test('pi-cost-record: agent_end records cost before agent_settled completes', as
   const fake = makeFakeRuntimeFactory({ sessionId: 'pi-test-001' });
   const piAdapter = new PIAdapter(fake.factory, SESSION_DIR);
 
-  // Wrap PIAdapter as AgentAdapter for runWithAdapter
+  // The pool now lives in SessionEngines; wrap it as the AgentAdapter runWithAdapter calls.
+  const pool = piPool(piAdapter);
   const adapter: AgentAdapter = {
     backend: 'pi',
     capabilities: CAPABILITIES_BY_BACKEND['pi'],
-    spawn: (spec: EngineSpec) => piAdapter.spawn(spec),
-    close: (key: string) => piAdapter.close(key),
-    kill: (key: string) => piAdapter.kill(key),
-    listSessions: () => piAdapter.listSessions(),
+    spawn: (spec: EngineSpec) => pool.spawn(spec),
+    close: async (key: string) => { pool.close(key); },
+    kill: (key: string) => pool.kill(key),
+    listSessions: () => pool.listSessions(),
   };
 
   // runWithAdapter calls adapter.spawn() synchronously inside, which creates the PI session.
@@ -98,7 +100,7 @@ test('pi-cost-record: agent_end records cost before agent_settled completes', as
 
   // Wait for runWithAdapter to finish processing.
   await handle.promise;
-  for (const key of piAdapter.listSessions()) await piAdapter.close(key);
+  for (const key of pool.listSessions()) pool.close(key);
   // Drain any pending async cost writes (recordCost is fire-and-forget in mode-manager event loop).
   await costRepo.flush();
 

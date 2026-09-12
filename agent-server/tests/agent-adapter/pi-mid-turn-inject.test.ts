@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { PIAdapter } from '../../src/agent-adapter/pi/adapter.js';
+import { piPool } from './pi-pool-fixture.js';
 import type { AgentProcess } from '../../src/agent-adapter/types.js';
 import type { AgentResult } from '../../src/core/types/agent-types.js';
 import type { NormalizedEvent } from '../../src/agent-adapter/normalize/event-types.js';
@@ -39,7 +40,7 @@ let counter = 0;
 async function spawnProcess(options: FakeRuntimeFactoryOptions = {}): Promise<Fixture> {
   const fake = makeFakeRuntimeFactory(options);
   const adapter = new PIAdapter(fake.factory);
-  const proc = adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: `pi-inject-${counter++}`, resume: false }));
+  const proc = piPool(adapter).spawn(engineSpecFixture({ sessionId: null, sessionKey: `pi-inject-${counter++}`, resume: false }));
   const runtime = await fake.runtime(0);
   return { adapter, proc, runtime };
 }
@@ -81,8 +82,8 @@ async function spawnSwitchingFixture(): Promise<SwitchingFixture> {
   writeFileSync(join(sessionDir, 'session-b.jsonl'), '{}\n');
   const fake = makeFakeRuntimeFactory({ sessionIds: ['session-a', 'session-b'] });
   const adapter = new PIAdapter(fake.factory, sessionDir);
-  const first = adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'pi-switch-first', resume: false }));
-  const second = adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'pi-switch-second', resume: false }));
+  const first = piPool(adapter).spawn(engineSpecFixture({ sessionId: null, sessionKey: 'pi-switch-first', resume: false }));
+  const second = piPool(adapter).spawn(engineSpecFixture({ sessionId: null, sessionKey: 'pi-switch-second', resume: false }));
   const [firstRuntime] = await Promise.all([fake.runtime(0), fake.runtime(1)]);
   return { adapter, first, second, firstRuntime, sessionDir };
 }

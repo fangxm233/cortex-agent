@@ -14,6 +14,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { makeFakeRuntimeFactory } from './agent-adapter/pi-fake-runtime.js';
 import type { PiRuntimeFactory } from '../src/agent-adapter/pi/runtime.js';
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
+import { piPool } from './agent-adapter/pi-pool-fixture.js';
 import {
   buildProviderOverrides,
   withCustomEntries,
@@ -87,7 +88,7 @@ test('spawn: a custom provider from the user catalog reaches the spawned PI cata
       { agentDir, userModelsPath },
     );
 
-    adapter.spawn(engineSpecFixture({
+    piPool(adapter).spawn(engineSpecFixture({
       sessionId: null,
       sessionKey: 'custom-provider-spawn',
       resume: false,
@@ -123,7 +124,7 @@ test('spawn: a discovered custom provider is completed even when another provide
       { agentDir, userModelsPath },
     );
 
-    adapter.spawn(engineSpecFixture({
+    piPool(adapter).spawn(engineSpecFixture({
       sessionId: null,
       sessionKey: 'custom-provider-bystander',
       resume: false,
@@ -153,7 +154,7 @@ test('spawn: an absent user catalog leaves built-in routing untouched', () => {
       { agentDir, userModelsPath: pathJoin(dir, 'missing.json') },
     );
 
-    adapter.spawn(engineSpecFixture({
+    piPool(adapter).spawn(engineSpecFixture({
       sessionId: null,
       sessionKey: 'custom-provider-absent',
       resume: false,
@@ -181,7 +182,7 @@ test('spawn: DeepSeek child preserves the admitted cap after a model-store refre
       { getProviders: () => ['deepseek'], refresh: () => {}, getModels: () => [], peekModels: () => [] },
       { agentDir },
     );
-    const spawn = (sessionKey: string) => adapter.spawn(engineSpecFixture({
+    const spawn = (sessionKey: string) => piPool(adapter).spawn(engineSpecFixture({
       sessionId: null,
       sessionKey,
       resume: false,

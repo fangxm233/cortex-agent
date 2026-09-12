@@ -14,6 +14,7 @@ import { createQuotaProbe } from '../src/agent-adapter/pi/quota-probe.js';
 import type { CodexQuotaReading } from '../src/domain/costs/codex-quota.js';
 import { reportCodexQuota, resolveQuotaSource } from '../src/agent-adapter/pi/quota-sink.js';
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
+import { piPool } from './agent-adapter/pi-pool-fixture.js';
 import {
   initRateLimitThrottle, getThrottleState, _testReset,
   type RateLimitThrottleState,
@@ -276,7 +277,7 @@ test('a quota reading from the PI session throttles the provider it was routed u
 
   const fake = makeFakeRuntimeFactory();
   const adapter = new PIAdapter(fake.factory);
-  const proc = adapter.spawn(engineSpecFixture({
+  const proc = piPool(adapter).spawn(engineSpecFixture({
     sessionId: null,
     sessionKey: 'quota-wire',
     resume: false,

@@ -5,7 +5,7 @@ Defines shared contracts, capabilities, and normalized backend events.
 
 | filename | role | function |
 |---|---|---|
-| index.ts | entry | selects daemon adapters, injects PI usage state and routes pooled-session control |
+| index.ts | entry | selects the Claude pooled adapter and exposes the stateless PI engine adapter |
 | types.ts | types | Shared adapter, EngineSpec/CortexContextEnv, usage, tool-gate, out-of-band turn event and plugin contracts |
 | run-events.ts | types | RunPhase/RunEvent vocabulary and the NormalizedEvent → RunEvent translation shared by engine sessions and the run layer |
 | mcp-private-dir.ts | util | Guards private physical MCP directories |

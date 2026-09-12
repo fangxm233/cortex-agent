@@ -3,7 +3,7 @@
 // pos:    Backend-neutral agent run facade
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { getAdapter } from '../../agent-adapter/index.js';
+import { getRunAdapter } from '../runs/engines.js';
 import type {
   AgentAdapter, AgentCompactResult, AgentProcess, Backend, EngineSpec,
   NormalizedEvent,
@@ -463,7 +463,7 @@ export interface CompactAgentDeps {
 
 const compactAgentDeps: CompactAgentDeps = {
   resolveProfile: resolveProfileConfig,
-  getAdapter,
+  getAdapter: getRunAdapter,
   configureMode: resolveModeEnv,
   recordCost,
 };
@@ -567,7 +567,7 @@ function configureRunRoute(options: RunAgentOptions, config: AgentConfig): ModeE
 
 export function runAgentOnce(message: string, options: RunAgentOptions, config: AgentConfig): AgentHandle {
   const route = configureRunRoute(options, config);
-  const adapter = getAdapter(config.backend as Backend);
+  const adapter = getRunAdapter(config.backend as Backend);
   const handle = runWithAdapter(adapter, message, options, config, route);
   const attributed = withRateLimitProvider(handle, resolveRateLimitProvider(config));
   return withAuthLifecycle(attributed, options, config);
@@ -696,13 +696,7 @@ export const _test = {
   filterScopedPlugins,
 };
 
-// --- Pooled-session control (backend-neutral) and Claude bridge helper re-exports ---
+// --- Claude bridge helper re-exports ---
 
-export {
-  closeSession,
-  killSession,
-  closeSessionsByPrefix,
-  closeAllSessions,
-} from '../../agent-adapter/index.js';
 export { _test as claudeTest } from '../../agent-adapter/claude/adapter.js';
 export { getCurrentPlanFilePath } from '../../agent-adapter/claude/event-parser.js';
