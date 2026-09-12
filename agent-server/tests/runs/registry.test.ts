@@ -221,3 +221,17 @@ test('streaming slot set / get / clear', () => {
 test('runningExecutions and bgHeldSessions are the same runRegistry singleton', () => {
   assert.equal(runningExecutions, bgHeldSessions);
 });
+
+// ── P1.8 run lookup for mid-turn injection ─────────────────────────────
+
+test('getRunByChannel returns the newest live run and skips run-less executions', () => {
+  const r = new RunRegistry();
+  const older = { steer: async () => 'refused' as const };
+  const newer = { steer: async () => 'folded' as const };
+  r.register(makeInput({ executionId: 'exec-1', channel: 'web:s1' }));
+  r.register(makeInput({ executionId: 'exec-2', channel: 'web:s1', run: older }));
+  r.register(makeInput({ executionId: 'exec-3', channel: 'web:s1', run: newer }));
+
+  assert.equal(r.getRunByChannel('web:s1'), newer);
+  assert.equal(r.getRunByChannel('web:none'), null);
+});

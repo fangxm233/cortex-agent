@@ -7,7 +7,7 @@ import { afterEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 
 import type {
-  AgentAdapter, AgentProcess, ContinuationSink, UserMessage,
+  AgentAdapter, AgentProcess, ContinuationSink, InjectionAckSink, UserMessage,
 } from '../../src/agent-adapter/types.js';
 import { CAPABILITIES_BY_BACKEND } from '../../src/agent-adapter/capabilities.js';
 import type { NormalizedEvent } from '../../src/agent-adapter/normalize/event-types.js';
@@ -61,12 +61,21 @@ interface FakeProcess extends AgentProcess {
   resolveSend(result: AgentResult): void;
 }
 
+interface FakeProcess extends AgentProcess {
+  continuationSink?: ContinuationSink;
+  injectionAckSink?: InjectionAckSink;
+  readonly killed: boolean;
+  resolveSend(result: AgentResult): void;
+}
+
 interface FakeProcessSpec {
   events?: NormalizedEvent[];
   result?: AgentResult;
   /** Keep send() pending (and the event stream open) until kill()/resolveSend(). */
   hold?: boolean;
   sessionId?: string;
+  /** False makes `injectUserMessage` refuse (no live turn / dead process). */
+  injectAccepted?: boolean;
 }
 
 /** The fake-process pattern from tests/run-with-adapter.test.ts, extended with a continuation sink
@@ -122,6 +131,8 @@ function makeFakeProcess(spec: FakeProcessSpec = {}): FakeProcess {
       },
     },
     setContinuationSink(sink: ContinuationSink): void { process.continuationSink = sink; },
+    injectUserMessage(_message: UserMessage): boolean { return spec.injectAccepted !== false; },
+    setInjectionAckSink(sink: InjectionAckSink): void { process.injectionAckSink = sink; },
     async close(): Promise<void> { close(); },
     kill(): boolean {
       killed = true;
@@ -354,4 +365,73 @@ test('a throwing required observer fails the run and kills the process', async (
   assert.equal(run.status, 'failed');
   assert.equal(process.killed, true);
   assert.equal(runRegistry.getById(run.executionId), null);
+});
+
+// ── P1.8: steer owns the injection ack -> event translation ───────────────
+
+test('steer delivers a message to the live process and fans the ack out as injection_delivered', async () => {
+  const process = makeFakeProcess({ hold: true });
+  holder.adapter = makeFakeAdapter(process);
+  const seen = collector();
+
+  const run = startRun(makeRequest(), [seen.observer]);
+  assert.equal(runRegistry.getRunByChannel('web:sess-1'), run, 'the registry exposes the live run');
+
+  assert.deepEqual(await run.steer({ text: 'keep going' }, 'inj-1'), 'folded');
+  assert.ok(process.injectionAckSink, 'the run installed the injection ack sink');
+
+  process.injectionAckSink!.onDelivered({ text: 'keep going', foldedIntoTurn: true });
+
+  const event = seen.events.find(
+    (candidate): candidate is Extract<RunEvent, { type: 'injection_delivered' }> =>
+      candidate.type === 'injection_delivered',
+  );
+  assert.deepEqual(event, { type: 'injection_delivered', injectionId: 'inj-1', foldedIntoTurn: true });
+
+  run.cancel('user');
+  await run.settled.catch(() => undefined);
+});
+
+test('steer refuses without a live process and emits no injection event', async () => {
+  const process = makeFakeProcess({ hold: true, injectAccepted: false });
+  holder.adapter = makeFakeAdapter(process);
+  const seen = collector();
+
+  const run = startRun(makeRequest(), [seen.observer]);
+  assert.equal(await run.steer({ text: 'nope' }, 'inj-2'), 'refused');
+  assert.equal(seen.events.some((event) => event.type.startsWith('injection_')), false);
+
+  run.cancel('user');
+  await run.settled.catch(() => undefined);
+});
+
+test('a post-result injection keeps the run in background until the continuation settles', async () => {
+  const process = makeFakeProcess({ hold: true });
+  holder.adapter = makeFakeAdapter(process);
+  const seen = collector();
+
+  const run = startRun(makeRequest(), [seen.observer]);
+  assert.equal(await run.steer({ text: 'after the result' }, 'inj-3'), 'folded');
+
+  process.resolveSend(defaultResult('backend-1', { finalOutput: 'fg' }));
+  await process.close();
+  const foreground = await run.result;
+  assert.equal(foreground.finalOutput, 'fg');
+  assert.equal(run.phase, 'background', 'a pending injection holds the run open');
+
+  process.injectionAckSink!.onDelivered({ text: 'after the result', foldedIntoTurn: false });
+  process.continuationSink!.onAssistantText('spontaneous reply', 'model');
+  process.continuationSink!.onResult(defaultResult('backend-1', { finalOutput: 'spontaneous reply' }));
+
+  const settled = await run.settled;
+  assert.equal(settled.finalOutput, 'spontaneous reply');
+  assert.equal(run.phase, 'done');
+  assert.equal(runRegistry.getById(run.executionId), null);
+  assert.deepEqual(
+    seen.events
+      .filter((event): event is Extract<RunEvent, { type: 'injection_delivered' }> =>
+        event.type === 'injection_delivered')
+      .map((event) => event.injectionId),
+    ['inj-3'],
+  );
 });

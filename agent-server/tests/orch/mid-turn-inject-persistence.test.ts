@@ -28,8 +28,34 @@ function harness(persist: Promise<void>) {
     setInjectionAckSink(sink: any) { proc.ackSink = sink; },
     setContinuationSink(sink: any) { proc.continuationSink = sink; },
   };
+  // P1.8: `tryInjectIntoLiveTurn` steers the live run, which owns the ack sink. This fake run
+  // mirrors the run's ack -> event translation so the ledger (in transcript-sink) drives phase two.
+  const observers = new Set<any>();
+  const pending: Array<{ id: string; text: string }> = [];
+  const emit = async (event: any): Promise<void> => {
+    for (const observer of [...observers]) await observer.onEvent(event);
+  };
+  proc.setInjectionAckSink({
+    onDelivered: ({ text, foldedIntoTurn }: any) => {
+      const index = pending.findIndex((entry) => entry.text === text);
+      if (index === -1) return Promise.resolve();
+      const [entry] = pending.splice(index, 1);
+      return emit({ type: 'injection_delivered', injectionId: entry.id, foldedIntoTurn });
+    },
+  });
+  const run = {
+    capabilities: new Set(['mid-turn-inject']),
+    steer: async (msg: any, injectionId?: string) => {
+      pending.push({ id: injectionId ?? 'unknown', text: msg.text });
+      return 'folded' as const;
+    },
+    subscribe: (observer: any) => {
+      observers.add(observer);
+      return () => { observers.delete(observer); };
+    },
+  };
   const deps: MidTurnInjectDeps = {
-    getLiveExecutions: () => [{ backend: 'claude', agentProcess: proc }],
+    getLiveExecutions: () => [{ backend: 'claude', run }],
     getStreamingCallback: () => null,
     appendAssistant: () => {},
     appendTool: () => {},
@@ -43,7 +69,7 @@ function harness(persist: Promise<void>) {
     unmarkPending: async () => { order.push('unmark'); },
     track: (delta) => { order.push(`track:${delta}`); },
     now: () => 'T-write',
-  } as MidTurnInjectDeps;
+  } as unknown as MidTurnInjectDeps;
   return { deps, proc, order };
 }
 

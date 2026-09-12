@@ -3,14 +3,14 @@
 // pos:    The run ownership object. P1.3 wraps facade.runAgent; P2 replaces the engine path under it.
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
+import { randomUUID } from 'node:crypto';
 import { createLogger } from '@core/log.js';
 import type { RunRegistry } from '@core/run-registry.js';
 import type { AgentHandle } from '@core/types/agent-types.js';
 import { remainingBg } from '../../agent-adapter/bg-wait.js';
-import { CAPABILITIES_BY_BACKEND } from '../../agent-adapter/capabilities.js';
-import type { Capability } from '../../agent-adapter/capabilities.js';
+import { CAPABILITIES_BY_BACKEND, Capability } from '../../agent-adapter/capabilities.js';
 import type {
-  AgentProcess, ContinuationSink, UserMessage,
+  AgentProcess, ContinuationSink, InjectionAckSink, UserMessage,
 } from '../../agent-adapter/types.js';
 import type { NormalizedEvent } from '../../agent-adapter/normalize/event-types.js';
 import type { AgentConfig, RunAgentOptions } from '../agents/spawn-config.js';
@@ -29,8 +29,7 @@ const log = createLogger('run');
 export type RunStatus =
   | 'starting' | 'running' | 'background' | 'completed' | 'failed' | 'cancelled' | 'rate-limited';
 
-/** The one ownership object for a run (plan §3.3). `steer`/`respondToDialog` are stubs in Phase 1:
- *  P1.8 wires `steer`, P2.4 wires `respondToDialog`. */
+/** The one ownership object for a run (plan §3.3). P1.8 wires `steer`; P2.4 wires `respondToDialog`. */
 export interface AgentRun {
   readonly id: string;
   readonly request: RunRequest;
@@ -45,8 +44,15 @@ export interface AgentRun {
   readonly result: Promise<RunResult>;
   /** Terminal run outcome, including the background phase (D1). */
   readonly settled: Promise<RunResult>;
-  /** Phase 1 stub — P1.8 implements mid-turn injection. */
-  steer(msg: UserMessage): Promise<'folded' | 'queued' | 'refused'>;
+  /**
+   * Deliver `msg` into the live turn without opening a new Cortex run (D2). The run decides
+   * capability from `this.capabilities` — callers never inspect the process. Resolves `refused`
+   * when the backend cannot take the message (the caller then falls back to the queue). The
+   * authoritative fold/queue outcome arrives later as an `injection_delivered` RunEvent.
+   * `injectionId` lets the caller (the pending-injection ledger in `orchestration/transcript-sink`)
+   * correlate the eventual ack event with its durable pending record.
+   */
+  steer(msg: UserMessage, injectionId?: string): Promise<'folded' | 'queued' | 'refused'>;
   /** Phase 1 stub — P2.4 implements dialog responses. */
   respondToDialog(id: string, payload: Record<string, unknown>): boolean;
   cancel(reason: 'user' | 'supersede' | 'shutdown'): void;
@@ -56,6 +62,15 @@ export interface AgentRun {
    * old background-hold machinery. P2.3 deletes it.
    */
   legacyProcess(): AgentProcess | undefined;
+  /**
+   * True once a legacy background hold has subscribed through `runToContinuationSink` and taken
+   * over persisting the background turn's rows. `AgentProcess.setContinuationSink` used to be a
+   * single slot, so exactly one consumer ever wrote those rows; this flag keeps that guarantee now
+   * that several observers can watch the same run. P4.1 removes it with the holds.
+   */
+  readonly backgroundTranscriptOwned: boolean;
+  /** Claim the background transcript for a hold. Idempotent. */
+  claimBackgroundTranscript(): void;
   /**
    * Transitional: the `ContinuationSink` view of this run, so P1.5's hold adapters can register the
    * run as a sink without reaching into the process. P4.1 folds the hold path into the run and
@@ -90,6 +105,13 @@ export interface CreateAgentRunArgs {
 
 function asError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
+}
+
+/** A message written to the live backend but whose delivery ack has not arrived yet. `id` is the
+ *  caller's pending-injection id, carried on the eventual `injection_delivered`/`_rejected` event. */
+interface PendingInjectionAck {
+  id: string;
+  text: string;
 }
 
 function cancellationError(reason: string): Error {
@@ -220,6 +242,7 @@ export class AgentRunImpl implements AgentRun {
   private attemptValue: { index: number; config: AgentConfig };
   /** Reporting model of the latest raw assistant event, restamped onto the hook's message. */
   private lastAssistantModel: string | null = null;
+  private backgroundTranscriptOwnedValue = false;
   private statusValue: RunStatus = 'starting';
   private phaseValue: RunPhase = 'foreground';
   private numTurnsValue: number | null = null;
@@ -238,6 +261,10 @@ export class AgentRunImpl implements AgentRun {
   private handle: AgentHandle | null = null;
   private continuationSinkValue: ContinuationSink | null = null;
   private continuationSinkInstalled = false;
+  private injectionAckInstalled = false;
+  /** Injections accepted by the backend whose ack has not arrived. Keeps the run in `background`
+   *  after its foreground result so a post-result injection's spontaneous turn is not dropped. */
+  private pendingInjections: PendingInjectionAck[] = [];
   private started = false;
   private terminal = false;
   private observersClosed = false;
@@ -307,8 +334,58 @@ export class AgentRunImpl implements AgentRun {
     );
   }
 
-  steer(_msg: UserMessage): Promise<'folded' | 'queued' | 'refused'> {
-    return Promise.resolve('refused');
+  steer(msg: UserMessage, injectionId?: string): Promise<'folded' | 'queued' | 'refused'> {
+    if (this.terminal) return Promise.resolve('refused');
+    if (!this.capabilities.has(Capability.MidTurnInject)) return Promise.resolve('refused');
+    const proc = this.handle?.agentProcess as AgentProcess | undefined;
+    if (!proc || typeof proc.injectUserMessage !== 'function') return Promise.resolve('refused');
+    this.installInjectionAckSink(proc);
+    const entry: PendingInjectionAck = { id: injectionId ?? randomUUID(), text: msg.text };
+    this.pendingInjections.push(entry);
+    let accepted = false;
+    try {
+      accepted = proc.injectUserMessage(msg);
+    } catch (error) {
+      log.warn('run inject failed:', asError(error).message);
+    }
+    if (!accepted) {
+      this.removePendingInjection(entry.id);
+      return Promise.resolve('refused');
+    }
+    // The write was accepted. The authoritative folded/queued outcome is delivered later as an
+    // `injection_delivered` event; the synchronous return only tells the caller not to queue it.
+    return Promise.resolve(this.phaseValue === 'background' ? 'queued' : 'folded');
+  }
+
+  /** Install the backend-neutral injection ack sink once. Every ack becomes a run event. */
+  private installInjectionAckSink(proc: AgentProcess): void {
+    if (this.injectionAckInstalled) return;
+    if (typeof proc.setInjectionAckSink !== 'function') return;
+    this.injectionAckInstalled = true;
+    const sink: InjectionAckSink = {
+      onDelivered: ({ text, foldedIntoTurn }) => {
+        const entry = this.takePendingInjection(text);
+        if (!entry) return;
+        this.absorb({ type: 'injection_delivered', injectionId: entry.id, foldedIntoTurn });
+      },
+      onUndelivered: ({ text }) => {
+        const entry = this.takePendingInjection(text);
+        if (!entry) return;
+        this.absorb({ type: 'injection_rejected', injectionId: entry.id, reason: 'undelivered' });
+      },
+    };
+    proc.setInjectionAckSink(sink);
+  }
+
+  /** Remove and return the oldest pending injection written with `text` (acks are FIFO per text). */
+  private takePendingInjection(text: string): PendingInjectionAck | null {
+    const index = this.pendingInjections.findIndex((entry) => entry.text === text);
+    if (index === -1) return null;
+    return this.pendingInjections.splice(index, 1)[0];
+  }
+
+  private removePendingInjection(id: string): void {
+    this.pendingInjections = this.pendingInjections.filter((entry) => entry.id !== id);
   }
 
   respondToDialog(_id: string, _payload: Record<string, unknown>): boolean {
@@ -329,6 +406,10 @@ export class AgentRunImpl implements AgentRun {
       if (index >= 0) this.observers.splice(index, 1);
     };
   }
+
+  get backgroundTranscriptOwned(): boolean { return this.backgroundTranscriptOwnedValue; }
+
+  claimBackgroundTranscript(): void { this.backgroundTranscriptOwnedValue = true; }
 
   legacyProcess(): AgentProcess | undefined {
     return (this.handle?.agentProcess as AgentProcess | undefined) ?? undefined;
@@ -353,6 +434,7 @@ export class AgentRunImpl implements AgentRun {
       kill: () => handle.kill(),
       backend: this.request.profile.backend,
       agentProcess: handle.agentProcess,
+      run: this,
       trackSessionId: this.request.session.sessionId,
       backendSessionId: handle.sessionId ?? this.request.session.backendSessionId,
       sessionId: handle.sessionId,
@@ -416,6 +498,10 @@ export class AgentRunImpl implements AgentRun {
       case 'turn_progress':
         this.setNumTurns(event.numTurns);
         break;
+      case 'injection_delivered':
+      case 'injection_rejected':
+        this.removePendingInjection(event.injectionId);
+        break;
       case 'background_result':
         this.backgroundResult = event.result;
         this.absorbResultCounts(event.result);
@@ -428,6 +514,22 @@ export class AgentRunImpl implements AgentRun {
       if (event.result.backgroundInterrupted || remainingBg(event.result) === 0) {
         this.finishTerminal(event.result.rateLimited ? 'rate-limited' : 'completed', event.result);
       }
+    }
+    // A post-result injection keeps the run in `background` until its spontaneous turn results.
+    // A rejected injection (or one that folded) leaves nothing to wait for, so seal here — the
+    // foreground result already settled and carried no background work of its own.
+    if (
+      (event.type === 'injection_rejected'
+        || (event.type === 'injection_delivered' && event.foldedIntoTurn))
+      && this.phaseValue === 'background'
+      && this.pendingInjections.length === 0
+      && this.foregroundResult !== null
+      && remainingBg(this.foregroundResult) === 0
+    ) {
+      this.finishTerminal(
+        this.foregroundResult.rateLimited ? 'rate-limited' : 'completed',
+        this.foregroundResult,
+      );
     }
   }
 
@@ -452,7 +554,7 @@ export class AgentRunImpl implements AgentRun {
 
     const pendingBackground = result.pendingBackgroundTasks ?? 0;
     const undeliveredBackground = result.undeliveredBackgroundTasks ?? 0;
-    if (this.continuationSinkInstalled && remainingBg(result) > 0) {
+    if (this.continuationSinkInstalled && (remainingBg(result) > 0 || this.pendingInjections.length > 0)) {
       this.phaseValue = 'background';
       this.statusValue = 'background';
       this.fanOut({ type: 'phase', phase: 'background', pendingBackground, undeliveredBackground });

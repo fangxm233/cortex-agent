@@ -15,6 +15,19 @@
 
 import type { EventBus } from '@events/index.js';
 
+/** A user message as a run's `steer()` accepts it. Declared structurally here so `core` stays free
+ *  of an agent-adapter import; `UserMessage` is assignable to it. */
+export interface SteerableMessage {
+  text: string;
+  attachments?: { mimeType: string; path: string }[];
+}
+
+/** The slice of an `AgentRun` the mid-turn injection path needs. The run itself decides — via its
+ *  own `capabilities` — whether it can take the message, so callers never duck-type the process. */
+export interface SteerableRun {
+  steer(message: SteerableMessage, injectionId?: string): Promise<'folded' | 'queued' | 'refused'>;
+}
+
 export interface RunningExecution {
   threadId: string | null;
   channel: string | null;
@@ -29,6 +42,8 @@ export interface RunningExecution {
   backend: string;
   /** Agent process reference used to resolve generic PI extension UI dialogs. */
   agentProcess?: unknown;
+  /** The live `AgentRun` that owns this execution — the mid-turn injection target (P1.8). */
+  run?: SteerableRun;
   /** Stable Cortex track session id used by registry/history/query surfaces. */
   trackSessionId?: string | null;
   /** Backend resume target snapshot from spawn time. */
@@ -123,6 +138,7 @@ export class RunRegistry {
       startTime: Date.now(),
       backend: exec.backend,
       agentProcess: exec.agentProcess,
+      run: exec.run,
       trackSessionId: exec.trackSessionId ?? null,
       backendSessionId: exec.backendSessionId ?? exec.sessionId ?? null,
       sessionId: exec.trackSessionId ?? exec.backendSessionId ?? exec.sessionId ?? null,
@@ -208,6 +224,19 @@ export class RunRegistry {
   getByChannel(channel: string): RunningExecution[] {
     const set = this.byChannel.get(channel);
     return set ? Array.from(set) : [];
+  }
+
+  /**
+   * The newest live run registered on a channel that exposes `steer()`, or null. The run itself
+   * decides whether it can accept an injection; callers must not inspect the process.
+   */
+  getRunByChannel(channel: string): SteerableRun | null {
+    let best: RunningExecution | null = null;
+    for (const entry of this.getByChannel(channel)) {
+      if (!entry.run) continue;
+      if (!best || entry.startTime >= best.startTime) best = entry;
+    }
+    return best?.run ?? null;
   }
 
   /** Returns true if at least one live execution is registered on the channel. */

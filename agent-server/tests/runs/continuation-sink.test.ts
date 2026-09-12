@@ -17,11 +17,13 @@ function runStub(): { run: AgentRun; push: (event: RunEvent) => void; unsubscrib
   let observer: RunObserver | null = null;
   let unsubscribed = false;
   const run = {
+    backgroundTranscriptOwned: false,
+    claimBackgroundTranscript(): void { run.backgroundTranscriptOwned = true; },
     subscribe(o: RunObserver): () => void {
       observer = o;
       return () => { unsubscribed = true; observer = null; };
     },
-  } as unknown as AgentRun;
+  } as unknown as AgentRun & { backgroundTranscriptOwned: boolean };
   return { run, push: (event) => observer!.onEvent(event), unsubscribed: () => unsubscribed };
 }
 

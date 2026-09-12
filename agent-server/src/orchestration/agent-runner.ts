@@ -48,6 +48,7 @@ import { isProviderRateLimited } from '@domain/costs/rate-limit-throttle.js';
 import { getAgent } from '@domain/threads/index.js';
 import { runConversation } from './conversation-runner.js';
 import { runToContinuationSink } from '@domain/runs/continuation-sink.js';
+import type { AgentRun } from '@domain/runs/run.js';
 import type { RunEvent } from '@domain/runs/events.js';
 import type { RunObserver } from '@domain/runs/request.js';
 import { acquireBrowser, releaseBrowser, backendSupportsBrowser, BROWSER_DEVICE_SERVER } from '@platform/browser/managed-browser.js';
@@ -733,7 +734,10 @@ async function acquireSessionUseLease(sessionId: string): Promise<SessionUseLeas
 
 function buildInjectDeps(sessionName: string | null, channel: string, adapter: PlatformAdapter): MidTurnInjectDeps {
   return {
-    getLiveExecutions: (channel) => runningExecutions.getByChannel(channel),
+    getLiveExecutions: (channel) => runningExecutions.getByChannel(channel).map((entry) => ({
+      backend: entry.backend,
+      run: entry.run as unknown as AgentRun | undefined,
+    })),
     getStreamingCallback,
     appendAssistant: (sessionId, o) => recordHistory(conversationHistory.appendAssistant(sessionId, o)),
     appendTool: (sessionId, o) => recordHistory(

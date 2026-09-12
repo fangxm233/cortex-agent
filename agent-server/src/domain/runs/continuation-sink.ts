@@ -20,6 +20,9 @@ import type { AgentRun } from './run.js';
  * logic into the run and deletes this.
  */
 export function runToContinuationSink(run: AgentRun, sink: ContinuationSink): () => void {
+  // A hold both streams and persists the background turn, so it owns those rows; any other observer
+  // watching the same run (today: the mid-turn injection ledger) must not write them a second time.
+  run.claimBackgroundTranscript();
   // `AgentRun` emits its own `phase: background` marker the moment the foreground result leaves
   // background work behind — that is *not* the adapter's `onTurnOpen` (which fires when the
   // spontaneous continuation turn actually opens). A caller that subscribes before the foreground

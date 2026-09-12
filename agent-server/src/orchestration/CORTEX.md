@@ -20,7 +20,7 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | durable-helpers.ts | util | builds durable post and update hooks |
 | lifecycle.ts | core | finalizes turns, attributes continuation costs, and resumes edit-retry/ask-user turns through startRun |
 | manager-qa.ts | channel | durably relays subtask manager questions and answers |
-| mid-turn-inject.ts | core | Injects turns with remote tool metadata |
+| mid-turn-inject.ts | core | routes a busy-channel message to the live AgentRun.steer; the ledger it feeds lives in transcript-sink |
 | orchestrator.ts | router | picks the thread or default routing branch |
 | pending-injection-recovery.ts | recovery | commits and recovers pending injected turns |
 | resume-dispatcher.ts | runner | Resumes paused work under runtime settings |
@@ -37,7 +37,7 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | superseded-edits.ts | tracker | marks channels superseded by a message edit |
 | thread-callback.ts | callback | Fences child results and resumes current parents |
 | thread-executor.ts | core | routes threads and buffers downloaded user files |
-| transcript-sink.ts | core | single history+publish observer for the RunEvent stream, replacing the four per-surface copies |
+| transcript-sink.ts | core | single history+publish observer for the RunEvent stream, plus the mid-turn injection ledger that persists/commits injected messages from injection events |
 | turn-mutation-lock.ts | guard | grants per-channel mutation leases |
 | turn-notify.ts | notify | applies settings and notifies completed long turns |
 | web-bg-hold.ts | helper | holds Web turns, forwards continuation limits, owns the continuation's rate-limit notice |
