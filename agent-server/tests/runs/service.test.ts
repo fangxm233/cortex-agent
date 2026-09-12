@@ -247,10 +247,12 @@ test('startRun fans adapter events out in order and closes the execution and reg
   assert.equal(runRegistry.getById(run.executionId), null, 'removed on terminal');
   assert.equal(executionRegistry.getExecution(run.executionId)?.status, 'completed');
 
-  // turn_complete is deliberately NOT relayed: the authoritative foreground_result comes from the
-  // resolved AgentHandle, and a phase done transition closes the run.
+  // turn_complete's *result* is deliberately NOT relayed: the authoritative foreground_result comes
+  // from the resolved AgentHandle, and a phase done transition closes the run. Its turn count still
+  // is: the legacy dispatcher called onProgress on turn_complete too, so the live turn counter and
+  // the status line keep receiving the final value — hence the second turn_progress here.
   assert.deepEqual(seen.events.map((event) => event.type), [
-    'engine_started', 'assistant_text', 'turn_progress', 'foreground_result', 'phase',
+    'engine_started', 'assistant_text', 'turn_progress', 'turn_progress', 'foreground_result', 'phase',
   ]);
   assert.equal((seen.events.at(-1) as Extract<RunEvent, { type: 'phase' }>).phase, 'done');
   assert.equal(seen.isClosed(), true);
@@ -292,7 +294,8 @@ test('startRun enters the background phase and settles after the continuation re
   assert.equal(executionRegistry.getExecution(run.executionId)?.status, 'completed');
 
   assert.deepEqual(seen.events.map((event) => event.type), [
-    'engine_started', 'assistant_text', 'foreground_result', 'phase',
+    // turn_complete's count is republished as turn_progress (the legacy onProgress-on-complete).
+    'engine_started', 'assistant_text', 'turn_progress', 'foreground_result', 'phase',
     'assistant_text', 'background_result', 'phase',
   ]);
   assert.deepEqual(phaseEvents(seen.events), ['background', 'done']);

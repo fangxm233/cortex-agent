@@ -378,10 +378,6 @@ function resolveRunProfile(profileName: string | null, channel: string): Resolve
 
 /** Ask-user groups are thread-less in practice, but the legacy facade fell back to
  *  `shouldAwaitBgInline` (settings-gated, thread-keyed); mirror that decision here. */
-function askBackgroundPolicy(threadId: string | null | undefined): 'inline' | 'none' {
-  return getSettings().bgContinuation && threadId ? 'inline' : 'none';
-}
-
 export async function resumeAskUserQuestionGroup({ adapter, group, responseText }: { adapter: PlatformAdapter; group: { channel: string; sessionId: string; groupId: string; threadId?: string | null }; responseText: string }): Promise<void> {
   let sessionRelease: (() => void) | null = null;
   let statusMsg: MessageRef | null = null;
@@ -422,7 +418,10 @@ export async function resumeAskUserQuestionGroup({ adapter, group, responseText 
         channel: group.channel,
         project: askProjectId,
         trigger: 'ask-user-question',
-        threadId: group.threadId ?? null,
+        // The pre-refactor resume passed no threadId and never waited for background work inline.
+        // Both are load-bearing: a threadId lands in CORTEX_THREAD_ID and switches the facade's
+        // inline background wait on, which would make the resume turn block on background tasks.
+        threadId: null,
         executionKind: 'local',
         isUserInitiated: false,
         commissionMode: false,
@@ -430,13 +429,15 @@ export async function resumeAskUserQuestionGroup({ adapter, group, responseText 
         scheduleTaskId: null,
       },
       policy: {
-        background: askBackgroundPolicy(group.threadId),
+        background: 'none',
         recordCost: true,
         hooks: true,
         loadRules: true,
         mcpComposition: 'direct',
         browserCdpEndpoint: null,
-        captureTranscripts: false,
+        // Claude writes a per-turn transcript file unless told not to; only a frozen subagent
+        // child opts out. `captureTranscriptLogs` defaults to ON, so this must stay true.
+        captureTranscripts: true,
       },
     };
     const observer: RunObserver = {
@@ -558,7 +559,9 @@ export async function runRetryAgent({ channel, text, adapter, statusMsg, startTi
         loadRules: true,
         mcpComposition: 'direct',
         browserCdpEndpoint: null,
-        captureTranscripts: false,
+        // Claude writes a per-turn transcript file unless told not to; only a frozen subagent
+        // child opts out. `captureTranscriptLogs` defaults to ON, so this must stay true.
+        captureTranscripts: true,
       },
     };
     const observer: RunObserver = {

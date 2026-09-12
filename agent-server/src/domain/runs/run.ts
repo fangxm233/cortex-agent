@@ -460,7 +460,9 @@ export class AgentRunImpl implements AgentRun {
     // The authoritative result comes from the resolved AgentHandle, never from turn_complete's
     // synthesized result — relaying it here would double-emit foreground_result.
     if (event.type === 'turn_complete') {
-      if (typeof event.numTurns === 'number') this.setNumTurns(event.numTurns);
+      // The legacy dispatcher called onProgress here with the final count; republish it as
+      // turn_progress so the live turn counter and the status line still get the last value.
+      if (typeof event.numTurns === 'number') this.absorb({ type: 'turn_progress', numTurns: event.numTurns });
       return;
     }
     // Assistant prose arrives through the `onAssistantMessage` hook instead: that path carries the
@@ -533,6 +535,12 @@ export class AgentRunImpl implements AgentRun {
     }
   }
 
+  /** True when the facade owns the background wait for this policy (`awaitBackground: true`). */
+  private awaitsBackgroundInline(): boolean {
+    const background = this.request.policy.background;
+    return background === 'inline' || background === 'completion-only';
+  }
+
   private setNumTurns(numTurns: number): void {
     this.numTurnsValue = numTurns;
     this.registry.setNumTurns(this.executionId, numTurns);
@@ -551,9 +559,20 @@ export class AgentRunImpl implements AgentRun {
     this.absorbResultCounts(result);
     this.resultDeferred.resolve(result);
     this.fanOut({ type: 'foreground_result', result });
+    // A required observer may have sealed the run while the result was being fanned out.
+    if (this.terminal) return;
 
     const pendingBackground = result.pendingBackgroundTasks ?? 0;
     const undeliveredBackground = result.undeliveredBackgroundTasks ?? 0;
+    // An inline policy means the facade already waited for the background work itself, and its
+    // wait replaced the process's single continuation sink to do so. Whatever it did not drain
+    // (grace/max-wait expiry with tasks still pending) can no longer reach this run, so entering
+    // the background phase here would wait for a result that can never arrive — the execution
+    // record would stay open and the session would read as running forever.
+    if (this.awaitsBackgroundInline()) {
+      this.finishTerminal(result.rateLimited ? 'rate-limited' : 'completed', result);
+      return;
+    }
     if (this.continuationSinkInstalled && (remainingBg(result) > 0 || this.pendingInjections.length > 0)) {
       this.phaseValue = 'background';
       this.statusValue = 'background';
@@ -577,7 +596,11 @@ export class AgentRunImpl implements AgentRun {
 
   private finishForegroundError(failure: Error): void {
     if (this.terminal) return;
-    if (this.cancelRequested) {
+    // `cancelRequested` only covers a cancel that came through this object. Stop/!cancel/thread
+    // abort still kill the process directly, and the adapter rejects with a `cancelled` error; the
+    // old facade suppressed the terminal notice for exactly that flag, so honour it here too —
+    // otherwise a user pressing Stop gets an error card and a 'failed' execution.
+    if (this.cancelRequested || (failure as { cancelled?: boolean }).cancelled === true) {
       this.finishTerminal('cancelled', null, failure);
       return;
     }

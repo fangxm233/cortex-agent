@@ -205,7 +205,9 @@ export async function runHookInjection(
         loadRules: true,
         mcpComposition: 'direct',
         browserCdpEndpoint: null,
-        captureTranscripts: false,
+        // Claude writes a per-turn transcript file unless told not to; only a frozen subagent
+        // child opts out. `captureTranscriptLogs` defaults to ON, so this must stay true.
+        captureTranscripts: true,
       },
     };
     const observer: RunObserver = {

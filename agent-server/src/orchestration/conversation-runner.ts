@@ -275,7 +275,9 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
       mcpToolAllowlist: agentConfig.mcpToolAllowlist,
       browserCdpEndpoint: opts.browserCdpEndpoint ?? null,
       // Default for this path: legacy raw/text transcript capture stays off unless a surface opts in.
-      captureTranscripts: false,
+      // Claude writes a per-turn transcript file unless told not to; only a frozen subagent
+      // child opts out. `captureTranscriptLogs` defaults to ON, so this must stay true.
+      captureTranscripts: true,
     },
   };
 
