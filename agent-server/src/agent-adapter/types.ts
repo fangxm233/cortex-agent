@@ -7,6 +7,7 @@ import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from 'n
 import type { ProviderUsage } from '../domain/costs/usage-store.js';
 import type { Capability } from './capabilities.js';
 import type { NormalizedEvent, ToolUseSubagent } from './normalize/event-types.js';
+import type { RunEvent } from './run-events.js';
 import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
 
 export type Backend = 'claude' | 'pi';
@@ -235,4 +236,53 @@ export interface AgentAdapter {
   listSessions(): string[];
   /** Return scoped provider usage from the backend's pull source or push cache. */
   getUsage?(scope: AgentUsageScope): Promise<ProviderUsage[] | null>;
+}
+
+/**
+ * One engine-side run (plan §3.3): the event stream and the foreground result for a single
+ * `EngineSession.run()` call. Nothing implements this yet — P2.2b (PI) and P2.3 (Claude) do.
+ */
+export interface EngineRun {
+  /** The run's events. Does NOT close at the foreground result: a session that owes background
+   *  work keeps emitting with `phase: 'background'` until it emits `phase: 'done'` (D1). */
+  events: AsyncIterable<RunEvent>;
+  /** The foreground turn's result. Background phases continue through `events`. */
+  result: Promise<AgentResult>;
+  cancel(): void;
+}
+
+/**
+ * A live backend session (Claude subprocess / PI SDK session); plan §3.3. Types only for now:
+ * P2.2b (PI) and P2.3 (Claude) implement it, `domain/runs/engines.ts: SessionEngines` owns lifetime.
+ */
+export interface EngineSession {
+  readonly backend: Backend;
+  /** `engineIdentity(spec)` of the spec this session was opened from — the pool's reuse test. */
+  readonly identity: string;
+  /** Feature gates this *session* supports. Per session, not per backend (D9): a profile can
+   *  declare a backend-level capability the concrete session does not implement, so the run layer
+   *  consults this set rather than the backend capability matrix. */
+  readonly capabilities: ReadonlySet<Capability>;
+  readonly backendSessionId: string | null;
+  run(prompt: UserMessage, opts: { awaitBackground: 'none' | 'inline' | 'hold' }): EngineRun;
+  /** Mid-turn injection. `accepted:false` means the backend cannot take it right now. */
+  steer(msg: UserMessage): { accepted: boolean; injectionId?: string };
+  /** Answer an in-flight dialog (ask_user / plan approval / …). Replaces PI's
+   *  `sendExtensionUiResponse`. Returns false when no such dialog is open. */
+  respondToDialog(dialogId: string, payload: Record<string, unknown>): boolean;
+  compact(): Promise<AgentCompactResult>;
+  close(): Promise<void>;
+  kill(): boolean;
+}
+
+/**
+ * Stateless engine factory (plan §3.3). Types only for now: P2.2b (PI) and P2.3 (Claude)
+ * implement it. Replaces the pooled `AgentAdapter` contract for new callers.
+ */
+export interface EngineAdapter {
+  readonly backend: Backend;
+  /** Pure construction: no pool, no registration, no side effects. The caller
+   *  (`domain/runs/engines.ts: SessionEngines`) owns lifetime and reuse. */
+  open(spec: EngineSpec): EngineSession;
+  usage?(scope: AgentUsageScope): Promise<ProviderUsage[] | null>;
 }
