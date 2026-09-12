@@ -326,7 +326,7 @@ export interface AgentAdapter {
   readonly backend: Backend;
   readonly capabilities: Set<Capability>;
   /** Start or resume a session. */
-  spawn(config: AgentSpawnConfig): AgentProcess;
+  spawn(spec: EngineSpec): AgentProcess;
   /** Graceful close. */
   close(sessionKey: string): Promise<void>;
   /** Forced kill. */

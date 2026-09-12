@@ -10,8 +10,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, test } from 'vitest';
 import type {
-  AgentAdapter, AgentProcess, AgentSpawnConfig, Backend,
+  AgentAdapter, AgentProcess, EngineSpec, Backend,
 } from '../../../src/agent-adapter/types.js';
+import { engineSpecFixture } from '../../engine-spec-fixture.js';
 import type { AgentResult } from '../../../src/core/types/agent-types.js';
 import type { ProductionBenchmarkEvidenceContext } from '../../../src/core/types/thread-types.js';
 import {
@@ -95,8 +96,8 @@ function process(): AgentProcess {
 
 function adapter(
   backend: Backend,
-  spawns: AgentSpawnConfig[],
-  expectedPrepared?: AgentSpawnConfig,
+  spawns: EngineSpec[],
+  expectedPrepared?: EngineSpec,
 ): AgentAdapter {
   return {
     backend, capabilities: new Set(),
@@ -122,12 +123,12 @@ interface AttemptOptions {
   taskProject?: string | null;
   taskGeneration?: string | null;
   context?: ProductionBenchmarkEvidenceContext;
-  preparedSpawnConfig?: AgentSpawnConfig;
+  preparedSpec?: EngineSpec;
 }
 
 function runAttempt(
   backend: Backend,
-  spawns: AgentSpawnConfig[],
+  spawns: EngineSpec[],
   input: AttemptOptions,
 ): ReturnType<typeof facadeTest.runWithAdapter> {
   const resolved = profile(backend);
@@ -148,9 +149,9 @@ function runAttempt(
     identityDirective: 'Resolved directive',
     tools: input.tools ?? 'Read',
     pluginDirs: [], mcpComposition: 'none', disableHooks: true, loadCortexRules: false,
-    preparedSpawnConfig: input.preparedSpawnConfig,
+    preparedSpec: input.preparedSpec,
   };
-  return facadeTest.runWithAdapter(adapter(backend, spawns, input.preparedSpawnConfig), 'work', options, {
+  return facadeTest.runWithAdapter(adapter(backend, spawns, input.preparedSpec), 'work', options, {
     model: resolved.model, backend, mode: resolved.mode, provider: resolved.provider,
     extraEnv: {}, extraOption: {}, claudeBackend: 'print', thinking: null,
   }, backend === 'claude' ? PROXY_ROUTE : undefined);
@@ -158,7 +159,7 @@ function runAttempt(
 
 for (const backend of ['claude', 'pi'] as const) {
   test(`${backend} direct, coder-review, and dispatched manager attempts use typed context`, async () => {
-    const spawns: AgentSpawnConfig[] = [];
+    const spawns: EngineSpec[] = [];
     for (const [kind, role, taskId] of [
       ['direct', 'benchmark-direct', null],
       ['coder', 'benchmark-coder', null],
@@ -179,7 +180,7 @@ for (const backend of ['claude', 'pi'] as const) {
 
 test('coder, reviewer, and fixer form the exact same-thread spawn chain', async () => {
   const context = evidence('claude', 'coder-review-fix');
-  const spawns: AgentSpawnConfig[] = [];
+  const spawns: EngineSpec[] = [];
   for (const [suffix, role, tools] of [
     ['coder', 'benchmark-coder', 'Read,Write'],
     ['reviewer', 'benchmark-reviewer', 'Read'],
@@ -205,7 +206,7 @@ test('coder, reviewer, and fixer form the exact same-thread spawn chain', async 
 
 test('retry, resumed, and nested executions cannot collide with the root attempt', async () => {
   const context = evidence('claude');
-  const spawns: AgentSpawnConfig[] = [];
+  const spawns: EngineSpec[] = [];
   await runAttempt('claude', spawns, {
     executionId: 'root-first', threadId: 'root-thread', context,
     template: 'benchmark-coder-review', role: 'benchmark-coder',
@@ -246,7 +247,7 @@ test('retry, resumed, and nested executions cannot collide with the root attempt
 
 test('child and dispatcher-created task attempts use the latest causal parent attempt', async () => {
   const context = evidence('claude', 'children');
-  const spawns: AgentSpawnConfig[] = [];
+  const spawns: EngineSpec[] = [];
   await runAttempt('claude', spawns, {
     executionId: 'manager-first', threadId: 'manager-thread', context,
     template: 'benchmark-manager', role: 'benchmark-manager',
@@ -289,7 +290,7 @@ test('child and dispatcher-created task attempts use the latest causal parent at
 });
 
 test('absence disables observability while malformed context refuses before spawn', async () => {
-  const spawns: AgentSpawnConfig[] = [];
+  const spawns: EngineSpec[] = [];
   await runAttempt('claude', spawns, {
     executionId: 'without-context', threadId: 'without-context',
   }).promise;
@@ -308,7 +309,7 @@ test('absence disables observability while malformed context refuses before spaw
 
 test('fails closed when a child first execution cannot resolve its parent attempt', async () => {
   const context = evidence('claude', 'missing-parent');
-  const spawns: AgentSpawnConfig[] = [];
+  const spawns: EngineSpec[] = [];
   await runAttempt('claude', spawns, {
     executionId: 'root-existing', threadId: 'root-existing-thread', context,
   }).promise;
@@ -329,7 +330,7 @@ test('strict reads refuse unknown executions and run scopes', () => {
 });
 
 test('reload rejects self-links, cross-run links, and attempt identity collisions', async () => {
-  const spawns: AgentSpawnConfig[] = [];
+  const spawns: EngineSpec[] = [];
   await runAttempt('claude', spawns, {
     executionId: 'tamper-one', threadId: 'tamper-thread-one',
     context: evidence('claude', 'tamper-one'),
@@ -364,21 +365,21 @@ test('reload rejects self-links, cross-run links, and attempt identity collision
 
 test('root baseline refuses drift and the exact prepared spawn object reaches the adapter', async () => {
   const context = evidence('claude');
-  const spawns: AgentSpawnConfig[] = [];
-  const prepared: AgentSpawnConfig = {
+  const spawns: EngineSpec[] = [];
+  const prepared: EngineSpec = engineSpecFixture({
     sessionId: null, sessionKey: 'prepared', resume: false, model: 'claude-fixture',
     thinking: undefined, mcpComposition: 'none', rawTools: 'Read', disableHooks: true,
     anthropicBaseUrl: 'http://proxy.invalid',
-  };
+  });
   await runAttempt('claude', spawns, {
-    executionId: 'baseline', threadId: 'baseline-thread', context, preparedSpawnConfig: prepared,
+    executionId: 'baseline', threadId: 'baseline-thread', context, preparedSpec: prepared,
   }).promise;
   assert.ok(fs.existsSync(storePath));
 
-  const drifted: AgentSpawnConfig = { ...prepared, rawTools: 'Write' };
+  const drifted: EngineSpec = { ...prepared, tools: { ...prepared.tools, rawClaude: 'Write' } };
   assert.throws(() => runAttempt('claude', spawns, {
     executionId: 'drifted', threadId: 'baseline-thread', context,
-    preparedSpawnConfig: drifted,
+    preparedSpec: drifted,
   }), /baseline|role.*drift|identity changed/i);
   assert.equal(spawns.length, 1);
 });

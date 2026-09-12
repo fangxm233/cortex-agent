@@ -2,6 +2,8 @@
 // output: quota reporting, labeled routed usage, and throttle assertions
 // pos:    Covers PI quota flow from response headers into provider stores
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+import { engineSpecFixture } from './engine-spec-fixture.js';
+
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
@@ -274,14 +276,14 @@ test('a quota reading from the PI session throttles the provider it was routed u
 
   const fake = makeFakeRuntimeFactory();
   const adapter = new PIAdapter(fake.factory);
-  const proc = adapter.spawn({
+  const proc = adapter.spawn(engineSpecFixture({
     sessionId: null,
     sessionKey: 'quota-wire',
     resume: false,
     piProvider: 'openai-codex',
     piGatewayPath: '/m/openai-codex/openai-codex',
     piGatewayBaseUrl: 'http://127.0.0.1:9880',
-  });
+  }));
   assert.equal(fake.requests[0].reportsProviderQuota, true, 'a gateway-routed run installs the probe');
 
   const reading: CodexQuotaReading = {
@@ -306,16 +308,16 @@ test('a quota reading from the PI session throttles the provider it was routed u
 
 test('resolves the provider and mode that the dispatch gate looks up', () => {
   assert.deepEqual(
-    resolveQuotaSource({ piProvider: 'openai-codex', piGatewayPath: '/m/openai-codex/openai-codex' }),
+    resolveQuotaSource({ provider: 'openai-codex', gatewayPath: '/m/openai-codex/openai-codex' }),
     { provider: 'openai-codex', displayName: 'OpenAI Codex', mode: 'openai-codex' },
   );
   // A profile with a mode distinct from the provider name still routes by mode.
   assert.equal(
-    resolveQuotaSource({ piProvider: 'openai-codex', piGatewayPath: '/m/sol-overflow/openai-codex' }).mode,
+    resolveQuotaSource({ provider: 'openai-codex', gatewayPath: '/m/sol-overflow/openai-codex' }).mode,
     'sol-overflow',
   );
   // No mode on the profile → spawn-config omits the gateway path → the gate reads 'api'.
-  assert.equal(resolveQuotaSource({ piProvider: 'openai-codex' }).mode, 'api');
+  assert.equal(resolveQuotaSource({ provider: 'openai-codex' }).mode, 'api');
   // No provider on the profile → resolveRateLimitProvider falls back to the backend name.
   assert.equal(resolveQuotaSource({}).provider, 'pi');
 });

@@ -5,7 +5,8 @@
 
 import { getAdapter } from '../../agent-adapter/index.js';
 import type {
-  AgentAdapter, AgentCompactResult, AgentProcess, AgentSpawnConfig, Backend, NormalizedEvent,
+  AgentAdapter, AgentCompactResult, AgentProcess, AgentSpawnConfig, Backend, EngineSpec,
+  NormalizedEvent,
 } from '../../agent-adapter/index.js';
 import type { ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
 import {
@@ -15,6 +16,7 @@ import {
   consumeEventStream, createProcessCloser, createRunEventTee, settleEventfulRun,
 } from '../../agent-adapter/event-tee.js';
 import { buildAgentSpawnConfig, filterChannelScopedPlugins, filterScopedPlugins } from './spawn-config.js';
+import { buildEngineSpec, specToSpawnConfig } from '../runs/engine-spec.js';
 import type { AgentConfig, RunAgentOptions, RunObserver } from './spawn-config.js';
 import {
   freezeProductionAttemptIdentity, type ProductionAttemptIdentityRecord,
@@ -357,24 +359,25 @@ function prepareAttemptEvidence(
   adapter: AgentAdapter, message: string, options: RunAgentOptions,
   config: AgentConfig, route: ModeEnv | undefined,
 ) {
-  const spawnConfig = options.preparedSpawnConfig
-    ?? buildAgentSpawnConfig(options, config, route);
+  const spec = options.preparedSpec
+    ?? buildEngineSpec(options, config, route);
+  const spawnConfig = specToSpawnConfig(spec);
   const attemptIdentity = freezeProductionAttemptIdentity({
     adapterBackend: adapter.backend, spawnConfig, options,
     resolvedProfile: options.resolvedProfileConfig,
   });
   return {
-    spawnConfig, attemptIdentity,
+    spec, spawnConfig, attemptIdentity,
     attemptJournal: productionJournalSink(attemptIdentity, spawnConfig, options, message),
   };
 }
 
 function spawnAdapterAttempt(
-  adapter: AgentAdapter, spawnConfig: AgentSpawnConfig, message: string,
+  adapter: AgentAdapter, spec: EngineSpec, message: string,
   options: RunAgentOptions, attemptJournal: AttemptJournalSink | null,
 ) {
   let proc: AgentProcess;
-  try { proc = adapter.spawn(spawnConfig); }
+  try { proc = adapter.spawn(spec); }
   catch (error) {
     attemptJournal?.onClose();
     throw error;
@@ -410,12 +413,12 @@ export function runWithAdapter(
   adapter: AgentAdapter, message: string, options: RunAgentOptions,
   config: AgentConfig, route: ModeEnv | undefined,
 ): AgentHandle {
-  const { spawnConfig, attemptIdentity, attemptJournal } = prepareAttemptEvidence(
+  const { spec, spawnConfig, attemptIdentity, attemptJournal } = prepareAttemptEvidence(
     adapter, message, options, config, route,
   );
   const attribution = costAttribution(options, attemptIdentity);
   const { proc, tee, turnPromise } = spawnAdapterAttempt(
-    adapter, spawnConfig, message, options, attemptJournal,
+    adapter, spec, message, options, attemptJournal,
   );
   const closeProcess = createProcessCloser(proc);
   const dispatch = createFacadeDispatcher(adapter, options, config, spawnConfig, attribution);
@@ -529,7 +532,7 @@ export async function compactAgentContext(
     project: request.projectId,
     trigger: 'manual-compact',
   });
-  const proc = deps.getAdapter(request.backend).spawn(buildAgentSpawnConfig({
+  const proc = deps.getAdapter(request.backend).spawn(buildEngineSpec({
     sessionId: request.backendSessionId,
     trackSessionId: request.sessionId,
     sessionKey: request.channel,

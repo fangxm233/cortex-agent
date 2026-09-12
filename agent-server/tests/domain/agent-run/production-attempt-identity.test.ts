@@ -10,8 +10,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, test } from 'vitest';
 import type {
-  AgentAdapter, AgentProcess, AgentSpawnConfig, Backend,
+  AgentAdapter, AgentProcess, EngineSpec, Backend,
 } from '../../../src/agent-adapter/types.js';
+import { specToSpawnConfig } from '../../../src/domain/runs/engine-spec.js';
+import { engineSpecFixture } from '../../engine-spec-fixture.js';
 import type { AgentResult } from '../../../src/core/types/agent-types.js';
 import type { ProductionBenchmarkEvidenceContext } from '../../../src/core/types/thread-types.js';
 import {
@@ -122,7 +124,7 @@ function process(): AgentProcess {
 
 function adapter(
   backend: Backend,
-  spawns: AgentSpawnConfig[],
+  spawns: EngineSpec[],
   requireIdentity = true,
 ): AgentAdapter {
   return {
@@ -172,7 +174,7 @@ for (const backend of ['claude', 'pi'] as const) {
   for (const pathCase of PATHS) {
     test(`freezes ${backend} ${pathCase.label} identity before the adapter spawn and reloads it`, async () => {
       initialize(backend);
-      const spawns: AgentSpawnConfig[] = [];
+      const spawns: EngineSpec[] = [];
       const executionId = `exec-${backend}-${pathCase.label.replaceAll(' ', '-')}`;
       const resolvedProfile = profile(backend);
       const config = {
@@ -221,7 +223,7 @@ for (const backend of ['claude', 'pi'] as const) {
         reasoningEffort: resolvedProfile.thinking, maxOutputTokens: null, fallbackEmpty: true,
       }));
       assert.equal(record.role_tool_surface_hash, computeRoleToolSurfaceHash(
-        roleSurfaceFromSpawnConfig(spawns[0], 'Act as the resolved role.'),
+        roleSurfaceFromSpawnConfig(specToSpawnConfig(spawns[0]), 'Act as the resolved role.'),
       ));
 
       resetProductionAttemptIdentity();
@@ -236,7 +238,7 @@ for (const backend of ['claude', 'pi'] as const) {
 test('binds every execution to a unique attempt and the persisted first root execution', async () => {
   initialize('claude');
   const resolvedProfile = profile('claude');
-  const spawns: AgentSpawnConfig[] = [];
+  const spawns: EngineSpec[] = [];
   const config = {
     model: resolvedProfile.model, backend: 'claude' as const, mode: resolvedProfile.mode,
     provider: resolvedProfile.provider, extraEnv: {}, extraOption: {}, claudeBackend: 'print' as const,
@@ -290,7 +292,7 @@ test('fails closed when a child attempt arrives before the production root attem
 test('keeps production identity observability absent without typed evidence context', async () => {
   initializeProductionAttemptIdentity({ storePath: storePath() });
   const resolvedProfile = profile('claude');
-  const spawns: AgentSpawnConfig[] = [];
+  const spawns: EngineSpec[] = [];
   await facadeTest.runWithAdapter(adapter('claude', spawns, false), 'x', {
     executionId: 'exec-without-context', threadId: 'thr-without-context',
     rootThreadId: 'thr-without-context', parentThreadId: null, taskId: null,
@@ -309,7 +311,7 @@ test('keeps production identity observability absent without typed evidence cont
 
 test('fails closed before spawn for fallback profiles, missing identity inputs, and hot reload drift', () => {
   initialize('claude');
-  const spawns: AgentSpawnConfig[] = [];
+  const spawns: EngineSpec[] = [];
   const resolvedProfile = profile('claude');
   const baseOptions = {
     executionId: 'exec-refusal', threadId: 'thr-refusal', rootThreadId: 'thr-refusal',
@@ -378,7 +380,7 @@ for (const backend of ['claude', 'pi'] as const) {
   test(`refuses ${backend} spawn config that diverges from the resolved profile`, () => {
     initialize(backend);
     const resolvedProfile = profile(backend);
-    const spawns: AgentSpawnConfig[] = [];
+    const spawns: EngineSpec[] = [];
     const config = {
       sessionId: null, sessionKey: 'fixture', resume: false,
       model: 'substituted-model', thinking: resolvedProfile.thinking ?? undefined,
@@ -391,7 +393,7 @@ for (const backend of ['claude', 'pi'] as const) {
       rootThreadId: `thr-${backend}-divergence`, parentThreadId: null,
       taskId: null, taskGeneration: null, templateName: 'benchmark-direct',
       agentSlotId: 'benchmark-direct', stage: null, profileName: resolvedProfile.name,
-      resolvedProfileConfig: resolvedProfile, identityDirective: '', preparedSpawnConfig: config,
+      resolvedProfileConfig: resolvedProfile, identityDirective: '', preparedSpec: engineSpecFixture(config),
     }, {
       model: resolvedProfile.model, backend, mode: resolvedProfile.mode,
       provider: resolvedProfile.provider, extraEnv: {}, extraOption: {},
@@ -412,7 +414,7 @@ function evidenceFiles(directory: string): string[] {
 test('per-spawn route credentials reach the child env but never the attestation', async () => {
   initialize('claude');
   const resolvedProfile = profile('claude');
-  const spawns: AgentSpawnConfig[] = [];
+  const spawns: EngineSpec[] = [];
   const route = {
     ...TRIAL_ROUTE,
     ANTHROPIC_API_KEY: 'sk-must-not-be-attested',
@@ -431,8 +433,8 @@ test('per-spawn route credentials reach the child env but never the attestation'
     thinking: resolvedProfile.thinking,
   }, route).promise;
 
-  assert.equal(spawns[0].env?.ANTHROPIC_API_KEY, 'sk-must-not-be-attested');
-  assert.equal(spawns[0].env?.CLAUDE_CODE_OAUTH_TOKEN, 'oauth-must-not-be-attested');
+  assert.equal(specToSpawnConfig(spawns[0]).env?.ANTHROPIC_API_KEY, 'sk-must-not-be-attested');
+  assert.equal(specToSpawnConfig(spawns[0]).env?.CLAUDE_CODE_OAUTH_TOKEN, 'oauth-must-not-be-attested');
   const record = getProductionAttemptIdentity('exec-route-secret');
   assert.ok(record);
   const written = evidenceFiles(path.dirname(storePath()))
@@ -508,7 +510,7 @@ test('fails closed for unapplied output caps and incomplete task-dispatch identi
 
 test('refuses reuse of an execution identity with a changed resolved spawn surface', async () => {
   initialize('claude');
-  const spawns: AgentSpawnConfig[] = [];
+  const spawns: EngineSpec[] = [];
   const resolvedProfile = profile('claude');
   const options = {
     executionId: 'exec-reused', threadId: 'thr-reused', rootThreadId: 'thr-reused',

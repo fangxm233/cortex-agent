@@ -9,7 +9,7 @@ import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../capabilities.js';
 import type {
-  AgentAdapter, AgentSpawnConfig, AgentUsageScope, Backend, UserMessage,
+  AgentAdapter, EngineSpec, AgentUsageScope, Backend, UserMessage,
 } from '../types.js';
 import type { AgentResult } from '@core/types/agent-types.js';
 import {
@@ -65,6 +65,26 @@ function staleCodexUsage(record: ProviderUsage): ProviderUsage {
     windows: record.windows.map((window) => ({ ...window })),
     ...(record.spend ? { spend: { ...record.spend } } : {}),
     freshness: 'stale',
+  };
+}
+
+/** A fully-populated EngineSpec with every optional field absent. Only the fields a caller sets
+ *  before handing it to a reader are consumed; the rest exist to satisfy the required shape. */
+function minimalEngineSpec(): EngineSpec {
+  return {
+    engineKey: 'default',
+    resume: { backendSessionId: null, resume: false },
+    model: {},
+    prompt: {},
+    tools: {},
+    plugins: {},
+    mcp: {},
+    env: {},
+    route: {},
+    flags: { isUserInitiated: false },
+    context: {},
+    backend: { kind: 'pi' },
+    process: {},
   };
 }
 
@@ -141,11 +161,11 @@ export class PIAdapter implements AgentAdapter {
     return Array.from(byName.values());
   }
 
-  private resolveSpawnSessionPath(config: AgentSpawnConfig, sessionDir: string): string | null {
-    if (!config.resume || !config.sessionId) return null;
-    const sessionPath = this.resolveSessionPath(config.sessionId);
+  private resolveSpawnSessionPath(spec: EngineSpec, sessionDir: string): string | null {
+    if (!spec.resume.resume || !spec.resume.backendSessionId) return null;
+    const sessionPath = this.resolveSessionPath(spec.resume.backendSessionId);
     if (sessionPath === null) {
-      log.info(`PI resume target '${config.sessionId}' not found (no live session or file in ${sessionDir}); starting fresh`);
+      log.info(`PI resume target '${spec.resume.backendSessionId}' not found (no live session or file in ${sessionDir}); starting fresh`);
     }
     return sessionPath;
   }
@@ -159,29 +179,29 @@ export class PIAdapter implements AgentAdapter {
   }
 
   private writeGatewayProviders(
-    config: AgentSpawnConfig,
+    spec: EngineSpec,
     agentDir: string,
     gatewayBaseUrl: string,
   ): void {
     try {
-      this.writeGatewayProvidersUnchecked(config, agentDir, gatewayBaseUrl);
+      this.writeGatewayProvidersUnchecked(spec, agentDir, gatewayBaseUrl);
     } catch (error) {
       log.warn(`Failed to write PI models.json: ${(error as Error).message}`);
     }
   }
 
   private writeGatewayProvidersUnchecked(
-    config: AgentSpawnConfig,
+    spec: EngineSpec,
     agentDir: string,
     gatewayBaseUrl: string,
   ): void {
     const overrides = withCustomEntries(
       this.gatewayOverrides(
         this.providerDiscovery.getProviders(),
-        config.piProvider ?? null,
-        config.piGatewayPath ?? null,
-        config.model,
-        config.piModelMaxTokens,
+        spec.model.provider ?? null,
+        spec.route.gatewayPath ?? null,
+        spec.model.id,
+        spec.model.maxOutputTokens,
       ),
       this.userModelsPath ? readCustomProviderEntries(this.userModelsPath) : {},
     );
@@ -192,11 +212,11 @@ export class PIAdapter implements AgentAdapter {
     writeProvidersConfig(overrides, gatewayBaseUrl, { modelsPath: piModelsPath(agentDir) });
   }
 
-  private syncGatewayConfig(config: AgentSpawnConfig, agentDir: string): void {
-    const gatewayBaseUrl = config.piGatewayBaseUrl;
+  private syncGatewayConfig(spec: EngineSpec, agentDir: string): void {
+    const gatewayBaseUrl = spec.route.gatewayBaseUrl;
     if (!gatewayBaseUrl) return;
     this.prepareGatewayAgentDir(agentDir);
-    this.writeGatewayProviders(config, agentDir, gatewayBaseUrl);
+    this.writeGatewayProviders(spec, agentDir, gatewayBaseUrl);
   }
 
   /** The PI agent dir this adapter routes and authenticates through. */
@@ -220,36 +240,38 @@ export class PIAdapter implements AgentAdapter {
     model?: string;
     maxTokens?: number;
   }): void {
-    this.syncGatewayConfig({
-      piProvider: opts.provider,
-      piGatewayPath: opts.gatewayPath ?? null,
-      piGatewayBaseUrl: opts.gatewayBaseUrl,
-      model: opts.model,
-      piModelMaxTokens: opts.maxTokens,
-    } as unknown as AgentSpawnConfig, this.agentDir);
+    const spec = minimalEngineSpec();
+    spec.model.provider = opts.provider;
+    spec.model.id = opts.model;
+    spec.model.maxOutputTokens = opts.maxTokens;
+    spec.route.gatewayPath = opts.gatewayPath ?? undefined;
+    spec.route.gatewayBaseUrl = opts.gatewayBaseUrl;
+    this.syncGatewayConfig(spec, this.agentDir);
   }
 
-  private prepareRequest(config: AgentSpawnConfig): PiSessionRequest {
+  private prepareRequest(spec: EngineSpec): PiSessionRequest {
     const agentDir = this.agentDir;
     mkdirSync(this.sessionDir, { recursive: true });
-    const sessionPath = this.resolveSpawnSessionPath(config, this.sessionDir);
-    this.syncGatewayConfig(config, agentDir);
-    for (const key of unsupportedExtraOptions(config)) {
+    const sessionPath = this.resolveSpawnSessionPath(spec, this.sessionDir);
+    this.syncGatewayConfig(spec, agentDir);
+    for (const key of unsupportedExtraOptions(spec)) {
       log.warn(`PI extraOption ${key} was a CLI flag; the in-process backend ignores it`);
     }
-    return buildSessionRequest(config, {
+    return buildSessionRequest(spec, {
       agentDir,
       sessionDir: this.sessionDir,
       sessionPath,
-      cwd: resolveSpawnCwd(config.cwd),
-      streamDeltas: config.streamDeltas ?? getSettings().streamDeltas,
+      cwd: resolveSpawnCwd(spec.cwd),
+      streamDeltas: spec.flags.streamDeltas ?? getSettings().streamDeltas,
     });
   }
 
-  private quotaReporter(config: AgentSpawnConfig): ((reading: CodexQuotaReading) => void) | undefined {
-    if (!config.piGatewayBaseUrl) return undefined;
+  private quotaReporter(spec: EngineSpec): ((reading: CodexQuotaReading) => void) | undefined {
+    if (!spec.route.gatewayBaseUrl) return undefined;
     return (reading) => {
-      void reportCodexQuota(reading, resolveQuotaSource(config), { usageStore: this.usageStore })
+      void reportCodexQuota(reading, resolveQuotaSource({
+        provider: spec.model.provider, gatewayPath: spec.route.gatewayPath,
+      }), { usageStore: this.usageStore })
         .catch((error) => log.error('reportCodexQuota error:', error));
     };
   }
@@ -308,12 +330,12 @@ export class PIAdapter implements AgentAdapter {
     };
   }
 
-  spawn(config: AgentSpawnConfig): PIAgentProcess {
-    const request = this.prepareRequest(config);
+  spawn(spec: EngineSpec): PIAgentProcess {
+    const request = this.prepareRequest(spec);
     const identity = sessionIdentity(request);
-    const session = this.reusableSession(config.sessionKey, identity)
-      ?? this.startSession(config, request, identity);
-    return this.createAgentProcess(config.sessionKey, session, session.openTurnStream());
+    const session = this.reusableSession(spec.engineKey, identity)
+      ?? this.startSession(spec, request, identity);
+    return this.createAgentProcess(spec.engineKey, session, session.openTurnStream());
   }
 
   /** The pooled session for this key when it can serve the turn: alive, and created from the exact
@@ -335,7 +357,7 @@ export class PIAdapter implements AgentAdapter {
   }
 
   private startSession(
-    config: AgentSpawnConfig, request: PiSessionRequest, identity: string,
+    spec: EngineSpec, request: PiSessionRequest, identity: string,
   ): PISession {
     const session = new PISession({
       request,
@@ -343,9 +365,9 @@ export class PIAdapter implements AgentAdapter {
       identity,
       registry: this.sessionPathRegistry,
       onClose: (key, closing) => this.evictSession(key, closing),
-      onProviderQuota: this.quotaReporter(config),
+      onProviderQuota: this.quotaReporter(spec),
     });
-    this.sessions.set(config.sessionKey, session);
+    this.sessions.set(spec.engineKey, session);
     return session;
   }
 

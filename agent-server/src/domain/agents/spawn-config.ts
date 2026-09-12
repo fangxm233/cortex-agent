@@ -4,7 +4,7 @@
 // >>> Once updated, update this header and parent CORTEX.md <<<
 
 import type {
-  AgentProcessSpawner, AgentSpawnConfig, Backend, McpComposition,
+  AgentProcessSpawner, AgentSpawnConfig, Backend, EngineSpec, McpComposition,
 } from '../../agent-adapter/types.js';
 import type { NormalizedEvent, ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
 import type { AgentResult, ChatNoticeLevel, NoticeAction } from '@core/types/agent-types.js';
@@ -72,7 +72,7 @@ export interface RunAgentOptions {
   /** Optional containment-aware process boundary for daemon-free runs. */
   processSpawner?: AgentProcessSpawner;
   /** Pre-resolved spawn input used when identity must hash the exact object before launch. */
-  preparedSpawnConfig?: AgentSpawnConfig;
+  preparedSpec?: EngineSpec;
   /** Optional absolute backend CLI path. */
   cliPath?: string;
   /** Exact allowlisted child environment for an isolated process. */

@@ -2,6 +2,8 @@
 // output: Local shim gates, Agent, web, and generic dialog tests
 // pos:    Tests PI-local tools and extension UI transport
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+import { engineSpecFixture } from './engine-spec-fixture.js';
+
 
 import { afterEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
@@ -31,7 +33,7 @@ afterEach(() => {
 async function spawnSession(sessionKey: string, sessionId = 'sess-abc', config: Record<string, unknown> = {}) {
   const fake = makeFakeRuntimeFactory({ sessionId });
   const adapter = new PIAdapter(fake.factory, SESSION_DIR);
-  const proc = adapter.spawn({ sessionKey, sessionId: null, resume: false, ...config }) as PIAgentProcess;
+  const proc = adapter.spawn(engineSpecFixture({ sessionKey, sessionId: null, resume: false, ...config })) as PIAgentProcess;
   const runtime: FakeRuntime = await fake.runtime();
   return { fake, adapter, proc, runtime };
 }

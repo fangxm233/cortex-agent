@@ -2,6 +2,8 @@
 // output: PI run-phase regression: steer form per loop state, deferred turn_complete, refusal acks, session_started placement
 // pos:    PI backend run-phase fixture (plan §9.2 P0.2), freezing today's behaviour before Phase 1.8/2.2
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+import { engineSpecFixture } from '../engine-spec-fixture.js';
+
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
@@ -32,7 +34,7 @@ function spawnConfig(sessionKey: string): AgentSpawnConfig {
 async function spawnProcess(sessionKey: string): Promise<Fixture> {
   const fake = makeFakeRuntimeFactory();
   const adapter = new PIAdapter(fake.factory);
-  const proc = adapter.spawn(spawnConfig(sessionKey));
+  const proc = adapter.spawn(engineSpecFixture(spawnConfig(sessionKey)));
   const runtime = await fake.runtime(0);
   return { adapter, fake, proc, runtime };
 }
@@ -294,7 +296,7 @@ test('session_started lands on the stream of the first turn, never on a reused o
 
   // A second spawn reuses the pooled runtime, so its stream starts at PI's own events: the
   // announcement belongs to the stream that was open when the runtime was created.
-  const second = adapter.spawn(spawnConfig('pi-phases-session-start'));
+  const second = adapter.spawn(engineSpecFixture(spawnConfig('pi-phases-session-start')));
   t.onTestFinished(() => second.close());
   const reused = collect(second);
   const secondTurn = second.send({ text: 'second' });

@@ -2,6 +2,8 @@
 // output: fresh PI session response and event-loop ordering regression
 // pos:    Proves slow PI discovery cannot hide a fresh Web message
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+import { engineSpecFixture } from '../../engine-spec-fixture.js';
+
 
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -56,7 +58,7 @@ test('fresh PI createAndSend responds and exposes the user event before slow dis
         timeline.push('user-event-visible');
         markVisible();
       });
-      agentProcess = adapter.spawn({
+      agentProcess = adapter.spawn(engineSpecFixture({
         sessionId: null,
         sessionKey: 'fresh-web-pi',
         resume: false,
@@ -64,7 +66,7 @@ test('fresh PI createAndSend responds and exposes the user event before slow dis
         piProvider: 'anthropic',
         piGatewayBaseUrl: 'http://127.0.0.1:9880',
         piGatewayPath: '/m/default/anthropic',
-      });
+      }));
     },
   } as unknown as UiServiceDeps;
 

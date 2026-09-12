@@ -3,6 +3,7 @@
 // pos:    tests for per-session browser control on the backend that has no --mcp-config
 // >>> If I am updated, update CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
+import { engineSpecFixture } from '../engine-spec-fixture.js';
 import {
   buildSessionRequest, sessionIdentity, type PiSessionRequest,
 } from '../../src/agent-adapter/pi/session-options.js';
@@ -13,7 +14,7 @@ const ENDPOINT = 'http://127.0.0.1:9222';
 
 function request(extra: Partial<AgentSpawnConfig>, composition: McpComposition = 'direct'): PiSessionRequest {
   return buildSessionRequest(
-    { sessionId: 's', sessionKey: 'k', resume: false, mcpComposition: composition, ...extra },
+    engineSpecFixture({ sessionId: 's', sessionKey: 'k', resume: false, mcpComposition: composition, ...extra }),
     { agentDir: '/tmp/pi-agent', sessionDir: '/tmp/pi-sessions', sessionPath: null, cwd: '/tmp', streamDeltas: true },
   );
 }

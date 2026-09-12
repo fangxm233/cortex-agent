@@ -2,6 +2,8 @@
 // output: PI switch guard, steering form, FIFO ack, rejection, and failure guarantees
 // pos:    PI backend mid-turn injection wiring regression
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+import { engineSpecFixture } from '../engine-spec-fixture.js';
+
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
@@ -37,7 +39,7 @@ let counter = 0;
 async function spawnProcess(options: FakeRuntimeFactoryOptions = {}): Promise<Fixture> {
   const fake = makeFakeRuntimeFactory(options);
   const adapter = new PIAdapter(fake.factory);
-  const proc = adapter.spawn({ sessionId: null, sessionKey: `pi-inject-${counter++}`, resume: false });
+  const proc = adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: `pi-inject-${counter++}`, resume: false }));
   const runtime = await fake.runtime(0);
   return { adapter, proc, runtime };
 }
@@ -79,8 +81,8 @@ async function spawnSwitchingFixture(): Promise<SwitchingFixture> {
   writeFileSync(join(sessionDir, 'session-b.jsonl'), '{}\n');
   const fake = makeFakeRuntimeFactory({ sessionIds: ['session-a', 'session-b'] });
   const adapter = new PIAdapter(fake.factory, sessionDir);
-  const first = adapter.spawn({ sessionId: null, sessionKey: 'pi-switch-first', resume: false });
-  const second = adapter.spawn({ sessionId: null, sessionKey: 'pi-switch-second', resume: false });
+  const first = adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'pi-switch-first', resume: false }));
+  const second = adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'pi-switch-second', resume: false }));
   const [firstRuntime] = await Promise.all([fake.runtime(0), fake.runtime(1)]);
   return { adapter, first, second, firstRuntime, sessionDir };
 }

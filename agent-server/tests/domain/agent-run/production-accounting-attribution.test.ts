@@ -10,7 +10,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, test } from 'vitest';
 import type {
-  AgentAdapter, AgentProcess, AgentSpawnConfig, Backend, NormalizedEvent,
+  AgentAdapter, AgentProcess, EngineSpec, Backend, NormalizedEvent,
 } from '../../../src/agent-adapter/index.js';
 import type { AgentResult } from '../../../src/core/types/agent-types.js';
 import type { ProductionBenchmarkEvidenceContext } from '../../../src/core/types/thread-types.js';
@@ -87,7 +87,7 @@ function result(): AgentResult {
 function adapter(backend: Backend, event: NormalizedEvent): AgentAdapter {
   return {
     backend, capabilities: new Set(),
-    spawn(_config: AgentSpawnConfig): AgentProcess {
+    spawn(_spec: EngineSpec): AgentProcess {
       return {
         sessionKey: 'fixture', sessionId: 'backend-session',
         send: async () => result(),

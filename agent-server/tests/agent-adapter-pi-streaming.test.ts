@@ -2,6 +2,8 @@
 // output: delta, buffered text, and settings reset tests
 // pos:    Covers the PI token streaming contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+import { engineSpecFixture } from './engine-spec-fixture.js';
+
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
@@ -38,7 +40,7 @@ async function spawnStreaming(sessionKey: string): Promise<{
 }> {
   const fake = makeFakeRuntimeFactory();
   const adapter = new PIAdapter(fake.factory);
-  const proc = adapter.spawn({ sessionId: null, sessionKey, resume: false });
+  const proc = adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey, resume: false }));
   const runtime = await fake.runtime();
   return { proc, runtime };
 }

@@ -2,6 +2,8 @@
 // output: Spawn, interaction, pool, fallback, and compact tests
 // pos:    Tests Claude adapter behavior
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+import { engineSpecFixture } from './engine-spec-fixture.js';
+
 
 import { afterAll, beforeAll, test } from 'vitest';
 import assert from 'node:assert/strict';
@@ -926,15 +928,15 @@ test('INTERACTION_BRIDGE_TOOLS contains the three MCP replacements used by TUI_T
 // --- selectClaudeMode (DR-0012 routing) ---
 
 test("selectClaudeMode returns 'print' for AgentSpawnConfig without claudeBackend", () => {
-  assert.equal(selectClaudeMode({ sessionId: null, sessionKey: 'k', resume: false } as any), 'print');
+  assert.equal(selectClaudeMode(engineSpecFixture({ sessionId: null, sessionKey: 'k', resume: false } as any)), 'print');
 });
 
 test("selectClaudeMode returns 'tui' when claudeBackend='tui'", () => {
-  assert.equal(selectClaudeMode({ sessionId: null, sessionKey: 'k', resume: false, claudeBackend: 'tui' } as any), 'tui');
+  assert.equal(selectClaudeMode(engineSpecFixture({ sessionId: null, sessionKey: 'k', resume: false, claudeBackend: 'tui' } as any)), 'tui');
 });
 
 test("selectClaudeMode returns 'print' for unknown claudeBackend value (conservative)", () => {
-  assert.equal(selectClaudeMode({ sessionId: null, sessionKey: 'k', resume: false, claudeBackend: 'bogus' } as any), 'print');
+  assert.equal(selectClaudeMode(engineSpecFixture({ sessionId: null, sessionKey: 'k', resume: false, claudeBackend: 'bogus' } as any)), 'print');
 });
 
 function stubClaudeChild() {
@@ -964,7 +966,7 @@ function spawnPoolFixture(
   shared: ClaudeSpawnOverrides,
   overrides: ClaudeSpawnOverrides,
 ): void {
-  adapter.spawn({ sessionId: key, sessionKey: key, resume: false, ...shared, ...overrides });
+  adapter.spawn(engineSpecFixture({ sessionId: key, sessionKey: key, resume: false, ...shared, ...overrides }));
 }
 
 async function assertPoolReplacement(fixture: PoolReplacementFixture): Promise<void> {
@@ -1106,13 +1108,13 @@ test('Claude TUI pool replaces the session when supplemental MCP identity change
 test('Claude print respawn revalidates supplemental MCP content before spawning again', async () => {
   const counter = { value: 0 };
   const adapter = new ClaudeAdapter();
-  adapter.spawn({
+  adapter.spawn(engineSpecFixture({
     sessionId: 'revalidate-print',
     sessionKey: 'revalidate-print',
     resume: false,
     processSpawner: countingSpawner(counter),
     mcpServers: [pooledMcpServer('portable-a', 'a')],
-  });
+  }));
   const session = adapterTest.getPooledPrintSession('revalidate-print') as any;
   fs.writeFileSync(session.supplementalMcpConfigPath, '{"mcpServers":{}}\n');
   assert.throws(() => session.spawnProcess(), /identity mismatch|content mismatch/i);
@@ -1591,7 +1593,7 @@ test('ClaudeAdapter.spawn: config.unsetEnv removes the key from the spawned chil
   const captured: NodeJS.ProcessEnv[] = [];
   const adapter = new ClaudeAdapter();
   try {
-    adapter.spawn({
+    adapter.spawn(engineSpecFixture({
       sessionId: 'unset-env-key', sessionKey: 'unset-env-key', resume: false,
       env: { ANTHROPIC_API_KEY: 'cortex-gateway-managed', KEPT_ENV: 'kept' },
       unsetEnv: ['ANTHROPIC_API_KEY'],
@@ -1599,7 +1601,7 @@ test('ClaudeAdapter.spawn: config.unsetEnv removes the key from the spawned chil
         captured.push(opts.env as NodeJS.ProcessEnv);
         return { process: stubClaudeChild() };
       }) as any,
-    });
+    }));
     assert.equal(captured.length, 1);
     assert.equal(Object.prototype.hasOwnProperty.call(captured[0], 'ANTHROPIC_API_KEY'), false);
     assert.equal(captured[0].KEPT_ENV, 'kept');
@@ -1613,7 +1615,7 @@ test('ClaudeAdapter.spawn: config.unsetEnv removes the key from the spawned chil
 // --- ClaudeAdapter.spawn — AgentSpawnConfig → CLI args parity (Blocker fix from Plan Review iter 1) ---
 
 test('ClaudeAdapter.spawn: full AgentSpawnConfig produces expected CLI args (canonical → native tool names)', () => {
-  const args = adapterTest.computeSpawnArgs({
+  const args = adapterTest.computeSpawnArgs(engineSpecFixture({
     sessionId: 'uuid-xxx',
     sessionKey: 'thr:e0b6:1',
     resume: false,
@@ -1623,7 +1625,7 @@ test('ClaudeAdapter.spawn: full AgentSpawnConfig produces expected CLI args (can
     pluginDirs: ['/a', '/b'],
     model: 'claude-opus-4-6',
     outputStyle: 'z',
-  });
+  }));
   // Canonical tools → native names: bash→Bash, read→Read, ask_user_question→AskUserQuestion
   const nativeTools = withAgentTools('Bash,Read,AskUserQuestion');
   const expected = [
@@ -1648,21 +1650,21 @@ test('ClaudeAdapter.spawn: full AgentSpawnConfig produces expected CLI args (can
 });
 
 test('ClaudeAdapter.spawn: resume:true swaps --session-id for --resume', () => {
-  const args = adapterTest.computeSpawnArgs({
+  const args = adapterTest.computeSpawnArgs(engineSpecFixture({
     sessionId: 'uuid-yyy',
     sessionKey: 'k',
     resume: true,
-  });
+  }));
   const last2 = args.slice(-2);
   assert.deepEqual(last2, ['--resume', 'uuid-yyy']);
 });
 
 test('ClaudeAdapter.spawn: no tools provided → --tools uses DEFAULT_TOOLS', () => {
-  const args = adapterTest.computeSpawnArgs({
+  const args = adapterTest.computeSpawnArgs(engineSpecFixture({
     sessionId: 'uuid-zzz',
     sessionKey: 'k',
     resume: false,
-  });
+  }));
   const toolsIdx = args.indexOf('--tools');
   assert.ok(toolsIdx >= 0, '--tools flag must appear');
   assert.equal(args[toolsIdx + 1], withAgentTools(DEFAULT_TOOLS));
@@ -1671,12 +1673,12 @@ test('ClaudeAdapter.spawn: no tools provided → --tools uses DEFAULT_TOOLS', ()
 // Regression: appendSystemPrompt must be propagated through deriveClaudeSpawnOptions()
 // to the --append-system-prompt CLI flag.
 test('ClaudeAdapter.spawn: appendSystemPrompt is propagated to --append-system-prompt (regression)', () => {
-  const args = adapterTest.computeSpawnArgs({
+  const args = adapterTest.computeSpawnArgs(engineSpecFixture({
     sessionId: 'uuid-append',
     sessionKey: 'k',
     resume: false,
     appendSystemPrompt: 'custom-append-text',
-  });
+  }));
   const flagIdx = args.indexOf('--append-system-prompt');
   assert.ok(flagIdx >= 0, '--append-system-prompt flag must appear when config.appendSystemPrompt is set');
   assert.equal(args[flagIdx + 1], 'custom-append-text');
@@ -1705,13 +1707,13 @@ function portableRuntimeServers(): McpServerConfig[] {
 }
 
 function portableRuntimeSpawnArgs(): string[] {
-  return adapterTest.computeSpawnArgs({
+  return adapterTest.computeSpawnArgs(engineSpecFixture({
     sessionId: 'uuid-portable-mcp',
     sessionKey: 'portable-mcp',
     resume: false,
     mcpConfigPaths: ['/fixture/base.json'],
     mcpServers: portableRuntimeServers(),
-  });
+  }));
 }
 
 function assertPortableRuntimeSpawnArgs(args: string[]): void {

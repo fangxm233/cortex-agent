@@ -14,7 +14,7 @@ import { makeFakeRuntimeFactory } from './agent-adapter/pi-fake-runtime.js';
 import { _test as modeManagerTest } from '../src/domain/agents/index.js';
 import type { AgentAdapter } from '../src/agent-adapter/index.js';
 import { CAPABILITIES_BY_BACKEND } from '../src/agent-adapter/index.js';
-import type { AgentSpawnConfig } from '../src/agent-adapter/types.js';
+import type { EngineSpec } from '../src/agent-adapter/types.js';
 import type { CostEntry } from '../src/domain/costs/cost-tracker.js';
 import { costRepo } from '../src/store/cost-repo.js';
 
@@ -59,7 +59,7 @@ test('pi-cost-record: agent_end records cost before agent_settled completes', as
   const adapter: AgentAdapter = {
     backend: 'pi',
     capabilities: CAPABILITIES_BY_BACKEND['pi'],
-    spawn: (config: AgentSpawnConfig) => piAdapter.spawn(config),
+    spawn: (spec: EngineSpec) => piAdapter.spawn(spec),
     close: (key: string) => piAdapter.close(key),
     kill: (key: string) => piAdapter.kill(key),
     listSessions: () => piAdapter.listSessions(),

@@ -7,7 +7,7 @@ import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 
 import { _test as modeManagerTest, isRetryableResult } from '../src/domain/agents/index.js';
-import type { AgentAdapter, AgentProcess, AgentSpawnConfig, Backend, UserMessage } from '../src/agent-adapter/index.js';
+import type { AgentAdapter, AgentProcess, EngineSpec, Backend, UserMessage } from '../src/agent-adapter/index.js';
 import { CAPABILITIES_BY_BACKEND } from '../src/agent-adapter/index.js';
 import type { NormalizedEvent } from '../src/agent-adapter/normalize/event-types.js';
 import type { AgentResult } from '../src/core/types/agent-types.js';
@@ -95,7 +95,7 @@ function makeFakeAdapter(backend: Backend, spec: FakeProcessSpec): AgentAdapter 
   return {
     backend,
     capabilities: CAPABILITIES_BY_BACKEND[backend],
-    spawn(_config: AgentSpawnConfig): AgentProcess {
+    spawn(_spec: EngineSpec): AgentProcess {
       return makeFakeProcess(spec);
     },
     async close(_key: string): Promise<void> {},
@@ -598,7 +598,7 @@ function makeSinkCapableAdapter(backend: Backend, spec: SinkCapableSpec): AgentA
   return {
     backend,
     capabilities: CAPABILITIES_BY_BACKEND[backend],
-    spawn(_config: AgentSpawnConfig): AgentProcess {
+    spawn(_spec: EngineSpec): AgentProcess {
       const proc = makeFakeProcess(spec) as AgentProcess & { setContinuationSink?: (s: any) => void };
       proc.setContinuationSink = (sink: any) => {
         spec.sinks.push(sink);

@@ -24,8 +24,11 @@ import { fileURLToPath } from 'node:url';
 import {
   resolveMcpComposition,
   type AgentSpawnConfig,
+  type EngineSpec,
   type McpComposition,
 } from '../src/agent-adapter/types.js';
+import { buildEngineSpec } from '../src/domain/runs/engine-spec.js';
+import { engineSpecFixture } from './engine-spec-fixture.js';
 import { ClaudeAdapter, _test as claudeTest } from '../src/agent-adapter/claude/adapter.js';
 import {
   buildClaudeEnv,
@@ -108,18 +111,18 @@ function canonicalize(value: unknown): unknown {
   );
 }
 
-function childEnvironment(config: AgentSpawnConfig): NodeJS.ProcessEnv {
-  const channel = config.channel ?? config.sessionKey;
+function childEnvironment(spec: EngineSpec): NodeJS.ProcessEnv {
+  const channel = spec.context.channel ?? spec.engineKey;
   const env = buildClaudeEnv(
-    channel, config.sessionId!, config.callbackSource, config.scheduleTaskId,
-    config.anthropicBaseUrl, config.env, config.cortexContext, config.pinnedEnv, config.unsetEnv,
+    channel, spec.resume.backendSessionId!, spec.context.callbackSource, spec.context.scheduleTaskId,
+    spec.route.anthropicBaseUrl, spec.env.sets, spec.env.context, spec.env.pinned, spec.env.unsets,
   );
   env[MCP_BUNDLES_ENV] = encodeMcpBundles(resolveClaudeMcpBundles({
     tools: null,
-    needsResume: config.resume,
-    sessionId: config.sessionId!,
-    mcpComposition: config.mcpComposition,
-    isUserInitiated: config.isUserInitiated,
+    needsResume: spec.resume.resume,
+    sessionId: spec.resume.backendSessionId!,
+    mcpComposition: spec.mcp.composition,
+    isUserInitiated: spec.flags.isUserInitiated,
     loadSlackMcp: channel.startsWith('slack:'),
     loadFeishuMcp: channel.startsWith('feishu:'),
     loadWebMcp: channel.startsWith('web:'),
@@ -127,16 +130,16 @@ function childEnvironment(config: AgentSpawnConfig): NodeJS.ProcessEnv {
   return env;
 }
 
-function resolvedGolden(config: AgentSpawnConfig): string {
+function resolvedGolden(spec: EngineSpec): string {
   const output = canonicalize({
-    argv: claudeTest.computeSpawnArgs(config),
-    environment: sortedEnvironment(childEnvironment(config)),
+    argv: claudeTest.computeSpawnArgs(spec),
+    environment: sortedEnvironment(childEnvironment(spec)),
   });
   return `${JSON.stringify(output, null, 2)}\n`;
 }
 
-function directSpawnConfig(): AgentSpawnConfig {
-  const config = facadeTest.buildSpawnConfig({
+function directSpawnConfig(): EngineSpec {
+  const spec = buildEngineSpec({
     channel: 'general',
     sessionId: '11111111-1111-4111-8111-111111111111',
     sessionKey: 'direct-fixture',
@@ -144,12 +147,12 @@ function directSpawnConfig(): AgentSpawnConfig {
     trackSessionId: 'tracked-direct',
     executionId: 'exec-direct',
   }, FIXTURE_CONFIG, undefined);
-  config.resume = false;
-  return config;
+  spec.resume.resume = false;
+  return spec;
 }
 
-function threadSpawnConfig(): AgentSpawnConfig {
-  const config = facadeTest.buildSpawnConfig({
+function threadSpawnConfig(): EngineSpec {
+  const spec = buildEngineSpec({
     channel: 'thread-fixture',
     sessionId: '22222222-2222-4222-8222-222222222222',
     sessionKey: 'thread-fixture:1',
@@ -163,8 +166,8 @@ function threadSpawnConfig(): AgentSpawnConfig {
     taskId: 'abcd',
     taskProject: 'atlas',
   }, FIXTURE_CONFIG, undefined);
-  config.resume = false;
-  return config;
+  spec.resume.resume = false;
+  return spec;
 }
 
 function mcpConfigPaths(argv: string[]): string[] {
@@ -487,10 +490,10 @@ test('PI carries the empty MCP composition strictly', () => {
   const fake = makeFakeRuntimeFactory();
   const adapter = new PIAdapter(fake.factory, root);
 
-  adapter.spawn({
+  adapter.spawn(engineSpecFixture({
     sessionId: null, sessionKey: 'pi-none', resume: false,
     mcpComposition: 'none',
-  });
+  }));
   const { env, pluginMcpServers } = fake.requests[0];
   assert.equal(env[PI_MCP_COMPOSITION_ENV], 'none');
   assert.deepEqual(buildServerStates(env, pluginMcpServers), []);
@@ -498,7 +501,7 @@ test('PI carries the empty MCP composition strictly', () => {
 });
 
 function spawnPrivatePluginServer(adapter: PIAdapter): void {
-  adapter.spawn({
+  adapter.spawn(engineSpecFixture({
     sessionId: null,
     sessionKey: 'pi-plugin-mcp',
     resume: false,
@@ -511,7 +514,7 @@ function spawnPrivatePluginServer(adapter: PIAdapter): void {
       env: { API_KEY: 'secret-env' },
       cwd: '/opt/private-cwd',
     }],
-  });
+  }));
 }
 
 test(
@@ -609,9 +612,9 @@ function overrideEnvironment(values: Record<string, string>): () => void {
 }
 
 async function probeContextUsage(adapter: ClaudeAdapter, key: string, cwd: string) {
-  const proc = adapter.spawn({
+  const proc = adapter.spawn(engineSpecFixture({
     sessionId: null, sessionKey: key, resume: false, cwd, model: 'claude-opus-5[1m]',
-  });
+  }));
   const eventsPromise = (async () => {
     const events = [];
     for await (const event of proc.events) events.push(event);
@@ -685,7 +688,7 @@ test('Claude daemon print mode reports cache-inclusive input tokens', async (t) 
     restore();
     rmSync(root, { recursive: true, force: true });
   });
-  const proc = adapter.spawn({ sessionId: null, sessionKey: 'print-accounting', resume: false });
+  const proc = adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'print-accounting', resume: false }));
   const eventsPromise = (async () => {
     const events = [];
     for await (const event of proc.events) events.push(event);
@@ -803,9 +806,9 @@ function spawnReplacementSession(
   cwd: string,
   composition: McpComposition,
 ): void {
-  fixture.adapter.spawn({
+  fixture.adapter.spawn(engineSpecFixture({
     sessionId: null, sessionKey: fixture.key, resume: false, cwd, mcpComposition: composition,
-  });
+  }));
 }
 
 async function assertReplacementSurvives(
@@ -885,8 +888,8 @@ function routeSpawnConfig(
   key: string,
   route: ModeEnv,
   config: AgentConfig = FIXTURE_CONFIG,
-): AgentSpawnConfig {
-  return facadeTest.buildSpawnConfig({
+): EngineSpec {
+  return buildEngineSpec({
     channel: key, sessionKey: key, sessionId: `${key}-session`, loadCortexRules: false,
   }, config, route);
 }
@@ -935,10 +938,10 @@ test('a plan route deletes the API key and carries its base URL on exactly one f
     'route-plan-gateway', facadeTest.configureRunRoute({}, planConfig()),
   );
 
-  assert.equal(spawn.anthropicBaseUrl, `${GATEWAY_URL}/m/plan/anthropic`);
-  assert.equal(spawn.env?.ANTHROPIC_BASE_URL, undefined,
+  assert.equal(spawn.route.anthropicBaseUrl, `${GATEWAY_URL}/m/plan/anthropic`);
+  assert.equal(spawn.env.sets?.ANTHROPIC_BASE_URL, undefined,
     'the base URL needs one source: production-attempt-identity reads config.env before the field');
-  assert.deepEqual(spawn.unsetEnv, ['ANTHROPIC_API_KEY']);
+  assert.deepEqual(spawn.env.unsets, ['ANTHROPIC_API_KEY']);
 
   repointDaemonGlobals();
   const env = childEnvironment(spawn);
@@ -953,8 +956,8 @@ test('a route without a base URL deletes the one the daemon left behind', (t) =>
   assert.equal(route.ANTHROPIC_BASE_URL, undefined, 'the direct plan route has no base URL');
 
   const spawn = routeSpawnConfig('route-plan-direct', route);
-  assert.equal(spawn.anthropicBaseUrl, undefined);
-  assert.deepEqual([...spawn.unsetEnv!].sort(), ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL']);
+  assert.equal(spawn.route.anthropicBaseUrl, undefined);
+  assert.deepEqual([...spawn.env.unsets!].sort(), ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL']);
 
   repointDaemonGlobals();
   const env = childEnvironment(spawn);
@@ -973,7 +976,7 @@ test('profile extraEnv outranks the credentials a mode route sets', (t) => {
     ...codex, extraEnv: { ANTHROPIC_API_KEY: 'profile-key' },
   });
 
-  assert.equal(spawn.env?.ANTHROPIC_API_KEY, 'profile-key');
+  assert.equal(spawn.env.sets?.ANTHROPIC_API_KEY, 'profile-key');
   assert.equal(childEnvironment(spawn).ANTHROPIC_API_KEY, 'profile-key');
 });
 
@@ -985,7 +988,7 @@ test('a key the profile sets explicitly is never deleted by the route', (t) => {
     ANTHROPIC_API_KEY: 'profile-key', ANTHROPIC_BASE_URL: 'https://profile.example',
   }));
 
-  assert.equal(spawn.unsetEnv, undefined,
+  assert.equal(spawn.env.unsets, undefined,
     'the profile configured both keys explicitly, so the mode may not delete either');
   const env = childEnvironment(spawn);
   assert.equal(env.ANTHROPIC_API_KEY, 'profile-key');
@@ -1004,18 +1007,18 @@ function pooledRouteSpawn(
   key: string,
   route: ModeEnv,
   config: AgentConfig = FIXTURE_CONFIG,
-): AgentSpawnConfig {
-  return facadeTest.buildSpawnConfig({
+): EngineSpec {
+  return buildEngineSpec({
     channel: key, sessionKey: key, sessionId: `${key}-session`, loadCortexRules: false,
     processSpawner: poolSpawner,
   }, config, route);
 }
 
-function pooledRouteConfig(key: string, overrides: Partial<AgentSpawnConfig>): AgentSpawnConfig {
-  return {
+function pooledRouteConfig(key: string, overrides: Partial<AgentSpawnConfig>): EngineSpec {
+  return engineSpecFixture({
     sessionId: key, sessionKey: key, resume: false, cwd: DATA_DIR,
     processSpawner: poolSpawner, ...overrides,
-  };
+  });
 }
 
 test('the pooled route identity fingerprints a credential instead of keeping it', () => {

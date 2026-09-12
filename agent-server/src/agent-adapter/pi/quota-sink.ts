@@ -1,4 +1,4 @@
-// input:  spawn config, Codex quota readings, usage store, and throttle
+// input:  provider/gateway route, Codex quota readings, usage store, and throttle
 // output: resolveQuotaSource and durable labeled reportCodexQuota
 // pos:    Persists PI quota under routed provider keys and feeds throttle
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -6,7 +6,6 @@
 import { handleRateLimitEvent, type RateLimitSource } from '@domain/costs/rate-limit-throttle.js';
 import { usageStore, type ProviderUsage, type UsageStore } from '@domain/costs/usage-store.js';
 import type { CodexQuotaReading } from '@domain/costs/codex-quota.js';
-import type { AgentSpawnConfig } from '../types.js';
 
 /** Signature of the throttle entry point; injected in tests, defaulted to the real one. */
 type SubmitRateLimit = (
@@ -35,10 +34,10 @@ const DISPLAY_NAMES: Record<string, string> = {
  * and its absence means the profile had no mode — which the gate reads as 'api'.
  */
 export function resolveQuotaSource(
-  config: Pick<AgentSpawnConfig, 'piProvider' | 'piGatewayPath'>,
+  route: { provider?: string | null; gatewayPath?: string | null },
 ): RateLimitSource {
-  const provider = config.piProvider || 'pi';
-  const mode = config.piGatewayPath?.match(/\/m\/([^/]+)\//)?.[1] ?? 'api';
+  const provider = route.provider || 'pi';
+  const mode = route.gatewayPath?.match(/\/m\/([^/]+)\//)?.[1] ?? 'api';
   return { provider, displayName: DISPLAY_NAMES[provider] ?? provider, mode };
 }
 

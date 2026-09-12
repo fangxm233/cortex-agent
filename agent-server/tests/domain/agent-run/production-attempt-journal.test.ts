@@ -13,7 +13,7 @@ import { afterEach, beforeEach, test } from 'vitest';
 import { createEventStream } from '../../../src/agent-adapter/normalize/event-stream.js';
 import type { NormalizedEvent } from '../../../src/agent-adapter/normalize/event-types.js';
 import type {
-  AgentAdapter, AgentProcess, AgentSpawnConfig, Backend,
+  AgentAdapter, AgentProcess, EngineSpec, Backend,
 } from '../../../src/agent-adapter/types.js';
 import type { AgentResult } from '../../../src/core/types/agent-types.js';
 import type { ProductionBenchmarkEvidenceContext } from '../../../src/core/types/thread-types.js';
@@ -112,7 +112,7 @@ function result(overrides: Partial<AgentResult> = {}): AgentResult {
   };
 }
 
-type ProcessFactory = (spawnConfig: AgentSpawnConfig) => AgentProcess;
+type ProcessFactory = (spawnConfig: EngineSpec) => AgentProcess;
 
 function eventProcess(
   events: readonly NormalizedEvent[], outcome: AgentResult | Error = result(),

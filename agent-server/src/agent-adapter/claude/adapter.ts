@@ -17,7 +17,7 @@ import { Capability, CAPABILITIES_BY_BACKEND } from '../capabilities.js';
 import { resolveMcpComposition } from '../types.js';
 import type {
   AgentAdapter, AgentCompactResult, AgentCompactUsage, AgentProcess, AgentProcessSpawner,
-  AgentProcessSupervision, AgentSpawnConfig, Backend, ContinuationSink,
+  AgentProcessSupervision, EngineSpec, Backend, ContinuationSink,
   InjectionAckSink, McpComposition, SpawnedAgentProcess, UserMessage,
 } from '../types.js';
 import type { AgentResult, ContextUsage, ReportedAccountingSnapshot } from '@core/types/agent-types.js';
@@ -1462,11 +1462,11 @@ const tuiSessions = new Map<string, ClaudeTuiSession>();
 /** Shared TmuxControl singleton — stateless, safe to reuse across all TUI sessions. */
 const sharedTmux = new TmuxControl();
 
-/** Pure dispatch: select claude adapter mode from an AgentSpawnConfig.
+/** Pure dispatch: select claude adapter mode from an EngineSpec.
  *  Defaults to 'print' for missing or unrecognized values (conservative — never silently
  *  flips a session into the experimental TUI path). */
-export function selectClaudeMode(config: AgentSpawnConfig): 'print' | 'tui' {
-  return (config as any).claudeBackend === 'tui' ? 'tui' : 'print';
+export function selectClaudeMode(spec: EngineSpec): 'print' | 'tui' {
+  return spec.backend.claudeBackend === 'tui' ? 'tui' : 'print';
 }
 
 function matchesTuiSession(
@@ -1506,16 +1506,16 @@ function tuiPromptFields(options: ClaudeSessionOptions): Partial<ClaudeTuiSessio
 }
 
 function tuiSessionConfig(
-  config: AgentSpawnConfig,
+  spec: EngineSpec,
   sessionId: string,
   options: ClaudeSessionOptions,
   composition: McpComposition,
 ): ClaudeTuiSessionConfig {
   const cwd = resolveSpawnCwd(options.cwd);
   return {
-    channel: config.channel ?? config.env?.SLACK_CHANNEL ?? config.sessionKey,
-    sessionId, sessionKey: config.sessionKey, cwd,
-    needsResume: resolveTuiResume(config.resume, computeJsonlPath(cwd, sessionId)),
+    channel: spec.context.channel ?? spec.env.sets?.SLACK_CHANNEL ?? spec.engineKey,
+    sessionId, sessionKey: spec.engineKey, cwd,
+    needsResume: resolveTuiResume(spec.resume.resume, computeJsonlPath(cwd, sessionId)),
     ...tuiPromptFields(options),
     mcpComposition: composition,
     mcpConfigPaths: options.mcpConfigPaths ?? null,
@@ -1538,13 +1538,13 @@ function tuiSessionConfig(
 }
 
 function createTuiSession(
-  config: AgentSpawnConfig,
+  spec: EngineSpec,
   sessionId: string,
   options: ClaudeSessionOptions,
   composition: McpComposition,
 ): ClaudeTuiSession {
-  const session = new ClaudeTuiSession(tuiSessionConfig(config, sessionId, options, composition));
-  tuiSessions.set(config.sessionKey, session);
+  const session = new ClaudeTuiSession(tuiSessionConfig(spec, sessionId, options, composition));
+  tuiSessions.set(spec.engineKey, session);
   return session;
 }
 
@@ -1552,16 +1552,19 @@ function tuiComposition(options: ClaudeSessionOptions): McpComposition {
   return options.mcpComposition ?? 'direct';
 }
 
-function getOrCreateTuiSession(config: AgentSpawnConfig, sessionIdEffective: string): ClaudeTuiSession {
-  const options = sessionOptionsFromSpawnConfig({ ...config, sessionId: sessionIdEffective });
+function getOrCreateTuiSession(spec: EngineSpec, sessionIdEffective: string): ClaudeTuiSession {
+  const options = sessionOptionsFromSpec({
+    ...spec,
+    resume: { ...spec.resume, backendSessionId: sessionIdEffective },
+  });
   const composition = tuiComposition(options);
-  let session = tuiSessions.get(config.sessionKey);
+  let session = tuiSessions.get(spec.engineKey);
   if (session && !matchesTuiSession(session, sessionIdEffective, options, composition)) {
     session.kill();
     session = undefined;
   }
   if (session) return session;
-  return createTuiSession(config, sessionIdEffective, options, composition);
+  return createTuiSession(spec, sessionIdEffective, options, composition);
 }
 
 // --- ClaudeAdapter — DR-0008 §3.2 generic AgentAdapter entry point ---
@@ -1571,13 +1574,13 @@ function getOrCreateTuiSession(config: AgentSpawnConfig, sessionIdEffective: str
 //     via event-emitting callbacks (onAssistantMessage / onToolUse), then derives
 //     ask_user_question / plan_written / rate_limit events from the resolved AgentResult
 //     before pushing turn_complete and returning the AgentResult from send().
-//   - AgentSpawnConfig.hooks (NormalizedHookSpec[]) is still NOT consumed; buildHooksSettings
-//     uses the native tools string per DR-0008 §3.5 (Phase 3 work).
-//   - AgentSpawnConfig.mcpServers is projected into a private supplemental --mcp-config file;
+//   - EngineSpec carries no hook list; buildHooksSettings uses the native tools string per
+//     DR-0008 §3.5 (Phase 3 work).
+//   - EngineSpec.mcp.servers is projected into a private supplemental --mcp-config file;
 //     the base agent-server/mcp-config.json remains first in the composition.
-//   - Claude-specific passthrough fields (channel / claudeAgent / callbackSource / scheduleTaskId /
-//     isUserInitiated / rawTools / anthropicBaseUrl) are read directly from AgentSpawnConfig;
-//     they're Phase-3 cleanup targets (see types.ts).
+//   - Claude-private fields (context.channel / backend.claudeAgent / context.callbackSource /
+//     context.scheduleTaskId / flags.isUserInitiated / tools.rawClaude / route.anthropicBaseUrl)
+//     are read directly from EngineSpec; they're Phase-3 cleanup targets (see types.ts).
 
 function canonicalToolsToNative(tools: string[] | undefined): string | null {
   if (!tools || tools.length === 0) return null;
@@ -1588,85 +1591,85 @@ function canonicalToolsToNative(tools: string[] | undefined): string | null {
 }
 
 function supplementalMcpConfig(
-  config: AgentSpawnConfig,
+  spec: EngineSpec,
   composition: McpComposition,
 ): ReturnType<typeof writeClaudeSupplementalMcpConfig> | null {
-  if (!config.mcpServers) return null;
+  if (!spec.mcp.servers) return null;
   if (composition !== 'direct' && composition !== 'thread-control') return null;
-  return writeClaudeSupplementalMcpConfig(config.mcpServers);
+  return writeClaudeSupplementalMcpConfig(spec.mcp.servers);
 }
 
-function sessionPresentationOptions(config: AgentSpawnConfig): Partial<ClaudeSessionOptions> {
+function sessionPresentationOptions(spec: EngineSpec): Partial<ClaudeSessionOptions> {
   return {
-    model: config.model ?? null,
-    systemPrompt: config.systemPrompt ?? null,
-    appendSystemPrompt: config.appendSystemPrompt ?? null,
-    outputStyle: config.outputStyle ?? null,
-    tools: config.rawTools ?? canonicalToolsToNative(config.tools),
-    pluginDirs: config.pluginDirs ?? null,
-    isUserInitiated: !!config.isUserInitiated,
-    callbackSource: config.callbackSource ?? null,
-    scheduleTaskId: config.scheduleTaskId ?? null,
-    claudeAgent: config.claudeAgent ?? null,
-    thinking: config.thinking ?? null,
+    model: spec.model.id ?? null,
+    systemPrompt: spec.prompt.system ?? null,
+    appendSystemPrompt: spec.prompt.append ?? null,
+    outputStyle: spec.backend.outputStyle ?? null,
+    tools: spec.tools.rawClaude ?? canonicalToolsToNative(spec.tools.canonical),
+    pluginDirs: spec.plugins.dirs ?? null,
+    isUserInitiated: !!spec.flags.isUserInitiated,
+    callbackSource: spec.context.callbackSource ?? null,
+    scheduleTaskId: spec.context.scheduleTaskId ?? null,
+    claudeAgent: spec.backend.claudeAgent ?? null,
+    thinking: spec.model.thinking ?? null,
   };
 }
 
 function sessionRuntimeOptions(
-  config: AgentSpawnConfig,
+  spec: EngineSpec,
   composition: McpComposition,
 ): Partial<ClaudeSessionOptions> {
-  const supplemental = supplementalMcpConfig(config, composition);
+  const supplemental = supplementalMcpConfig(spec, composition);
   // Only a direct session can carry browser tools — thread/dispatch workers run unattended, where a
   // shared browser would be a cross-run side channel rather than a feature.
-  const browser = config.browserCdpEndpoint && composition === 'direct'
-    ? writeBrowserMcpConfig(config.browserCdpEndpoint)
+  const browser = spec.mcp.browserCdpEndpoint && composition === 'direct'
+    ? writeBrowserMcpConfig(spec.mcp.browserCdpEndpoint)
     : null;
   return {
-    anthropicBaseUrl: config.anthropicBaseUrl,
-    extraEnv: config.env,
-    unsetEnv: config.unsetEnv,
-    cwd: resolveSpawnCwd(config.cwd),
+    anthropicBaseUrl: spec.route.anthropicBaseUrl,
+    extraEnv: spec.env.sets,
+    unsetEnv: spec.env.unsets,
+    cwd: resolveSpawnCwd(spec.cwd),
     mcpComposition: composition,
-    mcpConfigPaths: config.mcpConfigPaths,
-    mcpToolAllowlist: config.mcpToolAllowlist,
-    commissionTools: config.commissionTools === true,
+    mcpConfigPaths: spec.mcp.configPaths,
+    mcpToolAllowlist: spec.mcp.allowlist,
+    commissionTools: spec.mcp.commissionTools === true,
     supplementalMcpConfigPath: supplemental?.path ?? null,
     supplementalMcpConfigIdentity: supplemental?.identity ?? null,
     browserMcpConfigPath: browser?.path ?? null,
     browserMcpConfigIdentity: browser?.identity ?? null,
-    pluginCapabilityFingerprint: config.pluginCapabilityFingerprint ?? null,
-    disableHooks: config.disableHooks,
-    streamDeltas: config.streamDeltas,
-    captureTranscriptLogs: config.captureTranscriptLogs,
-    preserveUnreportedAccounting: config.preserveUnreportedAccounting,
-    processSpawner: config.processSpawner,
-    cliPath: config.cliPath,
-    pinnedEnv: config.pinnedEnv,
-    extraOption: config.extraOption,
-    context: config.cortexContext,
+    pluginCapabilityFingerprint: spec.plugins.fingerprint ?? null,
+    disableHooks: spec.flags.disableHooks,
+    streamDeltas: spec.flags.streamDeltas,
+    captureTranscriptLogs: spec.flags.captureTranscripts,
+    preserveUnreportedAccounting: spec.flags.preserveUnreportedAccounting,
+    processSpawner: spec.process.spawner,
+    cliPath: spec.process.cliPath,
+    pinnedEnv: spec.env.pinned,
+    extraOption: spec.extraOption,
+    context: spec.env.context,
   };
 }
 
-function sessionOptionsFromSpawnConfig(
-  config: AgentSpawnConfig,
+function sessionOptionsFromSpec(
+  spec: EngineSpec,
 ): ClaudeSessionOptions & { sessionIdEffective: string } {
-  const composition = resolveMcpComposition(config.mcpComposition, config.cortexContext?.useCoreMcp);
+  const composition = resolveMcpComposition(spec.mcp.composition, spec.env.context?.useCoreMcp);
   return {
-    sessionIdEffective: config.sessionId || crypto.randomUUID(),
-    needsResume: config.resume,
-    sessionKey: config.sessionKey,
-    ...sessionPresentationOptions(config),
-    ...sessionRuntimeOptions(config, composition),
+    sessionIdEffective: spec.resume.backendSessionId || crypto.randomUUID(),
+    needsResume: spec.resume.resume,
+    sessionKey: spec.engineKey,
+    ...sessionPresentationOptions(spec),
+    ...sessionRuntimeOptions(spec, composition),
   };
 }
 
-/** Test hook: mirror of ClaudeSession.toSpawnOptions() for the AgentSpawnConfig entry point.
+/** Test hook: mirror of ClaudeSession.toSpawnOptions() for the EngineSpec entry point.
  *  Must stay in sync with ClaudeSession constructor + toSpawnOptions — both paths derive
  *  ClaudeSpawnOptions through deriveClaudeSpawnOptions(), so any field added to that helper
  *  is covered here without divergence. */
-function computeSpawnArgsForConfig(config: AgentSpawnConfig): string[] {
-  const opts = sessionOptionsFromSpawnConfig(config);
+function computeSpawnArgsForSpec(spec: EngineSpec): string[] {
+  const opts = sessionOptionsFromSpec(spec);
   const spawnOptions = deriveClaudeSpawnOptions({
     tools: opts.tools ?? null,
     systemPrompt: opts.systemPrompt ?? null,
@@ -1687,8 +1690,8 @@ function computeSpawnArgsForConfig(config: AgentSpawnConfig): string[] {
     disableHooks: opts.disableHooks,
     streamDeltas: opts.streamDeltas,
   });
-  spawnOptions.isUserInitiated = config.isUserInitiated;
-  spawnOptions.commissionTools = config.commissionTools === true;
+  spawnOptions.isUserInitiated = spec.flags.isUserInitiated;
+  spawnOptions.commissionTools = spec.mcp.commissionTools === true;
   return buildSpawnArgs(spawnOptions);
 }
 
@@ -1696,10 +1699,10 @@ export class ClaudeAdapter implements AgentAdapter {
   readonly backend: Backend = 'claude';
   readonly capabilities: Set<Capability> = CAPABILITIES_BY_BACKEND.claude;
 
-  spawn(config: AgentSpawnConfig): AgentProcess {
+  spawn(spec: EngineSpec): AgentProcess {
     // DR-0012: route to TUI implementation when profile selects it.
-    if (selectClaudeMode(config) === 'tui') return this.spawnTui(config);
-    const { sessionIdEffective, ...sessionOptions } = sessionOptionsFromSpawnConfig(config);
+    if (selectClaudeMode(spec) === 'tui') return this.spawnTui(spec);
+    const { sessionIdEffective, ...sessionOptions } = sessionOptionsFromSpec(spec);
     // Gate resume on the transcript actually existing — a pre-registered sessionId
     // (e.g. cortex tui handshake) must spawn `--session-id` on its first turn, not
     // `--resume` (which fails "No conversation found"). See resolveResumeForPrint.
@@ -1709,13 +1712,13 @@ export class ClaudeAdapter implements AgentAdapter {
       undefined,
       sessionOptions.cwd,
     );
-    const channel = config.channel ?? config.env?.SLACK_CHANNEL ?? config.sessionKey;
+    const channel = spec.context.channel ?? spec.env.sets?.SLACK_CHANNEL ?? spec.engineKey;
     const session = getOrCreateSession(channel, sessionIdEffective, sessionOptions);
     const stream = createEventStream<NormalizedEvent>();
     let started = false;
 
     return {
-      sessionKey: config.sessionKey,
+      sessionKey: spec.engineKey,
       get sessionId(): string | null { return session.sessionId; },
       get supervision(): AgentProcessSupervision | undefined { return session.getSupervision(); },
       async send(message: UserMessage): Promise<AgentResult> {
@@ -1793,7 +1796,7 @@ export class ClaudeAdapter implements AgentAdapter {
             stream.push({ type: 'rate_limit', raw: { message: result.rateLimitMessage } });
           }
           // Emit cost_record from the resolved turn, not mutable session accounting.
-          const preserveReportedness = config.preserveUnreportedAccounting === true;
+          const preserveReportedness = spec.flags.preserveUnreportedAccounting === true;
           const accounting = result.reportedAccounting;
           const hasReportableAccounting = preserveReportedness
             ? result.costReported === true || accounting?.usageReported === true
@@ -1866,14 +1869,14 @@ export class ClaudeAdapter implements AgentAdapter {
    * Sessions are pooled in `tuiSessions` by sessionKey; multi-turn reuses the same tmux session.
    * kill() forwards to ClaudeTuiSession.kill() which tears down the tmux session.
    */
-  private spawnTui(config: AgentSpawnConfig): AgentProcess {
-    const sessionIdEffective = config.sessionId || crypto.randomUUID();
-    const session = getOrCreateTuiSession(config, sessionIdEffective);
+  private spawnTui(spec: EngineSpec): AgentProcess {
+    const sessionIdEffective = spec.resume.backendSessionId || crypto.randomUUID();
+    const session = getOrCreateTuiSession(spec, sessionIdEffective);
     const stream = createEventStream<NormalizedEvent>();
     let started = false;
 
     return {
-      sessionKey: config.sessionKey,
+      sessionKey: spec.engineKey,
       get sessionId(): string | null { return session.sessionId; },
       async send(message: UserMessage): Promise<AgentResult> {
         if (!started) {
@@ -2005,7 +2008,7 @@ function makeSessionForTest(
 export const _test = {
   extractAskUserQuestions,
   mergeSubstantialOutput,
-  computeSpawnArgs: computeSpawnArgsForConfig,
+  computeSpawnArgs: computeSpawnArgsForSpec,
   makeSessionForTest,
   getPooledPrintSession: (sessionKey: string) => sessions.get(sessionKey),
   getPooledTuiSession: (sessionKey: string) => tuiSessions.get(sessionKey),

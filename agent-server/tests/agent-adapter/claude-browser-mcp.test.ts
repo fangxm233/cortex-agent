@@ -2,6 +2,8 @@
 // output: pinned opt-in behaviour of the Playwright MCP layer in the Claude spawn
 // pos:    tests for per-session browser control
 // >>> If I am updated, update CORTEX.md <<<
+import { engineSpecFixture } from '../engine-spec-fixture.js';
+
 import { describe, it, expect } from 'vitest';
 import * as fs from 'node:fs';
 import { _test as adapterTest } from '../../src/agent-adapter/claude/adapter.js';
@@ -28,14 +30,14 @@ function readableConfigs(args: string[]): Array<{ path: string; text: string }> 
 
 describe('browser MCP is opt-in per session', () => {
   it('adds no browser config when the session did not opt in', () => {
-    const args = adapterTest.computeSpawnArgs({ sessionId: 'a', sessionKey: 'k', resume: false });
+    const args = adapterTest.computeSpawnArgs(engineSpecFixture({ sessionId: 'a', sessionKey: 'k', resume: false }));
     expect(readableConfigs(args).filter((c) => c.text.includes('playwright'))).toEqual([]);
   });
 
   it('adds exactly one Playwright config bound to the endpoint when it did', () => {
-    const args = adapterTest.computeSpawnArgs({
+    const args = adapterTest.computeSpawnArgs(engineSpecFixture({
       sessionId: 'b', sessionKey: 'k', resume: false, browserCdpEndpoint: ENDPOINT,
-    });
+    }));
     const configs = readableConfigs(args).map((c) => JSON.parse(c.text));
     const playwright = configs.filter((c) => c.mcpServers?.playwright);
     expect(playwright).toHaveLength(1);
@@ -51,9 +53,9 @@ describe('browser MCP is opt-in per session', () => {
   it('refuses the browser layer outside a direct session', () => {
     // Thread and dispatch workers run unattended; a shared browser there is a side channel.
     for (const mcpComposition of ['thread-control', 'none'] as const) {
-      const args = adapterTest.computeSpawnArgs({
+      const args = adapterTest.computeSpawnArgs(engineSpecFixture({
         sessionId: 'c', sessionKey: 'k', resume: false, browserCdpEndpoint: ENDPOINT, mcpComposition,
-      });
+      }));
       expect(readableConfigs(args).filter((c) => c.text.includes('playwright'))).toEqual([]);
     }
   });

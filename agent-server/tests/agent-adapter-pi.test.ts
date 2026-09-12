@@ -2,6 +2,8 @@
 // output: Session request, env, turn lifecycle, pool, compaction and resume tests
 // pos:    Tests PI in-process session lifecycles
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+import { engineSpecFixture } from './engine-spec-fixture.js';
+
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
@@ -62,12 +64,12 @@ test('spawn accepts explicit direct and thread-control MCP compositions', () => 
   for (const composition of ['direct', 'thread-control'] as const) {
     const fake = makeFakeRuntimeFactory();
     const adapter = new PIAdapter(fake.factory);
-    const proc = adapter.spawn({
+    const proc = adapter.spawn(engineSpecFixture({
       sessionId: null,
       sessionKey: `pi-${composition}`,
       resume: false,
       mcpComposition: composition,
-    });
+    }));
 
     assert.equal(fake.requests.length, 1, `${composition} must reach the runtime factory`);
     proc.kill();
@@ -79,14 +81,14 @@ test('spawn accepts explicit direct and thread-control MCP compositions', () => 
 test('spawn resolves prompts and skill roots into the session request', () => {
   const fake = makeFakeRuntimeFactory();
   const adapter = new PIAdapter(fake.factory);
-  const proc = adapter.spawn({
+  const proc = adapter.spawn(engineSpecFixture({
     sessionId: null,
     sessionKey: 'request-prompts',
     resume: false,
     systemPrompt: 'sp',
     appendSystemPrompt: 'asp',
     pluginDirs: ['/a', '/b'],
-  });
+  }));
 
   const request = fake.requests[0];
   assert.equal(request.systemPrompt, 'sp');
@@ -99,13 +101,13 @@ test('spawn resolves prompts and skill roots into the session request', () => {
 test('spawn places portable pluginSkillDirs before pluginDirs in skillPaths', () => {
   const fake = makeFakeRuntimeFactory();
   const adapter = new PIAdapter(fake.factory);
-  const proc = adapter.spawn({
+  const proc = adapter.spawn(engineSpecFixture({
     sessionId: null,
     sessionKey: 'request-skills',
     resume: false,
     pluginSkillDirs: ['/portable/skill-a', '/portable/skill-b'],
     pluginDirs: ['/legacy/plugin'],
-  });
+  }));
 
   assert.deepEqual(fake.requests[0].skillPaths, [
     '/portable/skill-a',
@@ -119,15 +121,15 @@ test('spawn resolves the thinking level from the profile, letting an explicit --
   const fake = makeFakeRuntimeFactory();
   const adapter = new PIAdapter(fake.factory);
   const procs = [
-    adapter.spawn({ sessionId: null, sessionKey: 'thinking-profile', resume: false, thinking: 'high' }),
-    adapter.spawn({ sessionId: null, sessionKey: 'thinking-absent', resume: false }),
-    adapter.spawn({
+    adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'thinking-profile', resume: false, thinking: 'high' })),
+    adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'thinking-absent', resume: false })),
+    adapter.spawn(engineSpecFixture({
       sessionId: null,
       sessionKey: 'thinking-extra',
       resume: false,
       thinking: 'high',
       extraOption: { '--thinking': 'xhigh' },
-    }),
+    })),
   ];
 
   assert.equal(fake.requests[0].thinking, 'high');
@@ -140,8 +142,8 @@ test('spawn resolves no skill roots when pluginDirs is empty or undefined', () =
   const fake = makeFakeRuntimeFactory();
   const adapter = new PIAdapter(fake.factory);
   const procs = [
-    adapter.spawn({ sessionId: null, sessionKey: 'skills-empty', resume: false, pluginDirs: [] }),
-    adapter.spawn({ sessionId: null, sessionKey: 'skills-undefined', resume: false }),
+    adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'skills-empty', resume: false, pluginDirs: [] })),
+    adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'skills-undefined', resume: false })),
   ];
 
   assert.deepEqual(fake.requests[0].skillPaths, []);
@@ -154,7 +156,7 @@ test('spawn resolves no skill roots when pluginDirs is empty or undefined', () =
 test('spawn forwards authoritative Cortex thread context to the session env', () => {
   const fake = makeFakeRuntimeFactory();
   const adapter = new PIAdapter(fake.factory);
-  const proc = adapter.spawn({
+  const proc = adapter.spawn(engineSpecFixture({
     sessionId: 'backend-session',
     sessionKey: 'context-env',
     resume: false,
@@ -172,7 +174,7 @@ test('spawn forwards authoritative Cortex thread context to the session env', ()
       taskId: 'ab1a',
       taskProject: 'vr-security',
     },
-  });
+  }));
 
   const env = fake.requests[0].env;
   assert.equal(env.CORTEX_THREAD_ID, 'thr_test');
@@ -198,13 +200,13 @@ test('spawn forwards AgentSpawnConfig.unsetEnv to the session env', () => {
   const fake = makeFakeRuntimeFactory();
   const adapter = new PIAdapter(fake.factory);
   try {
-    const proc = adapter.spawn({
+    const proc = adapter.spawn(engineSpecFixture({
       sessionId: 'unset-env-session',
       sessionKey: 'unset-env',
       resume: false,
       env: { ANTHROPIC_API_KEY: 'cortex-gateway-managed', KEPT_ENV: 'kept' },
       unsetEnv: ['ANTHROPIC_API_KEY'],
-    });
+    }));
 
     const env = fake.requests[0].env;
     assert.equal(Object.prototype.hasOwnProperty.call(env, 'ANTHROPIC_API_KEY'), false);
@@ -265,14 +267,14 @@ test('PIAdapter enables the shared interaction bridge only for direct user sessi
   ]) {
     const fake = makeFakeRuntimeFactory();
     const adapter = new PIAdapter(fake.factory);
-    const proc = adapter.spawn({
+    const proc = adapter.spawn(engineSpecFixture({
       sessionId: null,
       sessionKey: entry.key,
       resume: false,
       isUserInitiated: entry.isUserInitiated,
       mcpComposition: entry.mcpComposition,
       env: { [PI_INTERACTION_BRIDGE_ENV]: 'spoofed' },
-    });
+    }));
     assert.equal(fake.requests[0].env[PI_INTERACTION_BRIDGE_ENV], entry.expected, entry.key);
     proc.kill();
   }
@@ -368,14 +370,14 @@ test('PIAdapter hands plugin MCP servers to the session only for compositions th
   ]) {
     const fake = makeFakeRuntimeFactory();
     const adapter = new PIAdapter(fake.factory);
-    const proc = adapter.spawn({
+    const proc = adapter.spawn(engineSpecFixture({
       sessionId: null,
       sessionKey: entry.key,
       resume: false,
       mcpComposition: entry.mcpComposition,
       env: entry.env,
       mcpServers: [server],
-    });
+    }));
 
     assert.deepEqual(fake.requests[0].pluginMcpServers, entry.expected, entry.key);
     if (entry.env?.CORTEX_PI_SUBAGENT === '1') assert.equal(fake.requests[0].env.CORTEX_PI_SUBAGENT, '1');
@@ -388,13 +390,13 @@ test('PIAdapter hands plugin MCP servers to the session only for compositions th
 test('PIAdapter passes the profile provider and model to the session', () => {
   const fake = makeFakeRuntimeFactory();
   const adapter = new PIAdapter(fake.factory);
-  const proc = adapter.spawn({
+  const proc = adapter.spawn(engineSpecFixture({
     sessionId: null,
     sessionKey: 'openai-codex-profile',
     resume: false,
     model: 'gpt-5.4-mini',
     piProvider: 'openai-codex',
-  });
+  }));
 
   assert.equal(fake.requests[0].provider, 'openai-codex');
   assert.equal(fake.requests[0].model, 'gpt-5.4-mini');
@@ -404,12 +406,12 @@ test('PIAdapter passes the profile provider and model to the session', () => {
 test('PIAdapter does not default the provider to "anthropic" when only a model is given', () => {
   const fake = makeFakeRuntimeFactory();
   const adapter = new PIAdapter(fake.factory);
-  const proc = adapter.spawn({
+  const proc = adapter.spawn(engineSpecFixture({
     sessionId: null,
     sessionKey: 'model-only',
     resume: false,
     model: 'claude-opus-4-7',
-  });
+  }));
 
   assert.equal(fake.requests[0].provider, null, 'PI infers the provider when the profile names none');
   assert.equal(fake.requests[0].model, 'claude-opus-4-7');
@@ -430,7 +432,7 @@ test('gateway spawns return while one slow discovery warms provider overrides', 
   const adapter = new PIAdapter(fake.factory, G_SESSION_DIR, discovery);
   const processes = [];
 
-  processes.push(adapter.spawn({
+  processes.push(adapter.spawn(engineSpecFixture({
     sessionId: null,
     sessionKey: 'gateway-cold-anthropic',
     resume: false,
@@ -438,11 +440,11 @@ test('gateway spawns return while one slow discovery warms provider overrides', 
     piProvider: 'anthropic',
     piGatewayBaseUrl: 'http://127.0.0.1:9880',
     piGatewayPath: '/m/default/anthropic',
-  }));
+  })));
   let models = JSON.parse(readFileSync(PI_MODELS_PATH, 'utf8'));
   assert.equal(models.providers.anthropic.baseUrl, 'http://127.0.0.1:9880/m/default/anthropic');
 
-  processes.push(adapter.spawn({
+  processes.push(adapter.spawn(engineSpecFixture({
     sessionId: null,
     sessionKey: 'gateway-cold-deepseek',
     resume: false,
@@ -450,18 +452,18 @@ test('gateway spawns return while one slow discovery warms provider overrides', 
     piProvider: 'deepseek',
     piGatewayBaseUrl: 'http://127.0.0.1:9880',
     piGatewayPath: '/m/default/deepseek',
-  }));
+  })));
   models = JSON.parse(readFileSync(PI_MODELS_PATH, 'utf8'));
   assert.deepEqual(Object.keys(models.providers).sort(), ['anthropic', 'deepseek']);
   assert.equal(models.providers.anthropic.baseUrl, 'http://127.0.0.1:9880/m/default/anthropic');
   assert.equal(models.providers.deepseek.baseUrl, 'http://127.0.0.1:9880/m/default/deepseek');
 
-  processes.push(adapter.spawn({
+  processes.push(adapter.spawn(engineSpecFixture({
     sessionId: null,
     sessionKey: 'gateway-cold-no-provider',
     resume: false,
     piGatewayBaseUrl: 'http://127.0.0.1:9880',
-  }));
+  })));
   models = JSON.parse(readFileSync(PI_MODELS_PATH, 'utf8'));
   assert.deepEqual(Object.keys(models.providers).sort(), ['anthropic', 'deepseek']);
   assert.equal(fake.requests.length, 3, 'all PI sessions start before discovery settles');
@@ -475,7 +477,7 @@ test('gateway spawns return while one slow discovery warms provider overrides', 
   ]);
   await tick();
 
-  processes.push(adapter.spawn({
+  processes.push(adapter.spawn(engineSpecFixture({
     sessionId: null,
     sessionKey: 'gateway-warm-deepseek',
     resume: false,
@@ -483,7 +485,7 @@ test('gateway spawns return while one slow discovery warms provider overrides', 
     piProvider: 'deepseek',
     piGatewayBaseUrl: 'http://127.0.0.1:9880',
     piGatewayPath: '/m/pro/deepseek',
-  }));
+  })));
   models = JSON.parse(readFileSync(PI_MODELS_PATH, 'utf8'));
   assert.deepEqual(Object.keys(models.providers).sort(), ['anthropic', 'deepseek', 'openai-codex']);
   assert.equal(models.providers.deepseek.baseUrl, 'http://127.0.0.1:9880/m/pro/deepseek');
@@ -503,7 +505,7 @@ test('failed gateway discovery preserves current-provider fallback without delay
   const fake = makeFakeRuntimeFactory();
   const adapter = new PIAdapter(fake.factory, G_SESSION_DIR, discovery);
 
-  const proc = adapter.spawn({
+  const proc = adapter.spawn(engineSpecFixture({
     sessionId: null,
     sessionKey: 'gateway-failed-discovery',
     resume: false,
@@ -511,7 +513,7 @@ test('failed gateway discovery preserves current-provider fallback without delay
     piProvider: 'anthropic',
     piGatewayBaseUrl: 'http://127.0.0.1:9880',
     piGatewayPath: '/m/gateway/anthropic',
-  });
+  }));
 
   assert.equal(fake.requests.length, 1, 'spawn is not gated on discovery failure');
   const models = JSON.parse(readFileSync(PI_MODELS_PATH, 'utf8'));
@@ -526,12 +528,12 @@ test('failed gateway discovery preserves current-provider fallback without delay
 
 test('flags provider quota reporting only for gateway-routed runs', () => {
   const routed = makeFakeRuntimeFactory();
-  const routedProc = new PIAdapter(routed.factory).spawn({
+  const routedProc = new PIAdapter(routed.factory).spawn(engineSpecFixture({
     sessionId: null,
     sessionKey: 'pi-quota-routed',
     resume: false,
     piGatewayBaseUrl: 'http://127.0.0.1:9880',
-  });
+  }));
   assert.equal(
     routed.requests[0].reportsProviderQuota, true,
     'a gateway-routed run must report provider quota',
@@ -539,11 +541,11 @@ test('flags provider quota reporting only for gateway-routed runs', () => {
   routedProc.kill();
 
   const unrouted = makeFakeRuntimeFactory();
-  const unroutedProc = new PIAdapter(unrouted.factory).spawn({
+  const unroutedProc = new PIAdapter(unrouted.factory).spawn(engineSpecFixture({
     sessionId: null,
     sessionKey: 'pi-quota-unrouted',
     resume: false,
-  });
+  }));
   assert.equal(
     unrouted.requests[0].reportsProviderQuota, false,
     'a run Cortex does not route must not report into the daemon throttle',
@@ -556,7 +558,7 @@ test('flags provider quota reporting only for gateway-routed runs', () => {
 test('the session announces session_started first, carrying its id and transcript path', async () => {
   const fake = makeFakeRuntimeFactory({ sessionId: 'abc-123' });
   const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
-  const proc = adapter.spawn({ sessionId: null, sessionKey: 'k2', resume: false });
+  const proc = adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'k2', resume: false }));
 
   assert.equal(proc.sessionId, null, 'sessionId is null until the runtime exists');
 
@@ -575,7 +577,7 @@ test('the session announces session_started first, carrying its id and transcrip
 test('PI turn emits live context_usage during streaming without flushing partial text', async () => {
   const fake = makeFakeRuntimeFactory({ sessionId: 'context-live-session' });
   const adapter = new PIAdapter(fake.factory);
-  const proc = adapter.spawn({ sessionId: null, sessionKey: 'context-live', resume: false });
+  const proc = adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'context-live', resume: false }));
   const runtime = await fake.runtime();
   const iterator = proc.events[Symbol.asyncIterator]();
   assert.equal((await nextEvent(iterator)).type, 'session_started');
@@ -620,7 +622,7 @@ test('PI turn emits live context_usage during streaming without flushing partial
 test('a PI turn that ends in a provider error rejects with a classified reason', async () => {
   const fake = makeFakeRuntimeFactory({ sessionId: 'provider-error-session' });
   const adapter = new PIAdapter(fake.factory);
-  const proc = adapter.spawn({ sessionId: null, sessionKey: 'provider-error', resume: false });
+  const proc = adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'provider-error', resume: false }));
   const runtime = await fake.runtime();
   const iterator = proc.events[Symbol.asyncIterator]();
   assert.equal((await nextEvent(iterator)).type, 'session_started');
@@ -644,7 +646,7 @@ test('a PI turn that ends in a provider error rejects with a classified reason',
 test('settled PI turn emits context_usage before its terminal event', async () => {
   const fake = makeFakeRuntimeFactory({ sessionId: 'context-session' });
   const adapter = new PIAdapter(fake.factory);
-  const proc = adapter.spawn({ sessionId: null, sessionKey: 'context-order', resume: false });
+  const proc = adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'context-order', resume: false }));
   const runtime = await fake.runtime();
   const iterator = proc.events[Symbol.asyncIterator]();
   assert.equal((await nextEvent(iterator)).type, 'session_started');
@@ -674,7 +676,7 @@ test('settled PI turn emits context_usage before its terminal event', async () =
 test('a finished run closes its stream and leaves the session pooled', async () => {
   const fake = makeFakeRuntimeFactory();
   const adapter = new PIAdapter(fake.factory);
-  const proc = adapter.spawn({ sessionId: null, sessionKey: 'k4', resume: false });
+  const proc = adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'k4', resume: false }));
   const runtime = await fake.runtime();
 
   await proc.close();
@@ -691,7 +693,7 @@ test('a finished run closes its stream and leaves the session pooled', async () 
 test('adapter.close(key) disposes the runtime, ends the run stream and drops the pooled session', async () => {
   const fake = makeFakeRuntimeFactory();
   const adapter = new PIAdapter(fake.factory);
-  const proc = adapter.spawn({ sessionId: null, sessionKey: 'k4b', resume: false });
+  const proc = adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'k4b', resume: false }));
   const runtime = await fake.runtime();
 
   await adapter.close('k4b');
@@ -720,11 +722,11 @@ test('two turns on one sessionKey reuse a single runtime', async () => {
   const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
   const config = { sessionId: null, sessionKey: 'pool-reuse', resume: false, model: 'gpt-5.6-sol' };
 
-  const first = adapter.spawn({ ...config });
+  const first = adapter.spawn(engineSpecFixture({ ...config }));
   const runtime = await fake.runtime();
   await runPooledTurn(first, runtime, 'first');
 
-  const second = adapter.spawn({ ...config });
+  const second = adapter.spawn(engineSpecFixture({ ...config }));
   assert.equal(fake.requests.length, 1, 'the second turn reuses the pooled runtime');
   await runPooledTurn(second, runtime, 'second');
 
@@ -737,15 +739,15 @@ test('a changed spawn configuration retires the pooled session', async () => {
   const fake = makeFakeRuntimeFactory();
   const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
 
-  const first = adapter.spawn({
+  const first = adapter.spawn(engineSpecFixture({
     sessionId: null, sessionKey: 'pool-model', resume: false, model: 'gpt-5.6-sol',
-  });
+  }));
   const runtime = await fake.runtime();
   await runPooledTurn(first, runtime, 'first');
 
-  adapter.spawn({
+  adapter.spawn(engineSpecFixture({
     sessionId: null, sessionKey: 'pool-model', resume: false, model: 'claude-sonnet-4',
-  });
+  }));
   assert.equal(fake.requests.length, 2, 'a different model must not run on the pooled session');
   assert.equal(fake.requests[1].model, 'claude-sonnet-4');
   await tick();
@@ -760,11 +762,11 @@ test('a killed session is replaced on the next turn', async () => {
   const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
   const config = { sessionId: null, sessionKey: 'pool-dead', resume: false };
 
-  const first = adapter.spawn({ ...config });
+  const first = adapter.spawn(engineSpecFixture({ ...config }));
   await fake.runtime();
   first.kill();
 
-  adapter.spawn({ ...config });
+  adapter.spawn(engineSpecFixture({ ...config }));
   assert.equal(fake.requests.length, 2, 'a dead session is not reused');
 
   await fake.runtime(1);
@@ -776,11 +778,11 @@ test('a per-run execution id does not retire the pooled session', async () => {
   const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
   const base = { sessionId: null, sessionKey: 'pool-exec', resume: false };
 
-  const first = adapter.spawn({ ...base, cortexContext: { executionId: 'exec-1' } });
+  const first = adapter.spawn(engineSpecFixture({ ...base, cortexContext: { executionId: 'exec-1' } }));
   const runtime = await fake.runtime();
   await runPooledTurn(first, runtime, 'first');
 
-  adapter.spawn({ ...base, cortexContext: { executionId: 'exec-2' } });
+  adapter.spawn(engineSpecFixture({ ...base, cortexContext: { executionId: 'exec-2' } }));
   assert.equal(fake.requests.length, 1, 'a new execution id reuses the pooled session');
 
   await adapter.close('pool-exec');
@@ -791,7 +793,7 @@ test('a per-run execution id does not retire the pooled session', async () => {
 test('a runtime that fails to start emits a fatal error before the iterator terminates', async () => {
   const fake = makeFakeRuntimeFactory({ fail: new Error('fatal: no API key') });
   const adapter = new PIAdapter(fake.factory);
-  const proc = adapter.spawn({ sessionId: null, sessionKey: 'k6', resume: false });
+  const proc = adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'k6', resume: false }));
   const turn = proc.send({ text: 'hello' });
 
   const events = await collectEvents(proc.events);
@@ -803,7 +805,7 @@ test('a runtime that fails to start emits a fatal error before the iterator term
 test('a prompt PI refuses rejects the turn and ends the run with a fatal error', async () => {
   const fake = makeFakeRuntimeFactory();
   const adapter = new PIAdapter(fake.factory);
-  const proc = adapter.spawn({ sessionId: null, sessionKey: 'prompt-refused', resume: false });
+  const proc = adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'prompt-refused', resume: false }));
   const runtime = await fake.runtime();
 
   runtime.promptRejections.push(new Error('model not found'));
@@ -820,7 +822,7 @@ test('a prompt PI refuses rejects the turn and ends the run with a fatal error',
 test('kill() aborts the PI run, disposes the runtime and cleans the adapter session map', async () => {
   const fake = makeFakeRuntimeFactory();
   const adapter = new PIAdapter(fake.factory);
-  const proc = adapter.spawn({ sessionId: null, sessionKey: 'k7', resume: false });
+  const proc = adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'k7', resume: false }));
   const runtime = await fake.runtime();
 
   const killed = proc.kill();
@@ -843,7 +845,7 @@ function stageCanonicalSession(sessionId: string): string {
 test('G-1: a session whose transcript is not on disk does not expose a synthesized resume path', async () => {
   const fake = makeFakeRuntimeFactory({ sessionId: 'g1-unstaged' });
   const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
-  const proc = adapter.spawn({ sessionId: null, sessionKey: 'k1', resume: false });
+  const proc = adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'k1', resume: false }));
 
   // Before the runtime exists: path is unknown.
   assert.equal(adapter.resolveSessionPath('g1-unstaged'), null);
@@ -866,7 +868,7 @@ test('G-2: resolveSessionPath on unknown sessionId returns null', () => {
 test('G-3: switchSession with unknown sessionId returns {ok:false, cancelled:false}', async () => {
   const fake = makeFakeRuntimeFactory({ sessionId: 'abc-123' });
   const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
-  const proc = adapter.spawn({ sessionId: null, sessionKey: 'k1', resume: false });
+  const proc = adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'k1', resume: false }));
   const runtime = await fake.runtime();
 
   // 'unknown-xyz' is not in registry → immediate {ok:false, cancelled:false}, PI is never asked.
@@ -880,8 +882,8 @@ test('G-3: switchSession with unknown sessionId returns {ok:false, cancelled:fal
 test('G-4: switchSession re-points the runtime and resolves ok when PI does not cancel', async () => {
   const fake = makeFakeRuntimeFactory({ sessionIds: ['abc-123', 'xyz-456'] });
   const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
-  adapter.spawn({ sessionId: null, sessionKey: 'k1', resume: false });
-  adapter.spawn({ sessionId: null, sessionKey: 'k2', resume: false });
+  adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'k1', resume: false }));
+  adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'k2', resume: false }));
   const runtime1 = await fake.runtime(0);
   await fake.runtime(1);
   stageCanonicalSession('abc-123');
@@ -900,8 +902,8 @@ test('G-4: switchSession re-points the runtime and resolves ok when PI does not 
 test('G-5: switchSession propagates a cancelled switch as not ok', async () => {
   const fake = makeFakeRuntimeFactory({ sessionIds: ['abc-123', 'xyz-456'] });
   const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
-  adapter.spawn({ sessionId: null, sessionKey: 'k1', resume: false });
-  adapter.spawn({ sessionId: null, sessionKey: 'k2', resume: false });
+  adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'k1', resume: false }));
+  adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'k2', resume: false }));
   const runtime1 = await fake.runtime(0);
   await fake.runtime(1);
   stageCanonicalSession('abc-123');
@@ -921,8 +923,8 @@ test('G-5: switchSession propagates a cancelled switch as not ok', async () => {
 test('G-6: sendTurn no-op when same session; auto-switches before the prompt when different', async () => {
   const fake = makeFakeRuntimeFactory({ sessionIds: ['abc-123', 'xyz-456'] });
   const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
-  const proc1 = adapter.spawn({ sessionId: null, sessionKey: 'k1', resume: false });
-  adapter.spawn({ sessionId: null, sessionKey: 'k2', resume: false });
+  const proc1 = adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'k1', resume: false }));
+  adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'k2', resume: false }));
   const runtime1 = await fake.runtime(0);
   await fake.runtime(1);
   stageCanonicalSession('abc-123');
@@ -966,8 +968,8 @@ test('G-6b: internal switch-back refreshes a synthesized registry path from disk
   const sessionB = `refresh-b-${Date.now()}`;
   const fake = makeFakeRuntimeFactory({ sessionIds: [sessionA, sessionB] });
   const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
-  const proc1 = adapter.spawn({ sessionId: null, sessionKey: 'refresh-k1', resume: false });
-  adapter.spawn({ sessionId: null, sessionKey: 'refresh-k2', resume: false });
+  const proc1 = adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'refresh-k1', resume: false }));
+  adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'refresh-k2', resume: false }));
   const runtime1 = await fake.runtime(0);
   await fake.runtime(1);
   // The session registered <dir>/<sessionA>.jsonl, which never appears; PI wrote this name instead.
@@ -1004,7 +1006,7 @@ test('compact waits for the runtime, compacts once, then returns post-compact st
     stats: { contextUsage: { tokens: 19000, contextWindow: 200000, percent: 9.5 } },
   });
   const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
-  const proc = adapter.spawn({ sessionId: null, sessionKey: 'compact-ok', resume: false });
+  const proc = adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'compact-ok', resume: false }));
 
   const compactPromise = proc.compact!();
   await tick();
@@ -1031,7 +1033,7 @@ test('compact maps a PI no-history rejection to not-needed', async () => {
     stats: { contextUsage: { tokens: 19000, contextWindow: 200000, percent: 9.5 } },
   });
   const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
-  const proc = adapter.spawn({ sessionId: null, sessionKey: 'compact-empty', resume: false });
+  const proc = adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'compact-empty', resume: false }));
 
   assert.deepEqual(await proc.compact!(), {
     status: 'not-needed', tokensBefore: null, estimatedTokensAfter: null,
@@ -1044,7 +1046,7 @@ test('compact maps a PI no-history rejection to not-needed', async () => {
 test('compact rejects any other PI compaction failure', async () => {
   const fake = makeFakeRuntimeFactory({ compact: new Error('compaction exploded') });
   const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
-  const proc = adapter.spawn({ sessionId: null, sessionKey: 'compact-failed', resume: false });
+  const proc = adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'compact-failed', resume: false }));
 
   await assert.rejects(proc.compact!(), /compaction exploded/);
 
@@ -1056,7 +1058,7 @@ test('compact rejects promptly when the session is killed while its runtime is s
   const gate = new Promise<void>((resolve) => { release = resolve; });
   const fake = makeFakeRuntimeFactory({ gate });
   const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
-  const proc = adapter.spawn({ sessionId: null, sessionKey: 'compact-exit', resume: false });
+  const proc = adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'compact-exit', resume: false }));
 
   const compactPromise = proc.compact!();
   proc.kill();
@@ -1073,14 +1075,14 @@ test('G-7: a session whose transcript never reached disk is not resumed through 
   const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
 
   // First spawn registers the session path the runtime reports.
-  const proc1 = adapter.spawn({ sessionId: null, sessionKey: 'k1', resume: false });
+  const proc1 = adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'k1', resume: false }));
   await fake.runtime();
   await proc1.close();
   await adapter.close('k1');
 
   assert.equal(adapter.resolveSessionPath('known-id'), null);
 
-  adapter.spawn({ sessionId: 'known-id', sessionKey: 'k2', resume: true });
+  adapter.spawn(engineSpecFixture({ sessionId: 'known-id', sessionKey: 'k2', resume: true }));
   assert.equal(fake.requests[1].sessionPath, null, 'nonexistent synthesized path is not handed to PI');
 
   adapter.kill('k2');
@@ -1090,7 +1092,7 @@ test('G-7b: a registered transcript deleted before resume is evicted and starts 
   const sessionId = `deleted-${Date.now()}`;
   const fake = makeFakeRuntimeFactory({ sessionId });
   const adapter = new PIAdapter(fake.factory, G_SESSION_DIR);
-  const proc = adapter.spawn({ sessionId: null, sessionKey: 'delete-source', resume: false });
+  const proc = adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'delete-source', resume: false }));
   const sessionPath = stageCanonicalSession(sessionId);
   await fake.runtime();
   assert.equal(adapter.resolveSessionPath(sessionId), sessionPath);
@@ -1098,7 +1100,7 @@ test('G-7b: a registered transcript deleted before resume is evicted and starts 
   await proc.close();
   await adapter.close('delete-source');
 
-  adapter.spawn({ sessionId, sessionKey: 'delete-resume', resume: true });
+  adapter.spawn(engineSpecFixture({ sessionId, sessionKey: 'delete-resume', resume: true }));
   assert.equal(fake.requests[1].sessionPath, null, 'deleted registry target is not resumed');
 
   adapter.kill('delete-resume');
@@ -1113,7 +1115,7 @@ test('G-8: spawn with resume=true but UNKNOWN sessionId resumes no transcript (s
   // the session dir — the guard passes no transcript so PI opens a fresh session instead of
   // failing with "No session found matching <id>". (Regression: web/pi sessions minted a Cortex
   // UUID and forced resume, which PI rejected.)
-  adapter.spawn({ sessionId: 'unknown-id', sessionKey: 'kR', resume: true });
+  adapter.spawn(engineSpecFixture({ sessionId: 'unknown-id', sessionKey: 'kR', resume: true }));
 
   assert.equal(fake.requests[0].sessionPath, null, 'no transcript for an unknown resume target');
 
@@ -1130,7 +1132,7 @@ test('G-9: disk resume recognizes the exact timestamp-prefixed session filename'
   try {
     const fake = makeFakeRuntimeFactory();
     const adapter = new PIAdapter(fake.factory, sessionDir);
-    adapter.spawn({ sessionId, sessionKey: 'k-name', resume: true });
+    adapter.spawn(engineSpecFixture({ sessionId, sessionKey: 'k-name', resume: true }));
 
     assert.equal(fake.requests[0].sessionPath, sessionPath);
     adapter.kill('k-name');
@@ -1153,7 +1155,7 @@ test('G-9b: a restored transcript registration overrides a canonical duplicate o
     const adapter = new PIAdapter(fake.factory, sessionDir);
     adapter.registerSessionPath(sessionId, restoredPath);
 
-    adapter.spawn({ sessionId, sessionKey: 'k-restored', resume: true });
+    adapter.spawn(engineSpecFixture({ sessionId, sessionKey: 'k-restored', resume: true }));
 
     assert.equal(fake.requests[0].sessionPath, restoredPath);
     assert.equal(readFileSync(restoredPath, 'utf8'), 'restored-context');
@@ -1173,7 +1175,7 @@ test('G-10: disk resume does not discover an id only by reading an unrelated hea
   try {
     const fake = makeFakeRuntimeFactory();
     const adapter = new PIAdapter(fake.factory, sessionDir);
-    adapter.spawn({ sessionId, sessionKey: 'k-header', resume: true });
+    adapter.spawn(engineSpecFixture({ sessionId, sessionKey: 'k-header', resume: true }));
 
     assert.equal(fake.requests[0].sessionPath, null, 'resume discovery must not open unrelated bodies');
     adapter.kill('k-header');

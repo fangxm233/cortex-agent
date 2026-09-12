@@ -76,13 +76,13 @@ test('compactAgentContext resumes one native control process, closes it, and rec
   const result = await compactAgentContext(REQUEST, deps);
   assert.equal(result.status, 'compacted');
   const spawn = calls.find((entry) => entry[0] === 'spawn')[1];
-  assert.equal(spawn.sessionId, 'backend-1');
-  assert.equal(spawn.resume, true);
-  assert.equal(spawn.sessionKey, 'web:track-1');
-  assert.equal(spawn.channel, 'web:track-1');
+  assert.equal(spawn.resume.backendSessionId, 'backend-1');
+  assert.equal(spawn.resume.resume, true);
+  assert.equal(spawn.engineKey, 'web:track-1');
+  assert.equal(spawn.context.channel, 'web:track-1');
   // The compact spawn carries the same per-spawn route a run would, deletes included.
-  assert.equal(spawn.anthropicBaseUrl, 'http://gateway');
-  assert.deepEqual(spawn.unsetEnv, ['ANTHROPIC_API_KEY']);
+  assert.equal(spawn.route.anthropicBaseUrl, 'http://gateway');
+  assert.deepEqual(spawn.env.unsets, ['ANTHROPIC_API_KEY']);
   assert.deepEqual(calls.filter((entry) => entry[0] === 'close'), [['close']]);
   assert.deepEqual(calls.find((entry) => entry[0] === 'cost')[1], {
     project: 'nimbus', trigger: 'manual-compact', cost_usd: 0.25,
