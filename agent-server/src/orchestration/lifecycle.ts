@@ -16,7 +16,7 @@ import { supersededEdits } from './superseded-edits.js';
 import { acquireTurnMutationLock, type TurnMutationRelease } from './turn-mutation-lock.js';
 import { runRegistry } from '../core/run-registry.js';
 
-import { finalizeLocalExecution, buildSessionTag, buildUserProcessingMessage, makeFallbackLabelNotifier, makeStreamingMessageCallback, computeElapsed, formatMetricsSuffix, writeStatus, sealStatus, buildStatusActionBlocks, buildSealedStatusActionBlocks, initStatusBlocks } from './status-helpers.js';
+import { finalizeLocalExecution, buildUserProcessingMessage, renderTurnStatus, makeFallbackLabelNotifier, makeStreamingMessageCallback, computeElapsed, formatMetricsSuffix, writeStatus, sealStatus, buildStatusActionBlocks, buildSealedStatusActionBlocks, initStatusBlocks } from './status-helpers.js';
 import { getSessionAsync, setSessionAsync } from '@domain/sessions/session.js';
 import { sessionStore, effectiveBackendSessionId } from '@store/session-registry-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
@@ -65,7 +65,7 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
   const { elapsedStr, elapsedS } = computeElapsed(startTime);
   finalizeLocalExecution({ executionId, status: 'completed', result, durationS: elapsedS });
   const metrics = formatMetricsSuffix({ costUsd: result?.total_cost_usd ?? null, numTurns: result?.num_turns ?? null });
-  const sessionTag = buildSessionTag(sessionName, result?.sessionId);
+  const sessionId = result?.sessionId ?? null;
   const stream = (onAssistantMessage as any)?.stream ?? null;
   const askCount = await askUserQuestion.sendMessages(result, channel, adapter, statusMsg.messageId, threadAnchorId, stream);
   // Background-task continuation: background work remains — either still running
@@ -84,7 +84,7 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
     // NOT re-derived from the message text.
     const backend = resolveBackendForChannel(channel);
     const waitingText = (remaining: number) =>
-      `${Icons.waiting} ${sessionTag}${t('status.backgroundRunning')} (${remaining}) (${elapsedStr}${metrics})`;
+      renderTurnStatus({ kind: 'background-waiting', remaining }, { sessionName, sessionId, elapsedStr, metrics });
     await writeStatus(adapter, statusMsg, waitingText(pendingBg + undeliveredBg));
     let finalized = false;
     const guard = startBgWaitGuard({
@@ -99,7 +99,7 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
         finalized = true;
         log.info(`bg-wait-guard grace timeout: sealing ${channel} without a continuation`);
         void finalizeBackgroundContinuation({
-          adapter, statusMsg, channel, sessionName, sessionId: result?.sessionId ?? null,
+          adapter, statusMsg, channel, sessionName, sessionId,
           trackSessionId, startTime, baseResult: result,
           contResult: { total_cost_usd: null, num_turns: null } as AgentResult,
           userMessageTs, executionId, trigger, projectId, backend,
@@ -111,7 +111,7 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
       onMaxWait: () => {
         if (finalized) return;
         const { elapsedStr: fullElapsed } = computeElapsed(startTime);
-        const capText = `${Icons.waiting} ${sessionTag}${t('status.backgroundStillRunning')} (${fullElapsed}${metrics})`;
+        const capText = renderTurnStatus({ kind: 'background-capped' }, { sessionName, sessionId, elapsedStr: fullElapsed, metrics });
         void sealStatus(adapter, statusMsg, capText, buildSealedStatusActionBlocks(capText, { channel, sessionName, isDm: true }));
       },
     });
@@ -135,8 +135,8 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
         const provider = contResult.rateLimitProvider ?? result?.rateLimitProvider ?? null;
         recordDirectResume({ provider, channel, trackSessionId, userMessage });
         const { elapsedStr: fullElapsed } = computeElapsed(startTime);
-        const metrics = formatMetricsSuffix({ costUsd: (result?.total_cost_usd ?? 0) + (contResult?.total_cost_usd ?? 0), numTurns: (result?.num_turns ?? 0) + (contResult?.num_turns ?? 0) });
-        const rateLimitText = `${Icons.warning} ${sessionTag}${t('status.rateLimitedExhausted')} (${fullElapsed}${metrics})`;
+        const totals = formatMetricsSuffix({ costUsd: (result?.total_cost_usd ?? 0) + (contResult?.total_cost_usd ?? 0), numTurns: (result?.num_turns ?? 0) + (contResult?.num_turns ?? 0) });
+        const rateLimitText = renderTurnStatus({ kind: 'rate-limited' }, { sessionName, sessionId, elapsedStr: fullElapsed, metrics: totals });
         void sealStatus(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));
         clearStreamingCallback(channel);
       },
@@ -145,7 +145,7 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
         if (finalized) return;
         finalized = true;
         void finalizeBackgroundContinuation({
-          adapter, statusMsg, channel, sessionName, sessionId: result?.sessionId ?? null,
+          adapter, statusMsg, channel, sessionName, sessionId,
           trackSessionId, startTime, baseResult: result, contResult,
           userMessageTs, executionId, trigger, projectId, backend,
         }).catch((e) => log.error('finalizeBackgroundContinuation failed:', (e as Error)?.message ?? e));
@@ -157,7 +157,7 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
         if (finalized) return;
         finalized = true;
         const { elapsedStr: fullElapsed } = computeElapsed(startTime);
-        const interruptedText = `${Icons.warning} ${sessionTag}${t('status.backgroundInterrupted')} (${fullElapsed}${metrics})`;
+        const interruptedText = renderTurnStatus({ kind: 'background-interrupted' }, { sessionName, sessionId, elapsedStr: fullElapsed, metrics });
         void sealStatus(adapter, statusMsg, interruptedText, buildSealedStatusActionBlocks(interruptedText, { channel, sessionName, isDm: true }));
         if (userMessageTs) {
           void conversationLedger.completeTurn(channel, userMessageTs, { executionId }).catch((e) => log.error('completeTurn (bg-interrupted) failed:', (e as Error).message));
@@ -169,9 +169,10 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
     return; // status held; finalization deferred to the continuation turn / guard
   }
 
-  const statusText = askCount > 0
-    ? `${Icons.waiting} ${sessionTag}${t('status.waitingForUserInput')} (${elapsedStr}${metrics})`
-    : `${Icons.ok} ${t('status.done')} | ${sessionTag}(${elapsedStr}${metrics})`;
+  const statusText = renderTurnStatus(
+    askCount > 0 ? { kind: 'awaiting-user' } : { kind: 'done' },
+    { sessionName, sessionId, elapsedStr, metrics },
+  );
   await sealStatus(adapter, statusMsg, statusText, buildSealedStatusActionBlocks(statusText, { channel, sessionName, isDm: true }));
 
   // Push a NEW message when a long-running user turn finishes (the sealed status above is an
@@ -252,8 +253,7 @@ async function finalizeBackgroundContinuation({ adapter, statusMsg, channel, ses
   const totalCost = (baseResult?.total_cost_usd ?? 0) + (contResult?.total_cost_usd ?? 0);
   const totalTurns = (baseResult?.num_turns ?? 0) + (contResult?.num_turns ?? 0);
   const metrics = formatMetricsSuffix({ costUsd: totalCost, numTurns: totalTurns });
-  const sessionTag = buildSessionTag(sessionName, sessionId);
-  const statusText = `${Icons.ok} ${t('status.done')} | ${sessionTag}(${elapsedStr}${metrics})`;
+  const statusText = renderTurnStatus({ kind: 'done' }, { sessionName, sessionId, elapsedStr, metrics });
   await sealStatus(adapter, statusMsg, statusText, buildSealedStatusActionBlocks(statusText, { channel, sessionName, isDm: true }));
   await maybeNotifyTurnComplete({ adapter, channel, threadAnchorId: null, sessionName, sessionId, elapsedS: computeElapsed(startTime).elapsedS, elapsedStr, status: 'completed', metricsSuffix: metrics });
   if (userMessageTs) {
@@ -280,13 +280,12 @@ async function backfillLedgerSessionId(result: { sessionId?: string | null }, ch
 export async function handleAgentError({ error, channel, adapter, statusMsg, startTime, executionId, sessionName = null, sessionId = null, effectiveSessionId = null, threadAnchorId = null, userMessageTs = null, userMessage = null }: { error: { message: string; cancelled?: boolean; rateLimitProvider?: string }; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; executionId: string | null; sessionName?: string | null; sessionId?: string | null; effectiveSessionId?: string | null; threadAnchorId?: string | null; userMessageTs?: string | null; userMessage?: string | null }): Promise<void> {
   if (executionId) runRegistry.fail(executionId, error.message);
   const resolvedSessionId = effectiveSessionId || sessionId;
-  const sessionTag = buildSessionTag(sessionName, resolvedSessionId);
   const { elapsedStr, elapsedS } = computeElapsed(startTime);
 
   if (error?.cancelled && supersededEdits.check(channel)) {
     supersededEdits.clear(channel);
     finalizeLocalExecution({ executionId, status: 'cancelled', error, durationS: elapsedS });
-    const supersededText = `${Icons.superseded} ${sessionTag}${t('status.supersededByEdit')} (${elapsedStr})`;
+    const supersededText = renderTurnStatus({ kind: 'superseded' }, { sessionName, sessionId: resolvedSessionId, elapsedStr });
     await sealStatus(adapter, statusMsg, supersededText, buildSealedStatusActionBlocks(supersededText, { channel, sessionName, isDm: true }));
     return;
   }
@@ -296,7 +295,7 @@ export async function handleAgentError({ error, channel, adapter, statusMsg, sta
 
   if (error?.cancelled) {
     finalizeLocalExecution({ executionId, status: 'failed', error, durationS: elapsedS });
-    const cancelledText = `${Icons.stopped} ${sessionTag}${t('status.cancelled')} (${elapsedStr})`;
+    const cancelledText = renderTurnStatus({ kind: 'cancelled' }, { sessionName, sessionId: resolvedSessionId, elapsedStr });
     await sealStatus(adapter, statusMsg, cancelledText, buildSealedStatusActionBlocks(cancelledText, { channel, sessionName, isDm: true }));
     return;
   }
@@ -309,14 +308,14 @@ export async function handleAgentError({ error, channel, adapter, statusMsg, sta
   if (userMessage && isApiRateLimitError(error.message) && isProviderRateLimited(error.rateLimitProvider)) {
     finalizeLocalExecution({ executionId, status: 'failed', error: { message: 'Rate limited' }, durationS: elapsedS });
     recordDirectResume({ provider: error.rateLimitProvider, channel, trackSessionId: sessionId, userMessage });
-    const rateLimitText = `${Icons.warning} ${sessionTag}${t('status.rateLimitedExhausted')} (${elapsedStr})`;
+    const rateLimitText = renderTurnStatus({ kind: 'rate-limited' }, { sessionName, sessionId: resolvedSessionId, elapsedStr });
     await sealStatus(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));
     return;
   }
 
   log.error('Agent error:', error.message);
   finalizeLocalExecution({ executionId, status: 'failed', error, durationS: elapsedS });
-  const errorText = `${Icons.error} ${sessionTag}${t('status.error')} (${elapsedStr})`;
+  const errorText = renderTurnStatus({ kind: 'error' }, { sessionName, sessionId: resolvedSessionId, elapsedStr });
   await sealStatus(adapter, statusMsg, errorText, buildSealedStatusActionBlocks(errorText, { channel, sessionName, isDm: true }));
   await maybeNotifyTurnComplete({ adapter, channel, threadAnchorId, sessionName, sessionId: resolvedSessionId, elapsedS, elapsedStr, status: 'failed' });
   const errorDest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: resolvedSessionId ?? '' };
@@ -577,7 +576,7 @@ export async function runRetryAgent({ channel, text, adapter, statusMsg, startTi
       // Record the interrupted edit-retry conversation for auto-resume when the window resets.
       recordDirectResume({ provider: result.rateLimitProvider, channel, trackSessionId: sessionId, userMessage: text });
       const { elapsedStr } = computeElapsed(startTime);
-      const rateLimitText = `${Icons.warning} ${buildSessionTag(sessionName, sessionId)}${t('status.rateLimitedExhausted')} (${elapsedStr})`;
+      const rateLimitText = renderTurnStatus({ kind: 'rate-limited' }, { sessionName, sessionId, elapsedStr });
       await sealStatus(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));
     } else {
       await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, userMessage: text, executionId, trigger: 'edit-retry', sessionName, trackSessionId: sessionId, projectId, userMessageTs, onAssistantMessage: onAssistantMsg });

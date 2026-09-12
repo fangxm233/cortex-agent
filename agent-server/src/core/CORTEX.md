@@ -47,7 +47,7 @@ Codex quota, attachment mimetypes, the prompt template engine).
 | settings-spec.ts | contract | Defines runtime settings including Web Feishu skills |
 | settings.ts | config | reloads settings and applies provider/window policy patches |
 | singleton-lock.ts | util | creates, claims and releases a process pidfile |
-| status-format.ts | util | formats status and progress messages |
+| status-format.ts | util | formats status and progress messages; renderTurnStatus is the one place every turn-outcome line is written |
 | task-node.ts | util | locates and creates task node artifacts |
 | task-parser.ts | core | Reads task schema, generations, filters and YAML |
 | tool-names.ts | core | maps canonical names to backend-native tools |

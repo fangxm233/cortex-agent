@@ -20,5 +20,6 @@ Core infrastructure tests: paths, config and profile generation, auth, locks, i1
 | settings-initial-error.test.ts | test | first-read corruption fallback and recovery |
 | settings-migration.test.ts | test | legacy env migration and isolated reset lifecycle |
 | settings-watcher.test.ts | test | settings watcher ordering and polling fallback |
+| status-format-turn.test.ts | test | renderTurnStatus per outcome, the done/awaiting layout asymmetry, and the metrics-free seal paths |
 | settings.test.ts | test | settings defaults, provider policy, reload and writes |
 | singleton-lock.test.ts | test | pidfile parent creation, acquire and release |

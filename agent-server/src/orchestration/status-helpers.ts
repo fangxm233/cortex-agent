@@ -23,7 +23,7 @@ import { projectStore } from '@domain/projects/index.js';
 import { getOutboundQueue } from '@store/outbound-queue.js';
 import { durableUpdate } from './durable-helpers.js';
 // Pure formatters live in core/ so the domain layer can consume them without an orch dep.
-export { computeElapsed, formatMetricsSuffix, buildSessionTag, buildUserProcessingMessage } from '@core/status-format.js';
+export { computeElapsed, formatMetricsSuffix, buildSessionTag, buildUserProcessingMessage, renderTurnStatus } from '@core/status-format.js';
 
 const log = createLogger('status-helpers');
 

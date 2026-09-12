@@ -23,7 +23,7 @@ import { getActiveProfile, getDefaultAgent, resolveBackendForChannel } from '@do
 import { resolveProfileConfig } from '@domain/agents/profile-manager.js';
 import { registerNamedSession } from '@domain/sessions/session-lifecycle.js';
 import { consumePendingTurnSupersession, finishTurnTracking, handleAgentSuccess, handleAgentError, initTurnTracking } from './lifecycle.js';
-import { buildSessionTag, buildUserProcessingMessage, makeFallbackLabelNotifier, makeStreamingMessageCallback, computeElapsed, writeStatus, sealStatus, buildStatusActionBlocks, buildSealedStatusActionBlocks, initStatusBlocks } from './status-helpers.js';
+import { buildUserProcessingMessage, renderTurnStatus, makeFallbackLabelNotifier, makeStreamingMessageCallback, computeElapsed, writeStatus, sealStatus, buildStatusActionBlocks, buildSealedStatusActionBlocks, initStatusBlocks } from './status-helpers.js';
 import { createLogger } from '@core/log.js';
 import { isDebugMode } from '@core/debug-mode.js';
 import { getSettings } from '@core/settings.js';
@@ -709,7 +709,7 @@ async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, s
     // resets (rate-limit-throttle onResume → resume-dispatcher).
     recordDirectResume({ provider: result.rateLimitProvider, channel, trackSessionId: sessionId, userMessage });
     const { elapsedStr } = computeElapsed(startTime);
-    const rateLimitText = `${Icons.warning} ${buildSessionTag(sessionName, sessionId)}${t('status.rateLimitedExhausted')} (${elapsedStr})`;
+    const rateLimitText = renderTurnStatus({ kind: 'rate-limited' }, { sessionName, sessionId, elapsedStr });
     await sealStatus(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));
     return;
   }

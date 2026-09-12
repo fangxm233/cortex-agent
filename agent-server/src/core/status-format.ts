@@ -1,5 +1,5 @@
 // input:  formatDurationCompact (core/utils)
-// output: 5 pure formatting functions: computeElapsed / formatMetricsSuffix / buildSessionTag / buildUserProcessingMessage / buildThreadStatusMessage
+// output: 6 pure formatting functions: computeElapsed / formatMetricsSuffix / buildSessionTag / buildUserProcessingMessage / buildThreadStatusMessage / renderTurnStatus
 // pos:    zero-dependency pure functions in the core layer; the subset imported by domain-layer status-helpers
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -36,6 +36,67 @@ export function buildUserProcessingMessage({ startTime, elapsed_s = null, num_tu
   const turnsStr = num_turns != null ? ` | ${Icons.repeat} ${num_turns} turns` : '';
   const todoStr = todoProgress ? ` | ${Icons.todo} ${todoProgress}` : '';
   return `${Icons.processing} ${t('status.processing')} | ${sessionTag}${profileName || 'default'} | ${Icons.stopwatch} ${formatDurationCompact(elapsed || 0)}${turnsStr}${todoStr}`;
+}
+
+/** Every line a chat turn's status message can end on. `processing` — the live line this replaces
+ *  — is {@link buildUserProcessingMessage} just above; the two belong together, which is why these
+ *  live here rather than in orchestration: what the line SAYS is pure, only deciding WHEN to write
+ *  it needs an adapter. */
+export type TurnStatus =
+  | { kind: 'done' }
+  | { kind: 'awaiting-user' }
+  /** Foreground work is over, background tasks remain. `remaining` = running + undelivered. */
+  | { kind: 'background-waiting'; remaining: number }
+  /** The max-wait cap fired on work that legitimately never ends (a tunnel, a monitor). */
+  | { kind: 'background-capped' }
+  /** The backend died while background work was pending — never seal that as "done". */
+  | { kind: 'background-interrupted' }
+  | { kind: 'rate-limited' }
+  | { kind: 'cancelled' }
+  /** The user edited the message that started this turn, so this turn no longer answers anything. */
+  | { kind: 'superseded' }
+  | { kind: 'error' };
+
+export interface TurnStatusContext {
+  sessionName: string | null;
+  sessionId: string | null;
+  elapsedStr: string;
+  /** {@link formatMetricsSuffix} output. Absent on the paths that seal without a result to count
+   *  (a thrown error, a cancel) — those show the elapsed time alone. */
+  metrics?: string;
+}
+
+/**
+ * Render one turn-status line. These strings are what a user reads in Slack/Feishu, so the shapes
+ * below are the shipped ones, character for character.
+ *
+ * Note the asymmetry, which is deliberate and load-bearing: `done` leads with the OUTCOME and puts
+ * the session tag after a `|`, while every other line leads with the tag. A finished turn is read
+ * at a glance in a busy channel; a turn that is still holding is read for which session it is.
+ */
+export function renderTurnStatus(status: TurnStatus, ctx: TurnStatusContext): string {
+  const tag = buildSessionTag(ctx.sessionName, ctx.sessionId);
+  const tail = `(${ctx.elapsedStr}${ctx.metrics ?? ''})`;
+  switch (status.kind) {
+    case 'done':
+      return `${Icons.ok} ${t('status.done')} | ${tag}${tail}`;
+    case 'awaiting-user':
+      return `${Icons.waiting} ${tag}${t('status.waitingForUserInput')} ${tail}`;
+    case 'background-waiting':
+      return `${Icons.waiting} ${tag}${t('status.backgroundRunning')} (${status.remaining}) ${tail}`;
+    case 'background-capped':
+      return `${Icons.waiting} ${tag}${t('status.backgroundStillRunning')} ${tail}`;
+    case 'background-interrupted':
+      return `${Icons.warning} ${tag}${t('status.backgroundInterrupted')} ${tail}`;
+    case 'rate-limited':
+      return `${Icons.warning} ${tag}${t('status.rateLimitedExhausted')} ${tail}`;
+    case 'cancelled':
+      return `${Icons.stopped} ${tag}${t('status.cancelled')} ${tail}`;
+    case 'superseded':
+      return `${Icons.superseded} ${tag}${t('status.supersededByEdit')} ${tail}`;
+    case 'error':
+      return `${Icons.error} ${tag}${t('status.error')} ${tail}`;
+  }
 }
 
 const THREAD_STATUS_TASK_TEXT_MAX = 60;
