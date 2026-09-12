@@ -13,6 +13,60 @@ import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
 export type Backend = 'claude' | 'pi';
 export type McpComposition = 'direct' | 'thread-control' | 'none';
 
+/** Cortex execution context surfaced to child processes as CORTEX_* env vars. */
+export interface CortexContextEnv {
+  threadId?: string | null;
+  profile?: string | null;
+  project?: string | null;
+  sessionName?: string | null;
+  /** Stable Cortex tracking id (decoupled from the backend `sessionId`). Surfaced as
+   *  CORTEX_SESSION_ID so session-activity logs + MCP context tools key on the stable UI-facing
+   *  identity rather than the backend CLI's self-assigned id. Falls back to `sessionId` when unset. */
+  trackSessionId?: string | null;
+  /** Cortex execution record id, surfaced as CORTEX_EXECUTION_ID to subprocess env. */
+  executionId?: string | null;
+  /** When true, load core + tasks + manager-answer + thread MCP layers. */
+  useCoreMcp?: boolean;
+  threadDepth?: number | null;
+  /** Owning dispatch task identity surfaced through CORTEX_TASK_* variables. */
+  taskId?: string | null;
+  taskProject?: string | null;
+  taskGeneration?: string | null;
+}
+
+/**
+ * Backend-neutral engine description (plan §3.3). Backend-private options travel in the
+ * `backend` discriminated union rather than as flat passthrough fields. Optionality is
+ * load-bearing: several readers branch on `undefined` specifically, so an absent field must
+ * stay absent and `undefined` must never be normalised to `null`/`false`/`[]`.
+ */
+export interface EngineSpec {
+  engineKey: string;
+  cwd?: string;
+  resume: { backendSessionId: string | null; resume: boolean };
+  model: { id?: string; provider?: string; thinking?: string; maxOutputTokens?: number };
+  prompt: { system?: string; append?: string };
+  tools: { canonical?: string[]; rawClaude?: string };
+  plugins: { dirs?: string[]; skillDirs?: string[]; fingerprint?: string };
+  mcp: { composition?: McpComposition; servers?: McpServerConfig[]; allowlist?: string[];
+         configPaths?: string[]; commissionTools?: boolean; browserCdpEndpoint?: string };
+  env: { sets?: Record<string, string>; unsets?: string[]; pinned?: NodeJS.ProcessEnv;
+         context?: CortexContextEnv };
+  route: { anthropicBaseUrl?: string; gatewayBaseUrl?: string; gatewayPath?: string };
+  flags: { disableHooks?: boolean; streamDeltas?: boolean; captureTranscripts?: boolean;
+           preserveUnreportedAccounting?: boolean; isUserInitiated: boolean };
+  context: { channel?: string; callbackSource?: string; scheduleTaskId?: string };
+  extraOption?: Record<string, string>;
+  backend:
+    | { kind: 'claude'; claudeAgent?: string; outputStyle?: string; claudeBackend?: 'print' | 'tui' }
+    // The PI arm keeps the (inert) Claude-only fields purely so the P2.1a bridge can reproduce
+    // the legacy AgentSpawnConfig exactly: `resolveProfileConfig` sets `claudeBackend` on every
+    // backend, and `options.claudeAgent`/`outputStyle` can be set by any agent definition. No
+    // PI-side code reads them; P2.1c can drop them once AgentSpawnConfig is gone.
+    | { kind: 'pi'; claudeAgent?: string; outputStyle?: string; claudeBackend?: 'print' | 'tui' };
+  process: { spawner?: AgentProcessSpawner; cliPath?: string };
+}
+
 export interface AgentUsageScope {
   provider?: string;
   mode?: string;
@@ -163,25 +217,7 @@ export interface AgentSpawnConfig {
 
   /** Cortex execution context surfaced to MCP children as CORTEX_* environment variables so
    *  agents can discover their thread, profile, project, and session without guessing. */
-  cortexContext?: {
-    threadId?: string | null;
-    profile?: string | null;
-    project?: string | null;
-    sessionName?: string | null;
-    /** Stable Cortex tracking id (decoupled from the backend `sessionId`). Surfaced as
-     *  CORTEX_SESSION_ID so session-activity logs + MCP context tools key on the stable UI-facing
-     *  identity rather than the backend CLI's self-assigned id. Falls back to `sessionId` when unset. */
-    trackSessionId?: string | null;
-    /** Cortex execution record id, surfaced as CORTEX_EXECUTION_ID to subprocess env. */
-    executionId?: string | null;
-    /** When true, load core + tasks + manager-answer + thread MCP layers. */
-    useCoreMcp?: boolean;
-    threadDepth?: number | null;
-    /** Owning dispatch task identity surfaced through CORTEX_TASK_* variables. */
-    taskId?: string | null;
-    taskProject?: string | null;
-    taskGeneration?: string | null;
-  };
+  cortexContext?: CortexContextEnv;
 }
 
 /**

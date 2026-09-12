@@ -6,7 +6,7 @@ Defines shared contracts, capabilities, and normalized backend events.
 | filename | role | function |
 |---|---|---|
 | index.ts | entry | selects daemon adapters, injects PI usage state and routes pooled-session control |
-| types.ts | types | Shared adapter, usage, tool-gate, out-of-band turn event and plugin contracts |
+| types.ts | types | Shared adapter, EngineSpec/CortexContextEnv, usage, tool-gate, out-of-band turn event and plugin contracts |
 | mcp-private-dir.ts | util | Guards private physical MCP directories |
 | mcp-remote-fetch.ts | util | Rejects remote MCP HTTP redirects |
 | browser-mcp-server.ts | core | Defines the Playwright MCP server every backend uses for browser control |

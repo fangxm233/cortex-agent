@@ -11,5 +11,5 @@ Agent runtime domain for profiles and provider-attributed turns.
 | profile-manager.ts | core | Resolves profile identities and output caps |
 | roles.ts | core | Owns the one agent role table both backends delegate through |
 | profile-switch.ts | core | Decides and applies channel profile switches |
-| spawn-config.ts | core | Builds spawns with settings-aware plugin scopes; RunAgentOptions keeps only the two run hooks |
+| spawn-config.ts | core | Legacy RunAgentOptions/AgentConfig types plus the deprecated buildAgentSpawnConfig bridge over domain/runs/engine-spec.ts |
 | subagent/ | subdir | Backend-neutral subagent runs: schema, dispatch, orchestration, registry |
