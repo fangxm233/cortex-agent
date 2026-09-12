@@ -23,7 +23,6 @@ import type {
 import type { AgentResult, ContextUsage, ReportedAccountingSnapshot } from '@core/types/agent-types.js';
 import { encodeMcpBundles, MCP_BUNDLES_ENV } from '@core/mcp-bundles.js';
 import type { NormalizedEvent, ToolUseSubagent } from '../normalize/event-types.js';
-import { parseTodoWrite } from '../normalize/todo.js';
 import { createEventStream } from '../normalize/event-stream.js';
 import {
   CancelledError,
@@ -58,6 +57,15 @@ import {
   type StreamDeltaState,
 } from './event-parser.js';
 import { BgTaskTracker, isContinuationResult, routeLine, type SubagentEndStatus } from './bg-task-tracker.js';
+import {
+  claudeTurnCallbacks,
+  promptAccounting,
+  pushDerivedTurnEvents,
+  tokenValue,
+  type ClaudeTurnCallbacks,
+  type SubagentActivityKind,
+  type TurnTokenUsage,
+} from './event-translator.js';
 import { ClaudeContextUsageTracker } from './context-usage.js';
 import { activeClaudeCaptureRegistry } from './active-capture-registry.js';
 import { resolveAutoCompactWindow } from './compact-window.js';
@@ -83,8 +91,6 @@ function spawnClaudeProcess(
 }
 
 // --- Persistent session ---
-
-type SubagentActivityKind = 'assistant' | 'tool_result';
 
 interface PendingTurn {
   resolve: (value: any) => void;
@@ -172,33 +178,6 @@ function subagentActivityKind(data: any): SubagentActivityKind | null {
 }
 
 type ContinuationDelivery = (sink: ContinuationSink) => void;
-
-type TurnTokenUsage = {
-  input: number | null;
-  output: number | null;
-  cacheCreation: number | null;
-  cacheRead: number | null;
-};
-
-function tokenValue(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
-}
-
-function sumKnownTokens(values: unknown[]): number | null {
-  const tokens = values.map(tokenValue);
-  if (tokens.some(value => value === null)) return null;
-  const total = tokens.reduce((sum, value) => sum + value!, 0);
-  return Number.isSafeInteger(total) ? total : null;
-}
-
-function promptAccounting(usage: TurnTokenUsage | null) {
-  return {
-    promptTokens: sumKnownTokens([
-      usage?.input, usage?.cacheCreation, usage?.cacheRead,
-    ]),
-    cachedTokens: sumKnownTokens([usage?.cacheRead]),
-  };
-}
 
 interface ClaudeSessionOptions {
   needsResume: boolean;
@@ -841,28 +820,7 @@ class ClaudeSession {
     }, TURN_IDLE_TIMEOUT);
   }
 
-  async sendMessage(userMessage: string, options: {
-    files?: any[];
-    callbackSource?: string | null;
-    scheduleTaskId?: string | null;
-    isUserInitiated?: boolean;
-    onProgress?: ((progress: any) => void) | null;
-    onAssistantMessage?: ((
-      text: string, blockId?: string, model?: string | null, subagent?: ToolUseSubagent,
-    ) => void) | null;
-    onAssistantDelta?: ((text: string, blockId: string) => void) | null;
-    onToolUse?: ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null;
-    onToolResult?: ((
-      toolUseId: string, content: string, isError: boolean, subagent?: ToolUseSubagent,
-    ) => void) | null;
-    onCompact?: ((info: { trigger: string; preTokens?: number }) => void) | null;
-    onModelFallback?: ((event: Omit<ModelFallbackEvent, 'type'>) => void) | null;
-    onContextUsage?: ((usage: ContextUsage) => void) | null;
-    onSubagentActivity?: ((
-      parentToolUseId: string, subagentType: string | null, kind: SubagentActivityKind,
-    ) => void) | null;
-    onSubagentEnd?: ((parentToolUseId: string, status: SubagentEndStatus) => void) | null;
-  }): Promise<any> {
+  async sendMessage(userMessage: string, options: ClaudeTurnCallbacks): Promise<any> {
     if (!this.alive) {
       this.needsResume = true;
       this.spawnProcess();
@@ -1733,105 +1691,9 @@ export class ClaudeAdapter implements AgentAdapter {
         try {
           const result = await session.sendMessage(message.text, {
             files,
-            onAssistantMessage: (
-              text: string, blockId?: string, model?: string | null, subagent?: ToolUseSubagent,
-            ) =>
-              stream.push({
-                type: 'assistant_text', text,
-                ...(blockId ? { blockId } : {}),
-                ...(model != null ? { model } : {}),
-                ...(subagent ? { subagent } : {}),
-              }),
-            // Token-level preview of the block above. Same FIFO stream, so every delta is delivered
-            // before the complete message that supersedes it.
-            onAssistantDelta: (text: string, blockId: string) =>
-              stream.push({ type: 'assistant_delta', text, blockId }),
-            onToolUse: (name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => {
-              stream.push({ type: 'tool_use', toolUseId, name, input, ...(subagent ? { subagent } : {}) });
-              // Derived semantic event alongside the raw call (cf. plan_written /
-              // ask_user_question). Subagent lists are deliberately dropped: a subagent keeps
-              // its own plan and emitting it would clobber the main agent's on every surface.
-              if (subagent) return;
-              const snapshot = parseTodoWrite('claude', name, input);
-              if (snapshot) stream.push({ type: 'todo_update', toolUseId, snapshot });
-            },
-            onToolResult: (
-              toolUseId: string, content: string, isError: boolean, subagent?: ToolUseSubagent,
-            ) =>
-              stream.push({
-                type: 'tool_result', toolUseId, content, ok: !isError,
-                ...(subagent ? { subagent } : {}),
-              }),
-            onCompact: (info: { trigger: string; preTokens?: number }) =>
-              stream.push({ type: 'context_compacted', trigger: info.trigger, preTokens: info.preTokens }),
-            onModelFallback: (event: Omit<ModelFallbackEvent, 'type'>) =>
-              stream.push({ type: 'model_fallback', ...event }),
-            onContextUsage: (usage: ContextUsage) =>
-              stream.push({ type: 'context_usage', ...usage }),
-            onProgress: (p: { num_turns?: number } | null) => {
-              stream.push({ type: 'turn_progress', numTurns: p?.num_turns ?? 0 });
-            },
-            onSubagentActivity: (
-              parentToolUseId: string, subagentType: string | null, kind: SubagentActivityKind,
-            ) => stream.push({ type: 'subagent_activity', parentToolUseId, subagentType, kind }),
-            onSubagentEnd: (parentToolUseId: string, status: SubagentEndStatus) =>
-              stream.push({ type: 'subagent_end', parentToolUseId, status }),
+            ...claudeTurnCallbacks(stream.push),
           });
-          // Derived events, in order, before the terminating turn_complete.
-          for (const q of (result.askUserQuestions || [])) {
-            stream.push({
-              type: 'ask_user_question',
-              toolUseId: q.toolUseId ?? '',
-              questions: q.questions as any,
-            });
-          }
-          if (result.planFilePath) {
-            stream.push({
-              type: 'plan_written',
-              toolUseId: '',
-              path: result.planFilePath,
-              content: '',
-            });
-          }
-          if (result.rateLimited) {
-            stream.push({ type: 'rate_limit', raw: { message: result.rateLimitMessage } });
-          }
-          // Emit cost_record from the resolved turn, not mutable session accounting.
-          const preserveReportedness = spec.flags.preserveUnreportedAccounting === true;
-          const accounting = result.reportedAccounting;
-          const hasReportableAccounting = preserveReportedness
-            ? result.costReported === true || accounting?.usageReported === true
-            : result.total_cost_usd != null || session.lastTokenUsage !== null;
-          if (hasReportableAccounting) {
-            const legacyUsage = session.lastTokenUsage;
-            const exactPrompt = promptAccounting(legacyUsage);
-            stream.push({
-              type: 'cost_record', provider: 'anthropic',
-              model: (preserveReportedness ? accounting?.model : session.lastModelName)
-                || session.modelName || 'unknown',
-              tokens_in: preserveReportedness
-                ? accounting?.promptTokens ?? null : exactPrompt.promptTokens,
-              tokens_out: preserveReportedness
-                ? accounting?.outputTokens ?? null : legacyUsage?.output ?? 0,
-              prompt_tokens: preserveReportedness
-                ? accounting?.promptTokens ?? null : exactPrompt.promptTokens,
-              cached_tokens: preserveReportedness
-                ? accounting?.cachedTokens ?? null : exactPrompt.cachedTokens,
-              input_tokens: accounting?.inputTokens ?? null,
-              output_tokens: accounting?.outputTokens ?? null,
-              cache_read_tokens: accounting?.cacheReadTokens ?? null,
-              cache_creation_tokens: accounting?.cacheCreationTokens ?? null,
-              provider_requests: Number.isSafeInteger(result.num_turns)
-                && Number(result.num_turns) > 0 ? result.num_turns : null,
-              cost_usd: preserveReportedness && result.costReported !== true
-                ? null : result.total_cost_usd ?? null,
-            });
-          }
-          stream.push({
-            type: 'turn_complete',
-            numTurns: preserveReportedness ? result.num_turns : result.num_turns ?? 0,
-            totalCostUsd: result.total_cost_usd ?? null,
-          });
+          pushDerivedTurnEvents(stream.push, result, session, spec.flags.preserveUnreportedAccounting === true);
           stream.close();
           return result;
         } catch (err: any) {

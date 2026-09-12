@@ -14,6 +14,7 @@ Translates Claude stream and transcript events into the normalized event schema.
 | defaults.ts | config | Claude timeout, config paths, tool constants and always-stripped natives |
 | hooks-builder.ts | core | selects and compiles Claude hooks from settings |
 | event-parser.ts | parser | parses stream blocks, results and model fallbacks |
+| event-translator.ts | translator | turns Claude turn callbacks and results into normalized events |
 | jsonl-tail.ts | core | normalizes transcript, plans and accounting |
 | subagent-jsonl-mux.ts | core | multiplexes attributed TUI subagent sidecars |
 | tmux-control.ts | util | Runs tmux with secure paste buffers and launchers |
