@@ -14,6 +14,7 @@ import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { attachExistingSession, resetChannelSession } from '@domain/sessions/session-lifecycle.js';
 import { planApprovals } from '../../interactions/plan-approvals.js';
 import { interactionRecords } from '../../interactions/interaction-records.js';
+import { resolveRunBackend } from '@domain/runs/config-resolver.js';
 
 const log = createLogger('session');
 
@@ -125,7 +126,7 @@ export function createResumeHandler(router?: CommandActionRouter) {
       await adapter.postMessage(dest, { text: t('cmd.session.noSessions') });
       return;
     }
-    const activeId = await sessionStore.getActiveSessionName(channel, getActiveBackend());
+    const activeId = await sessionStore.getActiveSessionName(channel, resolveRunBackend({ channel }));
     const now = Date.now();
     const lines = [t('cmd.session.recentHeader')];
     for (const s of sessions) {

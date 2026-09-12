@@ -28,6 +28,7 @@ import * as sessionBackup from '@domain/sessions/session-backup.js';
 import { cancelThread as cancelThreadById } from '@domain/threads/index.js';
 import { deliverPlanResponse } from './plan-response.js';
 import { createLogger } from '@core/log.js';
+import { resolveRunBackend } from '@domain/runs/config-resolver.js';
 
 let _adapter: PlatformAdapter | null = null;
 let _bus: EventBus | null = null;
@@ -241,7 +242,7 @@ async function handleStatusCancel(ctx: ActionContext): Promise<void> {
       log.warn('Cancel button clicked but no running execution for executionId', { channel, executionId });
       return;
     }
-    if (exec.sessionId) await setSessionAsync(exec.channel ?? channel, exec.sessionId, getActiveBackend()).catch(() => {});
+    if (exec.sessionId) await setSessionAsync(exec.channel ?? channel, exec.sessionId, resolveRunBackend({ channel: exec.channel ?? channel })).catch(() => {});
     // teardownExecution(cancelled): record→cancelled, kill the handle, publish a balanced event.
     executionRegistry.teardownExecution({ executionId, status: 'cancelled', durationS: 0 });
     conduitQueues.delete(exec.channel ?? channel);
@@ -263,7 +264,7 @@ async function handleStatusCancel(ctx: ActionContext): Promise<void> {
     return;
   }
   await cancelThreadById(threadId).catch(() => {});
-  if (exec.sessionId) await setSessionAsync(exec.channel ?? channel, exec.sessionId, getActiveBackend()).catch(() => {});
+  if (exec.sessionId) await setSessionAsync(exec.channel ?? channel, exec.sessionId, resolveRunBackend({ channel: exec.channel ?? channel })).catch(() => {});
   if (exec.executionId) {
     executionRegistry.teardownExecution({ executionId: exec.executionId, status: 'cancelled', durationS: 0 });
   } else {

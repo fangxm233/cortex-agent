@@ -121,6 +121,7 @@ import { sendWebUserMessage } from '../orchestration/session-send.js';
 import { setSubagentTurnSender } from '@orch/subagent-delivery.js';
 import { startBackgroundSubagent, stopBackgroundSubagent } from '@orch/pi-background-subagent.js';
 import { setPiBackgroundSubagentBridge } from '@domain/runs/adapters.js';
+import { resolveRunConfig } from '@domain/runs/config-resolver.js';
 import { rewindWebSession } from '../orchestration/session-rewind.js';
 import { compactActiveSessionContext, compactSessionContext } from '../orchestration/session-compact.js';
 import { recoverPendingInjections } from '../orchestration/pending-injection-recovery.js';
@@ -850,5 +851,11 @@ process.on('SIGTERM', async () => {
     version: CORTEX_VERSION,
     pid: process.pid,
   }).catch(() => {});
-  log.info(`Cortex agent is running (${adapter.name}) — backend: ${getActiveBackend()}`);
+  // D5: there is no global backend any more — the default profile's is what a channel with no
+  // selection of its own will use, and that is what belongs in the banner.
+  const bootConfig = resolveRunConfig();
+  log.info(
+    `Cortex agent is running (${adapter.name}) — profile: ${bootConfig.profileName}`
+    + ` · backend: ${bootConfig.profile.backend}`,
+  );
 })();

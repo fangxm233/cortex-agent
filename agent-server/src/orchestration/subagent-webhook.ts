@@ -16,6 +16,7 @@ import { parentNoticeSink } from './subagent-attribution.js';
 import { startBackgroundSubagentRun } from './subagent-delivery.js';
 import type { SubagentParentContext } from '@domain/agents/subagent/runner.js';
 import type { SubagentToolResult } from '@core/agents/subagent/orchestrate.js';
+import { resolveRunConfig } from '@domain/runs/config-resolver.js';
 
 const log = createLogger('subagent-webhook');
 
@@ -33,15 +34,18 @@ export interface SubagentWebhookReply {
  * model and mode stand in, which is the same pair an unprofiled turn would have used.
  */
 function parentContextFor(data: Record<string, any>): SubagentParentContext {
-  const profile = resolveProfileSafely(data.profile);
-  const backend = (profile?.backend ?? data.backend ?? getActiveBackend()) as Backend;
-  const isClaude = backend === 'claude';
+  const channel = typeof data.channel === 'string' ? data.channel : undefined;
+  // D5: with no profile named, the parent's routing is whatever that channel's next run would
+  // use — the same profile, resolved the same way, instead of three retired global getters.
+  const channelDefault = resolveRunConfig({ channel }).profile;
+  const profile = resolveProfileSafely(data.profile) ?? channelDefault;
+  const backend = (profile.backend ?? data.backend) as Backend;
   return {
     backend,
-    mode: profile?.mode ?? (isClaude ? getClaudeMode() : null),
-    provider: profile?.provider ?? null,
-    model: profile?.model ?? (isClaude ? getClaudeModel() : null),
-    channel: typeof data.channel === 'string' ? data.channel : undefined,
+    mode: profile.mode,
+    provider: profile.provider ?? null,
+    model: profile.model || null,
+    channel,
     project: typeof data.project === 'string' ? data.project : undefined,
     cwd: typeof data.cwd === 'string' ? data.cwd : undefined,
     env: process.env,

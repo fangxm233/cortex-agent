@@ -43,6 +43,7 @@ import { normalizeSkillCommandPrefix } from '@domain/memory/skill-scanner.js';
 import { getOutboundQueue } from '@store/outbound-queue.js';
 import { buildDurableHooks, durablePost } from './durable-helpers.js';
 import type { OutputStream } from '@platform/index.js';
+import { resolveRunConfig } from '@domain/runs/config-resolver.js';
 
 const log = createLogger('lifecycle');
 
@@ -218,6 +219,8 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
 
 async function recordBackgroundCost(input: {
   result: AgentResult; projectId: string; trigger: string; backend: string;
+  /** The mode the continuation actually ran under — the channel's profile, not a global (D5). */
+  mode: string | null;
   sessionId: string | null; executionId: string | null;
 }): Promise<void> {
   const accounting = input.result.reportedAccounting;
@@ -226,7 +229,7 @@ async function recordBackgroundCost(input: {
     project: input.projectId,
     trigger: input.trigger ? `${input.trigger}:bg-continuation` : 'bg-continuation',
     cost_usd: input.result.total_cost_usd, backend: input.backend,
-    mode: getClaudeMode(), source: 'estimate',
+    mode: input.mode ?? null, source: 'estimate',
     input_tokens: accounting?.inputTokens ?? null,
     output_tokens: accounting?.outputTokens ?? null,
     prompt_tokens: accounting?.promptTokens ?? null,
@@ -260,6 +263,7 @@ async function finalizeBackgroundContinuation({ adapter, statusMsg, channel, ses
   clearStreamingCallback(channel);
   await recordBackgroundCost({
     result: contResult, projectId, trigger, backend,
+    mode: resolveRunConfig({ channel }).profile.mode,
     sessionId: trackSessionId ?? sessionId, executionId,
   }).catch((e) => log.warn('recordCost (bg-continuation) failed:', (e as Error).message));
 }
@@ -359,7 +363,7 @@ function fallbackRunProfile(profileName: string | null, channel: string): Resolv
     name: profileName ?? '',
     model: '',
     backend: resolveBackendForChannel(channel),
-    mode: getClaudeMode(),
+    mode: resolveRunConfig({ channel }).profile.mode,
     provider: null,
     extraEnv: {}, extraOption: {}, claudeBackend: 'print', thinking: null,
     maxOutputTokens: null, fallback: [],

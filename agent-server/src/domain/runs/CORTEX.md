@@ -8,6 +8,7 @@ paths all build a `RunRequest` and open a run. Phases 2–4 replace the engine p
 
 | filename | role | function |
 |---|---|---|
+| config-resolver.ts | core | resolveRunConfig — D5's five-layer profile priority plus the channel model override |
 | continuation-sink.ts | core | runToContinuationSink(run, sink) — replays a run's background events as legacy ContinuationSink callbacks |
 | events.ts | core | re-exports RunPhase/RunEvent/toRunEvent from agent-adapter and translates ContinuationSink callbacks into them |
 | engine-spec.ts | core | buildEngineSpec + engineIdentity(); owns the scoped-plugin gate and PI gateway-path derivation |

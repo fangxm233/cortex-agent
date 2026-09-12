@@ -7,8 +7,8 @@ import { readFileSync } from 'fs';
 import { randomUUID } from 'node:crypto';
 import { threadStore } from '@store/thread-repo.js';
 import { getSessionKey, recordStepResult, resolveTargetResumeId } from './index.js';
-import { getClaudeMode, getActiveBackend, getActiveProfile } from '../agents/index.js';
-import { resolveProfileConfig, type ResolvedProfileConfig } from '../agents/profile-manager.js';
+import { getActiveProfile } from '../agents/index.js';
+import { resolveRunConfig } from '../runs/config-resolver.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import {
   emitCortexEvent,
@@ -85,32 +85,6 @@ function asHookResult(emitted: HookEmitResult): HookResult | null {
     ...value,
     insertAgent: typeof value.insertAgent === 'boolean' ? value.insertAgent : false,
   } as HookResult;
-}
-
-/** Synthetic profile for an unknown configured name: keeps the requested name so the facade still
- *  rejects it, while its backend/mode mirror the legacy active-backend execution record. */
-function fallbackHookProfile(profileName: string): ResolvedProfileConfig {
-  return {
-    name: profileName,
-    model: '',
-    backend: getActiveBackend(),
-    mode: getClaudeMode(),
-    provider: null,
-    extraEnv: {},
-    extraOption: {},
-    claudeBackend: 'print',
-    thinking: null,
-    maxOutputTokens: null,
-    fallback: [],
-  };
-}
-
-function resolveHookProfile(profileName: string): ResolvedProfileConfig {
-  try {
-    return resolveProfileConfig(profileName);
-  } catch {
-    return fallbackHookProfile(profileName);
-  }
 }
 
 /** Same background policy as a thread step: the hook turn carries a threadId, so the legacy facade
@@ -211,7 +185,9 @@ async function runHookAgent(
       // The legacy hook path passed no sessionName to the facade; keep it off the spawn context.
       sessionName: null,
     },
-    profile: resolveHookProfile(profileName),
+    // D5: the profile (and the backend/mode inside it) is resolved in one place. An unknown
+    // name still reaches the run, which rejects it after the execution record is open.
+    profile: resolveRunConfig({ channel: opts.channel, override: profileName }).profile,
     spec,
     prompt: { text: prompt, attachments: [] },
     context: {

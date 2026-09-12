@@ -10,6 +10,7 @@ import { Icons } from '../../../core/icons.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { getOutboundQueue, durableUpdate } from '@store/outbound-queue.js';
 import { getActiveBackend, getActiveProfile } from '../../agents/index.js';
+import { resolveRunBackend } from '@domain/runs/config-resolver.js';
 
 const log = createLogger('scheduler');
 
@@ -58,7 +59,7 @@ export async function finalizeThreadSuccess(adapter: PlatformAdapter, channel: s
     const trackSessionId = realStep?.sessionId ?? steps[steps.length - 1]?.sessionId ?? null;
     await sessionStore.registerSession(sessionName, {
       sessionId: trackSessionId || result.sessionId, channel,
-      backend: getActiveBackend(), kind: sessionKind,
+      backend: resolveRunBackend({ channel }), kind: sessionKind,
       origin: sessionOrigin,
       label,
       profileName: getActiveProfile(channel),

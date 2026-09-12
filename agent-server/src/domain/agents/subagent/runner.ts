@@ -12,6 +12,7 @@ import type { Backend } from '../../../agent-adapter/types.js';
 import type { SubagentNotice } from '../../../agent-adapter/pi/event-parser.js';
 import { noticesFor } from '../../../agent-adapter/pi/child-events.js';
 import { getEngineAdapter } from '../../runs/adapters.js';
+import { resolveRunConfig } from '../../runs/config-resolver.js';
 import { GATEWAY_URL } from '../../costs/gateway-manager.js';
 import { getClaudeMode, getClaudeModel } from '../config.js';
 import { roleToolsForBackend, type AgentRole } from '@core/agents/roles.js';
@@ -199,16 +200,19 @@ function piForwarder(request: SubagentRunRequest): ChildEventForwarder | undefin
 // ─── claude child ─────────────────────────────────────────────────
 
 /**
- * No profile is consulted (plan §3.2): the model comes from the task or the role, falling back to
- * the parent's own when the parent is itself Claude and finally to the daemon's configured Claude
- * model. The gateway `mode` follows the same rule, so a child bills through the parent's route.
+ * No profile is consulted for the CHILD (plan §3.2): the model comes from the task or the role,
+ * falling back to the parent's own when the parent is itself Claude. The last resort used to be
+ * the daemon's global Claude model/mode; with D5 there is no global, so it is the profile the
+ * parent's channel resolves to — the same answer whenever that global was ever correct.
+ * The gateway `mode` follows the same rule, so a child bills through the parent's route.
  */
 function claudeChildConfig(request: SubagentRunRequest, spec: ModelSpec): AgentConfig {
   const sameBackend = request.parent.backend === 'claude';
+  const channelDefault = resolveRunConfig({ channel: request.parent.channel }).profile;
   return {
-    model: spec.model ?? (sameBackend ? request.parent.model : null) ?? getClaudeModel(),
+    model: spec.model ?? (sameBackend ? request.parent.model : null) ?? channelDefault.model,
     backend: 'claude',
-    mode: (sameBackend ? request.parent.mode : null) ?? getClaudeMode(),
+    mode: (sameBackend ? request.parent.mode : null) ?? channelDefault.mode,
     thinking: spec.thinking ?? null,
   };
 }

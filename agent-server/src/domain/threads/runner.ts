@@ -28,13 +28,12 @@ import {
   type PendingControl,
 } from './index.js';
 import {
-  getClaudeMode,
-  getActiveBackend,
   getActiveProfile,
   resolveRateLimitProvider,
 } from '../agents/index.js';
+import { resolveRunConfig } from '../runs/config-resolver.js';
 import { isApiRateLimitError, isRetryableError } from '../agents/config.js';
-import { resolveProfileConfig, type ResolvedProfileConfig } from '../agents/profile-manager.js';
+import type { ResolvedProfileConfig } from '../agents/profile-manager.js';
 import {
   activateOutageWindow,
   isProviderRateLimited,
@@ -261,40 +260,21 @@ function resolveEffectiveProfileName(
     : configuredProfile;
 }
 
-/** The synthetic profile used when the configured profile name is unknown: the execution record
- *  keeps the legacy active backend, while `name` stays the unknown requested name so the facade
- *  still rejects it after the record is opened. */
-function fallbackStepProfile(profileName: string): ResolvedProfileConfig {
-  return {
-    name: profileName,
-    model: '',
-    backend: getActiveBackend(),
-    mode: getClaudeMode(),
-    provider: null,
-    extraEnv: {},
-    extraOption: {},
-    claudeBackend: 'print',
-    thinking: null,
-    maxOutputTokens: null,
-    fallback: [],
-  };
-}
-
+/**
+ * The profile for one step. D5: name, backend, provider and mode all come out of one resolution —
+ * `resolveRunConfig` keeps an unknown name intact and hands back a profile borrowing the channel's
+ * backend, preserving the "open the execution record, then let the run reject the name" ordering.
+ */
 function resolveStepProfile(
   profileName: string,
+  channel?: string,
 ): { profile: ResolvedProfileConfig; backend: string; provider: string | null } {
-  try {
-    const profile = resolveProfileConfig(profileName);
-    return { profile, backend: profile.backend, provider: resolveRateLimitProvider(profile) };
-  } catch {
-    // Preserve ordinary preflight ordering: the facade remains responsible for rejecting a
-    // missing profile after the execution record has been opened with the legacy active backend.
-    return {
-      profile: fallbackStepProfile(profileName),
-      backend: getActiveBackend(),
-      provider: null,
-    };
-  }
+  const { profile, resolved } = resolveRunConfig({ channel, override: profileName });
+  return {
+    profile,
+    backend: profile.backend,
+    provider: resolved ? resolveRateLimitProvider(profile) : null,
+  };
 }
 
 function resolveActiveStepProvider(thread: ThreadRecord, channel: string): string | null {
@@ -302,7 +282,8 @@ function resolveActiveStepProvider(thread: ThreadRecord, channel: string): strin
   if (!slot) return null;
   try {
     const profileName = resolveEffectiveProfileName(slot.profile, thread.metadata, channel);
-    return resolveRateLimitProvider(resolveProfileConfig(profileName));
+    const { profile, resolved } = resolveRunConfig({ channel, override: profileName });
+    return resolved ? resolveRateLimitProvider(profile) : null;
   } catch {
     return null;
   }
@@ -339,7 +320,7 @@ async function buildStepConfig(
   const sessionKey = getSessionKey(threadId, agentSlotId);
 
   const profileName = resolveEffectiveProfileName(agentConfig.profile, ctx.meta, opts.channel);
-  const resolved = resolveStepProfile(profileName);
+  const resolved = resolveStepProfile(profileName, opts.channel);
   const profile = resolved.profile;
   const profileBackend = resolved.backend;
   const rateLimitProvider = resolved.provider;

@@ -364,6 +364,23 @@ export function getChannelProfiles(): Record<string, string> {
   return { ...channelProfiles };
 }
 
+/** The channel-scoped model override `!model` writes. null when the channel runs its profile's
+ *  own model, which is the normal case. */
+export function getChannelModelOverride(channel?: string | null): string | null {
+  if (!channel) return null;
+  return agentState.channelOverrides[channel]?.model ?? null;
+}
+
+/** Set or clear the channel's model override. Takes effect on the next turn — a live turn already
+ *  has its EngineSpec. */
+export function setChannelModelOverride(channel: string, model: string | null): void {
+  const overrides = { ...agentState.channelOverrides };
+  if (model) overrides[channel] = { ...overrides[channel], model };
+  else delete overrides[channel];
+  agentState = { ...agentState, channelOverrides: overrides };
+  persist();
+}
+
 export function getDefaultAgent(): string | null { return defaultAgent; }
 
 export function setDefaultAgent(name: string | null): void {
