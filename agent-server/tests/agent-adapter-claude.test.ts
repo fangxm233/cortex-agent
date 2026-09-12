@@ -2,7 +2,7 @@
 // output: Spawn, interaction, pool, fallback, and compact tests
 // pos:    Tests Claude adapter behavior
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-import { engineSpecFixture } from './engine-spec-fixture.js';
+import { engineSpecFixture, type EngineSpecFixtureInput } from './engine-spec-fixture.js';
 
 
 import { afterAll, beforeAll, test } from 'vitest';
@@ -53,7 +53,7 @@ import { ClaudeAdapter, _test as adapterTest, selectClaudeMode, recoverTuiOrphan
 import type { TmuxExecResult } from '../src/agent-adapter/claude/tmux-control.js';
 import { CONFIG_DIR, DEFAULTS_DIR, HOOKS_DIR } from '../src/core/paths.js';
 import { safeNativeName } from '../src/domain/plugins/native-name.js';
-import type { AgentSpawnConfig, McpServerConfig } from '../src/agent-adapter/types.js';
+import type { McpServerConfig } from '../src/agent-adapter/types.js';
 import type { HookEntry } from '../src/store/hook-registry.js';
 
 const HOOK_REGISTRY_DIR = path.join(CONFIG_DIR, 'hooks');
@@ -927,7 +927,7 @@ test('INTERACTION_BRIDGE_TOOLS contains the three MCP replacements used by TUI_T
 
 // --- selectClaudeMode (DR-0012 routing) ---
 
-test("selectClaudeMode returns 'print' for AgentSpawnConfig without claudeBackend", () => {
+test("selectClaudeMode returns 'print' for an EngineSpec without claudeBackend", () => {
   assert.equal(selectClaudeMode(engineSpecFixture({ sessionId: null, sessionKey: 'k', resume: false } as any)), 'print');
 });
 
@@ -949,7 +949,7 @@ function stubClaudeChild() {
   return child;
 }
 
-type ClaudeSpawnOverrides = Omit<Partial<AgentSpawnConfig>, 'sessionId' | 'sessionKey' | 'resume'>;
+type ClaudeSpawnOverrides = Omit<EngineSpecFixtureInput, 'sessionId' | 'sessionKey' | 'resume'>;
 type PoolSessionGetter = (key: string) => unknown;
 
 interface PoolReplacementFixture {
@@ -1585,7 +1585,7 @@ test('Claude print surfaces one valid model_refusal_fallback event from snake_ca
   }]);
 });
 
-// --- ClaudeAdapter.spawn — AgentSpawnConfig.unsetEnv reaches the child ---
+// --- ClaudeAdapter.spawn — EngineSpec.env.unsets reaches the child ---
 
 test('ClaudeAdapter.spawn: config.unsetEnv removes the key from the spawned child env', async () => {
   const prevKey = process.env.ANTHROPIC_API_KEY;
@@ -1612,9 +1612,9 @@ test('ClaudeAdapter.spawn: config.unsetEnv removes the key from the spawned chil
   }
 });
 
-// --- ClaudeAdapter.spawn — AgentSpawnConfig → CLI args parity (Blocker fix from Plan Review iter 1) ---
+// --- ClaudeAdapter.spawn — EngineSpec → CLI args parity (Blocker fix from Plan Review iter 1) ---
 
-test('ClaudeAdapter.spawn: full AgentSpawnConfig produces expected CLI args (canonical → native tool names)', () => {
+test('ClaudeAdapter.spawn: full EngineSpec produces expected CLI args (canonical → native tool names)', () => {
   const args = adapterTest.computeSpawnArgs(engineSpecFixture({
     sessionId: 'uuid-xxx',
     sessionKey: 'thr:e0b6:1',

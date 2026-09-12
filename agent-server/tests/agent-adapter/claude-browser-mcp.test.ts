@@ -1,4 +1,4 @@
-// input:  AgentSpawnConfig with and without a browser CDP endpoint
+// input:  EngineSpec with and without a browser CDP endpoint
 // output: pinned opt-in behaviour of the Playwright MCP layer in the Claude spawn
 // pos:    tests for per-session browser control
 // >>> If I am updated, update CORTEX.md <<<

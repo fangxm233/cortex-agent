@@ -5,7 +5,7 @@
 
 import { getAdapter } from '../../agent-adapter/index.js';
 import type {
-  AgentAdapter, AgentCompactResult, AgentProcess, AgentSpawnConfig, Backend, EngineSpec,
+  AgentAdapter, AgentCompactResult, AgentProcess, Backend, EngineSpec,
   NormalizedEvent,
 } from '../../agent-adapter/index.js';
 import type { ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
@@ -15,8 +15,8 @@ import {
 import {
   consumeEventStream, createProcessCloser, createRunEventTee, settleEventfulRun,
 } from '../../agent-adapter/event-tee.js';
-import { buildAgentSpawnConfig, filterChannelScopedPlugins, filterScopedPlugins } from './spawn-config.js';
-import { buildEngineSpec, specToSpawnConfig } from '../runs/engine-spec.js';
+import { filterChannelScopedPlugins, filterScopedPlugins } from './spawn-config.js';
+import { buildEngineSpec } from '../runs/engine-spec.js';
 import type { AgentConfig, RunAgentOptions, RunObserver } from './spawn-config.js';
 import {
   freezeProductionAttemptIdentity, type ProductionAttemptIdentityRecord,
@@ -197,7 +197,7 @@ function withTerminalNotices(handle: AgentHandle, notices: AttemptNoticeTracker)
 // can reach them without importing the ambient adapter registry (design §13 S6.1). Re-exported
 // here so every existing importer of the facade keeps working against the single definition.
 export {
-  buildAgentSpawnConfig, buildPiGatewaySubPath, CHANNEL_SCOPED_PLUGINS, COMMISSION_SCOPED_PLUGINS,
+  buildPiGatewaySubPath, CHANNEL_SCOPED_PLUGINS, COMMISSION_SCOPED_PLUGINS,
   filterChannelScopedPlugins, filterScopedPlugins,
 } from './spawn-config.js';
 export type { AgentConfig, RunAgentOptions, RunObserver } from './spawn-config.js';
@@ -234,7 +234,7 @@ function createFacadeDispatcher(
   adapter: AgentAdapter,
   options: RunAgentOptions,
   config: AgentConfig,
-  spawnConfig: AgentSpawnConfig,
+  spec: EngineSpec,
   attribution: Readonly<CostAttribution>,
 ): (event: NormalizedEvent) => void {
   // Mirror the legacy post-turn gate: the adapter may keep emitting after `turn_complete`, but the
@@ -251,8 +251,8 @@ function createFacadeDispatcher(
         return;
       case 'session_started':
         if (!options.channel?.startsWith('web:')) return;
-        if (!spawnConfig.resume || !spawnConfig.sessionId) return;
-        if (event.sessionId === spawnConfig.sessionId) return;
+        if (!spec.resume.resume || !spec.resume.backendSessionId) return;
+        if (event.sessionId === spec.resume.backendSessionId) return;
         options.onAssistantMessage?.(t('notify.backendSessionReset'), undefined, 'warning');
         return;
       case 'assistant_text':
@@ -344,13 +344,13 @@ type AttemptJournalSink = ReturnType<typeof createProductionAttemptJournalSink>;
 
 function productionJournalSink(
   identity: ProductionAttemptIdentityRecord | null,
-  spawnConfig: AgentSpawnConfig,
+  spec: EngineSpec,
   options: RunAgentOptions,
   message: string,
 ): AttemptJournalSink | null {
   if (!identity) return null;
   return createProductionAttemptJournalSink({
-    identity, spawnConfig,
+    identity, spec,
     canonicalInstruction: options.identityDirective ?? '', message,
   });
 }
@@ -361,14 +361,13 @@ function prepareAttemptEvidence(
 ) {
   const spec = options.preparedSpec
     ?? buildEngineSpec(options, config, route);
-  const spawnConfig = specToSpawnConfig(spec);
   const attemptIdentity = freezeProductionAttemptIdentity({
-    adapterBackend: adapter.backend, spawnConfig, options,
+    adapterBackend: adapter.backend, spec, options,
     resolvedProfile: options.resolvedProfileConfig,
   });
   return {
-    spec, spawnConfig, attemptIdentity,
-    attemptJournal: productionJournalSink(attemptIdentity, spawnConfig, options, message),
+    spec, attemptIdentity,
+    attemptJournal: productionJournalSink(attemptIdentity, spec, options, message),
   };
 }
 
@@ -413,7 +412,7 @@ export function runWithAdapter(
   adapter: AgentAdapter, message: string, options: RunAgentOptions,
   config: AgentConfig, route: ModeEnv | undefined,
 ): AgentHandle {
-  const { spec, spawnConfig, attemptIdentity, attemptJournal } = prepareAttemptEvidence(
+  const { spec, attemptIdentity, attemptJournal } = prepareAttemptEvidence(
     adapter, message, options, config, route,
   );
   const attribution = costAttribution(options, attemptIdentity);
@@ -421,7 +420,7 @@ export function runWithAdapter(
     adapter, spec, message, options, attemptJournal,
   );
   const closeProcess = createProcessCloser(proc);
-  const dispatch = createFacadeDispatcher(adapter, options, config, spawnConfig, attribution);
+  const dispatch = createFacadeDispatcher(adapter, options, config, spec, attribution);
   const eventLoop = consumeEventStream({ proc, tee, onEvent: dispatch });
   const resultPromise = resolveRunResult(turnPromise, eventLoop, adapter, options, proc, (event) => {
     if (event.type === 'cost_record') recordRunAccounting(event, adapter, options, config, attribution);
@@ -693,7 +692,6 @@ export const _test = {
   withTerminalNotices,
   resolveRateLimitProvider,
   withRateLimitProvider,
-  buildSpawnConfig: buildAgentSpawnConfig,
   filterChannelScopedPlugins,
   filterScopedPlugins,
 };

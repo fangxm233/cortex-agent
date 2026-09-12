@@ -9,7 +9,7 @@ import { createUiService } from '../src/domain/ui-service/ui-service.js';
 import { createAppRouter } from '../src/domain/ui-service/app-router.js';
 import { createUiHttpServer } from '../src/platform/ui-http/ui-http-server.js';
 import type { UiServiceDeps } from '../src/domain/ui-service/types.js';
-import { buildAgentSpawnConfig } from '../src/domain/agents/spawn-config.js';
+import { buildEngineSpec } from '../src/domain/runs/engine-spec.js';
 import { getSettings, updateSettings } from '../src/core/settings.js';
 import { sanitizePluginEntry } from '../src/domain/ui-service/plugins-shared.js';
 
@@ -45,12 +45,12 @@ test('authenticated API saves credentials, reads redacted status and keeps secre
 
 test('spawn consumes the persisted setting and catalog advertises the same scope', async () => {
   await updateSettings({ feishuSkillsInWeb: true });
-  const spawn = buildAgentSpawnConfig(
+  const spec = buildEngineSpec(
     { loadCortexRules: false, cwd: '/tmp', channel: 'web:test', pluginDirs: ['/plugins/cortex-feishu'] },
     { model: 'test', backend: 'claude', mode: null },
     {},
   );
-  expect(spawn.pluginDirs).toContain('/plugins/cortex-feishu');
+  expect(spec.plugins.dirs).toContain('/plugins/cortex-feishu');
   const entry = sanitizePluginEntry({ id: 'cortex-feishu', skills: [], mcp: { status: 'absent', servers: [] }, issues: [], manifest: {} } as any);
   expect(entry.scopePrefix).toBe('feishu: / web:');
 });

@@ -11,7 +11,7 @@ export * from './config.js';
 export * from './profile-switch.js';
 export {
   resolveRateLimitProvider,
-  buildAgentSpawnConfig, buildPiGatewaySubPath,
+  buildPiGatewaySubPath,
   CHANNEL_SCOPED_PLUGINS, COMMISSION_SCOPED_PLUGINS,
   filterChannelScopedPlugins, filterScopedPlugins,
   runWithAdapter,

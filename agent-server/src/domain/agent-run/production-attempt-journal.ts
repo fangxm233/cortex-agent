@@ -1,4 +1,4 @@
-// input:  frozen attempt identity, spawn config, normalized events
+// input:  frozen attempt identity, engine spec, normalized events
 // output: durable production journals and immutable linkage records
 // pos:    Production normalized-event journal persistence boundary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -7,13 +7,13 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { STORE_DIR, resolveSpawnCwd } from '../../core/paths.js';
-import type { AgentSpawnConfig } from '../../agent-adapter/types.js';
+import type { EngineSpec } from '../../agent-adapter/types.js';
 import type { NormalizedEvent } from '../../agent-adapter/normalize/event-types.js';
 import type { EventObserver } from '../../agent-adapter/event-tee.js';
 import { canonicalJsonSha256, computeRoleToolSurfaceHash } from './identity.js';
 import { openJournal, type Journal } from './journal.js';
 import type { ProductionAttemptIdentityRecord } from './production-attempt-identity.js';
-import { roleSurfaceFromSpawnConfig } from './role-surface.js';
+import { roleSurfaceFromSpec } from './role-surface.js';
 
 const RECORD_SCHEMA = 'cortex-production-attempt-journal/1';
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
@@ -41,7 +41,7 @@ export interface ProductionAttemptJournalInit {
 
 export interface ProductionAttemptJournalInput {
   identity: ProductionAttemptIdentityRecord;
-  spawnConfig: AgentSpawnConfig;
+  spec: EngineSpec;
   canonicalInstruction: string;
   message: string;
 }
@@ -200,8 +200,8 @@ function valueSha256(value: unknown): string {
 }
 
 function promptHashes(input: ProductionAttemptJournalInput) {
-  const role = roleSurfaceFromSpawnConfig(
-    input.spawnConfig, input.canonicalInstruction,
+  const role = roleSurfaceFromSpec(
+    input.spec, input.canonicalInstruction,
   );
   if (computeRoleToolSurfaceHash(role) !== input.identity.role_tool_surface_hash) {
     throw new Error('Production attempt journal role identity drifted before open');
@@ -218,12 +218,12 @@ function promptHashes(input: ProductionAttemptJournalInput) {
 }
 
 function journalHeader(input: ProductionAttemptJournalInput) {
-  const { identity, spawnConfig } = input;
+  const { identity, spec } = input;
   return {
     rootRunId: identity.root_run_id,
     threadId: identity.thread_id,
     agentSlot: identity.role,
-    resolvedCwd: resolveSpawnCwd(spawnConfig.cwd),
+    resolvedCwd: resolveSpawnCwd(spec.cwd),
     ...promptHashes(input),
     modelExecutionIdentityHash: identity.model_execution_identity_hash,
     roleToolSurfaceHash: identity.role_tool_surface_hash,

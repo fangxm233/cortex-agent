@@ -63,7 +63,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | disk-monitor.test.ts | test | disk path, hot toggle and alert decisions |
 | dispatch-utils-watcher.test.ts | test | machine config polling after watcher failure |
 | domain/ | subdir | domain service, agent-run, MCP and UI tests |
-| engine-spec-fixture.ts | helper | Groups flat AgentSpawnConfig-shaped test fixtures into EngineSpec |
+| engine-spec-fixture.ts | helper | Groups flat spawn-shaped test fixtures into EngineSpec |
 | entry/ | subdir | Runtime wiring and CLI entry-point tests |
 | events/ | subdir | event bus tests |
 | event-loop-monitor.test.ts | test | event-loop lag sampling, reset and stop lifecycle |

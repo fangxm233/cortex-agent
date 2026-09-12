@@ -1,12 +1,12 @@
 // input:  run options, agent config, mode route, settings
-// output: EngineSpec, the temporary AgentSpawnConfig bridge, engine identity
+// output: EngineSpec and engine identity
 // pos:    Run-layer engine spec builder — P2.1a
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { getSettings } from '@core/settings.js';
 import { canonicalizeMcpToolAllowlist } from '@core/mcp-tool-gate.js';
 import type {
-  AgentProcessSpawner, AgentSpawnConfig, EngineSpec, CortexContextEnv, McpComposition,
+  AgentProcessSpawner, EngineSpec, CortexContextEnv, McpComposition,
 } from '../../agent-adapter/types.js';
 import { resolveMcpComposition } from '../../agent-adapter/types.js';
 import { GATEWAY_URL } from '../costs/gateway-manager.js';
@@ -222,14 +222,14 @@ function backendField(
   };
   return config.backend === 'claude'
     ? { kind: 'claude', ...claudeFields }
-    : { kind: 'pi', ...claudeFields };
+    : { kind: 'pi' };
 }
 
 // --- Public API ---
 
 /**
- * Group `buildAgentSpawnConfig`'s resolved inputs into the backend-neutral {@link EngineSpec}.
- * Pure re-grouping: every value, condition and defaulting rule is identical to the flat builder.
+ * Group the resolved inputs into the backend-neutral {@link EngineSpec}.
+ * Pure re-grouping: every value, condition and defaulting rule is the original flat builder's.
  */
 export function buildEngineSpec(
   options: RunAgentOptions,
@@ -295,59 +295,6 @@ export function buildEngineSpec(
       ? config.extraOption : undefined,
     backend: backendField(options, config),
     process: policy.process,
-  };
-}
-
-/**
- * Temporary bridge (P2.1a only): rebuild the flat {@link AgentSpawnConfig} the legacy builder
- * returned. Key presence is load-bearing — every key the old builder always spread is emitted
- * even when its value is `undefined`, so `assert.deepStrictEqual` sees the same shape.
- */
-export function specToSpawnConfig(spec: EngineSpec): AgentSpawnConfig {
-  return {
-    sessionId: spec.resume.backendSessionId,
-    sessionKey: spec.engineKey,
-    resume: spec.resume.resume,
-    model: spec.model.id,
-    systemPrompt: spec.prompt.system,
-    outputStyle: spec.backend.outputStyle,
-    cwd: spec.cwd,
-    mcpComposition: spec.mcp.composition,
-    mcpConfigPaths: spec.mcp.configPaths,
-    mcpToolAllowlist: spec.mcp.allowlist,
-    commissionTools: spec.mcp.commissionTools,
-    disableHooks: spec.flags.disableHooks,
-    streamDeltas: spec.flags.streamDeltas,
-    captureTranscriptLogs: spec.flags.captureTranscripts,
-    preserveUnreportedAccounting: spec.flags.preserveUnreportedAccounting,
-    processSpawner: spec.process.spawner,
-    cliPath: spec.process.cliPath,
-    pinnedEnv: spec.env.pinned,
-    pluginDirs: spec.plugins.dirs,
-    pluginSkillDirs: spec.plugins.skillDirs,
-    mcpServers: spec.mcp.servers,
-    pluginCapabilityFingerprint: spec.plugins.fingerprint,
-    env: spec.env.sets,
-    unsetEnv: spec.env.unsets,
-    extraOption: spec.extraOption,
-    claudeBackend: spec.backend.claudeBackend,
-    thinking: spec.model.thinking,
-    channel: spec.context.channel,
-    claudeAgent: spec.backend.claudeAgent,
-    callbackSource: spec.context.callbackSource,
-    scheduleTaskId: spec.context.scheduleTaskId,
-    isUserInitiated: spec.flags.isUserInitiated,
-    rawTools: spec.tools.rawClaude,
-    anthropicBaseUrl: spec.route.anthropicBaseUrl,
-    browserCdpEndpoint: spec.mcp.browserCdpEndpoint,
-    piProvider: spec.model.provider,
-    piModelMaxTokens: spec.model.maxOutputTokens,
-    piGatewayPath: spec.route.gatewayPath,
-    piGatewayBaseUrl: spec.route.gatewayBaseUrl,
-    // The legacy builder never emitted a canonical `tools` key — it carried only `rawTools` — so
-    // the bridge must not either. `spec.tools.canonical` exists for the P2.1b/c readers.
-    cortexContext: spec.env.context,
-    appendSystemPrompt: spec.prompt.append,
   };
 }
 

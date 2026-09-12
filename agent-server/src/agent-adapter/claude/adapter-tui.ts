@@ -110,7 +110,7 @@ export interface ClaudeTuiSessionConfig {
   scheduleTaskId?: string | null;
   anthropicBaseUrl?: string;
   extraEnv?: Record<string, string>;
-  /** Keys deleted from the child env after `extraEnv` is applied (AgentSpawnConfig.unsetEnv). */
+  /** Keys deleted from the child env after `extraEnv` is applied (EngineSpec.env.unsets). */
   unsetEnv?: string[];
   context?: CortexAgentContext;
   // -- deps --

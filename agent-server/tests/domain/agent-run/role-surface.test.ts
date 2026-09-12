@@ -1,4 +1,4 @@
-// input:  resolved spawn configs and temporary plugin trees
+// input:  resolved engine specs and temporary plugin trees
 // output: prompt, plugin, skill, MCP, and hook identity proofs
 // pos:    Regression tests for exact spawn role identity
 // >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -10,10 +10,11 @@ import path from 'node:path';
 import { afterEach, beforeEach, it } from 'vitest';
 import { DEFAULT_TOOLS } from '../../../src/agent-adapter/claude/defaults.js';
 import { buildSpawnArgs } from '../../../src/agent-adapter/claude/spawn-args.js';
-import type { AgentSpawnConfig } from '../../../src/agent-adapter/types.js';
+import type { EngineSpec } from '../../../src/agent-adapter/types.js';
 import {
-  directoryContentSha256, roleSurfaceFromSpawnConfig,
+  directoryContentSha256, roleSurfaceFromSpec,
 } from '../../../src/domain/agent-run/role-surface.js';
+import { engineSpecFixture } from '../../engine-spec-fixture.js';
 
 let root = '';
 
@@ -25,8 +26,8 @@ afterEach(() => {
   fs.rmSync(root, { recursive: true, force: true });
 });
 
-function spawnConfig(pluginDirs: string[] = []): AgentSpawnConfig {
-  return {
+function specFixture(pluginDirs: string[] = []): EngineSpec {
+  return engineSpecFixture({
     sessionId: null,
     sessionKey: 'fixture',
     resume: false,
@@ -36,7 +37,7 @@ function spawnConfig(pluginDirs: string[] = []): AgentSpawnConfig {
     mcpComposition: 'none',
     mcpConfigPaths: [path.join(root, 'empty-mcp.json')],
     disableHooks: true,
-  };
+  });
 }
 
 it('content-addresses plugin files and discovers skill directories', () => {
@@ -46,7 +47,7 @@ it('content-addresses plugin files and discovers skill directories', () => {
   fs.writeFileSync(path.join(plugin, 'plugin.json'), '{"name":"fixture"}\n');
   fs.writeFileSync(path.join(skill, 'SKILL.md'), '# Inspect\n');
   const before = directoryContentSha256(plugin);
-  const surface = roleSurfaceFromSpawnConfig(spawnConfig([plugin]));
+  const surface = roleSurfaceFromSpec(specFixture([plugin]));
   assert.equal(surface.pluginDirs[0].content_sha256, before);
   assert.deepEqual(surface.skills.map(value => value.name), ['inspect']);
   assert.equal(
@@ -58,20 +59,20 @@ it('content-addresses plugin files and discovers skill directories', () => {
 });
 
 it('includes appended Cortex rules in the resolved system-prompt identity', () => {
-  const config = spawnConfig();
-  const base = roleSurfaceFromSpawnConfig(config);
-  config.appendSystemPrompt = 'resolved global rule';
-  assert.notEqual(roleSurfaceFromSpawnConfig(config).systemPromptSha256, base.systemPromptSha256);
+  const spec = specFixture();
+  const base = roleSurfaceFromSpec(spec);
+  spec.prompt.append = 'resolved global rule';
+  assert.notEqual(roleSurfaceFromSpec(spec).systemPromptSha256, base.systemPromptSha256);
 });
 
 it('captures PI-projected skill directories and portable MCP capability fingerprints', () => {
   const skill = path.join(root, 'projected-skills', 'inspect');
   fs.mkdirSync(skill, { recursive: true });
   fs.writeFileSync(path.join(skill, 'SKILL.md'), '# Inspect\n');
-  const config = spawnConfig();
-  config.pluginSkillDirs = [skill];
-  config.pluginCapabilityFingerprint = 'b'.repeat(64);
-  const surface = roleSurfaceFromSpawnConfig(config);
+  const spec = specFixture();
+  spec.plugins.skillDirs = [skill];
+  spec.plugins.fingerprint = 'b'.repeat(64);
+  const surface = roleSurfaceFromSpec(spec);
   assert.deepEqual(surface.skills, [{
     name: 'inspect', content_sha256: directoryContentSha256(skill),
   }]);
@@ -81,8 +82,8 @@ it('captures PI-projected skill directories and portable MCP capability fingerpr
 });
 
 it('hashes a caller-supplied thread directive instead of the one-shot empty directive', () => {
-  const empty = roleSurfaceFromSpawnConfig(spawnConfig());
-  const directed = roleSurfaceFromSpawnConfig(spawnConfig(), 'benchmark directive');
+  const empty = roleSurfaceFromSpec(specFixture());
+  const directed = roleSurfaceFromSpec(specFixture(), 'benchmark directive');
   assert.notEqual(directed.directiveSha256, empty.directiveSha256);
   assert.equal(
     directed.directiveSha256,
@@ -93,32 +94,32 @@ it('hashes a caller-supplied thread directive instead of the one-shot empty dire
 it('hashes Claude default tools when the spawn omits or blanks raw tools', () => {
   const expected = DEFAULT_TOOLS.split(',');
   for (const rawTools of [undefined, '']) {
-    const config = spawnConfig();
-    config.rawTools = rawTools;
-    assert.deepEqual(roleSurfaceFromSpawnConfig(config).tools, expected);
+    const spec = specFixture();
+    spec.tools.rawClaude = rawTools;
+    assert.deepEqual(roleSurfaceFromSpec(spec).tools, expected);
   }
 });
 
 it('hashes the exact tools, MCP composition, and hook policy used by Claude argv', () => {
-  const config = spawnConfig();
-  fs.writeFileSync(config.mcpConfigPaths![0], '{"mcpServers":{}}\n');
-  const surface = roleSurfaceFromSpawnConfig(config);
+  const spec = specFixture();
+  fs.writeFileSync(spec.mcp.configPaths![0], '{"mcpServers":{}}\n');
+  const surface = roleSurfaceFromSpec(spec);
   const args = buildSpawnArgs({
-    tools: config.rawTools!,
-    systemPrompt: config.systemPrompt,
-    pluginDirs: config.pluginDirs,
+    tools: spec.tools.rawClaude!,
+    systemPrompt: spec.prompt.system,
+    pluginDirs: spec.plugins.dirs,
     needsResume: false,
     sessionId: '00000000-0000-4000-8000-000000000001',
-    mcpComposition: config.mcpComposition,
-    mcpConfigPaths: config.mcpConfigPaths,
-    disableHooks: config.disableHooks,
+    mcpComposition: spec.mcp.composition,
+    mcpConfigPaths: spec.mcp.configPaths,
+    disableHooks: spec.flags.disableHooks,
     streamDeltas: false,
   });
   const toolsIndex = args.indexOf('--tools');
   assert.deepEqual(args[toolsIndex + 1].split(','), surface.tools);
   assert.equal(surface.mcpComposition, 'none');
   assert.deepEqual(args.slice(args.indexOf('--mcp-config'), args.indexOf('--strict-mcp-config')), [
-    '--mcp-config', config.mcpConfigPaths![0],
+    '--mcp-config', spec.mcp.configPaths![0],
   ]);
   const settings = JSON.parse(args[args.indexOf('--settings') + 1]);
   assert.deepEqual(settings.hooks, {});
@@ -132,8 +133,8 @@ it('orders plugin and skill identities independently of config order', () => {
   fs.mkdirSync(path.join(second, 'skills', 'a-skill'), { recursive: true });
   fs.writeFileSync(path.join(first, 'skills', 'z-skill', 'SKILL.md'), 'z\n');
   fs.writeFileSync(path.join(second, 'skills', 'a-skill', 'SKILL.md'), 'a\n');
-  const forward = roleSurfaceFromSpawnConfig(spawnConfig([first, second]));
-  const reverse = roleSurfaceFromSpawnConfig(spawnConfig([second, first]));
+  const forward = roleSurfaceFromSpec(specFixture([first, second]));
+  const reverse = roleSurfaceFromSpec(specFixture([second, first]));
   assert.deepEqual(forward.pluginDirs, reverse.pluginDirs);
   assert.deepEqual(forward.skills, reverse.skills);
   assert.deepEqual(forward.pluginDirs.map(value => value.path), [second, first]);

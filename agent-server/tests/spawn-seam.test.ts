@@ -23,12 +23,11 @@ import { fileURLToPath } from 'node:url';
 
 import {
   resolveMcpComposition,
-  type AgentSpawnConfig,
   type EngineSpec,
   type McpComposition,
 } from '../src/agent-adapter/types.js';
 import { buildEngineSpec } from '../src/domain/runs/engine-spec.js';
-import { engineSpecFixture } from './engine-spec-fixture.js';
+import { engineSpecFixture, type EngineSpecFixtureInput } from './engine-spec-fixture.js';
 import { ClaudeAdapter, _test as claudeTest } from '../src/agent-adapter/claude/adapter.js';
 import {
   buildClaudeEnv,
@@ -211,8 +210,8 @@ test('resolveMcpComposition gives explicit values precedence over the legacy boo
   assert.equal(resolveMcpComposition(undefined, undefined), 'direct');
 });
 
-test('buildSpawnConfig carries isolated one-shot values and resolves legacy composition', () => {
-  const explicit = facadeTest.buildSpawnConfig({
+test('buildEngineSpec carries isolated one-shot values and resolves legacy composition', () => {
+  const explicit = buildEngineSpec({
     cwd: '/fixture/task',
     mcpComposition: 'none',
     useCoreMcp: true,
@@ -223,28 +222,28 @@ test('buildSpawnConfig carries isolated one-shot values and resolves legacy comp
     loadCortexRules: false,
     recordCost: false,
   }, FIXTURE_CONFIG, undefined);
-  const legacy = facadeTest.buildSpawnConfig({ useCoreMcp: true }, FIXTURE_CONFIG, undefined);
+  const legacy = buildEngineSpec({ useCoreMcp: true }, FIXTURE_CONFIG, undefined);
 
   assert.equal(explicit.cwd, '/fixture/task');
-  assert.equal(explicit.mcpComposition, 'none');
-  assert.deepEqual(explicit.mcpConfigPaths, ['/fixture/mcp-empty.json']);
-  assert.equal(explicit.disableHooks, true);
-  assert.equal(explicit.streamDeltas, false);
-  assert.equal(explicit.captureTranscriptLogs, false);
-  assert.equal(explicit.appendSystemPrompt, undefined);
-  assert.equal(explicit.cortexContext?.useCoreMcp, true);
-  assert.equal(legacy.mcpComposition, 'thread-control');
+  assert.equal(explicit.mcp.composition, 'none');
+  assert.deepEqual(explicit.mcp.configPaths, ['/fixture/mcp-empty.json']);
+  assert.equal(explicit.flags.disableHooks, true);
+  assert.equal(explicit.flags.streamDeltas, false);
+  assert.equal(explicit.flags.captureTranscripts, false);
+  assert.equal(explicit.prompt.append, undefined);
+  assert.equal(explicit.env.context?.useCoreMcp, true);
+  assert.equal(legacy.mcp.composition, 'thread-control');
 });
 
-test('buildSpawnConfig canonicalizes a declared MCP tool allowlist', () => {
-  const config = facadeTest.buildSpawnConfig({
+test('buildEngineSpec canonicalizes a declared MCP tool allowlist', () => {
+  const spec = buildEngineSpec({
     mcpToolAllowlist: ['thread_wait', 'ask_manager', 'thread_wait'],
   }, FIXTURE_CONFIG, undefined);
-  assert.deepEqual(config.mcpToolAllowlist, ['ask_manager', 'thread_wait']);
+  assert.deepEqual(spec.mcp.allowlist, ['ask_manager', 'thread_wait']);
 });
 
 test('task dispatch generation reaches both backend environments without inheriting stale state', () => {
-  const config = facadeTest.buildSpawnConfig({
+  const spec = buildEngineSpec({
     channel: 'thread-fixture',
     sessionId: '33333333-3333-4333-8333-333333333333',
     sessionKey: 'thread-fixture:2',
@@ -253,18 +252,18 @@ test('task dispatch generation reaches both backend environments without inherit
     taskProject: 'atlas',
     taskGeneration: 'generation-b',
   }, FIXTURE_CONFIG, undefined);
-  assert.equal(config.cortexContext?.taskGeneration, 'generation-b');
+  assert.equal(spec.env.context?.taskGeneration, 'generation-b');
 
   const claudeEnv = buildClaudeEnv(
-    'thread-fixture', config.sessionId!, null, null, undefined,
-    { CORTEX_TASK_GENERATION: 'forged-generation' }, config.cortexContext,
+    'thread-fixture', spec.resume.backendSessionId!, null, null, undefined,
+    { CORTEX_TASK_GENERATION: 'forged-generation' }, spec.env.context,
   );
   assert.equal(claudeEnv.CORTEX_TASK_GENERATION, 'generation-b');
 
   const piEnv = buildPiEnv({
-    sessionId: config.sessionId,
+    sessionId: spec.resume.backendSessionId,
     channel: 'thread-fixture',
-    context: config.cortexContext,
+    context: spec.env.context,
     piAgentDir: '/fixture/pi-agent',
   }, { CORTEX_TASK_GENERATION: 'stale-generation' });
   assert.equal(piEnv.CORTEX_TASK_GENERATION, 'generation-b');
@@ -357,29 +356,29 @@ function pluginRuntimeSpawnOptions() {
   };
 }
 
-function assertFingerprint(config: AgentSpawnConfig): void {
-  assert.equal(typeof config.pluginCapabilityFingerprint, 'string');
-  assert.ok(config.pluginCapabilityFingerprint!.length > 0);
+function assertFingerprint(spec: EngineSpec): void {
+  assert.equal(typeof spec.plugins.fingerprint, 'string');
+  assert.ok(spec.plugins.fingerprint!.length > 0);
 }
 
-function assertClaudePluginRuntime(config: AgentSpawnConfig): void {
-  assert.deepEqual(config.mcpConfigPaths, RUNTIME_MCP_PATHS);
-  assert.equal(config.pluginDirs?.length, 3);
-  assert.ok(config.pluginDirs?.[0].includes(path.join('plugin-runtime', 'claude')));
-  assert.deepEqual(config.pluginDirs?.slice(1), [LEGACY_ROOT, UNMANAGED_ROOT]);
-  assert.equal(config.pluginSkillDirs, undefined);
-  assert.deepEqual(config.mcpServers?.map((server) => server.name), [PORTABLE_SERVER_NAME]);
-  assertFingerprint(config);
+function assertClaudePluginRuntime(spec: EngineSpec): void {
+  assert.deepEqual(spec.mcp.configPaths, RUNTIME_MCP_PATHS);
+  assert.equal(spec.plugins.dirs?.length, 3);
+  assert.ok(spec.plugins.dirs?.[0].includes(path.join('plugin-runtime', 'claude')));
+  assert.deepEqual(spec.plugins.dirs?.slice(1), [LEGACY_ROOT, UNMANAGED_ROOT]);
+  assert.equal(spec.plugins.skillDirs, undefined);
+  assert.deepEqual(spec.mcp.servers?.map((server) => server.name), [PORTABLE_SERVER_NAME]);
+  assertFingerprint(spec);
 }
 
-function assertPiPluginRuntime(config: AgentSpawnConfig): void {
-  assert.deepEqual(config.mcpConfigPaths, RUNTIME_MCP_PATHS);
-  assert.deepEqual(config.pluginDirs, [LEGACY_ROOT, UNMANAGED_ROOT]);
-  assert.equal(config.pluginSkillDirs?.length, 1);
-  assert.ok(config.pluginSkillDirs?.[0].includes(path.join('plugin-runtime', 'pi')));
-  assert.notEqual(config.pluginSkillDirs?.[0], path.join(PORTABLE_ROOT, 'skills', 'portable-skill'));
-  assert.deepEqual(config.mcpServers?.map((server) => server.name), [PORTABLE_SERVER_NAME]);
-  assertFingerprint(config);
+function assertPiPluginRuntime(spec: EngineSpec): void {
+  assert.deepEqual(spec.mcp.configPaths, RUNTIME_MCP_PATHS);
+  assert.deepEqual(spec.plugins.dirs, [LEGACY_ROOT, UNMANAGED_ROOT]);
+  assert.equal(spec.plugins.skillDirs?.length, 1);
+  assert.ok(spec.plugins.skillDirs?.[0].includes(path.join('plugin-runtime', 'pi')));
+  assert.notEqual(spec.plugins.skillDirs?.[0], path.join(PORTABLE_ROOT, 'skills', 'portable-skill'));
+  assert.deepEqual(spec.mcp.servers?.map((server) => server.name), [PORTABLE_SERVER_NAME]);
+  assertFingerprint(spec);
 }
 
 function assertPortableRuntimePropagation(): void {
@@ -387,20 +386,20 @@ function assertPortableRuntimePropagation(): void {
   try {
     installPluginRuntimeFixture();
     const options = pluginRuntimeSpawnOptions();
-    const claude = facadeTest.buildSpawnConfig(options, FIXTURE_CONFIG, undefined);
-    const pi = facadeTest.buildSpawnConfig(options, {
+    const claude = buildEngineSpec(options, FIXTURE_CONFIG, undefined);
+    const pi = buildEngineSpec(options, {
       model: 'pi-fixture', backend: 'pi', mode: null, provider: 'anthropic',
     }, undefined);
     assertClaudePluginRuntime(claude);
     assertPiPluginRuntime(pi);
-    assert.notEqual(pi.pluginCapabilityFingerprint, claude.pluginCapabilityFingerprint);
+    assert.notEqual(pi.plugins.fingerprint, claude.plugins.fingerprint);
   } finally {
     removePluginRuntimeFixture();
   }
 }
 
 test(
-  'buildSpawnConfig resolves plugin runtime per backend and preserves explicit mcpConfigPaths',
+  'buildEngineSpec resolves plugin runtime per backend and preserves explicit mcpConfigPaths',
   assertPortableRuntimePropagation,
 );
 
@@ -414,11 +413,11 @@ function assertChannelPluginFiltering(): void {
       'feishu-skill',
       'feishu fixture skill.',
     );
-    const config = facadeTest.buildSpawnConfig({
+    const spec = buildEngineSpec({
       channel: 'general', pluginDirs: ['plugins/cortex-feishu'], loadCortexRules: false,
     }, FIXTURE_CONFIG, undefined);
-    assert.equal(config.pluginDirs, undefined);
-    assert.equal(config.pluginCapabilityFingerprint, undefined);
+    assert.equal(spec.plugins.dirs, undefined);
+    assert.equal(spec.plugins.fingerprint, undefined);
   } finally {
     rmSync(pluginRoot, { recursive: true, force: true });
   }
@@ -427,18 +426,18 @@ function assertChannelPluginFiltering(): void {
 test('channel-scoped plugin filtering happens before runtime projection', assertChannelPluginFiltering);
 
 function assertMalformedPluginDirsIgnored(): void {
-  const config = facadeTest.buildSpawnConfig({
+  const spec = buildEngineSpec({
     channel: 'general',
     pluginDirs: 'plugins/not-an-array' as never,
     loadCortexRules: false,
   }, FIXTURE_CONFIG, undefined);
 
-  assert.equal(config.pluginDirs, undefined);
-  assert.equal(config.pluginCapabilityFingerprint, undefined);
+  assert.equal(spec.plugins.dirs, undefined);
+  assert.equal(spec.plugins.fingerprint, undefined);
 }
 
 test(
-  'buildSpawnConfig ignores malformed pluginDirs values instead of crashing',
+  'buildEngineSpec ignores malformed pluginDirs values instead of crashing',
   assertMalformedPluginDirsIgnored,
 );
 
@@ -1014,7 +1013,10 @@ function pooledRouteSpawn(
   }, config, route);
 }
 
-function pooledRouteConfig(key: string, overrides: Partial<AgentSpawnConfig>): EngineSpec {
+function pooledRouteConfig(
+  key: string,
+  overrides: EngineSpecFixtureInput,
+): EngineSpec {
   return engineSpecFixture({
     sessionId: key, sessionKey: key, resume: false, cwd: DATA_DIR,
     processSpawner: poolSpawner, ...overrides,
@@ -1101,7 +1103,7 @@ test('the pool separates two routes that differ only by credential', async () =>
 test('the TUI pool compares the route the same way', async () => {
   const adapter = new ClaudeAdapter();
   const key = 'route-pool-tui';
-  const tui: Partial<AgentSpawnConfig> = {
+  const tui: EngineSpecFixtureInput = {
     claudeBackend: 'tui', anthropicBaseUrl: POOL_ROUTE_URL,
   };
 

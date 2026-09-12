@@ -97,7 +97,7 @@ function attemptFixture(root: string, input: {
   const journalPath = path.join(root, `${attemptId}.source.ndjson`);
   fs.writeFileSync(journalPath, bytes);
   const identity = {
-    schema_version: 'cortex-production-attempt-identity/2', trial_id: 'trial-1',
+    schema_version: 'cortex-production-attempt-identity/3', trial_id: 'trial-1',
     root_run_id: input.rootRunId, attempt_id: attemptId,
     root_attempt_id: input.rootAttemptId ?? attemptId,
     spawn_parent_attempt_id: input.parentAttemptId ?? null,

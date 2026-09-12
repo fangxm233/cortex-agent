@@ -12,7 +12,6 @@ import { afterEach, beforeEach, test } from 'vitest';
 import type {
   AgentAdapter, AgentProcess, EngineSpec, Backend,
 } from '../../../src/agent-adapter/types.js';
-import { specToSpawnConfig } from '../../../src/domain/runs/engine-spec.js';
 import { engineSpecFixture } from '../../engine-spec-fixture.js';
 import type { AgentResult } from '../../../src/core/types/agent-types.js';
 import type { ProductionBenchmarkEvidenceContext } from '../../../src/core/types/thread-types.js';
@@ -24,7 +23,7 @@ import {
   initializeProductionAttemptIdentity,
   resetProductionAttemptIdentity,
 } from '../../../src/domain/agent-run/production-attempt-identity.js';
-import { roleSurfaceFromSpawnConfig } from '../../../src/domain/agent-run/role-surface.js';
+import { roleSurfaceFromSpec } from '../../../src/domain/agent-run/role-surface.js';
 import type { ResolvedProfileConfig } from '../../../src/domain/agents/profile-manager.js';
 import { _test as rawFacadeTest } from '../../../src/domain/agents/facade.js';
 
@@ -223,7 +222,7 @@ for (const backend of ['claude', 'pi'] as const) {
         reasoningEffort: resolvedProfile.thinking, maxOutputTokens: null, fallbackEmpty: true,
       }));
       assert.equal(record.role_tool_surface_hash, computeRoleToolSurfaceHash(
-        roleSurfaceFromSpawnConfig(specToSpawnConfig(spawns[0]), 'Act as the resolved role.'),
+        roleSurfaceFromSpec(spawns[0], 'Act as the resolved role.'),
       ));
 
       resetProductionAttemptIdentity();
@@ -433,8 +432,8 @@ test('per-spawn route credentials reach the child env but never the attestation'
     thinking: resolvedProfile.thinking,
   }, route).promise;
 
-  assert.equal(specToSpawnConfig(spawns[0]).env?.ANTHROPIC_API_KEY, 'sk-must-not-be-attested');
-  assert.equal(specToSpawnConfig(spawns[0]).env?.CLAUDE_CODE_OAUTH_TOKEN, 'oauth-must-not-be-attested');
+  assert.equal(spawns[0].env.sets?.ANTHROPIC_API_KEY, 'sk-must-not-be-attested');
+  assert.equal(spawns[0].env.sets?.CLAUDE_CODE_OAUTH_TOKEN, 'oauth-must-not-be-attested');
   const record = getProductionAttemptIdentity('exec-route-secret');
   assert.ok(record);
   const written = evidenceFiles(path.dirname(storePath()))
@@ -537,7 +536,7 @@ test('refuses reuse of an execution identity with a changed resolved spawn surfa
 test('rejects incomplete persisted identity records on reload', () => {
   fs.mkdirSync(path.dirname(storePath()), { recursive: true });
   fs.writeFileSync(storePath(), `${JSON.stringify({
-    schema_version: 'cortex-production-attempt-identity/2',
+    schema_version: 'cortex-production-attempt-identity/3',
     execution_id: 'exec-incomplete', attempt_id: 'attempt-exec-incomplete',
   })}\n`);
   assert.throws(() => initializeProductionAttemptIdentity({

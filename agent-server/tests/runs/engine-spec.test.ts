@@ -1,26 +1,23 @@
-// input:  EngineSpec builder/bridge, matrix of run options
-// output: frozen round-trip equality plus engineIdentity properties
-// pos:    P2.1a engine-spec seam regression — proves the bridge is byte-shape identical
+// input:  EngineSpec builder, matrix of run options
+// output: frozen builder equality plus engineIdentity properties
+// pos:    P2.1a engine-spec seam regression — pins buildEngineSpec's own output
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { beforeAll, test } from 'vitest';
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import * as path from 'node:path';
-import {
-  buildEngineSpec, engineIdentity, specToSpawnConfig,
-} from '../../src/domain/runs/engine-spec.js';
-import { buildAgentSpawnConfig } from '../../src/domain/agents/spawn-config.js';
+import { buildEngineSpec, engineIdentity } from '../../src/domain/runs/engine-spec.js';
 import type { RunAgentOptions, AgentConfig } from '../../src/domain/agents/spawn-config.js';
 import type { ModeEnv } from '../../src/domain/agents/config.js';
-import type { AgentSpawnConfig, EngineSpec } from '../../src/agent-adapter/types.js';
+import type { EngineSpec } from '../../src/agent-adapter/types.js';
 import { DATA_DIR, CONFIG_DIR } from '../../src/core/paths.js';
 import { resetSettingsForTests } from '../../src/core/settings.js';
 
-// GOLDEN PROVENANCE: every `expected` below was printed from `buildAgentSpawnConfig` on the
-// pre-refactor `refactor/runs` base, in this exact test home (no rules dir, default settings).
-// `assert.deepStrictEqual` distinguishes a present-but-`undefined` key from an absent one, so the
-// literals list every key the old builder spread — including `undefined` ones.
+// GOLDEN PROVENANCE: every `expected` below was printed from the pre-refactor production spawn
+// path on the `refactor/runs` base, in this exact test home (no rules dir, default settings), and
+// converted one-for-one into the EngineSpec shape. `assert.deepStrictEqual` distinguishes a
+// present-but-`undefined` key from an absent one, so the literals list every key the builder emits.
 const FIXTURE_CONFIG: AgentConfig = { model: 'claude-fixture', backend: 'claude', mode: null };
 
 interface Case {
@@ -28,7 +25,7 @@ interface Case {
   options: RunAgentOptions;
   config: AgentConfig;
   route: ModeEnv | undefined;
-  expected: AgentSpawnConfig;
+  expected: EngineSpec;
 }
 
 const DIRECT_OPTIONS: RunAgentOptions = {
@@ -47,59 +44,42 @@ const cases: Case[] = [
     config: FIXTURE_CONFIG,
     route: undefined,
     expected: {
-      sessionId: '11111111-1111-4111-8111-111111111111',
-      sessionKey: 'direct-fixture',
-      resume: true,
-      model: 'claude-fixture',
-      systemPrompt: undefined,
-      outputStyle: undefined,
+      engineKey: 'direct-fixture',
       cwd: undefined,
-      mcpComposition: 'direct',
-      mcpConfigPaths: undefined,
-      mcpToolAllowlist: undefined,
-      commissionTools: undefined,
-      disableHooks: undefined,
-      streamDeltas: undefined,
-      captureTranscriptLogs: undefined,
-      preserveUnreportedAccounting: undefined,
-      processSpawner: undefined,
-      cliPath: undefined,
-      pinnedEnv: undefined,
-      pluginDirs: undefined,
-      pluginSkillDirs: undefined,
-      mcpServers: undefined,
-      pluginCapabilityFingerprint: undefined,
-      env: undefined,
-      unsetEnv: undefined,
-      extraOption: undefined,
-      claudeBackend: undefined,
-      thinking: undefined,
-      channel: 'general',
-      claudeAgent: undefined,
-      callbackSource: undefined,
-      scheduleTaskId: undefined,
-      isUserInitiated: false,
-      rawTools: undefined,
-      anthropicBaseUrl: undefined,
-      browserCdpEndpoint: undefined,
-      piProvider: undefined,
-      piModelMaxTokens: undefined,
-      piGatewayPath: undefined,
-      piGatewayBaseUrl: undefined,
-      cortexContext: {
-        threadId: null,
-        profile: 'fixture-profile',
-        project: null,
-        sessionName: null,
-        trackSessionId: 'tracked-direct',
-        executionId: 'exec-direct',
-        useCoreMcp: undefined,
-        threadDepth: null,
-        taskId: null,
-        taskProject: null,
-        taskGeneration: null,
+      resume: { backendSessionId: '11111111-1111-4111-8111-111111111111', resume: true },
+      model: { id: 'claude-fixture', provider: undefined, thinking: undefined, maxOutputTokens: undefined },
+      prompt: { system: undefined, append: undefined },
+      tools: { canonical: undefined, rawClaude: undefined },
+      plugins: { dirs: undefined, skillDirs: undefined, fingerprint: undefined },
+      mcp: {
+        composition: 'direct', servers: undefined, allowlist: undefined, configPaths: undefined,
+        commissionTools: undefined, browserCdpEndpoint: undefined,
       },
-      appendSystemPrompt: undefined,
+      env: {
+        sets: undefined, unsets: undefined, pinned: undefined,
+        context: {
+          threadId: null,
+          profile: 'fixture-profile',
+          project: null,
+          sessionName: null,
+          trackSessionId: 'tracked-direct',
+          executionId: 'exec-direct',
+          useCoreMcp: undefined,
+          threadDepth: null,
+          taskId: null,
+          taskProject: null,
+          taskGeneration: null,
+        },
+      },
+      route: { anthropicBaseUrl: undefined, gatewayBaseUrl: undefined, gatewayPath: undefined },
+      flags: {
+        disableHooks: undefined, streamDeltas: undefined, captureTranscripts: undefined,
+        preserveUnreportedAccounting: undefined, isUserInitiated: false,
+      },
+      context: { channel: 'general', callbackSource: undefined, scheduleTaskId: undefined },
+      extraOption: undefined,
+      backend: { kind: 'claude', claudeAgent: undefined, outputStyle: undefined, claudeBackend: undefined },
+      process: { spawner: undefined, cliPath: undefined },
     },
   },
   {
@@ -122,59 +102,42 @@ const cases: Case[] = [
     config: FIXTURE_CONFIG,
     route: undefined,
     expected: {
-      sessionId: '22222222-2222-4222-8222-222222222222',
-      sessionKey: 'thread-fixture:1',
-      resume: true,
-      model: 'claude-fixture',
-      systemPrompt: undefined,
-      outputStyle: undefined,
+      engineKey: 'thread-fixture:1',
       cwd: undefined,
-      mcpComposition: 'thread-control',
-      mcpConfigPaths: undefined,
-      mcpToolAllowlist: undefined,
-      commissionTools: undefined,
-      disableHooks: undefined,
-      streamDeltas: undefined,
-      captureTranscriptLogs: undefined,
-      preserveUnreportedAccounting: undefined,
-      processSpawner: undefined,
-      cliPath: undefined,
-      pinnedEnv: undefined,
-      pluginDirs: undefined,
-      pluginSkillDirs: undefined,
-      mcpServers: undefined,
-      pluginCapabilityFingerprint: undefined,
-      env: undefined,
-      unsetEnv: undefined,
-      extraOption: undefined,
-      claudeBackend: undefined,
-      thinking: undefined,
-      channel: 'thread-fixture',
-      claudeAgent: undefined,
-      callbackSource: undefined,
-      scheduleTaskId: undefined,
-      isUserInitiated: false,
-      rawTools: undefined,
-      anthropicBaseUrl: undefined,
-      browserCdpEndpoint: undefined,
-      piProvider: undefined,
-      piModelMaxTokens: undefined,
-      piGatewayPath: undefined,
-      piGatewayBaseUrl: undefined,
-      cortexContext: {
-        threadId: 'thr_fixture',
-        profile: 'fixture-profile',
-        project: null,
-        sessionName: 'cortex-fixture',
-        trackSessionId: 'tracked-thread',
-        executionId: 'exec-thread',
-        useCoreMcp: true,
-        threadDepth: 1,
-        taskId: 'abcd',
-        taskProject: 'atlas',
-        taskGeneration: 'generation-b',
+      resume: { backendSessionId: '22222222-2222-4222-8222-222222222222', resume: true },
+      model: { id: 'claude-fixture', provider: undefined, thinking: undefined, maxOutputTokens: undefined },
+      prompt: { system: undefined, append: undefined },
+      tools: { canonical: undefined, rawClaude: undefined },
+      plugins: { dirs: undefined, skillDirs: undefined, fingerprint: undefined },
+      mcp: {
+        composition: 'thread-control', servers: undefined, allowlist: undefined,
+        configPaths: undefined, commissionTools: undefined, browserCdpEndpoint: undefined,
       },
-      appendSystemPrompt: undefined,
+      env: {
+        sets: undefined, unsets: undefined, pinned: undefined,
+        context: {
+          threadId: 'thr_fixture',
+          profile: 'fixture-profile',
+          project: null,
+          sessionName: 'cortex-fixture',
+          trackSessionId: 'tracked-thread',
+          executionId: 'exec-thread',
+          useCoreMcp: true,
+          threadDepth: 1,
+          taskId: 'abcd',
+          taskProject: 'atlas',
+          taskGeneration: 'generation-b',
+        },
+      },
+      route: { anthropicBaseUrl: undefined, gatewayBaseUrl: undefined, gatewayPath: undefined },
+      flags: {
+        disableHooks: undefined, streamDeltas: undefined, captureTranscripts: undefined,
+        preserveUnreportedAccounting: undefined, isUserInitiated: false,
+      },
+      context: { channel: 'thread-fixture', callbackSource: undefined, scheduleTaskId: undefined },
+      extraOption: undefined,
+      backend: { kind: 'claude', claudeAgent: undefined, outputStyle: undefined, claudeBackend: undefined },
+      process: { spawner: undefined, cliPath: undefined },
     },
   },
   {
@@ -193,59 +156,42 @@ const cases: Case[] = [
     },
     route: undefined,
     expected: {
-      sessionId: '33333333-3333-4333-8333-333333333333',
-      sessionKey: 'pi-fixture',
-      resume: true,
-      model: 'pi-model',
-      systemPrompt: undefined,
-      outputStyle: undefined,
+      engineKey: 'pi-fixture',
       cwd: undefined,
-      mcpComposition: 'direct',
-      mcpConfigPaths: undefined,
-      mcpToolAllowlist: undefined,
-      commissionTools: undefined,
-      disableHooks: undefined,
-      streamDeltas: undefined,
-      captureTranscriptLogs: undefined,
-      preserveUnreportedAccounting: undefined,
-      processSpawner: undefined,
-      cliPath: undefined,
-      pinnedEnv: undefined,
-      pluginDirs: undefined,
-      pluginSkillDirs: undefined,
-      mcpServers: undefined,
-      pluginCapabilityFingerprint: undefined,
-      env: undefined,
-      unsetEnv: undefined,
-      extraOption: undefined,
-      claudeBackend: 'print',
-      thinking: 'high',
-      channel: 'pi-channel',
-      claudeAgent: undefined,
-      callbackSource: undefined,
-      scheduleTaskId: undefined,
-      isUserInitiated: false,
-      rawTools: undefined,
-      anthropicBaseUrl: undefined,
-      browserCdpEndpoint: undefined,
-      piProvider: 'deepseek',
-      piModelMaxTokens: 4096,
-      piGatewayPath: '/m/pi-mode/deepseek',
-      piGatewayBaseUrl: 'http://127.0.0.1:9880',
-      cortexContext: {
-        threadId: null,
-        profile: 'pi-profile',
-        project: null,
-        sessionName: null,
-        trackSessionId: 'tracked-pi',
-        executionId: 'exec-pi',
-        useCoreMcp: undefined,
-        threadDepth: null,
-        taskId: null,
-        taskProject: null,
-        taskGeneration: null,
+      resume: { backendSessionId: '33333333-3333-4333-8333-333333333333', resume: true },
+      model: { id: 'pi-model', provider: 'deepseek', thinking: 'high', maxOutputTokens: 4096 },
+      prompt: { system: undefined, append: undefined },
+      tools: { canonical: undefined, rawClaude: undefined },
+      plugins: { dirs: undefined, skillDirs: undefined, fingerprint: undefined },
+      mcp: {
+        composition: 'direct', servers: undefined, allowlist: undefined, configPaths: undefined,
+        commissionTools: undefined, browserCdpEndpoint: undefined,
       },
-      appendSystemPrompt: undefined,
+      env: {
+        sets: undefined, unsets: undefined, pinned: undefined,
+        context: {
+          threadId: null,
+          profile: 'pi-profile',
+          project: null,
+          sessionName: null,
+          trackSessionId: 'tracked-pi',
+          executionId: 'exec-pi',
+          useCoreMcp: undefined,
+          threadDepth: null,
+          taskId: null,
+          taskProject: null,
+          taskGeneration: null,
+        },
+      },
+      route: { anthropicBaseUrl: undefined, gatewayBaseUrl: 'http://127.0.0.1:9880', gatewayPath: '/m/pi-mode/deepseek' },
+      flags: {
+        disableHooks: undefined, streamDeltas: undefined, captureTranscripts: undefined,
+        preserveUnreportedAccounting: undefined, isUserInitiated: false,
+      },
+      context: { channel: 'pi-channel', callbackSource: undefined, scheduleTaskId: undefined },
+      extraOption: undefined,
+      backend: { kind: 'pi' },
+      process: { spawner: undefined, cliPath: undefined },
     },
   },
   {
@@ -270,59 +216,44 @@ const cases: Case[] = [
     config: FIXTURE_CONFIG,
     route: undefined,
     expected: {
-      sessionId: '44444444-4444-4444-8444-444444444444',
-      sessionKey: 'subagent-fixture',
-      resume: true,
-      model: 'claude-fixture',
-      systemPrompt: 'Frozen system prompt',
-      outputStyle: undefined,
+      engineKey: 'subagent-fixture',
       cwd: undefined,
-      mcpComposition: 'direct',
-      mcpConfigPaths: ['/fixture/mcp-empty.json'],
-      mcpToolAllowlist: undefined,
-      commissionTools: undefined,
-      disableHooks: true,
-      streamDeltas: false,
-      captureTranscriptLogs: false,
-      preserveUnreportedAccounting: true,
-      processSpawner: undefined,
-      cliPath: '/fixture/bin/claude',
-      pinnedEnv: { PATH: '/usr/bin:/bin', HOME: '/fixture/home', LANG: 'C' },
-      pluginDirs: undefined,
-      pluginSkillDirs: undefined,
-      mcpServers: undefined,
-      pluginCapabilityFingerprint: undefined,
-      env: undefined,
-      unsetEnv: undefined,
-      extraOption: undefined,
-      claudeBackend: undefined,
-      thinking: undefined,
-      channel: 'subagent-channel',
-      claudeAgent: undefined,
-      callbackSource: undefined,
-      scheduleTaskId: undefined,
-      isUserInitiated: false,
-      rawTools: undefined,
-      anthropicBaseUrl: undefined,
-      browserCdpEndpoint: undefined,
-      piProvider: undefined,
-      piModelMaxTokens: undefined,
-      piGatewayPath: undefined,
-      piGatewayBaseUrl: undefined,
-      cortexContext: {
-        threadId: null,
-        profile: null,
-        project: null,
-        sessionName: null,
-        trackSessionId: 'tracked-subagent',
-        executionId: 'exec-subagent',
-        useCoreMcp: undefined,
-        threadDepth: null,
-        taskId: null,
-        taskProject: null,
-        taskGeneration: null,
+      resume: { backendSessionId: '44444444-4444-4444-8444-444444444444', resume: true },
+      model: { id: 'claude-fixture', provider: undefined, thinking: undefined, maxOutputTokens: undefined },
+      prompt: { system: 'Frozen system prompt', append: 'You are a frozen role.\nDo only the assigned work.' },
+      tools: { canonical: undefined, rawClaude: undefined },
+      plugins: { dirs: undefined, skillDirs: undefined, fingerprint: undefined },
+      mcp: {
+        composition: 'direct', servers: undefined, allowlist: undefined,
+        configPaths: ['/fixture/mcp-empty.json'], commissionTools: undefined,
+        browserCdpEndpoint: undefined,
       },
-      appendSystemPrompt: 'You are a frozen role.\nDo only the assigned work.',
+      env: {
+        sets: undefined, unsets: undefined,
+        pinned: { PATH: '/usr/bin:/bin', HOME: '/fixture/home', LANG: 'C' },
+        context: {
+          threadId: null,
+          profile: null,
+          project: null,
+          sessionName: null,
+          trackSessionId: 'tracked-subagent',
+          executionId: 'exec-subagent',
+          useCoreMcp: undefined,
+          threadDepth: null,
+          taskId: null,
+          taskProject: null,
+          taskGeneration: null,
+        },
+      },
+      route: { anthropicBaseUrl: undefined, gatewayBaseUrl: undefined, gatewayPath: undefined },
+      flags: {
+        disableHooks: true, streamDeltas: false, captureTranscripts: false,
+        preserveUnreportedAccounting: true, isUserInitiated: false,
+      },
+      context: { channel: 'subagent-channel', callbackSource: undefined, scheduleTaskId: undefined },
+      extraOption: undefined,
+      backend: { kind: 'claude', claudeAgent: undefined, outputStyle: undefined, claudeBackend: undefined },
+      process: { spawner: undefined, cliPath: '/fixture/bin/claude' },
     },
   },
   {
@@ -353,59 +284,48 @@ const cases: Case[] = [
       CLAUDE_CODE_OAUTH_TOKEN: null,
     },
     expected: {
-      sessionId: '55555555-5555-4555-8555-555555555555',
-      sessionKey: 'web:browser-fixture',
-      resume: true,
-      model: 'claude-fixture',
-      systemPrompt: undefined,
-      outputStyle: 'concise',
+      engineKey: 'web:browser-fixture',
       cwd: undefined,
-      mcpComposition: 'direct',
-      mcpConfigPaths: undefined,
-      mcpToolAllowlist: undefined,
-      commissionTools: true,
-      disableHooks: undefined,
-      streamDeltas: undefined,
-      captureTranscriptLogs: undefined,
-      preserveUnreportedAccounting: undefined,
-      processSpawner: undefined,
-      cliPath: undefined,
-      pinnedEnv: undefined,
-      pluginDirs: undefined,
-      pluginSkillDirs: undefined,
-      mcpServers: undefined,
-      pluginCapabilityFingerprint: undefined,
-      env: { ANTHROPIC_API_KEY: 'sk-route-fixture', EXTRA_ONE: '1' },
-      unsetEnv: ['CLAUDE_CODE_OAUTH_TOKEN'],
-      extraOption: { foo: 'bar' },
-      claudeBackend: 'print',
-      thinking: 'medium',
-      channel: 'web:browser-fixture',
-      claudeAgent: 'my-agent',
-      callbackSource: 'web',
-      scheduleTaskId: 'sched-1',
-      isUserInitiated: true,
-      rawTools: undefined,
-      anthropicBaseUrl: 'http://127.0.0.1:9880/m/plan/anthropic',
-      browserCdpEndpoint: 'ws://127.0.0.1:9222/devtools/browser/abc',
-      piProvider: undefined,
-      piModelMaxTokens: undefined,
-      piGatewayPath: undefined,
-      piGatewayBaseUrl: undefined,
-      cortexContext: {
-        threadId: null,
-        profile: 'web-profile',
-        project: null,
-        sessionName: null,
-        trackSessionId: 'tracked-browser',
-        executionId: 'exec-browser',
-        useCoreMcp: undefined,
-        threadDepth: null,
-        taskId: null,
-        taskProject: null,
-        taskGeneration: null,
+      resume: { backendSessionId: '55555555-5555-4555-8555-555555555555', resume: true },
+      model: { id: 'claude-fixture', provider: undefined, thinking: 'medium', maxOutputTokens: undefined },
+      prompt: { system: undefined, append: undefined },
+      tools: { canonical: undefined, rawClaude: undefined },
+      plugins: { dirs: undefined, skillDirs: undefined, fingerprint: undefined },
+      mcp: {
+        composition: 'direct', servers: undefined, allowlist: undefined, configPaths: undefined,
+        commissionTools: true, browserCdpEndpoint: 'ws://127.0.0.1:9222/devtools/browser/abc',
       },
-      appendSystemPrompt: undefined,
+      env: {
+        sets: { ANTHROPIC_API_KEY: 'sk-route-fixture', EXTRA_ONE: '1' },
+        unsets: ['CLAUDE_CODE_OAUTH_TOKEN'],
+        pinned: undefined,
+        context: {
+          threadId: null,
+          profile: 'web-profile',
+          project: null,
+          sessionName: null,
+          trackSessionId: 'tracked-browser',
+          executionId: 'exec-browser',
+          useCoreMcp: undefined,
+          threadDepth: null,
+          taskId: null,
+          taskProject: null,
+          taskGeneration: null,
+        },
+      },
+      route: {
+        anthropicBaseUrl: 'http://127.0.0.1:9880/m/plan/anthropic',
+        gatewayBaseUrl: undefined,
+        gatewayPath: undefined,
+      },
+      flags: {
+        disableHooks: undefined, streamDeltas: undefined, captureTranscripts: undefined,
+        preserveUnreportedAccounting: undefined, isUserInitiated: true,
+      },
+      context: { channel: 'web:browser-fixture', callbackSource: 'web', scheduleTaskId: 'sched-1' },
+      extraOption: { foo: 'bar' },
+      backend: { kind: 'claude', claudeAgent: 'my-agent', outputStyle: 'concise', claudeBackend: 'print' },
+      process: { spawner: undefined, cliPath: undefined },
     },
   },
 ];
@@ -416,38 +336,23 @@ beforeAll(() => {
   resetSettingsForTests();
 });
 
-function roundTrip(c: Case): AgentSpawnConfig {
-  return specToSpawnConfig(buildEngineSpec(c.options, c.config, c.route));
-}
-
 for (const c of cases) {
-  test(`specToSpawnConfig(buildEngineSpec(...)) round-trips exactly: ${c.name}`, () => {
-    assert.deepStrictEqual(roundTrip(c), c.expected);
+  test(`buildEngineSpec emits the captured spec: ${c.name}`, () => {
+    assert.deepStrictEqual(buildEngineSpec(c.options, c.config, c.route), c.expected);
   });
 }
 
-test('buildAgentSpawnConfig delegates through the EngineSpec bridge', () => {
-  for (const c of cases) {
-    assert.deepStrictEqual(
-      buildAgentSpawnConfig(c.options, c.config, c.route),
-      c.expected,
-    );
-  }
-});
-
-test('the bridge keeps rawTools and never synthesizes the canonical tools key the legacy builder omitted', () => {
-  const raw = specToSpawnConfig(buildEngineSpec(
+test('buildEngineSpec keeps a raw tools string on rawClaude and canonical tools on canonical', () => {
+  const raw = buildEngineSpec(
     { ...DIRECT_OPTIONS, tools: 'Read,Bash' }, FIXTURE_CONFIG, undefined,
-  ));
-  assert.equal(raw.rawTools, 'Read,Bash');
-  assert.equal(Object.prototype.hasOwnProperty.call(raw, 'tools'), false);
+  );
+  assert.equal(raw.tools.rawClaude, 'Read,Bash');
+  assert.equal(raw.tools.canonical, undefined);
 
   const canonicalOptions = { ...DIRECT_OPTIONS, tools: ['Read', 'Bash'] };
-  const canonical = specToSpawnConfig(buildEngineSpec(canonicalOptions, FIXTURE_CONFIG, undefined));
-  assert.equal(canonical.rawTools, undefined);
-  assert.equal(Object.prototype.hasOwnProperty.call(canonical, 'tools'), false);
-  // The EngineSpec still carries the canonical list for the P2.1b/c readers.
-  assert.deepEqual(buildEngineSpec(canonicalOptions, FIXTURE_CONFIG, undefined).tools.canonical, ['Read', 'Bash']);
+  const canonical = buildEngineSpec(canonicalOptions, FIXTURE_CONFIG, undefined);
+  assert.equal(canonical.tools.rawClaude, undefined);
+  assert.deepEqual(canonical.tools.canonical, ['Read', 'Bash']);
 });
 
 // --- engineIdentity ---

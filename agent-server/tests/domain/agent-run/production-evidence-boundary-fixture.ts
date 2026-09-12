@@ -10,8 +10,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import type { NormalizedEvent } from '../../../src/agent-adapter/normalize/event-types.js';
-import type { AgentSpawnConfig, Backend } from '../../../src/agent-adapter/types.js';
-import type { ThreadRecord } from '../../../src/core/types/thread-types.js';
+import type { EngineSpec, Backend } from '../../../src/agent-adapter/types.js';import type { ThreadRecord } from '../../../src/core/types/thread-types.js';
 import type { Task } from '../../../src/core/task-parser.js';
 import {
   ProductionAttemptIdentityRepo, type ProductionAttemptIdentityRecord,
@@ -22,7 +21,8 @@ import {
   initializeProductionAttemptJournals, resetProductionAttemptJournals,
   type ProductionAttemptJournalRecord,
 } from '../../../src/domain/agent-run/production-attempt-journal.js';
-import { roleSurfaceFromSpawnConfig } from '../../../src/domain/agent-run/role-surface.js';
+import { roleSurfaceFromSpec } from '../../../src/domain/agent-run/role-surface.js';
+import { engineSpecFixture } from '../../engine-spec-fixture.js';
 import type { ProxyExport } from '../../../src/domain/benchmark/accounting-reconciliation.js';
 import {
   exportProductionBenchmarkEvidence,
@@ -205,16 +205,16 @@ function cost(
   } as CostEntry;
 }
 
-function journalSpawnConfig(): AgentSpawnConfig {
-  return {
+function journalSpec(): EngineSpec {
+  return engineSpecFixture({
     sessionId: null, sessionKey: 'production-boundary', resume: false,
     cwd: process.cwd(), systemPrompt: 'system', tools: ['Read'], pluginDirs: [],
-  };
+  });
 }
 
 function journalRoleHash(): string {
-  return computeRoleToolSurfaceHash(roleSurfaceFromSpawnConfig(
-    journalSpawnConfig(), 'complete the task',
+  return computeRoleToolSurfaceHash(roleSurfaceFromSpec(
+    journalSpec(), 'complete the task',
   ));
 }
 
@@ -223,7 +223,7 @@ function writeJournal(
   events: readonly NormalizedEvent[] | undefined,
 ): ProductionAttemptJournalRecord {
   const sink = createProductionAttemptJournalSink({
-    identity, spawnConfig: journalSpawnConfig(),
+    identity, spec: journalSpec(),
     canonicalInstruction: 'complete the task', message: 'complete the task',
   });
   const observed = events ?? [identity.role === 'direct'
@@ -248,7 +248,7 @@ function appendAttempt(
     ? [...previous].reverse().find(item => item.thread_id === spec.parentThreadId) : null;
   const attemptId = `execution-${spec.executionId}`;
   const identity = repo.append({
-    schema_version: 'cortex-production-attempt-identity/2', trial_id: trialId,
+    schema_version: 'cortex-production-attempt-identity/3', trial_id: trialId,
     root_run_id: rootRunId, attempt_id: attemptId,
     root_attempt_id: rootAttempt?.attempt_id ?? attemptId,
     spawn_parent_attempt_id: sameThread?.attempt_id ?? parentThread?.attempt_id ?? null,

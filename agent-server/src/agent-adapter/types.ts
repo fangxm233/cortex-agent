@@ -7,7 +7,6 @@ import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from 'n
 import type { ProviderUsage } from '../domain/costs/usage-store.js';
 import type { Capability } from './capabilities.js';
 import type { NormalizedEvent, ToolUseSubagent } from './normalize/event-types.js';
-import type { NormalizedHookSpec } from './normalize/hooks.js';
 import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
 
 export type Backend = 'claude' | 'pi';
@@ -59,11 +58,7 @@ export interface EngineSpec {
   extraOption?: Record<string, string>;
   backend:
     | { kind: 'claude'; claudeAgent?: string; outputStyle?: string; claudeBackend?: 'print' | 'tui' }
-    // The PI arm keeps the (inert) Claude-only fields purely so the P2.1a bridge can reproduce
-    // the legacy AgentSpawnConfig exactly: `resolveProfileConfig` sets `claudeBackend` on every
-    // backend, and `options.claudeAgent`/`outputStyle` can be set by any agent definition. No
-    // PI-side code reads them; P2.1c can drop them once AgentSpawnConfig is gone.
-    | { kind: 'pi'; claudeAgent?: string; outputStyle?: string; claudeBackend?: 'print' | 'tui' };
+    | { kind: 'pi' };
   process: { spawner?: AgentProcessSpawner; cliPath?: string };
 }
 
@@ -124,101 +119,6 @@ export type AgentProcessSpawner = (
   args: string[],
   options: SpawnOptionsWithoutStdio,
 ) => SpawnedAgentProcess;
-
-export interface AgentSpawnConfig {
-  sessionId: string | null;
-  /** Used to deduplicate sessions within a channel — multiple thread agents share a channel but need separate sessions. */
-  sessionKey: string;
-  resume: boolean;
-  systemPrompt?: string;
-  appendSystemPrompt?: string;
-  /** Canonical tool names (see normalize/tool-names.ts). Adapter translates to backend-native at spawn time. */
-  tools?: string[];
-  pluginDirs?: string[];
-  pluginSkillDirs?: string[];
-  model?: string;
-  env?: Record<string, string>;
-  /** Keys deleted from the child environment AFTER `env` is applied. Needed because `env` can only
-   *  set: a per-spawn route may require a variable to be absent (plan mode must not carry
-   *  ANTHROPIC_API_KEY), and the empty string cannot serve as a delete sentinel — it is already a
-   *  legal value here (pi/discovery.ts passes PI_CODING_AGENT_DIR: ''). */
-  unsetEnv?: string[];
-  extraOption?: Record<string, string>;
-  mcpServers?: McpServerConfig[];
-  pluginCapabilityFingerprint?: string;
-  hooks?: NormalizedHookSpec[];
-  outputStyle?: string;
-  cwd?: string;
-  mcpComposition?: McpComposition;
-  /** Concrete MCP files for a frozen one-shot role. */
-  mcpConfigPaths?: string[];
-  /** Canonical per-tool MCP allowlist; absent preserves the composition's full surface. */
-  mcpToolAllowlist?: string[];
-  /** Add the two standalone commission-creation tools to the interaction bridge. Set only while a
-   *  NEW commission is being drafted; ignored when the bridge is off. */
-  commissionTools?: boolean;
-  /** Suppress ambient lifecycle hooks for an isolated one-shot role. */
-  disableHooks?: boolean;
-  /** Explicit delta policy avoids loading watched daemon settings in one-shot mode. */
-  streamDeltas?: boolean;
-  /** Disable legacy raw/text transcript files when the required journal is authoritative. */
-  captureTranscriptLogs?: boolean;
-  /** Preserve absent backend cost/usage for provenance-sensitive one-shot runs. */
-  preserveUnreportedAccounting?: boolean;
-  /** Optional process boundary used by daemon-free runs. Ordinary callers spawn directly. */
-  processSpawner?: AgentProcessSpawner;
-  /** Absolute backend CLI path frozen by a trial policy. Absent resolves the CLI from PATH. */
-  cliPath?: string;
-  /** Exact allowlisted child environment for an isolated process. */
-  pinnedEnv?: NodeJS.ProcessEnv;
-
-  // --- Claude-specific passthroughs (task f7cf); other backends ignore these ---
-  /** Channel identifier used for Claude session-pool key fallback. */
-  channel?: string;
-  /** DR-0008 Phase 3 cleanup target. Claude `--agent` CLI flag. */
-  claudeAgent?: string;
-  /** MCP environment and Claude log context. */
-  callbackSource?: string;
-  /** DR-0008 Phase 3 cleanup target. Forwarded to MCP env + Claude log context. */
-  scheduleTaskId?: string;
-  /** DR-0008 Phase 3 cleanup target. */
-  isUserInitiated?: boolean;
-  /** DR-0008 Phase 3 cleanup target. Raw Claude-native comma-separated tool names; bypasses canonical→native translation. */
-  rawTools?: string;
-  /** DR-0008 Phase 3 cleanup target. Per-request ANTHROPIC_BASE_URL override (gateway-routed mode URL). */
-  anthropicBaseUrl?: string;
-  /** CDP endpoint of the browser this session opted into. Present → Playwright MCP is added to the
-   *  spawn; absent → the session has no browser tools at all. */
-  browserCdpEndpoint?: string;
-
-  // --- PI-specific passthroughs; other backends ignore these ---
-  /** PI provider name / protocol (e.g. "anthropic", "deepseek", "openai-codex"). Sourced from the
-   *  active cortex profile's `provider` field (defaults to "anthropic"). PI adapter passes it to the
-   *  subprocess as `--provider <name>`. */
-  piProvider?: string;
-  /** Gateway sub-path for `piProvider`'s models.json override, derived in code as `/m/<mode>/<provider>`
-   *  from the profile's logical `mode` (gateway.yaml owns the route → upstream + keys). Decouples the
-   *  gateway route from the provider name. Omitted (no mode) → adapter defaults to `/<piProvider>`. */
-  piGatewayPath?: string;
-  /** Base URL of the cortex local gateway (e.g. "http://127.0.0.1:9880"). PI adapter writes a
-   *  multi-provider models.json overriding every discovered provider's baseUrl to land on this
-   *  gateway, so PI traffic is monitored / cost-tracked rather than going direct to upstreams. */
-  piGatewayBaseUrl?: string;
-  /** Trial-scoped built-in model output cap, committed by benchmark policy. */
-  piModelMaxTokens?: number;
-
-  /** DR-0012: Claude adapter mode. 'print' (default, -p stream-json) or 'tui' (interactive tmux + jsonl tail).
-   *  Ignored for non-claude backends. Sourced from the active profile's claudeBackend field. */
-  claudeBackend?: 'print' | 'tui';
-
-  /** Thinking level from the active profile's `thinking` field (backend-native value, validated at
-   *  profile load). Claude passes `--effort <level>`; PI passes `--thinking <level>`. */
-  thinking?: string;
-
-  /** Cortex execution context surfaced to MCP children as CORTEX_* environment variables so
-   *  agents can discover their thread, profile, project, and session without guessing. */
-  cortexContext?: CortexContextEnv;
-}
 
 /**
  * Session-level sink for background-task continuation turns (run_in_background Bash/Agent).

@@ -1,4 +1,4 @@
-// input:  typed thread evidence context and resolved production spawn
+// input:  typed thread evidence context and resolved production engine spec
 // output: immutable attempts, spawn topology, and strict reads
 // pos:    Production benchmark identity persistence boundary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -6,7 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { STORE_DIR } from '../../core/paths.js';
-import type { AgentSpawnConfig, Backend } from '../../agent-adapter/types.js';
+import type { Backend, EngineSpec } from '../../agent-adapter/types.js';
 import type { ProductionBenchmarkEvidenceContext } from '../../core/types/thread-types.js';
 import { parseProductionBenchmarkEvidenceContext } from '../../core/production-benchmark-evidence.js';
 import type { RunAgentOptions } from '../agents/spawn-config.js';
@@ -14,12 +14,12 @@ import type { ResolvedProfileConfig } from '../agents/profile-manager.js';
 import {
   computeModelExecutionIdentityHash, computeRoleToolSurfaceHash,
 } from './identity.js';
-import { roleSurfaceFromSpawnConfig } from './role-surface.js';
+import { roleSurfaceFromSpec } from './role-surface.js';
 import {
   initializeProductionAttemptJournals, resetProductionAttemptJournals,
 } from './production-attempt-journal.js';
 
-const RECORD_SCHEMA = 'cortex-production-attempt-identity/2';
+const RECORD_SCHEMA = 'cortex-production-attempt-identity/3';
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const DEFAULT_STORE_PATH = path.join(STORE_DIR, 'benchmark-attempt-identities.jsonl');
 const RECORD_KEYS = [
@@ -76,7 +76,7 @@ interface ActiveIdentityState {
 
 interface FreezeAttemptInput {
   adapterBackend: Backend;
-  spawnConfig: AgentSpawnConfig;
+  spec: EngineSpec;
   options: RunAgentOptions;
   resolvedProfile: ResolvedProfileConfig | undefined;
 }
@@ -377,10 +377,10 @@ function requiredOption(value: unknown, label: string): string {
   return value;
 }
 
-function configuredRouteHost(config: AgentSpawnConfig, backend: Backend): string | null {
+function configuredRouteHost(spec: EngineSpec, backend: Backend): string | null {
   const route = backend === 'pi'
-    ? config.piGatewayBaseUrl
-    : (config.env?.ANTHROPIC_BASE_URL ?? config.anthropicBaseUrl);
+    ? spec.route.gatewayBaseUrl
+    : (spec.env.sets?.ANTHROPIC_BASE_URL ?? spec.route.anthropicBaseUrl);
   if (!route) return null;
   try { return new URL(route).host; } catch {
     throw new Error(`Production benchmark resolved route is invalid: ${route}`);
@@ -388,16 +388,16 @@ function configuredRouteHost(config: AgentSpawnConfig, backend: Backend): string
 }
 
 function assertSpawnMatchesProfile(
-  config: AgentSpawnConfig,
+  spec: EngineSpec,
   profile: ResolvedProfileConfig,
 ): void {
-  if (config.model !== profile.model) {
+  if (spec.model.id !== profile.model) {
     throw new Error('Production benchmark resolved model drifted before adapter spawn');
   }
-  if ((config.thinking ?? null) !== profile.thinking) {
+  if ((spec.model.thinking ?? null) !== profile.thinking) {
     throw new Error('Production benchmark resolved thinking drifted before adapter spawn');
   }
-  if (profile.backend === 'pi' && (config.piProvider ?? null) !== profile.provider) {
+  if (profile.backend === 'pi' && (spec.model.provider ?? null) !== profile.provider) {
     throw new Error('Production benchmark resolved provider drifted before adapter spawn');
   }
 }
@@ -415,16 +415,16 @@ function assertProfile(
     || profile.backend !== input.adapterBackend) {
     throw new Error('Production benchmark backend differs from injected CLI identity');
   }
-  assertSpawnMatchesProfile(input.spawnConfig, profile);
+  assertSpawnMatchesProfile(input.spec, profile);
   return profile;
 }
 
 function maxOutputTokens(
-  config: AgentSpawnConfig,
+  spec: EngineSpec,
   context: ProductionBenchmarkEvidenceContext,
 ): number | null {
   const injected = context.model_execution.max_output_tokens;
-  const resolved = config.piModelMaxTokens ?? null;
+  const resolved = spec.model.maxOutputTokens ?? null;
   if (resolved !== injected) {
     throw new Error('Production benchmark max output token identity drifted');
   }
@@ -496,7 +496,7 @@ function attemptShape(options: RunAgentOptions): AttemptShape {
 
 function modelExecutionHash(
   context: ProductionBenchmarkEvidenceContext,
-  config: AgentSpawnConfig,
+  spec: EngineSpec,
   profile: ResolvedProfileConfig,
 ): string {
   const cli = context.model_execution;
@@ -505,12 +505,12 @@ function modelExecutionHash(
     requestedModel: profile.model,
     modelAliasPolicy: cli.model_alias_policy,
     providerProtocol: profile.provider,
-    configuredRouteBaseHost: configuredRouteHost(config, profile.backend),
+    configuredRouteBaseHost: configuredRouteHost(spec, profile.backend),
     claudeCliVersion: profile.backend === 'claude' ? cli.cli_version : null,
     cliName: cli.cli_name,
     cliVersion: cli.cli_version,
     reasoningEffort: profile.thinking,
-    maxOutputTokens: maxOutputTokens(config, context),
+    maxOutputTokens: maxOutputTokens(spec, context),
     fallbackEmpty: true,
   });
 }
@@ -522,13 +522,13 @@ function attemptModel(
   const profile = assertProfile(input, context);
   const directive = typeof input.options.identityDirective === 'string'
     ? input.options.identityDirective : '';
-  const roleSurface = roleSurfaceFromSpawnConfig(input.spawnConfig, directive);
+  const roleSurface = roleSurfaceFromSpec(input.spec, directive);
   return {
     profile_name: profile.name,
     backend: profile.backend,
     provider: profile.provider,
     requested_model: profile.model,
-    model_execution_identity_hash: modelExecutionHash(context, input.spawnConfig, profile),
+    model_execution_identity_hash: modelExecutionHash(context, input.spec, profile),
     role_tool_surface_hash: computeRoleToolSurfaceHash(roleSurface),
   };
 }

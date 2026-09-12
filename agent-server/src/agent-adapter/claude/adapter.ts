@@ -217,7 +217,7 @@ interface ClaudeSessionOptions {
   pluginDirs?: string[] | null;
   anthropicBaseUrl?: string;
   extraEnv?: Record<string, string>;
-  /** Keys deleted from the child env after `extraEnv` is applied (AgentSpawnConfig.unsetEnv). */
+  /** Keys deleted from the child env after `extraEnv` is applied (EngineSpec.env.unsets). */
   unsetEnv?: string[];
   cwd?: string;
   mcpComposition?: McpComposition;
@@ -1466,7 +1466,7 @@ const sharedTmux = new TmuxControl();
  *  Defaults to 'print' for missing or unrecognized values (conservative — never silently
  *  flips a session into the experimental TUI path). */
 export function selectClaudeMode(spec: EngineSpec): 'print' | 'tui' {
-  return spec.backend.claudeBackend === 'tui' ? 'tui' : 'print';
+  return spec.backend.kind === 'claude' && spec.backend.claudeBackend === 'tui' ? 'tui' : 'print';
 }
 
 function matchesTuiSession(
@@ -1600,17 +1600,18 @@ function supplementalMcpConfig(
 }
 
 function sessionPresentationOptions(spec: EngineSpec): Partial<ClaudeSessionOptions> {
+  const claudeBackend = spec.backend.kind === 'claude' ? spec.backend : undefined;
   return {
     model: spec.model.id ?? null,
     systemPrompt: spec.prompt.system ?? null,
     appendSystemPrompt: spec.prompt.append ?? null,
-    outputStyle: spec.backend.outputStyle ?? null,
+    outputStyle: claudeBackend?.outputStyle ?? null,
     tools: spec.tools.rawClaude ?? canonicalToolsToNative(spec.tools.canonical),
     pluginDirs: spec.plugins.dirs ?? null,
     isUserInitiated: !!spec.flags.isUserInitiated,
     callbackSource: spec.context.callbackSource ?? null,
     scheduleTaskId: spec.context.scheduleTaskId ?? null,
-    claudeAgent: spec.backend.claudeAgent ?? null,
+    claudeAgent: claudeBackend?.claudeAgent ?? null,
     thinking: spec.model.thinking ?? null,
   };
 }

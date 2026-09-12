@@ -2,14 +2,14 @@
 // output: PI run-phase regression: steer form per loop state, deferred turn_complete, refusal acks, session_started placement
 // pos:    PI backend run-phase fixture (plan §9.2 P0.2), freezing today's behaviour before Phase 1.8/2.2
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-import { engineSpecFixture } from '../engine-spec-fixture.js';
+import { engineSpecFixture, type EngineSpecFixtureInput } from '../engine-spec-fixture.js';
 
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
 import { PIAdapter } from '../../src/agent-adapter/pi/adapter.js';
-import type { AgentProcess, AgentSpawnConfig, InjectionAckSink } from '../../src/agent-adapter/types.js';
+import type { AgentProcess, InjectionAckSink } from '../../src/agent-adapter/types.js';
 import type { AgentResult } from '../../src/core/types/agent-types.js';
 import type { NormalizedEvent } from '../../src/agent-adapter/normalize/event-types.js';
 import {
@@ -26,7 +26,7 @@ interface Fixture {
   runtime: FakeRuntime;
 }
 
-function spawnConfig(sessionKey: string): AgentSpawnConfig {
+function spawnConfig(sessionKey: string): EngineSpecFixtureInput {
   return { sessionId: null, sessionKey, resume: false };
 }
 

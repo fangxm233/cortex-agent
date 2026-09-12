@@ -1,4 +1,4 @@
-// input:  resolved spawn prompt, tool gate and plugin runtime trees
+// input:  resolved engine spec prompt, tool gate and plugin runtime trees
 // output: content-addressed role, tool, MCP and guard surface
 // pos:    Anti-divergence identity projection for spawns
 // >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DEFAULT_TOOLS } from '../../agent-adapter/claude/defaults.js';
 import { buildHooksSettings } from '../../agent-adapter/claude/hooks-builder.js';
-import type { AgentSpawnConfig } from '../../agent-adapter/types.js';
+import type { EngineSpec } from '../../agent-adapter/types.js';
 import {
   canonicalJsonSha256, type IdentityJsonValue, type PluginDirIdentityInput,
   type RoleToolSurfaceInput, type SkillIdentityInput,
@@ -109,43 +109,43 @@ function discoveredSkills(pluginDirs: string[], skillDirs: string[]): SkillIdent
   ]);
 }
 
-function spawnedTools(config: AgentSpawnConfig): string[] {
-  if (config.rawTools !== undefined) {
-    return (config.rawTools || DEFAULT_TOOLS).split(',');
+function spawnedTools(spec: EngineSpec): string[] {
+  if (spec.tools.rawClaude !== undefined) {
+    return (spec.tools.rawClaude || DEFAULT_TOOLS).split(',');
   }
-  return config.tools?.length ? config.tools : DEFAULT_TOOLS.split(',');
+  return spec.tools.canonical?.length ? spec.tools.canonical : DEFAULT_TOOLS.split(',');
 }
 
-function hookPolicy(config: AgentSpawnConfig): IdentityJsonValue {
-  if (config.disableHooks === true) return {};
-  const tools = spawnedTools(config).join(',');
+function hookPolicy(spec: EngineSpec): IdentityJsonValue {
+  if (spec.flags.disableHooks === true) return {};
+  const tools = spawnedTools(spec).join(',');
   return buildHooksSettings(tools) as unknown as IdentityJsonValue;
 }
 
-function systemPromptSha256(config: AgentSpawnConfig): string {
-  if (config.appendSystemPrompt === undefined) return sha256(config.systemPrompt ?? '');
+function systemPromptSha256(spec: EngineSpec): string {
+  if (spec.prompt.append === undefined) return sha256(spec.prompt.system ?? '');
   return canonicalJsonSha256({
-    system_prompt: config.systemPrompt ?? '',
-    append_system_prompt: config.appendSystemPrompt,
+    system_prompt: spec.prompt.system ?? '',
+    append_system_prompt: spec.prompt.append,
   });
 }
 
-export function roleSurfaceFromSpawnConfig(
-  config: AgentSpawnConfig,
+export function roleSurfaceFromSpec(
+  spec: EngineSpec,
   directive = '',
 ): RoleToolSurfaceInput {
-  const pluginDirs = config.pluginDirs ?? [];
+  const pluginDirs = spec.plugins.dirs ?? [];
   const surface: RoleToolSurfaceInput = {
-    systemPromptSha256: systemPromptSha256(config),
+    systemPromptSha256: systemPromptSha256(spec),
     directiveSha256: sha256(directive),
-    tools: spawnedTools(config),
-    pluginDirs: pluginIdentities(pluginDirs, config.pluginCapabilityFingerprint),
-    skills: discoveredSkills(pluginDirs, config.pluginSkillDirs ?? []),
-    mcpComposition: config.mcpComposition ?? 'direct',
-    hookPolicy: hookPolicy(config),
+    tools: spawnedTools(spec),
+    pluginDirs: pluginIdentities(pluginDirs, spec.plugins.fingerprint),
+    skills: discoveredSkills(pluginDirs, spec.plugins.skillDirs ?? []),
+    mcpComposition: spec.mcp.composition ?? 'direct',
+    hookPolicy: hookPolicy(spec),
   };
-  if (config.mcpToolAllowlist !== undefined) {
-    surface.mcpToolAllowlist = config.mcpToolAllowlist;
+  if (spec.mcp.allowlist !== undefined) {
+    surface.mcpToolAllowlist = spec.mcp.allowlist;
   }
   return surface;
 }

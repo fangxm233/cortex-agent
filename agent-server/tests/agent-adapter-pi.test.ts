@@ -194,7 +194,7 @@ test('spawn forwards authoritative Cortex thread context to the session env', ()
   proc.kill();
 });
 
-test('spawn forwards AgentSpawnConfig.unsetEnv to the session env', () => {
+test('spawn forwards EngineSpec.env.unsets to the session env', () => {
   const prevKey = process.env.ANTHROPIC_API_KEY;
   process.env.ANTHROPIC_API_KEY = 'sk-ant-inherited';
   const fake = makeFakeRuntimeFactory();

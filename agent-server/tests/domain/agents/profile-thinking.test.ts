@@ -12,7 +12,7 @@ import {
   resolveProfileConfig,
 } from '../../../src/domain/agents/profile-manager.js';
 import { profileRepo, PROFILES_FILE } from '../../../src/store/profile-repo.js';
-import { _test as facadeTest } from '../../../src/domain/agents/facade.js';
+import { buildEngineSpec } from '../../../src/domain/runs/engine-spec.js';
 
 function withProfiles(data: unknown): void {
   writeFileSync(PROFILES_FILE, JSON.stringify(data));
@@ -135,24 +135,24 @@ test('resolveProfileConfig: fallback thinking is explicit-only (no inheritance f
   assert.equal(cfg.fallback[1].thinking, 'low');
 });
 
-// --- facade: thinking reaches AgentSpawnConfig ---
+// --- facade: thinking reaches EngineSpec ---
 
-test('buildSpawnConfig passes thinking through to the spawn config', () => {
-  const spawn = facadeTest.buildSpawnConfig(
+test('buildEngineSpec passes thinking through to the engine spec', () => {
+  const spec = buildEngineSpec(
     { sessionKey: 'k' },
     { model: 'm', backend: 'claude', mode: null, thinking: 'high' },
     undefined,
   );
-  assert.equal(spawn.thinking, 'high');
+  assert.equal(spec.model.thinking, 'high');
 });
 
-test('buildSpawnConfig omits thinking when unset (backward compat)', () => {
-  const spawn = facadeTest.buildSpawnConfig(
+test('buildEngineSpec omits thinking when unset (backward compat)', () => {
+  const spec = buildEngineSpec(
     { sessionKey: 'k' },
     { model: 'm', backend: 'claude', mode: null },
     undefined,
   );
-  assert.equal(spawn.thinking, undefined);
+  assert.equal(spec.model.thinking, undefined);
 });
 
 test('PI maxOutputTokens is validated and propagated into the resolved spawn', () => {
@@ -166,16 +166,16 @@ test('PI maxOutputTokens is validated and propagated into the resolved spawn', (
   });
   const resolved = resolveProfileConfig('d');
   assert.equal(resolved.maxOutputTokens, 4096);
-  const spawn = facadeTest.buildSpawnConfig({ sessionKey: 'k' }, resolved, undefined);
-  assert.equal(spawn.piModelMaxTokens, 4096);
+  const spec = buildEngineSpec({ sessionKey: 'k' }, resolved, undefined);
+  assert.equal(spec.model.maxOutputTokens, 4096);
 });
 
-test('buildSpawnConfig preserves the openai-codex provider for a PI profile', () => {
-  const spawn = facadeTest.buildSpawnConfig(
+test('buildEngineSpec preserves the openai-codex provider for a PI profile', () => {
+  const spec = buildEngineSpec(
     { sessionKey: 'k' },
     { model: 'gpt-5.4-mini', backend: 'pi', mode: 'openai-codex', provider: 'openai-codex' },
     undefined,
   );
-  assert.equal(spawn.piProvider, 'openai-codex');
-  assert.equal(spawn.piGatewayPath, '/m/openai-codex/openai-codex');
+  assert.equal(spec.model.provider, 'openai-codex');
+  assert.equal(spec.route.gatewayPath, '/m/openai-codex/openai-codex');
 });

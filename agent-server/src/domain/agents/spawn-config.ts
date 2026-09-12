@@ -1,16 +1,14 @@
 // input:  run options, agent config, mode route
-// output: AgentSpawnConfig via the EngineSpec bridge plus the legacy option types
-// pos:    Deprecated flat spawn-config bridge (P2.1a); canonical builder is domain/runs/engine-spec.ts
+// output: the legacy option types plus engine-spec helper re-exports
+// pos:    Deprecated flat spawn-config module; canonical builder is domain/runs/engine-spec.ts
 // >>> Once updated, update this header and parent CORTEX.md <<<
 
 import type {
-  AgentProcessSpawner, AgentSpawnConfig, Backend, EngineSpec, McpComposition,
+  AgentProcessSpawner, Backend, EngineSpec, McpComposition,
 } from '../../agent-adapter/types.js';
 import type { NormalizedEvent, ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
 import type { AgentResult, ChatNoticeLevel, NoticeAction } from '@core/types/agent-types.js';
 import type { ProductionBenchmarkEvidenceContext } from '@core/types/thread-types.js';
-import { buildEngineSpec, specToSpawnConfig } from '../runs/engine-spec.js';
-import type { ModeEnv } from './config.js';
 import type { ResolvedProfileConfig } from './profile-manager.js';
 
 // The Pi gateway derivation and the scoped-plugin gate now live with the EngineSpec builder in
@@ -153,19 +151,5 @@ export interface RunAgentOptions {
    *  surface tells the main agent's answer from a subagent's working notes. */
   onAssistantMessage?: ((msg: string, blockId?: string, noticeLevel?: ChatNoticeLevel, noticeAction?: NoticeAction, subagent?: ToolUseSubagent) => void) | null;
   onFallback?: (current: AgentConfig, next: AgentConfig, result: AgentResult | null, error?: Error) => Promise<void>;
-}
-
-// --- Spawn config ---
-
-/**
- * @deprecated P2.1a bridge. The canonical builder is now {@link buildEngineSpec}; this stays only
- * until the adapters and identity records move onto {@link EngineSpec} (P2.1b/P2.1c).
- */
-export function buildAgentSpawnConfig(
-  options: RunAgentOptions,
-  config: AgentConfig,
-  route: ModeEnv | undefined,
-): AgentSpawnConfig {
-  return specToSpawnConfig(buildEngineSpec(options, config, route));
 }
 
