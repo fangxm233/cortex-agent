@@ -291,7 +291,7 @@ export function generateDotEnvContent(answers: InitAnswers): string {
 
 // ─── Configuration generation ────────────────────────────────────
 
-/** Generate default mode.json content (compact JSON, single line). */
+/** Generate default agent-state.json content (compact JSON, single line). */
 export function generateDefaultModeJson(primaryBackend: InitBackend = 'claude'): string {
   return JSON.stringify({
     mode: 'plan',
@@ -330,7 +330,7 @@ export function formatConfigOutput(paths: InitPaths & { INSTALL_ROOT: string }, 
     `  DATA_DIR:      ${status.dataDirExists ? t('init.config.initialized') : t('init.config.notInitialized')}`,
     `  .env:          ${status.dotEnvExists ? found : missing}`,
     `  mcp-config.json: ${status.mcpConfigExists ? found : missing}`,
-    `  mode.json:     ${status.modeJsonExists ? found : missing}`,
+    `  agent-state:   ${status.modeJsonExists ? found : missing}`,
   ];
   return lines.join('\n');
 }
@@ -1407,9 +1407,10 @@ export function generateConfigs(paths: InitPaths, answers: InitAnswers, force: b
   // MCP configs — always regenerate (machine-specific, in .gitignore)
   writeMcpConfigs(paths.CONFIG_DIR);
 
-  // mode.json — skip if exists (user may have customized)
-  const modeJsonPath = path.join(paths.STORE_DIR, 'mode.json');
-  if (!existsSync(modeJsonPath) || force) {
+  // agent-state.json — skip if it (or the pre-P3.1a mode.json) exists; the user may have
+  // customized it, and a fresh write here would shadow a home that has not migrated yet.
+  const modeJsonPath = path.join(paths.STORE_DIR, 'agent-state.json');
+  if ((!existsSync(modeJsonPath) && !existsSync(path.join(paths.STORE_DIR, 'mode.json'))) || force) {
     const primaryBackend = answers.backends[0] || 'claude';
     writeFileSync(modeJsonPath, generateDefaultModeJson(primaryBackend));
   }
@@ -1821,21 +1822,22 @@ async function runInitSteps(
     }
   }
 
-  // 8. Patch mode.json activeProfile to match profiles.json defaultProfile
+  // 8. Patch the stored activeProfile to match profiles.json defaultProfile
   try {
     const profilesJsonPath = path.join(paths.CONFIG_DIR, 'profiles.json');
-    const modeJsonPath = path.join(paths.STORE_DIR, 'mode.json');
+    const statePath = path.join(paths.STORE_DIR, 'agent-state.json');
+    const modeJsonPath = existsSync(statePath) ? statePath : path.join(paths.STORE_DIR, 'mode.json');
     if (existsSync(profilesJsonPath) && existsSync(modeJsonPath)) {
       const profilesData = JSON.parse(readFileSync(profilesJsonPath, 'utf8'));
       const modeData = JSON.parse(readFileSync(modeJsonPath, 'utf8'));
       if (modeData.activeProfile === '__active__' && profilesData.defaultProfile) {
         modeData.activeProfile = profilesData.defaultProfile;
         writeFileSync(modeJsonPath, JSON.stringify(modeData));
-        log.info(`mode.json activeProfile set to "${profilesData.defaultProfile}"`);
+        log.info(`${path.basename(modeJsonPath)} activeProfile set to "${profilesData.defaultProfile}"`);
       }
     }
   } catch (e) {
-    log.warn(`Failed to update activeProfile in mode.json: ${(e as Error).message}`);
+    log.warn(`Failed to update the stored activeProfile: ${(e as Error).message}`);
   }
 
   // 9. Done

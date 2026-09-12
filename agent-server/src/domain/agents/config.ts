@@ -1,4 +1,4 @@
-// input:  mode/profile, Claude auth files, atomic env writes
+// input:  agent-state selection, Claude auth files, atomic env writes
 // output: mode env, expiring Claude credentials, retry policy
 // pos:    Agent runtime configuration and failure policy
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -14,24 +14,14 @@ import { getProfileModel, resolveProfileConfig } from './profile-manager.js';
 import { GATEWAY_URL, isGatewayHealthy } from '../costs/gateway-manager.js';
 import { classifyAuthError } from '../auth/auth-events.js';
 import { createLogger } from '@core/log.js';
+import { loadAgentState, saveAgentState, type AgentState } from './agent-state.js';
 import type { Backend } from '../../agent-adapter/types.js';
 
 const log = createLogger('config');
 
-const MODE_FILE = path.join(STORE_DIR, 'mode.json');
 const ENV_FILE = path.join(CONFIG_DIR, '.env');
 const DEFAULT_CLAUDE_MODE = 'plan';
 const DEFAULT_CLAUDE_MODEL = 'opus';
-
-export interface ModeFileData {
-  mode?: string;
-  claudeMode?: string;
-  backend?: string;
-  claudeModel?: string;
-  activeProfile?: string | null;
-  defaultAgent?: string | null;
-  channelProfiles?: Record<string, string>;
-}
 
 export interface ApiEnv {
   ANTHROPIC_API_KEY: string | undefined;
@@ -252,46 +242,37 @@ function normalizeClaudeMode(mode: string): string {
   return mode === 'plan' ? 'plan' : 'api';
 }
 
-function loadModeFile(): ModeFileData {
-  try { return JSON.parse(readFileSync(MODE_FILE, 'utf8')); } catch { return {}; }
-}
-
 export function loadMode(): string {
-  const modeState = loadModeFile();
-  if (modeState.claudeMode) return normalizeClaudeMode(modeState.claudeMode);
-  if (modeState.backend === 'claude' && modeState.mode) return normalizeClaudeMode(modeState.mode);
-  return DEFAULT_CLAUDE_MODE;
+  return agentState.claudeMode ?? DEFAULT_CLAUDE_MODE;
 }
 
 export function loadBackend(): Backend {
-  const backend = loadModeFile().backend;
-  return backend === 'pi' ? 'pi' : 'claude';
+  return agentState.backend === 'pi' ? 'pi' : 'claude';
 }
 
-function loadClaudeModel(): string {
-  const modeState = loadModeFile();
-  return modeState.claudeModel || DEFAULT_CLAUDE_MODEL;
-}
-
-function loadActiveProfile(): string | null {
-  return loadModeFile().activeProfile || null;
-}
-
-function loadChannelProfiles(): Record<string, string> {
-  return loadModeFile().channelProfiles || {};
-}
-
-function loadDefaultAgent(): string | null {
-  return loadModeFile().defaultAgent || null;
-}
-
+let agentState: AgentState = loadAgentState();
 let claudeMode: string = loadMode();
 let activeBackend: Backend = loadBackend();
-let claudeModel: string = loadClaudeModel();
-let activeProfile: string | null = loadActiveProfile();
-let channelProfiles: Record<string, string> = loadChannelProfiles();
-let defaultAgent: string | null = loadDefaultAgent();
+let claudeModel: string = agentState.claudeModel || DEFAULT_CLAUDE_MODEL;
+let activeProfile: string | null = agentState.activeProfile;
+let channelProfiles: Record<string, string> = agentState.channelProfiles;
+let defaultAgent: string | null = agentState.defaultAgent;
 process.env.CORTEX_CLAUDE_MODEL = claudeModel;
+
+/** Persist every field this module owns. `agentState` stays the one object on disk, so a field
+ *  this module does not know about (channelOverrides, written by the command layer) survives. */
+function persist(): void {
+  agentState = {
+    ...agentState,
+    activeProfile,
+    channelProfiles,
+    defaultAgent,
+    backend: activeBackend,
+    claudeMode: normalizeClaudeMode(claudeMode),
+    claudeModel,
+  };
+  saveAgentState(agentState);
+}
 
 function saveModeFile(
   mode: string,
@@ -300,12 +281,12 @@ function saveModeFile(
   profile: string | null = activeProfile,
   agent: string | null = defaultAgent,
 ): void {
-  const n = normalizeClaudeMode(mode);
-  const data: ModeFileData = { mode: n, claudeMode: n, backend, claudeModel: model };
-  if (profile) data.activeProfile = profile;
-  if (agent) data.defaultAgent = agent;
-  if (Object.keys(channelProfiles).length > 0) data.channelProfiles = channelProfiles;
-  writeFileSync(MODE_FILE, JSON.stringify(data));
+  claudeMode = normalizeClaudeMode(mode);
+  activeBackend = backend;
+  claudeModel = model;
+  activeProfile = profile;
+  defaultAgent = agent;
+  persist();
 }
 
 export function saveMode(mode: string): void {
@@ -531,11 +512,7 @@ export function resolveAgentModel({ profileName = null, modelOverride = null }: 
 }
 
 export function detectBillingMode(): string {
-  try {
-    const modeState = loadModeFile();
-    if (modeState.claudeMode === 'plan' || modeState.mode === 'plan') return 'plan';
-  } catch {}
-  return 'api';
+  return claudeMode === 'plan' ? 'plan' : 'api';
 }
 
 // NOTE: deliberately NO env write at module scope. This module is imported transitively by CLI
@@ -547,5 +524,4 @@ export {
   GATEWAY_ANTHROPIC_URL,
   GATEWAY_MANAGED_KEY_PLACEHOLDER,
   saveModeFile,
-  loadModeFile,
 };

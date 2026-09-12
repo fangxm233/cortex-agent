@@ -222,7 +222,7 @@ test('Test 1: cortex init creates valid directory structure (non-interactive)', 
       path.join(tempDir, 'config', 'mcp-config-tasks.json'),
       path.join(tempDir, 'config', 'mcp-config-manager-qa.json'),
       path.join(tempDir, 'config', 'mcp-config-thread.json'),
-      path.join(tempDir, 'data', 'mode.json'),
+      path.join(tempDir, 'data', 'agent-state.json'),
       // DR-0017 D6 Phase 2.5: thread-templates is a directory (one file per entity)
       path.join(tempDir, 'config', 'thread-templates', 'templates', 'default.json'),
       path.join(tempDir, 'config', 'thread-templates', 'shells', 'worker-review.json'),
@@ -261,8 +261,8 @@ test('Test 1: cortex init creates valid directory structure (non-interactive)', 
     assert.equal(typeof localEntry.gpuCount, 'number', 'local entry should have gpuCount');
     assert.ok(localEntry.gpuCount >= 0, 'gpuCount should be non-negative');
 
-    // Assert mode.json is valid JSON with expected fields
-    const modeContent = readFileSync(path.join(tempDir, 'data', 'mode.json'), 'utf-8');
+    // Assert agent-state.json is valid JSON with expected fields
+    const modeContent = readFileSync(path.join(tempDir, 'data', 'agent-state.json'), 'utf-8');
     const mode = JSON.parse(modeContent);
     assert.equal(mode.backend, 'claude');
     assert.equal(mode.mode, 'plan');
@@ -395,8 +395,8 @@ test('Test 3: Initialized environment has correct config content', async () => {
   try {
     await cortexInit(tempDir, 'claude\nnone\nn\nn\nn\nn\n');
 
-    // Verify mode.json content
-    const mode = JSON.parse(readFileSync(path.join(tempDir, 'data', 'mode.json'), 'utf-8'));
+    // Verify agent-state.json content
+    const mode = JSON.parse(readFileSync(path.join(tempDir, 'data', 'agent-state.json'), 'utf-8'));
     assert.equal(mode.backend, 'claude');
     assert.equal(mode.mode, 'plan');
     assert.equal(mode.claudeModel, 'opus');

@@ -140,9 +140,9 @@ function sectionRuntime(deps: DoctorDeps): DoctorSection {
     ? { id: 'git', label: 'git', status: 'pass', detail: 'found on PATH' }
     : { id: 'git', label: 'git', status: 'fail', detail: 'not found on PATH', hint: 'Install git — required for context sync' });
 
-  // Backend runtime, per mode.json backend selection. PI runs in-process from the SDK bundled
+  // Backend runtime, per the stored backend selection. PI runs in-process from the SDK bundled
   // with this package, so only the Claude backend still needs a CLI on PATH.
-  const modeText = deps.readText(path.join(deps.paths.STORE_DIR, 'mode.json'));
+  const modeText = readAgentStateText(deps);
   let backend = 'claude';
   try { if (modeText) { const m = JSON.parse(modeText); if (typeof m.backend === 'string') backend = m.backend; } } catch { /* fall back to claude */ }
   if (backend === 'pi') {
@@ -194,9 +194,15 @@ function pushEnvAndTokenChecks(
     : { id: 'auth-tokens', label: 'Auth tokens', status: 'fail', detail: `missing: ${missing.join(', ')}`, hint: 'run `cortex doctor --fix` to generate', fixable: true });
 }
 
+/** agent-state.json, falling back to mode.json on a home that has not migrated yet (P3.1a). */
+function readAgentStateText(deps: DoctorDeps): string | null {
+  return deps.readText(path.join(deps.paths.STORE_DIR, 'agent-state.json'))
+    ?? deps.readText(path.join(deps.paths.STORE_DIR, 'mode.json'));
+}
+
 function usesClaudeApiMode(deps: DoctorDeps): boolean {
   try {
-    const parsed = JSON.parse(deps.readText(path.join(deps.paths.STORE_DIR, 'mode.json')) ?? '');
+    const parsed = JSON.parse(readAgentStateText(deps) ?? '');
     return parsed.claudeMode === 'api'
       || (parsed.backend === 'claude' && parsed.mode === 'api');
   } catch {
@@ -232,7 +238,13 @@ function pushAnthropicKeyCheck(
 
 function pushConfigChecks(checks: CheckResult[], deps: DoctorDeps): void {
   const { CONFIG_DIR: config, STORE_DIR: store } = deps.paths;
-  pushJsonCheck(checks, deps, path.join(store, 'mode.json'), 'mode-json', 'mode.json', 'warn');
+  const statePath = path.join(store, 'agent-state.json');
+  const stateLabel = deps.fileExists(statePath) ? 'agent-state.json' : 'mode.json';
+  pushJsonCheck(
+    checks, deps,
+    deps.fileExists(statePath) ? statePath : path.join(store, 'mode.json'),
+    'mode-json', stateLabel, 'warn',
+  );
   checks.push(checkProfiles(deps, path.join(config, 'profiles.json')));
   const mcpPath = path.join(config, 'mcp-config.json');
   if (!deps.fileExists(mcpPath)) {
