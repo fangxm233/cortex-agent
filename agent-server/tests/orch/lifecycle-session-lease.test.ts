@@ -8,11 +8,20 @@ import assert from 'node:assert/strict';
 
 const mockRunAgent = vi.fn();
 
-vi.mock('@domain/agents/index.js', async (importOriginal) => {
+// The continuation paths now go through startRun -> domain/runs -> facade.runAgent, so the spawn
+// is intercepted on the facade module (runAgent is no longer on the agents barrel).
+vi.mock('@domain/agents/facade.js', async (importOriginal) => {
   const orig = await importOriginal<Record<string, unknown>>();
   return {
     ...orig,
     runAgent: (...args: unknown[]) => mockRunAgent(...args),
+  };
+});
+
+vi.mock('@domain/agents/index.js', async (importOriginal) => {
+  const orig = await importOriginal<Record<string, unknown>>();
+  return {
+    ...orig,
     getClaudeMode: () => 'api',
     getActiveProfile: () => 'default',
     resolveBackendForChannel: () => 'claude',

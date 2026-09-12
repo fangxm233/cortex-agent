@@ -14,10 +14,9 @@ import type {
 } from '../../agent-adapter/types.js';
 import type { NormalizedEvent } from '../../agent-adapter/normalize/event-types.js';
 import type { AgentConfig, RunAgentOptions } from '../agents/spawn-config.js';
-// Routed through the agents barrel (not facade.js directly) so test doubles that mock the public
-// barrel — tests/orch/first-turn-interrupt-resume.test.ts — intercept the run's spawn exactly as
-// they did when conversation-runner imported runAgent from the barrel itself.
-import { runAgent } from '../agents/index.js';
+// Imported from the facade directly: `runAgent` is no longer part of the `domain/agents` barrel
+// (only the run layer may start a run). Tests that need to intercept the spawn mock this module.
+import { runAgent } from '../agents/facade.js';
 import {
   continuationSinkToEvents, toRunEvent,
   type RunEvent, type RunPhase,
@@ -153,6 +152,7 @@ export function buildRunAgentOptions(
     sessionId: request.session.backendSessionId,
     trackSessionId: request.session.sessionId,
     sessionKey: request.session.engineKey,
+    ...(request.cwd ? { cwd: request.cwd } : {}),
     channel: request.context.channel,
     executionId,
     sessionName: request.session.sessionName,
@@ -169,6 +169,7 @@ export function buildRunAgentOptions(
     commissionMode: request.context.commissionMode,
     commissionTools: request.context.commissionTools,
     systemPrompt: request.spec.systemPrompt,
+    appendSystemPrompt: request.spec.appendSystemPrompt ?? undefined,
     outputStyle: request.spec.backendOptions.outputStyle ?? null,
     claudeAgent: request.spec.backendOptions.claudeAgent ?? null,
     tools: request.spec.tools,
@@ -217,6 +218,8 @@ export class AgentRunImpl implements AgentRun {
   readonly settled: Promise<RunResult>;
 
   private attemptValue: { index: number; config: AgentConfig };
+  /** Reporting model of the latest raw assistant event, restamped onto the hook's message. */
+  private lastAssistantModel: string | null = null;
   private statusValue: RunStatus = 'starting';
   private phaseValue: RunPhase = 'foreground';
   private numTurnsValue: number | null = null;
@@ -280,6 +283,7 @@ export class AgentRunImpl implements AgentRun {
           onAssistantMessage: (text, blockId, noticeLevel, noticeAction, subagent) => {
             this.absorb({
               type: 'assistant_text', text, phase: this.phaseValue,
+              ...(this.lastAssistantModel ? { model: this.lastAssistantModel } : {}),
               ...(blockId ? { blockId } : {}),
               ...(noticeLevel ? { noticeLevel } : {}),
               ...(noticeAction ? { noticeAction } : {}),
@@ -380,7 +384,12 @@ export class AgentRunImpl implements AgentRun {
     // Assistant prose arrives through the `onAssistantMessage` hook instead: that path carries the
     // facade's `assistantNoticeLevel(text)` classification and interleaves the synthesized notices
     // in the order they were produced. Relaying the raw event too would double every message.
-    if (event.type === 'assistant_text') return;
+    // The raw event is still the only carrier of the reporting model, and the tee runs before the
+    // legacy dispatcher, so remembering it here stamps the very message it belongs to.
+    if (event.type === 'assistant_text') {
+      if (event.model) this.lastAssistantModel = event.model;
+      return;
+    }
     this.absorb(toRunEvent(event, this.phaseValue));
   }
 

@@ -1,8 +1,10 @@
-// input:  turns, mutation leases, results and callbacks
+// input:  turns, mutation leases, results, run service
 // output: snapshot barriers, finalization, exact continuation cost
-// pos:    Agent turn initialization and completion
+// pos:    Agent turn initialization, completion and run-backed continuations
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+import { randomUUID } from 'node:crypto';
 import { createLogger } from '@core/log.js';
+import { getSettings } from '@core/settings.js';
 import { Icons } from '../core/icons.js';
 import { t } from '../core/i18n.js';
 import type { Destination, PlatformAdapter, MessageRef } from '@platform/index.js';
@@ -14,15 +16,19 @@ import { supersededEdits } from './superseded-edits.js';
 import { acquireTurnMutationLock, type TurnMutationRelease } from './turn-mutation-lock.js';
 import { runningExecutions } from '../core/running-executions.js';
 
-import { finalizeLocalExecution, buildSessionTag, buildUserProcessingMessage, makeFallbackNotifier, makeStreamingMessageCallback, computeElapsed, formatMetricsSuffix, writeStatus, sealStatus, buildStatusActionBlocks, buildSealedStatusActionBlocks, initStatusBlocks } from './status-helpers.js';
+import { finalizeLocalExecution, buildSessionTag, buildUserProcessingMessage, makeFallbackLabelNotifier, makeStreamingMessageCallback, computeElapsed, formatMetricsSuffix, writeStatus, sealStatus, buildStatusActionBlocks, buildSealedStatusActionBlocks, initStatusBlocks } from './status-helpers.js';
 import { getSessionAsync, setSessionAsync } from '@domain/sessions/session.js';
 import { sessionStore, effectiveBackendSessionId } from '@store/session-registry-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import * as sessionBackup from '@domain/sessions/session-backup.js';
 import { isOnMessageEndHookConfigured, runMessageEndSessionHook } from '@domain/sessions/session-hooks.js';
-import * as executionRegistry from '@domain/executions/registry.js';
 import * as askUserQuestion from './interactions/ask-user-question.js';
-import { runAgent, getClaudeMode, getActiveProfile, resolveBackendForChannel } from '@domain/agents/index.js';
+import { getClaudeMode, getActiveProfile, resolveBackendForChannel } from '@domain/agents/index.js';
+import { resolveProfileConfig, type ResolvedProfileConfig } from '@domain/agents/profile-manager.js';
+import { startRun } from '@domain/runs/service.js';
+import type { AgentRun } from '@domain/runs/run.js';
+import type { AgentSpec, RunObserver, RunRequest } from '@domain/runs/request.js';
+import type { RunEvent } from '@domain/runs/events.js';
 
 import { setStreamingCallback, clearStreamingCallback } from './routing/hook-bridge.js';
 import { maybeNotifyTurnComplete } from './turn-notify.js';
@@ -336,12 +342,52 @@ async function persistErrorSession(resolvedSessionId: string | null, sessionName
 
 // --- AskUserQuestion resume ---
 
+/** An empty AgentSpec for call sites that only forward a prompt (ask-user resume, edit-retry,
+ *  scheduled auto-compound, hook injection): no system-prompt override, no tools, direct MCP. */
+function emptyRunSpec(): AgentSpec {
+  return {
+    systemPrompt: null, directive: null, promptTemplate: null, tools: null, pluginDirs: [],
+    mcp: { composition: 'direct', allowlist: null }, backendOptions: {},
+  };
+}
+
+/** Synthetic profile for an unknown configured name. Keeps the requested name so the facade still
+ *  rejects it inside the run (after the execution record is opened), while its backend/mode mirror
+ *  the legacy active-backend execution record. */
+function fallbackRunProfile(profileName: string | null, channel: string): ResolvedProfileConfig {
+  return {
+    name: profileName ?? '',
+    model: '',
+    backend: resolveBackendForChannel(channel),
+    mode: getClaudeMode(),
+    provider: null,
+    extraEnv: {}, extraOption: {}, claudeBackend: 'print', thinking: null,
+    maxOutputTokens: null, fallback: [],
+  };
+}
+
+/** Resolve the profile a continuation run spawns, preserving the legacy "open the execution, then
+ *  let the facade reject an unknown name" ordering. */
+function resolveRunProfile(profileName: string | null, channel: string): ResolvedProfileConfig {
+  try {
+    return resolveProfileConfig(profileName);
+  } catch {
+    return fallbackRunProfile(profileName, channel);
+  }
+}
+
+/** Ask-user groups are thread-less in practice, but the legacy facade fell back to
+ *  `shouldAwaitBgInline` (settings-gated, thread-keyed); mirror that decision here. */
+function askBackgroundPolicy(threadId: string | null | undefined): 'inline' | 'none' {
+  return getSettings().bgContinuation && threadId ? 'inline' : 'none';
+}
+
 export async function resumeAskUserQuestionGroup({ adapter, group, responseText }: { adapter: PlatformAdapter; group: { channel: string; sessionId: string; groupId: string; threadId?: string | null }; responseText: string }): Promise<void> {
   let sessionRelease: (() => void) | null = null;
   let statusMsg: MessageRef | null = null;
   const startTime = Date.now();
-  let executionId = null;
-  let handle;
+  let executionId: string | null = null;
+  let run: AgentRun | null = null;
   try {
     sessionRelease = await sessionStore.acquireSessionUse(group.sessionId);
     if (!sessionRelease) {
@@ -350,7 +396,6 @@ export async function resumeAskUserQuestionGroup({ adapter, group, responseText 
     }
     const askDest: Destination = { type: 'interactive-reply', conduit: group.channel, sessionId: group.sessionId };
     statusMsg = await adapter.postMessage(askDest, { text: `${Icons.processing} ${t('status.processingAskResponse')}` });
-    const askBackend = resolveBackendForChannel(group.channel);
     // group.sessionId is the stable track id; resolve the backend resume target + name + project
     // from its registry record. Cost/execution attribution uses the session's bound project, NOT a
     // re-derivation from the response text.
@@ -358,37 +403,56 @@ export async function resumeAskUserQuestionGroup({ adapter, group, responseText 
     const askBackendSessionId = askRec ? effectiveBackendSessionId(askRec) : null;
     const askSessionName = askRec?.name ?? null;
     const askProjectId = askRec?.projectId ?? 'general';
-    const execution = executionRegistry.startLocalExecution({
-      kind: 'local', channel: group.channel,
-      project: askProjectId,
-      trigger: 'ask-user-question',
-      backend: askBackend, billingMode: getClaudeMode(),
-      sessionId: group.sessionId, label: responseText,
-    });
-    executionId = execution.id;
     const askQueue = getOutboundQueue();
     const askDurable = askQueue ? buildDurableHooks(askQueue) : null;
     const onAssistantMsg = makeStreamingMessageCallback(adapter, askDest, null, null, askDurable);
-    handle = runAgent(responseText, { channel: group.channel, sessionId: askBackendSessionId, trackSessionId: group.sessionId, files: [], project: askProjectId, trigger: 'ask-user-question', onAssistantMessage: onAssistantMsg });
-    runningExecutions.register({
-      threadId: group.threadId ?? null,
-      channel: group.channel,
-      agentSlotId: null,
-      executionId,
-      kill: () => handle.kill(),
-      backend: askBackend,
-      trackSessionId: group.sessionId,
-      backendSessionId: handle.sessionId ?? askBackendSessionId,
-      sessionId: handle.sessionId,
-    });
+    const request: RunRequest = {
+      runId: randomUUID(),
+      session: {
+        sessionId: group.sessionId,
+        backendSessionId: askBackendSessionId,
+        // Legacy `runAgent` set no sessionKey, so spawn-config fell back to the channel.
+        engineKey: group.channel,
+        sessionName: askSessionName,
+      },
+      profile: resolveRunProfile(null, group.channel),
+      spec: emptyRunSpec(),
+      prompt: { text: responseText, attachments: [] },
+      context: {
+        channel: group.channel,
+        project: askProjectId,
+        trigger: 'ask-user-question',
+        threadId: group.threadId ?? null,
+        executionKind: 'local',
+        isUserInitiated: false,
+        commissionMode: false,
+        commissionTools: false,
+        scheduleTaskId: null,
+      },
+      policy: {
+        background: askBackgroundPolicy(group.threadId),
+        recordCost: true,
+        hooks: true,
+        loadRules: true,
+        mcpComposition: 'direct',
+        browserCdpEndpoint: null,
+        captureTranscripts: false,
+      },
+    };
+    const observer: RunObserver = {
+      onEvent(event: RunEvent): void {
+        if (event.type === 'assistant_text') onAssistantMsg(event.text);
+      },
+    };
+    run = startRun(request, [observer]);
+    executionId = run.executionId;
     sessionRelease();
     sessionRelease = null;
-    const result = await handle.promise;
-    runningExecutions.complete(executionId, result?.total_cost_usd ?? 0);
+    const result = await run.result;
     await handleAgentSuccess({ result, channel: group.channel, adapter, statusMsg, startTime, userMessage: responseText, executionId, trigger: 'ask-user-question', sessionName: askSessionName, trackSessionId: group.sessionId, projectId: askProjectId, onAssistantMessage: onAssistantMsg });
   } catch (error) {
     if (statusMsg) {
-      await handleAgentError({ error: error as { message: string; cancelled?: boolean }, channel: group.channel, adapter, statusMsg, startTime, executionId, effectiveSessionId: handle?.sessionId });
+      await handleAgentError({ error: error as { message: string; cancelled?: boolean }, channel: group.channel, adapter, statusMsg, startTime, executionId, effectiveSessionId: run?.backendSessionId ?? null });
     } else {
       log.error(`AskUserQuestion resume failed before status creation: ${(error as Error).message}`);
     }
@@ -450,46 +514,69 @@ async function executeRetry(channel: string, text: string, adapter: PlatformAdap
 
 export async function runRetryAgent({ channel, text, adapter, statusMsg, startTime, sessionId, backendSessionId, sessionName, projectId, userMessageTs, retryPrefix, onMessagePosted, retryDest, turnTrackingToken }: { channel: string; text: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; sessionId: string | null; backendSessionId: string | null; sessionName: string | null; projectId: string; userMessageTs: string; retryPrefix: string; onMessagePosted: (ref: MessageRef) => void; retryDest: Destination; turnTrackingToken: TurnTrackingToken }): Promise<void> {
   const agentMessage = normalizeSkillCommandPrefix(text || '');
-  let executionId = null;
-  let handle;
+  let executionId: string | null = null;
+  let run: AgentRun | null = null;
   let sessionRelease: (() => void) | null = null;
   try {
     if (sessionId) {
       sessionRelease = await sessionStore.acquireSessionUse(sessionId);
       if (!sessionRelease) throw new Error(`Session not found or pending deletion: ${sessionId}`);
     }
-    const retryBackend = resolveBackendForChannel(channel);
-    executionId = executionRegistry.startLocalExecution({
-      kind: 'local', channel, project: projectId,
-      trigger: 'edit-retry', backend: retryBackend, billingMode: getClaudeMode(), sessionId, label: agentMessage,
-    }).id;
     const retryQueue = getOutboundQueue();
     const retryDurable = retryQueue ? buildDurableHooks(retryQueue) : null;
     const onAssistantMsg = makeStreamingMessageCallback(adapter, retryDest, null, onMessagePosted, retryDurable);
     setStreamingCallback(channel, onAssistantMsg);
-    handle = runAgent(agentMessage, {
-      channel, sessionId: backendSessionId, trackSessionId: sessionId, files: [], profileName: getActiveProfile(channel),
-      project: projectId, trigger: 'edit-retry',
-      onFallback: makeFallbackNotifier(channel, statusMsg, adapter),
-      isUserInitiated: true, onAssistantMessage: onAssistantMsg,
-      onProgress: buildRetryProgressUpdater(adapter, channel, statusMsg, retryPrefix, startTime, sessionName, sessionId),
-    });
-    runningExecutions.register({
-      threadId: null /* A5: edit-retry — threadId not yet wired; Cancel button will warn */,
-      channel,
-      agentSlotId: null,
-      executionId,
-      kill: () => handle.kill(),
-      backend: retryBackend,
-      trackSessionId: sessionId,
-      backendSessionId: handle.sessionId ?? backendSessionId,
-      sessionId: handle.sessionId,
-    });
+    const progressUpdater = buildRetryProgressUpdater(adapter, channel, statusMsg, retryPrefix, startTime, sessionName, sessionId);
+    const fallbackNotifier = makeFallbackLabelNotifier(statusMsg, adapter);
+    const request: RunRequest = {
+      runId: randomUUID(),
+      session: {
+        sessionId,
+        backendSessionId,
+        // Legacy `runAgent` set no sessionKey, so spawn-config fell back to the channel.
+        engineKey: channel,
+        sessionName,
+      },
+      profile: resolveRunProfile(getActiveProfile(channel), channel),
+      spec: emptyRunSpec(),
+      prompt: { text: agentMessage, attachments: [] },
+      context: {
+        channel,
+        project: projectId,
+        trigger: 'edit-retry',
+        executionKind: 'local',
+        isUserInitiated: true,
+        commissionMode: false,
+        commissionTools: false,
+        scheduleTaskId: null,
+      },
+      policy: {
+        // Legacy `awaitBackground` was undefined with no threadId -> no inline wait.
+        background: 'none',
+        recordCost: true,
+        hooks: true,
+        loadRules: true,
+        mcpComposition: 'direct',
+        browserCdpEndpoint: null,
+        captureTranscripts: false,
+      },
+    };
+    const observer: RunObserver = {
+      onEvent(event: RunEvent): void {
+        switch (event.type) {
+          case 'assistant_text': onAssistantMsg(event.text); return;
+          case 'turn_progress': progressUpdater({ num_turns: event.numTurns, duration_ms: null }); return;
+          case 'run_fallback': void fallbackNotifier(event.from, event.to); return;
+          default: return;
+        }
+      },
+    };
+    run = startRun(request, [observer]);
+    executionId = run.executionId;
     sessionRelease?.();
     sessionRelease = null;
     finishTurnTracking(channel, turnTrackingToken);
-    const result = await handle.promise;
-    runningExecutions.complete(executionId, result?.total_cost_usd ?? 0);
+    const result = await run.result;
     clearStreamingCallback(channel);
 
     if (result?.rateLimited) {
@@ -508,7 +595,7 @@ export async function runRetryAgent({ channel, text, adapter, statusMsg, startTi
     }
   } catch (error) {
     clearStreamingCallback(channel);
-    await handleAgentError({ error, channel, adapter, statusMsg, startTime, executionId, sessionName, sessionId, effectiveSessionId: handle?.sessionId, userMessageTs });
+    await handleAgentError({ error, channel, adapter, statusMsg, startTime, executionId, sessionName, sessionId, effectiveSessionId: run?.backendSessionId ?? null, userMessageTs });
   } finally {
     sessionRelease?.();
     finishTurnTracking(channel, turnTrackingToken);

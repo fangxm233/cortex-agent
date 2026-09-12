@@ -20,6 +20,9 @@ export type RunResult = AgentResult;
 export interface AgentSpec {
   /** Full system-prompt override; null preserves the backend default. */
   systemPrompt: string | null;
+  /** Extra system text appended after the ambient rules (a subagent role's body). Distinct from
+   *  {@link systemPrompt}, which replaces rather than extends the backend default. */
+  appendSystemPrompt?: string | null;
   /** Role/identity text prepended to the user prompt. */
   directive: string | null;
   /** Template with `{{input}}` / `{{artifactPath}}` vars; null when the caller supplies the prompt. */
@@ -55,6 +58,9 @@ export interface RunRequest {
   };
   profile: ResolvedProfileConfig;
   spec: AgentSpec;
+  /** Working directory the engine runs in. Omitted (undefined) means the server's own cwd, which
+   *  is what every surface except a subagent child wants. Mirrors `EngineSpec.cwd` (plan §3.3). */
+  cwd?: string | null;
   /** Fully assembled user message (prompt text + attachments). */
   prompt: UserMessage;
   context: {

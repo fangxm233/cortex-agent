@@ -1,17 +1,21 @@
-// input:  hook registry/events, agent sessions, OutputStream
+// input:  hook registry/events, agent sessions, run service, OutputStream
 // output: session dispatch, diagnostics, and injection helpers
 // pos:    Dispatches session events and injects prompt results
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import * as path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { emitCortexEvent, type HookEmitResult } from '@core/hook-bus.js';
 import { createLogger } from '@core/log.js';
 import { HOOKS_DIR } from '@core/paths.js';
 import { Icons } from '../../core/icons.js';
 import type { PlatformAdapter, OutputStream } from '@platform/index.js';
-import { runAgent, resolveBackendForChannel } from '@domain/agents/index.js';
+import { resolveBackendForChannel } from '@domain/agents/index.js';
+import { resolveProfileConfig, type ResolvedProfileConfig } from '@domain/agents/profile-manager.js';
+import { startRun } from '@domain/runs/service.js';
+import type { AgentSpec, RunObserver, RunRequest } from '@domain/runs/request.js';
+import type { RunEvent } from '@domain/runs/events.js';
 import { getAdapter } from '../../agent-adapter/index.js';
 import type { Backend } from '../../agent-adapter/index.js';
-import type { AgentHandle } from '@core/types/agent-types.js';
 import { getSessionAsync } from '@domain/sessions/session.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
@@ -114,16 +118,37 @@ export function onNewInjectSessionKey(channel: string): string {
   return `${channel}::onnew-hook`;
 }
 
-/** Injected-turn dependencies — seam for unit tests (default binds the real runAgent + a
+/** Injected-turn dependencies — seam for unit tests (default binds the real run service + a
  *  backend-aware session close). */
 export interface InjectDeps {
-  runAgent: typeof runAgent;
+  startRun: typeof startRun;
   /** Close the pooled session created for the injected turn (by sessionKey). */
   closeInjectedSession: (channel: string, sessionKey: string) => void | Promise<void>;
 }
 
+/** Synthetic profile for an unknown/missing configured name: keeps the requested name so the
+ *  facade still rejects it, while its backend mirrors the channel's live session. */
+function hookInjectionProfile(profileName: string | null, channel: string): ResolvedProfileConfig {
+  try {
+    return resolveProfileConfig(profileName);
+  } catch {
+    return {
+      name: profileName ?? '', model: '', backend: resolveBackendForChannel(channel), mode: null,
+      provider: null, extraEnv: {}, extraOption: {}, claudeBackend: 'print', thinking: null,
+      maxOutputTokens: null, fallback: [],
+    };
+  }
+}
+
+function emptyInjectionSpec(): AgentSpec {
+  return {
+    systemPrompt: null, directive: null, promptTemplate: null, tools: null, pluginDirs: [],
+    mcp: { composition: 'direct', allowlist: null }, backendOptions: {},
+  };
+}
+
 const defaultInjectDeps: InjectDeps = {
-  runAgent,
+  startRun,
   closeInjectedSession: async (channel: string, sessionKey: string) => {
     try {
       await getAdapter(resolveBackendForChannel(channel) as Backend).close(sessionKey);
@@ -146,16 +171,50 @@ export async function runHookInjection(
   const inject = spec.inject;
   if (!inject) return;
   try {
-    const handle: AgentHandle = deps.runAgent(output, {
-      channel: spec.ctx.channel,
-      sessionId: inject.targetSessionId,
-      sessionKey: inject.sessionKey,
-      isUserInitiated: false,
-      profileName: inject.profileName,
-      trigger: inject.trigger ?? `hook:${spec.name}`,
-      onAssistantMessage: (text: string) => stream.emitText(text),
-    });
-    await handle.promise;
+    const request: RunRequest = {
+      runId: randomUUID(),
+      session: {
+        // The injected turn resumes the OLD backend session; the legacy call supplied no separate
+        // track id, so it defaults to the same id.
+        sessionId: inject.targetSessionId,
+        backendSessionId: inject.targetSessionId,
+        // Preserve the exact pool key the legacy `runAgent` call used (onNew: the isolated
+        // `${channel}::onnew-hook`; onMessageEnd: the channel). D4's `<sessionId>::hook` is a
+        // Phase-2 rename; changing the key now would re-pool live sessions.
+        engineKey: inject.sessionKey,
+        sessionName: null,
+      },
+      profile: hookInjectionProfile(inject.profileName, spec.ctx.channel),
+      spec: emptyInjectionSpec(),
+      prompt: { text: output, attachments: [] },
+      context: {
+        channel: spec.ctx.channel,
+        project: 'general',
+        trigger: inject.trigger ?? `hook:${spec.name}`,
+        executionKind: 'local',
+        isUserInitiated: false,
+        commissionMode: false,
+        commissionTools: false,
+        scheduleTaskId: null,
+      },
+      policy: {
+        // Legacy `awaitBackground` was undefined with no threadId -> no inline wait.
+        background: 'none',
+        recordCost: true,
+        hooks: true,
+        loadRules: true,
+        mcpComposition: 'direct',
+        browserCdpEndpoint: null,
+        captureTranscripts: false,
+      },
+    };
+    const observer: RunObserver = {
+      onEvent(event: RunEvent): void {
+        if (event.type === 'assistant_text') stream.emitText(event.text);
+      },
+    };
+    const run = deps.startRun(request, [observer]);
+    await run.result;
   } catch (err: any) {
     const msg = err?.message || String(err);
     log.error(`hook ${spec.name} injected agent failed: ${msg}`);

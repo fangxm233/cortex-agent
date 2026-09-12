@@ -1,7 +1,8 @@
-// input:  executions, threads, platform, runtime settings
+// input:  executions, threads, runs, platform, runtime settings
 // output: status, session, and execution helpers
 // pos:    Builds and serializes status messages and actions
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+import { randomUUID } from 'node:crypto';
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
 import { Icons } from '../core/icons.js';
@@ -10,7 +11,10 @@ import type { Destination, PlatformAdapter, MessageRef, IncomingAttachment, Rich
 import type { AgentResult } from '@core/types/agent-types.js';
 import type { ExecutionRecord } from '@domain/executions/registry.js';
 import * as executionRegistry from '@domain/executions/registry.js';
-import { runAgent } from '@domain/agents/index.js';
+import { resolveProfileConfig } from '@domain/agents/profile-manager.js';
+import { startRun } from '@domain/runs/service.js';
+import type { RunObserver, RunRequest } from '@domain/runs/request.js';
+import type { RunEvent } from '@domain/runs/events.js';
 import { shouldAutoRunCompound, combineFinalOutputs } from '@domain/threads/auto-thread.js';
 import { buildThreadSummary } from '@domain/threads/runner.js';
 import type { ThreadRunResult } from '@domain/threads/runner.js';
@@ -92,17 +96,54 @@ export function makeFallbackNotifier(channel: string, statusMsg: MessageRef | nu
 
 export async function runAutoCompoundForScheduledTask({ baseResult, channel, profileName, project, trigger, onAssistantMessage = null }: { baseResult: AgentResult; channel: string; profileName: string | null; project?: string; trigger?: string; onAssistantMessage?: ((text: string) => void) | null }): Promise<AgentResult> {
   if (!shouldAutoRunCompound(baseResult?.finalOutput)) return baseResult;
-  const compoundHandle = runAgent('/compound-simple', {
-    channel,
-    sessionId: baseResult?.sessionId || null,
-    files: [],
-    scheduleTaskId: null,
-    profileName,
-    project,
-    trigger: trigger ? `${trigger}:compound` : 'auto-compound',
-    onAssistantMessage,
-  });
-  const compoundResult = await compoundHandle.promise;
+  const compoundTrigger = trigger ? `${trigger}:compound` : 'auto-compound';
+  // The compound follow-up is a fresh local run against the same session. Its backend session id
+  // is the base result's id (no separate Cortex track id exists for it), so both the track and the
+  // backend resume target carry it, and the pool key stays the channel exactly as the legacy
+  // `runAgent` call resolved it (sessionKey unset -> channel).
+  const request: RunRequest = {
+    runId: randomUUID(),
+    session: {
+      sessionId: baseResult?.sessionId || null,
+      backendSessionId: baseResult?.sessionId || null,
+      engineKey: channel,
+      sessionName: null,
+    },
+    profile: resolveProfileConfig(profileName),
+    spec: {
+      systemPrompt: null, directive: null, promptTemplate: null, tools: null, pluginDirs: [],
+      mcp: { composition: 'direct', allowlist: null }, backendOptions: {},
+    },
+    prompt: { text: '/compound-simple', attachments: [] },
+    context: {
+      channel,
+      project: project ?? 'general',
+      trigger: compoundTrigger,
+      executionKind: 'local',
+      isUserInitiated: false,
+      commissionMode: false,
+      commissionTools: false,
+      scheduleTaskId: null,
+    },
+    policy: {
+      // The legacy call left `awaitBackground` undefined; with no threadId that resolved to
+      // "do not wait inline" (see shouldAwaitBgInline), so the run never holds for bg work.
+      background: 'none',
+      recordCost: true,
+      hooks: true,
+      loadRules: true,
+      mcpComposition: 'direct',
+      browserCdpEndpoint: null,
+      captureTranscripts: false,
+    },
+  };
+  const observer: RunObserver = {
+    onEvent(event: RunEvent): void {
+      if (event.type === 'assistant_text') onAssistantMessage?.(event.text);
+    },
+  };
+  const run = startRun(request, [observer]);
+  const compoundResult = await run.result;
   return {
     ...baseResult,
     sessionId: compoundResult?.sessionId || baseResult?.sessionId || null,

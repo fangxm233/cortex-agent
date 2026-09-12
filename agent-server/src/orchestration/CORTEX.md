@@ -18,7 +18,7 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | delta-coalescer.ts | stream | batches assistant text deltas for web sessions |
 | dispatch-reconciler.ts | timer | optionally cleans up stale dispatch executions |
 | durable-helpers.ts | util | builds durable post and update hooks |
-| lifecycle.ts | core | finalizes turns and attributes continuation costs |
+| lifecycle.ts | core | finalizes turns, attributes continuation costs, and resumes edit-retry/ask-user turns through startRun |
 | manager-qa.ts | channel | durably relays subtask manager questions and answers |
 | mid-turn-inject.ts | core | Injects turns with remote tool metadata |
 | orchestrator.ts | router | picks the thread or default routing branch |
@@ -33,7 +33,7 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | session-rewind.ts | chat | restores and pins snapshots before Web resend |
 | session-retention-controller.ts | timer | serializes startup and periodic retention sweeps |
 | session-send.ts | chat | forwards admitted Web user turns |
-| status-helpers.ts | helper | builds settings-aware status messages |
+| status-helpers.ts | helper | builds settings-aware status messages; scheduled auto-compound follow-ups run through startRun |
 | superseded-edits.ts | tracker | marks channels superseded by a message edit |
 | thread-callback.ts | callback | Fences child results and resumes current parents |
 | thread-executor.ts | core | routes threads and buffers downloaded user files |
