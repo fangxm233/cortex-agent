@@ -1,9 +1,12 @@
 Please update me when files in this folder change
 
-Run layer — the backend-neutral event vocabulary and the fully-resolved run request contract.
-Pure types and pure translation; the run state machine, engine pool and service land in P1.2/P1.3.
+Run layer — the backend-neutral event vocabulary, the fully-resolved run request contract, and the
+run ownership object. P1.3 wraps today's facade behind `startRun`; Phases 2–4 replace the engine
+path and migrate every call site.
 
 | filename | role | function |
 |---|---|---|
 | events.ts | core | RunPhase/RunEvent union plus NormalizedEvent and ContinuationSink translation |
 | request.ts | core | RunRequest, AgentSpec, RunObserver and the RunResult alias |
+| run.ts | core | AgentRun state machine wrapping facade.runAgent; phases, results, cancel, fan-out |
+| service.ts | entry | startRun(request, observers) — opens the execution record and returns an AgentRun |
