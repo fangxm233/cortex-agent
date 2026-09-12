@@ -31,7 +31,7 @@ import {
   PI_MCP_COMPOSITION_ENV,
 } from '../src/agent-adapter/pi/session-options.js';
 import type { McpServerConfig } from '../src/agent-adapter/types.js';
-import { MCP_TOOL_ALLOWLIST_ENV, MCP_TOOLS_BY_SERVER } from '../src/core/mcp-tool-gate.js';
+import { MCP_TOOL_ALLOWLIST_ENV, MCP_TOOLS_BY_SERVER, SUBAGENT_TOOLS } from '../src/core/mcp-tool-gate.js';
 
 // --- Test C: mapMcpContent pure unit tests ---
 
@@ -452,7 +452,25 @@ test('the bundled core env carries the session env plus a commission-free gate f
   const allowed = JSON.parse(env[MCP_TOOL_ALLOWLIST_ENV]) as string[];
   assert.ok(allowed.includes('cortex_plan_exit'));
   assert.equal(allowed.includes('cortex_commission_start'), false);
-  assert.equal(coreEnv(buildServerStates({ [PI_MCP_COMPOSITION_ENV]: 'direct' }))[MCP_TOOL_ALLOWLIST_ENV], undefined);
+});
+
+test('PI always gates out the MCP delegation pair so its native agent tool is the only one', () => {
+  // No interaction bridge: the commission exclusion does not apply, and the allowlist exists purely
+  // to hide `agent` / `agent_stop`, which would otherwise collide with PI's in-process tool.
+  const env = coreEnv(buildServerStates({ [PI_MCP_COMPOSITION_ENV]: 'direct' }));
+  const allowed = JSON.parse(env[MCP_TOOL_ALLOWLIST_ENV]) as string[];
+  assert.equal(allowed.includes('agent'), false);
+  assert.equal(allowed.includes('agent_stop'), false);
+  assert.ok(allowed.includes('current_time'));
+  assert.ok(allowed.includes('task_status'));
+
+  // And the exclusion survives alongside the commission gate.
+  const gated = coreEnv(buildServerStates({
+    [PI_MCP_COMPOSITION_ENV]: 'direct', [PI_INTERACTION_BRIDGE_ENV]: '1',
+  }));
+  const both = JSON.parse(gated[MCP_TOOL_ALLOWLIST_ENV]) as string[];
+  assert.equal(both.includes('agent'), false);
+  assert.equal(both.includes('cortex_commission_start'), false);
 });
 
 test('eligible PI sessions register the three shared interaction tool names', async () => {
@@ -836,7 +854,12 @@ test('createMcpBridgeDeps serves the bundled core server in-process and cost_que
   const handle = await deps.spawnClient(core);
   try {
     const { tools } = await handle.client.listTools();
-    const expected = core.source.bundles.flatMap(bundle => MCP_TOOLS_BY_SERVER[bundle] ?? []).sort();
+    // Everything the bundles declare except the delegation pair, which PI gates out in favour of
+    // its own in-process `agent` tool.
+    const expected = core.source.bundles
+      .flatMap(bundle => MCP_TOOLS_BY_SERVER[bundle] ?? [])
+      .filter(name => !SUBAGENT_TOOLS.includes(name))
+      .sort();
     assert.deepEqual(tools.map(tool => tool.name).sort(), expected);
     const result = await handle.client.callTool({ name: 'cost_query', arguments: {} });
     const mapped = (result.content as any[]).map(mapMcpContent);

@@ -11,8 +11,8 @@ implements the `AgentAdapter` interface defined in
 
 | Backend | Status | Engine | Requirement | Feature level |
 |---|---|---|---|---|
-| Claude Code | Supported | `@anthropic-ai/claude-code` | the `claude` binary on `PATH` | Full (10/10 capabilities) |
-| PI | Supported | `@earendil-works/pi-coding-agent`, bundled inside the server package | none beyond a logged-in provider | Full (10/10 capabilities) |
+| Claude Code | Supported | `@anthropic-ai/claude-code` | the `claude` binary on `PATH` | Full (11/11 capabilities) |
+| PI | Supported | `@earendil-works/pi-coding-agent`, bundled inside the server package | none beyond a logged-in provider | Full (11/11 capabilities) |
 
 ## How backends work
 
@@ -35,7 +35,7 @@ backend is running.
 
 ## Feature matrix
 
-Cortex defines ten capabilities that a backend may support. The
+Cortex defines eleven capabilities that a backend may support. The
 orchestration layer checks capabilities before attempting backend-specific
 operations.
 
@@ -51,10 +51,11 @@ operations.
 | `tool-allowlist` | yes | yes | Restrict available tools to a subset |
 | `streaming-deltas` | yes | yes | Publish token-level assistant text during generation |
 | `mid-turn-inject` | yes | yes | Accept user input into a turn already in flight |
+| `subagents` | yes | yes | Host a delegated subagent child, streamed and billed under its parent |
 
 ## Claude Code
 
-The reference backend. Supports all ten capabilities. Two
+The reference backend. Supports all eleven capabilities. Two
 adapter modes are available:
 
 **Print mode** (`claudeBackend: "print"`, default). Uses a persistent
@@ -111,9 +112,9 @@ assembled per session in `extensions.ts`:
   bundles in-process over an in-memory MCP transport pair, bound to a tool
   context built for that one session. Assigned plugin MCP servers and browser
   MCP keep their own stdio children or remote connections.
-- **Tool shims** (`tool-shims.ts`) — registers the PI-local `Agent`,
-  `TodoWrite`, `WebFetch`, and `WebSearch` tools, each subject to the session's
-  tool allowlist.
+- **Tool shims** (`tool-shims.ts`) — registers the PI-local `agent`,
+  `agent_stop`, `TodoWrite`, `WebFetch`, and `WebSearch` tools, each subject to
+  the session's tool allowlist.
 - **Hook bridge** (`hook-bridge.ts`) — mounts the hook-registry entries that
   target the `pi` backend as native PI event handlers, so Cortex hook scripts
   see PI tool events. See [hooks.md](./hooks.md).
@@ -130,21 +131,6 @@ bundle to their in-process Cortex tool set, so PI exposes the same
 TUI and Claude print. Their dialogs travel over PI's extension UI protocol,
 which `ui-context.ts` answers inside the server; see
 [safety-and-approvals.md](./safety-and-approvals.md).
-
-**Subagents.** The PI `Agent` tool runs each subagent on its own nested
-in-process session (`child-session.ts`): an in-memory session that writes no
-transcript, runs headless, and loads only Cortex's own extensions. A role is a
-markdown file with YAML frontmatter under `agents/` in the private PI agent
-directory; `explore`, `general-purpose`, and `plan` ship as defaults. The role
-body is appended to the child's system prompt and its `tools` frontmatter
-becomes the child's tool allowlist. The model is the task's explicit `model`
-when given, then the role's `model`, then the parent session's model. A subagent
-never receives the `Agent` tool itself and its MCP surface is the `cortex-core`
-bundle alone, so it can neither fan out further nor reach thread control. Its
-tool calls, results, and text are forwarded into the parent's transcript
-attributed to the subagent, and its token usage is rolled into the parent's. One
-`Agent` call runs a single task, up to eight in parallel, or up to eight
-chained.
 
 **Credentials.** PI provider credentials are managed by Cortex — `!login pi` in
 chat or **Settings → Accounts** on the web — and stored in PI's own auth file at
@@ -163,6 +149,79 @@ PI provider names are independent of Cortex backend names. In particular,
 `openai-codex` is a supported PI provider (including the
 `openai-codex-responses` API kind); profiles using it still set
 `"backend": "pi"`.
+
+## Subagents
+
+Both backends delegate through one tool, one role table, and one runner, and
+either backend can be the parent or the child. A Claude turn can hand work to a
+PI model and a PI turn can hand work to Claude.
+
+**The tool.** PI registers `agent` and `agent_stop` in-process. Claude gets the
+same pair as MCP tools (`mcp__cortex-core__agent`, `mcp__cortex-core__agent_stop`)
+and its own built-in `Agent` tool is stripped from every spawn, so there is no
+second delegation path the daemon cannot see. One call runs a single task, up to
+eight in parallel, or up to eight chained; `{previous}` in a chained prompt is
+replaced with the previous link's output.
+
+**Roles.** A role is a markdown file with YAML frontmatter in
+`$CORTEX_HOME/config/agents/`. `explore`, `general-purpose`, and `plan` ship as
+defaults and are copied in only if missing, so an edited role always survives an
+upgrade. The role body is appended to the child's system prompt. Its frontmatter
+may set:
+
+| Key | Meaning |
+|---|---|
+| `tools` | Canonical tool names, translated into each backend's own spelling |
+| `model` | `provider/model[:thinking]` for a PI child, a bare model id for a Claude child |
+| `backend` | `claude` or `pi`; absent means "whatever the parent is running" |
+| `mode` | Explicit gateway route for the child; absent falls back to the provider name |
+
+An installation that used PI subagents before unification has its old
+`pi/agents/` directory adopted into the shared table the first time it starts,
+and the old directory is renamed to `pi/agents.migrated` so an edit there cannot
+silently do nothing.
+
+**Choosing the model.** No profile is consulted. The model is the task's
+explicit `model` when given, then the role's `model`, then the parent's own
+model — but only when the child runs the same backend, since a Claude model id
+means nothing to PI and a PI `provider/model` means nothing to Claude.
+
+**What the caller can see.** The `subagent_type`, `model`, and `backend` field
+descriptions are rendered at tool-registration time rather than hardcoded, from
+what this host actually has. Roles come from the live
+`$CORTEX_HOME/config/agents/` table, so a role you add shows up in the next
+session. Claude model ids come from the same table Cortex builds the gateway's
+Anthropic routes from, plus the daemon's current model. A PI parent reads its
+own live model registry; a Claude parent cannot, because its MCP tool runs in a
+sidecar process that has no PI SDK, so the daemon passes down the provider/model
+pairs of its cached scan through the spawn environment. A cold cache simply
+means no PI models are listed yet — the scan is never provoked just to decorate
+a Claude spawn. Roles and
+models each have a character budget, and overflow renders as `(+N more)`. The
+lists are a snapshot, so they do not change mid-session, and they are hints
+rather than a whitelist: an unlisted model id is still accepted and passed
+through. When nothing is known, the descriptions fall back to the generic
+wording, so the tool never fails over a missing catalog.
+
+**Isolation.** A `pi` child is a nested in-process session that writes no
+transcript and runs headless. A `claude` child is a frozen one-shot `claude`
+run: no session to resume, no hooks, no ambient rules, no transcript log. Either
+way the child's MCP surface is the `cortex-core` bundle with the delegation
+tools removed, so it can neither fan out further nor reach thread control.
+
+**What the parent sees.** A child's tool calls, results, and text are streamed
+into the parent's live transcript attributed to the subagent, and its token
+usage is rolled into the parent's. Attribution is best-effort: a run whose
+parent turn has already ended simply stops streaming and still returns its
+answer.
+
+**Background runs.** `run_in_background: true` returns an `agent_id`
+immediately. Cortex holds the session open for the length of the run — the Stop
+button reaches it, and a deferred daemon restart waits for it — and delivers the
+answer as an ordinary turn when it is ready, folding into a live turn if one is
+running. `agent_stop` cancels a run early and discards what it had produced.
+Stopping a session stops its delegated runs too, foreground and background
+alike: children never outlive the turn that asked for them.
 
 ## Remote login
 

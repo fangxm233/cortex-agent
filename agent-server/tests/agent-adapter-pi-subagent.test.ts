@@ -11,9 +11,9 @@ import { afterEach, test, vi } from 'vitest';
 import {
   createSubagentTool,
   MAX_SUBAGENT_TASKS,
-  type SubagentModelOption,
   type SubagentToolDeps,
 } from '../src/agent-adapter/pi/subagent.js';
+import type { SubagentCatalog } from '../src/domain/agents/subagent/catalog.js';
 import type { ChildSessionHandle, ChildSessionRequest } from '../src/agent-adapter/pi/child-session.js';
 import { PI_INTERACTION_BRIDGE_ENV } from '../src/agent-adapter/pi/session-options.js';
 import {
@@ -139,6 +139,9 @@ function createHarness(
 
   const deps: SubagentToolDeps = {
     agentDir,
+    // The role table is shared with the Claude backend and no longer derived from the PI agent
+    // dir, so a test that writes its own roles must say where they are.
+    rolesDir: path.join(agentDir, 'agents'),
     ensureRoles: () => undefined,
     createSession: async (request): Promise<ChildSessionHandle> => {
       const index = calls.length;
@@ -232,8 +235,8 @@ function throughParentStream(notices: SubagentNotice[]) {
   ));
 }
 
-/** Model choices only shape the tool description, so these tools never need a working factory. */
-function describedTool(options: SubagentModelOption[]): any {
+/** The catalog only shapes the tool schema, so these tools never need a working factory. */
+function describedTool(catalog: SubagentCatalog): any {
   const deps: SubagentToolDeps = {
     agentDir: '/nonexistent',
     ensureRoles: () => undefined,
@@ -241,7 +244,13 @@ function describedTool(options: SubagentModelOption[]): any {
     childExtensions: () => [],
     parentEnv: {},
   };
-  return createSubagentTool(deps, options);
+  return createSubagentTool(deps, catalog);
+}
+
+/** The model choices moved from the tool description onto the `model` field, so assertions read
+ *  that field's rendered description instead. */
+function modelField(tool: any): string {
+  return tool.parameters.properties.model.description;
 }
 
 afterEach(() => {
@@ -249,28 +258,46 @@ afterEach(() => {
 });
 
 test('Agent schema bounds and deduplicates provider/model choices', () => {
-  const tool = describedTool([
-    { provider: 'openai-codex', id: 'gpt-5.6-sol' },
-    { provider: 'deepseek', id: 'deepseek-v4-flash' },
-    { provider: 'openai-codex', id: 'gpt-5.6-sol' },
-  ]);
-  assert.equal(tool.description.match(/openai-codex\/gpt-5\.6-sol/g)?.length, 1);
-  assert.match(tool.description, /deepseek\/deepseek-v4-flash/);
+  const tool = describedTool({
+    models: [
+      { backend: 'pi', provider: 'openai-codex', id: 'gpt-5.6-sol' },
+      { backend: 'pi', provider: 'deepseek', id: 'deepseek-v4-flash' },
+      { backend: 'pi', provider: 'openai-codex', id: 'gpt-5.6-sol' },
+    ],
+  });
+  const description = modelField(tool);
+  assert.equal(description.match(/openai-codex\/gpt-5\.6-sol/g)?.length, 1);
+  assert.match(description, /deepseek\/deepseek-v4-flash/);
 
   const manyModels = Array.from({ length: 80 }, (_, index) => ({
+    backend: 'pi' as const,
     provider: 'provider',
     id: `model-${String(index).padStart(3, '0')}`,
   }));
-  const bounded = describedTool(manyModels).description;
+  const bounded = modelField(describedTool({ models: manyModels }));
   assert.match(bounded, /\+\d+ more/);
   assert.ok(bounded.length <= 1_500);
 
-  const overlong = describedTool([
-    { provider: 'a', id: 'x'.repeat(1_300) },
-    { provider: 'z', id: 'short-model' },
-  ]).description;
+  const overlong = modelField(describedTool({
+    models: [
+      { backend: 'pi', provider: 'a', id: 'x'.repeat(1_300) },
+      { backend: 'pi', provider: 'z', id: 'short-model' },
+    ],
+  }));
   assert.match(overlong, /z\/short-model/);
   assert.doesNotMatch(overlong, /x{100}/);
+});
+
+test('roles render in the subagent_type field description when the catalog carries them', () => {
+  const tool = describedTool({
+    roles: [
+      { name: 'explore', summary: 'Search the codebase' },
+      { name: 'plan', summary: 'Draft a plan' },
+    ],
+  });
+  const described = tool.parameters.properties.subagent_type.description;
+  assert.match(described, /explore — Search the codebase/);
+  assert.match(described, /plan — Draft a plan/);
 });
 
 test('single child runs on a nested session with the role scope, a stripped env, and usage', async () => {

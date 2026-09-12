@@ -22,3 +22,4 @@ session's `CortexToolContext` instead of reading `process.env`.
 | ui-file.ts | tool | Sends Web UI files over bounded loopback |
 | ui-view.ts | tool | Renders Web UI HTML views over bounded loopback |
 | ui-decision.ts | tool | Records agent decisions over bounded loopback |
+| subagent.ts | tool | Delegates through the `agent` / `agent_stop` pair over bounded loopback, describing its fields from the host catalog |

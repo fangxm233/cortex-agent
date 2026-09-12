@@ -29,6 +29,7 @@ import {
 import {
   CORE_MCP_CONFIG,
   DEFAULT_TOOLS,
+  subagentBridgeTools,
   EMPTY_MCP_CONFIG,
   FEISHU_MCP_CONFIG,
   MANAGER_QA_MCP_CONFIG,
@@ -210,6 +211,12 @@ function assertSupplementalCompositionPaths(args: Record<string, string[]>): voi
 
 // --- buildSpawnArgs (pure) ---
 
+/** Every `--tools` list gains the MCP delegation pair, because Cortex removed the native `Agent`
+ *  tool and put its own in place of it. */
+function withAgentTools(tools: string): string {
+  return [tools, ...subagentBridgeTools()].join(',');
+}
+
 test('buildSpawnArgs baseline — no optional flags', () => {
   const args = buildSpawnArgs({
     tools: null,
@@ -232,8 +239,8 @@ test('buildSpawnArgs baseline — no optional flags', () => {
     '--include-partial-messages',
     '--dangerously-skip-permissions', '--permission-mode', 'bypassPermissions',
     '--mcp-config', MCP_CONFIG,
-    '--tools', DEFAULT_TOOLS,
-    '--settings', JSON.stringify({ hooks: buildHooksSettings(DEFAULT_TOOLS) }),
+    '--tools', withAgentTools(DEFAULT_TOOLS),
+    '--settings', JSON.stringify({ hooks: buildHooksSettings(withAgentTools(DEFAULT_TOOLS)) }),
     '--session-id', 'uuid-aaa',
   ];
   assert.deepEqual(args, expected);
@@ -284,14 +291,14 @@ test('buildSpawnArgs with full options — system-prompt, append, model, agent, 
     '--include-partial-messages',
     '--dangerously-skip-permissions', '--permission-mode', 'bypassPermissions',
     '--mcp-config', MCP_CONFIG,
-    '--tools', 'Bash,Read',
+    '--tools', withAgentTools('Bash,Read'),
     '--system-prompt', 'X',
     '--append-system-prompt', 'Y',
     '--model', 'claude-opus-4-6',
     '--agent', 'coder',
     '--plugin-dir', '/a',
     '--plugin-dir', '/b',
-    '--settings', JSON.stringify({ hooks: buildHooksSettings('Bash,Read'), outputStyle: 'z' }),
+    '--settings', JSON.stringify({ hooks: buildHooksSettings(withAgentTools('Bash,Read')), outputStyle: 'z' }),
     '--resume', 'uuid-bbb',
   ];
   assert.deepEqual(args, expected);
@@ -645,7 +652,11 @@ test("buildSpawnArgs mode='tui' — omits -p / stream-json flags, layers TUI bri
   assert.ok(resolveClaudeMcpBundles({
     tools: null, needsResume: false, sessionId: 'uuid-tui-1', mode: 'tui',
   }).includes('cortex-interaction-bridge'));
-  assert.ok(args.includes(TUI_TOOLS));
+  assert.deepEqual(
+    args[args.indexOf('--tools') + 1],
+    withAgentTools(TUI_TOOLS),
+    'direct TUI keeps its whitelist and gains the MCP delegation pair',
+  );
   assert.ok(args.includes('--session-id'));
   assert.ok(args.includes('uuid-tui-1'));
 });
@@ -1614,7 +1625,7 @@ test('ClaudeAdapter.spawn: full AgentSpawnConfig produces expected CLI args (can
     outputStyle: 'z',
   });
   // Canonical tools → native names: bash→Bash, read→Read, ask_user_question→AskUserQuestion
-  const nativeTools = 'Bash,Read,AskUserQuestion';
+  const nativeTools = withAgentTools('Bash,Read,AskUserQuestion');
   const expected = [
     '-p',
     '--input-format', 'stream-json',
@@ -1654,7 +1665,7 @@ test('ClaudeAdapter.spawn: no tools provided → --tools uses DEFAULT_TOOLS', ()
   });
   const toolsIdx = args.indexOf('--tools');
   assert.ok(toolsIdx >= 0, '--tools flag must appear');
-  assert.equal(args[toolsIdx + 1], DEFAULT_TOOLS);
+  assert.equal(args[toolsIdx + 1], withAgentTools(DEFAULT_TOOLS));
 });
 
 // Regression: appendSystemPrompt must be propagated through deriveClaudeSpawnOptions()

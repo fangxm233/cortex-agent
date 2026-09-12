@@ -1,5 +1,5 @@
 // input:  vitest, cancel seams, foreground session start, bgHeldSessions
-// output: Stop and foreground-supersession background-hold regressions
+// output: Stop / foreground-supersession background-hold regressions + subagent-run cancellation
 // pos:    Background-hold cancellation and busy-release regression tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
@@ -11,7 +11,8 @@ import './../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.
 import { test, beforeEach } from 'vitest';
 import assert from 'node:assert/strict';
 
-import { cancelBgHolds } from '../../src/orchestration/routing/commands/cancel.js';
+import { cancelBgHolds, cancelSubagentRuns } from '../../src/orchestration/routing/commands/cancel.js';
+import type { RunningExecution } from '../../src/core/running-executions.js';
 import { beginForegroundSession } from '../../src/orchestration/agent-runner.js';
 import { bgHeldSessions } from '../../src/core/bg-held-sessions.js';
 
@@ -106,4 +107,90 @@ test('new foreground turn releases the old hold before publishing running:true',
   });
   assert.deepEqual(order, ['release-old-hold', 'publish-running', 'publish-running-again'],
     'the old hold releases exactly once');
+});
+
+// --- cancelSubagentRuns: Stop must also reach delegated `agent` runs ---------------------------
+//
+// Subagent runs are keyed by Cortex session, this path by channel, so the bridge is the executions'
+// track ids plus the channel's bg holds. Everything below drives that bridge through injected
+// seams — the registry itself is covered by tests/subagent-background.test.ts.
+
+/** A live execution, reduced to the two fields the session bridge reads. */
+function exec(fields: Partial<RunningExecution>): RunningExecution {
+  return {
+    threadId: null, channel: 'web:live', registryKey: 'k', agentSlotId: null, executionId: null,
+    kind: null, kill: () => true, startTime: 0, backend: 'claude', ...fields,
+  } as RunningExecution;
+}
+
+test('stops the runs of every session on the channel — executions and holds together', () => {
+  const asked: string[] = [];
+  const n = cancelSubagentRuns('web:live', {
+    liveExecutions: () => [exec({ trackSessionId: 'sess-fg' })],
+    heldSessions: () => ['sess-bg'],
+    stopForSession: (s) => { asked.push(s); return 1; },
+  });
+  assert.deepEqual(asked.sort(), ['sess-bg', 'sess-fg'],
+    'a foreground turn and a background hold can own runs at the same time');
+  assert.equal(n, 2, 'reports what the registry stopped, for the log');
+});
+
+test('one session reached once, however many executions it has live', () => {
+  const asked: string[] = [];
+  cancelSubagentRuns('web:live', {
+    liveExecutions: () => [
+      exec({ trackSessionId: 'sess-1', registryKey: 'a' }),
+      exec({ trackSessionId: 'sess-1', registryKey: 'b' }),
+    ],
+    heldSessions: () => ['sess-1'],
+    stopForSession: (s) => { asked.push(s); return 0; },
+  });
+  assert.deepEqual(asked, ['sess-1'], 'deduped — a thread step beside its parent is still one session');
+});
+
+test('falls back to the legacy session id when there is no track id', () => {
+  const asked: string[] = [];
+  cancelSubagentRuns('web:live', {
+    liveExecutions: () => [exec({ trackSessionId: null, sessionId: 'legacy-1' })],
+    heldSessions: () => [],
+    stopForSession: (s) => { asked.push(s); return 0; },
+  });
+  assert.deepEqual(asked, ['legacy-1']);
+});
+
+test('an execution with no session at all is skipped, not asked about as ""', () => {
+  const asked: string[] = [];
+  const n = cancelSubagentRuns('web:live', {
+    liveExecutions: () => [exec({ trackSessionId: null, sessionId: null })],
+    heldSessions: () => [],
+    stopForSession: (s) => { asked.push(s); return 1; },
+  });
+  assert.deepEqual(asked, []);
+  assert.equal(n, 0);
+});
+
+test('a throwing registry does not abort the sweep — the other sessions still get stopped', () => {
+  const asked: string[] = [];
+  const n = cancelSubagentRuns('web:live', {
+    liveExecutions: () => [exec({ trackSessionId: 'sess-bad' }), exec({ trackSessionId: 'sess-ok', registryKey: 'b' })],
+    heldSessions: () => [],
+    stopForSession: (s) => {
+      asked.push(s);
+      if (s === 'sess-bad') throw new Error('registry exploded');
+      return 1;
+    },
+  });
+  assert.deepEqual(asked, ['sess-bad', 'sess-ok']);
+  assert.equal(n, 1, 'the surviving stop is still counted');
+});
+
+test('Stop on a channel with nothing running never touches the registry', () => {
+  let calls = 0;
+  const n = cancelSubagentRuns('web:idle', {
+    liveExecutions: () => [],
+    heldSessions: () => [],
+    stopForSession: () => { calls++; return 0; },
+  });
+  assert.equal(n, 0);
+  assert.equal(calls, 0);
 });

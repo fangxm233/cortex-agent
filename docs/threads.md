@@ -57,7 +57,7 @@ Each file under `agents/` defines one agent — an independent entity with its o
   "persistSession": false,
   "directive": "You are a research planner. Break down problems into testable hypotheses.",
   "promptTemplate": "file:planner-prompt.md",
-  "tools": "Agent,AskUserQuestion,Bash,Read,Grep,Glob,Write,Edit,WebSearch,WebFetch,Skill",
+  "tools": "AskUserQuestion,Bash,Read,Grep,Glob,Write,Edit,WebSearch,WebFetch,Skill",
   "pluginDirs": ["plugins/cortex-system", "plugins/my-plugin"]
 }
 ```
@@ -74,7 +74,7 @@ Each file under `agents/` defines one agent — an independent entity with its o
 | `promptTemplate` | string? | Template with `{{input}}`, `{{artifactPath}}`, `{{previousOutput}}`, `{{modifiedFiles}}`, `{{currentDateTime}}` variables. Supports `file:` references |
 | `claudeAgent` | string? | Claude Code agent name (`--agent` flag, loads from `.claude/agents/`) |
 | `outputStyle` | string? | Claude Code output style |
-| `tools` | string? | Comma-separated tool list (overrides defaults) |
+| `tools` | string? | Comma-separated tool list (overrides defaults). `Agent` is ignored: Cortex strips it everywhere in favour of the MCP `agent` tool — see [backends.md](./backends.md#subagents) |
 | `pluginDirs` | string[]? | Plugin directories to load (`--plugin-dir` flags) |
 
 ### Multi-Stage Agents

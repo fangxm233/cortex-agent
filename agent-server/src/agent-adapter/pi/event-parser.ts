@@ -4,8 +4,10 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { ContextUsage } from '@core/types/agent-types.js';
-import type { NormalizedEvent, QuestionSpec, ToolUseSubagent } from '../normalize/event-types.js';
+import type { NormalizedEvent, QuestionSpec } from '../normalize/event-types.js';
 import { toCanonical } from '../normalize/tool-names.js';
+import { subagentNoticeEvents } from '@domain/agents/subagent/attribution.js';
+import type { Backend } from '../types.js';
 import { parseTodoWrite } from '../normalize/todo.js';
 
 interface PIPendingCompletion {
@@ -40,6 +42,9 @@ export interface SubagentNotice {
   prompt?: string;
   /** The model that answered, once the child has reported one; never guessed from the parent. */
   model: string | null;
+  /** Which backend actually ran the child. Absent means `pi` — the only producer before children
+   *  could cross backends. Read when a name has to be spelled the way its own backend spells it. */
+  backend?: Backend;
   kind: 'tool_use' | 'tool_result' | 'assistant_text';
   /** Namespaced `${ref}:${childToolCallId}`: parallel children number their calls independently. */
   toolUseId?: string;
@@ -153,7 +158,7 @@ export function piEventToNormalized(
   // --- cortex_subagent_event → the child's tool_use / tool_result / assistant_text, attributed ---
   if (type === 'cortex_subagent_event') {
     const notice = subagentNoticeFrom(ev['notice']);
-    return notice ? subagentEvents(notice) : [];
+    return notice ? subagentNoticeEvents(notice) : [];
   }
 
   // --- extension_error → error (non-fatal) ---
@@ -397,37 +402,6 @@ function subagentNoticeFrom(value: unknown): SubagentNotice | null {
   if (typeof parsed.text !== 'string' || !parsed.text) return null;
   notice.text = parsed.text;
   return notice;
-}
-
-/** One forwarded child event → the normalized event it stands for, attributed to the child that
- *  produced it. `parentToolUseId` is the notice's `ref` (`${agentCallId}#${childIndex}`), so each
- *  child of a parallel batch groups on its own rather than merging into one indistinct block. */
-function subagentEvents(notice: SubagentNotice): NormalizedEvent[] {
-  const subagent: ToolUseSubagent = {
-    parentToolUseId: notice.ref,
-    type: notice.type || null,
-    description: notice.description || null,
-    ...(notice.prompt ? { prompt: notice.prompt } : {}),
-    model: notice.model,
-  };
-  if (notice.kind === 'tool_use') {
-    // A child's tool name is a PI-native label just like the parent's, and the subagent forwards it
-    // raw. Canonicalize it exactly as handleToolExecutionStart does — falling back to the raw name
-    // for tools the map does not know — so one tool never reads two ways depending on who ran it.
-    const name = toCanonical('pi', notice.name!) ?? notice.name!;
-    return [{
-      type: 'tool_use', toolUseId: notice.toolUseId!, name,
-      input: notice.input ?? {}, subagent,
-    }];
-  }
-  if (notice.kind === 'tool_result') {
-    // Results carry no tool name (they join their tool_use by id), so nothing to canonicalize here.
-    return [{
-      type: 'tool_result', toolUseId: notice.toolUseId!,
-      ok: notice.ok !== false, content: notice.content ?? '', subagent,
-    }];
-  }
-  return [{ type: 'assistant_text', text: notice.text!, subagent }];
 }
 
 function handleExtensionUiRequest(ev: Record<string, unknown>): NormalizedEvent[] {

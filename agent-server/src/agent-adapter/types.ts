@@ -269,6 +269,19 @@ export interface AgentProcess {
   /** Register a backend-neutral sink for mid-turn injection lifecycle acks. Persists across turns;
    *  the adapter clears it on session close/kill. */
   setInjectionAckSink?(sink: InjectionAckSink): void;
+  /**
+   * Push an event the backend did not produce into the turn's own event stream.
+   *
+   * This is the attribution seam for work Cortex runs *beside* the turn — today, the children of
+   * the `agent` MCP tool, whose events have no other way into the parent transcript. Only events
+   * that already carry their own attribution (a `subagent` block) belong here; anything else would
+   * be indistinguishable from the main agent's output.
+   *
+   * Returns false when there is no live stream to push into — the turn has ended, or the backend
+   * has no such seam. That is the caller's cue to fall back to a post-turn delivery route, not an
+   * error.
+   */
+  pushTurnEvent?(event: NormalizedEvent): boolean;
   close(): Promise<void>;
   kill(): boolean;
 }

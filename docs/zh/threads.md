@@ -58,7 +58,7 @@
   "persistSession": false,
   "directive": "你是一个研究规划器。将问题分解为可测试的假设。",
   "promptTemplate": "file:planner-prompt.md",
-  "tools": "Agent,AskUserQuestion,Bash,Read,Grep,Glob,Write,Edit,WebSearch,WebFetch,Skill",
+  "tools": "AskUserQuestion,Bash,Read,Grep,Glob,Write,Edit,WebSearch,WebFetch,Skill",
   "pluginDirs": ["plugins/cortex-system", "plugins/my-plugin"]
 }
 ```
@@ -75,7 +75,7 @@
 | `promptTemplate` | string? | 带 `{{input}}`、`{{artifactPath}}`、`{{previousOutput}}`、`{{modifiedFiles}}`、`{{currentDateTime}}` 变量的模板。支持 `file:` 引用 |
 | `claudeAgent` | string? | Claude Code 智能体名称（`--agent` 标志，从 `.claude/agents/` 加载） |
 | `outputStyle` | string? | Claude Code 输出风格 |
-| `tools` | string? | 逗号分隔的工具列表（覆盖默认值） |
+| `tools` | string? | 逗号分隔的工具列表（覆盖默认值）。其中 `Agent` 会被忽略：Cortex 在所有场合剥离它，改用 MCP 的 `agent` 工具——见 [backends.md](./backends.md#subagents) |
 | `pluginDirs` | string[]? | 要加载的插件目录（`--plugin-dir` 标志） |
 
 ### 多阶段智能体 {#multi-stage-agents}

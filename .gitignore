@@ -94,3 +94,6 @@ agent-server/src/data/
 
 # Run-local campaign configs: a committed campaign plus the operator's own paths and ports
 benchmark/campaigns/.run-local-*.yaml
+
+# Node module compile cache written by the test runner
+agent-server/node-compile-cache/

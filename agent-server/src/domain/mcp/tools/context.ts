@@ -5,6 +5,7 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { parseMcpToolAllowlist, MCP_TOOL_ALLOWLIST_ENV } from '@core/mcp-tool-gate.js';
+import { decodeSubagentModels, type SubagentModelOption } from '@domain/agents/subagent/catalog.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 
 /**
@@ -25,6 +26,10 @@ export interface CortexToolContext {
   /** Task-scoped project override for in-task agents (takes precedence over `project`). */
   taskProject: string | null;
   backend: string | null;
+  /** Daemon's current Claude model (CORTEX_CLAUDE_MODEL), null when the host did not set one. */
+  claudeModel: string | null;
+  /** PI provider/model pairs the daemon cached; this process cannot scan PI itself. */
+  subagentPiModels: SubagentModelOption[];
   scheduleTaskId: string | null;
   callbackSource: string | null;
   branchMachine: string | null;
@@ -66,6 +71,8 @@ export function toolContextFromEnv(env: NodeJS.ProcessEnv = process.env): Cortex
     project: optional(env.CORTEX_PROJECT),
     taskProject: optional(env.CORTEX_TASK_PROJECT),
     backend: optional(env.CORTEX_BACKEND),
+    claudeModel: optional(env.CORTEX_CLAUDE_MODEL),
+    subagentPiModels: decodeSubagentModels(env.CORTEX_SUBAGENT_PI_MODELS),
     scheduleTaskId: optional(env.CORTEX_SCHEDULE_TASK_ID),
     callbackSource: optional(env.CORTEX_CALLBACK_SOURCE),
     branchMachine: optional(env.CORTEX_BRANCH_MACHINE),

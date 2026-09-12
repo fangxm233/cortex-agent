@@ -38,6 +38,8 @@ const log = createLogger('pi-adapter');
 /** Discovery that reports nothing when the daemon does not inject its cached scanner. */
 const NO_PROVIDER_DISCOVERY: PIProviderDiscovery = {
   getProviders: () => [],
+  getModels: () => [],
+  peekModels: () => [],
   refresh: () => {},
 };
 
@@ -197,8 +199,38 @@ export class PIAdapter implements AgentAdapter {
     this.writeGatewayProviders(config, agentDir, gatewayBaseUrl);
   }
 
+  /** The PI agent dir this adapter routes and authenticates through. */
+  get agentDir(): string {
+    return this.configuredAgentDir ?? PI_AGENT_DIR;
+  }
+
+  /**
+   * Write a routed `models.json` for one provider without spawning a PI session.
+   *
+   * A nested subagent session reads the catalog off disk, but the catalog is normally written as a
+   * side effect of {@link prepareRequest} — so a `pi` child delegated from a `claude` parent would
+   * find nothing routed for its provider in this daemon's lifetime (plan §3.2). The per-provider
+   * routes this remembers are the same map a later PI spawn merges into, so calling it never
+   * narrows the catalog a live session is already using.
+   */
+  ensureProviderRouting(opts: {
+    provider: string;
+    gatewayPath?: string | null;
+    gatewayBaseUrl: string;
+    model?: string;
+    maxTokens?: number;
+  }): void {
+    this.syncGatewayConfig({
+      piProvider: opts.provider,
+      piGatewayPath: opts.gatewayPath ?? null,
+      piGatewayBaseUrl: opts.gatewayBaseUrl,
+      model: opts.model,
+      piModelMaxTokens: opts.maxTokens,
+    } as unknown as AgentSpawnConfig, this.agentDir);
+  }
+
   private prepareRequest(config: AgentSpawnConfig): PiSessionRequest {
-    const agentDir = this.configuredAgentDir ?? PI_AGENT_DIR;
+    const agentDir = this.agentDir;
     mkdirSync(this.sessionDir, { recursive: true });
     const sessionPath = this.resolveSpawnSessionPath(config, this.sessionDir);
     this.syncGatewayConfig(config, agentDir);
@@ -261,6 +293,13 @@ export class PIAdapter implements AgentAdapter {
       injectUserMessage: (msg) => session.injectUserMessage(msg),
       setInjectionAckSink: (sink) => session.setInjectionAckSink(sink),
       events: turnStreamIterable(turnStream),
+      // Out-of-band attribution (see AgentProcess.pushTurnEvent). Bound to THIS run's queue, so a
+      // late push from an abandoned run cannot leak into the turn that replaced it.
+      pushTurnEvent: (event) => {
+        if (turnStream.isClosed) return false;
+        turnStream.push(event);
+        return true;
+      },
       // Ends this run, not the session: the session is pooled per sessionKey and serves the
       // next turn. Session teardown goes through PIAdapter.close(key) / kill(key), which
       // is what !new, Stop, thread cleanup and rewind reach.

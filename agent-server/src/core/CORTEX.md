@@ -5,6 +5,7 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 
 | filename | role | function |
 |---|---|---|
+| anthropic-models.ts | data | defines the Anthropic model ids the gateway and subagent catalog share |
 | async-mutex.ts | util | serializes concurrent async operations |
 | atomic-write.ts | util | Serializes cancellable atomic file replacements |
 | auth.ts | core | Issues, captures, scrubs and checks shared-secret auth tokens |
@@ -24,7 +25,7 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | loopback-http.ts | transport | Runs bounded MCP-to-daemon JSON requests |
 | mcp-bundles.ts | policy | defines validated built-in MCP compositions |
 | mcp-timeout.ts | config | Defines the shared MCP infrastructure deadline |
-| mcp-tool-gate.ts | policy | canonicalizes and enforces MCP tool allowlists, incl. the commission-tool gate |
+| mcp-tool-gate.ts | policy | canonicalizes and enforces MCP tool allowlists, incl. the commission- and subagent-tool gates |
 | paths.ts | config | defines install, data, config paths and the single agent-cwd resolver |
 | pi-sdk.ts | boundary | lazily imports the bundled PI SDK once (with a boot prewarm), locates its CLI entry and PI's user agent dir |
 | pi-session-filename.ts | util | parses and selects PI transcript filenames |
@@ -33,7 +34,7 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | resilient-watch.ts | util | falls back from filesystem watchers to polling |
 | resume-reminder.ts | data | continuation prompt for interrupted work |
 | runtime-env.ts | config | excludes file-only metadata from runtime env |
-| running-executions.ts | state | indexes live executions and generic dialog processes |
+| running-executions.ts | state | indexes live executions by key and session, plus generic dialog processes |
 | settings-migration.ts | config | safely migrates legacy env settings at startup |
 | settings-spec.ts | contract | Defines runtime settings including Web Feishu skills |
 | settings.ts | config | reloads settings and applies provider/window policy patches |

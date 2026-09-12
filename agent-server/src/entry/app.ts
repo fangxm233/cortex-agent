@@ -120,6 +120,7 @@ import { initOutboundQueue, getOutboundQueue } from '@store/outbound-queue.js';
 import { createUiService } from '@domain/ui-service/index.js';
 import { activeClaudeCaptureRegistry } from '../agent-adapter/claude/active-capture-registry.js';
 import { sendWebUserMessage } from '../orchestration/session-send.js';
+import { setSubagentTurnSender } from '@orch/subagent-delivery.js';
 import { rewindWebSession } from '../orchestration/session-rewind.js';
 import { compactActiveSessionContext, compactSessionContext } from '../orchestration/session-compact.js';
 import { recoverPendingInjections } from '../orchestration/pending-injection-recovery.js';
@@ -817,6 +818,10 @@ process.on('SIGTERM', async () => {
 
   // S13: register hook-bridge event subscribers (bodies extracted to orch/routing/hook-bridge-subscribers.ts)
   registerHookBridgeSubscribers(bus, adapter, planApprovals);
+
+  // A backgrounded `agent` run reports back as an ordinary user turn, the same seam a non-blocking
+  // cortex_ask_user answer uses. Bound here because only the composition root holds the adapter.
+  setSubagentTurnSender(({ channel, text }) => sendWebUserMessage({ channel, text, adapter }));
 
   startMemoryWatcher();
   startDispatchReconciler(getSettings().dispatchReconcilerEnabled);

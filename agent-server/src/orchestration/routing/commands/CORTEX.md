@@ -5,7 +5,7 @@ Each file covers one command family, from sessions and threads to devices, costs
 
 | filename | role | function |
 |---|---|---|
-| cancel.ts | command | stops running executions in a channel |
+| cancel.ts | command | stops running executions, background holds and delegated `agent` runs in a channel |
 | channel.ts | command | manages project registration for channels |
 | command-context.ts | types | shapes of command input and output |
 | compact.ts | command | compacts the current session context |

@@ -81,7 +81,7 @@ test('spawn: a custom provider from the user catalog reaches the spawned PI cata
     const adapter = new PIAdapter(
       stub.spawn,
       pathJoin(dir, 'sessions'),
-      { getProviders: () => ['anthropic'], refresh: () => {} },
+      { getProviders: () => ['anthropic'], refresh: () => {}, getModels: () => [], peekModels: () => [] },
       { agentDir, userModelsPath },
     );
 
@@ -117,7 +117,7 @@ test('spawn: a discovered custom provider is completed even when another provide
     const adapter = new PIAdapter(
       stub.spawn,
       pathJoin(dir, 'sessions'),
-      { getProviders: () => ['anthropic', 'my-vllm'], refresh: () => {} },
+      { getProviders: () => ['anthropic', 'my-vllm'], refresh: () => {}, getModels: () => [], peekModels: () => [] },
       { agentDir, userModelsPath },
     );
 
@@ -147,7 +147,7 @@ test('spawn: an absent user catalog leaves built-in routing untouched', () => {
     const adapter = new PIAdapter(
       stub.spawn,
       pathJoin(dir, 'sessions'),
-      { getProviders: () => ['anthropic'], refresh: () => {} },
+      { getProviders: () => ['anthropic'], refresh: () => {}, getModels: () => [], peekModels: () => [] },
       { agentDir, userModelsPath: pathJoin(dir, 'missing.json') },
     );
 
@@ -176,7 +176,7 @@ test('spawn: DeepSeek child preserves the admitted cap after a model-store refre
     const adapter = new PIAdapter(
       stub.spawn,
       pathJoin(dir, 'sessions'),
-      { getProviders: () => ['deepseek'], refresh: () => {} },
+      { getProviders: () => ['deepseek'], refresh: () => {}, getModels: () => [], peekModels: () => [] },
       { agentDir },
     );
     const spawn = (sessionKey: string) => adapter.spawn({

@@ -1,5 +1,5 @@
 // input:  nothing (pure factory)
-// output: createEventStream<T>() FIFO iterable/push/close
+// output: createEventStream<T>() FIFO iterable/push/close/isClosed
 // pos:    Single-producer queue infrastructure for NormalizedEvent stream
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -7,6 +7,9 @@ export interface EventStream<T> {
   iterable: AsyncIterable<T>;
   push: (value: T) => void;
   close: () => void;
+  /** True once close() has run. `push` is a silent no-op from then on, so anything that needs to
+   *  know whether its event actually landed — an out-of-band producer, say — must ask first. */
+  isClosed: () => boolean;
 }
 
 export function createEventStream<T>(): EventStream<T> {
@@ -50,5 +53,5 @@ export function createEventStream<T>(): EventStream<T> {
     },
   };
 
-  return { iterable, push, close };
+  return { iterable, push, close, isClosed: () => closed };
 }

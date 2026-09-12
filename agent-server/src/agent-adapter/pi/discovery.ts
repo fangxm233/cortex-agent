@@ -1,9 +1,9 @@
 // input:  PI SDK model scan, refresh requests, session filenames
-// output: refreshable provider cache and filename session lookup
-// pos:    PI provider and resume-target discovery
+// output: refreshable provider/model-pair cache and filename session lookup
+// pos:    PI provider, model-pair, and resume-target discovery
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { scanPiAvailableModels } from '@core/gateway-generator.js';
+import { scanPiAvailableModels, type PiDiscoveredModel } from '@core/gateway-generator.js';
 import { createLogger } from '@core/log.js';
 
 // Filename lookup moved out so a trial adapter can resolve a transcript path without importing
@@ -15,15 +15,18 @@ const log = createLogger('pi-adapter');
 export const PI_PROVIDER_CACHE_TTL_MS = 5 * 60_000;
 export const PI_PROVIDER_RETRY_MS = 30_000;
 
-type ProviderScan = () => Promise<string[]>;
+type ModelScan = () => Promise<PiDiscoveredModel[]>;
 
 export interface PIProviderDiscovery {
   getProviders(): string[];
+  getModels(): PiDiscoveredModel[];
+  /** The cached pairs with no refresh side effect — see {@link CachedPIProviderDiscovery.peekModels}. */
+  peekModels(): PiDiscoveredModel[];
   refresh(): void;
 }
 
 export interface PIProviderDiscoveryOptions {
-  scan?: ProviderScan;
+  scan?: ModelScan;
   now?: () => number;
   cacheTtlMs?: number;
   retryMs?: number;
@@ -38,22 +41,38 @@ export async function discoverPIProviders(
 }
 
 class CachedPIProviderDiscovery implements PIProviderDiscovery {
-  private providers: string[] = [];
+  private models: PiDiscoveredModel[] = [];
   private nextRefreshAt = 0;
   private inFlight: Promise<void> | null = null;
   private refreshQueued = false;
 
   constructor(
-    private readonly scan: ProviderScan,
+    private readonly scan: ModelScan,
     private readonly now: () => number,
     private readonly cacheTtlMs: number,
     private readonly retryMs: number,
   ) {}
 
   getProviders(): string[] {
-    const snapshot = [...this.providers];
+    return Array.from(new Set(this.getModels().map((model) => model.provider)));
+  }
+
+  getModels(): PiDiscoveredModel[] {
+    const snapshot = this.peekModels();
     if (this.now() >= this.nextRefreshAt && !this.inFlight) this.startRefresh();
     return snapshot;
+  }
+
+  /**
+   * The snapshot alone, with no refresh kicked.
+   *
+   * A scan loads the PI SDK (~100 MB, seconds of module loading — see `core/pi-sdk.ts`), which a
+   * caller that merely decorates something with PI's models must not provoke: a Claude-only host
+   * would pay for a backend it never uses. Such callers peek and accept an empty answer until a
+   * path that genuinely needs PI has warmed the cache.
+   */
+  peekModels(): PiDiscoveredModel[] {
+    return this.models.map((model) => ({ ...model }));
   }
 
   refresh(): void {
@@ -67,7 +86,7 @@ class CachedPIProviderDiscovery implements PIProviderDiscovery {
   private startRefresh(): void {
     const refresh = Promise.resolve()
       .then(this.scan)
-      .then((providers) => this.accept(providers))
+      .then((models) => this.accept(models))
       .catch((error: unknown) => this.reject(error))
       .finally(() => this.finishRefresh(refresh));
     this.inFlight = refresh;
@@ -81,8 +100,16 @@ class CachedPIProviderDiscovery implements PIProviderDiscovery {
     this.startRefresh();
   }
 
-  private accept(providers: string[]): void {
-    this.providers = Array.from(new Set(providers));
+  private accept(models: PiDiscoveredModel[]): void {
+    const seen = new Set<string>();
+    const deduped: PiDiscoveredModel[] = [];
+    for (const model of models) {
+      const key = `${model.provider}\u0000${model.model}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push({ ...model });
+    }
+    this.models = deduped;
     this.nextRefreshAt = this.now() + this.cacheTtlMs;
   }
 
@@ -97,7 +124,7 @@ export function createPIProviderDiscovery(
   options: PIProviderDiscoveryOptions = {},
 ): PIProviderDiscovery {
   return new CachedPIProviderDiscovery(
-    options.scan ?? (() => discoverPIProviders()),
+    options.scan ?? scanPiAvailableModels,
     options.now ?? Date.now,
     options.cacheTtlMs ?? PI_PROVIDER_CACHE_TTL_MS,
     options.retryMs ?? PI_PROVIDER_RETRY_MS,

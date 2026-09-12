@@ -1843,6 +1843,13 @@ export class ClaudeAdapter implements AgentAdapter {
       setContinuationSink(sink: ContinuationSink): void { session.setContinuationSink(sink); },
       injectUserMessage(message: UserMessage): boolean { return session.injectUserMessage(message); },
       setInjectionAckSink(sink: InjectionAckSink): void { session.setInjectionAckSink(sink); },
+      // Out-of-band attribution (see AgentProcess.pushTurnEvent). The stream is closed the moment
+      // send() settles, so "still open" is exactly "the turn is still running".
+      pushTurnEvent(event: NormalizedEvent): boolean {
+        if (stream.isClosed()) return false;
+        stream.push(event);
+        return true;
+      },
       // Intentionally does NOT call session.close(): sessions are pooled per sessionKey and
       // reused across runAgentOnce turns. Pool-level cleanup goes through ClaudeAdapter.close(key)
       // or the legacy closeSession / closeSessionsByPrefix exports.
@@ -1894,6 +1901,11 @@ export class ClaudeAdapter implements AgentAdapter {
       },
       events: stream.iterable,
       setContinuationSink(sink: ContinuationSink): void { session.setContinuationSink(sink); },
+      pushTurnEvent(event: NormalizedEvent): boolean {
+        if (stream.isClosed()) return false;
+        stream.push(event);
+        return true;
+      },
       async close(): Promise<void> { stream.close(); },
       kill(): boolean { return session.kill(); },
     };

@@ -7,6 +7,7 @@ import type { InlineExtension } from '@earendil-works/pi-coding-agent';
 import type { CodexQuotaReading } from '@domain/costs/codex-quota.js';
 import type { PiSessionRequest } from './session-options.js';
 import type { SubagentNotice } from './event-parser.js';
+import type { RunForeignSubagent } from './subagent.js';
 import { installMcpBridge, createMcpBridgeDeps } from './mcp-bridge.js';
 import { installHookBridge } from './hook-bridge.js';
 import { installToolShims } from './tool-shims.js';
@@ -16,6 +17,8 @@ export interface CortexExtensionHooks {
   onProviderQuota?: (reading: CodexQuotaReading) => void;
   /** Receives each event a subagent forwards for the parent's transcript. */
   onSubagentEvent?: (notice: SubagentNotice) => void;
+  /** Runs subagent children whose backend is not `pi` (plan §3.4). */
+  runForeignSubagent?: RunForeignSubagent;
 }
 
 /**
@@ -35,7 +38,10 @@ export function createCortexExtensions(
     },
     {
       name: 'cortex-tool-shims',
-      factory: (pi) => installToolShims(pi, request.env, { onSubagentEvent: hooks.onSubagentEvent }),
+      factory: (pi) => installToolShims(pi, request.env, {
+        onSubagentEvent: hooks.onSubagentEvent,
+        runForeignSubagent: hooks.runForeignSubagent,
+      }),
     },
   ];
   if (!request.disableHooks) {

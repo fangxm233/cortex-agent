@@ -7,8 +7,8 @@
 
 | 后端 | 状态 | 引擎 | 前置要求 | 功能级别 |
 |---|---|---|---|---|
-| Claude Code | 已支持 | `@anthropic-ai/claude-code` | `PATH` 上有 `claude` 可执行文件 | 完整（10/10 能力） |
-| PI | 已支持 | `@earendil-works/pi-coding-agent`，随服务器包一起打包 | 除已登录的 provider 外无需任何额外安装 | 完整（10/10 能力） |
+| Claude Code | 已支持 | `@anthropic-ai/claude-code` | `PATH` 上有 `claude` 可执行文件 | 完整（11/11 能力） |
+| PI | 已支持 | `@earendil-works/pi-coding-agent`，随服务器包一起打包 | 除已登录的 provider 外无需任何额外安装 | 完整（11/11 能力） |
 
 ## 后端如何工作 {#how-backends-work}
 
@@ -20,7 +20,7 @@
 
 ## 功能矩阵 {#feature-matrix}
 
-Cortex 定义了后端可能支持的十种能力。编排层在尝试后端特定操作之前检查这些能力。
+Cortex 定义了后端可能支持的十一种能力。编排层在尝试后端特定操作之前检查这些能力。
 
 | 能力 | Claude Code | PI | 描述 |
 |---|---|---|---|
@@ -34,10 +34,11 @@ Cortex 定义了后端可能支持的十种能力。编排层在尝试后端特�
 | `tool-allowlist` | 是 | 是 | 将可用工具限制为子集 |
 | `streaming-deltas` | 是 | 是 | 生成期间发布 token 级 assistant 文本 |
 | `mid-turn-inject` | 是 | 是 | 向正在进行的回合注入用户输入 |
+| `subagents` | 是 | 是 | 承载被委派的子智能体，其事件与用量归入父回合 |
 
 ## Claude Code
 
-参考后端。支持所有十种能力。有两种适配器模式可用：
+参考后端。支持所有十一种能力。有两种适配器模式可用：
 
 **Print 模式**（`claudeBackend: "print"`，默认）。使用持久化的 `claude -p` 进程以及 stream-json 输入输出。Cortex 按 session key 池化该进程，并通过同一 NDJSON stream 发送后续回合，直到 session 被关闭、超时或 spawn identity 改变。
 
@@ -56,7 +57,7 @@ PI 在 Cortex 服务器进程内运行。引擎（`@earendil-works/pi-coding-age
 **Cortex 的粘合层。** Cortex 附加的一切都是按会话在 `extensions.ts` 中装配的 inline PI extension：
 
 - **MCP 桥接**（`mcp-bridge.ts`）——把按 composition 限定的 Cortex 工具 bundle 以进程内方式经一对内存 MCP transport 提供出来，并绑定到专为该会话构建的 tool context。被指派的 plugin MCP server 与 browser MCP 仍各自保有独立的 stdio 子进程或远程连接。
-- **工具垫片**（`tool-shims.ts`）——注册 PI 本地的 `Agent`、`TodoWrite`、`WebFetch` 与 `WebSearch` 工具，每个都受会话的工具允许列表约束。
+- **工具垫片**（`tool-shims.ts`）——注册 PI 本地的 `agent`、`agent_stop`、`TodoWrite`、`WebFetch` 与 `WebSearch` 工具，每个都受会话的工具允许列表约束。
 - **钩子桥接**（`hook-bridge.ts`）——把注册表中挂在 `pi` 后端的条目挂成 PI 原生事件处理器，Cortex 钩子脚本因此能看到 PI 的工具事件。参见 [hooks.md](./hooks.md)。
 - **额度探针**（`quota-probe.ts`）——在经网关路由的运行中从响应头读取 provider 额度，并把每次读数交给限流器。
 
@@ -64,13 +65,38 @@ PI 在 Cortex 服务器进程内运行。引擎（`@earendil-works/pi-coding-age
 
 **交互工具。** 用户发起的直接 PI 会话会把 interaction bundle 加入其进程内的 Cortex 工具集，因此 PI 暴露与 Claude TUI、Claude print 相同的 `cortex_ask_user`、`cortex_plan_enter` 与 `cortex_plan_exit` 工具。它们的对话走 PI 的 extension UI 协议，由 `ui-context.ts` 在服务器内应答；参见 [safety-and-approvals.md](./safety-and-approvals.md)。
 
-**子智能体。** PI 的 `Agent` 工具把每个子智能体跑在自己的嵌套进程内会话上（`child-session.ts`）：一个不写 transcript 的内存会话，以 headless 方式运行，且只加载 Cortex 自己的 extension。角色是私有 PI agent 目录下 `agents/` 中带 YAML frontmatter 的 markdown 文件；`explore`、`general-purpose` 与 `plan` 是随附的默认角色。角色正文追加到子会话的系统提示，其 frontmatter 中的 `tools` 成为子会话的工具允许列表。模型的选择顺序是：任务显式指定的 `model`，其次角色的 `model`，最后父会话的模型。子智能体自身永远拿不到 `Agent` 工具，其 MCP 面只有 `cortex-core` bundle，因此既不能继续向下扇出，也够不到线程控制。它的工具调用、结果与文本会转发进父会话的 transcript 并标注归属，token 用量并入父会话。一次 `Agent` 调用可以跑单个任务、最多八个并行任务，或最多八个串行任务。
-
 **凭据。** PI 的 provider 凭据由 Cortex 管理——聊天里的 `!login pi`，或网页端的**设置 → 账号**——并保存在 PI 自己的认证文件 `~/.pi/agent/auth.json` 中。Cortex 会让该文件在其私有 PI agent 目录内可见（Linux 与 macOS 用符号链接，Windows 用复制）供 SDK 读取，并从 `~/.pi/agent/models.json` 读取用户自定义的 provider。因此同时装有终端 `pi` CLI 的机器与 Cortex 共用同一份凭据和同一份 provider catalog。
 
 PI transcript retention 走文件系统扫描：仍在使用的 PI backend session id 会在保留扫描中被保护，而 `$CORTEX_HOME/logs/sessions-pi/` 下失去引用的 transcript bundle 只有在超过保留截止线且连续两轮确认后才会删除。
 
 PI provider 名称与 Cortex backend 名称相互独立。`openai-codex` 仍是受支持的 PI provider（包括 `openai-codex-responses` API kind）；使用它的 profile 仍须设置 `"backend": "pi"`。
+
+## 子智能体 {#subagents}
+
+两个后端共用同一个工具、同一张角色表和同一个 runner，且父子两端都可以是任意后端：Claude 的回合可以把活交给 PI 模型，PI 的回合也可以交给 Claude。
+
+**工具。** PI 在进程内注册 `agent` 与 `agent_stop`。Claude 拿到的是同一对 MCP 工具（`mcp__cortex-core__agent`、`mcp__cortex-core__agent_stop`），同时它内置的 `Agent` 工具会在每次 spawn 时被剥离，因此不存在第二条守护进程看不见的委派路径。一次调用可以跑单个任务、最多八个并行任务，或最多八个串行任务；串行任务提示里的 `{previous}` 会被替换成上一环的输出。
+
+**角色。** 角色是 `$CORTEX_HOME/config/agents/` 下带 YAML frontmatter 的 markdown 文件。`explore`、`general-purpose` 与 `plan` 是随附的默认角色，且只在缺失时才复制进去，所以用户改过的角色在升级后一定保留。角色正文追加到子会话的系统提示。其 frontmatter 可以设置：
+
+| 键 | 含义 |
+|---|---|
+| `tools` | 规范工具名，翻译成各后端自己的拼写 |
+| `model` | PI 子智能体用 `provider/model[:thinking]`，Claude 子智能体用裸模型 id |
+| `backend` | `claude` 或 `pi`；不填表示"跟随父会话" |
+| `mode` | 子智能体的显式 gateway 路由；不填时回退到 provider 名 |
+
+统一之前就在用 PI 子智能体的安装，其旧的 `pi/agents/` 目录会在首次启动时被并入共享角色表，旧目录随后被改名为 `pi/agents.migrated`——这样在那里做的修改不会悄无声息地毫无效果。
+
+**模型如何选定。** 不查 profile。顺序是：任务显式指定的 `model`，其次角色的 `model`，最后才是父会话自己的模型——且仅当子智能体与父会话同后端时才回退到最后一项，因为 Claude 的模型 id 对 PI 毫无意义，PI 的 `provider/model` 对 Claude 亦然。
+
+**调用方能看到什么。** `subagent_type`、`model` 与 `backend` 三个字段的描述不再写死，而是在注册工具时按本机实际拥有的内容生成。角色取自实时的 `$CORTEX_HOME/config/agents/` 角色表，新增的角色下一个会话就会出现。Claude 模型 id 来自 Cortex 生成 gateway 的 Anthropic 路由所用的同一张表，再加上守护进程当前的模型。PI 父会话直接读自己进程内的模型注册表；Claude 父会话读不到——它的 MCP 工具运行在没有 PI SDK 的 sidecar 进程里，所以由守护进程把自己缓存扫描到的 provider/model 对经 spawn 环境传下去。缓存为空只意味着暂时列不出 PI 模型——不会为了给一次 Claude spawn 装饰而触发扫描。角色和模型各自有字符预算，超出部分渲染为 `(+N more)`。这些列表是快照，会话中途不会变化；它们只是提示而非白名单：未列出的模型 id 仍会被接受并透传。一无所知时，描述回退到通用措辞，工具不会因为缺少 catalog 而失败。
+
+**隔离。** `pi` 子智能体是一个不写 transcript、headless 运行的嵌套进程内会话。`claude` 子智能体则是一次冻结的一次性 `claude` 运行：没有可恢复的会话、没有钩子、没有环境规则、不写 transcript 日志。两种情况下子智能体的 MCP 面都是去掉委派工具后的 `cortex-core` bundle，因此既不能继续向下扇出，也够不到线程控制。
+
+**父会话看到什么。** 子智能体的工具调用、结果与文本会实时流入父会话的 transcript 并标注归属，token 用量并入父会话。归属是 best-effort：父回合已经结束的运行只是不再推送事件，答案照样返回。
+
+**后台运行。** `run_in_background: true` 会立刻返回一个 `agent_id`。Cortex 在运行期间为该会话保持占用——停止按钮够得到它，延迟的守护进程重启也会等它——并在结果就绪时作为一个普通回合投递回来；如果此时已有回合在跑，就并入那个回合。`agent_stop` 用于提前取消并丢弃已产出的内容。停止一个会话同样会停掉它委派出去的运行——前台和后台一视同仁：子代理不会比发起它的那个回合活得更久。
 
 ## 远程登录 {#remote-login}
 

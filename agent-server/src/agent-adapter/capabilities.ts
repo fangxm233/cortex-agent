@@ -22,6 +22,11 @@ export enum Capability {
   MidTurnInject = 'mid-turn-inject',
   /** Backend can return scoped provider usage from a pull source or push cache. */
   Usage = 'usage',
+  /** Backend can be the *child* of a delegated `agent` run: Cortex knows how to start a one-shot
+   *  run on it, stream its events back under the parent's attribution, and collect a result.
+   *  Gated on rather than branching on the backend name, so adding a third backend is a matter of
+   *  declaring this and supplying a branch in `domain/agents/subagent/runner.ts`. */
+  Subagents = 'subagents',
 }
 
 // Claude: native turn support; account quota is observed by the local HTTP gateway.
@@ -41,6 +46,8 @@ const CLAUDE_CAPS: Capability[] = [
   Capability.StreamingDeltas,
   // Print mode accepts a user message written to stdin while a turn is in flight.
   Capability.MidTurnInject,
+  // A child is one frozen `runAgentOnce` CLI run, observed through the normalized event stream.
+  Capability.Subagents,
 ];
 
 // PI uses --skill for plugins, --system-prompt for overrides, and adapter tool gates.
@@ -61,6 +68,8 @@ const PI_CAPS: Capability[] = [
   Capability.MidTurnInject,
   // Codex quota is push-only; PI reads the daemon-owned cache and never initiates provider traffic.
   Capability.Usage,
+  // A child is a nested in-process SDK session driven by `pi/child-runner.ts`.
+  Capability.Subagents,
 ];
 
 export const CAPABILITIES_BY_BACKEND: Record<Backend, Set<Capability>> = {

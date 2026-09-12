@@ -10,6 +10,7 @@ import { test } from 'vitest';
 import { PIAdapter } from '../../../src/agent-adapter/pi/adapter.js';
 import { PI_MODELS_PATH, PI_SESSIONS_DIR } from '../../../src/agent-adapter/pi/agent-dir.js';
 import { createPIProviderDiscovery } from '../../../src/agent-adapter/pi/discovery.js';
+import type { PiDiscoveredModel } from '../../../src/core/gateway-generator.js';
 import type { PiRuntimeFactory } from '../../../src/agent-adapter/pi/runtime.js';
 import type { PIAgentProcess } from '../../../src/agent-adapter/pi/session-support.js';
 import { handleCreateAndSend } from '../../../src/domain/ui-service/mutate/sessions.js';
@@ -20,7 +21,7 @@ test('fresh PI createAndSend responds and exposes the user event before slow dis
   let rejectDiscovery!: (error: Error) => void;
   let discoverySettled = false;
   let scans = 0;
-  const slowDiscovery = new Promise<string[]>((_, reject) => { rejectDiscovery = reject; });
+  const slowDiscovery = new Promise<PiDiscoveredModel[]>((_, reject) => { rejectDiscovery = reject; });
   const discovery = createPIProviderDiscovery({
     scan: async () => {
       scans += 1;

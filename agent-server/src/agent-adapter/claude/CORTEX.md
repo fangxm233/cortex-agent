@@ -7,11 +7,11 @@ Translates Claude stream and transcript events into the normalized event schema.
 |---|---|---|
 | adapter.ts | adapter | pools sessions and injects MCP composition |
 | adapter-tui.ts | adapter | runs TUI sessions with bundled MCP scopes |
-| spawn-args.ts | core | Builds Claude args and bundled MCP selection |
+| spawn-args.ts | core | Builds Claude args and bundled MCP selection, swapping native Agent for the MCP one, plus the sidecar's PI model catalog env |
 | mcp-config.ts | core | Writes private MCP and proxy configs |
 | browser-mcp.ts | core | Writes the Playwright MCP config bound to a session's browser |
 | remote-mcp-proxy.ts | core | Proxies remote MCP without redirects |
-| defaults.ts | config | Claude timeout, config paths and tool constants |
+| defaults.ts | config | Claude timeout, config paths, tool constants and always-stripped natives |
 | hooks-builder.ts | core | selects and compiles Claude hooks from settings |
 | event-parser.ts | parser | parses stream blocks, results and model fallbacks |
 | jsonl-tail.ts | core | normalizes transcript, plans and accounting |

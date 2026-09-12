@@ -101,8 +101,14 @@ describe('PI bundled core tool-context env gate', () => {
   }
 
   it('leaves a commission session ungated so it can reach both tool sets', async () => {
+    // An allowlist is always present now — PI gates out the MCP delegation pair unconditionally,
+    // because its own `agent` tool already occupies that bare name. What matters here is that the
+    // commission pair is NOT what got withheld.
     const env = await coreEnv({ CORTEX_PI_COMMISSION_TOOLS: '1' });
-    expect(env[MCP_TOOL_ALLOWLIST_ENV]).toBeUndefined();
+    const allowed = JSON.parse(env[MCP_TOOL_ALLOWLIST_ENV]) as string[];
+    expect(allowed).toContain('cortex_commission_start');
+    expect(allowed).toContain('cortex_commission_submit');
+    expect(allowed).toContain('cortex_plan_exit');
   });
 
   it('gates an ordinary session, because PI has no --tools equivalent', async () => {

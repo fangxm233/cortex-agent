@@ -62,6 +62,11 @@ export class EventQueue {
     this.closed = true;
     for (const waiter of this.waiters.splice(0)) waiter({ value: undefined, done: true });
   }
+
+  /** True once close() has run — `push` is a silent no-op from then on. */
+  get isClosed(): boolean {
+    return this.closed;
+  }
 }
 
 export interface PendingPiInjection {

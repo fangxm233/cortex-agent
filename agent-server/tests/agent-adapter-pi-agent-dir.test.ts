@@ -314,26 +314,56 @@ test('ensurePIAgentRoles installs all roles once without clobbering user edits',
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-pi-roles-'));
   try {
     const defaultsDir = path.join(tmpDir, 'defaults');
-    const agentDir = path.join(tmpDir, 'managed');
+    // The roles now live in one shared table, not under the PI agent dir.
+    const rolesDir = path.join(tmpDir, 'roles');
     fs.mkdirSync(defaultsDir, { recursive: true });
     for (const name of ['explore', 'general-purpose', 'plan']) {
       fs.writeFileSync(path.join(defaultsDir, `${name}.md`), `---\nname: ${name}\ndescription: built in\n---\n${name}\n`);
     }
 
-    ensurePIAgentRoles({ defaultsDir, agentDir });
-    const explorePath = path.join(agentDir, 'agents', 'explore.md');
+    ensurePIAgentRoles({ defaultsDir, rolesDir });
+    const explorePath = path.join(rolesDir, 'explore.md');
     assert.equal(fs.readFileSync(explorePath, 'utf8').includes('built in'), true);
     for (const name of ['explore', 'general-purpose', 'plan']) {
-      assert.equal(fs.existsSync(path.join(agentDir, 'agents', `${name}.md`)), true);
+      assert.equal(fs.existsSync(path.join(rolesDir, `${name}.md`)), true);
     }
 
     fs.writeFileSync(explorePath, 'user edited role\n');
     fs.writeFileSync(path.join(defaultsDir, 'explore.md'), 'new packaged default\n');
     const inode = fs.statSync(explorePath).ino;
-    ensurePIAgentRoles({ defaultsDir, agentDir });
+    ensurePIAgentRoles({ defaultsDir, rolesDir });
 
     assert.equal(fs.readFileSync(explorePath, 'utf8'), 'user edited role\n');
     assert.equal(fs.statSync(explorePath).ino, inode);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('ensurePIAgentRoles adopts a legacy PI-only role dir instead of reinstalling defaults', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-pi-roles-legacy-'));
+  try {
+    const defaultsDir = path.join(tmpDir, 'defaults');
+    const legacyDir = path.join(tmpDir, 'pi', 'agents');
+    const rolesDir = path.join(tmpDir, 'roles');
+    fs.mkdirSync(defaultsDir, { recursive: true });
+    fs.mkdirSync(legacyDir, { recursive: true });
+    for (const name of ['explore', 'general-purpose', 'plan']) {
+      fs.writeFileSync(path.join(defaultsDir, `${name}.md`), `---\nname: ${name}\ndescription: built in\n---\n${name}\n`);
+    }
+    fs.writeFileSync(path.join(legacyDir, 'explore.md'), 'user edited legacy role\n');
+    fs.writeFileSync(path.join(legacyDir, 'mine.md'), 'a role only this user has\n');
+
+    ensurePIAgentRoles({ defaultsDir, rolesDir, legacyDir });
+
+    // The user's edits survive the move, and their own role comes along with them.
+    assert.equal(fs.readFileSync(path.join(rolesDir, 'explore.md'), 'utf8'), 'user edited legacy role\n');
+    assert.equal(fs.readFileSync(path.join(rolesDir, 'mine.md'), 'utf8'), 'a role only this user has\n');
+    // Builtins missing from the legacy dir are still installed.
+    assert.equal(fs.existsSync(path.join(rolesDir, 'plan.md')), true);
+    // The old dir is renamed aside, so nobody keeps editing files that are no longer read.
+    assert.equal(fs.existsSync(legacyDir), false);
+    assert.equal(fs.existsSync(`${legacyDir}.migrated`), true);
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }

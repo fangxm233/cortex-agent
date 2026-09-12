@@ -29,7 +29,7 @@ server，以及 assigned legacy plugin 中的 Claude-native MCP，仍保留独�
 
 ### cortex-core
 
-暴露远程机器操作和只读时钟，并在所有会话中加载。保留 `cortex-core` 服务器名，因此现有客户端和 skill 使用的 `mcp__cortex-core__remote_*` 名称不变。
+暴露远程机器操作、只读时钟与子智能体委派，并在所有会话中加载。保留 `cortex-core` 服务器名，因此现有客户端和 skill 使用的 `mcp__cortex-core__remote_*` 名称不变。
 
 | 工具 | 参数 | 描述 |
 |---|---|---|
@@ -40,12 +40,18 @@ server，以及 assigned legacy plugin 中的 Claude-native MCP，仍保留独�
 | `remote_glob` | `device`、`pattern`、`path?` | 在远程设备上查找匹配 glob 模式的文件 |
 | `remote_grep` | `device`、`pattern`、`path?`、`glob?`、`type?`、`output_mode?`、`-A?`、`-B?`、`-C?`、`-i?`、`-n?`、`head_limit?`、`offset?`、`multiline?` | 使用 ripgrep 在远程设备上搜索文件内容 |
 | `current_time` | `timezone?` | 获取当前日期时间；可选 IANA 时区（默认服务器本地）。返回 Unix 时间戳、UTC ISO 字符串及带偏移的本地时间 |
+| `agent` | 单任务（`description`、`prompt`、`subagent_type`）**或** `parallel[]` **或** `chain[]`，另有 `model?`、`backend?`、`run_in_background?` | 把工作委派给任一后端上的隔离子智能体 |
+| `agent_stop` | `agent_id` | 停止运行中的子智能体，并丢弃其已产出的内容 |
 
-服务器实现在 `agent-server/src/domain/mcp/core-server.ts`。
+服务器实现在 `agent-server/src/domain/mcp/core-server.ts`；`agent` 与 `agent_stop` 由 `agent-server/src/domain/mcp/tools/subagent.ts` 注册。
+
+`agent` 取代了 Claude Code 内置的 `Agent` 工具——后者已被 Cortex 从每次 spawn 中剥离。替代品跑在与 PI 原生 `agent` 相同的角色表上，可以把子智能体放到任一后端，并且对守护进程可见：因此一次委派会出现在父会话的 transcript 里、计入父会话的账，并且可以从界面上停止。详见 [backends.md](./backends.md#subagents)。
+
+子智能体自身永远拿不到 `agent` 与 `agent_stop`。这条由工具允许列表强制，而不是靠提示词约束，所以无论它被要求做什么都无法继续向下扇出。
 
 ### cortex-tasks
 
-暴露只读任务监控工具，并在仍维护的 Claude 和 PI 顶层直接会话与线程会话中加载。PI `Agent` 子代理只获得 cortex-core。
+暴露只读任务监控工具，并在仍维护的 Claude 和 PI 顶层直接会话与线程会话中加载。子智能体只获得 cortex-core。
 
 | 工具 | 参数 | 描述 |
 |---|---|---|
@@ -57,7 +63,7 @@ server，以及 assigned legacy plugin 中的 Claude-native MCP，仍保留独�
 
 ### cortex-manager-qa
 
-向顶层直接会话和线程会话暴露 manager 到子任务的回答通道。Claude 中的规范工具名是 `mcp__cortex-core__answer_subtask`。PI `Agent` 子代理不加载此能力组，因为它们不持有任务树问题。
+向顶层直接会话和线程会话暴露 manager 到子任务的回答通道。Claude 中的规范工具名是 `mcp__cortex-core__answer_subtask`。子智能体不加载此能力组，因为它们不持有任务树问题。
 
 | 工具 | 参数 | 描述 |
 |---|---|---|
@@ -222,7 +228,7 @@ platform 能力组。Supplemental portable MCP 与 browser MCP 仍是独立 conf
 
 线程分支由 `session.cortexContext.useCoreMcp` 标记。PI bridge 从 session 自身的环境计算出
 相同的逻辑 selection，直接交给进程内的 bundled server，并为每个 plugin server 追加一个独立
-state。PI `Agent` 子代理只选择 cortex-core。
+state。子智能体只选择 cortex-core。
 Tool allowlist 会先针对已选逻辑能力组的并集校验，再由 bundled server 注册工具。
 
 ## MCP 工具如何与 agent-server 通信 {#how-mcp-tools-communicate-with-agent-server}
@@ -243,7 +249,7 @@ Legacy plugin directory 仍会原样传给 backend。Claude 可以从该目录�
 
 Cortex 在 spawn 时统一校验和规范化 package。Claude 获得叠加在常规 Cortex files 之后的 private supplemental config。Stdio entry 仍是独立 process；每个 remote entry 会变成本地 stdio proxy，其 URL 与 headers 保存在 private config。PI 随 session request 获得规范化后的 server 列表，其 bridge 为每个 entry 打开各自的 transport——stdio entry 一个 stdio 子进程，remote entry 一条直连的 HTTP 或 SSE 连接。两个 remote path 使用相同的 manual-redirect fetch，并在 configured header 或 request body 被重放之前拒绝所有 redirect。Connection 与 tool registration 按 process 隔离。Materialization 遵循声明的 dependency：plugin-scoped `PLUGIN_DATA` 不可用时会省略依赖它的 stdio servers，同时保留 remote MCP、skills 与 bundled tools（`agent-server/src/agent-adapter/claude/mcp-config.ts:105-164`；`agent-server/src/agent-adapter/claude/remote-mcp-proxy.ts:48-82`；`agent-server/src/agent-adapter/pi/mcp-bridge.ts:279-476`）。
 
-Resolved MCP composition 为 `none` 时 portable MCP 会被省略；受限 PI `Agent` subagent 也不会获得它。普通顶层 Claude 与 PI session 只有在分配了相应 plugin 时才会加载（`agent-server/src/domain/plugins/runtime.ts`；`agent-server/src/agent-adapter/pi/adapter.ts`；`agent-server/src/agent-adapter/pi/mcp-bridge.ts`）。
+Resolved MCP composition 为 `none` 时 portable MCP 会被省略；受限的子智能体也不会获得它。普通顶层 Claude 与 PI session 只有在分配了相应 plugin 时才会加载（`agent-server/src/domain/plugins/runtime.ts`；`agent-server/src/agent-adapter/pi/adapter.ts`；`agent-server/src/agent-adapter/pi/mcp-bridge.ts`）。
 
 Plugin catalog 与 Settings API 只公开 sanitized summary。Stdio summary 包含 executable basename、argument count 与 environment key names；remote summary 包含 origin 与 header names。Environment values、完整 remote URL 与 header values 都留在 server 侧（`agent-server/src/domain/plugins/mcp.ts:102-216`；`agent-server/src/domain/ui-service/plugins-shared.ts:98-134`）。Installed stdio command 与 working directory 仍是 administrator-trusted package inputs；private config 和 per-server isolation 不是 code sandbox。
 
@@ -257,7 +263,7 @@ Plugin catalog 与 Settings API 只公开 sanitized summary。Stdio summary 包�
 
 MCP 工具跨越从智能体进程到 agent-server 内部和远程机器的信任边界。Installed plugin 属于 administrator-trusted code。对 portable root `mcp.json`，assignment confirmation 会显式呈现新增 capability，但它不是 sandbox，也不是独立 authorization boundary；legacy Claude-native MCP configuration 不经过该 confirmation。Cortex 应用以下控制：
 
-1. **注册级可用性** — bundled Cortex server 只注册当前 session 选中的逻辑能力组，可选 canonical tool allowlist 会进一步过滤。顶层直接会话和线程会话都获得 manager-Q&A tools；只有线程会话获得 thread control；PI `Agent` 子代理只获得 core tools；PI 顶层会话继续保留 ext tools。
+1. **注册级可用性** — bundled Cortex server 只注册当前 session 选中的逻辑能力组，可选 canonical tool allowlist 会进一步过滤。顶层直接会话和线程会话都获得 manager-Q&A tools；只有线程会话获得 thread control；子智能体只获得 core tools；PI 顶层会话继续保留 ext tools。
 
 2. **Claude account-level MCP discovery 被禁用** — `~/.cortex/.claude/settings.json` 中的 `ENABLE_CLAUDEAI_MCP_SERVERS: "false"` 阻止 account-level auto-discovery，但不会禁用显式分配的 legacy plugin directory 内 Claude-native `.mcp.json`。Cortex 通过自己的 config layers 管理 bundled 与 portable MCP，同时保留该 legacy backend behavior。
 

@@ -6,7 +6,7 @@
 import * as path from 'path';
 import * as os from 'os';
 import { DATA_DIR, CONFIG_DIR, HOOKS_DIR } from '../../core/utils.js';
-import { COMMISSION_TOOLS } from '../../core/mcp-tool-gate.js';
+import { COMMISSION_TOOLS, SUBAGENT_TOOLS } from '../../core/mcp-tool-gate.js';
 
 export const IDLE_SESSION_TIMEOUT = 65 * 60 * 1000;
 export const TURN_IDLE_TIMEOUT = 60 * 60 * 1000;
@@ -54,7 +54,9 @@ export const WEB_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-web.json');
 export const PROJECT_SETTINGS = path.join(DATA_DIR, '.claude', 'settings.json');
 export const DEFAULT_PLAN_DIRS: string[] = ['plan'];
 
-export const DEFAULT_TOOLS = 'Agent,AskUserQuestion,Bash,Edit,EnterPlanMode,ExitPlanMode,Glob,Grep,Read,Skill,TaskStop,TodoWrite,WebFetch,WebSearch,Write';
+/** Note the absence of `Agent`: Cortex replaces Claude's native subagent tool with the MCP `agent`
+ *  tool (see {@link ALWAYS_STRIP_TOOLS}), so both backends delegate through one implementation. */
+export const DEFAULT_TOOLS = 'AskUserQuestion,Bash,Edit,EnterPlanMode,ExitPlanMode,Glob,Grep,Read,Skill,TaskStop,TodoWrite,WebFetch,WebSearch,Write';
 
 /** Tool name prefix `mcp__<server-name>__<tool-name>` is Claude's canonical form for MCP tools.
  *  The bundled server is exposed under the `cortex-core` name regardless of which bundles it loads. */
@@ -85,13 +87,30 @@ export const INTERACTION_BRIDGE_TOOLS: readonly string[] = interactionBridgeTool
  * their MCP replacements from the bundled Cortex MCP server.
  */
 export const TUI_TOOLS = [
-  'Agent', 'Bash', 'Edit', 'Glob', 'Grep', 'Read', 'Skill', 'TaskStop', 'TodoWrite', 'WebFetch', 'WebSearch', 'Write',
+  'Bash', 'Edit', 'Glob', 'Grep', 'Read', 'Skill', 'TaskStop', 'TodoWrite', 'WebFetch', 'WebSearch', 'Write',
   ...INTERACTION_BRIDGE_TOOLS,
 ].join(',');
 
 /** Native interaction tools that must be stripped in TUI mode (all sessions, including threads).
  *  These tools require stdin/stdout interaction that TUI mode cannot provide. */
 export const TUI_STRIP_TOOLS = new Set(['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode']);
+
+/**
+ * Native tools stripped in EVERY mode because Cortex ships its own replacement.
+ *
+ * `Agent` is the only member: Claude's built-in subagent runs inside the CLI process, invisible to
+ * the daemon, on a role table only it can read. The MCP `agent` tool below does the same job on the
+ * shared role table and can place a child on either backend, so the native one is removed rather
+ * than shadowed — leaving both would let the model pick the one Cortex cannot see.
+ */
+export const ALWAYS_STRIP_TOOLS = new Set(['Agent']);
+
+/** The MCP delegation tools, in Claude's canonical form. Appended only when the spawn's allowlist
+ *  actually exposes them, so a subagent child — which runs without them — lists nothing it cannot
+ *  call. */
+export function subagentBridgeTools(): string[] {
+  return SUBAGENT_TOOLS.map(name => MCP_PREFIX + name);
+}
 
 /** DR-0012: tmux session name prefix for TUI-mode Claude processes. */
 export const TUI_TMUX_NAME_PREFIX = 'cortex-claude-';

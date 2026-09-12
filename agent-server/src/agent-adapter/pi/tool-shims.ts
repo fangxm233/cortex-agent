@@ -1,14 +1,27 @@
-// input:  PI model registry, session env, subagent event sink, Agent, todo and web tools
+// input:  PI model registry, session env and role catalog, subagent sink, Agent, todo, web tools
 // output: Gated runtime Agent (over nested sessions), todo, and web tools
 // pos:    Registers PI-local tool shims
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { Type } from '@sinclair/typebox';
 import type { ExtensionAPI, ExtensionContext, InlineExtension } from '@earendil-works/pi-coding-agent';
+import * as path from 'node:path';
 import { PI_AGENT_DIR, ensurePIAgentRoles } from './agent-dir.js';
+import { loadRoles } from '@domain/agents/roles.js';
+import {
+  claudeModelOptions, piModelOptions, roleOptionsFrom, type SubagentCatalog,
+} from '@domain/agents/subagent/catalog.js';
 import { createChildSession, type ChildSessionFactory } from './child-session.js';
 import type { SubagentNotice } from './event-parser.js';
 import { createMcpBridgeDeps, installMcpBridge } from './mcp-bridge.js';
-import { createSubagentTool, type SubagentModelOption } from './subagent.js';
+import { runForeignSubagent } from './foreign-subagent.js';
+import {
+  startBackgroundSubagent, stopBackgroundSubagent,
+  type StartBackgroundSubagent, type StopBackgroundSubagent,
+} from './background-subagent.js';
+import {
+  createSubagentStopTool, createSubagentTool,
+  type RunForeignSubagent, type SubagentToolDeps,
+} from './subagent.js';
 import { webFetchTool } from './web-fetch.js';
 import { webSearchTool } from './web-search.js';
 
@@ -17,6 +30,11 @@ export interface ToolShimHooks {
   onSubagentEvent?: (notice: SubagentNotice) => void;
   /** Nested session factory for subagents; tests substitute a fake. */
   createChildSession?: ChildSessionFactory;
+  /** Runs children whose backend is not `pi`. Defaults to the daemon-side runner; tests override. */
+  runForeignSubagent?: RunForeignSubagent;
+  /** Backgrounds a run through the daemon's registry. Defaults to the real one; tests override. */
+  startBackgroundSubagent?: StartBackgroundSubagent;
+  stopBackgroundSubagent?: StopBackgroundSubagent;
 }
 
 const TodoWriteParameters = Type.Object({
@@ -58,16 +76,36 @@ function registerTodoWrite(pi: ExtensionAPI): void {
   });
 }
 
-function runtimeModelOptions(ctx: ExtensionContext): SubagentModelOption[] {
-  const available = ctx.modelRegistry?.getAvailable() ?? [];
-  const models = ctx.model ? [...available, ctx.model] : available;
-  return models.map((model) => ({ provider: model.provider, id: model.id }));
+/** Assemble the subagent catalog from this session's PI models, the claude table and the shared
+ *  role list. A catalog is only a hint on the tool schema, so a bad role file or a broken model
+ *  registry must not keep the tool from registering: any failure degrades to the empty catalog,
+ *  whose descriptions are the legacy static ones. */
+function runtimeCatalog(
+  ctx: ExtensionContext,
+  env: NodeJS.ProcessEnv,
+  deps: SubagentToolDeps,
+): SubagentCatalog {
+  try {
+    deps.ensureRoles();
+    const available = ctx.modelRegistry?.getAvailable() ?? [];
+    const models = ctx.model ? [...available, ctx.model] : available;
+    return {
+      roles: roleOptionsFrom(loadRoles(deps.rolesDir)),
+      models: [
+        ...claudeModelOptions(env.CORTEX_CLAUDE_MODEL ?? null),
+        ...piModelOptions(models),
+      ],
+    };
+  } catch {
+    return {};
+  }
 }
 
 /** The extensions a subagent session runs with: the Cortex MCP bridge and these shims, both closed
  *  over the child's own env. Its subagent marker keeps the Agent tool out of the child, and its
- *  stripped scope keeps the child's bridge to the core bundle. */
-function childExtensions(env: NodeJS.ProcessEnv): InlineExtension[] {
+ *  stripped scope keeps the child's bridge to the core bundle. Exported because a `pi` child
+ *  delegated from a Claude parent is built by the daemon runner, outside any PI session. */
+export function childExtensions(env: NodeJS.ProcessEnv): InlineExtension[] {
   return [
     { name: 'cortex-mcp-bridge', factory: (pi) => installMcpBridge(pi, createMcpBridgeDeps(env, [])) },
     { name: 'cortex-tool-shims', factory: (pi) => installToolShims(pi, env) },
@@ -76,15 +114,21 @@ function childExtensions(env: NodeJS.ProcessEnv): InlineExtension[] {
 
 function registerRuntimeAgent(pi: ExtensionAPI, env: NodeJS.ProcessEnv, hooks: ToolShimHooks): void {
   const agentDir = env.PI_CODING_AGENT_DIR ?? PI_AGENT_DIR;
+  const deps: SubagentToolDeps = {
+    agentDir,
+    ensureRoles: () => ensurePIAgentRoles({ legacyDir: path.join(agentDir, 'agents') }),
+    createSession: hooks.createChildSession ?? createChildSession,
+    childExtensions,
+    parentEnv: env,
+    onEvent: hooks.onSubagentEvent,
+    runForeignSubagent: hooks.runForeignSubagent ?? runForeignSubagent,
+    startBackgroundSubagent: hooks.startBackgroundSubagent ?? startBackgroundSubagent,
+    stopBackgroundSubagent: hooks.stopBackgroundSubagent ?? stopBackgroundSubagent,
+  };
   pi.on('session_start', (_event, ctx) => {
-    pi.registerTool(createSubagentTool({
-      agentDir,
-      ensureRoles: () => ensurePIAgentRoles({ agentDir }),
-      createSession: hooks.createChildSession ?? createChildSession,
-      childExtensions,
-      parentEnv: env,
-      onEvent: hooks.onSubagentEvent,
-    }, runtimeModelOptions(ctx)));
+    pi.registerTool(createSubagentTool(deps, runtimeCatalog(ctx, env, deps)));
+    const stopTool = createSubagentStopTool(deps);
+    if (stopTool) pi.registerTool(stopTool);
   });
 }
 

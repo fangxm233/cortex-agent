@@ -19,10 +19,12 @@ type BundleRegistrarLoader = (bundle: McpBundleName, ctx: CortexToolContext) => 
 type BundleFailureReporter = (bundle: McpBundleName, error: unknown) => void;
 
 const coreLoader: RegistrarLoader = async (ctx) => {
-  const [{ registerTaskOpsTools }, { registerTimeTools }] = await Promise.all([
-    import('./tools/task-ops.js'), import('./tools/time.js'),
+  const [{ registerTaskOpsTools }, { registerTimeTools }, { registerSubagentTools }] = await Promise.all([
+    import('./tools/task-ops.js'), import('./tools/time.js'), import('./tools/subagent.js'),
   ]);
-  return server => { registerTaskOpsTools(server, ctx); registerTimeTools(server); };
+  return server => {
+    registerTaskOpsTools(server, ctx); registerTimeTools(server); registerSubagentTools(server, ctx);
+  };
 };
 
 const tasksLoader: RegistrarLoader = async (ctx) => {

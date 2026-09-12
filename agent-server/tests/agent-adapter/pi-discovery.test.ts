@@ -12,6 +12,7 @@ import {
   createPIProviderDiscovery,
   discoverPIProviders,
 } from '../../src/agent-adapter/pi/discovery.js';
+import type { PiDiscoveredModel } from '../../src/core/gateway-generator.js';
 
 interface Deferred<T> {
   promise: Promise<T>;
@@ -48,7 +49,7 @@ test('authenticated provider scan rejects when the SDK scan fails', async () => 
 });
 
 test('cold reads return immediately and coalesce one provider refresh', async () => {
-  const pending = deferred<string[]>();
+  const pending = deferred<PiDiscoveredModel[]>();
   let scans = 0;
   const discovery = createPIProviderDiscovery({
     scan: () => {
@@ -62,14 +63,17 @@ test('cold reads return immediately and coalesce one provider refresh', async ()
   await Promise.resolve();
   assert.equal(scans, 1);
 
-  pending.resolve(['anthropic']);
+  pending.resolve([{ provider: 'anthropic', model: 'claude-sonnet' }]);
   await flushRefresh();
   assert.deepEqual(discovery.getProviders(), ['anthropic']);
   assert.equal(scans, 1, 'fresh cache does not rescan on another spawn');
 });
 
 test('explicit refresh bypasses a fresh cache', async () => {
-  const results = [Promise.resolve(['anthropic']), Promise.resolve(['deepseek'])];
+  const results = [
+    Promise.resolve([{ provider: 'anthropic', model: 'claude-sonnet' }]),
+    Promise.resolve([{ provider: 'deepseek', model: 'deepseek-chat' }]),
+  ];
   let scans = 0;
   const discovery = createPIProviderDiscovery({ scan: () => results[scans++] });
 
@@ -84,8 +88,8 @@ test('explicit refresh bypasses a fresh cache', async () => {
 });
 
 test('explicit refresh queues a post-login scan behind an in-flight scan', async () => {
-  const beforeLogin = deferred<string[]>();
-  const afterLogin = deferred<string[]>();
+  const beforeLogin = deferred<PiDiscoveredModel[]>();
+  const afterLogin = deferred<PiDiscoveredModel[]>();
   const results = [beforeLogin, afterLogin];
   let scans = 0;
   const discovery = createPIProviderDiscovery({ scan: () => results[scans++].promise });
@@ -93,19 +97,19 @@ test('explicit refresh queues a post-login scan behind an in-flight scan', async
   discovery.getProviders();
   await Promise.resolve();
   discovery.refresh();
-  beforeLogin.resolve(['anthropic']);
+  beforeLogin.resolve([{ provider: 'anthropic', model: 'claude-sonnet' }]);
   await flushRefresh();
   assert.equal(scans, 2, 'post-login refresh must run after the stale in-flight scan');
 
-  afterLogin.resolve(['deepseek']);
+  afterLogin.resolve([{ provider: 'deepseek', model: 'deepseek-chat' }]);
   await flushRefresh();
   assert.deepEqual(discovery.getProviders(), ['deepseek']);
 });
 
 test('expired cache serves stale providers while one refresh deduplicates the replacement', async () => {
   let now = 1_000;
-  const first = deferred<string[]>();
-  const second = deferred<string[]>();
+  const first = deferred<PiDiscoveredModel[]>();
+  const second = deferred<PiDiscoveredModel[]>();
   const results = [first, second];
   let scans = 0;
   const discovery = createPIProviderDiscovery({
@@ -115,7 +119,7 @@ test('expired cache serves stale providers while one refresh deduplicates the re
 
   assert.deepEqual(discovery.getProviders(), []);
   await Promise.resolve();
-  first.resolve(['anthropic']);
+  first.resolve([{ provider: 'anthropic', model: 'claude-sonnet' }]);
   await flushRefresh();
 
   now += PI_PROVIDER_CACHE_TTL_MS;
@@ -124,14 +128,21 @@ test('expired cache serves stale providers while one refresh deduplicates the re
   await Promise.resolve();
   assert.equal(scans, 2, 'only one stale refresh starts');
 
-  second.resolve(['deepseek', 'deepseek', 'openai-codex']);
+  second.resolve([
+    { provider: 'deepseek', model: 'deepseek-chat' },
+    { provider: 'deepseek', model: 'deepseek-chat' },
+    { provider: 'openai-codex', model: 'gpt-5' },
+  ]);
   await flushRefresh();
   assert.deepEqual(discovery.getProviders(), ['deepseek', 'openai-codex']);
 });
 
 test('a successful empty refresh authoritatively clears stale providers', async () => {
   let now = 0;
-  const results = [Promise.resolve(['anthropic']), Promise.resolve([])];
+  const results: Array<Promise<PiDiscoveredModel[]>> = [
+    Promise.resolve([{ provider: 'anthropic', model: 'claude-sonnet' }]),
+    Promise.resolve([]),
+  ];
   let scans = 0;
   const discovery = createPIProviderDiscovery({
     now: () => now,
@@ -151,9 +162,9 @@ test('a successful empty refresh authoritatively clears stale providers', async 
 function retryScenario() {
   const clock = { now: 10_000 };
   const scans = { count: 0 };
-  const first = deferred<string[]>();
-  const failed = deferred<string[]>();
-  const recovered = deferred<string[]>();
+  const first = deferred<PiDiscoveredModel[]>();
+  const failed = deferred<PiDiscoveredModel[]>();
+  const recovered = deferred<PiDiscoveredModel[]>();
   const results = [first, failed, recovered];
   const discovery = createPIProviderDiscovery({
     now: () => clock.now,
@@ -166,7 +177,7 @@ test('failed refresh retains last-good providers and waits for the retry interva
   const scenario = retryScenario();
   scenario.discovery.getProviders();
   await Promise.resolve();
-  scenario.first.resolve(['anthropic']);
+  scenario.first.resolve([{ provider: 'anthropic', model: 'claude-sonnet' }]);
   await flushRefresh();
 
   scenario.clock.now += PI_PROVIDER_CACHE_TTL_MS;
@@ -185,7 +196,57 @@ test('failed refresh retains last-good providers and waits for the retry interva
   scenario.discovery.getProviders();
   await Promise.resolve();
   assert.equal(scenario.scans.count, 3);
-  scenario.recovered.resolve(['deepseek']);
+  scenario.recovered.resolve([{ provider: 'deepseek', model: 'deepseek-chat' }]);
   await flushRefresh();
   assert.deepEqual(scenario.discovery.getProviders(), ['deepseek']);
+});
+
+test('models cache de-duplicates repeated provider/model pairs', async () => {
+  const discovery = createPIProviderDiscovery({
+    scan: () => Promise.resolve([
+      { provider: 'anthropic', model: 'claude-sonnet' },
+      { provider: 'anthropic', model: 'claude-sonnet' },
+      { provider: 'anthropic', model: 'claude-opus' },
+      { provider: 'deepseek', model: 'deepseek-chat' },
+    ]),
+  });
+
+  assert.deepEqual(discovery.getModels(), []);
+  await flushRefresh();
+  assert.deepEqual(discovery.getModels(), [
+    { provider: 'anthropic', model: 'claude-sonnet' },
+    { provider: 'anthropic', model: 'claude-opus' },
+    { provider: 'deepseek', model: 'deepseek-chat' },
+  ]);
+
+  const copy = discovery.getModels();
+  copy.push({ provider: 'added', model: 'locally' });
+  assert.equal(discovery.getModels().length, 3, 'getModels returns a defensive copy');
+});
+
+test('expired cache serves the stale model snapshot while one refresh is in flight', async () => {
+  let now = 1_000;
+  const first = deferred<PiDiscoveredModel[]>();
+  const second = deferred<PiDiscoveredModel[]>();
+  const results = [first, second];
+  let scans = 0;
+  const discovery = createPIProviderDiscovery({
+    now: () => now,
+    scan: () => results[scans++].promise,
+  });
+
+  assert.deepEqual(discovery.getModels(), []);
+  await Promise.resolve();
+  first.resolve([{ provider: 'anthropic', model: 'claude-sonnet' }]);
+  await flushRefresh();
+
+  now += PI_PROVIDER_CACHE_TTL_MS;
+  assert.deepEqual(discovery.getModels(), [{ provider: 'anthropic', model: 'claude-sonnet' }]);
+  assert.deepEqual(discovery.getModels(), [{ provider: 'anthropic', model: 'claude-sonnet' }]);
+  await Promise.resolve();
+  assert.equal(scans, 2, 'only one stale refresh starts');
+
+  second.resolve([{ provider: 'deepseek', model: 'deepseek-chat' }]);
+  await flushRefresh();
+  assert.deepEqual(discovery.getModels(), [{ provider: 'deepseek', model: 'deepseek-chat' }]);
 });

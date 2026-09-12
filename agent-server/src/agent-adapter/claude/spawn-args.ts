@@ -1,23 +1,28 @@
-// input:  Claude options, composition, tool gates, hooks
-// output: Claude args, interaction tools, MCP configs, env
+// input:  Claude options, composition, tool gates, hooks, the cached PI model catalog
+// output: Claude args, interaction tools, MCP configs, env (incl. the PI subagent model catalog)
 // pos:    Resolves Claude process configuration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { createHash } from 'crypto';
 import {
+  ALWAYS_STRIP_TOOLS,
   DEFAULT_TOOLS,
   EMPTY_MCP_CONFIG,
   MCP_CONFIG,
   THREAD_MCP_CONFIG,
   interactionBridgeTools,
+  subagentBridgeTools,
   TUI_STRIP_TOOLS,
   TUI_TOOLS,
 } from './defaults.js';
 import { getSettings } from '@core/settings.js';
 import { materializeMcpToolAllowlistConfigs } from '@core/config-generator.js';
 import { MCP_INFRASTRUCTURE_TIMEOUT_MS } from '@core/mcp-timeout.js';
+import { SUBAGENT_TOOLS } from '@core/mcp-tool-gate.js';
+import { encodeSubagentModels, piModelOptions } from '@domain/agents/subagent/catalog.js';
 import type { McpBundleName } from '@core/mcp-bundles.js';
 import type { McpComposition } from '../types.js';
+import { piProviderDiscovery } from '../pi/discovery.js';
 import { buildHooksSettings } from './hooks-builder.js';
 
 /**
@@ -146,17 +151,32 @@ export function resolveClaudeMcpBundles(options: ClaudeSpawnOptions): McpBundleN
   return bundles;
 }
 
-/** `commissionTools` null means "strip the natives, add nothing back" (TUI without the bridge).
- *  Otherwise the bridge tools are appended; the commission pair is purely additive on top of the
- *  standard three, so the ordinary tool list stays byte-identical to a pre-commission build. */
-function replaceInteractionTools(tools: string, commissionTools: boolean | null): string {
-  const filtered = tools.split(',').filter(tool => tool && !TUI_STRIP_TOOLS.has(tool));
-  const resolved = commissionTools === null
-    ? filtered
-    : [...filtered, ...interactionBridgeTools(commissionTools)];
-  return [...new Set(resolved)].join(',');
+/**
+ * The MCP delegation tools, appended only when this spawn can actually call them.
+ *
+ * The gate is the spawn's own allowlist, which is how a subagent child stays a leaf: it runs with
+ * `withoutSubagentTools(...)`, so the names are absent and nothing is appended. A caller with no
+ * allowlist of its own gets them whenever the core bundle is loaded, which is every composition
+ * except `none`.
+ */
+function subagentTools(options: ClaudeSpawnOptions): string[] {
+  if ((options.mcpComposition ?? 'direct') === 'none') return [];
+  // Null and undefined both mean "no allowlist of my own" — callers spell it either way.
+  const allowlist = options.mcpToolAllowlist ?? undefined;
+  const allowed = allowlist === undefined
+    ? resolveClaudeMcpBundles(options).includes('cortex-core')
+    : SUBAGENT_TOOLS.every(name => allowlist.includes(name));
+  return allowed ? subagentBridgeTools() : [];
 }
 
+/**
+ * The exact `--tools` list, after both native-for-MCP substitutions.
+ *
+ * `Agent` is dropped unconditionally and replaced by the MCP `agent` tool (see
+ * {@link ALWAYS_STRIP_TOOLS}). The three interaction tools are dropped only where Cortex mediates
+ * approvals — `commissionTools` null means "strip the natives, add nothing back" (TUI without the
+ * bridge), non-null means the bridge tools are appended, with the commission pair purely additive.
+ */
 function resolveEffectiveTools(
   options: ClaudeSpawnOptions,
   mode: ClaudeSpawnMode,
@@ -164,9 +184,17 @@ function resolveEffectiveTools(
   commissionTools: boolean | null,
 ): string {
   const toolsDefault = mode === 'tui' && isDirect ? TUI_TOOLS : DEFAULT_TOOLS;
-  const tools = options.tools || toolsDefault;
-  if (commissionTools !== null) return replaceInteractionTools(tools, commissionTools);
-  return mode === 'tui' ? replaceInteractionTools(tools, null) : tools;
+  const stripInteraction = mode === 'tui' || commissionTools !== null;
+  const kept = (options.tools || toolsDefault).split(',')
+    .map(tool => tool.trim())
+    .filter(tool => tool
+      && !ALWAYS_STRIP_TOOLS.has(tool)
+      && !(stripInteraction && TUI_STRIP_TOOLS.has(tool)));
+  const appended = [
+    ...(commissionTools !== null ? interactionBridgeTools(commissionTools) : []),
+    ...subagentTools(options),
+  ];
+  return [...new Set([...kept, ...appended])].join(',');
 }
 
 function appendCoreArgs(
@@ -418,6 +446,10 @@ function applyCortexContextEnv(env: NodeJS.ProcessEnv, context?: CortexAgentCont
   for (const [key, value] of Object.entries(cortexContextEnv(context))) setIfPresent(env, key, value);
 }
 
+/** Caps the PI catalog handed to the sidecar so a pathological provider list cannot bloat the
+ *  child environment. */
+const MAX_SUBAGENT_PI_MODELS = 64;
+
 export function buildClaudeEnv(
   channel: string,
   sessionId: string,
@@ -441,6 +473,18 @@ export function buildClaudeEnv(
   setIfPresent(env, 'CORTEX_CALLBACK_SOURCE', callbackSource);
   setIfPresent(env, 'CORTEX_SCHEDULE_TASK_ID', scheduleTaskId);
   setIfPresent(env, 'ANTHROPIC_BASE_URL', anthropicBaseUrl);
+  // The MCP sidecar cannot scan PI itself, so the daemon hands it the provider/model pairs it
+  // already cached. Peeked, never refreshed: decorating a Claude spawn must not be what loads the
+  // PI SDK. An empty cache writes nothing, so such a spawn stays byte-identical to one from before
+  // this variable existed.
+  const piModels = piModelOptions(
+    piProviderDiscovery.peekModels()
+      .slice(0, MAX_SUBAGENT_PI_MODELS)
+      .map((model) => ({ provider: model.provider, id: model.model })),
+  );
+  if (piModels.length > 0) {
+    setIfPresent(env, 'CORTEX_SUBAGENT_PI_MODELS', encodeSubagentModels(piModels));
+  }
   applyEnvOverrides(env, extraEnv, unsetEnv);
   applyCortexContextEnv(env, context);
   return env;

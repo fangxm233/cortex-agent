@@ -87,6 +87,9 @@ export interface RunAgentOptions {
   preserveUnreportedAccounting?: boolean;
   /** Disable ambient global rules for a frozen role prompt. */
   loadCortexRules?: boolean;
+  /** Extra system-prompt text appended after the ambient rules — a subagent role's body arrives
+   *  here. Independent of {@link loadCortexRules}: a frozen role sets both. */
+  appendSystemPrompt?: string;
   /** Disable daemon cost-store writes while preserving streamed cost records. */
   recordCost?: boolean;
   callbackSource?: string | null;
@@ -251,11 +254,15 @@ function hasSpawnContext(context: SpawnContext): boolean {
   });
 }
 
+/** Everything appended to the backend's own system prompt: the ambient global rules, then the
+ *  caller's own text. A subagent role reaches its child through the second half — with
+ *  `loadCortexRules: false` the role body is all the child sees. */
 function rulesPrompt(options: RunAgentOptions): string | undefined {
   const rules = options.loadCortexRules === false ? [] : loadCortexRules().global;
-  return rules.length > 0
-    ? rules.map(rule => rule.body).join('\n\n---\n\n')
-    : undefined;
+  const parts = rules.map(rule => rule.body);
+  const extra = options.appendSystemPrompt?.trim();
+  if (extra) parts.push(extra);
+  return parts.length > 0 ? parts.join('\n\n---\n\n') : undefined;
 }
 
 function spawnIdentity(

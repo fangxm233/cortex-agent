@@ -14,7 +14,7 @@
     "--mcp-config",
     "<CORTEX_HOME>/config/mcp-config.json",
     "--tools",
-    "Agent,AskUserQuestion,Bash,Edit,EnterPlanMode,ExitPlanMode,Glob,Grep,Read,Skill,TaskStop,TodoWrite,WebFetch,WebSearch,Write",
+    "AskUserQuestion,Bash,Edit,EnterPlanMode,ExitPlanMode,Glob,Grep,Read,Skill,TaskStop,TodoWrite,WebFetch,WebSearch,Write,mcp__cortex-core__agent,mcp__cortex-core__agent_stop",
     "--model",
     "claude-fixture",
     "--settings",

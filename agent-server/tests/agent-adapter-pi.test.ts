@@ -13,6 +13,7 @@ import type { NormalizedEvent } from '../src/agent-adapter/normalize/event-types
 import { PIAdapter, type PIAgentProcess } from '../src/agent-adapter/pi/adapter.js';
 import { PI_MODELS_PATH } from '../src/agent-adapter/pi/defaults.js';
 import { createPIProviderDiscovery } from '../src/agent-adapter/pi/discovery.js';
+import type { PiDiscoveredModel } from '../src/core/gateway-generator.js';
 import { buildPiEnv, PI_INTERACTION_BRIDGE_ENV } from '../src/agent-adapter/pi/session-options.js';
 import {
   collectEvents, makeFakeRuntimeFactory, type FakeRuntime,
@@ -416,9 +417,9 @@ test('PIAdapter does not default the provider to "anthropic" when only a model i
 });
 
 test('gateway spawns return while one slow discovery warms provider overrides', async () => {
-  let resolveDiscovery!: (providers: string[]) => void;
+  let resolveDiscovery!: (models: PiDiscoveredModel[]) => void;
   let scans = 0;
-  const slowDiscovery = new Promise<string[]>((resolve) => { resolveDiscovery = resolve; });
+  const slowDiscovery = new Promise<PiDiscoveredModel[]>((resolve) => { resolveDiscovery = resolve; });
   const discovery = createPIProviderDiscovery({
     scan: () => {
       scans += 1;
@@ -467,7 +468,11 @@ test('gateway spawns return while one slow discovery warms provider overrides', 
 
   await Promise.resolve();
   assert.equal(scans, 1, 'concurrent cold spawns coalesce provider discovery');
-  resolveDiscovery(['anthropic', 'anthropic', 'openai-codex']);
+  resolveDiscovery([
+    { provider: 'anthropic', model: 'claude-sonnet' },
+    { provider: 'anthropic', model: 'claude-sonnet' },
+    { provider: 'openai-codex', model: 'gpt-5' },
+  ]);
   await tick();
 
   processes.push(adapter.spawn({

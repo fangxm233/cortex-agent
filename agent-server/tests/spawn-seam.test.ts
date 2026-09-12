@@ -55,6 +55,9 @@ const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
 // GOLDEN PROVENANCE: captured from base 63fe0dad's production spawn path. That path mapped the
 // legacy thread boolean to the thread MCP configs; its old _test.computeSpawnArgs hook did not.
 // The current seam and production path agree, so re-deriving via the old hook gives a false mismatch.
+// AMENDED once, in --tools only: the built-in `Agent` was replaced by the cortex-core `agent` /
+// `agent_stop` bridge pair, so every Claude spawn delegates through Cortex. Everything else in the
+// goldens is still the untouched base capture.
 const DIRECT_GOLDEN = path.join(TEST_DIR, 'spawn-seam-direct.golden.json');
 const THREAD_GOLDEN = path.join(TEST_DIR, 'spawn-seam-thread.golden.json');
 const FIXTURE_CONFIG = { model: 'claude-fixture', backend: 'claude' as const, mode: null };

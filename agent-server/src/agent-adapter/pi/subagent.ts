@@ -1,107 +1,110 @@
-// input:  PI Agent tool calls, role files under the agent dir, a nested PI session factory
+// input:  PI `agent` tool calls, the shared role/model catalog, a nested PI session factory
 // output: Single, parallel and chain subagent runs with attributed child events and usage
-// pos:    PI Agent tool: runs role-scoped subagents as nested in-process PI sessions
+// pos:    PI `agent` tool: runs role-scoped subagents, locally or on the other backend
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { readFileSync, readdirSync } from 'node:fs';
-import * as path from 'node:path';
 import { Type } from '@sinclair/typebox';
-import { parse as yamlParse } from 'yaml';
 import type { ExtensionContext, InlineExtension, ToolDefinition } from '@earendil-works/pi-coding-agent';
-import type { ChildSessionFactory, ChildSessionHandle } from './child-session.js';
+import { findRole, loadRoles, type AgentRole } from '@domain/agents/roles.js';
+import {
+  MAX_SUBAGENT_TASKS, SUBAGENT_DESCRIPTION, resolveInvocation,
+} from '@domain/agents/subagent/schema.js';
+import {
+  describeSubagent, type SubagentCatalog, type SubagentFieldDescriptions,
+} from '@domain/agents/subagent/catalog.js';
+import { failedChildResult, runInvocation } from '@domain/agents/subagent/orchestrate.js';
+import type {
+  ChildEventForwarder, Invocation, RunChildFn, SubagentDetails, SubagentResult, SubagentTask,
+} from '@domain/agents/subagent/types.js';
+import type { Backend } from '../types.js';
+import type { ChildSessionFactory } from './child-session.js';
+import type {
+  StartBackgroundSubagent, StopBackgroundSubagent,
+} from './background-subagent.js';
+import { subagentChannel } from './child-events.js';
+import { runPiChild, selectPiModel } from './child-runner.js';
 import type { SubagentNotice } from './event-parser.js';
-import { PI_INTERACTION_BRIDGE_ENV } from './session-options.js';
 
-export const MAX_SUBAGENT_TASKS = 8;
-export const MAX_SUBAGENT_CONCURRENCY = 8;
-export const MAX_SUBAGENT_MODEL_CHOICES = 32;
-export const MAX_SUBAGENT_MODEL_LIST_CHARS = 1_200;
+export { MAX_SUBAGENT_TASKS, MAX_SUBAGENT_CONCURRENCY } from '@domain/agents/subagent/schema.js';
+export {
+  MAX_SUBAGENT_MODEL_CHOICES, MAX_SUBAGENT_MODEL_LIST_CHARS,
+} from '@domain/agents/subagent/catalog.js';
+export type { SubagentModelOption } from '@domain/agents/subagent/catalog.js';
 
-const MODEL_OVERRIDE_DESCRIPTION =
-  'Optional PI model override in provider/model[:thinking] format. ' +
-  'Omit to use the role model, then the current provider/model, then the PI default.';
+/** The field descriptions track the live catalog, so the schema is built per tool instead of being
+ *  frozen at import time. */
+function buildSubagentParameters(described: SubagentFieldDescriptions) {
+  const BackendSchema = Type.Union([Type.Literal('claude'), Type.Literal('pi')], {
+    description: described.backend,
+  });
+  const TaskSchema = Type.Object({
+    description: Type.String({ description: 'Short description of the delegated task.' }),
+    prompt: Type.String({ description: 'Complete task prompt for the subagent.' }),
+    subagent_type: Type.String({ description: described.subagentType }),
+    model: Type.Optional(Type.String({ description: described.model })),
+    backend: Type.Optional(BackendSchema),
+  });
+  return Type.Object({
+    description: Type.Optional(Type.String({ description: 'Short description for single mode.' })),
+    prompt: Type.Optional(Type.String({ description: 'Complete prompt for single mode.' })),
+    subagent_type: Type.Optional(Type.String({ description: described.subagentTypeSingle })),
+    model: Type.Optional(Type.String({ description: described.model })),
+    backend: Type.Optional(BackendSchema),
+    parallel: Type.Optional(Type.Array(TaskSchema, {
+      minItems: 1,
+      maxItems: MAX_SUBAGENT_TASKS,
+      description: 'Tasks to execute concurrently.',
+    })),
+    chain: Type.Optional(Type.Array(TaskSchema, {
+      minItems: 1,
+      maxItems: MAX_SUBAGENT_TASKS,
+      description: 'Tasks to execute sequentially; {previous} inserts the prior output.',
+    })),
+    run_in_background: Type.Optional(Type.Boolean({
+      description: 'Return an agent_id immediately and deliver the result when it is ready, instead '
+        + 'of blocking this tool call. Use for long work you can carry on without.',
+    })),
+  });
+}
 
-const TaskSchema = Type.Object({
-  description: Type.String({ description: 'Short description of the delegated task.' }),
-  prompt: Type.String({ description: 'Complete task prompt for the subagent.' }),
-  subagent_type: Type.String({ description: 'Role name, such as explore, general-purpose, or plan.' }),
-  model: Type.Optional(Type.String({ description: MODEL_OVERRIDE_DESCRIPTION })),
+type SubagentParametersSchema = ReturnType<typeof buildSubagentParameters>;
+
+const StopParameters = Type.Object({
+  agent_id: Type.String({ description: 'The agent_id returned when the subagent was started.' }),
 });
 
-const SubagentParameters = Type.Object({
-  description: Type.Optional(Type.String({ description: 'Short description for single mode.' })),
-  prompt: Type.Optional(Type.String({ description: 'Complete prompt for single mode.' })),
-  subagent_type: Type.Optional(Type.String({
-    description: 'Role name for single mode, such as explore, general-purpose, or plan.',
-  })),
-  model: Type.Optional(Type.String({ description: MODEL_OVERRIDE_DESCRIPTION })),
-  parallel: Type.Optional(Type.Array(TaskSchema, {
-    minItems: 1,
-    maxItems: MAX_SUBAGENT_TASKS,
-    description: 'Tasks to execute concurrently.',
-  })),
-  chain: Type.Optional(Type.Array(TaskSchema, {
-    minItems: 1,
-    maxItems: MAX_SUBAGENT_TASKS,
-    description: 'Tasks to execute sequentially; {previous} inserts the prior output.',
-  })),
-});
-
-export interface SubagentModelOption {
-  provider: string;
-  id: string;
+/** What the delegating PI session can tell the runner about itself. A child on the same backend
+ *  inherits this routing; a child on the other backend resolves its own. */
+export interface ForeignSubagentParent {
+  backend: Backend;
+  model?: string | null;
+  provider?: string | null;
+  /** The parent session's env, from which a nested `pi` child derives its own. */
+  env: NodeJS.ProcessEnv;
 }
 
-interface SubagentTask {
-  description: string;
-  prompt: string;
-  subagent_type: string;
-  model?: string;
+/** One child this session cannot run itself, handed to the daemon-side runner. */
+export interface ForeignSubagentRequest {
+  task: SubagentTask;
+  role: AgentRole;
+  backend: Backend;
+  cwd: string;
+  /** Attribution block key, `${parentToolCallId}#${childIndex}`. */
+  ref: string;
+  parent: ForeignSubagentParent;
+  signal?: AbortSignal;
+  onNotice?: (notice: SubagentNotice) => void;
 }
 
-type SubagentParams = SubagentTask | { parallel: SubagentTask[] } | { chain: SubagentTask[] };
-type SubagentMode = 'single' | 'parallel' | 'chain';
-
-interface AgentRole {
-  name: string;
-  description: string;
-  tools?: string[];
-  model?: string;
-  systemPrompt: string;
-}
-
-export interface SubagentUsage {
-  input: number;
-  output: number;
-  cacheRead: number;
-  cacheWrite: number;
-  cost: number;
-  contextTokens: number;
-  turns: number;
-}
-
-export interface SubagentResult {
-  description: string;
-  prompt: string;
-  subagentType: string;
-  output: string;
-  usage: SubagentUsage;
-  model?: string;
-  stopReason?: string;
-  errorMessage?: string;
-}
-
-export interface SubagentDetails {
-  mode: SubagentMode;
-  results: SubagentResult[];
-  usage: SubagentUsage;
-}
+export type RunForeignSubagent = (request: ForeignSubagentRequest) => Promise<SubagentResult>;
 
 export interface SubagentToolDeps {
-  /** PI agent dir whose `agents/` holds the role files and whose auth/models the children use. */
+  /** PI agent dir whose auth/models the `pi` children use. */
   agentDir: string;
+  /** Where the shared role files live; defaults to the registry's own location. */
+  rolesDir?: string;
   ensureRoles(): void;
-  /** Creates one nested in-process PI session per child. */
+  /** Creates one nested in-process PI session per `pi` child. */
   createSession: ChildSessionFactory;
   /** The Cortex extensions a child session runs with, closed over the child's env. */
   childExtensions: (env: NodeJS.ProcessEnv) => InlineExtension[];
@@ -109,580 +112,155 @@ export interface SubagentToolDeps {
   parentEnv: NodeJS.ProcessEnv;
   /** Receives every forwarded child event for the parent's transcript. Absent: no attribution. */
   onEvent?: (notice: SubagentNotice) => void;
+  /** Runs children whose backend is not `pi`. Absent: such a task is an error, not a silent
+   *  downgrade — a role asking for `claude` must not quietly answer from a PI model. */
+  runForeignSubagent?: RunForeignSubagent;
+  /** Registers a backgrounded run with the daemon. Absent: `run_in_background` is refused rather
+   *  than silently downgraded to a blocking run, which would strand the caller for minutes. */
+  startBackgroundSubagent?: StartBackgroundSubagent;
+  /** Stops a backgrounded run by id. Absent: `agent_stop` is not registered at all. */
+  stopBackgroundSubagent?: StopBackgroundSubagent;
 }
 
-interface ChildAccumulator {
-  output: string;
-  usage: SubagentUsage;
-  model?: string;
-  stopReason?: string;
-  errorMessage?: string;
+export type {
+  SubagentResult, SubagentUsage, SubagentDetails,
+} from '@domain/agents/subagent/types.js';
+
+function fallbackModel(ctx: ExtensionContext) {
+  return ctx.model ? { id: ctx.model.id, provider: ctx.model.provider } : null;
 }
 
-interface Invocation {
-  mode: SubagentMode;
-  tasks: SubagentTask[];
+/** Task → role → this session's own backend. A `pi` session is the parent here by construction. */
+function resolveBackend(task: SubagentTask, role: AgentRole): Backend {
+  return task.backend ?? role.backend ?? 'pi';
 }
 
-/** Called for every event a child emits, with the accumulator so the notice can name the model as
- *  soon as the child has reported one. Best-effort by contract — see processEvent. */
-type ChildEventForwarder = (event: Record<string, unknown>, acc: ChildAccumulator) => void;
-
-/** Carries one running child's events out to the server. Built per `agent` call so it can stamp
- *  the parent's tool-call id, and per child so it can stamp which of up to eight it is. */
-export interface SubagentChannel {
-  forChild(index: number, task: { description: string; prompt: string; subagent_type: string }): ChildEventForwarder;
-}
-
-/** The parent-side sink for a child's events. Absent (or throwing) simply costs attribution — the
- *  subagent still runs and its final output still returns through the tool result. */
-export function subagentChannel(
-  parentToolCallId: string,
-  onEvent: ((notice: SubagentNotice) => void) | undefined,
-  forwardRuntimePrompt = false,
-): SubagentChannel | undefined {
-  if (!onEvent || !parentToolCallId) return undefined;
-  const send = (notice: SubagentNotice): void => {
-    try { onEvent(notice); } catch { /* best-effort */ }
-  };
-  return {
-    forChild(index, task) {
-      const ref = `${parentToolCallId}#${index}`;
-      let promptPending = forwardRuntimePrompt && index > 0;
-      return (event, acc) => {
-        const notices = noticesFor(ref, task, acc, event);
-        for (let i = 0; i < notices.length; i++) {
-          send(promptPending && i === 0 ? { ...notices[i], prompt: task.prompt } : notices[i]);
-        }
-        if (notices.length) promptPending = false;
-      };
-    },
-  };
-}
-
-/** Translate one child session event into the notices the transcript can render. Returns [] for
- *  everything else — deltas, lifecycle, usage — so the channel stays quiet between real actions. */
-function noticesFor(
-  ref: string,
-  task: { description: string; subagent_type: string },
-  acc: ChildAccumulator,
-  event: Record<string, unknown>,
-): SubagentNotice[] {
-  const base = {
-    ref, type: task.subagent_type, description: task.description,
-    model: acc.model ?? null,
-  };
-  const type = event.type;
-  if (type === 'tool_execution_start') {
-    const id = event.toolCallId;
-    const name = event.toolName;
-    if (typeof id !== 'string' || typeof name !== 'string') return [];
-    return [{ ...base, kind: 'tool_use', toolUseId: `${ref}:${id}`, name, input: event.args ?? {} }];
-  }
-  if (type === 'tool_execution_end') {
-    const id = event.toolCallId;
-    if (typeof id !== 'string') return [];
-    return [{
-      ...base, kind: 'tool_result', toolUseId: `${ref}:${id}`,
-      ok: event.isError !== true, content: toolResultText(event.result),
-    }];
-  }
-  const message = messageEndMessage(event);
-  if (!message || message.role !== 'assistant') return [];
-  // `model` is read off THIS message, not the accumulator, because the accumulator has not yet
-  // recorded it when the forwarder runs — the notice would otherwise lag one message behind.
-  const model = typeof message.model === 'string' ? message.model : base.model;
-  const text = textFromMessage(message);
-  return text ? [{ ...base, model, kind: 'assistant_text', text }] : [];
-}
-
-function toolResultText(result: unknown): string {
-  if (typeof result === 'string') return result;
-  if (!result || typeof result !== 'object') return '';
-  const content = (result as Record<string, unknown>).content;
-  if (typeof content === 'string') return content;
-  if (!Array.isArray(content)) return '';
-  return content
-    .filter((b) => b && typeof b === 'object' && (b as Record<string, unknown>).type === 'text')
-    .map((b) => String((b as Record<string, unknown>).text ?? ''))
-    .join('');
-}
-
-function emptyUsage(): SubagentUsage {
-  return {
-    input: 0,
-    output: 0,
-    cacheRead: 0,
-    cacheWrite: 0,
-    cost: 0,
-    contextTokens: 0,
-    turns: 0,
-  };
-}
-
-function finiteNumber(value: unknown): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
-}
-
-function addTurnUsage(target: SubagentUsage, source: SubagentUsage): void {
-  target.input += source.input;
-  target.output += source.output;
-  target.cacheRead += source.cacheRead;
-  target.cacheWrite += source.cacheWrite;
-  target.cost += source.cost;
-  target.contextTokens = source.contextTokens || target.contextTokens;
-  target.turns += source.turns;
-}
-
-function addChildUsage(target: SubagentUsage, source: SubagentUsage): void {
-  target.input += source.input;
-  target.output += source.output;
-  target.cacheRead += source.cacheRead;
-  target.cacheWrite += source.cacheWrite;
-  target.cost += source.cost;
-  target.contextTokens += source.contextTokens;
-  target.turns += source.turns;
-}
-
-function aggregateUsage(results: SubagentResult[]): SubagentUsage {
-  const total = emptyUsage();
-  for (const result of results) addChildUsage(total, result.usage);
-  return total;
-}
-
-function parseTools(value: unknown): string[] | undefined {
-  const tools = Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === 'string')
-    : typeof value === 'string' ? value.split(',') : [];
-  const normalized = tools.map((tool) => tool.trim()).filter(Boolean);
-  return normalized.length > 0 ? normalized : undefined;
-}
-
-function parseRole(content: string): AgentRole | null {
-  const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)([\s\S]*)$/.exec(content);
-  if (!match) return null;
-  const frontmatter = yamlParse(match[1]) as Record<string, unknown> | null;
-  if (!frontmatter || typeof frontmatter.name !== 'string') return null;
-  if (typeof frontmatter.description !== 'string') return null;
-  return {
-    name: frontmatter.name,
-    description: frontmatter.description,
-    tools: parseTools(frontmatter.tools),
-    model: typeof frontmatter.model === 'string' ? frontmatter.model : undefined,
-    systemPrompt: match[2].trim(),
-  };
-}
-
-function loadRoles(agentDir: string): AgentRole[] {
-  const rolesDir = path.join(agentDir, 'agents');
-  const roles: AgentRole[] = [];
-  for (const entry of readdirSync(rolesDir, { withFileTypes: true })) {
-    if (!entry.name.endsWith('.md')) continue;
-    if (!entry.isFile() && !entry.isSymbolicLink()) continue;
-    const role = parseRole(readFileSync(path.join(rolesDir, entry.name), 'utf8'));
-    if (role) roles.push(role);
-  }
-  return roles;
-}
-
-function findRole(roles: AgentRole[], name: string): AgentRole {
-  const role = roles.find((candidate) => candidate.name === name);
-  if (role) return role;
-  const available = roles.map((candidate) => candidate.name).sort().join(', ') || 'none';
-  throw new Error(`Unknown subagent_type "${name}". Available roles: ${available}.`);
-}
-
-function resolveInvocation(params: SubagentParams): Invocation {
-  const record = params as Record<string, unknown>;
-  const hasSingle = ['description', 'prompt', 'subagent_type'].some((key) => key in record);
-  const hasParallel = Array.isArray(record.parallel);
-  const hasChain = Array.isArray(record.chain);
-  if (Number(hasSingle) + Number(hasParallel) + Number(hasChain) !== 1) {
-    throw new Error('Provide exactly one Agent mode: single fields, parallel, or chain.');
-  }
-  if (hasParallel) return checkedInvocation('parallel', record.parallel as SubagentTask[]);
-  if (hasChain) return checkedInvocation('chain', record.chain as SubagentTask[]);
-  validateTask(record as unknown as SubagentTask);
-  return { mode: 'single', tasks: [record as unknown as SubagentTask] };
-}
-
-function checkedInvocation(mode: SubagentMode, tasks: SubagentTask[]): Invocation {
-  if (tasks.length === 0) throw new Error(`${mode} requires at least one task.`);
-  if (tasks.length > MAX_SUBAGENT_TASKS) {
-    throw new Error(`Agent ${mode} task maximum is ${MAX_SUBAGENT_TASKS}.`);
-  }
-  for (const task of tasks) validateTask(task);
-  return { mode, tasks };
-}
-
-function validateTask(task: SubagentTask): void {
-  for (const key of ['description', 'prompt', 'subagent_type'] as const) {
-    if (typeof task[key] !== 'string' || task[key].trim() === '') {
-      throw new Error(`Agent task requires a non-empty ${key}.`);
-    }
-  }
-}
-
-function selectedModel(task: SubagentTask, role: AgentRole, ctx: ExtensionContext) {
-  const explicit = task.model?.trim();
-  if (explicit) return { model: explicit };
-  const roleModel = role.model?.trim();
-  if (roleModel) return { model: roleModel };
-  if (ctx.model) return { model: ctx.model.id, provider: ctx.model.provider };
-  return {};
-}
-
-/** The child's env: the parent's, marked as a subagent and stripped of the thread scope and the
- *  interaction bridge, so the child's tool shims skip the Agent tool and its MCP bridge loads only
- *  the core bundle. */
-function buildChildEnv(parentEnv: NodeJS.ProcessEnv, agentDir: string): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = { ...parentEnv, PI_CODING_AGENT_DIR: agentDir, CORTEX_PI_SUBAGENT: '1' };
-  delete env.CORTEX_THREAD_ID;
-  delete env.CORTEX_TASK_ID;
-  delete env[PI_INTERACTION_BRIDGE_ENV];
-  return env;
-}
-
-function textFromMessage(message: Record<string, unknown>): string {
-  const content = message.content;
-  if (typeof content === 'string') return content;
-  if (!Array.isArray(content)) return '';
-  return content
-    .filter((part): part is { type: string; text: string } => (
-      !!part && typeof part === 'object'
-      && (part as any).type === 'text'
-      && typeof (part as any).text === 'string'
-    ))
-    .map((part) => part.text)
-    .join('\n');
-}
-
-function recordUsage(accumulator: ChildAccumulator, message: Record<string, unknown>): void {
-  if (message.role !== 'assistant') return;
-  const usage = message.usage as Record<string, unknown> | undefined;
-  const cost = usage?.cost as Record<string, unknown> | undefined;
-  addTurnUsage(accumulator.usage, {
-    input: finiteNumber(usage?.input),
-    output: finiteNumber(usage?.output),
-    cacheRead: finiteNumber(usage?.cacheRead),
-    cacheWrite: finiteNumber(usage?.cacheWrite),
-    cost: finiteNumber(cost?.total),
-    contextTokens: finiteNumber(usage?.totalTokens),
-    turns: 1,
-  });
-}
-
-function messageEndMessage(event: Record<string, unknown>): Record<string, unknown> | null {
-  if (event.type !== 'message_end' || !event.message || typeof event.message !== 'object') return null;
-  return event.message as Record<string, unknown>;
-}
-
-function stringOrPrevious(value: unknown, previous: string | undefined): string | undefined {
-  return typeof value === 'string' ? value : previous;
-}
-
-function recordTerminalState(
-  accumulator: ChildAccumulator,
-  message: Record<string, unknown>,
-): void {
-  const stopReason = typeof message.stopReason === 'string' ? message.stopReason : undefined;
-  if (!stopReason) {
-    accumulator.errorMessage = stringOrPrevious(message.errorMessage, accumulator.errorMessage);
-    return;
-  }
-  accumulator.stopReason = stopReason;
-  accumulator.errorMessage = typeof message.errorMessage === 'string'
-    ? message.errorMessage
-    : undefined;
-}
-
-function recordAssistantMessage(
-  accumulator: ChildAccumulator,
-  message: Record<string, unknown>,
-): void {
-  if (message.role !== 'assistant') return;
-  accumulator.output = textFromMessage(message) || accumulator.output;
-  accumulator.model = stringOrPrevious(message.model, accumulator.model);
-  recordTerminalState(accumulator, message);
-}
-
-function processEvent(
-  accumulator: ChildAccumulator,
-  event: Record<string, unknown>,
-  forward?: ChildEventForwarder,
-): void {
-  // Forward FIRST and unconditionally: the accumulator only cares about `message_end`, but the
-  // transcript wants the child's tool calls too. The model is read off the accumulator so a notice
-  // can name it as soon as the child's first message reports one.
-  if (forward) {
-    try { forward(event, accumulator); }
-    catch { /* the channel is best-effort: a broken notice must not fail the subagent */ }
-  }
-  const message = messageEndMessage(event);
-  if (!message) return;
-  recordUsage(accumulator, message);
-  recordAssistantMessage(accumulator, message);
-}
-
-function isFailed(result: SubagentResult): boolean {
-  return result.stopReason === 'error' || result.stopReason === 'aborted';
-}
-
-function resultText(result: SubagentResult): string {
-  if (isFailed(result)) return result.errorMessage || result.output || '(no output)';
-  return result.output || '(no output)';
-}
-
-function createChildResult(task: SubagentTask, accumulator: ChildAccumulator): SubagentResult {
-  return {
-    description: task.description,
-    prompt: task.prompt,
-    subagentType: task.subagent_type,
-    output: accumulator.output,
-    usage: accumulator.usage,
-    model: accumulator.model,
-    stopReason: accumulator.stopReason,
-    errorMessage: accumulator.errorMessage,
-  };
-}
-
-/** Run one task on its own nested PI session; the session is disposed however the run ends. */
-async function runChild(
-  task: SubagentTask,
-  role: AgentRole,
+function buildRunChild(
   ctx: ExtensionContext,
-  signal: AbortSignal | undefined,
   deps: SubagentToolDeps,
-  forward?: ChildEventForwarder,
-): Promise<SubagentResult> {
-  const selection = selectedModel(task, role, ctx);
-  const handle = await deps.createSession({
-    cwd: ctx.cwd,
-    agentDir: deps.agentDir,
-    provider: selection.provider ?? null,
-    model: selection.model ?? null,
-    tools: role.tools,
-    appendSystemPrompt: role.systemPrompt ? [role.systemPrompt] : [],
-    extensions: deps.childExtensions(buildChildEnv(deps.parentEnv, deps.agentDir)),
-  });
-  try {
-    return await collectChild(handle, task, signal, forward);
-  } finally {
-    handle.dispose();
-  }
+  roles: AgentRole[],
+  parentToolCallId: string,
+) {
+  return async (
+    task: SubagentTask,
+    index: number,
+    signal: AbortSignal | undefined,
+    forward?: ChildEventForwarder,
+  ): Promise<SubagentResult> => {
+    const role = findRole(roles, task.subagent_type);
+    const backend = resolveBackend(task, role);
+    try {
+      if (backend === 'pi') {
+        return await runPiChild({
+          task, role, cwd: ctx.cwd, agentDir: deps.agentDir, parentEnv: deps.parentEnv,
+          fallbackModel: fallbackModel(ctx), createSession: deps.createSession,
+          childExtensions: deps.childExtensions, signal, forward,
+        });
+      }
+      if (!deps.runForeignSubagent) {
+        throw new Error(`Delegating to the ${backend} backend is unavailable in this session.`);
+      }
+      const parent = fallbackModel(ctx);
+      return await deps.runForeignSubagent({
+        task, role, backend, cwd: ctx.cwd, ref: `${parentToolCallId}#${index}`,
+        parent: {
+          backend: 'pi', model: parent?.id ?? null, provider: parent?.provider ?? null,
+          env: deps.parentEnv,
+        },
+        signal, onNotice: deps.onEvent,
+      });
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      return failedChildResult(task, error);
+    }
+  };
+}
+
+function textResult(text: string): { content: Array<{ type: 'text'; text: string }>; details: undefined } {
+  return { content: [{ type: 'text', text }], details: undefined };
 }
 
 /**
- * Drive the child through one prompt. PI's `prompt()` resolves once the run is over, so the
- * accumulator is complete when it returns; an abort in the meantime stops the run and rejects,
- * whatever PI's own stop reason ended up being.
+ * Hand the run to the daemon and answer with its id.
+ *
+ * The tool call returns now, so nothing from this point on may depend on the call's own `signal`
+ * (already aborting) or on `ctx` surviving — the child runner closes over the values it needs. The
+ * attribution channel is still worth wiring: the parent's turn usually outlives the tool call, and
+ * while it does the children's work streams into the transcript exactly as a foreground run's does.
  */
-async function collectChild(
-  handle: ChildSessionHandle,
-  task: SubagentTask,
-  signal: AbortSignal | undefined,
-  forward?: ChildEventForwarder,
-): Promise<SubagentResult> {
-  if (signal?.aborted) throw new Error('Subagent was aborted.');
-  const accumulator: ChildAccumulator = { output: '', usage: emptyUsage() };
-  const unsubscribe = handle.session.subscribe((event) => {
-    processEvent(accumulator, event as unknown as Record<string, unknown>, forward);
-  });
-  const onAbort = (): void => { void handle.session.abort().catch(() => undefined); };
-  signal?.addEventListener('abort', onAbort, { once: true });
-  try {
-    await handle.session.prompt(`Task: ${task.prompt}`);
-  } finally {
-    signal?.removeEventListener('abort', onAbort);
-    unsubscribe();
-  }
-  if (signal?.aborted) throw new Error('Subagent was aborted.');
-  return createChildResult(task, accumulator);
-}
-
-function failedChildResult(task: SubagentTask, error: unknown): SubagentResult {
-  const message = error instanceof Error ? error.message : String(error);
-  const accumulator: ChildAccumulator = {
-    output: '',
-    usage: emptyUsage(),
-    stopReason: 'error',
-    errorMessage: message,
-  };
-  return createChildResult(task, accumulator);
-}
-
-async function runTask(
-  task: SubagentTask,
-  roles: AgentRole[],
-  ctx: ExtensionContext,
-  signal: AbortSignal | undefined,
+async function startInBackground(
   deps: SubagentToolDeps,
-  forward?: ChildEventForwarder,
-): Promise<SubagentResult> {
-  const role = findRole(roles, task.subagent_type);
-  try {
-    const result = await runChild(task, role, ctx, signal, deps, forward);
-    if (!result.model) result.model = selectedModel(task, role, ctx).model;
-    return result;
-  } catch (error) {
-    if (signal?.aborted) throw error;
-    return failedChildResult(task, error);
-  }
-}
-
-function parallelContent(results: SubagentResult[]): string {
-  const succeeded = results.filter((result) => !isFailed(result)).length;
-  const sections = results.map((result) => {
-    const status = isFailed(result) ? 'failed' : 'completed';
-    return `### [${result.description}] ${status}\n\n${resultText(result)}`;
-  });
-  return `Parallel: ${succeeded}/${results.length} succeeded\n\n${sections.join('\n\n---\n\n')}`;
-}
-
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  concurrency: number,
-  execute: (item: T, index: number) => Promise<R>,
-): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let nextIndex = 0;
-  const worker = async () => {
-    for (;;) {
-      const index = nextIndex++;
-      if (index >= items.length) return;
-      results[index] = await execute(items[index], index);
-    }
-  };
-  const workers = Array.from({ length: Math.min(concurrency, items.length) }, worker);
-  await Promise.all(workers);
-  return results;
-}
-
-async function executeParallel(
-  tasks: SubagentTask[],
-  roles: AgentRole[],
-  ctx: ExtensionContext,
-  signal: AbortSignal | undefined,
-  deps: SubagentToolDeps,
-  channel?: SubagentChannel,
-): Promise<SubagentResult[]> {
-  // The index is the task's position, not completion order: parallel children finish out of
-  // order, and a block keyed by arrival would rename itself as the race resolves.
-  return mapWithConcurrency(tasks, MAX_SUBAGENT_CONCURRENCY, (task, index) => (
-    runTask(task, roles, ctx, signal, deps, channel?.forChild(index, task))
-  ));
-}
-
-async function executeChain(
-  tasks: SubagentTask[],
-  roles: AgentRole[],
-  ctx: ExtensionContext,
-  signal: AbortSignal | undefined,
-  deps: SubagentToolDeps,
-  channel?: SubagentChannel,
-): Promise<SubagentResult[]> {
-  const results: SubagentResult[] = [];
-  let previous = '';
-  let index = 0;
-  for (const original of tasks) {
-    const task = { ...original, prompt: original.prompt.replace(/\{previous\}/g, previous) };
-    const result = await runTask(task, roles, ctx, signal, deps, channel?.forChild(index++, task));
-    results.push(result);
-    if (isFailed(result)) break;
-    previous = result.output;
-  }
-  return results;
-}
-
-function buildToolResult(mode: SubagentMode, results: SubagentResult[]) {
-  const details: SubagentDetails = { mode, results, usage: aggregateUsage(results) };
-  if (mode === 'parallel') {
-    return { content: [{ type: 'text' as const, text: parallelContent(results) }], details };
-  }
-  const last = results.at(-1)!;
-  const prefix = isFailed(last) ? `Agent failed: ` : '';
-  return { content: [{ type: 'text' as const, text: prefix + resultText(last) }], details };
-}
-
-async function executeInvocation(
   invocation: Invocation,
-  roles: AgentRole[],
-  ctx: ExtensionContext,
-  signal: AbortSignal | undefined,
-  deps: SubagentToolDeps,
-  channel?: SubagentChannel,
+  runChild: RunChildFn,
+  toolCallId: string,
 ) {
-  for (const task of invocation.tasks) findRole(roles, task.subagent_type);
-  if (invocation.mode === 'parallel') {
-    const results = await executeParallel(invocation.tasks, roles, ctx, signal, deps, channel);
-    return buildToolResult(invocation.mode, results);
+  if (!deps.startBackgroundSubagent) {
+    throw new Error('run_in_background is unavailable in this session.');
   }
-  if (invocation.mode === 'chain') {
-    const results = await executeChain(invocation.tasks, roles, ctx, signal, deps, channel);
-    return buildToolResult(invocation.mode, results);
-  }
-  const task = invocation.tasks[0];
-  const result = await runTask(task, roles, ctx, signal, deps, channel?.forChild(0, task));
-  return buildToolResult(invocation.mode, [result]);
-}
-
-const SUBAGENT_DESCRIPTION =
-  'Delegate a task to an isolated PI subagent. Supports single, parallel, and chain modes. ' +
-  'Model overrides use provider/model[:thinking].';
-
-function modelOptionName(option: SubagentModelOption): string | null {
-  const provider = option.provider.trim();
-  const id = option.id.trim();
-  return provider && id ? `${provider}/${id}` : null;
-}
-
-function uniqueModelNames(options: SubagentModelOption[]): string[] {
-  const names = new Set<string>();
-  for (const option of options) {
-    const name = modelOptionName(option);
-    if (name) names.add(name);
-  }
-  return [...names].sort((left, right) => left.localeCompare(right));
-}
-
-function boundedModelNames(names: string[]): string[] {
-  const selected: string[] = [];
-  let characters = 0;
-  for (const name of names) {
-    const added = name.length + (selected.length > 0 ? 2 : 0);
-    if (selected.length >= MAX_SUBAGENT_MODEL_CHOICES) break;
-    if (characters + added > MAX_SUBAGENT_MODEL_LIST_CHARS) continue;
-    selected.push(name);
-    characters += added;
-  }
-  return selected;
-}
-
-function toolDescription(options: SubagentModelOption[]): string {
-  const names = uniqueModelNames(options);
-  if (names.length === 0) return SUBAGENT_DESCRIPTION;
-  const selected = boundedModelNames(names);
-  const omitted = names.length - selected.length;
-  const suffix = omitted > 0 ? ` (+${omitted} more)` : '';
-  return `${SUBAGENT_DESCRIPTION} Available model overrides: ${selected.join(', ')}${suffix}.`;
+  const { id } = await deps.startBackgroundSubagent({
+    invocation,
+    runChild,
+    channel: subagentChannel(toolCallId, deps.onEvent, invocation.mode === 'chain'),
+    sessionId: deps.parentEnv.CORTEX_SESSION_ID || null,
+    conduit: deps.parentEnv.SLACK_CHANNEL || deps.parentEnv.FEISHU_CHANNEL || undefined,
+  });
+  return textResult(
+    `Agent ${id} started in the background. Its result will be delivered to you when it is ready. `
+    + `Stop it early with agent_stop("${id}").`,
+  );
 }
 
 export function createSubagentTool(
   deps: SubagentToolDeps,
-  modelOptions: SubagentModelOption[] = [],
-): ToolDefinition<typeof SubagentParameters, SubagentDetails> {
+  catalog: SubagentCatalog = {},
+): ToolDefinition<SubagentParametersSchema, SubagentDetails> {
+  const described = describeSubagent(catalog);
   return {
     name: 'agent',
     label: 'Agent',
-    description: toolDescription(modelOptions),
-    parameters: SubagentParameters,
+    description: SUBAGENT_DESCRIPTION,
+    parameters: buildSubagentParameters(described),
     async execute(toolCallId, params, signal, _update, ctx) {
       deps.ensureRoles();
-      const invocation = resolveInvocation(params as SubagentParams);
-      return executeInvocation(
-        invocation, loadRoles(deps.agentDir), ctx, signal, deps,
+      const invocation = resolveInvocation(params);
+      const roles = loadRoles(deps.rolesDir);
+      // Fail before any child starts if a role is missing: a half-run fan-out is worse than none.
+      for (const task of invocation.tasks) findRole(roles, task.subagent_type);
+      const runChild = buildRunChild(ctx, deps, roles, toolCallId);
+      if (params.run_in_background) {
+        return startInBackground(deps, invocation, runChild, toolCallId);
+      }
+      return runInvocation(
+        invocation,
+        runChild,
+        signal,
         subagentChannel(toolCallId, deps.onEvent, invocation.mode === 'chain'),
       );
     },
   };
 }
+
+/** The sibling of `run_in_background`: registered only when the session can background a run at
+ *  all, since an id it could never have been given is nothing to stop. */
+export function createSubagentStopTool(
+  deps: SubagentToolDeps,
+): ToolDefinition<typeof StopParameters, SubagentDetails> | null {
+  const stop = deps.stopBackgroundSubagent;
+  if (!stop) return null;
+  return {
+    name: 'agent_stop',
+    label: 'AgentStop',
+    description:
+      'Stop a running subagent by the agent_id you were given. Whatever the children had produced '
+      + 'is discarded — use it when the delegated work is no longer wanted, not to collect a result.',
+    parameters: StopParameters,
+    async execute(_toolCallId, params) {
+      const status = await stop(params.agent_id);
+      if (!status) return textResult(`No such agent run: ${params.agent_id}.`);
+      return textResult(`Agent ${params.agent_id} is now ${status}.`);
+    },
+  };
+}
+
+export { selectPiModel };
+export { subagentChannel } from './child-events.js';

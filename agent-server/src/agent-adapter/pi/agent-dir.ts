@@ -1,5 +1,5 @@
-// input:  DEFAULTS_DIR, host PI auth file, PI path defaults
-// output: PI auth mirroring, built-in roles and transport pinning
+// input:  host PI auth file, PI path defaults, the shared role registry
+// output: PI auth mirroring, shared-role seeding and transport pinning
 // pos:    Managed PI agent directory configuration
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -13,12 +13,12 @@ import {
   unlinkSync,
   symlinkSync,
   copyFileSync,
-  constants as fsConstants,
+
 } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { DEFAULTS_DIR } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
+import { ensureAgentRoles } from '@domain/agents/roles.js';
 import { PI_AGENT_DIR, PI_SESSIONS_DIR } from './defaults.js';
 
 const log = createLogger('pi-agent-dir');
@@ -30,10 +30,6 @@ export {
   buildProviderOverrides, writeProvidersConfig,
   type ProviderOverride, type WriteProvidersOpts,
 } from './providers-config.js';
-
-export const PI_DEFAULT_AGENTS_DIR = path.join(DEFAULTS_DIR, 'pi', 'agents');
-
-const BUILTIN_PI_AGENT_NAMES = ['explore', 'general-purpose', 'plan'] as const;
 
 /** Default location of the user's PI OAuth/API-key credentials. */
 const USER_PI_AUTH_PATH = path.join(os.homedir(), '.pi', 'agent', 'auth.json');
@@ -114,24 +110,17 @@ function isBrokenSymlink(p: string): boolean {
 
 // ─── Built-in subagent roles ─────────────────────────────────────
 
-export interface EnsurePIAgentRolesOpts {
-  defaultsDir?: string;
-  agentDir?: string;
-}
+/** Where PI kept its private role files before the table was unified. Read once, on the first run
+ *  after the upgrade, so a user's own PI roles carry over. */
+export const LEGACY_PI_ROLES_DIR = path.join(PI_AGENT_DIR, 'agents');
 
-export function ensurePIAgentRoles(opts?: EnsurePIAgentRolesOpts): void {
-  const defaultsDir = opts?.defaultsDir ?? PI_DEFAULT_AGENTS_DIR;
-  const targetDir = path.join(opts?.agentDir ?? PI_AGENT_DIR, 'agents');
-  mkdirSync(targetDir, { recursive: true });
-  for (const name of BUILTIN_PI_AGENT_NAMES) {
-    const source = path.join(defaultsDir, `${name}.md`);
-    const target = path.join(targetDir, `${name}.md`);
-    try {
-      copyFileSync(source, target, fsConstants.COPYFILE_EXCL);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
-    }
-  }
+/** Seed the shared role table, adopting this dir's legacy roles the first time (plan §3.1). */
+export function ensurePIAgentRoles(opts?: { defaultsDir?: string; rolesDir?: string; legacyDir?: string }): void {
+  ensureAgentRoles({
+    defaultsDir: opts?.defaultsDir,
+    rolesDir: opts?.rolesDir,
+    legacyDir: opts?.legacyDir ?? LEGACY_PI_ROLES_DIR,
+  });
 }
 
 // ─── Directory bootstrap ──────────────────────────────────────────

@@ -25,7 +25,7 @@ import { MCP_INFRASTRUCTURE_TIMEOUT_MS } from '@core/mcp-timeout.js';
 import type { McpBundleName } from '@core/mcp-bundles.js';
 import {
   MCP_TOOL_ALLOWLIST_ENV, MCP_TOOLS_BY_SERVER, parseMcpToolAllowlist,
-  validateMcpToolAllowlist, withoutCommissionTools,
+  validateMcpToolAllowlist, withoutCommissionTools, withoutSubagentTools,
 } from '@core/mcp-tool-gate.js';
 import type { McpServerConfig } from '../types.js';
 import { createRedirectRejectingFetch } from '../mcp-remote-fetch.js';
@@ -106,19 +106,27 @@ function builtinEnv(env: NodeJS.ProcessEnv): Record<string, string> {
  * PI has no `--tools` equivalent for MCP tools, so the allowlist is its only lever — and the gate is
  * fail-open, meaning "hide a tool" has to be spelled out as an allowlist spanning every selected
  * bundle. This runs here rather than in the adapter because this is the first place that knows PI's
- * bundle set. A session drafting a commission gets no allowlist at all: it is allowed everything,
- * including the two commission tools.
+ * bundle set.
+ *
+ * Two exclusions are applied:
+ *
+ * - **Commission tools**, unless this session is drafting a commission — that one gets no allowlist
+ *   at all and is therefore allowed everything, the two commission tools included.
+ * - **Delegation tools, always.** `agent` / `agent_stop` exist in `cortex-core` for backends that
+ *   have no subagent of their own; PI registers its own in-process `agent`, and a bundled MCP tool
+ *   is exposed under its bare name, so leaving them in would mean two tools called `agent`. The
+ *   native one wins by construction because the MCP pair never reaches PI at all.
  */
-function commissionGatedEnv(
+function toolGatedEnv(
   bundles: readonly McpBundleName[], env: NodeJS.ProcessEnv,
 ): Record<string, string> {
   const toolEnv = builtinEnv(env);
-  if (!bundles.includes('cortex-interaction-bridge')) return toolEnv;
-  if (env[PI_COMMISSION_TOOLS_ENV] === '1') return toolEnv;
+  const dropCommission = bundles.includes('cortex-interaction-bridge')
+    && env[PI_COMMISSION_TOOLS_ENV] !== '1';
   const declared = parseMcpToolAllowlist(env[MCP_TOOL_ALLOWLIST_ENV]);
-  toolEnv[MCP_TOOL_ALLOWLIST_ENV] = JSON.stringify(
-    withoutCommissionTools(declared ? [...declared] : undefined, bundles),
-  );
+  let allowlist = withoutSubagentTools(declared ? [...declared] : undefined, bundles);
+  if (dropCommission) allowlist = withoutCommissionTools(allowlist, bundles);
+  toolEnv[MCP_TOOL_ALLOWLIST_ENV] = JSON.stringify(allowlist);
   return toolEnv;
 }
 
@@ -200,7 +208,7 @@ export function buildServerStates(
     }
     bundles.push(...optionalBundles(env));
   }
-  const states = [createState('core', { kind: 'bundled', bundles, env: commissionGatedEnv(bundles, env) })];
+  const states = [createState('core', { kind: 'bundled', bundles, env: toolGatedEnv(bundles, env) })];
   if (env.CORTEX_PI_SUBAGENT !== '1') states.push(...pluginStates(pluginServers, reportIssue));
   return validateToolGatedStates(env, assertUniqueServerStateNames(states));
 }

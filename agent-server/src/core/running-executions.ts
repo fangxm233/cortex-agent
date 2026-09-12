@@ -130,6 +130,23 @@ export class RunningExecutions {
     return this.byThreadId.get(threadId) ?? null;
   }
 
+  /**
+   * Look up the live execution belonging to a Cortex session id.
+   *
+   * There is no index for this: session id is not a primary key, and a session can legitimately
+   * have several executions live at once (a thread step beside its parent). The stable track id is
+   * preferred over the backend's own resume id, which a resumed session shares with its past runs.
+   * The newest match wins, which is the one a caller reaching in from inside a turn means.
+   */
+  getBySessionId(sessionId: string): RunningExecution | null {
+    let best: RunningExecution | null = null;
+    for (const entry of this.byKey.values()) {
+      if (entry.trackSessionId !== sessionId && entry.sessionId !== sessionId) continue;
+      if (!best || entry.startTime >= best.startTime) best = entry;
+    }
+    return best;
+  }
+
   /** Return all live executions registered on a channel (empty array if none). */
   getByChannel(channel: string): RunningExecution[] {
     const set = this.byChannel.get(channel);

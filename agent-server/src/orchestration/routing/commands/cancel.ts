@@ -7,6 +7,7 @@ import type { CommandActionRouter } from '@orch/interactions/command-action-rout
 import { runningExecutions, type RunningExecution } from '../../../core/running-executions.js';
 import { bgHeldSessions } from '../../../core/bg-held-sessions.js';
 import { killSession as killPooledSession } from '@domain/agents/index.js';
+import { stopSubagentRunsForSession } from '@domain/agents/subagent/registry.js';
 import { conduitQueues } from '../../conduit-queue.js';
 import { cancelThread as cancelThreadById } from '@domain/threads/index.js';
 import * as executionRegistry from '@domain/executions/registry.js';
@@ -62,13 +63,63 @@ export function cancelBgHolds(channel: string, deps: BgHoldCancelDeps = {}): num
   return held.length;
 }
 
+/** Seams for {@link cancelSubagentRuns} — injected in tests, defaulted to the real registries. */
+export interface SubagentCancelDeps {
+  liveExecutions?: (channel: string) => RunningExecution[];
+  heldSessions?: (channel: string) => string[];
+  stopForSession?: (sessionId: string) => number;
+}
+
+/** Stop every delegated `agent` run owned by a session on this channel; returns the number stopped.
+ *
+ *  Subagent runs are keyed by Cortex SESSION, this path by CHANNEL, so the sessions have to be
+ *  reconstructed: the stable track id of each live execution, plus any session the channel is
+ *  currently bg-holding.
+ *
+ *  Why it is needed on top of the two teardowns below. A FOREGROUND run is only noticed by the
+ *  registry's abandon sweep, which waits for its MCP caller to miss several polls — up to
+ *  FOREGROUND_ABANDON_MS of children spending tokens on an answer nobody can receive. A BACKGROUND
+ *  run whose session also has a live execution is missed entirely, because {@link cancelBgHolds}
+ *  only runs when the channel has no executions at all. Stopping the run is also what releases its
+ *  hold: the hold is sealed by the run settling.
+ *
+ *  Not added to the cancelled count: a live subagent run always sits under an execution or a hold,
+ *  both of which are already counted. */
+export function cancelSubagentRuns(channel: string, deps: SubagentCancelDeps = {}): number {
+  const liveExecutions = deps.liveExecutions ?? ((c: string) => runningExecutions.getByChannel(c));
+  const heldSessions = deps.heldSessions ?? ((c: string) => bgHeldSessions.sessionsOnChannel(c));
+  const stopForSession = deps.stopForSession ?? stopSubagentRunsForSession;
+
+  const sessionIds = new Set<string>();
+  for (const exec of liveExecutions(channel)) {
+    const id = exec.trackSessionId ?? exec.sessionId ?? null;
+    if (id) sessionIds.add(id);
+  }
+  for (const id of heldSessions(channel)) if (id) sessionIds.add(id);
+  if (sessionIds.size === 0) return 0;
+
+  let stopped = 0;
+  for (const sessionId of sessionIds) {
+    try {
+      stopped += stopForSession(sessionId);
+    } catch (e) {
+      log.warn(`subagent cancel: session ${sessionId}: ${(e as Error).message}`);
+    }
+  }
+  return stopped;
+}
+
 /** Cancel every live execution running on a channel; returns the number cancelled. Shared by the
  *  no-arg / `--all` `!cancel` branches and the Web UI Stop path (ui-service `sessions.cancel`, wired
  *  via the `cancelSessionRun` dep in entry/app.ts). Also ends a web background-task hold on the
  *  channel — a held session has no live execution, so without this Stop did nothing (see
- *  {@link cancelBgHolds}). Clears the conduit queue when anything ran. */
+ *  {@link cancelBgHolds}). Stops any delegated `agent` runs those sessions own (see
+ *  {@link cancelSubagentRuns}). Clears the conduit queue when anything ran. */
 export async function cancelChannelRuns(channel: string): Promise<number> {
   const executions = runningExecutions.getByChannel(channel);
+  // First, so the children stop spending the moment the user clicks — before their parent's
+  // execution is torn down and the channel→session bridge disappears with it.
+  cancelSubagentRuns(channel, { liveExecutions: () => executions });
   for (const exec of executions) {
     await cancelLive(exec);
   }

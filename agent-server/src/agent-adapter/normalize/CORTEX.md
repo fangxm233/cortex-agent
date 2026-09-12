@@ -6,7 +6,7 @@ Shared by the Claude and PI adapters and by Cortex orchestration.
 | filename | role | function |
 |---|---|---|
 | event-types.ts | types | Defines normalized events and subagent spawn metadata |
-| event-stream.ts | core | queues events for a single producer |
+| event-stream.ts | core | queues events for a single producer and reports whether it is still open |
 | hooks.ts | types | backend-neutral hook specification |
 | tool-names.ts | core | maps canonical names to backend-native tools |
 | todo.ts | core | normalizes TodoWrite payloads into task snapshots |

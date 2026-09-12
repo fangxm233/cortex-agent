@@ -47,9 +47,9 @@ keep independent configurations, transports, and failure boundaries.
 
 ### cortex-core
 
-Exposes remote-machine operations and the read-only clock. It is loaded in all
-sessions. Keeping the `cortex-core` server name preserves the canonical
-`mcp__cortex-core__remote_*` names used by existing clients and skills.
+Exposes remote-machine operations, the read-only clock, and subagent delegation.
+It is loaded in all sessions. Keeping the `cortex-core` server name preserves the
+canonical `mcp__cortex-core__remote_*` names used by existing clients and skills.
 
 | Tool | Parameters | Description |
 |---|---|---|
@@ -60,13 +60,27 @@ sessions. Keeping the `cortex-core` server name preserves the canonical
 | `remote_glob` | `device`, `pattern`, `path?` | Find files matching a glob pattern on a remote device |
 | `remote_grep` | `device`, `pattern`, `path?`, `glob?`, `type?`, `output_mode?`, `-A?`, `-B?`, `-C?`, `-i?`, `-n?`, `head_limit?`, `offset?`, `multiline?` | Search file contents on a remote device using ripgrep |
 | `current_time` | `timezone?` | Get the current date/time; optional IANA timezone (defaults to server local). Returns Unix epoch, UTC ISO, and localized wall-clock with offset |
+| `agent` | single (`description`, `prompt`, `subagent_type`) **or** `parallel[]` **or** `chain[]`, plus `model?`, `backend?`, `run_in_background?` | Delegate work to an isolated subagent on either backend |
+| `agent_stop` | `agent_id` | Stop a running subagent and discard whatever it had produced |
 
-The server implementation is at `agent-server/src/domain/mcp/core-server.ts`.
+The server implementation is at `agent-server/src/domain/mcp/core-server.ts`;
+`agent` and `agent_stop` are registered by
+`agent-server/src/domain/mcp/tools/subagent.ts`.
+
+`agent` replaces Claude Code's built-in `Agent` tool, which Cortex strips from
+every spawn. The replacement runs on the same role table as PI's own `agent`,
+can place a child on either backend, and is visible to the daemon — so a
+delegated run appears in the parent's transcript, is billed to the parent, and
+can be stopped from the UI. See [backends.md](./backends.md#subagents).
+
+A subagent never receives `agent` or `agent_stop` itself. That is enforced by
+the tool allowlist rather than by the prompt, so a child cannot fan out further
+no matter what it is asked to do.
 
 ### cortex-tasks
 
 Exposes read-only task monitoring and is loaded in maintained Claude and PI
-top-level direct and thread sessions. PI `Agent` subagents receive only
+top-level direct and thread sessions. Subagents receive only
 cortex-core.
 
 | Tool | Parameters | Description |
@@ -81,7 +95,7 @@ The server implementation is at `agent-server/src/domain/mcp/tasks-server.ts`.
 
 Exposes the manager-to-subtask answer channel to top-level direct and thread
 sessions. The canonical Claude tool name is
-`mcp__cortex-core__answer_subtask`. PI `Agent` subagents do not load this
+`mcp__cortex-core__answer_subtask`. Subagents do not load this
 bundle because they do not own task-tree questions.
 
 | Tool | Parameters | Description |
@@ -289,7 +303,7 @@ Supplemental portable MCP and browser MCP remain separate config entries.
 The thread branch is marked by `session.cortexContext.useCoreMcp`. PI's bridge
 computes the same logical selection from the session's own environment and
 hands it directly to the in-process bundled server, alongside one independent
-state per plugin server. PI `Agent` subagents select only cortex-core. Tool
+state per plugin server. Subagents select only cortex-core. Tool
 allowlists are validated against the selected logical union before the bundled
 server registers tools.
 
@@ -326,7 +340,7 @@ A legacy plugin directory is still passed through to its backend. Claude can loa
 
 Cortex validates and normalizes the package once at spawn time. Claude receives a private supplemental configuration layered after the normal Cortex files. Stdio entries remain separate processes; each remote entry becomes a local stdio proxy whose private configuration holds its URL and headers. PI receives the normalized server list with its session request, and its bridge opens each entry's own transport — a stdio child for a stdio entry, a direct HTTP or SSE connection for a remote one. Both remote paths use the same manual-redirect fetch and reject every redirect before a configured header or request body can be replayed. Connection and tool registration are isolated by process. Materialization follows declared dependencies: unavailable plugin-scoped `PLUGIN_DATA` omits its stdio dependents while preserving remote MCP, skills, and bundled tools (`agent-server/src/agent-adapter/claude/mcp-config.ts:105-164`; `agent-server/src/agent-adapter/claude/remote-mcp-proxy.ts:48-82`; `agent-server/src/agent-adapter/pi/mcp-bridge.ts:279-476`).
 
-Portable MCP is omitted when the resolved MCP composition is `none`, and it is not exposed to restricted PI `Agent` subagents. Normal top-level Claude and PI sessions receive it only through an assigned plugin (`agent-server/src/domain/plugins/runtime.ts`; `agent-server/src/agent-adapter/pi/adapter.ts`; `agent-server/src/agent-adapter/pi/mcp-bridge.ts`).
+Portable MCP is omitted when the resolved MCP composition is `none`, and it is not exposed to restricted subagents. Normal top-level Claude and PI sessions receive it only through an assigned plugin (`agent-server/src/domain/plugins/runtime.ts`; `agent-server/src/agent-adapter/pi/adapter.ts`; `agent-server/src/agent-adapter/pi/mcp-bridge.ts`).
 
 The plugin catalog and Settings API expose sanitized summaries. Stdio summaries contain the executable basename, argument count, and environment key names; remote summaries contain the origin and header names. Environment values, full remote URLs, and header values remain server-side (`agent-server/src/domain/plugins/mcp.ts:102-216`; `agent-server/src/domain/ui-service/plugins-shared.ts:98-134`). Installed stdio commands and their working directories remain administrator-trusted package inputs; the private config and per-server isolation are not a code sandbox.
 
@@ -349,7 +363,7 @@ controls:
    only the logical surfaces selected for that session, and an optional
    canonical tool allowlist filters them further. Both top-level direct and
    thread sessions receive manager-Q&A tools, only thread sessions receive
-   thread control, PI `Agent` subagents receive core tools alone, and top-level
+   thread control, subagents receive core tools alone, and top-level
    PI sessions retain ext tools.
 
 2. **Claude account-level MCP discovery is disabled** — the setting

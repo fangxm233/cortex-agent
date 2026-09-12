@@ -15,17 +15,21 @@ Adds Cortex MCP tools, hooks, subagents, shims, and web tools as inline extensio
 | session-support.ts | core | PI session timers, queues, and turn types |
 | defaults.ts | config | PI agent and session path defaults |
 | agent-dir.ts | config | manages the private PI agent directory |
-| discovery.ts | core | refreshes the host provider cache from the SDK model scan |
+| discovery.ts | core | refreshes the host provider/model-pair cache from the SDK model scan |
 | session-files.ts | core | Resolves an isolated PI transcript path |
 | providers-config.ts | config | writes routed PI catalogs with frozen compatibility |
 | custom-catalog.ts | config | Reads custom provider catalog entries |
 | event-parser.ts | parser | Translates PI session events and forwarded subagent events |
-| mcp-bridge.ts | bridge | Loads the in-memory Cortex bundle plus plugin MCP tools |
+| mcp-bridge.ts | bridge | Loads the in-memory Cortex bundle plus plugin MCP tools, gating the tools PI supplies natively |
 | mcp-bridge-logic.ts | core | decides server loading and maps tool content |
 | hook-bridge.ts | bridge | runs registry hooks in-process when they expose an entry point, otherwise as scripts |
 | web-fetch.ts | tool | fetches bounded HTTP(S) and strips data images |
 | web-search.ts | tool | routes and decodes provider-side search responses |
-| subagent.ts | tool | Runs role-scoped subagents on nested in-process PI sessions |
-| tool-shims.ts | bridge | gates PI-local Agent (nested sessions), todo, and web tools |
+| subagent.ts | tool | The PI `agent` / `agent_stop` tools: role resolution, modes, backgrounding |
+| child-runner.ts | core | Runs one nested PI child to completion, for either backend's parent |
+| child-events.ts | parser | Turns a nested child's raw session records into parent-transcript notices |
+| foreign-subagent.ts | bridge | Deferred hand-off of a non-PI child to the daemon-side runner |
+| background-subagent.ts | bridge | Deferred hand-off of a backgrounded PI run to the shared registry |
+| tool-shims.ts | bridge | gates PI-local agent/agent_stop, todo, and web tools |
 | quota-probe.ts | bridge | hands provider quota read off response headers to the host |
 | quota-sink.ts | core | persists labeled quota under routed provider keys and feeds throttle |

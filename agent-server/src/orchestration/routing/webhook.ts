@@ -27,6 +27,7 @@ import { buildStatusActionBlocks, buildSealedStatusActionBlocks, initStatusBlock
 import { threadStore } from '@store/thread-repo.js';
 import { fireThreadCallback } from '../thread-callback.js';
 import { askManager, getAnswer, submitAnswer } from '../manager-qa.js';
+import { handleSubagentWebhook } from '../subagent-webhook.js';
 import { sendAgentFile } from '../agent-file-send.js';
 import { sendAgentView } from '../agent-view-send.js';
 import { sendAgentDecisions } from '../agent-decision-send.js';
@@ -315,6 +316,19 @@ function createWebhookHandler(_options: {
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ success: false, error: (e as Error).message }));
         }
+      });
+      return;
+    }
+
+    // --- Subagent operation (from MCP sidecar → subagent registry) ---
+    // The `agent` tool's daemon side. `start` registers a run and returns at once; a foreground
+    // caller then polls `wait` in bounded hops, which doubles as its liveness signal.
+    if (req.method === 'POST' && req.url === '/webhook/subagent') {
+      readJsonBody(req, async (error, _body, data) => {
+        if (error) { res.writeHead(400); res.end('Bad JSON'); return; }
+        const reply = await handleSubagentWebhook(data);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(reply));
       });
       return;
     }

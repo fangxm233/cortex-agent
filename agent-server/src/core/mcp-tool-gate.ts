@@ -11,6 +11,7 @@ export const MCP_TOOLS_BY_SERVER: Readonly<Record<string, readonly string[]>> = 
   'cortex-core': [
     'remote_bash', 'remote_read', 'remote_write', 'remote_edit',
     'remote_glob', 'remote_grep', 'current_time',
+    'agent', 'agent_stop',
   ],
   'cortex-tasks': ['task_status', 'task_result', 'task_list'],
   'cortex-manager-qa': ['answer_subtask'],
@@ -53,8 +54,31 @@ export function withoutCommissionTools(
   allowlist: readonly string[] | undefined,
   selectedBundles: readonly string[],
 ): string[] {
+  return withoutTools(allowlist, selectedBundles, COMMISSION_TOOLS);
+}
+
+/**
+ * The delegation tools. A subagent is a leaf: it never gets these, on either backend, which is what
+ * makes the recursion guard structural rather than a depth counter (plan §6.1).
+ */
+export const SUBAGENT_TOOLS: readonly string[] = ['agent', 'agent_stop'];
+
+/** A per-spawn allowlist a subagent child runs under: everything its bundles offer, minus
+ *  delegation. Same fail-open reasoning as {@link withoutCommissionTools}. */
+export function withoutSubagentTools(
+  allowlist: readonly string[] | undefined,
+  selectedBundles: readonly string[],
+): string[] {
+  return withoutTools(allowlist, selectedBundles, SUBAGENT_TOOLS);
+}
+
+function withoutTools(
+  allowlist: readonly string[] | undefined,
+  selectedBundles: readonly string[],
+  dropped: readonly string[],
+): string[] {
   const base = allowlist ?? selectedBundles.flatMap(bundle => MCP_TOOLS_BY_SERVER[bundle] ?? []);
-  const drop = new Set(COMMISSION_TOOLS);
+  const drop = new Set(dropped);
   return canonicalizeMcpToolAllowlist(base.filter(name => !drop.has(name)));
 }
 

@@ -9,5 +9,7 @@ Agent runtime domain for profiles and provider-attributed turns.
 | provider-run-lifecycle.ts | core | Attributes providers and publishes auth lifecycle |
 | index.ts | entry | Re-exports the agents domain API |
 | profile-manager.ts | core | Resolves profile identities and output caps |
+| roles.ts | core | Owns the one agent role table both backends delegate through |
 | profile-switch.ts | core | Decides and applies channel profile switches |
 | spawn-config.ts | core | Builds spawns with settings-aware plugin scopes |
+| subagent/ | subdir | Backend-neutral subagent runs: schema, dispatch, orchestration, registry |
