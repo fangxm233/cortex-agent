@@ -64,10 +64,11 @@ export function finalizeLocalExecution({ executionId, status, result, error, dur
   });
 }
 
-export function makeFallbackNotifier(channel: string, statusMsg: MessageRef | null, adapter: PlatformAdapter) {
-  return async (fromConfig: { model: string; mode?: string }, toConfig: { model: string; mode?: string }) => {
-    const fromLabel = `${fromConfig.model}/${fromConfig.mode || 'default'}`;
-    const toLabel = `${toConfig.model}/${toConfig.mode || 'default'}`;
+/** Report an attempt switch on the status message, from the already-rendered `model/mode` labels.
+ *  The run layer reports a fallback as two labels (`RunEvent.run_fallback`); the legacy callback
+ *  path below renders the same labels out of the two `AgentConfig`s. */
+export function makeFallbackLabelNotifier(statusMsg: MessageRef | null, adapter: PlatformAdapter) {
+  return async (fromLabel: string, toLabel: string) => {
     log.info(`Fallback: ${fromLabel} \u2192 ${toLabel}`);
     if (statusMsg) {
       try {
@@ -76,6 +77,16 @@ export function makeFallbackNotifier(channel: string, statusMsg: MessageRef | nu
         });
       } catch {}
     }
+  };
+}
+
+export function makeFallbackNotifier(channel: string, statusMsg: MessageRef | null, adapter: PlatformAdapter) {
+  const notify = makeFallbackLabelNotifier(statusMsg, adapter);
+  return async (fromConfig: { model: string; mode?: string }, toConfig: { model: string; mode?: string }) => {
+    await notify(
+      `${fromConfig.model}/${fromConfig.mode || 'default'}`,
+      `${toConfig.model}/${toConfig.mode || 'default'}`,
+    );
   };
 }
 

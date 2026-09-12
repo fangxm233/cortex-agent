@@ -1,4 +1,4 @@
-// input:  agent facade, tool gates, prompts, execution registry
+// input:  agent facade, tool gates, prompts, run service
 // output: gated plain turns and backend-ready prompt callbacks
 // pos:    Thread-free user-turn execution
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -7,26 +7,28 @@
 // ThreadRecord and run through runThread() with ~12 `isDefault` short-circuits. That coupled
 // conversations to the thread machinery (workspace, artifact.md, threads.json) for no benefit —
 // none of the thread concepts (artifact comms, transitions, hooks, multi-agent) apply to a single
-// conversation turn. This module runs the default agent directly via the agent facade. Session
-// continuity (channel session), cost/execution tracking (executionRegistry) and turn tracking
-// (conversation ledger) are all thread-independent and handled by the caller (agent-runner).
+// conversation turn. This module runs the default agent directly through `startRun`. Session
+// continuity (channel session), cost/execution tracking and turn tracking (conversation ledger) are
+// all thread-independent and handled by the caller (agent-runner).
 
+import { randomUUID } from 'node:crypto';
 import type { Destination, PlatformAdapter, MessageRef, DownloadedFile } from '@platform/index.js';
-import type { AgentResult, ChatNoticeLevel, ContextUsage, TodoSnapshot } from '@core/types/agent-types.js';
-import {
-  runAgent, getClaudeMode, getActiveProfile, getDefaultAgent, resolveBackendForChannel,
-} from '@domain/agents/index.js';
+import type { AgentResult } from '@core/types/agent-types.js';
+import { getActiveProfile, getDefaultAgent } from '@domain/agents/index.js';
+import { resolveProfileConfig, type ResolvedProfileConfig } from '@domain/agents/profile-manager.js';
 import { resolveAgentSlotConfigByName, resolveSystemVars, buildConversationPrompt } from '@domain/threads/index.js';
 import { projectStore } from '@domain/projects/index.js';
 import type { Project } from '@domain/projects/index.js';
-import * as executionRegistry from '@domain/executions/registry.js';
 import {
   loadCommissionDraftContext, loadCommissionPromptContext,
   type CommissionPromptContext,
 } from '@domain/commissions/commission-context.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { getSettings } from '@core/settings.js';
-import { runningExecutions } from '../core/running-executions.js';
+import type { RunningExecutionInput } from '@core/run-registry.js';
+import { startRun } from '@domain/runs/service.js';
+import type { AgentRun } from '@domain/runs/run.js';
+import type { AgentSpec, RunObserver, RunRequest } from '@domain/runs/request.js';
 import { buildPrompt as buildAgentPrompt } from '../agent-adapter/normalize/prompt-builder.js';
 
 export interface RunConversationOptions {
@@ -59,41 +61,30 @@ export interface RunConversationOptions {
   commissionTools?: boolean;
   /** True while the session is in commission mode; loads the commission skill bundle. */
   commissionMode?: boolean;
+  /** Run observers: the transcript sink is the first, surface event bridges follow. */
+  observers?: RunObserver[];
   /** Fired once the execution record is created, before the agent starts — lets the caller
    *  attach an execution-scoped Cancel button to the status message. */
   onExecutionStarted?: (executionId: string) => void | Promise<void>;
   /** Fired synchronously after the backend handle is registered for cancellation. */
   onExecutionRegistered?: () => void;
-  /** `blockId` identifies prior deltas; `noticeLevel` marks system-authored chat notices. */
-  onAssistantMessage?: ((text: string, blockId?: string, noticeLevel?: ChatNoticeLevel) => void) | null;
-  /** Incremental chunk of a block still being generated. Web chat only — see delta-coalescer. */
-  onAssistantDelta?: ((text: string, blockId: string) => void) | null;
-  onProgress?: ((progress: any) => void) | null;
-  onContextUsage?: ((usage: ContextUsage) => void | Promise<void>) | null;
-  onFallback?: ((...args: any[]) => Promise<void>) | null;
   /** Receives the backend-ready prompt after context and attachment paths are assembled. */
   onPromptBuilt?: ((prompt: string) => void) | null;
-  onToolUse?: ((name: string, input: any, toolUseId: string) => void) | null;
-  /** The agent's task list after a TodoWrite call (replace-all snapshot). */
-  onTodoUpdate?: ((snapshot: TodoSnapshot) => void) | null;
-  onToolResult?: ((toolUseId: string, content: string, isError: boolean) => void) | null;
-  /** One native subagent reached a terminal state (see RunAgentOptions.onSubagentEnd). */
-  onSubagentEnd?: ((parentToolUseId: string, status: 'completed' | 'failed' | 'killed') => void) | null;
-  onPlanWritten?: ((event: { path: string; content: string; toolUseId: string }) => void) | null;
-  onAskUserQuestion?: ((event: any) => void) | null;
 }
 
 export interface ConversationResult {
   result: AgentResult;
   executionId: string;
-  /** Underlying agent process for the turn. Used by the background-task continuation path to
-   *  register a ContinuationSink on the (Claude) session. Opaque to other consumers. */
+  /** The live run, so the caller can subscribe a background continuation sink (P1.5). */
+  run: AgentRun;
+  /** Underlying agent process for the turn, exposed for the legacy hold path. Opaque to other
+   *  consumers; P2.3 removes it together with `AgentRun.legacyProcess()`. */
   agentProcess?: unknown;
 }
 
 export function registerConversationHandle(
-  registry: Pick<typeof runningExecutions, 'register'>,
-  registration: Parameters<typeof runningExecutions.register>[0],
+  registry: { register: (registration: RunningExecutionInput) => unknown },
+  registration: RunningExecutionInput,
   onRegistered?: () => void,
 ): void {
   registry.register(registration);
@@ -103,6 +94,31 @@ export function registerConversationHandle(
 function buildBackendPrompt(prompt: string, files: DownloadedFile[]): string {
   const attachments = files.map((file) => ({ mimeType: file.mimetype, path: file.localPath }));
   return buildAgentPrompt(prompt, attachments);
+}
+
+/**
+ * Resolve the profile the run spawns. Unknown names (e.g. a channel profile that was renamed or
+ * removed since it was persisted) fall back to the profiles.json default instead of taking the
+ * turn down; P3.1's `resolveRunConfig` replaces this with the full priority chain.
+ */
+function resolveConversationProfile(name: string): ResolvedProfileConfig {
+  try {
+    return resolveProfileConfig(name);
+  } catch {
+    return resolveProfileConfig(null);
+  }
+}
+
+/**
+ * Whether the surface wants a background hold. The conversation path never waits inline, so both
+ * `hold` and `none` resolve `awaitBackground:false`; this only names the surface's intent for the
+ * run record. `shouldHoldForBg` / `shouldHoldWebForBg` still make the final call once the result
+ * (and its pending-task counts) is known.
+ */
+function conversationBackgroundPolicy(channel: string): 'hold' | 'none' {
+  return channel.startsWith('slack:') || channel.startsWith('feishu:') || channel.startsWith('web:')
+    ? 'hold'
+    : 'none';
 }
 
 /**
@@ -130,8 +146,8 @@ export function resolveConversationProject(args: {
 
 /**
  * Load the [Commission] injection payload for a fresh commission-bound session, or null for
- * ordinary sessions. Same first-turn-only economics as USER.md / [Session Project]: resume keeps
- * the block in backend history, and mid-run contract edits reach the agent through the checkpoint
+ * ordinary sessions. Same first-turn-only economics as USER.md / [Session Project]: resume keeps the
+ * block in backend history, and mid-run contract edits reach the agent through the checkpoint
  * protocol's mandatory re-read, not through re-injection. Best-effort: any failure injects nothing.
  */
 export async function resolveConversationCommission(
@@ -168,13 +184,12 @@ export async function resolveConversationCommission(
 /**
  * Execute a single plain user-conversation turn against the active default agent — no thread,
  * no workspace, no artifact. Mirrors the legacy default-thread branch of runThread() exactly
- * (channel session reuse, useCoreMcp:false, isUserInitiated:true, single step) and the
- * register/complete lifecycle of lifecycle.ts:runRetryAgent.
+ * (channel session reuse, useCoreMcp:false, isUserInitiated:true, single step).
  *
- * Does NOT catch agent errors: the caller's try/catch (agent-runner._executeReal) invokes
- * handleAgentError, which finalizes the execution record and removes the running-execution
- * entry via runningExecutions.fail(executionId). On success this function removes the entry via
- * runningExecutions.complete(executionId); handleAgentSuccess finalizes the execution record.
+ * The execution record, the live-registry registration and the teardown are owned by `startRun`
+ * (plan D8). This function only assembles the fully-resolved `RunRequest`, opens the run with the
+ * caller's observers, and persists the backend resume target as soon as the foreground turn
+ * settles — success OR interruption.
  */
 export async function runConversation(opts: RunConversationOptions): Promise<ConversationResult> {
   const defaultAgentName = getDefaultAgent() || 'main';
@@ -204,83 +219,77 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
   const profileName = agentConfig.profile === '__active__'
     ? (opts.profileOverride || getActiveProfile(opts.channel))
     : agentConfig.profile;
+  const profile = resolveConversationProfile(profileName);
 
   const trigger = opts.trigger || 'user';
-  // Execution record's backend must reflect the channel's active profile (e.g. 'pi' for deepseek),
-  // not the global default — otherwise a pi turn is mislabeled 'claude'.
-  const channelBackend = resolveBackendForChannel(opts.channel);
-  const execution = executionRegistry.startLocalExecution({
-    kind: trigger === 'scheduled' ? 'scheduled' : 'local',
-    channel: opts.channel,
-    project,
-    trigger,
-    backend: channelBackend,
-    billingMode: getClaudeMode(),
-    sessionId: opts.trackSessionId,
-    label: prompt.substring(0, 60),
-    scheduleTaskId: opts.scheduleTaskId || null,
-    threadId: null,
-    agentSlotId: null,
-  });
-
-  if (opts.onExecutionStarted) await opts.onExecutionStarted(execution.id);
-
-  const handle = runAgent(prompt, {
-    channel: opts.channel,
-    executionId: execution.id,
-    sessionId: opts.backendSessionId,   // backend resume target (null → backend self-assigns)
-    trackSessionId: opts.trackSessionId, // stable Cortex id → CORTEX_SESSION_ID
-    sessionKey: null, // falls back to channel key in the adapter
-    files: opts.files || [],
-    profileName,
-    project,
-    trigger,
-    threadId: null,
-    useCoreMcp: false,
-    // Only a session that opted in carries an endpoint, so only it gets browser tools.
-    browserCdpEndpoint: opts.browserCdpEndpoint ?? null,
-    commissionTools: opts.commissionTools ?? false,
-    commissionMode: opts.commissionMode ?? false,
-    mcpToolAllowlist: agentConfig.mcpToolAllowlist,
-    sessionName: opts.sessionName,
-    claudeAgent: agentConfig.claudeAgent || null,
+  const spec: AgentSpec = {
     systemPrompt: agentConfig.systemPrompt ? resolveSystemVars(agentConfig.systemPrompt) : null,
-    outputStyle: agentConfig.outputStyle || null,
-    tools: agentConfig.tools || null,
-    pluginDirs: agentConfig.pluginDirs || null,
-    onFallback: opts.onFallback ?? null,
-    isUserInitiated: true,
-    onAssistantMessage: opts.onAssistantMessage,
-    onAssistantDelta: opts.onAssistantDelta ?? null,
-    onProgress: opts.onProgress,
-    onContextUsage: opts.onContextUsage ?? null,
-    onTodoUpdate: opts.onTodoUpdate ?? null,
-    onToolUse: opts.onToolUse,
-    onToolResult: opts.onToolResult ?? null,
-    onSubagentEnd: opts.onSubagentEnd ?? null,
-    onPlanWritten: opts.onPlanWritten ?? null,
-    onAskUserQuestion: opts.onAskUserQuestion ?? null,
-  });
+    directive: agentConfig.directive ?? null,
+    promptTemplate: agentConfig.promptTemplate ?? null,
+    // `AgentSlotConfig.tools` is a Claude-native comma string; spawn-config forwards a string
+    // through `rawTools`. P2.1 canonicalizes it — for now keep the exact legacy input byte-for-byte.
+    tools: (agentConfig.tools || null) as unknown as string[] | null,
+    pluginDirs: agentConfig.pluginDirs || [],
+    mcp: { composition: 'direct', allowlist: agentConfig.mcpToolAllowlist ?? null },
+    backendOptions: {
+      ...(agentConfig.claudeAgent ? { claudeAgent: agentConfig.claudeAgent } : {}),
+      ...(agentConfig.outputStyle ? { outputStyle: agentConfig.outputStyle } : {}),
+    },
+  };
 
-  // Track the handle for cancellation under the channel key (preserves !cancel / supersede /
-  // killByKey paths); executionId is indexed too so the Cancel button can resolve it.
-  registerConversationHandle(runningExecutions, {
-    threadId: null,
-    channel: opts.channel,
-    agentSlotId: null,
-    executionId: execution.id,
-    kind: execution.kind,
-    kill: () => handle.kill(),
-    backend: channelBackend,
-    agentProcess: handle.agentProcess,
-    trackSessionId: opts.trackSessionId,
-    backendSessionId: handle.sessionId ?? opts.backendSessionId,
-    sessionId: handle.sessionId,
-  }, opts.onExecutionRegistered);
+  const request: RunRequest = {
+    runId: randomUUID(),
+    session: {
+      sessionId: opts.trackSessionId,
+      backendSessionId: opts.backendSessionId,
+      // Hazard (a): the legacy run passed `sessionKey: null`, so spawn-config resolved the pool key
+      // from the channel. `engineKey` maps onto that same `sessionKey`, so use the channel here to
+      // keep the pool key byte-identical. D4's `engineKey = sessionId` lands in Phase 2 with
+      // SessionEngines; changing it now would silently re-pool every live session.
+      engineKey: opts.channel,
+      sessionName: opts.sessionName,
+    },
+    profile,
+    spec,
+    prompt: {
+      text: prompt,
+      attachments: (opts.files || []).map((file) => ({ mimeType: file.mimetype, path: file.localPath })),
+    },
+    context: {
+      channel: opts.channel,
+      project,
+      trigger,
+      threadId: null,
+      executionKind: trigger === 'scheduled' ? 'scheduled' : 'local',
+      isUserInitiated: true,
+      commissionMode: opts.commissionMode ?? false,
+      commissionTools: opts.commissionTools ?? false,
+      scheduleTaskId: opts.scheduleTaskId ?? null,
+    },
+    policy: {
+      background: conversationBackgroundPolicy(opts.channel),
+      recordCost: true,
+      hooks: true,
+      loadRules: true,
+      mcpComposition: 'direct',
+      mcpToolAllowlist: agentConfig.mcpToolAllowlist,
+      browserCdpEndpoint: opts.browserCdpEndpoint ?? null,
+      // Default for this path: legacy raw/text transcript capture stays off unless a surface opts in.
+      captureTranscripts: false,
+    },
+  };
+
+  const run = startRun(request, opts.observers ?? []);
+
+  // Same observable points as the hand-rolled path: the execution record exists before the caller
+  // awaits the turn, and registration has released the session lease. `startRun` creates and
+  // registers the run synchronously, so firing these here is the earliest a caller can observe them.
+  if (opts.onExecutionStarted) await opts.onExecutionStarted(run.executionId);
+  opts.onExecutionRegistered?.();
 
   let result: AgentResult;
   try {
-    result = await handle.promise;
+    result = await run.result;
   } finally {
     // Persist the backend resume target as soon as the turn settles — success OR interruption.
     // The backend id is assigned at spawn (Claude `--session-id`), but was previously only
@@ -290,24 +299,17 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
     // the id here lets the next turn `--resume` it (and the adapter's resolveResumeForPrint
     // self-heals to a create when no transcript was written). Best-effort; success-path
     // handleAgentSuccess still overwrites with the result's authoritative id.
-    if (isFreshSession && handle.sessionId) {
+    // Prefer the process's live id (PI assigns it asynchronously after spawn); fall back to the
+    // run's recorded id, which is seeded from the handle at registration for adapters that never
+    // emitted session_started before an interrupt.
+    const backendSessionId = run.legacyProcess()?.sessionId ?? run.backendSessionId;
+    if (isFreshSession && backendSessionId) {
       await sessionStore.updateSession(opts.sessionName, {
-        backendSessionId: handle.sessionId,
+        backendSessionId,
         lastUsedAt: new Date().toISOString(),
       }).catch(() => {});
     }
   }
 
-  // Finalize the execution here (persistent record + registry teardown + balanced agent.* event)
-  // so this function is self-contained and serves both the interactive path (agent-runner) and
-  // the scheduler. teardownExecution is idempotent (execution-repo guards terminal status), so the
-  // interactive path's later handleAgentSuccess→finalizeLocalExecution call is a harmless no-op.
-  const durationS = (Date.now() - opts.startTime) / 1000;
-  if (result?.rateLimited) {
-    executionRegistry.teardownExecution({ executionId: execution.id, status: 'failed', durationS, error: { message: 'Rate limited' } });
-  } else {
-    executionRegistry.teardownExecution({ executionId: execution.id, status: 'completed', durationS, result });
-  }
-
-  return { result, executionId: execution.id, agentProcess: handle.agentProcess };
+  return { result, executionId: run.executionId, run, agentProcess: run.legacyProcess() };
 }

@@ -6,7 +6,7 @@
 import * as path from 'path';
 import type { Destination, PlatformAdapter, MessageRef, DownloadedFile, IncomingMessage, PlatformFileRef, OutputStream } from '@platform/index.js';
 import { resolveDestinationConduit, SYNTHETIC_CALLBACK_SENDER } from '@platform/types.js';
-import type { AgentResult, ChatNoticeLevel, ContextUsage, NoticeAction, TodoSnapshot } from '@core/types/agent-types.js';
+import type { AgentResult, ContextUsage, TodoSnapshot } from '@core/types/agent-types.js';
 import { renderTodoProgress } from '../agent-adapter/normalize/todo.js';
 import { conduitQueues, enqueue } from './conduit-queue.js';
 import { trackPendingTask } from './busy-tracker.js';
@@ -23,7 +23,7 @@ import { getActiveProfile, getDefaultAgent, resolveBackendForChannel } from '@do
 import { resolveProfileConfig } from '@domain/agents/profile-manager.js';
 import { registerNamedSession } from '@domain/sessions/session-lifecycle.js';
 import { consumePendingTurnSupersession, finishTurnTracking, handleAgentSuccess, handleAgentError, initTurnTracking } from './lifecycle.js';
-import { buildSessionTag, buildUserProcessingMessage, makeFallbackNotifier, makeStreamingMessageCallback, computeElapsed, writeStatus, sealStatus, buildStatusActionBlocks, buildSealedStatusActionBlocks, initStatusBlocks } from './status-helpers.js';
+import { buildSessionTag, buildUserProcessingMessage, makeFallbackLabelNotifier, makeStreamingMessageCallback, computeElapsed, writeStatus, sealStatus, buildStatusActionBlocks, buildSealedStatusActionBlocks, initStatusBlocks } from './status-helpers.js';
 import { createLogger } from '@core/log.js';
 import { isDebugMode } from '@core/debug-mode.js';
 import { getSettings } from '@core/settings.js';
@@ -47,6 +47,9 @@ import { recordResume } from '@domain/costs/resume-registry.js';
 import { isProviderRateLimited } from '@domain/costs/rate-limit-throttle.js';
 import { getAgent } from '@domain/threads/index.js';
 import { runConversation } from './conversation-runner.js';
+import { runToContinuationSink } from '@domain/runs/continuation-sink.js';
+import type { RunEvent } from '@domain/runs/events.js';
+import type { RunObserver } from '@domain/runs/request.js';
 import { acquireBrowser, releaseBrowser, backendSupportsBrowser, BROWSER_DEVICE_SERVER } from '@platform/browser/managed-browser.js';
 import { acquireDeviceBrowser, releaseDeviceBrowser } from '@domain/remote/device-browser.js';
 import { tryAnswerFromHuman } from './manager-qa.js';
@@ -81,7 +84,8 @@ interface AgentConfig {
 }
 
 interface AgentCallbacks {
-  onFallback: (...args: any[]) => Promise<void>;
+  /** Attempt switch of the profile's fallback chain, as two `model/mode` labels. */
+  onFallback: (fromLabel: string, toLabel: string) => Promise<void>;
   onAssistantMsg: ((text: string) => void) & { stream?: OutputStream };
   onProgress: (progress: any) => void;
   onToolUse: ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null;
@@ -375,8 +379,9 @@ export class AgentRunner {
     // messages only. Lives for the turn; sealed in the finally below.
     const deltaStream = createSessionDeltaStream({ sessionId, channel });
     const debugEnabled = isDebugMode();
-    // The transcript sink owns the history+publish copy. The legacy callback path below bridges
-    // into it; P1.5 migrates the call site to startRun and drops the bridge.
+    // The transcript sink owns the history+publish copy and is now driven by the run's observer
+    // fan-out (P1.5) instead of a callback bridge. It is the first `RunObserver` handed to
+    // `startRun`; the surface bridges for deltas / progress / dialogs ride the same observer.
     const sink = createTranscriptSink({
       sessionId, channel, sessionName, debug: debugEnabled,
       onAssistantMessage: callbacks.onAssistantMsg,
@@ -405,16 +410,79 @@ export class AgentRunner {
     };
     const persistContext = (usage: ContextUsage): void | Promise<void> =>
       sink.onEvent({ type: 'context_usage', ...usage, phase: 'foreground' });
-    // Task-list snapshot: record it for `sessions.list` (the queryable snapshot) and publish the
-    // delta, then refresh the platform status line so Slack/Feishu/Ink-TUI move too. Replace-all,
-    // so this overwrites rather than merges.
-    const persistTodos = (snapshot: TodoSnapshot): void => {
-      sink.onEvent({ type: 'todo_update', toolUseId: '', snapshot, phase: 'foreground' });
-    };
     const persistContinuationContext = (usage: ContextUsage): void => {
       void Promise.resolve(persistContext(usage)).catch((error) => {
         log.warn('continuation context persistence failed:', (error as Error).message);
       });
+    };
+    // The conversation path's one foreground observer. Background-phase events are deliberately
+    // NOT forwarded to the sink: the legacy holds (`web-bg-hold`, `bg-continuation`) still own
+    // background persistence until P4.1, so forwarding them here would double-append the transcript.
+    const foregroundObserver: RunObserver = {
+      onEvent(event: RunEvent): void | Promise<void> {
+        switch (event.type) {
+          case 'tool_use':
+            if (event.phase !== 'foreground') return;
+            // Platform tool trace first, then the sink — the order the old composeToolUse bridge had.
+            callbacks.onToolUse?.(event.name, event.input, event.toolUseId, event.subagent);
+            return sink.onEvent(event);
+          case 'assistant_delta':
+            if (event.phase === 'foreground') deltaStream?.onDelta(event.text, event.blockId);
+            return;
+          case 'dialog_request':
+            if (event.kind === 'ask_user') {
+              interactiveCallbacks.onAskUserQuestion({
+                toolUseId: event.dialogId,
+                questions: event.payload as Array<{ question: string; options?: string[]; multi?: boolean }>,
+              });
+            }
+            return;
+          case 'turn_progress':
+            callbacks.onProgress({ num_turns: event.numTurns, total_cost_usd: null, duration_ms: null });
+            // S4 chat: surface the REAL agent-turn count live (snapshot on the running execution +
+            // `session.turn` delta) so the Web composer shows turns that grow as the agent works.
+            emitTurnProgress(
+              {
+                sessionId,
+                channel,
+                executionId: capturedExecutionId,
+                setNumTurns: (n) => { if (capturedExecutionId) runningExecutions.setNumTurns(capturedExecutionId, n); },
+                publish: (n) => { if (sessionId) publishSessionTurn({ sessionId, channel, numTurns: n }); },
+              },
+              { num_turns: event.numTurns },
+            );
+            return;
+          case 'run_fallback':
+            // The profile's fallback chain switched attempt. The chat notice is still synthesized by
+            // the facade (it reaches the sink through onAssistantMessage); this updates the
+            // platform status message, which is what makeFallbackNotifier always did.
+            void callbacks.onFallback(event.from, event.to);
+            return;
+          // The facade synthesizes the chat notices for compaction and gateway model fallback and
+          // delivers them through onAssistantMessage, so the sink already has them; these events are
+          // the machine-readable twin, for observers that want the fact rather than the prose.
+          case 'context_compacted':
+          case 'model_fallback':
+          case 'phase':
+          case 'engine_started':
+          case 'foreground_result':
+          case 'background_result':
+          case 'injection_delivered':
+          case 'injection_rejected':
+          case 'error':
+          case 'rate_limit':
+          case 'quota':
+          case 'cost_record':
+          case 'subagent_activity':
+          case 'plan_written':
+          case 'plan_mode_entered':
+            return;
+          default:
+            // assistant_text / tool_result / todo_update / context_usage / subagent_end
+            if (event.phase === 'background') return;
+            return sink.onEvent(event);
+        }
+      },
     };
     // A browser-enabled session holds the shared Chrome for the duration of its turn. Acquiring here
     // (rather than inside the adapter) keeps the spawn path synchronous and gives us one obvious
@@ -466,44 +534,13 @@ export class AgentRunner {
           sessionLease?.release();
           sessionLease = null;
         },
-        onAssistantDelta: deltaStream ? (text: string, blockId: string) => deltaStream.onDelta(text, blockId) : null,
-        onAssistantMessage: (text: string, blockId?: string, noticeLevel?: ChatNoticeLevel, noticeAction?: NoticeAction, subagent?: ToolUseSubagent) => {
-          sink.onEvent({
-            type: 'assistant_text', text, phase: 'foreground',
-            ...(blockId ? { blockId } : {}),
-            ...(noticeLevel ? { noticeLevel } : {}),
-            ...(noticeAction ? { noticeAction } : {}),
-            ...(subagent ? { subagent } : {}),
-          });
-        },
+        observers: [foregroundObserver],
         onPromptBuilt: debugEnabled ? (prompt: string) => {
           recordHistory(
             conversationHistory.appendUserPrompt(sessionId, { agentMessage: prompt }),
             () => publishSessionDebugUpdated({ sessionId, channel }),
           );
         } : null,
-        onProgress: (progress: any) => {
-          callbacks.onProgress(progress);
-          // S4 chat: surface the REAL agent-turn count live (snapshot on the running execution +
-          // `session.turn` delta) so the Web composer shows turns that grow as the agent works.
-          emitTurnProgress(
-            {
-              sessionId,
-              channel,
-              executionId: capturedExecutionId,
-              setNumTurns: (n) => { if (capturedExecutionId) runningExecutions.setNumTurns(capturedExecutionId, n); },
-              publish: (n) => { if (sessionId) publishSessionTurn({ sessionId, channel, numTurns: n }); },
-            },
-            progress,
-          );
-        },
-        onContextUsage: persistContext,
-        onFallback: callbacks.onFallback,
-        onTodoUpdate: persistTodos,
-        onToolUse: composeToolUse(callbacks.onToolUse, persistToolUse),
-        onToolResult: persistToolResult,
-        onSubagentEnd: persistSubagentEnd,
-        onAskUserQuestion: interactiveCallbacks.onAskUserQuestion,
       });
       // Background-task continuation: if the turn left background work remaining (running OR
       // finished-but-unnotified) and the feature is enabled for this interactive channel, keep
@@ -512,6 +549,10 @@ export class AgentRunner {
       // Otherwise clear the callback as usual.
       const proc = convResult.agentProcess as { setContinuationSink?: (s: ContinuationSink) => void } | undefined;
       const canSink = typeof proc?.setContinuationSink === 'function';
+      // The run owns the process's single continuation-sink slot. Replay the run's background
+      // events through the hold's sink instead of calling proc.setContinuationSink directly (which
+      // would clobber the run's own sink and drop the fan-out to every other observer).
+      const run = convResult.run;
       const holdForBg = shouldHoldForBg(convResult.result, channel, canSink);
       if (!holdForBg) clearStreamingCallback(channel);
       await handleDefaultAgentResult({
@@ -521,7 +562,7 @@ export class AgentRunner {
         continuationToolUse: composeToolUse(callbacks.onToolUse, persistToolUse),
         continuationToolResult: persistToolResult,
         continuationContextUsage: persistContinuationContext,
-        registerContinuationSink: holdForBg ? (sink: ContinuationSink) => proc!.setContinuationSink!(sink) : null,
+        registerContinuationSink: holdForBg && run ? (sink: ContinuationSink) => { runToContinuationSink(run, sink); } : null,
       });
       // Web background-task hold: the Slack/Feishu status-message hold (above) never fires for a
       // web: channel. Keep the session marked running+backgroundRunning and stream the spontaneous
@@ -530,7 +571,7 @@ export class AgentRunner {
         const sid = sessionId;
         webBgHeld = holdWebForBg({
           result: convResult.result,
-          registerSink: (sink) => proc!.setContinuationSink!(sink),
+          registerSink: (sink) => { if (run) runToContinuationSink(run, sink); },
           // Stop during the hold: the cancel path finds the hold by channel in this registry and
           // fires the abort to seal it (see core/bg-held-sessions.ts).
           registerAbort: (abort) => bgHeldSessions.setAbort(sid, abort),
@@ -757,7 +798,7 @@ export async function resolveSessionName(sessionId: string | null, channel: stri
 
 function buildAgentCallbacks(adapter: PlatformAdapter, destination: Destination, statusMsg: MessageRef, threadAnchorId: string | null, startTime: number, sessionName: string, sessionId: string | null, onMessagePosted: (ref: MessageRef) => void): AgentCallbacks {
   const channel = resolveDestinationConduit(destination);
-  const onFallback = makeFallbackNotifier(channel, statusMsg, adapter);
+  const onFallback = makeFallbackLabelNotifier(statusMsg, adapter);
   const queue = getOutboundQueue();
   const durable = queue ? buildDurableHooks(queue) : null;
   const baseAssistantMsg = makeStreamingMessageCallback(adapter, destination, threadAnchorId, onMessagePosted, durable);

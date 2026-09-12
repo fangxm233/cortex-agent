@@ -14,7 +14,10 @@ import type {
 } from '../../agent-adapter/types.js';
 import type { NormalizedEvent } from '../../agent-adapter/normalize/event-types.js';
 import type { AgentConfig, RunAgentOptions } from '../agents/spawn-config.js';
-import { runAgent } from '../agents/facade.js';
+// Routed through the agents barrel (not facade.js directly) so test doubles that mock the public
+// barrel — tests/orch/first-turn-interrupt-resume.test.ts — intercept the run's spawn exactly as
+// they did when conversation-runner imported runAgent from the barrel itself.
+import { runAgent } from '../agents/index.js';
 import {
   continuationSinkToEvents, toRunEvent,
   type RunEvent, type RunPhase,
@@ -109,15 +112,37 @@ export function agentConfigFromProfile(profile: RunRequest['profile']): AgentCon
   };
 }
 
+/** Attempt identity as the facade renders it (`model/mode`) — the label `run_fallback` carries. */
+export function attemptLabel(config: AgentConfig): string {
+  return `${config.model}/${config.mode || 'default'}`;
+}
+
+/**
+ * The two legacy callbacks the run still has to supply, because the facade generates signals that
+ * exist nowhere in the `NormalizedEvent` stream:
+ *  - `onAssistantMessage` is the ONLY path for facade-synthesized notices (held rate-limit card,
+ *    auto-resume warning, terminal error text, backend-session reset, compaction, fallback) and it
+ *    is also what arms `AttemptNoticeTracker` at all — passing null silently disables every notice.
+ *    It additionally carries `assistantNoticeLevel(text)` for ordinary prose, which the raw event
+ *    does not. The run therefore takes assistant prose from HERE, not from the adapter tee.
+ *  - `onFallback` fires when the profile's fallback chain switches attempt; the run turns it into a
+ *    `run_fallback` event. P4.1 moves the chain itself into the run and both hooks disappear.
+ */
+export interface RunAgentHooks {
+  onAssistantMessage: NonNullable<RunAgentOptions['onAssistantMessage']>;
+  onFallback: NonNullable<RunAgentOptions['onFallback']>;
+}
+
 /**
  * Translate a fully-resolved `RunRequest` into today's `RunAgentOptions`. Every legacy callback is
- * left unset: the run observes the raw adapter stream through `observers` and fans it out as
- * `RunEvent`s, so no call site has to wire eleven callbacks.
+ * left unset except the two in `RunAgentHooks`: the run observes the raw adapter stream through
+ * `observers` and fans it out as `RunEvent`s, so no call site has to wire eleven callbacks.
  */
 export function buildRunAgentOptions(
   request: RunRequest,
   executionId: string,
   onAdapterEvent: (event: NormalizedEvent) => void,
+  hooks: RunAgentHooks,
 ): RunAgentOptions {
   const files = (request.prompt.attachments ?? []).map((attachment) => ({
     mimeType: attachment.mimeType, path: attachment.path,
@@ -174,7 +199,9 @@ export function buildRunAgentOptions(
     mcpConfigPaths: request.benchmark?.mcpConfigPaths,
     preserveUnreportedAccounting: request.benchmark?.preserveUnreportedAccounting ?? false,
     files,
-    // The run observes the raw adapter stream; the facade never sees a legacy callback from here.
+    onAssistantMessage: hooks.onAssistantMessage,
+    onFallback: hooks.onFallback,
+    // The run observes the raw adapter stream for everything the two hooks above do not carry.
     observers: [{ onEvent: onAdapterEvent }],
   };
 }
@@ -184,11 +211,11 @@ export class AgentRunImpl implements AgentRun {
   readonly id: string;
   readonly request: RunRequest;
   readonly executionId: string;
-  readonly attempt: { index: number; config: AgentConfig };
   readonly capabilities: ReadonlySet<Capability>;
   readonly result: Promise<RunResult>;
   readonly settled: Promise<RunResult>;
 
+  private attemptValue: { index: number; config: AgentConfig };
   private statusValue: RunStatus = 'starting';
   private phaseValue: RunPhase = 'foreground';
   private numTurnsValue: number | null = null;
@@ -216,7 +243,7 @@ export class AgentRunImpl implements AgentRun {
     this.request = args.request;
     this.executionId = args.executionId;
     this.id = args.request.runId;
-    this.attempt = { index: 0, config: args.attemptConfig };
+    this.attemptValue = { index: 0, config: args.attemptConfig };
     this.capabilities = CAPABILITIES_BY_BACKEND[args.request.profile.backend];
     this.backendSessionIdValue = args.request.session.backendSessionId;
     this.observers = [...args.observers];
@@ -234,6 +261,7 @@ export class AgentRunImpl implements AgentRun {
     void this.settled.catch(() => undefined);
   }
 
+  get attempt(): { index: number; config: AgentConfig } { return this.attemptValue; }
   get status(): RunStatus { return this.statusValue; }
   get phase(): RunPhase { return this.phaseValue; }
   get numTurns(): number | null { return this.numTurnsValue; }
@@ -247,7 +275,18 @@ export class AgentRunImpl implements AgentRun {
     try {
       handle = this.runAgentFn(
         this.request.prompt.text,
-        buildRunAgentOptions(this.request, this.executionId, (event) => this.onAdapterEvent(event)),
+        buildRunAgentOptions(this.request, this.executionId, (event) => this.onAdapterEvent(event), {
+          onAssistantMessage: (text, blockId, noticeLevel, noticeAction, subagent) => {
+            this.absorb({
+              type: 'assistant_text', text, phase: this.phaseValue,
+              ...(blockId ? { blockId } : {}),
+              ...(noticeLevel ? { noticeLevel } : {}),
+              ...(noticeAction ? { noticeAction } : {}),
+              ...(subagent ? { subagent } : {}),
+            });
+          },
+          onFallback: async (current, next) => { this.onChainFallback(current, next); },
+        }),
       );
     } catch (error) {
       this.onForegroundError(error);
@@ -313,6 +352,10 @@ export class AgentRunImpl implements AgentRun {
       backendSessionId: handle.sessionId ?? this.request.session.backendSessionId,
       sessionId: handle.sessionId,
     });
+    // The handle's spawn-time backend id is authoritative even when the adapter never emits a
+    // session_started event (an interrupted first turn). Surfaces that persist the resume target on
+    // settle read `run.backendSessionId`, so record it here rather than only on engine_started.
+    if (handle.sessionId) this.backendSessionIdValue = handle.sessionId;
   }
 
   private installContinuationSink(handle: AgentHandle): void {
@@ -333,7 +376,25 @@ export class AgentRunImpl implements AgentRun {
       if (typeof event.numTurns === 'number') this.setNumTurns(event.numTurns);
       return;
     }
+    // Assistant prose arrives through the `onAssistantMessage` hook instead: that path carries the
+    // facade's `assistantNoticeLevel(text)` classification and interleaves the synthesized notices
+    // in the order they were produced. Relaying the raw event too would double every message.
+    if (event.type === 'assistant_text') return;
     this.absorb(toRunEvent(event, this.phaseValue));
+  }
+
+  /**
+   * The profile's fallback chain switched attempt (facade `onFallback`). Advance the attempt and
+   * report it on the stream; the surface renders the notice (D7). P4.1 moves the chain itself here.
+   */
+  private onChainFallback(current: AgentConfig, next: AgentConfig): void {
+    this.attemptValue = { index: this.attemptValue.index + 1, config: next };
+    this.absorb({
+      type: 'run_fallback',
+      from: attemptLabel(current),
+      to: attemptLabel(next),
+      reason: 'rate-limited',
+    });
   }
 
   private absorb(event: RunEvent): void {
@@ -393,6 +454,17 @@ export class AgentRunImpl implements AgentRun {
   private onForegroundError(error: unknown): void {
     if (this.terminal) return;
     const failure = asError(error);
+    // Defer one microtask before publishing the failure and tearing the execution down. The old
+    // hand-rolled conversation path registered the live handle synchronously and only finalized it
+    // from the caller's error handler, so a surface that observes the run right after it starts
+    // (e.g. the first-turn interrupt/resume test) saw the handle. Tearing down in the same microtask
+    // the rejection is delivered would hide it; one hop restores that observation window without
+    // changing the terminal contract. `cancel()` still seals synchronously and wins the race.
+    queueMicrotask(() => this.finishForegroundError(failure));
+  }
+
+  private finishForegroundError(failure: Error): void {
+    if (this.terminal) return;
     if (this.cancelRequested) {
       this.finishTerminal('cancelled', null, failure);
       return;
