@@ -44,8 +44,9 @@ export interface AgentSpec {
 export interface RunRequest {
   runId: string;
   session: {
-    /** Stable Cortex tracking id (UI-facing). */
-    sessionId: string;
+    /** Stable Cortex tracking id (UI-facing); null when the run has no track identity
+     *  (thread hook agents in insertAgent mode). */
+    sessionId: string | null;
     /** Backend resume target (Claude `--resume` / PI `--session`); null for a fresh session. */
     backendSessionId: string | null;
     /** Pool key: session id, `thr:<id>:<slot>` or `<sessionId>::hook`. */
@@ -79,6 +80,9 @@ export interface RunRequest {
     streamDeltas?: boolean;
     loadRules: boolean;
     mcpComposition: McpComposition;
+    /** Legacy thread-surface selector kept until P2.1 canonicalizes MCP gating; only consulted
+     *  when `mcpComposition` is undefined (the thread path always resolves an explicit value). */
+    useCoreMcp?: boolean;
     mcpToolAllowlist?: string[];
     browserCdpEndpoint?: string | null;
     captureTranscripts: boolean;

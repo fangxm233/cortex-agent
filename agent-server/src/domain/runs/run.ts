@@ -174,6 +174,7 @@ export function buildRunAgentOptions(
     tools: request.spec.tools,
     pluginDirs: request.spec.pluginDirs,
     mcpComposition: request.policy.mcpComposition,
+    useCoreMcp: request.policy.useCoreMcp,
     mcpToolAllowlist: request.policy.mcpToolAllowlist,
     browserCdpEndpoint: request.policy.browserCdpEndpoint ?? null,
     recordCost: request.policy.recordCost,

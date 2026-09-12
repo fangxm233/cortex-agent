@@ -1,13 +1,14 @@
-// input:  thread store, HookBus, agents and executions
+// input:  thread store, HookBus, agents and run service
 // output: lifecycle event emitters and hook-agent execution
 // pos:    Adapts thread lifecycle hooks to the shared HookBus
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { readFileSync } from 'fs';
+import { randomUUID } from 'node:crypto';
 import { threadStore } from '@store/thread-repo.js';
 import { getSessionKey, recordStepResult, resolveTargetResumeId } from './index.js';
-import { runAgent, getClaudeMode, getActiveBackend, getActiveProfile } from '../agents/index.js';
-import * as executionRegistry from '../executions/registry.js';
+import { getClaudeMode, getActiveBackend, getActiveProfile } from '../agents/index.js';
+import { resolveProfileConfig, type ResolvedProfileConfig } from '../agents/profile-manager.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import {
   emitCortexEvent,
@@ -15,14 +16,16 @@ import {
   type HookSpec,
 } from '@core/hook-bus.js';
 import { createLogger } from '@core/log.js';
+import { getSettings } from '@core/settings.js';
 import { Icons } from '../../core/icons.js';
-import { runningExecutions } from '../../core/running-executions.js';
+import { startRun } from '@domain/runs/service.js';
+import type { AgentSpec, RunObserver, RunRequest } from '@domain/runs/request.js';
+import type { RunEvent } from '@domain/runs/events.js';
 import type {
   ThreadHookConfig,
   HookResult,
   HookContext,
   RunThreadOptions,
-  ThreadRecord,
 } from '@core/types/thread-types.js';
 
 const log = createLogger('thread-hook');
@@ -84,21 +87,36 @@ function asHookResult(emitted: HookEmitResult): HookResult | null {
   } as HookResult;
 }
 
-/** The Cortex execution context a hook-agent turn must carry so its subprocess env matches a
- *  normal thread step. Omitting it strips CORTEX_THREAD_ID / CORTEX_TASK_ID from the turn, so a
- *  task created inside a hook records a session-style origin (the dispatch conduit) instead of
- *  its thread, and its completion callback wakes a context-less session on that conduit. */
-function hookAgentContext(thread: ThreadRecord, executionId: string, trackSessionId: string | null) {
-  const meta = thread.metadata;
+/** Synthetic profile for an unknown configured name: keeps the requested name so the facade still
+ *  rejects it, while its backend/mode mirror the legacy active-backend execution record. */
+function fallbackHookProfile(profileName: string): ResolvedProfileConfig {
   return {
-    threadId: thread.id,
-    threadDepth: meta?.depth ?? 0,
-    taskId: meta?.taskId ?? null,
-    taskProject: meta?.taskProject ?? null,
-    taskGeneration: meta?.dispatchGeneration ?? null,
-    executionId,
-    trackSessionId,
+    name: profileName,
+    model: '',
+    backend: getActiveBackend(),
+    mode: getClaudeMode(),
+    provider: null,
+    extraEnv: {},
+    extraOption: {},
+    claudeBackend: 'print',
+    thinking: null,
+    maxOutputTokens: null,
+    fallback: [],
   };
+}
+
+function resolveHookProfile(profileName: string): ResolvedProfileConfig {
+  try {
+    return resolveProfileConfig(profileName);
+  } catch {
+    return fallbackHookProfile(profileName);
+  }
+}
+
+/** Same background policy as a thread step: the hook turn carries a threadId, so the legacy facade
+ *  fell back to the settings-gated inline wait. */
+function hookBackgroundPolicy(): 'inline' | 'none' {
+  return getSettings().bgContinuation ? 'inline' : 'none';
 }
 
 /** Run a hook agent and record it as a step in the thread.
@@ -166,63 +184,77 @@ async function runHookAgent(
     }, opts.threadAnchorId ? { threadId: opts.threadAnchorId } : undefined);
   } catch {}
 
-  // Register execution (inherit metadata from thread for correct attribution)
   const meta = thread.metadata;
-  const execution = executionRegistry.startLocalExecution({
-    kind: meta?.trigger === 'task-dispatch' ? 'dispatch'
-      : meta?.trigger === 'scheduled' ? 'scheduled'
-      : 'local',
-    channel: opts.channel,
-    project: thread.projectId,
-    trigger: 'thread-hook',
-    backend: getActiveBackend(),
-    billingMode: getClaudeMode(),
-    sessionId,
-    label: `[${slackLabel}] ${prompt.substring(0, 40)}`,
-    scheduleTaskId: meta?.scheduleTaskId || null,
-    threadId,
-    agentSlotId: slotId,
-  });
-
+  const executionKind = meta?.trigger === 'task-dispatch' ? 'dispatch'
+    : meta?.trigger === 'scheduled' ? 'scheduled'
+    : 'local';
   const sessionName = isTargetMode ? null : await sessionStore.generateSessionName();
   const stepStartTime = new Date().toISOString();
 
-  const handle = runAgent(prompt, {
-    channel: opts.channel,
-    sessionId,
-    sessionKey,
-    files: [],
-    profileName,
-    project: thread.projectId,
-    trigger: meta?.trigger || undefined,
-    ...hookAgentContext(thread, execution.id, trackSessionId),
-    onFallback: null,
-    isUserInitiated: false,
-    onAssistantMessage: (text: string) => {
-      opts.adapter.postMessage(opts.destination, { text }, opts.threadAnchorId ? { threadId: opts.threadAnchorId } : undefined).catch(() => {});
+  const spec: AgentSpec = {
+    systemPrompt: null,
+    directive: null,
+    promptTemplate: null,
+    tools: null,
+    pluginDirs: [],
+    // The legacy hook path declared no MCP composition, which resolves to 'direct'.
+    mcp: { composition: 'direct', allowlist: null },
+    backendOptions: {},
+  };
+
+  const request: RunRequest = {
+    runId: randomUUID(),
+    session: {
+      sessionId: trackSessionId,
+      backendSessionId: sessionId,
+      engineKey: sessionKey,
+      // The legacy hook path passed no sessionName to the facade; keep it off the spawn context.
+      sessionName: null,
     },
-    onProgress: null,
-  });
+    profile: resolveHookProfile(profileName),
+    spec,
+    prompt: { text: prompt, attachments: [] },
+    context: {
+      channel: opts.channel,
+      project: thread.projectId,
+      // One trigger for the execution record and facade cost attribution (the legacy path used
+      // 'thread-hook' for the record and the thread trigger for cost).
+      trigger: meta?.trigger || 'thread-hook',
+      threadId: thread.id,
+      threadDepth: meta?.depth ?? 0,
+      taskId: meta?.taskId ?? null,
+      taskProject: meta?.taskProject ?? null,
+      taskGeneration: meta?.dispatchGeneration ?? null,
+      scheduleTaskId: meta?.scheduleTaskId ?? null,
+      executionKind,
+      isUserInitiated: false,
+      commissionMode: false,
+      commissionTools: false,
+    },
+    policy: {
+      background: hookBackgroundPolicy(),
+      recordCost: true,
+      hooks: true,
+      loadRules: true,
+      mcpComposition: 'direct',
+      browserCdpEndpoint: null,
+      captureTranscripts: false,
+    },
+  };
 
-  runningExecutions.register({
-    threadId,
-    channel: opts.channel,
-    agentSlotId: slotId,
-    executionId: execution.id,
-    kind: execution.kind,
-    kill: () => handle.kill(),
-    backend: getActiveBackend(),
-    trackSessionId,
-    backendSessionId: handle.sessionId ?? sessionId,
-    sessionId: handle.sessionId ?? sessionId,
-  });
+  const run = startRun(request, [{
+    onEvent(event: RunEvent): void {
+      if (event.type !== 'assistant_text') return;
+      opts.adapter.postMessage(
+        opts.destination, { text: event.text },
+        opts.threadAnchorId ? { threadId: opts.threadAnchorId } : undefined,
+      ).catch(() => {});
+    },
+  } satisfies RunObserver]);
 
-  let result: any;
-  try {
-    result = await handle.promise;
-  } finally {
-    runningExecutions.remove(execution.id);
-  }
+  // The run owns the hook turn's execution record, registry registration, teardown and completion.
+  // A failed turn rejects here and skips the step record exactly as the legacy finally did.
+  const result: any = await run.result;
 
   // Record step
   const stepEndTime = new Date().toISOString();
@@ -231,7 +263,7 @@ async function runHookAgent(
   await recordStepResult(threadId, slotId, {
     sessionId: result?.sessionId || null,
     sessionName,
-    executionId: execution.id,
+    executionId: run.executionId,
     input: prompt,
     startedAt: stepStartTime,
     output: result?.finalOutput || null,
@@ -244,21 +276,14 @@ async function runHookAgent(
     await sessionStore.registerSession(sessionName, {
       sessionId: result.sessionId,
       channel: opts.channel,
-      backend: getActiveBackend(),
+      backend: request.profile.backend,
       kind: 'local',
       origin: 'thread',
       label: `[${threadId}:${slotId}]`,
-      profileName: getActiveProfile(opts.channel),
+      profileName,
       projectId: thread.projectId,
     });
   }
-
-  executionRegistry.completeExecution(execution.id, {
-    costUsd: result?.total_cost_usd,
-    numTurns: result?.num_turns,
-    durationS: stepDurationS,
-    finalOutput: result?.finalOutput || null,
-  });
 
   log.info(`Hook agent (${slackLabel}) completed for thread ${threadId}`);
 }
