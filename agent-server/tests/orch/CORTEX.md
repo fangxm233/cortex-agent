@@ -39,6 +39,7 @@ queueing, mid-turn injection, background holds and execution lifecycle.
 | teardown-execution.test.ts | test | Covers execution teardown and balanced events |
 | thread-detached.test.ts | test | Covers detached thread busy gate bracket |
 | thread-executor.test.ts | test | Covers queueing, file buffering and eviction |
+| transcript-sink.test.ts | test | Covers transcript sink history/publish, subagent attribution and delta-flush ordering |
 | turn-notify.test.ts | test | Covers reset-isolated notification gating |
 | turn-tracking.test.ts | test | Covers snapshot barriers and turn mutation locks |
 | web-bg-hold.test.ts | test | Covers Web background hold status, resume and seal |

@@ -1,10 +1,13 @@
 // input:  NormalizedEvent + ContinuationSink (agent-adapter) and RunResult (./request)
 // output: RunPhase, RunEvent union, and pure NormalizedEvent/ContinuationSink translation
 // pos:    Backend-neutral run event vocabulary — the single stream Phase 1 funnels every
-//         foreground/background signal through. Pure types + pure functions, no callers changed.
+//         foreground/background signal through. Pure types + pure functions; the run layer emits
+//         it and the transcript sink observes it.
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import type { ContextUsage, TodoSnapshot } from '@core/types/agent-types.js';
+import type {
+  ChatNoticeLevel, ContextUsage, NoticeAction, TodoSnapshot,
+} from '@core/types/agent-types.js';
 import type { ContinuationSink } from '../../agent-adapter/types.js';
 import type { NormalizedEvent, ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
 import type { RunResult } from './request.js';
@@ -30,6 +33,11 @@ export type RunEvent =
   | {
       type: 'assistant_text'; text: string; blockId?: string; model?: string | null;
       subagent?: ToolUseSubagent; phase: RunPhase;
+      // Notices are synthesized by the facade (rate-limit hold, compaction, fallback) and reach the
+      // transcript through the same `onAssistantMessage` callback as ordinary prose. They are part
+      // of the event so the transcript sink can persist/publish them identically; `NormalizedEvent`
+      // never sets them.
+      noticeLevel?: ChatNoticeLevel; noticeAction?: NoticeAction;
     }
   | { type: 'assistant_delta'; text: string; blockId: string; phase: RunPhase }
   | {

@@ -6,8 +6,7 @@
 import * as path from 'path';
 import type { Destination, PlatformAdapter, MessageRef, DownloadedFile, IncomingMessage, PlatformFileRef, OutputStream } from '@platform/index.js';
 import { resolveDestinationConduit, SYNTHETIC_CALLBACK_SENDER } from '@platform/types.js';
-import type { AgentResult, ChatNoticeLevel, ContextUsage, NoticeAction, SessionContextUsage, TodoSnapshot } from '@core/types/agent-types.js';
-import { sessionTodos } from '@core/session-todos.js';
+import type { AgentResult, ChatNoticeLevel, ContextUsage, NoticeAction, TodoSnapshot } from '@core/types/agent-types.js';
 import { renderTodoProgress } from '../agent-adapter/normalize/todo.js';
 import { conduitQueues, enqueue } from './conduit-queue.js';
 import { trackPendingTask } from './busy-tracker.js';
@@ -16,10 +15,9 @@ import { getSessionAsync, setSessionAsync } from '@domain/sessions/session.js';
 import { sessionStore, effectiveBackendSessionId } from '@store/session-registry-repo.js';
 import type { Session } from '@store/session-registry-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
-import { conversationHistory, summarizeToolInputForHistory, toolDeviceForHistory } from '@store/conversation-history-repo.js';
+import { conversationHistory, summarizeToolInputForHistory } from '@store/conversation-history-repo.js';
 import { pendingInjectionRepo } from '@store/pending-injection-repo.js';
 import { subagentPayloadFields, subagentRowRef } from './subagent-rows.js';
-import { subagentSpawnFromAttribution, subagentSpawnsFromToolCall } from '../agent-adapter/normalize/event-types.js';
 import type { ToolUseSubagent } from '../agent-adapter/normalize/event-types.js';
 import { getActiveProfile, getDefaultAgent, resolveBackendForChannel } from '@domain/agents/index.js';
 import { resolveProfileConfig } from '@domain/agents/profile-manager.js';
@@ -37,7 +35,8 @@ import { buildDurableHooks } from './durable-helpers.js';
 const log = createLogger('agent-runner');
 import { createToolTrace } from '@platform/index.js';
 import { setStreamingCallback, clearStreamingCallback, publishAskUserRequested } from './routing/hook-bridge.js';
-import { publishSessionContextUsage, publishSessionDebugUpdated, publishSessionMessage, publishSessionMessageDelivered, publishSessionStatus, publishSessionTodos, publishSessionTurn } from './session-events.js';
+import { publishSessionDebugUpdated, publishSessionMessage, publishSessionMessageDelivered, publishSessionStatus, publishSessionTurn } from './session-events.js';
+import { createTranscriptSink, persistSessionContextUsage, type SessionContextUsagePersistenceDeps } from './transcript-sink.js';
 import { createSessionDeltaStream } from './delta-coalescer.js';
 import { isInjectableMessage, tryInjectIntoLiveTurn, type MidTurnInjectDeps } from './mid-turn-inject.js';
 import { commitPendingInjection } from './pending-injection-recovery.js';
@@ -376,46 +375,22 @@ export class AgentRunner {
     // messages only. Lives for the turn; sealed in the finally below.
     const deltaStream = createSessionDeltaStream({ sessionId, channel });
     const debugEnabled = isDebugMode();
+    // The transcript sink owns the history+publish copy. The legacy callback path below bridges
+    // into it; P1.5 migrates the call site to startRun and drops the bridge.
+    const sink = createTranscriptSink({
+      sessionId, channel, sessionName, debug: debugEnabled,
+      onAssistantMessage: callbacks.onAssistantMsg,
+      onTodoUpdate: callbacks.onTodoUpdate ?? undefined,
+      flushDelta: (blockId) => deltaStream?.flush(blockId),
+    });
     const persistToolUse = (
       name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent,
     ): void => {
-      const toolInput = summarizeToolInputForHistory(input);
-      const toolDevice = toolDeviceForHistory(name, input);
-      const ts = new Date().toISOString();
-      const ref = subagent ? subagentRowRef(subagent) : undefined;
-      const attributedSpawn = subagent ? subagentSpawnFromAttribution(subagent) : null;
-      const subagentSpawns = attributedSpawn
-        ? [attributedSpawn]
-        : subagent ? [] : subagentSpawnsFromToolCall(name, input, toolUseId);
-      const legacyAnchor = !subagent && name !== 'agent' && subagentSpawns.length === 1
-        ? { id: subagentSpawns[0].id }
-        : undefined;
-      const rowRef = ref ?? legacyAnchor;
-      recordHistory(
-        conversationHistory.appendTool(sessionId, {
-          toolName: name,
-          toolInput,
-          ...(toolDevice ? { toolDevice } : {}),
-          ts,
-          ...(rowRef ? { subagent: rowRef } : {}),
-          ...(subagentSpawns.length ? { subagentSpawns } : {}),
-          ...(debugEnabled ? { toolUseId, fullInput: input } : {}),
-        }),
-        debugEnabled ? () => publishSessionDebugUpdated({ sessionId, channel }) : undefined,
-      );
-      publishSessionMessage({
-        sessionId, channel, role: 'tool', text: '', toolName: name, toolInput, ts,
-        ...(toolDevice ? { toolDevice } : {}),
-        ...(subagentSpawns.length ? { subagentSpawns } : {}),
-        ...subagentPayloadFields(rowRef),
-      });
+      sink.onEvent({ type: 'tool_use', toolUseId, name, input, ...(subagent ? { subagent } : {}), phase: 'foreground' });
     };
     const persistToolResult = debugEnabled
       ? (toolUseId: string, content: string, isError: boolean): void => {
-          recordHistory(
-            conversationHistory.appendToolResult(sessionId, { toolUseId, content, isError }),
-            () => publishSessionDebugUpdated({ sessionId, channel }),
-          );
+          sink.onEvent({ type: 'tool_result', toolUseId, ok: !isError, content, phase: 'foreground' });
         }
       : null;
     // The authoritative end of one native subagent. Persisted as well as published: it is the only
@@ -426,31 +401,18 @@ export class AgentRunner {
     const persistSubagentEnd = (
       parentToolUseId: string, status: 'completed' | 'failed' | 'killed',
     ): void => {
-      if (!sessionId || !parentToolUseId) return;
-      const ts = new Date().toISOString();
-      recordHistory(conversationHistory.appendSubagentEnd(sessionId, {
-        subagentId: parentToolUseId, status, ts,
-      }));
-      publishSessionMessage({
-        sessionId, channel, role: 'assistant', text: '', ts,
-        subagentId: parentToolUseId, subagentEnded: status,
-      });
+      sink.onEvent({ type: 'subagent_end', parentToolUseId, status, phase: 'foreground' });
     };
-    const persistContext = (usage: ContextUsage): Promise<void> => persistSessionContextUsage({
-      sessionName, sessionId, channel, usage,
-    });
+    const persistContext = (usage: ContextUsage): void | Promise<void> =>
+      sink.onEvent({ type: 'context_usage', ...usage, phase: 'foreground' });
     // Task-list snapshot: record it for `sessions.list` (the queryable snapshot) and publish the
     // delta, then refresh the platform status line so Slack/Feishu/Ink-TUI move too. Replace-all,
     // so this overwrites rather than merges.
     const persistTodos = (snapshot: TodoSnapshot): void => {
-      if (sessionId) {
-        sessionTodos.set(sessionId, snapshot);
-        publishSessionTodos({ sessionId, channel, snapshot });
-      }
-      callbacks.onTodoUpdate?.(snapshot);
+      sink.onEvent({ type: 'todo_update', toolUseId: '', snapshot, phase: 'foreground' });
     };
     const persistContinuationContext = (usage: ContextUsage): void => {
-      void persistContext(usage).catch((error) => {
+      void Promise.resolve(persistContext(usage)).catch((error) => {
         log.warn('continuation context persistence failed:', (error as Error).message);
       });
     };
@@ -506,32 +468,13 @@ export class AgentRunner {
         },
         onAssistantDelta: deltaStream ? (text: string, blockId: string) => deltaStream.onDelta(text, blockId) : null,
         onAssistantMessage: (text: string, blockId?: string, noticeLevel?: ChatNoticeLevel, noticeAction?: NoticeAction, subagent?: ToolUseSubagent) => {
-          // Drain this block's preview FIRST: the authoritative message must never be overtaken by
-          // a delta still sitting in the coalescer, or the UI would replace the row and then append
-          // a stale fragment to it.
-          if (blockId) deltaStream?.flush(blockId);
-          const ref = subagent ? subagentRowRef(subagent) : undefined;
-          const attributedSpawn = subagent ? subagentSpawnFromAttribution(subagent) : null;
-          // A subagent's prose is working notes addressed to its parent, not an answer addressed to
-          // the user. Chat platforms get the live counter on the spawning call's trace line instead
-          // (see tool-trace); the full text stays in the transcript, where it can be grouped.
-          if (!ref) callbacks.onAssistantMsg(text);
-          if (sessionId && text) {
-            const ts = new Date().toISOString();
-            recordHistory(conversationHistory.appendAssistant(sessionId, {
-              text, ts, noticeLevel, noticeAction,
-              ...(ref ? { subagent: ref } : {}),
-              ...(attributedSpawn ? { subagentSpawns: [attributedSpawn] } : {}),
-            }));
-            publishSessionMessage({
-              sessionId, channel, role: 'assistant', text, ts,
-              ...(blockId ? { blockId } : {}),
-              ...(noticeLevel ? { noticeLevel } : {}),
-              ...(noticeAction ? { noticeAction } : {}),
-              ...(attributedSpawn ? { subagentSpawns: [attributedSpawn] } : {}),
-              ...subagentPayloadFields(ref),
-            });
-          }
+          sink.onEvent({
+            type: 'assistant_text', text, phase: 'foreground',
+            ...(blockId ? { blockId } : {}),
+            ...(noticeLevel ? { noticeLevel } : {}),
+            ...(noticeAction ? { noticeAction } : {}),
+            ...(subagent ? { subagent } : {}),
+          });
         },
         onPromptBuilt: debugEnabled ? (prompt: string) => {
           recordHistory(
@@ -659,27 +602,9 @@ export const agentRunner = new AgentRunner();
 
 // --- Helpers ---
 
-export interface SessionContextUsagePersistenceDeps {
-  now: () => string;
-  update: (sessionName: string, updates: { contextUsage: SessionContextUsage }) => Promise<void>;
-  publish: (snapshot: { sessionId: string; channel: string } & SessionContextUsage) => void;
-}
-
-const defaultContextUsagePersistence: SessionContextUsagePersistenceDeps = {
-  now: () => new Date().toISOString(),
-  update: (sessionName, updates) => sessionStore.updateSession(sessionName, updates),
-  publish: publishSessionContextUsage,
-};
-
-/** Persist first, then publish the identical live snapshot so query and event clients converge. */
-export async function persistSessionContextUsage(
-  input: { sessionName: string; sessionId: string; channel: string; usage: ContextUsage },
-  deps: SessionContextUsagePersistenceDeps = defaultContextUsagePersistence,
-): Promise<void> {
-  const contextUsage = { ...input.usage, updatedAt: deps.now() };
-  await deps.update(input.sessionName, { contextUsage });
-  deps.publish({ sessionId: input.sessionId, channel: input.channel, ...contextUsage });
-}
+// Moved to transcript-sink.ts (the one transcript observer). Re-exported here so the existing
+// agent-runner tests and importers keep their import path.
+export { persistSessionContextUsage, type SessionContextUsagePersistenceDeps };
 
 /** Dependencies for {@link emitTurnProgress} — side effects injected for testability. */
 export interface TurnProgressDeps {
