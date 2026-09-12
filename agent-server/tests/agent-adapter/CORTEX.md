@@ -32,5 +32,6 @@ Agent adapter tests: Claude and PI streams normalized into shared events, plus s
 | pi-discovery.test.ts | test | forced PI provider refresh and retry policy |
 | pi-fake-runtime.ts | helper | in-memory PI runtime double for adapter and session tests |
 | pi-mid-turn-inject.test.ts | test | PI switch guard and mid-turn prompt steering |
+| pi-run-phases.test.ts | test | PI run phases: steer form per loop state, deferred turn_complete, refusal acks, session_started placement |
 | pi-usage.test.ts | test | PI cached Codex usage without provider traffic |
 | replay-harness.ts | helper | fixture replay, golden comparison and Claude run-phase trace helpers |
