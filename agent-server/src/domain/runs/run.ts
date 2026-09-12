@@ -53,7 +53,13 @@ export interface AgentRun {
    * correlate the eventual ack event with its durable pending record.
    */
   steer(msg: UserMessage, injectionId?: string): Promise<'folded' | 'queued' | 'refused'>;
-  /** Phase 1 stub — P2.4 implements dialog responses. */
+  /**
+   * Answer an in-flight backend dialog (PI `ask_user` / plan approval) through this run.
+   * Returns false when the backend exposes no dialog channel or no live dialog waits on `id`;
+   * callers then fall through to their webhook path instead of dropping the answer.
+   *
+   * Transitional: P4.1 replaces the `agentProcess` hop with the `EngineSession`.
+   */
   respondToDialog(id: string, payload: Record<string, unknown>): boolean;
   cancel(reason: 'user' | 'supersede' | 'shutdown'): void;
   subscribe(observer: RunObserver): () => void;
@@ -388,8 +394,11 @@ export class AgentRunImpl implements AgentRun {
     this.pendingInjections = this.pendingInjections.filter((entry) => entry.id !== id);
   }
 
-  respondToDialog(_id: string, _payload: Record<string, unknown>): boolean {
-    return false;
+  respondToDialog(id: string, payload: Record<string, unknown>): boolean {
+    const proc = this.handle?.agentProcess as
+      { sendExtensionUiResponse?: (id: string, payload: Record<string, unknown>) => boolean } | undefined;
+    if (typeof proc?.sendExtensionUiResponse !== 'function') return false;
+    return proc.sendExtensionUiResponse(id, payload);
   }
 
   cancel(reason: 'user' | 'supersede' | 'shutdown'): void {

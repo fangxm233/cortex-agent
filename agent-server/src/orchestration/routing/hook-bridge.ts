@@ -148,7 +148,7 @@ function getStreamingCallback(channel: string): ((text: string) => void) | null 
 
 /**
  * Publish plan.submitted directly (non-blocking, no pendingRequest).
- * Used by PI backend: the resolution goes through sendExtensionUiResponse, not resolveRequest.
+ * Used by PI backend: the resolution goes through respondToDialog, not resolveRequest.
  */
 function publishPlanSubmitted(
   requestId: string,
@@ -166,8 +166,8 @@ function publishPlanSubmitted(
 
 /**
  * Publish ask-user.requested directly (non-blocking, no pendingRequest).
- * Used by PI backend: the resolution goes through sendExtensionUiResponse, not resolveRequest.
- * @param extensionUiId — original PI extension_ui_request id; required for sendExtensionUiResponse to unblock the PI subprocess.
+ * Used by PI backend: the resolution goes through respondToDialog, not resolveRequest.
+ * @param extensionUiId — original PI extension_ui_request id; required for respondToDialog to unblock the PI subprocess.
  */
 function publishAskUserRequested(requestId: string, channel: string, sessionId: string, questions: any[], extensionUiId?: string, threadId?: string | null): void {
   if (!_bus) { log.error('bus not initialised; dropping PI ask-user.requested'); return; }

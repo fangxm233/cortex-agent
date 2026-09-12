@@ -65,6 +65,8 @@ interface FakeProcess extends AgentProcess {
   continuationSink?: ContinuationSink;
   injectionAckSink?: InjectionAckSink;
   readonly killed: boolean;
+  readonly dialogCalls: Array<{ id: string; payload: Record<string, unknown> }>;
+  sendExtensionUiResponse(id: string, payload: Record<string, unknown>): boolean;
   resolveSend(result: AgentResult): void;
 }
 
@@ -76,6 +78,8 @@ interface FakeProcessSpec {
   sessionId?: string;
   /** False makes `injectUserMessage` refuse (no live turn / dead process). */
   injectAccepted?: boolean;
+  /** False makes `sendExtensionUiResponse` report "no live dialog waits on this id". */
+  dialogAccepted?: boolean;
 }
 
 /** The fake-process pattern from tests/run-with-adapter.test.ts, extended with a continuation sink
@@ -105,6 +109,7 @@ function makeFakeProcess(spec: FakeProcessSpec = {}): FakeProcess {
   const process: FakeProcess = {
     sessionKey: 'fake-key',
     sessionId: spec.sessionId ?? 'backend-1',
+    dialogCalls: [],
     get killed() { return killed; },
     send(_message: UserMessage): Promise<AgentResult> {
       for (const event of spec.events ?? []) push(event);
@@ -132,6 +137,10 @@ function makeFakeProcess(spec: FakeProcessSpec = {}): FakeProcess {
     },
     setContinuationSink(sink: ContinuationSink): void { process.continuationSink = sink; },
     injectUserMessage(_message: UserMessage): boolean { return spec.injectAccepted !== false; },
+    sendExtensionUiResponse(id: string, payload: Record<string, unknown>): boolean {
+      process.dialogCalls.push({ id, payload });
+      return spec.dialogAccepted !== false;
+    },
     setInjectionAckSink(sink: InjectionAckSink): void { process.injectionAckSink = sink; },
     async close(): Promise<void> { close(); },
     kill(): boolean {
@@ -406,6 +415,28 @@ test('steer refuses without a live process and emits no injection event', async 
 
   run.cancel('user');
   await run.settled.catch(() => undefined);
+});
+
+// ── P2.4: respondToDialog is the run's one dialog channel ────────────────
+
+test('respondToDialog forwards to the live process and surfaces its boolean', async () => {
+  const refused = makeFakeProcess({ hold: true, dialogAccepted: false });
+  holder.adapter = makeFakeAdapter(refused);
+  const refusedRun = startRun(makeRequest({ runId: 'run-dialog-refused' }), [collector().observer]);
+
+  assert.equal(refusedRun.respondToDialog('ui-refused', { value: 'no' }), false);
+  assert.deepEqual(refused.dialogCalls, [{ id: 'ui-refused', payload: { value: 'no' } }]);
+  refusedRun.cancel('user');
+  await refusedRun.settled.catch(() => undefined);
+
+  const accepted = makeFakeProcess({ hold: true });
+  holder.adapter = makeFakeAdapter(accepted);
+  const acceptedRun = startRun(makeRequest({ runId: 'run-dialog-accepted' }), [collector().observer]);
+
+  assert.equal(acceptedRun.respondToDialog('ui-accepted', { value: 'yes' }), true);
+  assert.deepEqual(accepted.dialogCalls, [{ id: 'ui-accepted', payload: { value: 'yes' } }]);
+  acceptedRun.cancel('user');
+  await acceptedRun.settled.catch(() => undefined);
 });
 
 test('a post-result injection keeps the run in background until the continuation settles', async () => {

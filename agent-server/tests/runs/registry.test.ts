@@ -218,8 +218,8 @@ test('streaming slot set / get / clear', () => {
 
 test('getRunByChannel returns the newest live run and skips run-less executions', () => {
   const r = new RunRegistry();
-  const older = { steer: async () => 'refused' as const };
-  const newer = { steer: async () => 'folded' as const };
+  const older = { steer: async () => 'refused' as const, respondToDialog: () => false };
+  const newer = { steer: async () => 'folded' as const, respondToDialog: () => false };
   r.register(makeInput({ executionId: 'exec-1', channel: 'web:s1' }));
   r.register(makeInput({ executionId: 'exec-2', channel: 'web:s1', run: older }));
   r.register(makeInput({ executionId: 'exec-3', channel: 'web:s1', run: newer }));

@@ -18,10 +18,14 @@ export interface SteerableMessage {
   attachments?: { mimeType: string; path: string }[];
 }
 
-/** The slice of an `AgentRun` the mid-turn injection path needs. The run itself decides — via its
- *  own `capabilities` — whether it can take the message, so callers never duck-type the process. */
+/** The slices of an `AgentRun` the mid-turn injection and dialog-response paths need. The run
+ *  itself decides — via its own `capabilities` — whether it can take a steer, so callers never
+ *  duck-type the process. */
 export interface SteerableRun {
   steer(message: SteerableMessage, injectionId?: string): Promise<'folded' | 'queued' | 'refused'>;
+  /** Answer an in-flight backend dialog (PI extension UI). False when no live dialog waits on
+   *  `id`; the caller then falls through to its webhook path. */
+  respondToDialog(id: string, payload: Record<string, unknown>): boolean;
 }
 
 export interface RunningExecution {
