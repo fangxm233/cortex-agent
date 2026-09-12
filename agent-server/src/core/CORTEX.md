@@ -40,7 +40,7 @@ Codex quota, attachment mimetypes, the prompt template engine).
 | prompt-template.ts | util | renders the `{{var}}` / `{{#if}}` prompt mini-template and resolves system vars |
 | resilient-watch.ts | util | falls back from filesystem watchers to polling |
 | resume-reminder.ts | data | continuation prompt for interrupted work |
-| run-registry.ts | state | the one index of live runs and background holds; answers sessionState; carries the live AgentRun for mid-turn injection lookup and the per-channel streaming callback slot |
+| run-registry.ts | state | the one index of live runs and background holds; answers sessionState; owns the two hold verbs (supersedeHolds vs stopHolds) so taking a session over never ends work that is still running; carries the live AgentRun for mid-turn injection lookup and the per-channel streaming callback slot |
 | runtime-env.ts | config | excludes file-only metadata from runtime env |
 | session-todos.ts | state | holds each session's latest agent task list |
 | settings-migration.ts | config | safely migrates legacy env settings at startup |

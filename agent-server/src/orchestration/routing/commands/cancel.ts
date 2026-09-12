@@ -34,7 +34,7 @@ async function cancelLive(exec: RunningExecution): Promise<void> {
 export interface BgHoldCancelDeps {
   heldSessions?: (channel: string) => string[];
   killPooled?: (channel: string) => boolean;
-  abortHold?: (sessionId: string) => boolean;
+  stopHolds?: (sessionId: string) => boolean;
 }
 
 /** Stop the web background-task hold(s) on a channel; returns the number stopped.
@@ -47,18 +47,18 @@ export interface BgHoldCancelDeps {
  *
  *  Two things must happen, in this order: kill the pooled backend process that still owns the
  *  background task (otherwise the work runs on and streams a continuation into a session the user
- *  just stopped), then fire the hold's abort to seal running:false. The kill alone is not enough —
+ *  just stopped), then fire the hold's Stop handle to seal running:false. The kill alone is not enough —
  *  the adapter only delivers its interrupted-notification when work is still pending, so a hold
  *  installed for finished-but-unnotified work would never be sealed by it. */
 export function cancelBgHolds(channel: string, deps: BgHoldCancelDeps = {}): number {
   const heldSessions = deps.heldSessions ?? ((c: string) => runRegistry.sessionsOnChannel(c));
   const killPooled = deps.killPooled ?? ((c: string) => engines.kill(c));
-  const abortHold = deps.abortHold ?? ((s: string) => runRegistry.abort(s));
+  const stopHolds = deps.stopHolds ?? ((s: string) => runRegistry.stopHolds(s));
 
   const held = heldSessions(channel);
   if (held.length === 0) return 0;
   try { killPooled(channel); } catch (e) { log.warn('bg-hold cancel: kill failed:', (e as Error).message); }
-  for (const sessionId of held) abortHold(sessionId);
+  for (const sessionId of held) stopHolds(sessionId);
   return held.length;
 }
 

@@ -125,54 +125,124 @@ test('markBackgroundHeld ignores an empty session id', () => {
   assert.deepEqual(r.listIds(), []);
 });
 
-test('markBackgroundHeld registers an abort handle that fires exactly once', () => {
+test('markBackgroundHeld registers hold handles that fire exactly once', () => {
   const r = new RunRegistry();
   let fired = 0;
-  r.markBackgroundHeld('s1', 'web:abc', () => { fired++; });
+  const seal = (): void => { fired++; };
+  r.markBackgroundHeld('s1', 'web:abc', { onSuperseded: seal, onStop: seal });
 
-  assert.equal(r.abort('s1'), true);
+  assert.equal(r.stopHolds('s1'), true);
   assert.equal(fired, 1);
-  assert.equal(r.abort('s1'), false, 'single-fire: handle dropped before invoking');
+  assert.equal(r.stopHolds('s1'), false, 'single-fire: handles dropped before invoking');
   assert.equal(fired, 1);
 });
 
-test('setAbort registers a handle and abort() fires it once', () => {
+test('setHoldHandles registers handles and stopHolds() fires them once', () => {
   const r = new RunRegistry();
   let fired = 0;
   r.markBackgroundHeld('s1', 'web:abc');
-  r.setAbort('s1', () => { fired++; });
+  r.setHoldHandles('s1', 'web-bg-hold', { onStop: () => { fired++; } });
 
-  assert.equal(r.abort('s1'), true);
+  assert.equal(r.stopHolds('s1'), true);
   assert.equal(fired, 1);
-  assert.equal(r.abort('s1'), false);
+  assert.equal(r.stopHolds('s1'), false);
 });
 
-test('abort() on a session with no hold is a no-op', () => {
+test('stopHolds() on a session with no hold is a no-op', () => {
   const r = new RunRegistry();
-  assert.equal(r.abort('nope'), false);
+  assert.equal(r.stopHolds('nope'), false);
 });
 
-test('clearBackgroundHeld drops the hold and its abort handle', () => {
+// ── the two verbs ──────────────────────────────────────────────────────
+//
+// One slot per session used to carry handles that meant two different things. A foreground turn
+// fired it to RELEASE a passive hold; a backgrounded `agent` run had put "stop the child" there.
+
+test('supersedeHolds fires onSuperseded and KEEPS onStop — the work is still running', () => {
+  const r = new RunRegistry();
+  const seen: string[] = [];
+  r.markBackgroundHeld('s1', 'web:abc');
+  r.setHoldHandles('s1', 'agent-run:sa_1', { onStop: () => seen.push('stop') });
+
+  assert.equal(r.supersedeHolds('s1'), false, 'a work-owning hold has nothing to yield');
+  assert.deepEqual(seen, [], 'a new foreground turn must never stop a running child');
+
+  assert.equal(r.stopHolds('s1'), true, 'Stop still reaches it');
+  assert.deepEqual(seen, ['stop']);
+});
+
+test('supersedeHolds fires a status-only hold and leaves it unable to fire twice', () => {
+  const r = new RunRegistry();
+  const seen: string[] = [];
+  const seal = (): void => { seen.push('seal'); };
+  r.markBackgroundHeld('s1', 'web:abc');
+  r.setHoldHandles('s1', 'web-bg-hold', { onSuperseded: seal, onStop: seal });
+
+  assert.equal(r.supersedeHolds('s1'), true);
+  assert.deepEqual(seen, ['seal']);
+  assert.equal(r.supersedeHolds('s1'), false, 'single-fire');
+  assert.deepEqual(seen, ['seal']);
+});
+
+test('two owners hold one session independently — neither erases the other', () => {
+  const r = new RunRegistry();
+  const seen: string[] = [];
+  r.markBackgroundHeld('s1', 'web:abc');
+  r.setHoldHandles('s1', 'web-bg-hold', { onSuperseded: () => seen.push('web-seal'), onStop: () => seen.push('web-seal') });
+  r.setHoldHandles('s1', 'agent-run:sa_1', { onStop: () => seen.push('stop-child') });
+
+  assert.equal(r.stopHolds('s1'), true);
+  assert.deepEqual(seen.sort(), ['stop-child', 'web-seal'], 'Stop reaches BOTH holders');
+});
+
+test('dropHoldHandles removes one owner and leaves the rest holding', () => {
+  const r = new RunRegistry();
+  const seen: string[] = [];
+  r.setHoldHandles('s1', 'agent-run:sa_1', { onStop: () => seen.push('one') });
+  r.setHoldHandles('s1', 'agent-run:sa_2', { onStop: () => seen.push('two') });
+
+  r.dropHoldHandles('s1', 'agent-run:sa_1');
+  assert.equal(r.stopHolds('s1'), true);
+  assert.deepEqual(seen, ['two']);
+});
+
+test('clearing the status hold leaves a work-owning holder\'s Stop handle armed', () => {
+  const r = new RunRegistry();
+  const seen: string[] = [];
+  r.markBackgroundHeld('s1', 'web:abc');
+  r.setHoldHandles('s1', 'agent-run:sa_1', { onStop: () => seen.push('stop') });
+
+  // The parent's foreground turn publishes running:true — the STATUS hold is over, but the
+  // delegated run is not, and Stop must still be able to end it.
+  r.clearBackgroundHeld('s1');
+  assert.equal(r.has('s1'), false);
+  assert.equal(r.stopHolds('s1'), true);
+  assert.deepEqual(seen, ['stop']);
+});
+
+test('clearBackgroundHeld drops the hold and its handles', () => {
   const r = new RunRegistry();
   let fired = 0;
-  r.markBackgroundHeld('s1', 'web:abc', () => { fired++; });
+  const seal = (): void => { fired++; };
+  r.markBackgroundHeld('s1', 'web:abc', { onSuperseded: seal, onStop: seal });
 
   r.clearBackgroundHeld('s1');
   assert.equal(r.has('s1'), false);
   assert.deepEqual(r.sessionsOnChannel('web:abc'), []);
-  assert.equal(r.abort('s1'), false);
+  assert.equal(r.stopHolds('s1'), false);
   assert.equal(fired, 0);
 });
 
-test('clear() empties every hold and abort handle', () => {
+test('clear() empties every hold and its handles', () => {
   const r = new RunRegistry();
-  r.markBackgroundHeld('s1', 'web:abc', () => { throw new Error('must not fire'); });
+  const boom = (): never => { throw new Error('must not fire'); };
+  r.markBackgroundHeld('s1', 'web:abc', { onSuperseded: boom, onStop: boom });
   r.markBackgroundHeld('s2', 'web:xyz');
 
   r.clear();
   assert.deepEqual(r.listIds(), []);
   assert.deepEqual(r.sessionsOnChannel('web:abc'), []);
-  assert.equal(r.abort('s1'), false);
+  assert.equal(r.stopHolds('s1'), false);
 });
 
 // ── onSessionStatus compatibility (the app.ts bus feed) ────────────────
@@ -190,12 +260,12 @@ test('onSessionStatus clears the hold when the seal republishes running:false', 
   const r = new RunRegistry();
   let fired = 0;
   r.onSessionStatus({ sessionId: 's1', channel: 'web:abc', running: true, backgroundRunning: true });
-  r.setAbort('s1', () => {
+  r.setHoldHandles('s1', 'web-bg-hold', { onStop: () => {
     fired++;
     r.onSessionStatus({ sessionId: 's1', channel: 'web:abc', running: false, backgroundRunning: false });
-  });
+  } });
 
-  r.abort('s1');
+  r.stopHolds('s1');
   assert.equal(fired, 1);
   assert.equal(r.has('s1'), false);
 });

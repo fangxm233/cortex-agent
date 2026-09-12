@@ -139,23 +139,28 @@ export interface AgentRunnerCtx {
 }
 
 interface ForegroundSessionDeps {
-  abortHold: (sessionId: string) => unknown;
+  supersedeHolds: (sessionId: string) => unknown;
   publishRunning: (event: { sessionId: string; channel: string; running: boolean }) => void;
 }
 
 /** A foreground turn supersedes any background-only hold on the same session. Release the old
  * busy bracket before publishing running:true; the reverse order lets the status subscriber erase
- * the abort handle while its guard remains live until the 30-minute cap. */
+ * the hold handles while its guard remains live until the 30-minute cap.
+ *
+ * SUPERSEDE, never stop. Taking the session over is not a reason to end work that is still
+ * running — a backgrounded `agent` run keeps going (and keeps its busy bracket) and only yields
+ * its passive status hold. The registry keeps the two verbs apart precisely because this path
+ * used to fire a handle that meant "stop the child". */
 export function beginForegroundSession(
   sessionId: string | null,
   channel: string,
   deps: ForegroundSessionDeps = {
-    abortHold: (id) => runRegistry.abort(id),
+    supersedeHolds: (id) => runRegistry.supersedeHolds(id),
     publishRunning: publishSessionStatus,
   },
 ): void {
   if (!sessionId) return;
-  deps.abortHold(sessionId);
+  deps.supersedeHolds(sessionId);
   deps.publishRunning({ sessionId, channel, running: true });
 }
 
@@ -573,7 +578,11 @@ export class AgentRunner {
           registerSink: (sink) => { if (run) runToContinuationSink(run, sink); },
           // Stop during the hold: the cancel path finds the hold by channel in this registry and
           // fires the abort to seal it (see core/run-registry.ts).
-          registerAbort: (abort) => runRegistry.setAbort(sid, abort),
+          // This hold owns STATUS, not work: its seal releases the busy bracket and publishes
+          // running:false, so it is the right response to both verbs.
+          registerAbort: (abort) => runRegistry.setHoldHandles(sid, 'web-bg-hold', {
+            onSuperseded: abort, onStop: abort,
+          }),
           track: trackPendingTask,
           publishStatus: ({ running, backgroundRunning }) => publishSessionStatus({ sessionId: sid, channel, running, backgroundRunning }),
           publishAssistant: (text, subagent) => {

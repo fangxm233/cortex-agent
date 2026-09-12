@@ -56,9 +56,13 @@ export interface WebBgHoldDeps {
   /** Busy bracket (trackPendingTask). +1 for the whole wait window so a deferred daemon restart
    *  does not fire and kill the Claude child (F1); -1 when the guard settles. */
   track: (delta: number) => void;
-  /** Register the hold's abort handle (user Stop while the hold is up). Invoked once, right after
-   *  the hold is installed, with a function that seals the hold: guard settled (busy bracket
-   *  released) + running:false published. Idempotent with every other seal path. */
+  /** Register the hold's seal so something outside can end it. Invoked once, right after the hold
+   *  is installed, with a function that seals: guard settled (busy bracket released) + running:false
+   *  published. Idempotent with every other seal path.
+   *
+   *  This hold owns STATUS, not work — there is no child process to outlive it — so the same seal is
+   *  the right answer to a user Stop AND to a new foreground turn taking the session over. Holds
+   *  that own live work answer those two differently (see `SessionHoldHandles`). */
   registerAbort?: (abort: () => void) => void;
   /** Injectable guard factory for tests (defaults to the real startBgWaitGuard). */
   startGuard?: typeof startBgWaitGuard;

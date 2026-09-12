@@ -20,6 +20,7 @@ import {
 import {
   _resetSubagentRuns, startSubagentRun, waitForSubagentRun,
 } from '../src/domain/agents/subagent/registry.js';
+import { beginForegroundSession } from '../src/orchestration/agent-runner.js';
 import { emptyUsage } from '@core/agents/subagent/usage.js';
 import type { SubagentToolResult } from '@core/agents/subagent/orchestrate.js';
 import type { SubagentRunStatus } from '../src/domain/agents/subagent/registry.js';
@@ -145,7 +146,7 @@ test('another session\'s status never touches this hold', () => {
   release();
 });
 
-test('the Stop path can reach a background run through the hold\'s abort handle', async () => {
+test('the Stop path can reach a background run through the hold\'s Stop handle', async () => {
   const run = startSubagentRun({
     invocation: invocation(),
     sessionId: SESSION,
@@ -155,7 +156,57 @@ test('the Stop path can reach a background run through the hold\'s abort handle'
     }),
   });
   const release = holdSessionForBackgroundRun(view({ id: run.id }), CHANNEL);
-  assert.equal(runRegistry.abort(SESSION), true);
+  assert.equal(runRegistry.stopHolds(SESSION), true);
+  const outcome = await waitForSubagentRun(run.id, 1000);
+  assert.equal(outcome!.view.status, 'stopped');
+  release();
+});
+
+test('a new foreground turn supersedes the hold but never stops the run', async () => {
+  // The bug this pins (observed 2026-09-12): `runRegistry` had ONE abort slot per session, and two
+  // callers wrote handles with incompatible meanings into it — this hold's "stop the child" and the
+  // web bg hold's "seal the status". `beginForegroundSession` fires that slot on every incoming
+  // message to release the *passive* hold, so typing a second message while a delegated agent was
+  // working executed the agent instead. Eleven minutes of a subagent's work were lost this way, and
+  // the parent was handed "Stopped before it finished" as if the user had asked for it.
+  const run = startSubagentRun({
+    invocation: invocation(),
+    sessionId: SESSION,
+    background: true,
+    execute: (signal) => new Promise((_resolve, reject) => {
+      signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+    }),
+  });
+  const before = busyTracker.count;
+  const release = holdSessionForBackgroundRun(view({ id: run.id }), CHANNEL);
+
+  beginForegroundSession(SESSION, CHANNEL);
+
+  // Through waitForSubagentRun, not a bare read: `stopSubagentRun` only signals the abort, and the
+  // run settles a microtask later — a synchronous status read would pass even while it is dying.
+  const outcome = await waitForSubagentRun(run.id, 25);
+  assert.equal(outcome!.view.status, 'running',
+    'a second user message is not a request to kill the first message\'s agents');
+  assert.equal(busyTracker.count, before + 1,
+    'the bracket outlives the preemption — the child is still working and a deferred restart must not fire');
+  release();
+});
+
+test('Stop still reaches the run after a foreground turn superseded the hold', async () => {
+  // The other half: superseding must not disarm Stop either. The run is still live, so the user
+  // must still be able to end it.
+  const run = startSubagentRun({
+    invocation: invocation(),
+    sessionId: SESSION,
+    background: true,
+    execute: (signal) => new Promise((_resolve, reject) => {
+      signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+    }),
+  });
+  const release = holdSessionForBackgroundRun(view({ id: run.id }), CHANNEL);
+  beginForegroundSession(SESSION, CHANNEL);
+
+  assert.equal(runRegistry.stopHolds(SESSION), true);
   const outcome = await waitForSubagentRun(run.id, 1000);
   assert.equal(outcome!.view.status, 'stopped');
   release();

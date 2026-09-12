@@ -84,37 +84,40 @@ test('sessionsOnChannel drops the session once the hold is sealed', () => {
   assert.deepEqual(t.sessionsOnChannel('web:abc'), []);
 });
 
-test('abort() fires the registered seal exactly once', () => {
+test('stopHolds() fires the registered seal exactly once', () => {
   const t = new RunRegistry();
   let fired = 0;
+  const seal = (): void => { fired++; };
   t.onSessionStatus({ sessionId: 's1', channel: 'web:abc', running: true, backgroundRunning: true });
-  t.setAbort('s1', () => { fired++; });
-  assert.equal(t.abort('s1'), true);
+  t.setHoldHandles('s1', 'web-bg-hold', { onSuperseded: seal, onStop: seal });
+  assert.equal(t.stopHolds('s1'), true);
   assert.equal(fired, 1);
-  assert.equal(t.abort('s1'), false, 'single-fire: handle dropped before invoking');
+  assert.equal(t.stopHolds('s1'), false, 'single-fire: handles dropped before invoking');
   assert.equal(fired, 1);
 });
 
-test('abort() on a session with no hold is a no-op', () => {
+test('stopHolds() on a session with no hold is a no-op', () => {
   const t = new RunRegistry();
-  assert.equal(t.abort('nope'), false);
+  assert.equal(t.stopHolds('nope'), false);
 });
 
-test('sealing the hold drops its abort handle (no stale abort after the hold ends)', () => {
+test('sealing the hold drops its handles (no stale Stop after the hold ends)', () => {
   const t = new RunRegistry();
   let fired = 0;
+  const seal = (): void => { fired++; };
   t.onSessionStatus({ sessionId: 's1', channel: 'web:abc', running: true, backgroundRunning: true });
-  t.setAbort('s1', () => { fired++; });
+  t.setHoldHandles('s1', 'web-bg-hold', { onSuperseded: seal, onStop: seal });
   t.onSessionStatus({ sessionId: 's1', channel: 'web:abc', running: false });
-  assert.equal(t.abort('s1'), false);
+  assert.equal(t.stopHolds('s1'), false);
   assert.equal(fired, 0);
 });
 
-test('clear() drops abort handles too', () => {
+test('clear() drops hold handles too', () => {
   const t = new RunRegistry();
+  const boom = (): never => { throw new Error('must not fire'); };
   t.onSessionStatus({ sessionId: 's1', channel: 'web:abc', running: true, backgroundRunning: true });
-  t.setAbort('s1', () => { throw new Error('must not fire'); });
+  t.setHoldHandles('s1', 'web-bg-hold', { onSuperseded: boom, onStop: boom });
   t.clear();
-  assert.equal(t.abort('s1'), false);
+  assert.equal(t.stopHolds('s1'), false);
   assert.deepEqual(t.sessionsOnChannel('web:abc'), []);
 });

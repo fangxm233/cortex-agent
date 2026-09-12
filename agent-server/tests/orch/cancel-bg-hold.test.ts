@@ -23,7 +23,7 @@ test('no hold on the channel → 0, and nothing is killed', () => {
   const n = cancelBgHolds('web:idle', {
     heldSessions: () => [],
     killPooled: (c) => { kills.push(c); return true; },
-    abortHold: () => true,
+    stopHolds: () => true,
   });
   assert.equal(n, 0);
   assert.deepEqual(kills, [], 'a channel with no hold must not have its pooled session killed');
@@ -34,7 +34,7 @@ test('held session → kills the pooled process, then aborts the hold', () => {
   const n = cancelBgHolds('web:s1', {
     heldSessions: () => ['sess-1'],
     killPooled: (c) => { order.push(`kill:${c}`); return true; },
-    abortHold: (s) => { order.push(`abort:${s}`); return true; },
+    stopHolds: (s) => { order.push(`abort:${s}`); return true; },
   });
   assert.equal(n, 1, 'reported as cancelled so the UI gets cancelled:true');
   assert.deepEqual(order, ['kill:web:s1', 'abort:sess-1'],
@@ -47,7 +47,7 @@ test('multiple held sessions on one channel → one kill, every hold aborted', (
   const n = cancelBgHolds('web:s1', {
     heldSessions: () => ['a', 'b'],
     killPooled: (c) => { kills.push(c); return true; },
-    abortHold: (s) => { aborted.push(s); return true; },
+    stopHolds: (s) => { aborted.push(s); return true; },
   });
   assert.equal(n, 2);
   assert.deepEqual(kills, ['web:s1'], 'the pooled session is per-channel — killed once');
@@ -59,7 +59,7 @@ test('a kill failure still seals the hold (never leave the UI stuck running)', (
   const n = cancelBgHolds('web:s1', {
     heldSessions: () => ['sess-1'],
     killPooled: () => { throw new Error('process already gone'); },
-    abortHold: (s) => { aborted.push(s); return true; },
+    stopHolds: (s) => { aborted.push(s); return true; },
   });
   assert.equal(n, 1);
   assert.deepEqual(aborted, ['sess-1']);
@@ -68,11 +68,12 @@ test('a kill failure still seals the hold (never leave the UI stuck running)', (
 test('end-to-end against the real registry: held session is found by channel and sealed', () => {
   let sealed = 0;
   runRegistry.onSessionStatus({ sessionId: 'sess-1', channel: 'web:live', running: true, backgroundRunning: true });
-  runRegistry.setAbort('sess-1', () => {
+  const seal = (): void => {
     sealed++;
     // The real seal publishes running:false, which flows back through the bus into the registry.
     runRegistry.onSessionStatus({ sessionId: 'sess-1', channel: 'web:live', running: false, backgroundRunning: false });
-  });
+  };
+  runRegistry.setHoldHandles('sess-1', 'web-bg-hold', { onSuperseded: seal, onStop: seal });
 
   const n = cancelBgHolds('web:live', { killPooled: () => true });
   assert.equal(n, 1);
@@ -86,15 +87,16 @@ test('new foreground turn releases the old hold before publishing running:true',
   runRegistry.onSessionStatus({
     sessionId: 'sess-1', channel: 'web:live', running: true, backgroundRunning: true,
   });
-  runRegistry.setAbort('sess-1', () => {
+  const seal = (): void => {
     order.push('release-old-hold');
     runRegistry.onSessionStatus({
       sessionId: 'sess-1', channel: 'web:live', running: false, backgroundRunning: false,
     });
-  });
+  };
+  runRegistry.setHoldHandles('sess-1', 'web-bg-hold', { onSuperseded: seal, onStop: seal });
 
   beginForegroundSession('sess-1', 'web:live', {
-    abortHold: (sessionId) => runRegistry.abort(sessionId),
+    supersedeHolds: (sessionId) => runRegistry.supersedeHolds(sessionId),
     publishRunning: () => order.push('publish-running'),
   });
 
@@ -102,7 +104,7 @@ test('new foreground turn releases the old hold before publishing running:true',
   assert.equal(runRegistry.has('sess-1'), false, 'superseded hold no longer owns busy state');
 
   beginForegroundSession('sess-1', 'web:live', {
-    abortHold: (sessionId) => runRegistry.abort(sessionId),
+    supersedeHolds: (sessionId) => runRegistry.supersedeHolds(sessionId),
     publishRunning: () => order.push('publish-running-again'),
   });
   assert.deepEqual(order, ['release-old-hold', 'publish-running', 'publish-running-again'],
