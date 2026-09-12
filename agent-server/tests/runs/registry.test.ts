@@ -1,4 +1,4 @@
-// input:  core/run-registry.ts and the running-executions / bg-held-sessions shims
+// input:  core/run-registry.ts
 // output: spec for RunRegistry.sessionState and the background-hold lifecycle
 // pos:    P1.2 contract — RunRegistry is the one answer to "is this session busy"
 // >>> If I am updated, update my header comment and the parent folder CORTEX.md <<<
@@ -8,8 +8,6 @@ import assert from 'node:assert/strict';
 
 import { RunRegistry } from '../../src/core/run-registry.js';
 import type { RunningExecutionInput } from '../../src/core/run-registry.js';
-import { runningExecutions } from '../../src/core/running-executions.js';
-import { bgHeldSessions } from '../../src/core/bg-held-sessions.js';
 
 function makeInput(overrides: Partial<RunningExecutionInput> = {}): RunningExecutionInput {
   return {
@@ -214,12 +212,6 @@ test('streaming slot set / get / clear', () => {
 
   r.clearStreaming('web:abc');
   assert.equal(r.getStreaming('web:abc'), null);
-});
-
-// ── the shims are the one shared index ─────────────────────────────────
-
-test('runningExecutions and bgHeldSessions are the same runRegistry singleton', () => {
-  assert.equal(runningExecutions, bgHeldSessions);
 });
 
 // ── P1.8 run lookup for mid-turn injection ─────────────────────────────

@@ -41,8 +41,7 @@ import { createSessionDeltaStream } from './delta-coalescer.js';
 import { isInjectableMessage, tryInjectIntoLiveTurn, type MidTurnInjectDeps } from './mid-turn-inject.js';
 import { commitPendingInjection } from './pending-injection-recovery.js';
 import { getStreamingCallback } from './routing/hook-bridge.js';
-import { runningExecutions } from '@core/running-executions.js';
-import { bgHeldSessions } from '@core/bg-held-sessions.js';
+import { runRegistry } from '@core/run-registry.js';
 import { recordResume } from '@domain/costs/resume-registry.js';
 import { isProviderRateLimited } from '@domain/costs/rate-limit-throttle.js';
 import { getAgent } from '@domain/threads/index.js';
@@ -152,7 +151,7 @@ export function beginForegroundSession(
   sessionId: string | null,
   channel: string,
   deps: ForegroundSessionDeps = {
-    abortHold: (id) => bgHeldSessions.abort(id),
+    abortHold: (id) => runRegistry.abort(id),
     publishRunning: publishSessionStatus,
   },
 ): void {
@@ -242,7 +241,7 @@ export class AgentRunner {
   private async _tryInjectReal(ctx: AgentRunnerCtx, loadPlatformFiles: PlatformFileLoader): Promise<boolean> {
     try {
       if (!isInjectableMessage({ text: ctx.userMessage || '', senderId: ctx.message.senderId })) return false;
-      if (!runningExecutions.hasChannel(ctx.channel)) return false;
+      if (!runRegistry.hasChannel(ctx.channel)) return false;
       const sessionId = await getSessionAsync(ctx.channel, resolveBackendForChannel(ctx.channel));
       if (!sessionId) return false;
       const sessionName = await sessionStore.lookupBySessionId(sessionId);
@@ -447,7 +446,7 @@ export class AgentRunner {
                 sessionId,
                 channel,
                 executionId: capturedExecutionId,
-                setNumTurns: (n) => { if (capturedExecutionId) runningExecutions.setNumTurns(capturedExecutionId, n); },
+                setNumTurns: (n) => { if (capturedExecutionId) runRegistry.setNumTurns(capturedExecutionId, n); },
                 publish: (n) => { if (sessionId) publishSessionTurn({ sessionId, channel, numTurns: n }); },
               },
               { num_turns: event.numTurns },
@@ -574,8 +573,8 @@ export class AgentRunner {
           result: convResult.result,
           registerSink: (sink) => { if (run) runToContinuationSink(run, sink); },
           // Stop during the hold: the cancel path finds the hold by channel in this registry and
-          // fires the abort to seal it (see core/bg-held-sessions.ts).
-          registerAbort: (abort) => bgHeldSessions.setAbort(sid, abort),
+          // fires the abort to seal it (see core/run-registry.ts).
+          registerAbort: (abort) => runRegistry.setAbort(sid, abort),
           track: trackPendingTask,
           publishStatus: ({ running, backgroundRunning }) => publishSessionStatus({ sessionId: sid, channel, running, backgroundRunning }),
           publishAssistant: (text, subagent) => {
@@ -734,7 +733,7 @@ async function acquireSessionUseLease(sessionId: string): Promise<SessionUseLeas
 
 function buildInjectDeps(sessionName: string | null, channel: string, adapter: PlatformAdapter): MidTurnInjectDeps {
   return {
-    getLiveExecutions: (channel) => runningExecutions.getByChannel(channel).map((entry) => ({
+    getLiveExecutions: (channel) => runRegistry.getByChannel(channel).map((entry) => ({
       backend: entry.backend,
       run: entry.run as unknown as AgentRun | undefined,
     })),

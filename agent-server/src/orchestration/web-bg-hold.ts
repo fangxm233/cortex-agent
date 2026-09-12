@@ -191,7 +191,7 @@ export function holdWebForBg(deps: WebBgHoldDeps): boolean {
   };
 
   deps.registerSink(sink);
-  // Stop button: the foreground execution is already gone from runningExecutions by the time we
+  // Stop button: the foreground execution is already gone from the live-run registry by the time we
   // get here, so the channel-keyed cancel path has nothing to kill and used to no-op. Expose the
   // seal so it can end the hold explicitly (the cancel path also kills the backend process that
   // owns the background task; this makes the UI seal immediate and independent of that death

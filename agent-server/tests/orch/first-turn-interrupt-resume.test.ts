@@ -53,7 +53,7 @@ import { cancelChannelRuns } from '../../src/orchestration/routing/commands/canc
 import { sessionStore } from '../../src/store/session-registry-repo.js';
 import { getSessionAsync, setSessionAsync } from '../../src/domain/sessions/session.js';
 import { getActiveBackend } from '../../src/domain/agents/index.js';
-import { runningExecutions } from '../../src/core/running-executions.js';
+import { runRegistry } from '../../src/core/run-registry.js';
 
 function makeCancelledHandle(backendSessionId: string) {
   const err = Object.assign(new Error('Cancelled'), { cancelled: true });
@@ -147,7 +147,7 @@ test('interrupt on a RESUMED turn leaves the stored backend session id untouched
 test('cancelChannelRuns keeps the channel bound to the stable track id', async () => {
   const backend = getActiveBackend();
   await setSessionAsync('slack:C-keep', 'TRACK-3', backend);
-  runningExecutions.register({
+  runRegistry.register({
     threadId: null,
     channel: 'slack:C-keep',
     agentSlotId: null,
@@ -167,14 +167,14 @@ test('cancelChannelRuns keeps the channel bound to the stable track id', async (
 
 test('runConversation registers both track and backend ids on the live execution handle', async () => {
   mockRunAgent.mockReturnValueOnce(makeCancelledHandle('B-live-1'));
-  const before = new Set(runningExecutions.getAll().map((entry) => entry.registryKey));
+  const before = new Set(runRegistry.getAll().map((entry) => entry.registryKey));
   const pending = runConversation(baseOpts({
     trackSessionId: 'TRACK-LIVE',
     backendSessionId: 'B-prev',
     sessionName: 'cortex-live',
   }));
   await Promise.resolve();
-  const live = runningExecutions.getAll().find((entry) => !before.has(entry.registryKey));
+  const live = runRegistry.getAll().find((entry) => !before.has(entry.registryKey));
   assert.equal(live?.trackSessionId, 'TRACK-LIVE');
   assert.equal(live?.backendSessionId, 'B-live-1');
   await expect(pending).rejects.toMatchObject({ cancelled: true });

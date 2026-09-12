@@ -94,7 +94,7 @@ export async function handleSessionsList(
 
   const infos = sessions.map((s: any): SessionInfo => {
     const inTurn = isChannelInTurn(s.channel);
-    // Web bg-hold snapshot: the foreground execution is gone from runningExecutions, but a
+    // Web bg-hold snapshot: the foreground execution is gone from the live-run registry, but a
     // background task still holds the session (running stays true per the session.status contract).
     // A live foreground turn wins — the session then renders as plain running. Metrics
     // (numTurns/costUsd) key off the foreground turn: a held session shows its last completed run.

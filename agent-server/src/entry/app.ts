@@ -65,9 +65,8 @@ import { loadLang } from '@domain/system/preferences.js';
 import { ensureMcpConfig, shouldSyncManagedStartupAssets } from './startup-helpers.js';
 import { createLogger } from '@core/log.js';
 import { captureAuthTokensForRuntime, ensureAuthTokens } from '@core/auth.js';
-import { runningExecutions } from '@core/running-executions.js';
+import { runRegistry } from '@core/run-registry.js';
 import { getSettings, onSettingsChange } from '@core/settings.js';
-import { bgHeldSessions } from '@core/bg-held-sessions.js';
 import { sessionTodos } from '@core/session-todos.js';
 import { buildSessionRetentionLiveness } from '@core/session-retention-liveness.js';
 import { planApprovals } from '@orch/interactions/plan-approvals.js';
@@ -159,8 +158,8 @@ const log = createLogger('app');
 
 function retentionLiveness(): RetentionLivenessSnapshot {
   return buildSessionRetentionLiveness({
-    runningExecutions,
-    bgHeldSessions,
+    runningExecutions: runRegistry,
+    bgHeldSessions: runRegistry,
     interactionRecords,
     pendingDirectResumeSessionIds: pendingDirectTrackSessionIds(),
     threads: threadStore.getAll(),
@@ -301,10 +300,10 @@ setOnStale((requestId, channel) => {
   planApprovals.reject(requestId);
   askUserQuestion.deleteGroupByHookRequestId(requestId);
 });
-runningExecutions.setBus(bus);   // S6-A: wire lifecycle events
+runRegistry.setBus(bus);   // S6-A: wire lifecycle events
 // Web bg-hold snapshot: mirror every session.status event into the bg-held registry so
 // sessions.list can serve the held state as a queryable snapshot (snapshot + delta).
-bus.subscribe('session.status', (e) => bgHeldSessions.onSessionStatus(e));
+bus.subscribe('session.status', (e) => runRegistry.onSessionStatus(e));
 planApprovals.setBus(bus);  // S6-A: wire plan.approved events
 busyTracker.setBus(bus);    // S6-C: wire busy/idle IPC through event bus
 taskMutator.setBus(bus);    // c39d: wire task lifecycle events
@@ -385,7 +384,7 @@ const updatePrompt = createUpdatePrompt(adapter, commandRouter);
 commandRouter.bindToAdapter(adapter);
 
 const handleMessageEdit = createEditHandler({
-  activeAgents: runningExecutions,
+  activeAgents: runRegistry,
   reprocessMessage,
   // Both backends pool their subprocess per channel, and an alive pooled process keeps the
   // conversation history in memory — it would ignore the rolled-back JSONL on disk. Close it
@@ -528,7 +527,7 @@ process.on('SIGTERM', async () => {
     executionRegistry,
     executionLogTailer,
     approvalsPath: path.join(CONTEXT_DIR, 'PENDING_APPROVALS.md'),
-    runningExecutions,
+    runningExecutions: runRegistry,
     costSummary: getCostSummary,
     conversationHistory,
     pendingInjections: pendingInjectionRepo,
@@ -596,7 +595,7 @@ process.on('SIGTERM', async () => {
     isInteractionPending: (id) => interactionRecords.isPending(id),
     // Web bg-hold snapshot: sessions.list serves the held state so it survives session switches /
     // app restarts (the registry mirrors session.status events — subscribed at the bus wiring above).
-    isSessionBgHeld: (sessionId) => bgHeldSessions.has(sessionId),
+    isSessionBgHeld: (sessionId) => runRegistry.has(sessionId),
     // Web UI ask-user-question: resolve a pending interaction by requestId. The MCP tool blocks
     // on the HTTP response; this callback collects answers, resolves the entity (which persists
     // the record and broadcasts session.interaction to every client), and unblocks the tool.

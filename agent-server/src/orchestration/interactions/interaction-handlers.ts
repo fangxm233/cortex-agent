@@ -13,7 +13,7 @@ import * as askUserQuestion from './ask-user-question.js';
 import { getStreamingCallback } from '../routing/hook-bridge.js';
 import { resumeAskUserQuestionGroup } from '../lifecycle.js';
 import { planApprovals } from './plan-approvals.js';
-import { runningExecutions } from '../../core/running-executions.js';
+import { runRegistry } from '../../core/run-registry.js';
 import * as executionRegistry from '@domain/executions/registry.js';
 import { conduitQueues } from '../conduit-queue.js';
 import { setSessionAsync, deleteSessionAsync } from '@domain/sessions/session.js';
@@ -235,7 +235,7 @@ async function handleStatusCancel(ctx: ActionContext): Promise<void> {
   // Cancel button carries an executionId. Resolve and kill via the execution index;
   // there is no thread to cancel.
   if (!threadId && executionId) {
-    const exec = runningExecutions.getById(executionId);
+    const exec = runRegistry.getById(executionId);
     if (!exec) {
       log.warn('Cancel button clicked but no running execution for executionId', { channel, executionId });
       return;
@@ -256,7 +256,7 @@ async function handleStatusCancel(ctx: ActionContext): Promise<void> {
     log.warn('Cancel button clicked but threadId/executionId missing in value', { channel });
     return;
   }
-  const exec = runningExecutions.getByThreadId(threadId);
+  const exec = runRegistry.getByThreadId(threadId);
   if (!exec) {
     log.warn('Cancel button clicked but no running execution for threadId', { channel, threadId });
     return;
@@ -266,7 +266,7 @@ async function handleStatusCancel(ctx: ActionContext): Promise<void> {
   if (exec.executionId) {
     executionRegistry.teardownExecution({ executionId: exec.executionId, status: 'cancelled', durationS: 0 });
   } else {
-    runningExecutions.killByThreadId(threadId);
+    runRegistry.killByThreadId(threadId);
   }
   conduitQueues.delete(exec.channel ?? channel);
   if (ctx.messageRef) {

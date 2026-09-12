@@ -5,7 +5,7 @@
 
 import * as executionRegistry from '@domain/executions/registry.js';
 import * as pendingTaskTracker from '@domain/tasks/pending-tracker.js';
-import { runningExecutions } from '@core/running-executions.js';
+import { runRegistry } from '@core/run-registry.js';
 
 const RECONCILE_INTERVAL_MS = 2 * 60 * 1000;
 // Crash-orphan grace: a dispatch that is neither pending-remote nor live-in-process for this long
@@ -19,7 +19,7 @@ export function startDispatchReconciler(enabled: boolean): void {
   setInterval(() => {
     executionRegistry.reconcileStaleDispatches({
       isTaskPending: (taskId) => pendingTaskTracker.getTask(taskId) !== null,
-      isLive: (executionId) => runningExecutions.getById(executionId) !== null,
+      isLive: (executionId) => runRegistry.getById(executionId) !== null,
       graceMs: DISPATCH_ORPHAN_GRACE_MS,
       maxAgeMs: DISPATCH_STALE_AGE_MS,
     });

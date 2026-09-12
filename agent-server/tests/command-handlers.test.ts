@@ -24,7 +24,7 @@ import { MockAdapter } from '../src/platform/testing.js';
 import { CONFIG_DIR, PROJECTS_DIR } from '../src/core/paths.js';
 import { profileRepo } from '../src/store/profile-repo.js';
 import { _testSetRegistry } from '../src/domain/tasks/dispatch-utils.js';
-import { runningExecutions } from '../src/core/running-executions.js';
+import { runRegistry } from '../src/core/run-registry.js';
 import * as executionRegistry from '../src/domain/executions/registry.js';
 import { conduitQueues } from '../src/orchestration/conduit-queue.js';
 import { threadStore } from '../src/store/thread-repo.js';
@@ -624,10 +624,10 @@ test('!cancel <taskId> cancels a dispatched task via injected handler', async ()
 test('plain !cancel still cancels the current active process', async (t) => {
   const adapter = new MockAdapter();
   let killed = false;
-  runningExecutions.register({ threadId: null, channel: 'C123', agentSlotId: null, executionId: 'exec-conv1', kill: () => { killed = true; return true; }, backend: 'test' });
+  runRegistry.register({ threadId: null, channel: 'C123', agentSlotId: null, executionId: 'exec-conv1', kill: () => { killed = true; return true; }, backend: 'test' });
   // Simulate a running queue entry so cancel can clear it
   conduitQueues.set('C123', Promise.resolve());
-  t.onTestFinished(() => { runningExecutions.remove('exec-conv1'); conduitQueues.delete('C123'); });
+  t.onTestFinished(() => { runRegistry.remove('exec-conv1'); conduitQueues.delete('C123'); });
   const dispatchCommand = createCommandDispatcher({
     scheduler: null,
     cancelDispatchedTask: async () => ({ ok: false, message: 'should not be called' }),
@@ -646,8 +646,8 @@ test('plain !cancel still cancels the current active process', async (t) => {
 test('!cancel marks the execution record cancelled (not failed), idempotently', async (t) => {
   const adapter = new MockAdapter();
   const rec = executionRegistry.startLocalExecution({ channel: 'Ccancel', project: 'general', trigger: 'user', backend: 'test' });
-  runningExecutions.register({ threadId: null, channel: 'Ccancel', agentSlotId: null, executionId: rec.id, kill: () => true, backend: 'test' });
-  t.onTestFinished(() => { runningExecutions.remove(rec.id); });
+  runRegistry.register({ threadId: null, channel: 'Ccancel', agentSlotId: null, executionId: rec.id, kill: () => true, backend: 'test' });
+  t.onTestFinished(() => { runRegistry.remove(rec.id); });
 
   const dispatchCommand = createCommandDispatcher({
     scheduler: null,
@@ -669,10 +669,10 @@ test('!cancel --all kills all running executions for current channel, spares oth
   let killedC1 = false;
   let killedC2 = false;
 
-  runningExecutions.register({ threadId: 'thr_11111111', channel: 'C1', agentSlotId: null, executionId: 'exec-1', kill: () => { killedC1 = true; return true; }, backend: 'test' });
-  runningExecutions.register({ threadId: 'thr_22222222', channel: 'C2', agentSlotId: null, executionId: 'exec-2', kill: () => { killedC2 = true; return true; }, backend: 'test' });
+  runRegistry.register({ threadId: 'thr_11111111', channel: 'C1', agentSlotId: null, executionId: 'exec-1', kill: () => { killedC1 = true; return true; }, backend: 'test' });
+  runRegistry.register({ threadId: 'thr_22222222', channel: 'C2', agentSlotId: null, executionId: 'exec-2', kill: () => { killedC2 = true; return true; }, backend: 'test' });
   conduitQueues.set('C1', Promise.resolve());
-  t.onTestFinished(() => { runningExecutions.remove('exec-1'); runningExecutions.remove('exec-2'); conduitQueues.delete('C1'); });
+  t.onTestFinished(() => { runRegistry.remove('exec-1'); runRegistry.remove('exec-2'); conduitQueues.delete('C1'); });
 
   const dispatchCommand = createCommandDispatcher({ scheduler: null });
   const handled = dispatchCommand('!cancel --all', 'C1', adapter);
@@ -700,8 +700,8 @@ test('!cancel <threadId> kills by threadId', async (t) => {
   const adapter = new MockAdapter();
   let killed = false;
 
-  runningExecutions.register({ threadId: 'thr_a1b2c3d4', channel: 'C1', agentSlotId: null, executionId: 'exec-1', kill: () => { killed = true; return true; }, backend: 'test' });
-  t.onTestFinished(() => { runningExecutions.remove('exec-1'); });
+  runRegistry.register({ threadId: 'thr_a1b2c3d4', channel: 'C1', agentSlotId: null, executionId: 'exec-1', kill: () => { killed = true; return true; }, backend: 'test' });
+  t.onTestFinished(() => { runRegistry.remove('exec-1'); });
 
   const dispatchCommand = createCommandDispatcher({ scheduler: null, cancelDispatchedTask: null });
   const handled = dispatchCommand('!cancel thr_a1b2c3d4', 'C1', adapter);
@@ -710,7 +710,7 @@ test('!cancel <threadId> kills by threadId', async (t) => {
 
   assert.equal(killed, true);
   assert.match(adapter.posted[0].content.text, /thr_a1b2c3d4.*cancelled/i);
-  assert.equal(runningExecutions.getByThreadId('thr_a1b2c3d4'), null);
+  assert.equal(runRegistry.getByThreadId('thr_a1b2c3d4'), null);
 });
 
 test('!cancel <threadId> with unknown threadId shows not found', async (t) => {
@@ -743,9 +743,9 @@ test('!cancel <threadId> with non-thread-id arg falls back to taskId dispatch', 
 test('!thread cancel is alias for !cancel (kills by channel)', async (t) => {
   const adapter = new MockAdapter();
   let killed = false;
-  runningExecutions.register({ threadId: null, channel: 'C123', agentSlotId: null, executionId: 'exec-conv2', kill: () => { killed = true; return true; }, backend: 'test' });
+  runRegistry.register({ threadId: null, channel: 'C123', agentSlotId: null, executionId: 'exec-conv2', kill: () => { killed = true; return true; }, backend: 'test' });
   conduitQueues.set('C123', Promise.resolve());
-  t.onTestFinished(() => { runningExecutions.remove('exec-conv2'); conduitQueues.delete('C123'); });
+  t.onTestFinished(() => { runRegistry.remove('exec-conv2'); conduitQueues.delete('C123'); });
 
   const dispatchCommand = createCommandDispatcher({ scheduler: null });
   const handled = dispatchCommand('!thread cancel', 'C123', adapter);
@@ -770,9 +770,9 @@ test('!thread cancel with nothing running shows "Nothing running"', async (t) =>
 
 test('!thread list --running shows running threads across channels', async (t) => {
   const adapter = new MockAdapter();
-  runningExecutions.register({ threadId: 'thr_a1111111', channel: 'C1', agentSlotId: null, executionId: 'exec-1', kill: () => true, backend: 'test' });
-  runningExecutions.register({ threadId: 'thr_b2222222', channel: 'C2', agentSlotId: null, executionId: 'exec-2', kill: () => true, backend: 'pi' });
-  t.onTestFinished(() => { runningExecutions.remove('exec-1'); runningExecutions.remove('exec-2'); });
+  runRegistry.register({ threadId: 'thr_a1111111', channel: 'C1', agentSlotId: null, executionId: 'exec-1', kill: () => true, backend: 'test' });
+  runRegistry.register({ threadId: 'thr_b2222222', channel: 'C2', agentSlotId: null, executionId: 'exec-2', kill: () => true, backend: 'pi' });
+  t.onTestFinished(() => { runRegistry.remove('exec-1'); runRegistry.remove('exec-2'); });
 
   const dispatchCommand = createCommandDispatcher({ scheduler: null });
   const handled = dispatchCommand('!thread list --running', 'C1', adapter);

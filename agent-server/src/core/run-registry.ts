@@ -1,17 +1,13 @@
 // input:  Agent kill functions, EventBus, session.status payloads, streaming callbacks
 // output: RunRegistry class + runRegistry singleton — the one index of live runs and bg holds
-// pos:    core/ zero-dependency state registry (replaces running-executions + bg-held-sessions)
+// pos:    core/ zero-dependency state registry — the single in-memory index of live runs
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
 // This is the single in-memory index of "what is live right now":
 //   - running executions (foreground runs, keyed by executionId, indexed by thread/channel)
 //   - background holds (a session whose foreground turn ended but a background task keeps it busy)
-//   - the per-channel streaming callback slot (P1.9 moves hook-bridge's Map here)
-//   - sessionState(): the one answer to "is this session busy", today assembled by joining
-//     running-executions + bg-held-sessions in domain/ui-service/query/sessions.ts.
-//
-// running-executions.ts and bg-held-sessions.ts are now thin shims over this module so existing
-// call sites and tests keep compiling unchanged.
+//   - the per-channel streaming callback slot (hook-bridge delegates here)
+//   - sessionState(): the one answer to "is this session busy".
 
 import type { EventBus } from '@events/index.js';
 
@@ -89,7 +85,7 @@ export class RunRegistry {
   private byKey = new Map<string, RunningExecution>();
   /** Secondary index: threadId → RunningExecution, only if threadId is non-null. */
   private byThreadId = new Map<string, RunningExecution>();
-  /** Secondary index: channel → set of RunningExecutions on that channel. */
+  /** Secondary index: channel → set of live RunningExecution entries on that channel. */
   private byChannel = new Map<string, Set<RunningExecution>>();
   /** EventBus for publishing agent.* lifecycle events. May be set after construction. */
   private _bus: EventBus | null = null;
@@ -101,7 +97,7 @@ export class RunRegistry {
   private aborts = new Map<string, () => void>();
 
   // ── streaming slot ─────────────────────────────────────────────────────
-  /** channel → active streaming callback (P1.9 replaces hook-bridge.streamingCallbacks). */
+  /** channel → active streaming callback (hook-bridge's set/get/clearStreamingCallback delegate here). */
   private streamingCallbacks = new Map<string, StreamingCallback>();
 
   constructor(bus?: EventBus) {

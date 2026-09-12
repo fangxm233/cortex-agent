@@ -32,7 +32,7 @@ import { resumeAskUserQuestionGroup, runRetryAgent } from '../../src/orchestrati
 import { sessionStore } from '../../src/store/session-registry-repo.js';
 import { MockAdapter } from '../../src/platform/testing.js';
 import * as executionRegistry from '../../src/domain/executions/registry.js';
-import { runningExecutions } from '../../src/core/running-executions.js';
+import { runRegistry } from '../../src/core/run-registry.js';
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -52,8 +52,8 @@ function installLeaseOrder(trackSessionId: string, events: string[]): void {
     label: null, profileName: null, backendSessionId: `backend-${trackSessionId}`,
   });
   vi.spyOn(executionRegistry, 'startLocalExecution').mockReturnValue({ id: `exec-${trackSessionId}` } as any);
-  vi.spyOn(runningExecutions, 'register').mockImplementation(() => { events.push('register'); return `rk-${trackSessionId}`; });
-  vi.spyOn(runningExecutions, 'complete').mockImplementation(() => true);
+  vi.spyOn(runRegistry, 'register').mockImplementation(() => { events.push('register'); return `rk-${trackSessionId}`; });
+  vi.spyOn(runRegistry, 'complete').mockImplementation(() => true);
 }
 
 test('AskUserQuestion resume hands its session lease to the registered execution without a gap', async () => {

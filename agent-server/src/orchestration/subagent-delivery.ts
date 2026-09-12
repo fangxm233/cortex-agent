@@ -4,8 +4,7 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { createLogger } from '@core/log.js';
-import { bgHeldSessions } from '@core/bg-held-sessions.js';
-import { runningExecutions } from '@core/running-executions.js';
+import { runRegistry } from '@core/run-registry.js';
 import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
 import type { SubagentToolResult } from '@domain/agents/subagent/orchestrate.js';
 import {
@@ -45,7 +44,7 @@ export function setSubagentTurnSender(sender: SubagentTurnSender | null): void {
  *   would clear the hold, so the hold re-asserts itself whenever it sees that happen while the run
  *   is still going.
  * - **The abort handle.** Once the foreground execution is torn down the channel-keyed Stop path
- *   can only reach a session through `bgHeldSessions`; without it the Stop button silently does
+ *   can only reach a session through `runRegistry`; without it the Stop button silently does
  *   nothing while children keep spending tokens.
  *
  * Returns the release, which is idempotent and must be called exactly once when the run settles.
@@ -60,7 +59,7 @@ export function holdSessionForBackgroundRun(
   const assert = (): void => {
     if (!sessionId || !channel) return;
     publishSessionStatus({ sessionId, channel, running: true, backgroundRunning: true });
-    bgHeldSessions.setAbort(sessionId, () => { stopSubagentRun(view.id); });
+    runRegistry.setAbort(sessionId, () => { stopSubagentRun(view.id); });
   };
 
   // Re-assert on the foreground turn's own `running:false`, which is published while this run is
@@ -82,7 +81,7 @@ export function holdSessionForBackgroundRun(
     trackPendingTask(-1);
     // Only seal the session idle if nothing else is running on it — the common case is a
     // background run that outlived nothing at all, with the parent's turn still in flight.
-    if (sessionId && channel && !runningExecutions.getBySessionId(sessionId)) {
+    if (sessionId && channel && !runRegistry.getBySessionId(sessionId)) {
       publishSessionStatus({ sessionId, channel, running: false, backgroundRunning: false });
     }
   };

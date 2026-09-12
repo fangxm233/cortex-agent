@@ -7,7 +7,7 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { PlanApprovals } from '../../src/orchestration/interactions/plan-approvals.js';
 import { respondToPlan } from '../../src/orchestration/interactions/plan-response.js';
-import { runningExecutions } from '../../src/core/running-executions.js';
+import { runRegistry } from '../../src/core/run-registry.js';
 
 function makeInteractions() {
   const resolved: any[] = [];
@@ -22,7 +22,7 @@ function makeInteractions() {
 
 function registerPI(t: { onTestFinished: (fn: () => void) => void }, channel: string, executionId: string) {
   const calls: Array<{ id: string; payload: Record<string, unknown> }> = [];
-  runningExecutions.register({
+  runRegistry.register({
     threadId: null,
     channel,
     agentSlotId: null,
@@ -35,7 +35,7 @@ function registerPI(t: { onTestFinished: (fn: () => void) => void }, channel: st
       },
     },
   });
-  t.onTestFinished(() => runningExecutions.remove(executionId));
+  t.onTestFinished(() => runRegistry.remove(executionId));
   return calls;
 }
 

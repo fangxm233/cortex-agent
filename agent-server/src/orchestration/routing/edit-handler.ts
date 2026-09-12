@@ -12,7 +12,7 @@ import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import * as sessionBackup from '@domain/sessions/session-backup.js';
 import { deleteSessionAsync } from '@domain/sessions/session.js';
 import { resolveBackendForChannel } from '@domain/agents/index.js';
-import type { RunningExecutions } from '../../core/running-executions.js';
+import type { RunRegistry } from '../../core/run-registry.js';
 import { conduitQueues } from '../conduit-queue.js';
 import { supersededEdits } from '../superseded-edits.js';
 import { isTurnTrackingPending, markPendingTurnSuperseded, waitForTurnTracking } from '../lifecycle.js';
@@ -36,7 +36,7 @@ const pendingEdits = new Map();
  *   and ignores the freshly-restored JSONL.
  */
 function createEditHandler(deps: {
-  activeAgents: RunningExecutions;
+  activeAgents: RunRegistry;
   reprocessMessage: (channel: string, text: string, adapter: PlatformAdapter, opts: {
     originalTs: string;
     isRetry: boolean;
@@ -215,7 +215,7 @@ async function restoreEditedSession(
   return restoreEditedClaudeSession(input, state);
 }
 
-function stopActiveEdit(channel: string, activeAgents: RunningExecutions): void {
+function stopActiveEdit(channel: string, activeAgents: RunRegistry): void {
   if (!activeAgents.hasChannel(channel)) return;
   supersededEdits.mark(channel);
   activeAgents.supersedeByChannel(channel, 'edit');

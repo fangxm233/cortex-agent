@@ -1018,7 +1018,7 @@ async function runThread(threadId: string, opts: RunThreadOptions): Promise<Thre
   } finally {
     // Each step's execution record and live-registry entry are owned by its run (`startRun`),
     // which tears them down on every terminal path — success, failure or cancellation. The old
-    // defensive scan over `runningExecutions` is therefore gone: a run that outlives the loop is
+    // defensive scan over the live-run registry is therefore gone: a run that outlives the loop is
     // killed below with the thread's sessions.
     // Cleanup thread-specific sessions. Intentionally also runs on suspension (DR-0014):
     // a waiting parent holds no live session — the artifact is its durable memory, and

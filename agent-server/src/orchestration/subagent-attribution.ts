@@ -4,7 +4,7 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { createLogger } from '@core/log.js';
-import { runningExecutions, type RunningExecution } from '@core/running-executions.js';
+import { runRegistry, type RunningExecution } from '@core/run-registry.js';
 import type { AgentProcess } from '../agent-adapter/types.js';
 import type { SubagentNotice } from '../agent-adapter/pi/event-parser.js';
 import { subagentNoticeEvents } from '@domain/agents/subagent/attribution.js';
@@ -21,11 +21,11 @@ const log = createLogger('subagent-attribution');
  */
 function liveParent(sessionId: string | null, channel: string | undefined): RunningExecution | null {
   if (sessionId) {
-    const bySession = runningExecutions.getBySessionId(sessionId);
+    const bySession = runRegistry.getBySessionId(sessionId);
     if (bySession) return bySession;
   }
   if (!channel) return null;
-  const onChannel = runningExecutions.getByChannel(channel);
+  const onChannel = runRegistry.getByChannel(channel);
   return onChannel.length === 1 ? onChannel[0] : null;
 }
 

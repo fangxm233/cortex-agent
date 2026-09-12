@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { PIAdapter } from '../../src/agent-adapter/pi/adapter.js';
 import { createEditHandler } from '../../src/orchestration/routing/edit-handler.js';
 import { conversationLedger } from '../../src/store/conversation-ledger-repo.js';
-import { runningExecutions } from '../../src/core/running-executions.js';
+import { runRegistry } from '../../src/core/run-registry.js';
 import { MockAdapter } from '../../src/platform/testing.js';
 import {
   setActiveProfile,
@@ -118,7 +118,7 @@ async function stagePIEditFixture(withBackup: boolean): Promise<PIEditFixture> {
 function buildPIEditHandler(fixture: PIEditFixture, run: PIEditRun) {
   const piAdapter = new PIAdapter(undefined, fixture.piDir);
   return createEditHandler({
-    activeAgents: runningExecutions,
+    activeAgents: runRegistry,
     registerPISessionPath: (id, filePath) => {
       run.registerCalls.push(`${id}:${filePath}`);
       piAdapter.registerSessionPath(id, filePath);
@@ -218,7 +218,7 @@ test('Bug 1: edit restores the backend id then invokes closePooledSession', asyn
   const closeCalls: Array<{ channel: string; backend: string }> = [];
   const reprocessCalls: any[] = [];
   const handler = createEditHandler({
-    activeAgents: runningExecutions,
+    activeAgents: runRegistry,
     reprocessMessage: (ch, text, _adapter, opts) => { reprocessCalls.push({ ch, text, opts }); },
     closePooledSession: (ch, backend) => { closeCalls.push({ channel: ch, backend }); },
   });
@@ -272,7 +272,7 @@ test('Bug 2: edit on conversation with PI channel profile routes through PI rest
   const closeCalls: Array<{ channel: string; backend: string }> = [];
   const reprocessCalls: any[] = [];
   const handler = createEditHandler({
-    activeAgents: runningExecutions,
+    activeAgents: runRegistry,
     reprocessMessage: (ch, text, _adapter, opts) => { reprocessCalls.push({ ch, text, opts }); },
     closePooledSession: (ch, backend) => { closeCalls.push({ channel: ch, backend }); },
   });
@@ -334,7 +334,7 @@ test('edit waits for an in-flight snapshot and supersedes the not-yet-started ba
   const reprocessCalls: any[] = [];
   let markedSuperseded = false;
   const handler = createEditHandler({
-    activeAgents: runningExecutions,
+    activeAgents: runRegistry,
     reprocessMessage: (...args) => { order.push('reprocess'); reprocessCalls.push(args); },
     isTurnTrackingPending: () => true,
     markPendingTurnSuperseded: () => { markedSuperseded = true; },
@@ -362,7 +362,7 @@ test('processEdit no-ops when ledger has no entry for the edited message', async
   const closeCalls: any[] = [];
   const reprocessCalls: any[] = [];
   const handler = createEditHandler({
-    activeAgents: runningExecutions,
+    activeAgents: runRegistry,
     reprocessMessage: (ch, text, _adapter, opts) => { reprocessCalls.push({ ch, text, opts }); },
     closePooledSession: (ch, backend) => { closeCalls.push({ channel: ch, backend }); },
   });

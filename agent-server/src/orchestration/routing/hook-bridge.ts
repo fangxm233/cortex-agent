@@ -4,6 +4,7 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { createLogger } from '@core/log.js';
+import { runRegistry } from '@core/run-registry.js';
 import type { EventBus } from '@events/index.js';
 import type { ChatNoticeLevel } from '@core/types/agent-types.js';
 
@@ -130,21 +131,19 @@ setInterval(() => cleanupStale(), 5 * 60 * 1000).unref();
 
 // --- Per-channel streaming context (for thread-aware hook messages) ---
 
-const streamingCallbacks = new Map<string, (text: string) => void>();
-
 /** Register the active onAssistantMessage callback for a channel (called by app.ts before runAgent). */
 function setStreamingCallback(channel: string, cb: (text: string) => void) {
-  streamingCallbacks.set(channel, cb);
+  runRegistry.setStreaming(channel, cb);
 }
 
 /** Clear the streaming callback when the turn ends (called by app.ts after runAgent). */
 function clearStreamingCallback(channel: string) {
-  streamingCallbacks.delete(channel);
+  runRegistry.clearStreaming(channel);
 }
 
 /** Get the active streaming callback for a channel, if any. */
 function getStreamingCallback(channel: string): ((text: string) => void) | null {
-  return streamingCallbacks.get(channel) || null;
+  return runRegistry.getStreaming(channel);
 }
 
 /**

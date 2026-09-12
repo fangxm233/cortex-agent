@@ -9,7 +9,6 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | async-mutex.ts | util | serializes concurrent async operations |
 | atomic-write.ts | util | Serializes cancellable atomic file replacements |
 | auth.ts | core | Issues, captures, scrubs and checks shared-secret auth tokens |
-| bg-held-sessions.ts | shim | re-exports the run-registry background-hold surface (P1.2) |
 | session-todos.ts | state | holds each session's latest agent task list |
 | calver.ts | util | compares CalVer YYYY.M.D[-N] versions |
 | cli-utils.ts | util | formats CLI help/errors and reads stdin as text or raw bytes |
@@ -34,8 +33,7 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | resilient-watch.ts | util | falls back from filesystem watchers to polling |
 | resume-reminder.ts | data | continuation prompt for interrupted work |
 | runtime-env.ts | config | excludes file-only metadata from runtime env |
-| run-registry.ts | state | the one index of live runs and background holds; answers sessionState; carries the live AgentRun for mid-turn injection lookup |
-| running-executions.ts | shim | re-exports RunRegistry as the live-execution index (P1.2) |
+| run-registry.ts | state | the one index of live runs and background holds; answers sessionState; carries the live AgentRun for mid-turn injection lookup and the per-channel streaming callback slot |
 | settings-migration.ts | config | safely migrates legacy env settings at startup |
 | settings-spec.ts | contract | Defines runtime settings including Web Feishu skills |
 | settings.ts | config | reloads settings and applies provider/window policy patches |

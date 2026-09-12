@@ -6,7 +6,7 @@
 import type { Destination, PlatformAdapter, OutputStream } from '@platform/index.js';
 import { createLogger } from '@core/log.js';
 import { buildQuestionGroupBlocks, buildQuestionModalDefinition } from '@platform/index.js';
-import { runningExecutions } from '../../core/running-executions.js';
+import { runRegistry } from '../../core/run-registry.js';
 
 const log = createLogger('ask-user');
 
@@ -123,7 +123,7 @@ function collectHookAnswers(group) {
 /** Resolve a native PI dialog only when its real extension request ID is present. */
 function tryResolvePiExtension(group, answers): boolean {
   if (!group.extensionUiId) return false;
-  const exec = runningExecutions.getByChannel(group.channel).find(e => e.agentProcess) ?? null;
+  const exec = runRegistry.getByChannel(group.channel).find(e => e.agentProcess) ?? null;
   if (!exec?.agentProcess) return false;
   const proc = exec.agentProcess as any;
   if (typeof proc.sendExtensionUiResponse !== 'function') return false;

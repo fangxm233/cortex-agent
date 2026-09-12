@@ -1,9 +1,9 @@
-// input:  PlanApprovals, InteractionRecords, RunningExecutions
+// input:  PlanApprovals, InteractionRecords, RunRegistry
 // output: deliverPlanResponse and respondToPlan
 // pos:    Shared Web/Slack plan-approval response delivery
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { runningExecutions } from '@core/running-executions.js';
+import { runRegistry } from '@core/run-registry.js';
 import { resolveRequest as resolveHookRequest } from '../routing/hook-bridge.js';
 import type { InteractionRecords } from './interaction-records.js';
 import type { PendingPlan, PlanApprovals } from './plan-approvals.js';
@@ -17,7 +17,7 @@ export function deliverPlanResponse(
   feedback = '',
 ): boolean {
   if (pending.extensionUiId) {
-    const exec = runningExecutions.getByChannel(pending.channel).find((item) => item.agentProcess);
+    const exec = runRegistry.getByChannel(pending.channel).find((item) => item.agentProcess);
     const process = exec?.agentProcess as { sendExtensionUiResponse?: (id: string, payload: Record<string, unknown>) => void } | undefined;
     if (process?.sendExtensionUiResponse) {
       const payload = { value: approved ? '__APPROVED__' : feedback };

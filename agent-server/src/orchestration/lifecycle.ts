@@ -14,7 +14,7 @@ import { trackPendingTask } from './busy-tracker.js';
 import { enqueue } from './conduit-queue.js';
 import { supersededEdits } from './superseded-edits.js';
 import { acquireTurnMutationLock, type TurnMutationRelease } from './turn-mutation-lock.js';
-import { runningExecutions } from '../core/running-executions.js';
+import { runRegistry } from '../core/run-registry.js';
 
 import { finalizeLocalExecution, buildSessionTag, buildUserProcessingMessage, makeFallbackLabelNotifier, makeStreamingMessageCallback, computeElapsed, formatMetricsSuffix, writeStatus, sealStatus, buildStatusActionBlocks, buildSealedStatusActionBlocks, initStatusBlocks } from './status-helpers.js';
 import { getSessionAsync, setSessionAsync } from '@domain/sessions/session.js';
@@ -275,7 +275,7 @@ async function backfillLedgerSessionId(result: { sessionId?: string | null }, ch
 // --- Agent error handler ---
 
 export async function handleAgentError({ error, channel, adapter, statusMsg, startTime, executionId, sessionName = null, sessionId = null, effectiveSessionId = null, threadAnchorId = null, userMessageTs = null, userMessage = null }: { error: { message: string; cancelled?: boolean; rateLimitProvider?: string }; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; executionId: string | null; sessionName?: string | null; sessionId?: string | null; effectiveSessionId?: string | null; threadAnchorId?: string | null; userMessageTs?: string | null; userMessage?: string | null }): Promise<void> {
-  if (executionId) runningExecutions.fail(executionId, error.message);
+  if (executionId) runRegistry.fail(executionId, error.message);
   const resolvedSessionId = effectiveSessionId || sessionId;
   const sessionTag = buildSessionTag(sessionName, resolvedSessionId);
   const { elapsedStr, elapsedS } = computeElapsed(startTime);
@@ -300,7 +300,7 @@ export async function handleAgentError({ error, channel, adapter, statusMsg, sta
 
   // Thrown rate-limit error while the five-hour throttle is active: pause-and-resume instead of
   // failing, mirroring the thread thrown path (domain/threads/runner.ts) and the graceful direct
-  // path (agent-runner handleDefaultAgentResult / edit-retry below). runningExecutions.fail already
+  // path (agent-runner handleDefaultAgentResult / edit-retry below). runRegistry.fail already
   // ran at the top. Only when a userMessage is available (direct/TUI turns) — manager-qa / edit
   // callers without it fall through to the normal error path.
   if (userMessage && isApiRateLimitError(error.message) && isProviderRateLimited(error.rateLimitProvider)) {

@@ -10,7 +10,7 @@ import { executionRepo, TERMINAL_STATUSES } from '@store/execution-repo.js';
 import { PROJECTS_DIR } from '@core/utils.js';
 import { readLock, releaseLock } from '@domain/tasks/system/task-lock.js';
 import { createLogger } from '@core/log.js';
-import { runningExecutions } from '@core/running-executions.js';
+import { runRegistry } from '@core/run-registry.js';
 import type { AgentResult } from '@core/types/agent-types.js';
 
 export type { ExecutionRecord, DispatchInfo, ExecutionGpuInfo } from '@store/execution-repo.js';
@@ -159,15 +159,15 @@ export function teardownExecution({ executionId, status, result, error, duration
     rec = completeExecution(executionId, {
       costUsd: result?.total_cost_usd, numTurns: result?.num_turns, durationS, finalOutput: result?.finalOutput || null,
     });
-    runningExecutions.complete(executionId, costUsd ?? result?.total_cost_usd ?? 0);
+    runRegistry.complete(executionId, costUsd ?? result?.total_cost_usd ?? 0);
   } else if (status === 'cancelled') {
     rec = cancelExecution(executionId, { durationS });
     // The kill already happened on the cancel path; supersede() publishes agent.superseded
     // and removes the entry (a second kill() is harmless).
-    runningExecutions.supersede(executionId, 'cancelled');
+    runRegistry.supersede(executionId, 'cancelled');
   } else {
     rec = failExecution(executionId, { durationS, error: error?.message || null });
-    runningExecutions.fail(executionId, error?.message ?? 'error');
+    runRegistry.fail(executionId, error?.message ?? 'error');
   }
   return rec;
 }

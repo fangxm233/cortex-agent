@@ -6,7 +6,7 @@
 import { registerPISessionPath } from '../agent-adapter/index.js';
 import type { PlatformAdapter } from '@platform/index.js';
 import { createLogger } from '@core/log.js';
-import { runningExecutions } from '@core/running-executions.js';
+import { runRegistry } from '@core/run-registry.js';
 import { conversationLedger, type ChannelConversation, type LedgerTurn } from '@store/conversation-ledger-repo.js';
 import { conversationHistory } from '@store/conversation-history-repo.js';
 import { sessionStore, effectiveBackendSessionId, type Session } from '@store/session-registry-repo.js';
@@ -60,7 +60,7 @@ export interface RewindDeps {
 
 function defaultDeps(): RewindDeps {
   return {
-    activeAgents: runningExecutions,
+    activeAgents: runRegistry,
     snapshotPending: isTurnTrackingPending,
     tryAcquireMutation: tryAcquireTurnMutationLock,
     ledger: conversationLedger,

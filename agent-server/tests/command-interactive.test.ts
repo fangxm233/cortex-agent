@@ -12,7 +12,7 @@ const flush = () => setImmediate();
 import { CommandActionRouter } from '../src/orchestration/interactions/command-action-router.js';
 import { registerCommands as createCommandDispatcher } from '../src/orchestration/routing/commands/index.js';
 import { MockAdapter } from '../src/platform/testing.js';
-import { runningExecutions } from '../src/core/running-executions.js';
+import { runRegistry } from '../src/core/run-registry.js';
 
 // ============================================================
 // CommandActionRouter unit tests
@@ -102,11 +102,11 @@ test('!cancel with 2+ executions shows interactive list with cancel buttons', as
   });
   router.bindToAdapter(adapter);
 
-  runningExecutions.register({
+  runRegistry.register({
     threadId: 'thr_a1b2c3d4', channel: 'C123', agentSlotId: null, executionId: 'exec-1',
     kill: () => true, backend: 'plan',
   });
-  runningExecutions.register({
+  runRegistry.register({
     threadId: 'thr_e5f6g7h8', channel: 'C123', agentSlotId: null, executionId: 'exec-2',
     kill: () => true, backend: 'claudeCode',
   });
@@ -123,8 +123,8 @@ test('!cancel with 2+ executions shows interactive list with cancel buttons', as
   assert.equal(actionsBlock.elements[0].actionId, 'cmd:cancel:exec-0');
   assert.equal(actionsBlock.elements[1].actionId, 'cmd:cancel:exec-1');
 
-  runningExecutions.remove('exec-1');
-  runningExecutions.remove('exec-2');
+  runRegistry.remove('exec-1');
+  runRegistry.remove('exec-2');
 });
 
 test('!cancel with 2+ executions: clicking cancel button kills execution', async () => {
@@ -137,7 +137,7 @@ test('!cancel with 2+ executions: clicking cancel button kills execution', async
   });
   router.bindToAdapter(adapter);
 
-  runningExecutions.register({
+  runRegistry.register({
     threadId: null, channel: 'C123', agentSlotId: null, executionId: 'exec-cancel-test',
     kill: () => true, backend: 'plan',
   });
@@ -147,11 +147,11 @@ test('!cancel with 2+ executions: clicking cancel button kills execution', async
     { channelId: 'C123', messageRef: { conduit: 'C123', messageId: 'msg-1' } },
   );
 
-  assert.equal(runningExecutions.getById('exec-cancel-test'), null);
+  assert.equal(runRegistry.getById('exec-cancel-test'), null);
   const lastUpdated = adapter.updated[adapter.updated.length - 1];
   assert.ok(lastUpdated, 'expected an updateMessage call');
   assert.ok(lastUpdated.content.text.includes('Cancelled'));
-  runningExecutions.remove('exec-cancel-test');
+  runRegistry.remove('exec-cancel-test');
 });
 
 // ============================================================
@@ -168,7 +168,7 @@ test('!cancel with 1 execution falls back to direct cancel', async () => {
   });
   router.bindToAdapter(adapter);
 
-  runningExecutions.register({
+  runRegistry.register({
     threadId: null, channel: 'C456', agentSlotId: null, executionId: 'exec-single',
     kill: () => true, backend: 'plan',
   });
@@ -180,7 +180,7 @@ test('!cancel with 1 execution falls back to direct cancel', async () => {
   assert.ok(lastPosted);
   assert.equal(lastPosted.content.richBlocks, undefined);
   assert.ok(lastPosted.content.text.includes('Cancelled'));
-  runningExecutions.remove('exec-single');
+  runRegistry.remove('exec-single');
 });
 
 test('!cancel with 0 executions shows "Nothing running"', () => {
@@ -210,7 +210,7 @@ test('!cancel --all still works in interactive mode', async () => {
   });
   router.bindToAdapter(adapter);
 
-  runningExecutions.register({
+  runRegistry.register({
     threadId: null, channel: 'Call', agentSlotId: null, executionId: 'exec-all-1',
     kill: () => true, backend: 'plan',
   });
@@ -222,7 +222,7 @@ test('!cancel --all still works in interactive mode', async () => {
   assert.ok(lastPosted);
   assert.ok(lastPosted.content.text.includes('Cancelled'));
   assert.equal(lastPosted.content.richBlocks, undefined);
-  runningExecutions.remove('exec-all-1');
+  runRegistry.remove('exec-all-1');
 });
 
 test('!cancel with threadId arg still works unchanged', () => {

@@ -4,14 +4,13 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { RetentionLivenessSnapshot } from '@domain/sessions/session-retention.js';
-import type { RunningExecutions } from './running-executions.js';
-import type { BgHeldSessions } from './bg-held-sessions.js';
+import type { RunRegistry } from './run-registry.js';
 import type { InteractionRecords } from '@orch/interactions/interaction-records.js';
 import type { ThreadRecord } from './types/thread-types.js';
 
 export interface SessionRetentionLivenessDeps {
-  runningExecutions: Pick<RunningExecutions, 'getAll'>;
-  bgHeldSessions?: Pick<BgHeldSessions, 'listIds'>;
+  runningExecutions: Pick<RunRegistry, 'getAll'>;
+  bgHeldSessions?: Pick<RunRegistry, 'listIds'>;
   interactionRecords?: Pick<InteractionRecords, 'pendingSessionIds'>;
   pendingDirectResumeSessionIds?: Iterable<string>;
   threads?: Iterable<Pick<ThreadRecord, 'status' | 'agents' | 'steps'>>;
