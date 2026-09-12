@@ -26,6 +26,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | agent-adapter-pi-web-search.test.ts | test | PI WebSearch routing and decoding |
 | agent-adapter-pi.test.ts | test | PI interaction env, in-process session lifecycle and resume |
 | agent-adapter.test.ts | test | adapter dispatch, native tools and event contracts |
+| subagent-attribution.test.ts | test | live child attribution: the pinned parent target and the no-refeed guard |
 | subagent-roles.test.ts | test | role frontmatter, per-backend tool translation, seeding and migration |
 | subagent-runner.test.ts | test | invocation validation, mode semantics, caps and backend precedence |
 | subagent-mcp-tool.test.ts | test | the `agent` MCP surface, webhook payloads and the child-is-a-leaf guards |
