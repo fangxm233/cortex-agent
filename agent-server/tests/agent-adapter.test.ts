@@ -16,6 +16,7 @@ import {
   type NormalizedEvent,
 } from '../src/agent-adapter/index.js';
 import { engines } from '../src/domain/runs/engines.js';
+import { claudePool } from './agent-adapter/claude-pool-fixture.js';
 
 test('getAdapter dispatches Claude and getEngineAdapter dispatches PI', () => {
   const claude = getAdapter('claude');
@@ -80,15 +81,17 @@ test('SessionEngines exposes the real pool contract (no spawn side effects)', as
   assert.equal(getEngineAdapter('pi').backend, 'pi');
 });
 
-test('ClaudeAdapter exposes the real AgentAdapter contract (no spawn side effects)', async () => {
+test('Claude engine pool exposes the real pool contract (no spawn side effects)', async () => {
   // Replaces the claude case in the stub-strict iteration above. After task e0b6 the claude
   // adapter is no longer a Phase-1 stub: spawn/close/kill/listSessions are real. spawn itself
   // is not exercised here because it fork-execs the `claude` CLI and would leak timers;
   // `tests/agent-adapter-claude.test.ts` covers the pure buildSpawnArgs / computeSpawnArgs surface.
+  // P2.3c moved the pool to SessionEngines, so the contract is reached through the test fixture.
   const adapter = getAdapter('claude');
-  assert.deepEqual(adapter.listSessions(), [], 'listSessions returns empty array before any spawn');
-  assert.equal(adapter.kill('nonexistent'), false, 'kill on unknown key returns false');
-  await assert.doesNotReject(adapter.close('nonexistent'), 'close on unknown key resolves');
+  const pool = claudePool(adapter);
+  assert.deepEqual(pool.listSessions(), [], 'listSessions returns empty array before any spawn');
+  assert.equal(pool.kill('nonexistent'), false, 'kill on unknown key returns false');
+  await assert.doesNotReject(pool.close('nonexistent'), 'close on unknown key resolves');
   assert.equal(adapter.backend, 'claude');
 });
 

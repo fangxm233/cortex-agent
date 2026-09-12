@@ -5,8 +5,8 @@ Translates Claude stream and transcript events into the normalized event schema.
 
 | filename | role | function |
 |---|---|---|
-| adapter.ts | adapter | pools sessions and injects MCP composition |
-| engine.ts | engine | Claude EngineSession: RunEvent runs, steer acks and run-scoped cancel over one ClaudeSession |
+| adapter.ts | adapter | Stateless Claude EngineAdapter: session open, spec identity, resume target, MCP composition |
+| engine.ts | engine | Claude EngineSession: RunEvent runs, steer acks, run-scoped cancel over one ClaudeSession, plus the transitional legacy AgentProcess |
 | adapter-tui.ts | adapter | runs TUI sessions with bundled MCP scopes |
 | spawn-args.ts | core | Builds Claude args and bundled MCP selection, swapping native Agent for the MCP one, plus the sidecar's PI model catalog env |
 | mcp-config.ts | core | Writes private MCP and proxy configs |

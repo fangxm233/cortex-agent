@@ -3,6 +3,8 @@
 // pos:    Guards the "No conversation found with session ID" bug (pre-registered TUI sessionId
 //         made the orchestrator request --resume on a transcript that does not exist yet)
 
+// NOT retired by D9: `resolveTuiResume` + `computeJsonlPath` back `resolveResumeForPrint`, which
+// decides --resume vs --session-id for every PRINT-mode spawn. The name is historical.
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { resolveTuiResume } from '../../src/agent-adapter/claude/adapter-tui.js';

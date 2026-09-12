@@ -1,9 +1,9 @@
 // input:  backend labels, PI collaborator hooks, usage store
-// output: daemon adapter lookup (Claude pooled, PI engine) and shared contract exports
+// output: daemon engine-adapter lookup (Claude and PI) and shared contract exports
 // pos:    Unified entry point for the Agent adapter system
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import type { AgentAdapter, Backend } from './types.js';
+import type { Backend } from './types.js';
 import { ClaudeAdapter } from './claude/adapter.js';
 import { PIAdapter } from './pi/adapter.js';
 import { ensureAuthVisible, USER_PI_MODELS_PATH } from './pi/agent-dir.js';
@@ -30,10 +30,8 @@ const PI_ADAPTER = new PIAdapter(undefined, DEFAULT_SESSION_DIR, piProviderDisco
 
 const CLAUDE_ADAPTER = new ClaudeAdapter();
 
-/** The pooled adapter contract. Only Claude still pools inside its own adapter (P2.3 moves it);
- *  PI's pool lives in `domain/runs/engines.ts: SessionEngines` and is reached via
- *  {@link getEngineAdapter}. */
-export function getAdapter(backend: Backend): AgentAdapter {
+/** The Claude engine adapter. Stateless since P2.3c: `SessionEngines` owns the sessions it opens. */
+export function getAdapter(backend: Backend): ClaudeAdapter {
   if (backend === 'claude') return CLAUDE_ADAPTER;
   throw new Error(`Unknown backend: ${backend}`);
 }

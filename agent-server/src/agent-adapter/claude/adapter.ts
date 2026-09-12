@@ -16,15 +16,14 @@ import { fromCanonical } from '../normalize/tool-names.js';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../capabilities.js';
 import { resolveMcpComposition } from '../types.js';
 import type {
-  AgentAdapter, AgentCompactResult, AgentCompactUsage, AgentProcess, AgentProcessSpawner,
+  AgentCompactResult, AgentCompactUsage, AgentProcessSpawner,
   AgentProcessSupervision, EngineAdapter, EngineSpec, Backend, ContinuationSink,
   InjectionAckSink, McpComposition, SpawnedAgentProcess, UserMessage,
 } from '../types.js';
-import { ClaudeEngineSession } from './engine.js';
+import { ClaudeEngineSession, type ClaudeEngineOpenHooks } from './engine.js';
 import type { AgentResult, ContextUsage, ReportedAccountingSnapshot } from '@core/types/agent-types.js';
 import { encodeMcpBundles, MCP_BUNDLES_ENV } from '@core/mcp-bundles.js';
 import type { NormalizedEvent, ToolUseSubagent } from '../normalize/event-types.js';
-import { createEventStream } from '../normalize/event-stream.js';
 import {
   CancelledError,
   DEFAULT_TOOLS,
@@ -37,7 +36,7 @@ import {
   buildClaudeEnv, buildSpawnArgs, claudeRouteIdentity, resolveClaudeMcpBundles,
   ClaudeSpawnOptions, CortexAgentContext,
 } from './spawn-args.js';
-import { ClaudeTuiSession, defaultTailFactory, computeJsonlPath, resolveTuiResume, type ClaudeTuiSessionConfig } from './adapter-tui.js';
+import { computeJsonlPath, resolveTuiResume } from './adapter-tui.js';
 import { TmuxControl, type TmuxExec } from './tmux-control.js';
 import { TUI_TMUX_NAME_PREFIX } from './defaults.js';
 import {
@@ -59,9 +58,7 @@ import {
 } from './event-parser.js';
 import { BgTaskTracker, isContinuationResult, routeLine, type SubagentEndStatus } from './bg-task-tracker.js';
 import {
-  claudeTurnCallbacks,
   promptAccounting,
-  pushDerivedTurnEvents,
   tokenValue,
   type ClaudeTurnCallbacks,
   type SubagentActivityKind,
@@ -226,6 +223,9 @@ interface ClaudeSessionOptions {
   /** Cortex execution context surfaced to the MCP server child as CORTEX_THREAD_ID/PROFILE/PROJECT/SESSION_NAME env vars.
    *  Captured at spawn time; later turns on the same session reuse the original snapshot. */
   context?: CortexAgentContext;
+  /** Pool hooks (P2.3c): the owner's eviction callbacks. See `ClaudeEngineOpenHooks`. */
+  onSelfClose?: ClaudeEngineOpenHooks['onSelfClose'];
+  onEvict?: ClaudeEngineOpenHooks['onEvict'];
 }
 
 interface ClaudeSpawnFields extends ClaudeSpawnOptions {
@@ -450,6 +450,11 @@ class ClaudeSession {
   private pendingInjections: { prompt: string; text: string }[] = [];
   /** Set by orchestration to receive injection delivery acks. */
   private injectionAck: InjectionAckSink | null = null;
+  /** Pool eviction hooks supplied by the owner (P2.2c/P2.3c): `onSelfClose` preserves the
+   *  "only if this key still points at me" guard at the pool; `onEvict` is unconditional, matching
+   *  the fatal stdin-write path it replaced. */
+  private readonly onSelfClose: ClaudeEngineOpenHooks['onSelfClose'];
+  private readonly onEvict: ClaudeEngineOpenHooks['onEvict'];
   /** Set when an injected message was consumed with NO turn in flight — the CLI is about to start
    *  a turn of its own for it. Consumed by the next assistant line, which opens the
    *  synthetic turn that captures the reply. */
@@ -494,6 +499,8 @@ class ClaudeSession {
     this.compatibility = compatibilityFromOptions(options);
     this.disableHooks = options.disableHooks === true;
     this.streamDeltas = options.streamDeltas;
+    this.onSelfClose = options.onSelfClose;
+    this.onEvict = options.onEvict;
     this.initializeExecutionOptions(options);
     this.spawnProcess();
   }
@@ -568,7 +575,7 @@ class ClaudeSession {
     // otherwise wait forever — any process death (restart / crash / kill / timeout) must
     // seal it. No-op when nothing is pending; always releases the sink (session is gone).
     this.notifyBgInterrupted();
-    if (sessions.get(this.sessionKey) === this) sessions.delete(this.sessionKey);
+    this.onSelfClose?.(this.sessionKey, this);
   }
 
   /** Deliver a synthetic interrupted result to the continuation sink (single-fire: the sink
@@ -840,7 +847,7 @@ class ClaudeSession {
         this.closeTurnLogs(turn);
         turn.reject(new Error(`Failed to write to claude stdin: ${e.message}`));
       }
-      sessions.delete(this.sessionKey);
+      this.onEvict?.(this.sessionKey, this);
       throw new Error(`Claude process stdin write failed: ${e.message}`);
     }
   }
@@ -1288,11 +1295,9 @@ class ClaudeSession {
     if (!this.proc || !this.alive) {
       // Process already gone (or never spawned): no 'close' event will come — seal now.
       this.notifyBgInterrupted();
-      sessions.delete(this.sessionKey);
       return;
     }
     this.alive = false;
-    sessions.delete(this.sessionKey);
 
     try {
       this.proc.stdin!.end();
@@ -1319,7 +1324,6 @@ class ClaudeSession {
     // delivers the background-task interruption to it, then clears it.
     if (!this.proc || this.proc.exitCode !== null) return false;
     this.alive = false;
-    if (sessions.get(this.sessionKey) === this) sessions.delete(this.sessionKey);
     if (this.currentTurn) this.currentTurn.killed = true;
     if (this.supervision) {
       this.supervision.cancel('cancel');
@@ -1335,75 +1339,6 @@ class ClaudeSession {
   isAlive(): boolean {
     return this.alive;
   }
-}
-
-// --- Session pool ---
-
-const sessions = new Map<string, ClaudeSession>();
-
-function getOrCreateSession(channel: string, sessionId: string, options: ClaudeSessionOptions): ClaudeSession {
-  const key = options.sessionKey || channel;
-  const compatibility = compatibilityFromOptions(options);
-  let session = sessions.get(key);
-
-  const incompatible = session && !session.matchesSpawn(compatibility);
-  if (!session || !session.isAlive() || incompatible || (options.needsResume && session.sessionId !== sessionId)) {
-    if (session) session.close();
-    session = new ClaudeSession(channel, sessionId, { ...options, sessionKey: key });
-    sessions.set(key, session);
-  }
-
-  return session;
-}
-
-export function closeSession(channel: string, sessionKey?: string): void {
-  const key = sessionKey || channel;
-  const session = sessions.get(key);
-  if (session) session.close();
-}
-
-/** Hard-stop the pooled session for a channel (SIGTERM, same path the foreground Stop takes via
- *  handle.kill()). Unlike closeSession's graceful stdin-end + 30s grace, this ends the process now
- *  — used by the Stop path to actually kill background tasks still running inside it after the
- *  foreground turn ended. Returns false when no live session exists for the key. */
-export function killSession(channel: string, sessionKey?: string): boolean {
-  const session = sessions.get(sessionKey || channel);
-  return session ? session.kill() : false;
-}
-
-/** Close all sessions whose key starts with the given prefix (used by Thread cleanup). */
-export function closeSessionsByPrefix(prefix: string): void {
-  for (const [key, session] of sessions) {
-    if (key.startsWith(prefix)) session.close();
-  }
-}
-
-export function closeAllSessions(): void {
-  for (const [, session] of sessions) session.close();
-  sessions.clear();
-}
-
-// --- runClaude (legacy top-level API, unchanged signature) ---
-
-export interface RunClaudeOptions {
-  channel: string;
-  sessionId?: string | null;
-  files?: any[];
-  callbackSource?: string | null;
-  scheduleTaskId?: string | null;
-  model?: string | null;
-  isUserInitiated?: boolean;
-  onProgress?: any;
-  onAssistantMessage?: any;
-  onToolUse?: ((name: string, input: any, toolUseId: string) => void) | null;
-  onToolResult?: ((toolUseId: string, content: string, isError: boolean) => void) | null;
-  sessionKey?: string | null;
-  claudeAgent?: string | null;
-  systemPrompt?: string | null;
-  outputStyle?: string | null;
-  tools?: string | null;
-  pluginDirs?: string[] | null;
-  anthropicBaseUrl?: string;
 }
 
 /**
@@ -1425,136 +1360,6 @@ export function resolveResumeForPrint(
   cwd: string = AGENT_CWD,
 ): boolean {
   return resolveTuiResume(requestedResume, computeJsonlPath(cwd, sessionId), exists);
-}
-
-export function runClaude(userMessage: string, opts: RunClaudeOptions) {
-  const effectiveSessionId = opts.sessionId || crypto.randomUUID();
-  const needsResume = resolveResumeForPrint(!!opts.sessionId, effectiveSessionId);
-  const session = getOrCreateSession(opts.channel, effectiveSessionId, { ...opts, needsResume });
-  const promise = session.sendMessage(userMessage, {
-    files: opts.files || [],
-    callbackSource: opts.callbackSource ?? null,
-    scheduleTaskId: opts.scheduleTaskId ?? null,
-    isUserInitiated: opts.isUserInitiated ?? false,
-    onProgress: opts.onProgress ?? null,
-    onAssistantMessage: opts.onAssistantMessage ?? null,
-    onToolUse: opts.onToolUse ?? null,
-    onToolResult: opts.onToolResult ?? null,
-  });
-  return { promise, kill() { return session.kill(); }, sessionId: effectiveSessionId };
-}
-
-// --- DR-0012: TUI-mode session pool + dispatch helpers ---
-
-/** Module-scoped TUI session pool, keyed by sessionKey (parallel to `sessions` for print mode). */
-const tuiSessions = new Map<string, ClaudeTuiSession>();
-
-/** Shared TmuxControl singleton — stateless, safe to reuse across all TUI sessions. */
-const sharedTmux = new TmuxControl();
-
-/** Pure dispatch: select claude adapter mode from an EngineSpec.
- *  Defaults to 'print' for missing or unrecognized values (conservative — never silently
- *  flips a session into the experimental TUI path). */
-export function selectClaudeMode(spec: EngineSpec): 'print' | 'tui' {
-  return spec.backend.kind === 'claude' && spec.backend.claudeBackend === 'tui' ? 'tui' : 'print';
-}
-
-function matchesTuiSession(
-  session: ClaudeTuiSession,
-  sessionId: string,
-  options: ClaudeSessionOptions,
-  composition: McpComposition,
-): boolean {
-  return session.sessionId === sessionId
-    && session.cwd === options.cwd
-    && session.routeIdentity === claudeRouteIdentity(options)
-    && session.mcpComposition === composition
-    && session.pluginCapabilityFingerprint === (options.pluginCapabilityFingerprint ?? null)
-    && session.supplementalMcpConfigIdentity === (options.supplementalMcpConfigIdentity ?? null)
-    // TUI processes are pooled and long-lived; without this term, turning the browser on or off
-    // would silently do nothing until the existing pane happened to die.
-    && session.browserMcpConfigIdentity === (options.browserMcpConfigIdentity ?? null)
-    && session.tools === (options.tools ?? null)
-    && sameTextArray(session.pluginDirs, cloneTextArray(options.pluginDirs))
-    && sameTextArray(session.mcpConfigPaths, cloneTextArray(options.mcpConfigPaths))
-    && session.commissionTools === (options.commissionTools === true)
-    && sameOptionalTextArray(session.mcpToolAllowlist, optionalTextArray(options.mcpToolAllowlist));
-}
-
-function tuiPromptFields(options: ClaudeSessionOptions): Partial<ClaudeTuiSessionConfig> {
-  return {
-    tools: options.tools,
-    systemPrompt: options.systemPrompt,
-    appendSystemPrompt: options.appendSystemPrompt,
-    model: options.model,
-    claudeAgent: options.claudeAgent,
-    pluginDirs: options.pluginDirs,
-    outputStyle: options.outputStyle,
-    extraOption: options.extraOption ?? null,
-    thinking: options.thinking ?? null,
-  };
-}
-
-function tuiSessionConfig(
-  spec: EngineSpec,
-  sessionId: string,
-  options: ClaudeSessionOptions,
-  composition: McpComposition,
-): ClaudeTuiSessionConfig {
-  const cwd = resolveSpawnCwd(options.cwd);
-  return {
-    channel: spec.context.channel ?? spec.env.sets?.SLACK_CHANNEL ?? spec.engineKey,
-    sessionId, sessionKey: spec.engineKey, cwd,
-    needsResume: resolveTuiResume(spec.resume.resume, computeJsonlPath(cwd, sessionId)),
-    ...tuiPromptFields(options),
-    mcpComposition: composition,
-    mcpConfigPaths: options.mcpConfigPaths ?? null,
-    mcpToolAllowlist: options.mcpToolAllowlist ?? null,
-    commissionTools: options.commissionTools === true,
-    supplementalMcpConfigPath: options.supplementalMcpConfigPath ?? null,
-    disableHooks: options.disableHooks,
-    pluginCapabilityFingerprint: options.pluginCapabilityFingerprint ?? null,
-    supplementalMcpConfigIdentity: options.supplementalMcpConfigIdentity ?? null,
-    browserMcpConfigPath: options.browserMcpConfigPath ?? null,
-    browserMcpConfigIdentity: options.browserMcpConfigIdentity ?? null,
-    callbackSource: options.callbackSource,
-    scheduleTaskId: options.scheduleTaskId,
-    anthropicBaseUrl: options.anthropicBaseUrl,
-    extraEnv: options.extraEnv,
-    unsetEnv: options.unsetEnv,
-    context: options.context,
-    deps: { tmux: sharedTmux, tailFactory: defaultTailFactory },
-  };
-}
-
-function createTuiSession(
-  spec: EngineSpec,
-  sessionId: string,
-  options: ClaudeSessionOptions,
-  composition: McpComposition,
-): ClaudeTuiSession {
-  const session = new ClaudeTuiSession(tuiSessionConfig(spec, sessionId, options, composition));
-  tuiSessions.set(spec.engineKey, session);
-  return session;
-}
-
-function tuiComposition(options: ClaudeSessionOptions): McpComposition {
-  return options.mcpComposition ?? 'direct';
-}
-
-function getOrCreateTuiSession(spec: EngineSpec, sessionIdEffective: string): ClaudeTuiSession {
-  const options = sessionOptionsFromSpec({
-    ...spec,
-    resume: { ...spec.resume, backendSessionId: sessionIdEffective },
-  });
-  const composition = tuiComposition(options);
-  let session = tuiSessions.get(spec.engineKey);
-  if (session && !matchesTuiSession(session, sessionIdEffective, options, composition)) {
-    session.kill();
-    session = undefined;
-  }
-  if (session) return session;
-  return createTuiSession(spec, sessionIdEffective, options, composition);
 }
 
 // --- ClaudeAdapter — DR-0008 §3.2 generic AgentAdapter entry point ---
@@ -1686,18 +1491,30 @@ function computeSpawnArgsForSpec(spec: EngineSpec): string[] {
   return buildSpawnArgs(spawnOptions);
 }
 
-export class ClaudeAdapter implements AgentAdapter, EngineAdapter {
+/** D9: `claudeBackend: 'tui'` is accepted but deprecated; warn once per process, then run print. */
+let warnedTuiDeprecated = false;
+
+export class ClaudeAdapter implements EngineAdapter {
   readonly backend: Backend = 'claude';
   readonly capabilities: Set<Capability> = CAPABILITIES_BY_BACKEND.claude;
 
   /**
-   * Pure construction (plan §3.3): resolve the spec exactly as `spawn()` does, build a fresh
-   * `ClaudeSession` and wrap it in an engine. No pool read, no pool write, no `getOrCreateSession`.
-   * Later turns on the same session reuse the original snapshot, as the spawn path already does.
+   * Pure construction (plan §3.3): resolve the spec exactly as the old `spawn()` did, build a
+   * fresh `ClaudeSession` and wrap it in an engine. No pool read, no pool write, no
+   * `getOrCreate*`. The owner (`SessionEngines`) supplies the eviction hooks.
+   *
+   * "Pure" is about the POOL, not about side effects: `new ClaudeSession(...)` spawns the CLI
+   * child in its constructor, as it always has. Every `open()` therefore costs a process — call it
+   * only when you have decided to create, the way `acquire` does.
    */
-  open(spec: EngineSpec): ClaudeEngineSession {
+  open(spec: EngineSpec, hooks: ClaudeEngineOpenHooks = {}): ClaudeEngineSession {
+    // D9: TUI is deprecated — one warning, then continue down the print path (never a throw).
+    if (spec.backend.kind === 'claude' && spec.backend.claudeBackend === 'tui' && !warnedTuiDeprecated) {
+      warnedTuiDeprecated = true;
+      log.warn('claudeBackend "tui" is deprecated (D9); running this session in print mode');
+    }
     const { sessionIdEffective, ...sessionOptions } = sessionOptionsFromSpec(spec);
-    // Same resume gate as spawn(): a pre-registered sessionId with no transcript yet must create.
+    // Same resume gate as the old spawn(): a pre-registered sessionId with no transcript yet must create.
     sessionOptions.needsResume = resolveResumeForPrint(
       sessionOptions.needsResume,
       sessionIdEffective,
@@ -1705,158 +1522,36 @@ export class ClaudeAdapter implements AgentAdapter, EngineAdapter {
       sessionOptions.cwd,
     );
     const channel = spec.context.channel ?? spec.env.sets?.SLACK_CHANNEL ?? spec.engineKey;
-    // `getOrCreateSession` keys the session on `options.sessionKey || channel`; preserve that.
+    // The old pooled lookup keyed the session on `options.sessionKey || channel`; preserve that.
     const key = sessionOptions.sessionKey || channel;
     const session = new ClaudeSession(channel, sessionIdEffective, {
       ...sessionOptions,
       sessionKey: key,
+      onSelfClose: hooks.onSelfClose,
+      onEvict: hooks.onEvict,
     });
     return new ClaudeEngineSession(session, spec, claudeSpecIdentity(spec));
   }
 
-  spawn(spec: EngineSpec): AgentProcess {
-    // DR-0012: route to TUI implementation when profile selects it.
-    if (selectClaudeMode(spec) === 'tui') return this.spawnTui(spec);
+  /** The comparable identity of the session this spec *would* open — the pool's reuse test. */
+  specIdentity(spec: EngineSpec): string {
+    return claudeSpecIdentity(spec);
+  }
+
+  /** The resume decision `open()` will make for a spec, plus the transcript id it would target.
+   *  The pool's fourth reuse clause compares this against a live session's `sessionId`: asked to
+   *  resume transcript X while the pooled session sits on transcript Y ⇒ a fresh process. */
+  claudeResumeTarget(spec: EngineSpec): { needsResume: boolean; sessionId: string } {
     const { sessionIdEffective, ...sessionOptions } = sessionOptionsFromSpec(spec);
-    // Gate resume on the transcript actually existing — a pre-registered sessionId
-    // (e.g. cortex tui handshake) must spawn `--session-id` on its first turn, not
-    // `--resume` (which fails "No conversation found"). See resolveResumeForPrint.
-    sessionOptions.needsResume = resolveResumeForPrint(
-      sessionOptions.needsResume,
-      sessionIdEffective,
-      undefined,
-      sessionOptions.cwd,
-    );
-    const channel = spec.context.channel ?? spec.env.sets?.SLACK_CHANNEL ?? spec.engineKey;
-    const session = getOrCreateSession(channel, sessionIdEffective, sessionOptions);
-    const stream = createEventStream<NormalizedEvent>();
-    let started = false;
-
     return {
-      sessionKey: spec.engineKey,
-      get sessionId(): string | null { return session.sessionId; },
-      get supervision(): AgentProcessSupervision | undefined { return session.getSupervision(); },
-      async send(message: UserMessage): Promise<AgentResult> {
-        if (!started) {
-          stream.push({ type: 'session_started', sessionId: session.sessionId });
-          started = true;
-        }
-        const files = (message.attachments || []).map((a) => ({
-          mimetype: a.mimeType, localPath: a.path, name: path.basename(a.path),
-        }));
-        try {
-          const result = await session.sendMessage(message.text, {
-            files,
-            ...claudeTurnCallbacks(stream.push),
-          });
-          pushDerivedTurnEvents(stream.push, result, session, spec.flags.preserveUnreportedAccounting === true);
-          stream.close();
-          return result;
-        } catch (err: any) {
-          if (!err?.cancelled) {
-            stream.push({ type: 'error', message: String(err?.message ?? err), fatal: true });
-          }
-          stream.close();                         // unblock any for-await consumer
-          throw err;
-        }
-      },
-      events: stream.iterable,
-      compact: (): Promise<AgentCompactResult> => session.compact(),
-      setContinuationSink(sink: ContinuationSink): void { session.setContinuationSink(sink); },
-      injectUserMessage(message: UserMessage): boolean { return session.injectUserMessage(message); },
-      setInjectionAckSink(sink: InjectionAckSink): void { session.setInjectionAckSink(sink); },
-      // Out-of-band attribution (see AgentProcess.pushTurnEvent). The stream is closed the moment
-      // send() settles, so "still open" is exactly "the turn is still running".
-      pushTurnEvent(event: NormalizedEvent): boolean {
-        if (stream.isClosed()) return false;
-        stream.push(event);
-        return true;
-      },
-      // Intentionally does NOT call session.close(): sessions are pooled per sessionKey and
-      // reused across runAgentOnce turns. Pool-level cleanup goes through ClaudeAdapter.close(key)
-      // or the legacy closeSession / closeSessionsByPrefix exports.
-      async close(): Promise<void> { stream.close(); },
-      kill(): boolean { return session.kill(); },
+      needsResume: resolveResumeForPrint(
+        sessionOptions.needsResume,
+        sessionIdEffective,
+        undefined,
+        sessionOptions.cwd,
+      ),
+      sessionId: sessionIdEffective,
     };
-  }
-
-  /**
-   * DR-0012 TUI-mode dispatch. Returns an AgentProcess whose send() pushes ALL NormalizedEvents
-   * (including derived ones — ask_user_question, plan_*, cost_record, turn_complete) via
-   * ClaudeTuiSession's onEvent stream, then resolves with the TuiAgentResult cast to AgentResult.
-   *
-   * Sessions are pooled in `tuiSessions` by sessionKey; multi-turn reuses the same tmux session.
-   * kill() forwards to ClaudeTuiSession.kill() which tears down the tmux session.
-   */
-  private spawnTui(spec: EngineSpec): AgentProcess {
-    const sessionIdEffective = spec.resume.backendSessionId || crypto.randomUUID();
-    const session = getOrCreateTuiSession(spec, sessionIdEffective);
-    const stream = createEventStream<NormalizedEvent>();
-    let started = false;
-
-    return {
-      sessionKey: spec.engineKey,
-      get sessionId(): string | null { return session.sessionId; },
-      async send(message: UserMessage): Promise<AgentResult> {
-        if (!started) {
-          stream.push({ type: 'session_started', sessionId: session.sessionId });
-          started = true;
-        }
-        const files = (message.attachments || []).map((a) => ({
-          mimetype: a.mimeType, localPath: a.path, name: path.basename(a.path),
-        }));
-        try {
-          const tuiResult = await session.sendMessage(message.text, {
-            files,
-            onEvent: (ev: NormalizedEvent) => stream.push(ev),
-          });
-          stream.close();
-          // TuiAgentResult shape lines up with AgentResult — only structural cast needed.
-          return tuiResult as unknown as AgentResult;
-        } catch (err: any) {
-          if (!err?.cancelled) {
-            stream.push({ type: 'error', message: String(err?.message ?? err), fatal: true });
-          }
-          stream.close();
-          throw err;
-        }
-      },
-      events: stream.iterable,
-      setContinuationSink(sink: ContinuationSink): void { session.setContinuationSink(sink); },
-      pushTurnEvent(event: NormalizedEvent): boolean {
-        if (stream.isClosed()) return false;
-        stream.push(event);
-        return true;
-      },
-      async close(): Promise<void> { stream.close(); },
-      kill(): boolean { return session.kill(); },
-    };
-  }
-
-  async close(sessionKey: string): Promise<void> {
-    closeSession(sessionKey, sessionKey);
-    // Also clean up any TUI session under this key (DR-0012).
-    const tui = tuiSessions.get(sessionKey);
-    if (tui) {
-      tui.close();
-      tuiSessions.delete(sessionKey);
-    }
-  }
-
-  kill(sessionKey: string): boolean {
-    const session = sessions.get(sessionKey);
-    if (session) return session.kill();
-    const tui = tuiSessions.get(sessionKey);
-    if (tui) {
-      const killed = tui.kill();
-      tuiSessions.delete(sessionKey);
-      return killed;
-    }
-    return false;
-  }
-
-  listSessions(): string[] {
-    return [...sessions.keys(), ...tuiSessions.keys()];
   }
 }
 
@@ -1864,11 +1559,12 @@ export class ClaudeAdapter implements AgentAdapter, EngineAdapter {
  * DR-0012 §3.6 startup hook — sweep orphan tmux sessions matching the cortex-claude- prefix.
  *
  * Rationale: tmux sessions are independent of agent-server's process lifetime, but the in-memory
- * `tuiSessions` Map is not. After an agent-server restart we have no record of channel/sessionKey
- * → tmux mapping (it was never persisted), so we cannot re-adopt existing tmux sessions into the
- * pool. The honest choice is to kill them at startup; otherwise they accumulate forever and a
- * later session reusing the same sessionId would conflict with `tmux new-session -s <name>`
- * (which fails on duplicate). Logs the killed names so operators can investigate if needed.
+ * bookkeeping (the TUI session map, removed in P2.3c) is not. After an agent-server restart we have
+ * no record of channel/sessionKey → tmux mapping (it was never persisted), so we cannot re-adopt
+ * existing tmux sessions into the pool. The honest choice is to kill them at startup; otherwise
+ * they accumulate forever and a later session reusing the same sessionId would conflict with
+ * `tmux new-session -s <name>` (which fails on duplicate). Logs the killed names so operators can
+ * investigate if needed.
  *
  * Full re-adoption (preserving an in-flight TUI session across restart) requires persisting
  * sessionKey + cwd + needsResume metadata to disk — deferred as a follow-up.
@@ -1876,7 +1572,7 @@ export class ClaudeAdapter implements AgentAdapter, EngineAdapter {
  * Override `exec` in tests so we don't touch the real tmux server.
  */
 export function recoverTuiOrphans(exec?: TmuxExec): { found: string[]; killed: string[] } {
-  const tmux = exec ? new TmuxControl(exec) : sharedTmux;
+  const tmux = exec ? new TmuxControl(exec) : new TmuxControl();
   const found = tmux.listSessions(TUI_TMUX_NAME_PREFIX);
   if (found.length === 0) return { found: [], killed: [] };
   const killed: string[] = [];
@@ -1929,8 +1625,6 @@ export const _test = {
   mergeSubstantialOutput,
   computeSpawnArgs: computeSpawnArgsForSpec,
   makeSessionForTest,
-  getPooledPrintSession: (sessionKey: string) => sessions.get(sessionKey),
-  getPooledTuiSession: (sessionKey: string) => tuiSessions.get(sessionKey),
 };
 
 // Re-exported for webhook consumer (parity with pre-refactor claude-bridge.ts:286 export)

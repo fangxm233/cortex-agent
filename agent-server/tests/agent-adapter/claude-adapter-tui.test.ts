@@ -3,7 +3,7 @@
 // pos:    Claude TUI state-machine regressions
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { test } from 'vitest';
+import { describe, test } from 'vitest';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'events';
 import * as fs from 'fs';
@@ -14,6 +14,9 @@ import { ClaudeTuiSession, type TuiSessionDeps } from '../../src/agent-adapter/c
 import { writeClaudeSupplementalMcpConfig } from '../../src/agent-adapter/claude/mcp-config.js';
 import type { TmuxExecResult } from '../../src/agent-adapter/claude/tmux-control.js';
 import { TmuxControl } from '../../src/agent-adapter/claude/tmux-control.js';
+
+// D9: Claude TUI is deprecated; P2.3c routes tui → print.
+describe.skip('claude-adapter-tui (removed by D9)', () => {
 
 // --- Test scaffolding ---
 
@@ -895,4 +898,6 @@ test('TUI spawn forwards the browser MCP config, so the browser opt-in reaches t
 
   tails[0].finishTurn();
   await turnPromise;
+});
+
 });

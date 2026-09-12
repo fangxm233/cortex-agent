@@ -20,9 +20,14 @@ function fixture(): { engines: SessionEngines; adapter: PIAdapter } {
   return { engines: new SessionEngines({ pi: adapter }), adapter };
 }
 
+/** The pool dispatches on the spec's backend; this fixture wires only PI, so pin the discriminant. */
+function piSpec(partial: Parameters<typeof engineSpecFixture>[0] = {}) {
+  return engineSpecFixture({ ...partial, piProvider: 'anthropic' });
+}
+
 test('acquire reuses the pooled session for an unchanged spec', () => {
   const { engines } = fixture();
-  const spec = engineSpecFixture({ sessionId: null, sessionKey: 'reuse', resume: false });
+  const spec = piSpec({ sessionId: null, sessionKey: 'reuse', resume: false });
   const first = engines.acquire(spec);
   assert.equal(engines.acquire(spec), first, 'same spec reuses the same engine session');
   assert.deepEqual(engines.listKeys(), ['reuse']);
@@ -30,8 +35,8 @@ test('acquire reuses the pooled session for an unchanged spec', () => {
 
 test('acquire retires the pooled session when the spec changes', () => {
   const { engines } = fixture();
-  const first = engines.acquire(engineSpecFixture({ sessionId: null, sessionKey: 'k', resume: false }));
-  const second = engines.acquire(engineSpecFixture({
+  const first = engines.acquire(piSpec({ sessionId: null, sessionKey: 'k', resume: false }));
+  const second = engines.acquire(piSpec({
     sessionId: null, sessionKey: 'k', resume: false, model: 'other-model',
   }));
   assert.notEqual(second, first, 'a changed spec opens a new session');
@@ -40,7 +45,7 @@ test('acquire retires the pooled session when the spec changes', () => {
 
 test('close drops the pool entry synchronously so the next acquire opens fresh', async () => {
   const { engines } = fixture();
-  const spec = engineSpecFixture({ sessionId: null, sessionKey: 'closed', resume: false });
+  const spec = piSpec({ sessionId: null, sessionKey: 'closed', resume: false });
   const first = engines.acquire(spec);
   const closing = engines.close('closed');
   assert.equal(engines.get('closed'), undefined, 'entry is gone before the close settles');

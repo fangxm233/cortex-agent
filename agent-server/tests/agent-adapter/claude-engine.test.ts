@@ -9,6 +9,7 @@ import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 
 import { ClaudeAdapter, claudeCompatibilityIdentity, sameClaudeSpawnCompatibility } from '../../src/agent-adapter/claude/adapter.js';
+import { claudePool } from './claude-pool-fixture.js';
 import type { ClaudeSpawnCompatibility } from '../../src/agent-adapter/claude/adapter.js';
 import { toRunEvent, type RunEvent } from '../../src/agent-adapter/run-events.js';
 import type { NormalizedEvent } from '../../src/agent-adapter/normalize/event-types.js';
@@ -86,7 +87,7 @@ async function drain<T>(iterable: AsyncIterable<T>): Promise<T[]> {
 test('Claude open().run() is spawn().send() retagged as RunEvents plus a terminal phase', async () => {
   const adapter = new ClaudeAdapter();
 
-  const proc = adapter.spawn(specFor('engine-equiv-spawn', [TURN_SCRIPT]));
+  const proc = claudePool(adapter).spawn(specFor('engine-equiv-spawn', [TURN_SCRIPT]));
   const collectNormalized = drain(proc.events as AsyncIterable<NormalizedEvent>);
   const spawnResult = await proc.send({ text: 'hi' } as any);
   const normalized = await collectNormalized;
@@ -106,7 +107,7 @@ test('Claude open().run() is spawn().send() retagged as RunEvents plus a termina
   assert.ok(normalized.some((event) => event.type === 'turn_complete'), 'script produced no turn_complete');
   assert.deepEqual(engineResult, spawnResult);
 
-  await adapter.close('engine-equiv-spawn');
+  await claudePool(adapter).close('engine-equiv-spawn');
   await engine.close();
 });
 

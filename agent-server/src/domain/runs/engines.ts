@@ -1,6 +1,6 @@
-// input:  EngineSpec, the PI EngineAdapter, the Claude pooled adapter
+// input:  EngineSpec, the PI EngineAdapter, the Claude EngineAdapter
 // output: SessionEngines (the one owner of pooled engine sessions) + the module singleton
-// pos:    domain/runs — pool ownership (D4): PI lives here, Claude delegates to its adapter map
+// pos:    domain/runs — pool ownership (D4): both backends' sessions live in one Map
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { createLogger } from '@core/log.js';
@@ -9,7 +9,9 @@ import type {
   AgentAdapter, AgentCompactResult, AgentProcess, Backend, EngineSpec,
 } from '../../agent-adapter/types.js';
 import type { PIAdapter } from '../../agent-adapter/pi/adapter.js';
+import type { ClaudeAdapter } from '../../agent-adapter/claude/adapter.js';
 import type { PIEngineSession } from '../../agent-adapter/pi/engine.js';
+import type { ClaudeEngineSession } from '../../agent-adapter/claude/engine.js';
 
 const log = createLogger('agent-adapter');
 // The retirement line used to come from PIAdapter's own logger; keep its channel identical too.
@@ -19,40 +21,48 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** The adapters SessionEngines drives. PI is an EngineAdapter (one open session per acquire);
- *  Claude still pools inside its own adapter, so only its control surface is needed here. */
+/** The stateless engine factories SessionEngines drives (P2.3c: Claude joins PI here). Both are
+ *  `EngineAdapter`s — `acquire` decides reuse, the adapter only constructs. */
 export interface SessionEnginesAdapters {
   pi?: PIAdapter;
-  claude?: Pick<AgentAdapter, 'close' | 'kill' | 'listSessions'>;
+  claude?: ClaudeAdapter;
 }
+
+/** One pooled backend session; the backend discriminant is the only thing distinguishing them. */
+type EngineSession = PIEngineSession | ClaudeEngineSession;
 
 /**
  * The single owner of pooled engine sessions (plan §3.3 D4). Every lifecycle control point —
  * `!new`, Stop, thread cleanup, rewind, shutdown and hook-injected sessions — reaches the pool
- * through this object. `acquire` is the old `PIAdapter.reusableSession` + `startSession` moved
- * verbatim: alive-and-matching reuses, anything else retires (same log line) and opens fresh.
+ * through this object. `acquire` dispatches on the spec's backend and reproduces each backend's
+ * old pool read verbatim: alive-and-matching reuses, anything else retires and opens fresh.
  */
 export class SessionEngines {
   private readonly pi: PIAdapter | undefined;
-  private readonly claude: Pick<AgentAdapter, 'close' | 'kill' | 'listSessions'> | undefined;
-  private readonly sessions = new Map<string, PIEngineSession>();
+  private readonly claude: ClaudeAdapter | undefined;
+  private readonly sessions = new Map<string, EngineSession>();
 
   constructor(adapters: SessionEnginesAdapters = {}) {
     this.pi = adapters.pi;
     this.claude = adapters.claude;
-    // Transitional: lets PIAdapter.switchSession reach the live engine without importing domain.
-    this.pi?.setEnginePool(this);
+    // Transitional: lets PIAdapter.switchSession reach the live PI engine without importing domain.
+    this.pi?.setEnginePool({ get: (key) => this.piEngine(key) });
+  }
+
+  /** Dispatch on the backend discriminant; each branch is that backend's old pool read. */
+  acquire(spec: EngineSpec): EngineSession {
+    return spec.backend.kind === 'pi' ? this.acquirePi(spec) : this.acquireClaude(spec);
   }
 
   /** Reuse the pooled PI session when it is alive and was opened from the exact same
    *  configuration; otherwise retire it (fire-and-forget close, same log line) and open a new one.
    *  A live session cannot be re-pointed at a different model, tool surface or MCP set. */
-  acquire(spec: EngineSpec): PIEngineSession {
+  private acquirePi(spec: EngineSpec): PIEngineSession {
     const pi = this.pi;
     if (!pi) throw new Error('SessionEngines has no PI engine adapter configured');
     const key = spec.engineKey;
     const identity = pi.specIdentity(spec);
-    const existing = this.sessions.get(key);
+    const existing = this.sessions.get(key) as PIEngineSession | undefined;
     if (existing && existing.isAlive() && existing.identity === identity) return existing;
     if (existing) {
       piLog.info(
@@ -78,33 +88,71 @@ export class SessionEngines {
     return engine;
   }
 
-  get(key: string): PIEngineSession | undefined {
+  /**
+   * Claude's pool read (P2.3c): the old Claude pool predicate moved off `ClaudeSession`.
+   * `specIdentity` replaces `matchesSpawn` — P2.3b proved string equality IS the structural
+   * predicate; the fourth clause has no PI equivalent and compares the spec's resume target
+   * against the session's **live** `sessionId`. Claude's retire path logs nothing and does not
+   * check `isAlive()` before closing (`close()` itself is a no-op once dead); keep both as they are.
+   */
+  private acquireClaude(spec: EngineSpec): ClaudeEngineSession {
+    const claude = this.claude;
+    if (!claude) throw new Error('SessionEngines has no Claude engine adapter configured');
+    const key = spec.engineKey;
+    const identity = claude.specIdentity(spec);
+    const resume = claude.claudeResumeTarget(spec);
+    let session = this.sessions.get(key) as ClaudeEngineSession | undefined;
+    const incompatible = session && session.identity !== identity;
+    if (!session || !session.isAlive() || incompatible
+        || (resume.needsResume && session.backendSessionId !== resume.sessionId)) {
+      if (session) void session.close();
+      this.sessions.delete(key);
+      let engine!: ClaudeEngineSession;
+      engine = claude.open(spec, {
+        onSelfClose: (sessionKey) => {
+          if (this.sessions.get(sessionKey) === engine) this.sessions.delete(sessionKey);
+        },
+        // Unconditional, exactly as `ClaudeSession.writeTurnStdin`'s catch was: a fatal stdin
+        // write failure evicts the key even if the pool has already moved on to a replacement.
+        onEvict: (sessionKey) => {
+          this.sessions.delete(sessionKey);
+        },
+      });
+      this.sessions.set(key, engine);
+      session = engine;
+    }
+    return session;
+  }
+
+  /** PI's `switchSession` seam: the live PI engine for a key, never the Claude one. */
+  private piEngine(key: string): PIEngineSession | undefined {
+    const engine = this.sessions.get(key);
+    return engine && engine.backend === 'pi' ? engine as PIEngineSession : undefined;
+  }
+
+  get(key: string): EngineSession | undefined {
     return this.sessions.get(key);
   }
 
-  /** Graceful close of the pooled session for a key on either backend. The pool entry is dropped
-   *  synchronously, so the next `acquire` opens a fresh session even while this one winds down.
-   *  Never rejects — a close failure is logged, exactly as the pre-P2.2c wrappers did. Command
-   *  handlers that must not block on a subprocess grace period use {@link closeSession} instead. */
+  /** Graceful close of the pooled session for a key. The pool entry is dropped synchronously, so
+   *  the next `acquire` opens a fresh session even while this one winds down. Never rejects — a
+   *  close failure is logged, exactly as the pre-P2.2c wrappers did. Command handlers that must
+   *  not block on a subprocess grace period use {@link closeSession} instead. */
   async close(key: string): Promise<void> {
     const engine = this.sessions.get(key);
-    if (engine) {
-      this.sessions.delete(key);
-      await engine.close()
-        .catch((error) => log.warn(`close pi session ${key} failed: ${errorMessage(error)}`));
-    }
-    if (this.claude?.listSessions().includes(key)) {
-      await this.claude.close(key)
-        .catch((error) => log.warn(`close claude session ${key} failed: ${errorMessage(error)}`));
-    }
+    if (!engine) return;
+    this.sessions.delete(key);
+    await engine.close()
+      .catch((error) => log.warn(`close ${engine.backend} session ${key} failed: ${errorMessage(error)}`));
   }
 
-  /** Hard-stop the pooled session for a key. Returns true when a backend killed one. */
+  /** Hard-stop the pooled session for a key. Returns true when it killed one; the pool entry is
+   *  dropped on a successful kill, matching each backend's old guarded `session.kill()` eviction. */
   kill(key: string): boolean {
-    let killed = false;
     const engine = this.sessions.get(key);
-    if (engine) killed = engine.kill() || killed;
-    if (this.claude?.listSessions().includes(key)) killed = this.claude.kill(key) || killed;
+    if (!engine) return false;
+    const killed = engine.kill();
+    if (killed) this.sessions.delete(key);
     return killed;
   }
 
@@ -113,24 +161,15 @@ export class SessionEngines {
     for (const key of [...this.sessions.keys()]) {
       if (key.startsWith(prefix)) void this.close(key);
     }
-    for (const key of this.claude?.listSessions() ?? []) {
-      if (!key.startsWith(prefix)) continue;
-      void this.claude!.close(key)
-        .catch((error) => log.warn(`close claude session ${key} failed: ${errorMessage(error)}`));
-    }
   }
 
   /** Close every pooled session on every backend (shutdown). */
   closeAll(): void {
     for (const key of [...this.sessions.keys()]) void this.close(key);
-    for (const key of this.claude?.listSessions() ?? []) {
-      void this.claude!.close(key)
-        .catch((error) => log.warn(`close claude session ${key} failed: ${errorMessage(error)}`));
-    }
   }
 
   listKeys(): string[] {
-    return [...this.sessions.keys(), ...(this.claude?.listSessions() ?? [])];
+    return [...this.sessions.keys()];
   }
 
   async compact(key: string): Promise<AgentCompactResult> {
@@ -148,16 +187,16 @@ export class SessionEngines {
 }
 
 const PI_ENGINE_ADAPTER = getEngineAdapter('pi');
-const CLAUDE_POOL_ADAPTER = getAdapter('claude');
+const CLAUDE_ENGINE_ADAPTER = getAdapter('claude');
 
-/** The daemon's pool. Tests build their own `new SessionEngines({ pi })` around a fake runtime. */
+/** The daemon's pool. Tests build their own `new SessionEngines({ pi })` or `{ claude }`. */
 export const engines = new SessionEngines({
   pi: PI_ENGINE_ADAPTER,
-  claude: CLAUDE_POOL_ADAPTER,
+  claude: CLAUDE_ENGINE_ADAPTER,
 });
 
 /**
- * Transitional (deleted with the pool seam in P2.4): the AgentAdapter-shaped view of the PI pool
+ * Transitional (deleted with the pool seam in P4.1): the AgentAdapter-shaped view of the PI pool
  * the facade still calls `spawn()` on. `spawn` is exactly `engines.acquire(spec).openLegacyProcess`.
  */
 export const piRunAdapter: AgentAdapter = {
@@ -170,9 +209,23 @@ export const piRunAdapter: AgentAdapter = {
   getUsage: (scope) => PI_ENGINE_ADAPTER.getUsage(scope),
 };
 
-/** The run/compact adapter for a backend: Claude's own pooled adapter, or the PI pool facade. */
+/**
+ * Transitional (deleted with the pool seam in P4.1): the AgentAdapter-shaped view of the Claude
+ * pool the facade still calls `spawn()` on. `spawn` is exactly
+ * `engines.acquire(spec).openLegacyProcess`.
+ */
+export const claudeRunAdapter: AgentAdapter = {
+  backend: 'claude',
+  capabilities: CLAUDE_ENGINE_ADAPTER.capabilities,
+  spawn: (spec: EngineSpec): AgentProcess => engines.acquire(spec).openLegacyProcess(spec.engineKey),
+  close: (key: string): Promise<void> => engines.close(key),
+  kill: (key: string): boolean => engines.kill(key),
+  listSessions: (): string[] => engines.listKeys(),
+};
+
+/** The run/compact adapter for a backend: the pool facade both backends now share. */
 export function getRunAdapter(backend: Backend): AgentAdapter {
-  return backend === 'pi' ? piRunAdapter : CLAUDE_POOL_ADAPTER;
+  return backend === 'pi' ? piRunAdapter : claudeRunAdapter;
 }
 
 // --- Backend-neutral control points (plan D4) ---

@@ -28,7 +28,9 @@ export function piPool(adapter: PIAdapter): PIPool {
   const engines = new SessionEngines({ pi: adapter });
   const pool: PIPool = {
     engines,
-    spawn: (spec) => engines.acquire(spec).openLegacyProcess(spec.engineKey),
+    // The pool now dispatches on `spec.backend.kind`; this fixture is PI-only and the shared
+    // `engineSpecFixture` defaults to Claude, so pin the discriminant before acquiring.
+    spawn: (spec) => engines.acquire({ ...spec, backend: { kind: 'pi' } }).openLegacyProcess(spec.engineKey) as PIAgentProcess,
     close: (key) => engines.close(key),
     kill: (key) => engines.kill(key),
     listSessions: () => engines.listKeys(),

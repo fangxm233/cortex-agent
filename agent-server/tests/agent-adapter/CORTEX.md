@@ -6,23 +6,24 @@ Agent adapter tests: Claude and PI streams normalized into shared events, plus s
 |---|---|---|
 | bg-wait.test.ts | test | bounded, completion-only, and legacy background wait policy |
 | claude-adapter.test.ts | test | Claude stream-json to normalized event replay |
-| claude-adapter-tui.test.ts | test | Claude TUI lifecycle, MCP names and cost |
+| claude-adapter-tui.test.ts | test | Claude TUI lifecycle, MCP names and cost (skipped: D9) |
 | claude-bg-continuation.test.ts | test | tests continuation routing, rate limits and cursor |
 | claude-bg-task-tracker.test.ts | test | background task running and delivery tracking |
 | claude-compact-window.test.ts | test | Claude auto-compact window settings lookup |
 | claude-context-usage.test.ts | test | Claude context and four-way result accounting |
 | claude-cost-from-usage.test.ts | test | Claude TUI cost reconstruction from usage |
 | claude-jsonl-tail.test.ts | test | Claude transcript, plans and exact accounting |
-| claude-subagent-jsonl-mux.test.ts | test | Claude TUI sidecar attribution and lifecycle |
+| claude-subagent-jsonl-mux.test.ts | test | Claude TUI sidecar attribution and lifecycle (skipped: D9) |
 | claude-engine.test.ts | test | Claude EngineSession parity with spawn(): events, result, steer acks, run-scoped cancel, pool identity |
 | claude-mid-turn-inject.test.ts | test | Claude mid-turn user message injection |
+| claude-pool-fixture.ts | helper | per-adapter SessionEngines exposing the pre-P2.3c Claude pool ergonomics |
 | claude-print-resume.test.ts | test | print-mode resume guard on fresh sessions |
 | claude-run-phases.test.ts | test | Claude run phases: background continuation, mid-turn injection fold-in and post-result, orphan subagent, resume notification turn |
 | claude-stream-deltas.test.ts | test | Claude delta and reported model parsing |
 | claude-subagent-activity.test.ts | test | proves the native-subagent census event and that a subagent line still reaches every handler it reaches today |
 | claude-subagent-orphan.test.ts | test | proves a backgrounded subagent's lines still reach the continuation sink after its parent turn closed |
-| claude-tmux-control.test.ts | test | tmux argv, secure buffers, and tempfiles |
-| claude-tui-resume.test.ts | test | TUI first-turn resume guard |
+| claude-tmux-control.test.ts | test | tmux argv, secure buffers, and tempfiles (skipped: D9) |
+| claude-tui-resume.test.ts | test | TUI first-turn resume guard (skipped: D9) |
 | fixtures/ | subdir | recorded backend streams and golden outputs |
 | fixtures/runs/ | subdir | Claude run scripts (stream lines plus `$cortex` actions) replayed into run-phase traces |
 | commission-tools.test.ts | test | commission tools are additive and hidden from every other session |

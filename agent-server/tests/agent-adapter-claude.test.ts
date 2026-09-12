@@ -5,7 +5,7 @@
 import { engineSpecFixture, type EngineSpecFixtureInput } from './engine-spec-fixture.js';
 
 
-import { afterAll, beforeAll, test } from 'vitest';
+import { afterAll, beforeAll, describe, test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -49,7 +49,8 @@ import {
   clearActivePlanFile,
   getCurrentPlanFilePath,
 } from '../src/agent-adapter/claude/event-parser.js';
-import { ClaudeAdapter, _test as adapterTest, selectClaudeMode, recoverTuiOrphans } from '../src/agent-adapter/claude/adapter.js';
+import { ClaudeAdapter, _test as adapterTest, recoverTuiOrphans } from '../src/agent-adapter/claude/adapter.js';
+import { claudePool } from './agent-adapter/claude-pool-fixture.js';
 import type { TmuxExecResult } from '../src/agent-adapter/claude/tmux-control.js';
 import { CONFIG_DIR, DEFAULTS_DIR, HOOKS_DIR } from '../src/core/paths.js';
 import { safeNativeName } from '../src/domain/plugins/native-name.js';
@@ -926,17 +927,23 @@ test('INTERACTION_BRIDGE_TOOLS contains the three MCP replacements used by TUI_T
 });
 
 // --- selectClaudeMode (DR-0012 routing) ---
+// D9: Claude TUI is deprecated; P2.3c routes tui → print.
+describe.skip('selectClaudeMode (deleted in P2.3c)', () => {
+  // Kept only so the skipped cases below compile; the function itself is gone.
+  const selectClaudeMode = (spec: any): 'print' | 'tui' =>
+    spec?.backend?.kind === 'claude' && spec?.backend?.claudeBackend === 'tui' ? 'tui' : 'print';
 
-test("selectClaudeMode returns 'print' for an EngineSpec without claudeBackend", () => {
-  assert.equal(selectClaudeMode(engineSpecFixture({ sessionId: null, sessionKey: 'k', resume: false } as any)), 'print');
-});
+  test("selectClaudeMode returns 'print' for an EngineSpec without claudeBackend", () => {
+    assert.equal(selectClaudeMode(engineSpecFixture({ sessionId: null, sessionKey: 'k', resume: false } as any)), 'print');
+  });
 
-test("selectClaudeMode returns 'tui' when claudeBackend='tui'", () => {
-  assert.equal(selectClaudeMode(engineSpecFixture({ sessionId: null, sessionKey: 'k', resume: false, claudeBackend: 'tui' } as any)), 'tui');
-});
+  test("selectClaudeMode returns 'tui' when claudeBackend='tui'", () => {
+    assert.equal(selectClaudeMode(engineSpecFixture({ sessionId: null, sessionKey: 'k', resume: false, claudeBackend: 'tui' } as any)), 'tui');
+  });
 
-test("selectClaudeMode returns 'print' for unknown claudeBackend value (conservative)", () => {
-  assert.equal(selectClaudeMode(engineSpecFixture({ sessionId: null, sessionKey: 'k', resume: false, claudeBackend: 'bogus' } as any)), 'print');
+  test("selectClaudeMode returns 'print' for unknown claudeBackend value (conservative)", () => {
+    assert.equal(selectClaudeMode(engineSpecFixture({ sessionId: null, sessionKey: 'k', resume: false, claudeBackend: 'bogus' } as any)), 'print');
+  });
 });
 
 function stubClaudeChild() {
@@ -950,36 +957,35 @@ function stubClaudeChild() {
 }
 
 type ClaudeSpawnOverrides = Omit<EngineSpecFixtureInput, 'sessionId' | 'sessionKey' | 'resume'>;
-type PoolSessionGetter = (key: string) => unknown;
 
 interface PoolReplacementFixture {
   key: string;
-  getSession: PoolSessionGetter;
   shared?: ClaudeSpawnOverrides;
   first: ClaudeSpawnOverrides;
   second: ClaudeSpawnOverrides;
 }
 
 function spawnPoolFixture(
-  adapter: ClaudeAdapter,
+  pool: ReturnType<typeof claudePool>,
   key: string,
   shared: ClaudeSpawnOverrides,
   overrides: ClaudeSpawnOverrides,
 ): void {
-  adapter.spawn(engineSpecFixture({ sessionId: key, sessionKey: key, resume: false, ...shared, ...overrides }));
+  pool.spawn(engineSpecFixture({ sessionId: key, sessionKey: key, resume: false, ...shared, ...overrides }));
 }
 
 async function assertPoolReplacement(fixture: PoolReplacementFixture): Promise<void> {
   const adapter = new ClaudeAdapter();
+  const pool = claudePool(adapter);
   const shared = fixture.shared ?? {};
-  spawnPoolFixture(adapter, fixture.key, shared, fixture.first);
-  const first = fixture.getSession(fixture.key);
-  spawnPoolFixture(adapter, fixture.key, shared, fixture.second);
-  const second = fixture.getSession(fixture.key);
+  spawnPoolFixture(pool, fixture.key, shared, fixture.first);
+  const first = pool.getPooledSession(fixture.key);
+  spawnPoolFixture(pool, fixture.key, shared, fixture.second);
+  const second = pool.getPooledSession(fixture.key);
   assert.ok(first);
   assert.ok(second);
   assert.notEqual(first, second);
-  await adapter.close(fixture.key);
+  await pool.close(fixture.key);
 }
 
 function pooledMcpServer(name: string, marker: string): McpServerConfig {
@@ -1003,7 +1009,6 @@ function countingSpawner(counter: { value: number }) {
 test('Claude print pool replaces the session when interaction eligibility changes', async () => {
   await assertPoolReplacement({
     key: 'pooled-print-interaction',
-    getSession: (key) => adapterTest.getPooledPrintSession(key),
     shared: { processSpawner: (() => ({ process: stubClaudeChild() })) as any },
     first: { isUserInitiated: false },
     second: { isUserInitiated: true },
@@ -1013,7 +1018,6 @@ test('Claude print pool replaces the session when interaction eligibility change
 test('Claude print pool replaces the session when plugin capability changes', async () => {
   await assertPoolReplacement({
     key: 'pooled-print',
-    getSession: (key) => adapterTest.getPooledPrintSession(key),
     shared: { processSpawner: (() => ({ process: stubClaudeChild() })) as any },
     first: {
       pluginCapabilityFingerprint: 'fingerprint-a',
@@ -1029,7 +1033,6 @@ test('Claude print pool replaces the session when plugin capability changes', as
 test('Claude print pool replaces the session when pluginDirs change', async () => {
   await assertPoolReplacement({
     key: 'pooled-print-dirs',
-    getSession: (key) => adapterTest.getPooledPrintSession(key),
     shared: { processSpawner: (() => ({ process: stubClaudeChild() })) as any },
     first: { pluginDirs: ['/plugins/one'] },
     second: { pluginDirs: ['/plugins/two'] },
@@ -1041,7 +1044,6 @@ test('Claude print pool distinguishes an undeclared gate from a declared empty g
   fs.writeFileSync(EMPTY_MCP_CONFIG, '{"mcpServers":{}}\n');
   await assertPoolReplacement({
     key: 'pooled-print-empty-gate',
-    getSession: (key) => adapterTest.getPooledPrintSession(key),
     shared: {
       processSpawner: (() => ({ process: stubClaudeChild() })) as any,
       mcpComposition: 'none', mcpConfigPaths: [EMPTY_MCP_CONFIG],
@@ -1051,75 +1053,74 @@ test('Claude print pool distinguishes an undeclared gate from a declared empty g
   });
 });
 
-test('Claude TUI pool replaces the session when the tool surface changes', async () => {
-  await assertPoolReplacement({
-    key: 'pooled-tui-tools',
-    getSession: (key) => adapterTest.getPooledTuiSession(key),
-    shared: { claudeBackend: 'tui' },
-    first: { rawTools: 'Bash,Read' },
-    second: { rawTools: 'Bash,Read,Write' },
+// D9: Claude TUI is deprecated; P2.3c routes tui → print.
+describe.skip('Claude TUI pool (removed by D9)', () => {
+  test('Claude TUI pool replaces the session when the tool surface changes', async () => {
+    await assertPoolReplacement({
+      key: 'pooled-tui-tools',
+      shared: { claudeBackend: 'tui' },
+      first: { rawTools: 'Bash,Read' },
+      second: { rawTools: 'Bash,Read,Write' },
+    });
   });
-});
 
-test('Claude TUI pool replaces the session when mcpConfigPaths change', async () => {
-  await assertPoolReplacement({
-    key: 'pooled-tui-paths',
-    getSession: (key) => adapterTest.getPooledTuiSession(key),
-    shared: { claudeBackend: 'tui' },
-    first: { mcpConfigPaths: ['/fixture/base-a.json'] },
-    second: { mcpConfigPaths: ['/fixture/base-b.json'] },
+  test('Claude TUI pool replaces the session when mcpConfigPaths change', async () => {
+    await assertPoolReplacement({
+      key: 'pooled-tui-paths',
+      shared: { claudeBackend: 'tui' },
+      first: { mcpConfigPaths: ['/fixture/base-a.json'] },
+      second: { mcpConfigPaths: ['/fixture/base-b.json'] },
+    });
   });
-});
 
-test('Claude TUI pool distinguishes an undeclared gate from a declared empty gate', async () => {
-  fs.mkdirSync(path.dirname(EMPTY_MCP_CONFIG), { recursive: true });
-  fs.writeFileSync(EMPTY_MCP_CONFIG, '{"mcpServers":{}}\n');
-  await assertPoolReplacement({
-    key: 'pooled-tui-empty-gate',
-    getSession: (key) => adapterTest.getPooledTuiSession(key),
-    shared: {
-      claudeBackend: 'tui', mcpComposition: 'none', mcpConfigPaths: [EMPTY_MCP_CONFIG],
-    },
-    first: {},
-    second: { mcpToolAllowlist: [] },
+  test('Claude TUI pool distinguishes an undeclared gate from a declared empty gate', async () => {
+    fs.mkdirSync(path.dirname(EMPTY_MCP_CONFIG), { recursive: true });
+    fs.writeFileSync(EMPTY_MCP_CONFIG, '{"mcpServers":{}}\n');
+    await assertPoolReplacement({
+      key: 'pooled-tui-empty-gate',
+      shared: {
+        claudeBackend: 'tui', mcpComposition: 'none', mcpConfigPaths: [EMPTY_MCP_CONFIG],
+      },
+      first: {},
+      second: { mcpToolAllowlist: [] },
+    });
   });
-});
 
-test('Claude TUI pool replaces the session when plugin capability changes', async () => {
-  await assertPoolReplacement({
-    key: 'pooled-tui-capability',
-    getSession: (key) => adapterTest.getPooledTuiSession(key),
-    shared: { claudeBackend: 'tui' },
-    first: { pluginCapabilityFingerprint: 'fingerprint-a' },
-    second: { pluginCapabilityFingerprint: 'fingerprint-b' },
+  test('Claude TUI pool replaces the session when plugin capability changes', async () => {
+    await assertPoolReplacement({
+      key: 'pooled-tui-capability',
+      shared: { claudeBackend: 'tui' },
+      first: { pluginCapabilityFingerprint: 'fingerprint-a' },
+      second: { pluginCapabilityFingerprint: 'fingerprint-b' },
+    });
   });
-});
 
-test('Claude TUI pool replaces the session when supplemental MCP identity changes', async () => {
-  await assertPoolReplacement({
-    key: 'pooled-tui',
-    getSession: (key) => adapterTest.getPooledTuiSession(key),
-    shared: { claudeBackend: 'tui', mcpConfigPaths: ['/fixture/base.json'] },
-    first: { mcpServers: [pooledMcpServer('portable-a', 'a')] },
-    second: { mcpServers: [pooledMcpServer('portable-b', 'b')] },
+  test('Claude TUI pool replaces the session when supplemental MCP identity changes', async () => {
+    await assertPoolReplacement({
+      key: 'pooled-tui',
+      shared: { claudeBackend: 'tui', mcpConfigPaths: ['/fixture/base.json'] },
+      first: { mcpServers: [pooledMcpServer('portable-a', 'a')] },
+      second: { mcpServers: [pooledMcpServer('portable-b', 'b')] },
+    });
   });
 });
 
 test('Claude print respawn revalidates supplemental MCP content before spawning again', async () => {
   const counter = { value: 0 };
   const adapter = new ClaudeAdapter();
-  adapter.spawn(engineSpecFixture({
+  const pool = claudePool(adapter);
+  pool.spawn(engineSpecFixture({
     sessionId: 'revalidate-print',
     sessionKey: 'revalidate-print',
     resume: false,
     processSpawner: countingSpawner(counter),
     mcpServers: [pooledMcpServer('portable-a', 'a')],
   }));
-  const session = adapterTest.getPooledPrintSession('revalidate-print') as any;
+  const session = pool.getPooledSession('revalidate-print') as any;
   fs.writeFileSync(session.supplementalMcpConfigPath, '{"mcpServers":{}}\n');
   assert.throws(() => session.spawnProcess(), /identity mismatch|content mismatch/i);
   assert.equal(counter.value, 1);
-  await adapter.close('revalidate-print');
+  await pool.close('revalidate-print');
 });
 
 // --- recoverTuiOrphans (DR-0012 §3.6 startup sweep) ---
@@ -1592,8 +1593,9 @@ test('ClaudeAdapter.spawn: config.unsetEnv removes the key from the spawned chil
   process.env.ANTHROPIC_API_KEY = 'sk-ant-inherited';
   const captured: NodeJS.ProcessEnv[] = [];
   const adapter = new ClaudeAdapter();
+  const pool = claudePool(adapter);
   try {
-    adapter.spawn(engineSpecFixture({
+    pool.spawn(engineSpecFixture({
       sessionId: 'unset-env-key', sessionKey: 'unset-env-key', resume: false,
       env: { ANTHROPIC_API_KEY: 'cortex-gateway-managed', KEPT_ENV: 'kept' },
       unsetEnv: ['ANTHROPIC_API_KEY'],
@@ -1606,7 +1608,7 @@ test('ClaudeAdapter.spawn: config.unsetEnv removes the key from the spawned chil
     assert.equal(Object.prototype.hasOwnProperty.call(captured[0], 'ANTHROPIC_API_KEY'), false);
     assert.equal(captured[0].KEPT_ENV, 'kept');
   } finally {
-    await adapter.close('unset-env-key');
+    await pool.close('unset-env-key');
     if (prevKey === undefined) delete process.env.ANTHROPIC_API_KEY;
     else process.env.ANTHROPIC_API_KEY = prevKey;
   }

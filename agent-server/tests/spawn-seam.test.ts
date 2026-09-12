@@ -3,7 +3,7 @@
 // pos:    Verifies the backend process spawn contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { afterAll, beforeAll, test } from 'vitest';
+import { afterAll, beforeAll, describe, test } from 'vitest';
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { EventEmitter } from 'node:events';
@@ -29,6 +29,7 @@ import {
 import { buildEngineSpec } from '../src/domain/runs/engine-spec.js';
 import { engineSpecFixture, type EngineSpecFixtureInput } from './engine-spec-fixture.js';
 import { ClaudeAdapter, _test as claudeTest } from '../src/agent-adapter/claude/adapter.js';
+import { claudePool } from './agent-adapter/claude-pool-fixture.js';
 import {
   buildClaudeEnv,
   buildSpawnArgs,
@@ -612,7 +613,7 @@ function overrideEnvironment(values: Record<string, string>): () => void {
 }
 
 async function probeContextUsage(adapter: ClaudeAdapter, key: string, cwd: string) {
-  const proc = adapter.spawn(engineSpecFixture({
+  const proc = claudePool(adapter).spawn(engineSpecFixture({
     sessionId: null, sessionKey: key, resume: false, cwd, model: 'claude-opus-5[1m]',
   }));
   const eventsPromise = (async () => {
@@ -630,14 +631,14 @@ async function runCwdProbe(marker: string, sessionKey: string, cwd?: string): Pr
   const adapter = new ClaudeAdapter();
   try {
     await facadeTest.runWithAdapter(
-      adapter,
+      claudePool(adapter).asAdapter(),
       'cwd request',
       { channel: sessionKey, sessionKey, cwd },
       FIXTURE_CONFIG,
       undefined,
     ).promise;
   } finally {
-    await adapter.close(sessionKey);
+    await claudePool(adapter).close(sessionKey);
   }
 }
 
@@ -655,7 +656,7 @@ test('Claude print uses an injected process spawner without changing argv or cwd
   const calls: Array<{ command: string; args: string[]; cwd?: string }> = [];
   const adapter = new ClaudeAdapter();
   t.onTestFinished(async () => {
-    await adapter.close('injected-spawner');
+    await claudePool(adapter).close('injected-spawner');
     restore();
     rmSync(root, { recursive: true, force: true });
   });
@@ -664,7 +665,7 @@ test('Claude print uses an injected process spawner without changing argv or cwd
     calls.push({ command, args, cwd: options.cwd });
     return { process: spawn(command, args, options) };
   }) as any;
-  await facadeTest.runWithAdapter(adapter, 'probe', {
+  await facadeTest.runWithAdapter(claudePool(adapter).asAdapter(), 'probe', {
     channel: 'injected-spawner', sessionKey: 'injected-spawner', cwd, processSpawner,
   }, FIXTURE_CONFIG, undefined).promise;
 
@@ -684,11 +685,11 @@ test('Claude daemon print mode reports cache-inclusive input tokens', async (t) 
   });
   const adapter = new ClaudeAdapter();
   t.onTestFinished(async () => {
-    await adapter.close('print-accounting');
+    await claudePool(adapter).close('print-accounting');
     restore();
     rmSync(root, { recursive: true, force: true });
   });
-  const proc = adapter.spawn(engineSpecFixture({ sessionId: null, sessionKey: 'print-accounting', resume: false }));
+  const proc = claudePool(adapter).spawn(engineSpecFixture({ sessionId: null, sessionKey: 'print-accounting', resume: false }));
   const eventsPromise = (async () => {
     const events = [];
     for await (const event of proc.events) events.push(event);
@@ -750,7 +751,7 @@ test('Claude context usage reads autoCompactWindow from the requested cwd', asyn
   });
   const adapter = new ClaudeAdapter();
   t.onTestFinished(async () => {
-    await adapter.close(key);
+    await claudePool(adapter).close(key);
     restore();
     rmSync(root, { recursive: true, force: true });
   });
@@ -806,7 +807,7 @@ function spawnReplacementSession(
   cwd: string,
   composition: McpComposition,
 ): void {
-  fixture.adapter.spawn(engineSpecFixture({
+  claudePool(fixture.adapter).spawn(engineSpecFixture({
     sessionId: null, sessionKey: fixture.key, resume: false, cwd, mcpComposition: composition,
   }));
 }
@@ -828,12 +829,12 @@ async function assertReplacementSurvives(
   );
   await waitFor(() => !existsSync(`/proc/${oldPid}`), `${item.label} old process did not close`);
   await new Promise<void>((resolve) => setImmediate(resolve));
-  assert.ok(fixture.adapter.listSessions().includes(fixture.key),
+  assert.ok(claudePool(fixture.adapter).listSessions().includes(fixture.key),
     `${item.label} replacement was removed from the pool`);
 }
 
 async function cleanupReplacementFixture(fixture: ReplacementFixture): Promise<void> {
-  await fixture.adapter.close(fixture.key);
+  await claudePool(fixture.adapter).close(fixture.key);
   const started = readSessionMarker(fixture.marker).filter((event) => event.event === 'started');
   for (const event of started) {
     try { process.kill(event.pid, 'SIGTERM'); } catch {}
@@ -1060,14 +1061,14 @@ test('a mode switch on one channel cannot reuse the session started on the old r
   const key = 'route-pool-switch';
   const codex: AgentConfig = { ...FIXTURE_CONFIG, mode: 'openai-codex' };
 
-  adapter.spawn(pooledRouteSpawn(key, facadeTest.configureRunRoute({}, planConfig()), planConfig()));
-  const first = claudeTest.getPooledPrintSession(key);
-  adapter.spawn(pooledRouteSpawn(key, facadeTest.configureRunRoute({}, codex), codex));
+  claudePool(adapter).spawn(pooledRouteSpawn(key, facadeTest.configureRunRoute({}, planConfig()), planConfig()));
+  const first = claudePool(adapter).getPooledSession(key);
+  claudePool(adapter).spawn(pooledRouteSpawn(key, facadeTest.configureRunRoute({}, codex), codex));
 
   assert.ok(first);
-  assert.notEqual(claudeTest.getPooledPrintSession(key), first,
+  assert.notEqual(claudePool(adapter).getPooledSession(key), first,
     'the pooled process was launched against the plan gateway with no key — it cannot serve codex');
-  await adapter.close(key);
+  await claudePool(adapter).close(key);
 });
 
 test('an unchanged mode route still reuses the pooled session', async (t) => {
@@ -1076,14 +1077,14 @@ test('an unchanged mode route still reuses the pooled session', async (t) => {
   const adapter = new ClaudeAdapter();
   const key = 'route-pool-stable';
 
-  adapter.spawn(pooledRouteSpawn(key, facadeTest.configureRunRoute({}, planConfig()), planConfig()));
-  const first = claudeTest.getPooledPrintSession(key);
-  adapter.spawn(pooledRouteSpawn(key, facadeTest.configureRunRoute({}, planConfig()), planConfig()));
+  claudePool(adapter).spawn(pooledRouteSpawn(key, facadeTest.configureRunRoute({}, planConfig()), planConfig()));
+  const first = claudePool(adapter).getPooledSession(key);
+  claudePool(adapter).spawn(pooledRouteSpawn(key, facadeTest.configureRunRoute({}, planConfig()), planConfig()));
 
   assert.ok(first);
-  assert.equal(claudeTest.getPooledPrintSession(key), first,
+  assert.equal(claudePool(adapter).getPooledSession(key), first,
     'a re-resolved identical route must compare by value, or the pool stops pooling');
-  await adapter.close(key);
+  await claudePool(adapter).close(key);
 });
 
 test('the pool separates two routes that differ only by credential', async () => {
@@ -1091,32 +1092,35 @@ test('the pool separates two routes that differ only by credential', async () =>
   const key = 'route-pool-credential';
   const endpoint = { anthropicBaseUrl: POOL_ROUTE_URL };
 
-  adapter.spawn(pooledRouteConfig(key, { ...endpoint, env: { ANTHROPIC_API_KEY: `${POOL_SECRET}-a` } }));
-  const first = claudeTest.getPooledPrintSession(key);
-  adapter.spawn(pooledRouteConfig(key, { ...endpoint, env: { ANTHROPIC_API_KEY: `${POOL_SECRET}-b` } }));
+  claudePool(adapter).spawn(pooledRouteConfig(key, { ...endpoint, env: { ANTHROPIC_API_KEY: `${POOL_SECRET}-a` } }));
+  const first = claudePool(adapter).getPooledSession(key);
+  claudePool(adapter).spawn(pooledRouteConfig(key, { ...endpoint, env: { ANTHROPIC_API_KEY: `${POOL_SECRET}-b` } }));
 
   assert.ok(first);
-  assert.notEqual(claudeTest.getPooledPrintSession(key), first,
+  assert.notEqual(claudePool(adapter).getPooledSession(key), first,
     'one endpoint reached with another account is another route');
-  await adapter.close(key);
+  await claudePool(adapter).close(key);
 });
 
-test('the TUI pool compares the route the same way', async () => {
-  const adapter = new ClaudeAdapter();
-  const key = 'route-pool-tui';
-  const tui: EngineSpecFixtureInput = {
-    claudeBackend: 'tui', anthropicBaseUrl: POOL_ROUTE_URL,
-  };
+// D9: Claude TUI is deprecated; P2.3c routes tui → print.
+describe.skip('Claude TUI pool (removed by D9)', () => {
+  test('the TUI pool compares the route the same way', async () => {
+    const adapter = new ClaudeAdapter();
+    const key = 'route-pool-tui';
+    const tui: EngineSpecFixtureInput = {
+      claudeBackend: 'tui', anthropicBaseUrl: POOL_ROUTE_URL,
+    };
 
-  adapter.spawn(pooledRouteConfig(key, tui));
-  const first = claudeTest.getPooledTuiSession(key);
-  adapter.spawn(pooledRouteConfig(key, tui));
-  assert.equal(claudeTest.getPooledTuiSession(key), first,
-    'an identical route keeps the tmux session alive');
+    claudePool(adapter).spawn(pooledRouteConfig(key, tui));
+    const first = claudePool(adapter).getPooledSession(key);
+    claudePool(adapter).spawn(pooledRouteConfig(key, tui));
+    assert.equal(claudePool(adapter).getPooledSession(key), first,
+      'an identical route keeps the tmux session alive');
 
-  adapter.spawn(pooledRouteConfig(key, { ...tui, unsetEnv: ['ANTHROPIC_API_KEY'] }));
-  assert.ok(first);
-  assert.notEqual(claudeTest.getPooledTuiSession(key), first,
-    'dropping the key changes which account the TUI session bills');
-  await adapter.close(key);
+    claudePool(adapter).spawn(pooledRouteConfig(key, { ...tui, unsetEnv: ['ANTHROPIC_API_KEY'] }));
+    assert.ok(first);
+    assert.notEqual(claudePool(adapter).getPooledSession(key), first,
+      'dropping the key changes which account the TUI session bills');
+    await claudePool(adapter).close(key);
+  });
 });

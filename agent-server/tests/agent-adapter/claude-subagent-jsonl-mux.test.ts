@@ -8,10 +8,13 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import assert from 'node:assert/strict';
-import { test } from 'vitest';
+import { describe, test } from 'vitest';
 import {
   ClaudeSubagentJsonlMux, type SubagentTailLike,
 } from '../../src/agent-adapter/claude/subagent-jsonl-mux.js';
+
+// D9: Claude TUI is deprecated; P2.3c routes tui → print.
+describe.skip('claude-subagent-jsonl-mux (removed by D9)', () => {
 
 class MockTail extends EventEmitter implements SubagentTailLike {
   started = false;
@@ -195,4 +198,6 @@ test('deduplicates terminal notifications, flushes the sidecar, and clears pendi
       agentId: 'a', parentToolUseId: 'parent-a', pendingBackgroundTasks: 0,
     });
   } finally { await h.cleanup(); }
+});
+
 });

@@ -7,9 +7,11 @@ import * as path from 'path';
 import type { AgentResult } from '@core/types/agent-types.js';
 import { CAPABILITIES_BY_BACKEND, type Capability } from '../capabilities.js';
 import { RunEventQueue, toRunEvent, type RunEvent } from '../run-events.js';
+import { createEventStream } from '../normalize/event-stream.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
 import type {
-  AgentCompactResult, Backend, EngineRun, EngineSession, EngineSpec, InjectionAckSink, UserMessage,
+  AgentCompactResult, AgentProcess, AgentProcessSupervision, Backend, ContinuationSink,
+  EngineRun, EngineSession, EngineSpec, InjectionAckSink, UserMessage,
 } from '../types.js';
 import {
   claudeTurnCallbacks,
@@ -17,6 +19,19 @@ import {
   type ClaudeTurnAccountingSource,
   type ClaudeTurnCallbacks,
 } from './event-translator.js';
+
+/**
+ * Hooks the owning pool injects when it opens a session. Optional so a bare `open()` used by
+ * tests and P2.4 consumers can construct an engine without an owner.
+ */
+export interface ClaudeEngineOpenHooks {
+  /** Forwarded to `ClaudeSession`: the session terminated itself (child close, idle timeout).
+   *  The owner evicts only while the key still points at the session that closed. */
+  onSelfClose?: (sessionKey: string, session: unknown) => void;
+  /** Forwarded to `ClaudeSession`: a fatal stdin write failure left the session unusable. The
+   *  owner must evict unconditionally, even if the pool has already moved on to a replacement. */
+  onEvict?: (sessionKey: string, session: unknown) => void;
+}
 
 /**
  * The subset of `ClaudeSession` this engine drives, declared structurally so `adapter.ts` does not
@@ -27,6 +42,8 @@ export interface ClaudeEngineSessionHost extends ClaudeTurnAccountingSource {
   sendMessage(text: string, options: ClaudeTurnCallbacks): Promise<AgentResult>;
   injectUserMessage(message: UserMessage): boolean;
   setInjectionAckSink(sink: InjectionAckSink): void;
+  setContinuationSink(sink: ContinuationSink): void;
+  getSupervision(): AgentProcessSupervision | undefined;
   compact(): Promise<AgentCompactResult>;
   /** `ClaudeSession.close()` is synchronous (stdin end + grace timer); the engine wraps it. */
   close(): void;
@@ -94,9 +111,8 @@ export class ClaudeEngineSession implements EngineSession {
     const queue = new RunEventQueue();
     const pending: PendingInjection[] = [];
     this.active = { queue, pending };
-    // The ack sink is a single session-level slot. In this slice `open()` always builds a fresh,
-    // unpooled ClaudeSession, so no `spawn()` caller shares it; P2.3c pools the engine and must
-    // arbitrate the slot then.
+    // The ack sink is a single session-level slot. P2.3c pools the engine, but the underlying
+    // ClaudeSession still serves one run at a time, so the run that installs the sink owns it.
     this.session.setInjectionAckSink({
       onDelivered: ({ text, foldedIntoTurn }) => {
         const entry = takePending(pending, text);
@@ -200,6 +216,63 @@ export class ClaudeEngineSession implements EngineSession {
 
   compact(): Promise<AgentCompactResult> {
     return this.session.compact();
+  }
+
+  /** TRANSITIONAL (deleted in P4.1): the legacy AgentProcess surface over this same session,
+   *  byte-identical to what ClaudeAdapter.spawn built. Lets SessionEngines own the pool before the
+   *  facade's event plumbing moves to RunEvent. */
+  openLegacyProcess(engineKey: string): AgentProcess {
+    const session = this.session;
+    const spec = this.spec;
+    const stream = createEventStream<NormalizedEvent>();
+    let started = false;
+
+    return {
+      sessionKey: engineKey,
+      get sessionId(): string | null { return session.sessionId; },
+      get supervision(): AgentProcessSupervision | undefined { return session.getSupervision(); },
+      async send(message: UserMessage): Promise<AgentResult> {
+        if (!started) {
+          stream.push({ type: 'session_started', sessionId: session.sessionId });
+          started = true;
+        }
+        const files = (message.attachments || []).map((a) => ({
+          mimetype: a.mimeType, localPath: a.path, name: path.basename(a.path),
+        }));
+        try {
+          const result = await session.sendMessage(message.text, {
+            files,
+            ...claudeTurnCallbacks(stream.push),
+          });
+          pushDerivedTurnEvents(stream.push, result, session, spec.flags.preserveUnreportedAccounting === true);
+          stream.close();
+          return result;
+        } catch (err: any) {
+          if (!err?.cancelled) {
+            stream.push({ type: 'error', message: String(err?.message ?? err), fatal: true });
+          }
+          stream.close();                         // unblock any for-await consumer
+          throw err;
+        }
+      },
+      events: stream.iterable,
+      compact: (): Promise<AgentCompactResult> => session.compact(),
+      setContinuationSink(sink: ContinuationSink): void { session.setContinuationSink(sink); },
+      injectUserMessage(message: UserMessage): boolean { return session.injectUserMessage(message); },
+      setInjectionAckSink(sink: InjectionAckSink): void { session.setInjectionAckSink(sink); },
+      // Out-of-band attribution (see AgentProcess.pushTurnEvent). The stream is closed the moment
+      // send() settles, so "still open" is exactly "the turn is still running".
+      pushTurnEvent(event: NormalizedEvent): boolean {
+        if (stream.isClosed()) return false;
+        stream.push(event);
+        return true;
+      },
+      // Intentionally does NOT call session.close(): sessions are pooled per sessionKey and
+      // reused across runAgentOnce turns. Pool-level cleanup goes through SessionEngines.close(key)
+      // / kill(key).
+      async close(): Promise<void> { stream.close(); },
+      kill(): boolean { return session.kill(); },
+    };
   }
 
   async close(): Promise<void> {
