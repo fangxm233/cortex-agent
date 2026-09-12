@@ -14,6 +14,7 @@ import * as executionRegistry from '@domain/executions/registry.js';
 import { resolveProfileConfig } from '@domain/agents/profile-manager.js';
 import { startRun } from '@domain/runs/service.js';
 import type { RunObserver, RunRequest } from '@domain/runs/request.js';
+import { bareSpec } from '@domain/runs/spec-loader.js';
 import type { RunEvent } from '@domain/runs/events.js';
 import { shouldAutoRunCompound, combineFinalOutputs } from '@domain/threads/auto-thread.js';
 import { buildThreadSummary } from '@domain/threads/runner.js';
@@ -110,10 +111,7 @@ export async function runAutoCompoundForScheduledTask({ baseResult, channel, pro
       sessionName: null,
     },
     profile: resolveProfileConfig(profileName),
-    spec: {
-      systemPrompt: null, directive: null, promptTemplate: null, tools: null, pluginDirs: [],
-      mcp: { composition: 'direct', allowlist: null }, backendOptions: {},
-    },
+    spec: bareSpec(),
     prompt: { text: '/compound-simple', attachments: [] },
     context: {
       channel,

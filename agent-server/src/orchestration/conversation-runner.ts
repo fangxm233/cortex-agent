@@ -17,8 +17,9 @@ import type { AgentResult } from '@core/types/agent-types.js';
 import { getDefaultAgent } from '@domain/agents/index.js';
 import { getDefaultProfileName } from '@domain/agents/profile-manager.js';
 import { effectiveProfile, resolveRunConfig } from '@domain/runs/config-resolver.js';
-import { resolveAgentSlotConfigByName, resolveSystemVars } from '@domain/threads/index.js';
+import { resolveAgentSlotConfigByName } from '@domain/threads/index.js';
 import { composeUserPrompt, userProfileBlock } from '@domain/runs/prompt.js';
+import { fromAgentSlot } from '@domain/runs/spec-loader.js';
 import { projectStore } from '@domain/projects/index.js';
 import type { Project } from '@domain/projects/index.js';
 import {
@@ -188,20 +189,8 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
   // USER.md profile is injected only on a session's FIRST turn (no backend session yet).
   // Session resume keeps it in history thereafter, so re-sending it every turn just wastes tokens.
   const isFreshSession = opts.backendSessionId === null;
-  const spec: AgentSpec = {
-    systemPrompt: agentConfig.systemPrompt ? resolveSystemVars(agentConfig.systemPrompt) : null,
-    directive: agentConfig.directive ?? null,
-    promptTemplate: agentConfig.promptTemplate ?? null,
-    // `AgentSlotConfig.tools` is a Claude-native comma string; spawn-config forwards a string
-    // through `rawTools`. P2.1 canonicalizes it — for now keep the exact legacy input byte-for-byte.
-    tools: (agentConfig.tools || null) as unknown as string[] | null,
-    pluginDirs: agentConfig.pluginDirs || [],
-    mcp: { composition: 'direct', allowlist: agentConfig.mcpToolAllowlist ?? null },
-    backendOptions: {
-      ...(agentConfig.claudeAgent ? { claudeAgent: agentConfig.claudeAgent } : {}),
-      ...(agentConfig.outputStyle ? { outputStyle: agentConfig.outputStyle } : {}),
-    },
-  };
+  // A thread-free conversation runs on the direct MCP surface — there is no thread to control.
+  const spec: AgentSpec = fromAgentSlot(agentConfig, { mcpComposition: 'direct' });
 
   // A plain conversation turn is thread-free: no artifact, no previous step, no control-plane
   // preamble. Everything it does carry is a first-turn ambient block, and the two prompt-shaping

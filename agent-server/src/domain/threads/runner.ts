@@ -53,6 +53,7 @@ import { getSettings } from '@core/settings.js';
 import { runRegistry, type RunningExecution } from '@core/run-registry.js';
 import { startRun } from '@domain/runs/service.js';
 import type { AgentSpec, RunObserver, RunRequest } from '@domain/runs/request.js';
+import { fromAgentSlot } from '@domain/runs/spec-loader.js';
 import type { RunEvent } from '@domain/runs/events.js';
 import { executeLifecycleHooks, type LifecycleHookConfigs } from './hook-runner.js';
 import { createToolTrace } from '@platform/tool-trace.js';
@@ -487,20 +488,7 @@ export function buildThreadRunRequest(
     : meta?.trigger === 'scheduled' ? 'scheduled'
     : 'local';
 
-  const spec: AgentSpec = {
-    systemPrompt: agentConfig.systemPrompt ? resolveSystemVars(agentConfig.systemPrompt) : null,
-    directive: agentConfig.directive ?? null,
-    promptTemplate: agentConfig.promptTemplate ?? null,
-    // `AgentSlotConfig.tools` is a Claude-native comma string; spawn-config forwards a string
-    // through `rawTools`. P2.1 canonicalizes it — for now keep the exact legacy input byte-for-byte.
-    tools: (agentConfig.tools || null) as unknown as string[] | null,
-    pluginDirs: agentConfig.pluginDirs || [],
-    mcp: { composition: resolvedComposition, allowlist: agentConfig.mcpToolAllowlist ?? null },
-    backendOptions: {
-      ...(agentConfig.claudeAgent ? { claudeAgent: agentConfig.claudeAgent } : {}),
-      ...(agentConfig.outputStyle ? { outputStyle: agentConfig.outputStyle } : {}),
-    },
-  };
+  const spec: AgentSpec = fromAgentSlot(agentConfig, { mcpComposition: resolvedComposition });
 
   return {
     runId: randomUUID(),

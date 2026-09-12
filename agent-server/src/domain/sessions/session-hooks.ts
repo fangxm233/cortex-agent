@@ -12,7 +12,8 @@ import type { PlatformAdapter, OutputStream } from '@platform/index.js';
 import { resolveBackendForChannel } from '@domain/agents/index.js';
 import { resolveProfileConfig, type ResolvedProfileConfig } from '@domain/agents/profile-manager.js';
 import { startRun } from '@domain/runs/service.js';
-import type { AgentSpec, RunObserver, RunRequest } from '@domain/runs/request.js';
+import type { RunObserver, RunRequest } from '@domain/runs/request.js';
+import { bareSpec } from '@domain/runs/spec-loader.js';
 import type { RunEvent } from '@domain/runs/events.js';
 import { engines } from '@domain/runs/engines.js';
 import { getSessionAsync } from '@domain/sessions/session.js';
@@ -139,13 +140,6 @@ function hookInjectionProfile(profileName: string | null, channel: string): Reso
   }
 }
 
-function emptyInjectionSpec(): AgentSpec {
-  return {
-    systemPrompt: null, directive: null, promptTemplate: null, tools: null, pluginDirs: [],
-    mcp: { composition: 'direct', allowlist: null }, backendOptions: {},
-  };
-}
-
 const defaultInjectDeps: InjectDeps = {
   startRun,
   closeInjectedSession: async (channel: string, sessionKey: string) => {
@@ -184,7 +178,7 @@ export async function runHookInjection(
         sessionName: null,
       },
       profile: hookInjectionProfile(inject.profileName, spec.ctx.channel),
-      spec: emptyInjectionSpec(),
+      spec: bareSpec(),
       prompt: { text: output, attachments: [] },
       context: {
         channel: spec.ctx.channel,

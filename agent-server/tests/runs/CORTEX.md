@@ -1,7 +1,7 @@
 Please update me when files in this folder change
 
 Run layer tests: RunEvent translation, the continuation-sink adapter, the RunRegistry, startRun, config
-resolution, prompt composition, the EngineSpec builder and the engine pool.
+resolution, spec and prompt composition, the EngineSpec builder and the engine pool.
 
 | filename | role | function |
 |---|---|---|
@@ -12,4 +12,5 @@ resolution, prompt composition, the EngineSpec builder and the engine pool.
 | events.test.ts | test | every NormalizedEvent translation and phase tag, and every ContinuationSink callback |
 | prompt.test.ts | test | composeSystemPrompt / composeUserPrompt pinned byte-for-byte against the pre-P3.3b builders |
 | registry.test.ts | test | RunRegistry.sessionState combinations and the background-hold lifecycle |
+| spec-loader.test.ts | test | bareSpec / fromAgentSlot / fromRole field by field, incl. the Claude MCP tool-name prefixing |
 | service.test.ts | test | startRun event order/phases, foreground→background→done, bookkeeping, cancel, observer safety |

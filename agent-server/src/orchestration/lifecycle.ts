@@ -27,7 +27,8 @@ import { getActiveProfile, resolveBackendForChannel } from '@domain/agents/index
 import { resolveProfileConfig, type ResolvedProfileConfig } from '@domain/agents/profile-manager.js';
 import { startRun } from '@domain/runs/service.js';
 import type { AgentRun } from '@domain/runs/run.js';
-import type { AgentSpec, RunObserver, RunRequest } from '@domain/runs/request.js';
+import type { RunObserver, RunRequest } from '@domain/runs/request.js';
+import { bareSpec } from '@domain/runs/spec-loader.js';
 import type { RunEvent } from '@domain/runs/events.js';
 
 import { setStreamingCallback, clearStreamingCallback } from './routing/hook-bridge.js';
@@ -346,15 +347,6 @@ async function persistErrorSession(resolvedSessionId: string | null, sessionName
 
 // --- AskUserQuestion resume ---
 
-/** An empty AgentSpec for call sites that only forward a prompt (ask-user resume, edit-retry,
- *  scheduled auto-compound, hook injection): no system-prompt override, no tools, direct MCP. */
-function emptyRunSpec(): AgentSpec {
-  return {
-    systemPrompt: null, directive: null, promptTemplate: null, tools: null, pluginDirs: [],
-    mcp: { composition: 'direct', allowlist: null }, backendOptions: {},
-  };
-}
-
 /** Synthetic profile for an unknown configured name. Keeps the requested name so the facade still
  *  rejects it inside the run (after the execution record is opened), while its backend/mode mirror
  *  the legacy active-backend execution record. */
@@ -416,7 +408,7 @@ export async function resumeAskUserQuestionGroup({ adapter, group, responseText 
         sessionName: askSessionName,
       },
       profile: resolveRunProfile(null, group.channel),
-      spec: emptyRunSpec(),
+      spec: bareSpec(),
       prompt: { text: responseText, attachments: [] },
       context: {
         channel: group.channel,
@@ -543,7 +535,7 @@ export async function runRetryAgent({ channel, text, adapter, statusMsg, startTi
         sessionName,
       },
       profile: resolveRunProfile(getActiveProfile(channel), channel),
-      spec: emptyRunSpec(),
+      spec: bareSpec(),
       prompt: { text: agentMessage, attachments: [] },
       context: {
         channel,

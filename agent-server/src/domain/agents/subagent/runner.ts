@@ -14,10 +14,11 @@ import { noticesFor } from '../../../agent-adapter/pi/child-events.js';
 import { getEngineAdapter } from '../../runs/adapters.js';
 import { resolveRunConfig } from '../../runs/config-resolver.js';
 import { GATEWAY_URL } from '../../costs/gateway-manager.js';
-import { roleToolsForBackend, type AgentRole } from '@core/agents/roles.js';
+import { type AgentRole } from '@core/agents/roles.js';
 import { buildPiGatewaySubPath, type AgentConfig } from '../spawn-config.js';
 import type { ResolvedProfileConfig } from '../profile-manager.js';
 import { startRun } from '../../runs/service.js';
+import { fromRole } from '../../runs/spec-loader.js';
 import type { RunObserver, RunRequest } from '../../runs/request.js';
 import type { RunEvent } from '../../runs/events.js';
 import { emptyUsage } from '@core/agents/subagent/usage.js';
@@ -238,7 +239,6 @@ function claudeChildProfile(config: AgentConfig): ResolvedProfileConfig {
 /** The RunRequest equivalent of the legacy `claudeChildOptions`. A frozen one-shot role: no
  *  session to resume, no hooks, no ambient rules, no transcript log, and a leaf tool surface. */
 function claudeChildRequest(request: SubagentRunRequest, config: AgentConfig): RunRequest {
-  const tools = roleToolsForBackend(request.role, 'claude');
   const mcpToolAllowlist = withoutSubagentTools(undefined, CHILD_MCP_BUNDLES);
   return {
     runId: randomUUID(),
@@ -253,18 +253,7 @@ function claudeChildRequest(request: SubagentRunRequest, config: AgentConfig): R
     profile: claudeChildProfile(config),
     // The child runs where the caller asked (the parent's workspace), not where the server lives.
     cwd: request.cwd,
-    spec: {
-      systemPrompt: null,
-      appendSystemPrompt: request.role.systemPrompt,
-      directive: null,
-      promptTemplate: null,
-      // Legacy `runAgentOnce` forwarded the role tools as a comma string; keep the exact bytes
-      // (AgentSpec.tools is canonicalized in P2.1).
-      tools: (tools ? tools.join(',') : null) as unknown as string[] | null,
-      pluginDirs: [],
-      mcp: { composition: 'direct', allowlist: mcpToolAllowlist ?? null },
-      backendOptions: {},
-    },
+    spec: fromRole(request.role, 'claude', { mcpAllowlist: mcpToolAllowlist ?? null }),
     prompt: { text: `Task: ${request.task.prompt}`, attachments: [] },
     context: {
       channel: request.parent.channel ?? '',

@@ -20,6 +20,7 @@ import { getSettings } from '@core/settings.js';
 import { Icons } from '../../core/icons.js';
 import { startRun } from '@domain/runs/service.js';
 import type { AgentSpec, RunObserver, RunRequest } from '@domain/runs/request.js';
+import { bareSpec } from '@domain/runs/spec-loader.js';
 import type { RunEvent } from '@domain/runs/events.js';
 import type {
   ThreadHookConfig,
@@ -165,16 +166,8 @@ async function runHookAgent(
   const sessionName = isTargetMode ? null : await sessionStore.generateSessionName();
   const stepStartTime = new Date().toISOString();
 
-  const spec: AgentSpec = {
-    systemPrompt: null,
-    directive: null,
-    promptTemplate: null,
-    tools: null,
-    pluginDirs: [],
-    // The legacy hook path declared no MCP composition, which resolves to 'direct'.
-    mcp: { composition: 'direct', allowlist: null },
-    backendOptions: {},
-  };
+  // The legacy hook path declared no MCP composition, which resolves to 'direct'.
+  const spec: AgentSpec = bareSpec();
 
   const request: RunRequest = {
     runId: randomUUID(),
