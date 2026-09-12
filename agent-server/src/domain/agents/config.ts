@@ -285,13 +285,18 @@ export function getActiveProfile(channel?: string): string | null {
 }
 
 /**
- * Resolve the effective backend for a channel. Channel profile overrides global activeBackend
- * — without this, conversations on channels using a non-default profile (e.g. profile `execute`
- * with `backend: pi`) end up storing the wrong backend in the conversation ledger and routing
- * rollback / session lookup to the wrong adapter.
+ * The backend a channel runs: its profile's, falling back to the default profile's.
  *
- * Falls back to global activeBackend when the channel has no profile or the profile lookup
- * fails (e.g. profile was renamed/removed since channelProfiles was last persisted).
+ * DEVIATION from plan D5, which has this "degenerate into reading the session record". That was
+ * the right move while sessions.json keyed on `backend:channel` and the caller had to know the
+ * backend to find the session at all — but P3.2 removed the backend from the key, so no session
+ * lookup needs this any more. What is left are callers asking which backend a channel runs
+ * (conversation ledger, rollback, compaction support), and for them the profile is the source of
+ * truth, not a record of what some earlier session happened to use. Reading the record would also
+ * make this async and ripple through fifteen synchronous call sites for a worse answer.
+ *
+ * Equivalent to `resolveRunBackend({ channel })` minus the session/override layers; Phase 4 folds
+ * the two together, which cannot happen here without a config ↔ config-resolver import cycle.
  */
 export function resolveBackendForChannel(channel?: string): Backend {
   const profileName = getActiveProfile(channel);

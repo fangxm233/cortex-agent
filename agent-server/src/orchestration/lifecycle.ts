@@ -335,7 +335,7 @@ export async function handleAgentError({ error, channel, adapter, statusMsg, sta
 async function persistErrorSession(resolvedSessionId: string | null, sessionName: string | null, channel: string, adapter: PlatformAdapter): Promise<void> {
   if (!resolvedSessionId) return;
   const backend = resolveBackendForChannel(channel);
-  await setSessionAsync(channel, resolvedSessionId, backend);
+  await setSessionAsync(channel, resolvedSessionId);
   await backfillLedgerSessionId({ sessionId: resolvedSessionId }, channel);
   if (!sessionName) return;
   const existing = await sessionStore.lookupBySessionId(resolvedSessionId);
@@ -483,7 +483,7 @@ export function reprocessMessage(channel: string, text: string, adapter: Platfor
 async function executeRetry(channel: string, text: string, adapter: PlatformAdapter, opts: { originalTs: string; isRetry: boolean; sessionId: string | null; sessionName: string | null; supersededStatusTimestamps?: string[] }): Promise<void> {
   const startTime = Date.now();
   // sessionId here is the stable track id; resolve the backend resume target from its record.
-  const sessionId = opts.sessionId ?? await getSessionAsync(channel, resolveBackendForChannel(channel));
+  const sessionId = opts.sessionId ?? await getSessionAsync(channel);
   const retryRec = sessionId ? await sessionStore.getById(sessionId) : null;
   const backendSessionId = retryRec ? effectiveBackendSessionId(retryRec) : null;
   const projectId = retryRec?.projectId ?? 'general';

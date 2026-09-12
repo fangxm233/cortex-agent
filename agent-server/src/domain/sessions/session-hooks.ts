@@ -430,7 +430,7 @@ async function prepareOnNewRun(
   if (!isOnNewHookConfigured()) return null;
 
   const backend = resolveBackendForChannel(channel);
-  const sessionId = await getSessionAsync(channel, backend);
+  const sessionId = await getSessionAsync(channel);
   if (!sessionId) {
     log.info('onNew hook skipped: no active session for channel', channel);
     return null;

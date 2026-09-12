@@ -117,7 +117,7 @@ export async function compactActiveSessionContext(
   opts: { channel: string },
 ): Promise<CompactActiveSessionOutcome> {
   const backend = resolveBackendForChannel(opts.channel);
-  const sessionId = await sessionRepo.getSessionAsync(opts.channel, backend);
+  const sessionId = await sessionRepo.getSessionAsync(opts.channel);
   if (!sessionId) return { ok: false, reason: 'no-session' };
   return compactSessionContext(sessionId);
 }

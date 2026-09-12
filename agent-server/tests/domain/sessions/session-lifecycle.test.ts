@@ -2,7 +2,25 @@ import '../../_test-home.js';
 import * as assert from 'node:assert';
 import { describe, it } from 'vitest';
 
-import { registerNamedSession, attachExistingSession, resetChannelSession, createDirectSession, adoptScheduledSession, SESSION_BACKENDS } from '@domain/sessions/session-lifecycle.js';
+import { registerNamedSession, attachExistingSession, resetChannelSession, createDirectSession, adoptScheduledSession } from '@domain/sessions/session-lifecycle.js';
+import { sessionRepo } from '@store/session-repo.js';
+import { STORE_DIR } from '@core/paths.js';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join as joinPath } from 'node:path';
+
+const SESSIONS_PATH = joinPath(STORE_DIR, 'sessions.json');
+
+async function readSessionsFile(): Promise<Record<string, string>> {
+  try { return JSON.parse(readFileSync(SESSIONS_PATH, 'utf8')); } catch { return {}; }
+}
+
+/** Write pre-P3.2 `backend:channel` keys straight to disk — the repo API no longer emits them. */
+async function seedLegacyKeys(channel: string, ids: Record<string, string>): Promise<void> {
+  const data = await readSessionsFile();
+  for (const [backend, id] of Object.entries(ids)) data[`${backend}:${channel}`] = id;
+  writeFileSync(SESSIONS_PATH, JSON.stringify(data));
+  sessionRepo.invalidate();
+}
 import type { SessionRegistryWriter } from '@domain/sessions/session-lifecycle.js';
 import { setSessionAsync, getSessionAsync } from '@domain/sessions/session.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
@@ -243,32 +261,30 @@ describe('adoptScheduledSession', () => {
 // ── resetChannelSession ─────────────────────────────────────────
 
 describe('resetChannelSession', () => {
-  it('clears all backend sessions, cleans backups, and clears conversation ledger', async () => {
+  it('clears the channel session in every key form, cleans backups, and clears the ledger', async () => {
     const channel = 'c1-reset';
 
-    // Seed: write sessions for all backends + init conversation
-    await setSessionAsync(channel, 'sid-reset-claude', 'claude');
-    await setSessionAsync(channel, 'sid-reset-pi', 'pi');
+    // Seed both the current key and the pre-P3.2 backend-prefixed forms, so the reset is tested
+    // against a home that has not been through the boot migration yet.
+    await sessionRepo.setSessionAsync(channel, 'sid-reset-current');
+    await seedLegacyKeys(channel, { claude: 'sid-reset-claude', pi: 'sid-reset-pi' });
     await conversationLedger.initConversation(channel, {
       sessionId: 'sid-reset-claude',
       sessionName: 'cortex-reset',
       backend: 'claude',
     });
 
-    // Confirm seeded state
-    for (const b of SESSION_BACKENDS) {
-      const sid = await getSessionAsync(channel, b);
-      assert.ok(sid, `session exists for backend ${b} before reset`);
-    }
+    assert.ok(await getSessionAsync(channel), 'session exists before reset');
     const convBefore = await conversationLedger.getConversation(channel);
     assert.ok(convBefore, 'conversation exists before reset');
 
     await resetChannelSession(channel);
 
-    // Assert: all backends cleared
-    for (const b of SESSION_BACKENDS) {
-      const sid = await getSessionAsync(channel, b);
-      assert.strictEqual(sid, undefined, `session cleared for backend ${b}`);
+    // One channel, one binding: a single delete clears the key and both legacy forms.
+    assert.strictEqual(await getSessionAsync(channel), undefined, 'session cleared');
+    const raw = await readSessionsFile();
+    for (const key of [channel, `claude:${channel}`, `pi:${channel}`]) {
+      assert.strictEqual(key in raw, false, `no ${key} entry survives the reset`);
     }
 
     // Assert: conversation cleared

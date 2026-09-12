@@ -94,13 +94,12 @@ export async function switchChannelProfile(opts: { channel: string; name: string
 
   setActiveProfile(name, channel);
 
-  // Keep the session-registry record's profileName in lock-step (best-effort). The active session is
-  // keyed by (channel, effective backend) in sessions.json. After setActiveProfile,
-  // resolveBackendForChannel returns the TARGET backend — but when the backend changed, the session
-  // is still stored under the CURRENT backend. Use the correct backend for the lookup.
+  // Keep the session-registry record's profileName in lock-step (best-effort). Since P3.2 the
+  // channel has ONE binding, so the lookup no longer has to guess which backend it was filed
+  // under — the dance of "use currentBackend when the backend changed" is gone with the key.
+  // The cross-backend rule above is unchanged: a live conversation still cannot move.
   try {
-    const lookupBackend = decision.backendChanged ? currentBackend : targetBackend;
-    const sessionName = await sessionStore.getActiveSessionName(channel, lookupBackend);
+    const sessionName = await sessionStore.getActiveSessionName(channel);
     if (sessionName) await sessionStore.updateSession(sessionName, { profileName: name });
   } catch {
     // record sync is non-fatal — the channel profile (the runtime source of truth) is already set

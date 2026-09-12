@@ -14,8 +14,6 @@ import type { SessionBrowserOption } from '@store/session-registry-journal.js';
 import { resolveCommissionCreate, type CommissionCreateRequest } from '@domain/commissions/commission-draft.js';
 import { getSettings } from '@core/settings.js';
 
-export const SESSION_BACKENDS = ['claude', 'pi'] as const;
-
 export interface SessionRegistryWriter {
   generateSessionName(): Promise<string>;
   registerSession(name: string, opts: {
@@ -148,7 +146,7 @@ export interface AttachExistingSessionOpts {
  *  and switch the conversation ledger. Mirrors the !resume switch sequence. */
 export async function attachExistingSession(channel: string, opts: AttachExistingSessionOpts): Promise<void> {
   if (opts.profileName) setActiveProfile(opts.profileName, channel);
-  await setSessionAsync(channel, opts.sessionId, opts.backend);
+  await setSessionAsync(channel, opts.sessionId);
   await conversationLedger.switchSession(channel, {
     sessionId: opts.sessionId, sessionName: opts.sessionName, backend: opts.backend, profileName: opts.profileName,
   });
@@ -191,5 +189,7 @@ export async function resetChannelSession(channel: string): Promise<void> {
     sessionBackup.cleanupAllBackups(conv.sessionId);
     await conversationLedger.clearConversation(channel);
   }
-  await Promise.all(SESSION_BACKENDS.map(b => deleteSessionAsync(channel, b).catch(() => {})));
+  // One channel, one binding (P3.2): `deleteSessionAsync` clears the key and every legacy
+  // backend-prefixed form of it, so the per-backend fan-out is gone.
+  await deleteSessionAsync(channel).catch(() => {});
 }

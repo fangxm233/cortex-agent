@@ -162,7 +162,7 @@ async function restoreFirstEditedTurn(
       ? sessionBackup.sessionFileFromBackupPath(input.targetBackupPath, input.turnIndex)
       : state.backendSessionId ? await sessionBackup.findPISessionFile(state.backendSessionId) : null;
   }
-  await deleteSessionAsync(input.channel, input.backend);
+  await deleteSessionAsync(input.channel);
   return { ...state, useSessionId: null, sessionName: null, piSessionFile };
 }
 
@@ -176,7 +176,7 @@ async function restoreEditedPISession(
   const next = { ...state, restored: restored.restored, piSessionFile: restored.sessionFile };
   if (restored.restored) return next;
   log.warn('No backup found for PI session, falling back to new session');
-  await deleteSessionAsync(input.channel, input.backend);
+  await deleteSessionAsync(input.channel);
   return { ...next, useSessionId: null, sessionName: null };
 }
 
@@ -189,7 +189,7 @@ async function restoreEditedClaudeSession(
     : false;
   if (restored) return { ...state, restored };
   log.warn('No backup found, falling back to new session');
-  await deleteSessionAsync(input.channel, input.backend);
+  await deleteSessionAsync(input.channel);
   return { ...state, restored, useSessionId: null, sessionName: null };
 }
 

@@ -242,7 +242,7 @@ export class AgentRunner {
     try {
       if (!isInjectableMessage({ text: ctx.userMessage || '', senderId: ctx.message.senderId })) return false;
       if (!runRegistry.hasChannel(ctx.channel)) return false;
-      const sessionId = await getSessionAsync(ctx.channel, resolveBackendForChannel(ctx.channel));
+      const sessionId = await getSessionAsync(ctx.channel);
       if (!sessionId) return false;
       const sessionName = await sessionStore.lookupBySessionId(sessionId);
       return tryInjectIntoLiveTurn(buildInjectDeps(sessionName, ctx.channel, ctx.adapter), {
@@ -292,7 +292,7 @@ export class AgentRunner {
     // resume target is resolved separately as `backendSessionId`. A channel with no bound session yet
     // (fresh Slack/Feishu/etc.) mints + registers + binds a track id up front, unifying it with the
     // web path (createDirectSession pre-registers) so publish/history always have a stable key.
-    let sessionId = await getSessionAsync(channel, backend);
+    let sessionId = await getSessionAsync(channel);
     let sessionName: string;
     let backendSessionId: string | null;
     let projectId: string;
@@ -325,7 +325,7 @@ export class AgentRunner {
         label: userMessage?.substring(0, 60) ?? null,
         profileName: getActiveProfile(channel), projectId,
       });
-      await setSessionAsync(channel, sessionId, backend); // bind channel → track id
+      await setSessionAsync(channel, sessionId); // bind channel → track id
       sessionLease = await acquireSessionUseLease(sessionId);
       if (!sessionLease) throw new Error(`Session not found or pending deletion: ${sessionId}`);
       backendSessionId = null; // fresh: the backend self-assigns its id on this first turn

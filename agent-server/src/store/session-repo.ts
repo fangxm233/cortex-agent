@@ -14,7 +14,7 @@ const SESSIONS_FILE = path.join(STORE_DIR, 'sessions.json');
  * (e.g., TUI in-memory conduit state). Returns null for unrecognized conduitIds
  * so the file-based lookup is used as fallback.
  */
-export type ConduitProvider = (conduitId: string, backend: string) => { sessionId: string; projectId: string } | null;
+export type ConduitProvider = (conduitId: string) => { sessionId: string; projectId: string } | null;
 
 /** Registered conduit providers, tried in registration order before file lookup. */
 const conduitProviders: ConduitProvider[] = [];
@@ -28,32 +28,51 @@ export function registerConduitProvider(provider: ConduitProvider): void {
 }
 
 /** Try conduit providers in registration order; returns null if none match. */
-async function lookupViaProviders(channel: string, backend: string): Promise<string | undefined> {
+async function lookupViaProviders(channel: string): Promise<string | undefined> {
   for (const provider of conduitProviders) {
-    const result = provider(channel, backend);
+    const result = provider(channel);
     if (result) return result.sessionId;
   }
   return undefined;
 }
 
-/** Shape of sessions.json: `{"backend:channel": sessionId, "legacyChannel": sessionId, ...}` */
+/** Shape of sessions.json: `{"<channel>": sessionId, ...}`. Pre-P3.2 files key on
+ *  `"<backend>:<channel>"`; both are read, and `migrateSessionKeys` collapses the old form. */
 export type SessionsData = Record<string, string>;
 
-/** Key format: `backend:channel`. */
-function sessionKey(backend: string, channel: string): string {
-  return `${backend}:${channel}`;
+/**
+ * D5: a channel has ONE session, and which backend it runs is a property of that session's record,
+ * not of the key it is filed under. Keying on `backend:channel` let the same channel hold two
+ * bindings at once, so a caller that asked with the wrong backend — cancel, `!session`, the
+ * scheduler — silently missed a session that was right there.
+ */
+const LEGACY_PREFIXES = ['claude', 'pi'] as const;
+
+function legacyKeys(channel: string): string[] {
+  return LEGACY_PREFIXES.map(prefix => `${prefix}:${channel}`);
 }
 
-/** Whether a channel name should be treated as "bare" (eligible for legacy-key cleanup). */
-function isBareChannel(channel: string): boolean {
-  return !channel.includes(':');
-}
-
-/** Remove a legacy bare-channel key if the channel qualifies. */
-function removeLegacyKey(sessions: SessionsData, channel: string): void {
-  if (isBareChannel(channel) && channel in sessions) {
-    delete sessions[channel];
+/** Split a stored key into the channel it refers to. `web:`/`slack:`/`feishu:`/`tui:` channels
+ *  carry their own colons, so only a leading backend name is stripped, and only those two. */
+function channelFromKey(key: string): string {
+  for (const prefix of LEGACY_PREFIXES) {
+    if (key.startsWith(`${prefix}:`)) return key.slice(prefix.length + 1);
   }
+  return key;
+}
+
+export interface SessionKeyMigrationDeps {
+  /** When two backends bound the same channel, the more recently used binding wins. Returns null
+   *  for a session the registry has forgotten, which then loses to any dated candidate. */
+  lastUsedAt?: (sessionId: string) => Promise<string | null>;
+  log?: (message: string) => void;
+}
+
+export interface SessionKeyMigrationResult {
+  /** Keys rewritten from `backend:channel` to `channel`. */
+  migrated: number;
+  /** Channels that held two different sessions, one of which was dropped. */
+  conflicts: number;
 }
 
 export class SessionRepo {
@@ -67,28 +86,99 @@ export class SessionRepo {
     });
   }
 
-  async getSessionAsync(channel: string, backend: string): Promise<string | undefined> {
+  /**
+   * The session bound to a channel.
+   *
+   * `backend` is accepted and ignored (P3.2): a channel has one session. The parameter stays so
+   * the many call sites that pass one keep compiling while they are cleaned up; it is deprecated
+   * and removed in Phase 4.
+   *
+   * Legacy `backend:channel` keys are still read, so a file written by a pre-P3.2 build resolves
+   * correctly before `migrateSessionKeys` has run (and in any process that never runs it).
+   */
+  async getSessionAsync(channel: string, _backend?: string): Promise<string | undefined> {
     // Try conduit providers first (TUI in-memory state, etc.)
-    const providerResult = await lookupViaProviders(channel, backend);
+    const providerResult = await lookupViaProviders(channel);
     if (providerResult !== undefined) return providerResult;
     // Fall back to file storage
     const sessions = await this._repo.read();
-    return sessions[sessionKey(backend, channel)] ?? sessions[channel] ?? undefined;
+    if (sessions[channel] !== undefined) return sessions[channel];
+    for (const key of legacyKeys(channel)) {
+      if (sessions[key] !== undefined) return sessions[key];
+    }
+    return undefined;
   }
 
-  async setSessionAsync(channel: string, sessionId: string, backend: string): Promise<void> {
+  /** Bind a channel to a session. Any legacy backend-prefixed key for the same channel is dropped,
+   *  so a write is also a migration of the one channel it touches. */
+  async setSessionAsync(channel: string, sessionId: string, _backend?: string): Promise<void> {
     await this._repo.mutate((sessions) => {
-      sessions[sessionKey(backend, channel)] = sessionId;
-      removeLegacyKey(sessions, channel);
+      sessions[channel] = sessionId;
+      for (const key of legacyKeys(channel)) delete sessions[key];
       return { next: sessions, result: undefined };
     });
   }
 
-  async deleteSessionAsync(channel: string, backend: string): Promise<void> {
+  /** Unbind a channel. Deletes every form of the key, so one call really does clear the channel —
+   *  where the old signature needed one call per backend and silently left the other behind. */
+  async deleteSessionAsync(channel: string, _backend?: string): Promise<void> {
     await this._repo.mutate((sessions) => {
-      delete sessions[sessionKey(backend, channel)];
-      removeLegacyKey(sessions, channel);
+      delete sessions[channel];
+      for (const key of legacyKeys(channel)) delete sessions[key];
       return { next: sessions, result: undefined };
+    });
+  }
+
+  /**
+   * Collapse `backend:channel` keys onto `channel`, once, at startup.
+   *
+   * A channel bound under both backends keeps the more recently used session and drops the other:
+   * the two were never usable at the same time — only the channel's current backend was ever
+   * consulted — so the newer one is the conversation the user actually has. Every drop is logged
+   * with both ids, because that is the only record that the other binding existed.
+   */
+  async migrateSessionKeys(deps: SessionKeyMigrationDeps = {}): Promise<SessionKeyMigrationResult> {
+    const lastUsedAt = deps.lastUsedAt ?? (async () => null);
+    const sessions = await this._repo.read();
+    const legacy = Object.keys(sessions).filter(key => key !== channelFromKey(key));
+    if (legacy.length === 0) return { migrated: 0, conflicts: 0 };
+
+    // Resolve timestamps before the mutate: the mutator must stay synchronous.
+    const dated = new Map<string, string | null>();
+    for (const key of legacy) {
+      const id = sessions[key];
+      if (!dated.has(id)) dated.set(id, await lastUsedAt(id).catch(() => null));
+    }
+    for (const key of legacy) {
+      const bare = sessions[channelFromKey(key)];
+      if (bare !== undefined && !dated.has(bare)) dated.set(bare, await lastUsedAt(bare).catch(() => null));
+    }
+
+    return this._repo.mutate((data) => {
+      let migrated = 0;
+      let conflicts = 0;
+      for (const key of legacy) {
+        const value = data[key];
+        if (value === undefined) continue;
+        delete data[key];
+        const channel = channelFromKey(key);
+        const incumbent = data[channel];
+        if (incumbent === undefined || incumbent === value) {
+          data[channel] = value;
+          migrated += 1;
+          continue;
+        }
+        conflicts += 1;
+        // An undated candidate is one the registry has forgotten; it loses to any dated one, and
+        // to the incumbent when neither is dated (first key wins, so the result is deterministic).
+        const keep = (dated.get(value) ?? '') > (dated.get(incumbent) ?? '') ? value : incumbent;
+        data[channel] = keep;
+        deps.log?.(
+          `sessions.json: channel ${channel} was bound under two backends `
+          + `(${incumbent}, ${value}); keeping the more recently used session ${keep}`,
+        );
+      }
+      return { next: data, result: { migrated, conflicts } };
     });
   }
 

@@ -19,7 +19,7 @@ import { conduitQueues } from '../conduit-queue.js';
 import { setSessionAsync, deleteSessionAsync } from '@domain/sessions/session.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
-import { getActiveProfile, setActiveProfile, resolveBackendForChannel } from '@domain/agents/index.js';
+import { getActiveProfile, setActiveProfile } from '@domain/agents/index.js';
 import { engines } from '@domain/runs/engines.js';
 import { fireAndForgetPreCloseHook } from '@domain/sessions/session-hooks.js';
 import { Icons } from '../../core/icons.js';
@@ -28,7 +28,6 @@ import * as sessionBackup from '@domain/sessions/session-backup.js';
 import { cancelThread as cancelThreadById } from '@domain/threads/index.js';
 import { deliverPlanResponse } from './plan-response.js';
 import { createLogger } from '@core/log.js';
-import { resolveRunBackend } from '@domain/runs/config-resolver.js';
 
 let _adapter: PlatformAdapter | null = null;
 let _bus: EventBus | null = null;
@@ -242,7 +241,7 @@ async function handleStatusCancel(ctx: ActionContext): Promise<void> {
       log.warn('Cancel button clicked but no running execution for executionId', { channel, executionId });
       return;
     }
-    if (exec.sessionId) await setSessionAsync(exec.channel ?? channel, exec.sessionId, resolveRunBackend({ channel: exec.channel ?? channel })).catch(() => {});
+    if (exec.sessionId) await setSessionAsync(exec.channel ?? channel, exec.sessionId).catch(() => {});
     // teardownExecution(cancelled): record→cancelled, kill the handle, publish a balanced event.
     executionRegistry.teardownExecution({ executionId, status: 'cancelled', durationS: 0 });
     conduitQueues.delete(exec.channel ?? channel);
@@ -264,7 +263,7 @@ async function handleStatusCancel(ctx: ActionContext): Promise<void> {
     return;
   }
   await cancelThreadById(threadId).catch(() => {});
-  if (exec.sessionId) await setSessionAsync(exec.channel ?? channel, exec.sessionId, resolveRunBackend({ channel: exec.channel ?? channel })).catch(() => {});
+  if (exec.sessionId) await setSessionAsync(exec.channel ?? channel, exec.sessionId).catch(() => {});
   if (exec.executionId) {
     executionRegistry.teardownExecution({ executionId: exec.executionId, status: 'cancelled', durationS: 0 });
   } else {
@@ -284,7 +283,7 @@ async function handleStatusResume(ctx: ActionContext): Promise<void> {
   const record = await sessionStore.lookupSession(sessionName);
   if (!record) return;
   if (record.profileName) setActiveProfile(record.profileName, ctx.channelId);
-  await setSessionAsync(ctx.channelId, record.sessionId, record.backend);
+  await setSessionAsync(ctx.channelId, record.sessionId);
   await conversationLedger.switchSession(ctx.channelId, {
     sessionId: record.sessionId, sessionName, backend: record.backend, profileName: record.profileName,
   });
@@ -323,7 +322,7 @@ async function resetChannelFromStatusButton(ctx: ActionContext, opts: { skipHook
     sessionBackup.cleanupAllBackups(conv.sessionId);
     await conversationLedger.clearConversation(channel);
   }
-  await deleteSessionAsync(channel, resolveBackendForChannel(channel));
+  await deleteSessionAsync(channel);
   planApprovals.clearByChannel(channel);
   const newDest: Destination = { type: 'interactive-reply', conduit: ctx.channelId, sessionId: '' };
   await _adapter.postMessage(newDest, {

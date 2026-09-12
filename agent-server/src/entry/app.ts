@@ -670,6 +670,23 @@ process.on('SIGTERM', async () => {
   pendingTaskTracker.init(adapter);
   taskStore.load();
 
+  // P3.2: collapse sessions.json `backend:channel` keys onto `channel`. Idempotent — a migrated
+  // file has no legacy keys left, so this is a no-op on every boot after the first.
+  try {
+    const keys = await sessionRepo.migrateSessionKeys({
+      lastUsedAt: async (sessionId) => (await sessionStore.getById(sessionId))?.lastUsedAt ?? null,
+      log: (message) => log.warn(message),
+    });
+    if (keys.migrated > 0) {
+      log.info(
+        `sessions.json: migrated ${keys.migrated} backend-prefixed key(s) to channel keys`
+        + (keys.conflicts > 0 ? ` (${keys.conflicts} channel(s) had two bindings)` : ''),
+      );
+    }
+  } catch (e) {
+    log.warn(`sessions.json key migration failed: ${(e as Error).message}`);
+  }
+
   // DR-0017 D6 Phase 2.5: migrate a legacy single thread-templates.json to the directory form,
   // then per-file copy-if-missing the shipped defaults dir (so new agents/templates/shells — e.g.
   // a new shell definition — reach existing installs). Sealed trial homes supply their complete
@@ -715,8 +732,7 @@ process.on('SIGTERM', async () => {
     save: (entries) => providerStateRepo.setResumeQueue(entries),
     load: () => providerStateRepo.getResumeQueue(),
   }, () => { bus.publish({ type: 'rate-limit.changed' }); }, async (entry) => {
-    const backend = resolveBackendForChannel(entry.channel);
-    const bound = await sessionRepo.getSessionAsync(entry.channel, backend);
+    const bound = await sessionRepo.getSessionAsync(entry.channel);
     return bound && await sessionStore.getById(bound) ? bound : null;
   });
   let reQueuedRateLimited = 0;
