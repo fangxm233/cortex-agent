@@ -5,7 +5,7 @@ import type { Destination, PlatformAdapter } from '@platform/index.js';
 import type { CommandResult } from './command-context.js';
 import type { CommandActionRouter } from '@orch/interactions/command-action-router.js';
 import { runRegistry, type RunningExecution } from '../../../core/run-registry.js';
-import { killSession as killPooledSession } from '@domain/agents/index.js';
+import { engines } from '@domain/runs/engines.js';
 import { stopSubagentRunsForSession } from '@domain/agents/subagent/registry.js';
 import { conduitQueues } from '../../conduit-queue.js';
 import { cancelThread as cancelThreadById } from '@domain/threads/index.js';
@@ -52,7 +52,7 @@ export interface BgHoldCancelDeps {
  *  installed for finished-but-unnotified work would never be sealed by it. */
 export function cancelBgHolds(channel: string, deps: BgHoldCancelDeps = {}): number {
   const heldSessions = deps.heldSessions ?? ((c: string) => runRegistry.sessionsOnChannel(c));
-  const killPooled = deps.killPooled ?? ((c: string) => killPooledSession(c));
+  const killPooled = deps.killPooled ?? ((c: string) => engines.kill(c));
   const abortHold = deps.abortHold ?? ((s: string) => runRegistry.abort(s));
 
   const held = heldSessions(channel);

@@ -106,7 +106,7 @@ export interface SessionHookInject {
  *
  *  MUST be distinct from the channel's live session-pool slot (which is keyed by the channel
  *  itself, see ClaudeAdapter / facade `sessionKey: options.channel`). Race it guards against:
- *  `!new` fires this hook fire-and-forget, then synchronously closeSession(channel) +
+ *  `!new` fires this hook fire-and-forget, then synchronously closes the pooled session +
  *  resetChannelSession(channel). The hook's memory-write subprocess finishes LATER and injects
  *  its stdout as a final turn that RESUMES the old session. If that turn used `channel` as its
  *  pool key it would re-create (resurrect) a live session under the channel slot AFTER the reset

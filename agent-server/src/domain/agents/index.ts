@@ -1,7 +1,7 @@
 // input:  the agents domain modules (config, profile-switch, facade)
 // output: the public agents-domain API, minus the run entry points
 // pos:    domain/agents barrel — [S11] split from mode-manager.ts
-// Usage: import { getActiveBackend, closeAllSessions, ... } from './domain/agents/index.js';
+// Usage: import { getActiveBackend, getActiveProfile, ... } from './domain/agents/index.js';
 //
 // `runAgent` / `runAgentOnce` are deliberately NOT re-exported: starting a run is now the run
 // layer's job. Import `startRun` from `@domain/runs/service.js` instead. The facade still defines
@@ -22,9 +22,6 @@ export {
   claudeTest,
   getCurrentPlanFilePath,
 } from './facade.js';
-export {
-  closeSession, killSession, closeSessionsByPrefix, closeAllSessions,
-} from '../runs/engines.js';
 export type {
   AgentConfig, RunAgentOptions, RunObserver, CompactAgentRequest, CompactAgentDeps,
 } from './facade.js';

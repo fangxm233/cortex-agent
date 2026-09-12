@@ -137,7 +137,7 @@ export class SessionEngines {
   /** Graceful close of the pooled session for a key. The pool entry is dropped synchronously, so
    *  the next `acquire` opens a fresh session even while this one winds down. Never rejects — a
    *  close failure is logged, exactly as the pre-P2.2c wrappers did. Command handlers that must
-   *  not block on a subprocess grace period use {@link closeSession} instead. */
+   *  not block on a subprocess grace period call this fire-and-forget (`void engines.close(...)`). */
   async close(key: string): Promise<void> {
     const engine = this.sessions.get(key);
     if (!engine) return;
@@ -226,29 +226,4 @@ export const claudeRunAdapter: AgentAdapter = {
 /** The run/compact adapter for a backend: the pool facade both backends now share. */
 export function getRunAdapter(backend: Backend): AgentAdapter {
   return backend === 'pi' ? piRunAdapter : claudeRunAdapter;
-}
-
-// --- Backend-neutral control points (plan D4) ---
-//
-// !new, Stop, thread cleanup, session rewind and shutdown all reach the pool through these; the
-// channel/sessionKey signature and fire-and-forget close are the pre-P2.2c public contract.
-
-/** Graceful close of the pooled session for a channel (or explicit sessionKey). Fire-and-forget. */
-export function closeSession(channel: string, sessionKey?: string): void {
-  void engines.close(sessionKey || channel);
-}
-
-/** Hard-stop the pooled session for a channel. Returns true when a backend killed one. */
-export function killSession(channel: string, sessionKey?: string): boolean {
-  return engines.kill(sessionKey || channel);
-}
-
-/** Close every pooled session whose key starts with the prefix (thread cleanup). */
-export function closeSessionsByPrefix(prefix: string): void {
-  engines.closeByPrefix(prefix);
-}
-
-/** Close every pooled session on every backend (shutdown). */
-export function closeAllSessions(): void {
-  engines.closeAll();
 }

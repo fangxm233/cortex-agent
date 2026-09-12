@@ -43,7 +43,7 @@ import {
 import { recordResume, removeThreadResume } from '../costs/resume-registry.js';
 import type { ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
 import { Icons } from '../../core/icons.js';
-import { closeSessionsByPrefix } from '../agents/index.js';
+import { engines } from '../runs/engines.js';
 import * as executionRegistry from '../executions/registry.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { formatDurationCompact } from '@core/utils.js';
@@ -1025,7 +1025,7 @@ async function runThread(threadId: string, opts: RunThreadOptions): Promise<Thre
     // Cleanup thread-specific sessions. Intentionally also runs on suspension (DR-0014):
     // a waiting parent holds no live session — the artifact is its durable memory, and
     // persistSession slots keep their sessionId so re-entry resumes via --resume.
-    closeSessionsByPrefix(`thr:${threadId}:`);
+    engines.closeByPrefix(`thr:${threadId}:`);
   }
 
   return finalizeThread(threadId, ctx);

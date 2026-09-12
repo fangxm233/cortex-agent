@@ -4,7 +4,8 @@ import type { CommandResult } from './command-context.js';
 import { Icons } from '../../../core/icons.js';
 import { t } from '../../../core/i18n.js';
 import type { CommandActionRouter } from '@orch/interactions/command-action-router.js';
-import { closeSession, getActiveBackend, getActiveProfile } from '@domain/agents/index.js';
+import { getActiveBackend, getActiveProfile } from '@domain/agents/index.js';
+import { engines } from '@domain/runs/engines.js';
 
 import { fireAndForgetPreCloseHook } from '@domain/sessions/session-hooks.js';
 import { sessionStore } from '@store/session-registry-repo.js';
@@ -55,7 +56,7 @@ export async function handleNewCmd(
     void fireAndForgetPreCloseHook(channel, adapter, resolvedThreadTs);
   }
 
-  closeSession(channel);
+  void engines.close(channel);
   const profileName = getActiveProfile(channel) || 'default';
   await resetChannelSession(channel);
   const cleared = planApprovals.clearByChannel(channel);

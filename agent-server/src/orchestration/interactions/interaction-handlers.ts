@@ -19,7 +19,8 @@ import { conduitQueues } from '../conduit-queue.js';
 import { setSessionAsync, deleteSessionAsync } from '@domain/sessions/session.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
-import { closeSession, getActiveBackend, getActiveProfile, setActiveProfile, resolveBackendForChannel } from '@domain/agents/index.js';
+import { getActiveBackend, getActiveProfile, setActiveProfile, resolveBackendForChannel } from '@domain/agents/index.js';
+import { engines } from '@domain/runs/engines.js';
 import { fireAndForgetPreCloseHook } from '@domain/sessions/session-hooks.js';
 import { Icons } from '../../core/icons.js';
 import { t } from '../../core/i18n.js';
@@ -314,7 +315,7 @@ async function resetChannelFromStatusButton(ctx: ActionContext, opts: { skipHook
   // The quiet variant (!newq) skips the hook entirely.
   if (!opts.skipHook) void fireAndForgetPreCloseHook(channel, _adapter, threadAnchorId);
 
-  closeSession(channel);
+  void engines.close(channel);
   const conv = await conversationLedger.getConversation(channel);
   const profileName = getActiveProfile(channel) || 'default';
   if (conv) {

@@ -21,7 +21,7 @@ import { WORKSPACE_DIR, CONFIG_DIR, DATA_DIR, STORE_DIR, DEFAULTS_DIR, CONTEXT_D
 import { loadRuntimeDotenv } from '@core/runtime-env.js';
 import { migrateEnvToSettings } from '@core/settings-migration.js';
 import { tryAcquireSingletonLock, releaseSingletonLock } from '@core/singleton-lock.js';
-import { closeAllSessions, closeSession as closePooledSession } from '@domain/agents/index.js';
+import { engines } from '@domain/runs/engines.js';
 import { recoverTuiOrphans } from '../agent-adapter/claude/adapter.js';
 import { startWebhookServer } from '@orch/routing/webhook.js';
 import * as pendingTaskTracker from '@domain/tasks/pending-tracker.js';
@@ -389,7 +389,7 @@ const handleMessageEdit = createEditHandler({
   // conversation history in memory — it would ignore the rolled-back JSONL on disk. Close it
   // here so the next runAgent spawns a fresh process against the rewound transcript. The close
   // is backend-neutral and a no-op for a key with no live session.
-  closePooledSession: (channel) => closePooledSession(channel),
+  closePooledSession: (channel) => { void engines.close(channel); },
 });
 
 // --- Register interaction handlers ---
@@ -414,7 +414,7 @@ process.on('SIGTERM', async () => {
   }).catch(() => {});
   await stopBuiltinJobs();
   await retentionController.stop().catch(() => {});
-  closeAllSessions(); await stopClientManager(); stopMachineRegistryWatcher(); _stopProfileWatcher?.();
+  engines.closeAll(); await stopClientManager(); stopMachineRegistryWatcher(); _stopProfileWatcher?.();
   // A Chrome that outlives the daemon keeps the profile locked, so the next launch would attach to
   // an instance nothing is supervising.
   stopBrowser();
