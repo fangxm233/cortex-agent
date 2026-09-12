@@ -1,0 +1,7 @@
+{"$cortex":"note","text":"An injected message the CLI only drains after the turn's result: the replay echo arrives with no turn in flight (foldedIntoTurn=false), arms a synthetic turn, and that turn's reply reaches the ContinuationSink instead of being dropped."}
+{"$cortex":"turn","text":"write the release note"}
+{"$cortex":"inject","text":"TEXT-INTERRUPTED: use the short form"}
+{"type":"result","subtype":"success","is_error":false,"num_turns":2,"total_cost_usd":0.25,"session_id":"test-session","result":"Release note drafted."}
+{"type":"user","isReplay":true,"uuid":"u-inj-02","session_id":"test-session","message":{"role":"user","content":"TEXT-INTERRUPTED: use the short form"}}
+{"type":"assistant","message":{"model":"claude-opus-5","content":[{"type":"text","text":"Short form applied."}]}}
+{"type":"result","subtype":"success","is_error":false,"num_turns":1,"total_cost_usd":0.5,"session_id":"test-session","result":"Short form applied."}

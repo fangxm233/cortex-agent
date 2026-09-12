@@ -1,0 +1,8 @@
+{"$cortex":"note","text":"An injected message that lands on a tool-result boundary is echoed back by --replay-user-messages while the turn is still live: one ack with foldedIntoTurn=true, no second turn, and the turn's own result carries the reply."}
+{"$cortex":"turn","text":"audit the diff and stop early if you find a leak"}
+{"type":"assistant","message":{"model":"claude-opus-5","content":[{"type":"tool_use","id":"toolu_audit01","name":"Bash","input":{"command":"git diff"}}]}}
+{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_audit01","content":"diff --git a/x b/x","is_error":false}]}}
+{"$cortex":"inject","text":"EARLY-STOP: report what you have"}
+{"type":"user","isReplay":true,"uuid":"u-inj-01","session_id":"test-session","message":{"role":"user","content":"EARLY-STOP: report what you have"}}
+{"type":"assistant","message":{"model":"claude-opus-5","content":[{"type":"text","text":"EARLY-STOP"}]}}
+{"type":"result","subtype":"success","is_error":false,"num_turns":2,"total_cost_usd":0.02,"session_id":"test-session","result":"EARLY-STOP"}

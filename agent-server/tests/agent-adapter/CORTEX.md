@@ -16,12 +16,14 @@ Agent adapter tests: Claude and PI streams normalized into shared events, plus s
 | claude-subagent-jsonl-mux.test.ts | test | Claude TUI sidecar attribution and lifecycle |
 | claude-mid-turn-inject.test.ts | test | Claude mid-turn user message injection |
 | claude-print-resume.test.ts | test | print-mode resume guard on fresh sessions |
+| claude-run-phases.test.ts | test | Claude run phases: background continuation, mid-turn injection fold-in and post-result, orphan subagent, resume notification turn |
 | claude-stream-deltas.test.ts | test | Claude delta and reported model parsing |
 | claude-subagent-activity.test.ts | test | proves the native-subagent census event and that a subagent line still reaches every handler it reaches today |
 | claude-subagent-orphan.test.ts | test | proves a backgrounded subagent's lines still reach the continuation sink after its parent turn closed |
 | claude-tmux-control.test.ts | test | tmux argv, secure buffers, and tempfiles |
 | claude-tui-resume.test.ts | test | TUI first-turn resume guard |
 | fixtures/ | subdir | recorded backend streams and golden outputs |
+| fixtures/runs/ | subdir | Claude run scripts (stream lines plus `$cortex` actions) replayed into run-phase traces |
 | commission-tools.test.ts | test | commission tools are additive and hidden from every other session |
 | normalize-assistant-delta.test.ts | test | delta event union and backend capability |
 | normalize.test.ts | test | normalized event parser edge cases |
@@ -31,4 +33,4 @@ Agent adapter tests: Claude and PI streams normalized into shared events, plus s
 | pi-fake-runtime.ts | helper | in-memory PI runtime double for adapter and session tests |
 | pi-mid-turn-inject.test.ts | test | PI switch guard and mid-turn prompt steering |
 | pi-usage.test.ts | test | PI cached Codex usage without provider traffic |
-| replay-harness.ts | helper | fixture replay and golden comparison helpers |
+| replay-harness.ts | helper | fixture replay, golden comparison and Claude run-phase trace helpers |
