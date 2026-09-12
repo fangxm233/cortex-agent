@@ -20,6 +20,7 @@ Consumed by orchestration and platform surfaces.
 | plugins/ | subdir | Catalogs and resolves installed plugin runtimes |
 | projects/ | subdir | Registry of projects that scope all work |
 | remote/ | subdir | Links to cortex-client daemons on devices |
+| runs/ | subdir | Run events, request contract and the run/session/engine layer |
 | scheduling/ | subdir | Recurring and one-off scheduled task runs |
 | sessions/ | subdir | Session records, registry, backup and hooks |
 | system/ | subdir | Update checks, install and health diagnostics |

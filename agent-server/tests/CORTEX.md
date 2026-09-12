@@ -120,6 +120,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | restart-command.test.ts | test | server restart trigger and command route |
 | resume-registry.test.ts | test | provider-ready drains and waiting counts |
 | run-with-adapter.test.ts | test | tests attributed events, notices and waits |
+| runs/ | subdir | run event translation and continuation-sink adapter tests |
 | schedule-cli.test.ts | test | schedule API, CLI and fired lifecycle hooks |
 | scheduled-runner-jobs.test.ts | test | scheduled job dispatch, sync paths and isolation |
 | scheduled-target-dispatch.test.ts | test | scheduled target and fallback decisions |
