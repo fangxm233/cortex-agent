@@ -4,19 +4,20 @@
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 //
 // Plain user messages no longer run as a `templateName:'default'` thread; they run via
-// runConversation, which assembles its prompt with buildConversationPrompt (no thread, no
+// runConversation, which assembles its prompt with composeUserPrompt (no thread, no
 // artifact, no [ABORT] protocol). These tests pin that assembly so the migration does not
 // silently change every chat turn.
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { buildConversationPrompt, THREAD_PROTOCOL_PREAMBLE } from '../src/domain/threads/prompt-builder.js';
+import { THREAD_PROTOCOL_PREAMBLE } from '../src/domain/threads/prompt-builder.js';
+import { composeUserPrompt, userProfileBlock } from '../src/domain/runs/prompt.js';
 import {
   registerConversationHandle,
   resolveConversationCommission,
   resolveConversationProject,
 } from '../src/orchestration/conversation-runner.js';
-import type { ActiveCommissionContext } from '../src/domain/commissions/commission-context.js';
+import type { ActiveCommissionContext, CommissionPromptContext } from '../src/domain/commissions/commission-context.js';
 import type { AgentSlotConfig } from '../src/core/types/thread-types.js';
 import type { Project } from '../src/domain/projects/project-types.js';
 
@@ -38,6 +39,27 @@ function makeAgentConfig(overrides: Partial<AgentSlotConfig> = {}): AgentSlotCon
   } as AgentSlotConfig;
 }
 
+/** The exact composition `runConversation` performs (orchestration/conversation-runner.ts): a
+ *  thread-free turn is the agent's template plus the first-turn ambient blocks, nothing else.
+ *  Kept here so these tests keep pinning that one call site after P3.3b moved the composition
+ *  into domain/runs/prompt.ts. */
+function conversationPrompt(
+  agentConfig: AgentSlotConfig,
+  input: string,
+  opts: {
+    includeUserContext?: boolean;
+    project?: { id: string; contextDir: string } | null;
+    commission?: CommissionPromptContext | null;
+  } = {},
+): string {
+  const { includeUserContext = true, project = null, commission = null } = opts;
+  return composeUserPrompt(
+    { directive: agentConfig.directive, promptTemplate: agentConfig.promptTemplate },
+    input,
+    { userContext: userProfileBlock(includeUserContext), project, commission },
+  );
+}
+
 test('registration callback fires only after the backend handle is cancellable', () => {
   const order: string[] = [];
   registerConversationHandle(
@@ -48,28 +70,28 @@ test('registration callback fires only after the backend handle is cancellable',
   assert.deepEqual(order, ['register', 'release-start-guard']);
 });
 
-test('buildConversationPrompt with the default {{input}} template and empty directive is just the message', () => {
-  const prompt = buildConversationPrompt(makeAgentConfig({ directive: '' }), 'hello world');
+test('conversation prompt with the default {{input}} template and empty directive is just the message', () => {
+  const prompt = conversationPrompt(makeAgentConfig({ directive: '' }), 'hello world');
   assert.equal(prompt, 'hello world');
   assert.ok(!prompt.includes(THREAD_PROTOCOL_PREAMBLE), 'conversation prompt must not contain the thread protocol preamble');
 });
 
-test('buildConversationPrompt prepends a non-empty directive, still no preamble', () => {
-  const prompt = buildConversationPrompt(makeAgentConfig({ directive: 'You are the direct agent.' }), 'what is 2+2?');
+test('conversation prompt prepends a non-empty directive, still no preamble', () => {
+  const prompt = conversationPrompt(makeAgentConfig({ directive: 'You are the direct agent.' }), 'what is 2+2?');
   assert.ok(prompt.startsWith('You are the direct agent.'));
   assert.ok(prompt.includes('what is 2+2?'));
   assert.ok(!prompt.includes(THREAD_PROTOCOL_PREAMBLE));
 });
 
-test('buildConversationPrompt applies a custom promptTemplate', () => {
-  const prompt = buildConversationPrompt(makeAgentConfig({ directive: '', promptTemplate: 'User asked: {{input}}' }), 'status?');
+test('conversation prompt applies a custom promptTemplate', () => {
+  const prompt = conversationPrompt(makeAgentConfig({ directive: '', promptTemplate: 'User asked: {{input}}' }), 'status?');
   assert.equal(prompt, 'User asked: status?');
 });
 
 // ── Project prefix (Web UI direct sessions bound to a project) ──────────────
 
-test('buildConversationPrompt injects a project block naming the project id and context dir', () => {
-  const prompt = buildConversationPrompt(makeAgentConfig({ directive: 'DIRECTIVE' }), 'hello', {
+test('conversation prompt injects a project block naming the project id and context dir', () => {
+  const prompt = conversationPrompt(makeAgentConfig({ directive: 'DIRECTIVE' }), 'hello', {
     project: { id: 'tactile-vr', contextDir: '/ctx/projects/tactile-vr' },
   });
   assert.ok(prompt.includes('tactile-vr'), 'project id must appear in the prompt');
@@ -80,13 +102,13 @@ test('buildConversationPrompt injects a project block naming the project id and 
   assert.ok(!prompt.includes(THREAD_PROTOCOL_PREAMBLE));
 });
 
-test('buildConversationPrompt without a project opt injects no project block', () => {
-  const prompt = buildConversationPrompt(makeAgentConfig({ directive: '' }), 'hello');
+test('conversation prompt without a project opt injects no project block', () => {
+  const prompt = conversationPrompt(makeAgentConfig({ directive: '' }), 'hello');
   assert.equal(prompt, 'hello');
 });
 
-test('buildConversationPrompt with project:null behaves like no project', () => {
-  const prompt = buildConversationPrompt(makeAgentConfig({ directive: '' }), 'hello', { project: null });
+test('conversation prompt with project:null behaves like no project', () => {
+  const prompt = conversationPrompt(makeAgentConfig({ directive: '' }), 'hello', { project: null });
   assert.equal(prompt, 'hello');
 });
 
@@ -144,8 +166,8 @@ const commissionCtx: ActiveCommissionContext = {
   hasLedger: true,
 };
 
-test('buildConversationPrompt injects the commission block as an index plus the protocol', () => {
-  const prompt = buildConversationPrompt(makeAgentConfig({ directive: '' }), 'hello', {
+test('conversation prompt injects the commission block as an index plus the protocol', () => {
+  const prompt = conversationPrompt(makeAgentConfig({ directive: '' }), 'hello', {
     project: { id: 'proj-a', contextDir: '/ctx/projects/proj-a' },
     commission: commissionCtx,
   });
@@ -158,7 +180,7 @@ test('buildConversationPrompt injects the commission block as an index plus the 
 });
 
 test('the commission block never pastes contract or ledger content', () => {
-  const prompt = buildConversationPrompt(makeAgentConfig({ directive: '' }), 'hi', {
+  const prompt = conversationPrompt(makeAgentConfig({ directive: '' }), 'hi', {
     commission: commissionCtx,
   });
   assert.ok(!prompt.includes('--- contract.md ---'), 'no contract snapshot');
@@ -167,15 +189,15 @@ test('the commission block never pastes contract or ledger content', () => {
   assert.ok(prompt.length < 1_800, `block unexpectedly large: ${prompt.length}`);
 });
 
-test('buildConversationPrompt tells the agent to create ledger.md when it does not exist yet', () => {
-  const prompt = buildConversationPrompt(makeAgentConfig({ directive: '' }), 'hi', {
+test('conversation prompt tells the agent to create ledger.md when it does not exist yet', () => {
+  const prompt = conversationPrompt(makeAgentConfig({ directive: '' }), 'hi', {
     commission: { ...commissionCtx, hasLedger: false },
   });
   assert.match(prompt, /ledger\.md   — NOT created yet/);
 });
 
 test('a session still drafting its contract is told so, and pointed at cortex_commission_start', () => {
-  const prompt = buildConversationPrompt(makeAgentConfig({ directive: '' }), 'go', {
+  const prompt = conversationPrompt(makeAgentConfig({ directive: '' }), 'go', {
     commission: { phase: 'draft', dir: '/ctx/projects/proj-a/commissions/_draft-cortex-4c80d3' },
   });
   assert.match(prompt, /\[Commission\] This session was created to START a new commission/);

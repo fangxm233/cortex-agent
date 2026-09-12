@@ -9,8 +9,9 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { CONTEXT_DIR } from '../src/core/utils.js';
 import { loadUserContext } from '../src/domain/memory/user-context.js';
-import { buildConversationPrompt } from '../src/domain/threads/prompt-builder.js';
+import { composeUserPrompt, userProfileBlock } from '../src/domain/runs/prompt.js';
 import type { AgentSlotConfig } from '../src/core/types/thread-types.js';
+import type { CommissionPromptContext } from '../src/domain/commissions/commission-context.js';
 import { resetSettingsForTests } from '../src/core/settings.js';
 
 const USER_DIR = path.join(CONTEXT_DIR, 'user');
@@ -43,6 +44,27 @@ function makeAgentConfig(overrides: Partial<AgentSlotConfig> = {}): AgentSlotCon
   } as AgentSlotConfig;
 }
 
+/** The exact composition `runConversation` performs (orchestration/conversation-runner.ts): a
+ *  thread-free turn is the agent's template plus the first-turn ambient blocks, nothing else.
+ *  Kept here so these tests keep pinning that one call site after P3.3b moved the composition
+ *  into domain/runs/prompt.ts. */
+function conversationPrompt(
+  agentConfig: AgentSlotConfig,
+  input: string,
+  opts: {
+    includeUserContext?: boolean;
+    project?: { id: string; contextDir: string } | null;
+    commission?: CommissionPromptContext | null;
+  } = {},
+): string {
+  const { includeUserContext = true, project = null, commission = null } = opts;
+  return composeUserPrompt(
+    { directive: agentConfig.directive, promptTemplate: agentConfig.promptTemplate },
+    input,
+    { userContext: userProfileBlock(includeUserContext), project, commission },
+  );
+}
+
 test('loadUserContext wraps USER.md content when the file exists', () => {
   writeUser(SAMPLE);
   delete process.env.CORTEX_DISABLE_USER_CONTEXT;
@@ -67,11 +89,11 @@ test('loadUserContext returns null when USER.md is absent', () => {
   assert.equal(loadUserContext(), null);
 });
 
-test('buildConversationPrompt prepends [User Context] when USER.md exists', () => {
+test('conversation prompt prepends [User Context] when USER.md exists', () => {
   writeUser(SAMPLE);
   delete process.env.CORTEX_DISABLE_USER_CONTEXT;
   try {
-    const prompt = buildConversationPrompt(makeAgentConfig({ directive: 'You are direct.' }), 'hi');
+    const prompt = conversationPrompt(makeAgentConfig({ directive: 'You are direct.' }), 'hi');
     assert.ok(prompt.startsWith('[User Context]'), 'user context must be the first prefix');
     assert.ok(prompt.includes('Name: Test User'));
     assert.ok(prompt.includes('You are direct.'));
@@ -81,11 +103,11 @@ test('buildConversationPrompt prepends [User Context] when USER.md exists', () =
   }
 });
 
-test('buildConversationPrompt injects user context when includeUserContext is true', () => {
+test('conversation prompt injects user context when includeUserContext is true', () => {
   writeUser(SAMPLE);
   delete process.env.CORTEX_DISABLE_USER_CONTEXT;
   try {
-    const prompt = buildConversationPrompt(makeAgentConfig({ directive: '' }), 'hi', { includeUserContext: true });
+    const prompt = conversationPrompt(makeAgentConfig({ directive: '' }), 'hi', { includeUserContext: true });
     assert.ok(prompt.startsWith('[User Context]'));
     assert.ok(prompt.includes('Name: Test User'));
   } finally {
@@ -93,11 +115,11 @@ test('buildConversationPrompt injects user context when includeUserContext is tr
   }
 });
 
-test('buildConversationPrompt omits user context when includeUserContext is false', () => {
+test('conversation prompt omits user context when includeUserContext is false', () => {
   writeUser(SAMPLE);
   delete process.env.CORTEX_DISABLE_USER_CONTEXT;
   try {
-    const prompt = buildConversationPrompt(makeAgentConfig({ directive: '' }), 'hi', { includeUserContext: false });
+    const prompt = conversationPrompt(makeAgentConfig({ directive: '' }), 'hi', { includeUserContext: false });
     assert.equal(prompt, 'hi');
     assert.ok(!prompt.includes('[User Context]'));
   } finally {
@@ -105,12 +127,12 @@ test('buildConversationPrompt omits user context when includeUserContext is fals
   }
 });
 
-test('buildConversationPrompt omits user context when disabled', async () => {
+test('conversation prompt omits user context when disabled', async () => {
   writeUser(SAMPLE);
   process.env.CORTEX_DISABLE_USER_CONTEXT = '1';
   try {
     resetSettingsForTests();
-    const prompt = buildConversationPrompt(makeAgentConfig({ directive: '' }), 'hi');
+    const prompt = conversationPrompt(makeAgentConfig({ directive: '' }), 'hi');
     assert.equal(prompt, 'hi');
   } finally {
     delete process.env.CORTEX_DISABLE_USER_CONTEXT;

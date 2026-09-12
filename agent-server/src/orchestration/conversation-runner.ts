@@ -17,7 +17,8 @@ import type { AgentResult } from '@core/types/agent-types.js';
 import { getDefaultAgent } from '@domain/agents/index.js';
 import { getDefaultProfileName } from '@domain/agents/profile-manager.js';
 import { effectiveProfile, resolveRunConfig } from '@domain/runs/config-resolver.js';
-import { resolveAgentSlotConfigByName, resolveSystemVars, buildConversationPrompt } from '@domain/threads/index.js';
+import { resolveAgentSlotConfigByName, resolveSystemVars } from '@domain/threads/index.js';
+import { composeUserPrompt, userProfileBlock } from '@domain/runs/prompt.js';
 import { projectStore } from '@domain/projects/index.js';
 import type { Project } from '@domain/projects/index.js';
 import {
@@ -111,7 +112,7 @@ function conversationBackgroundPolicy(channel: string): 'hold' | 'none' {
 
 /**
  * Decide whether (and which) project context to inject into the conversation prompt.
- * Returns the {id, contextDir} pair for buildConversationPrompt, or null to inject nothing.
+ * Returns the {id, contextDir} pair for composeUserPrompt, or null to inject nothing.
  *
  * Injection is deliberately narrow: only the FIRST turn (fresh backend session — resume keeps it
  * in history) of a Web UI direct session (`web:` channel — the only path where the user explicitly
@@ -187,8 +188,26 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
   // USER.md profile is injected only on a session's FIRST turn (no backend session yet).
   // Session resume keeps it in history thereafter, so re-sending it every turn just wastes tokens.
   const isFreshSession = opts.backendSessionId === null;
-  const prompt = buildConversationPrompt(agentConfig, opts.userMessage, {
-    includeUserContext: isFreshSession,
+  const spec: AgentSpec = {
+    systemPrompt: agentConfig.systemPrompt ? resolveSystemVars(agentConfig.systemPrompt) : null,
+    directive: agentConfig.directive ?? null,
+    promptTemplate: agentConfig.promptTemplate ?? null,
+    // `AgentSlotConfig.tools` is a Claude-native comma string; spawn-config forwards a string
+    // through `rawTools`. P2.1 canonicalizes it — for now keep the exact legacy input byte-for-byte.
+    tools: (agentConfig.tools || null) as unknown as string[] | null,
+    pluginDirs: agentConfig.pluginDirs || [],
+    mcp: { composition: 'direct', allowlist: agentConfig.mcpToolAllowlist ?? null },
+    backendOptions: {
+      ...(agentConfig.claudeAgent ? { claudeAgent: agentConfig.claudeAgent } : {}),
+      ...(agentConfig.outputStyle ? { outputStyle: agentConfig.outputStyle } : {}),
+    },
+  };
+
+  // A plain conversation turn is thread-free: no artifact, no previous step, no control-plane
+  // preamble. Everything it does carry is a first-turn ambient block, and the two prompt-shaping
+  // fields come from the very spec the run is opened with — one description of the agent, not two.
+  const prompt = composeUserPrompt(spec, opts.userMessage, {
+    userContext: userProfileBlock(isFreshSession),
     // Web UI direct sessions are bound to a project at create time; tell the agent which one
     // on the session's first turn (see resolveConversationProject for the exact gating).
     project: resolveConversationProject({ channel: opts.channel, projectId: opts.projectId, isFreshSession }),
@@ -218,20 +237,6 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
     : effectiveProfile({ ...resolveRunConfig({ channel: opts.channel, override: profileName }) });
 
   const trigger = opts.trigger || 'user';
-  const spec: AgentSpec = {
-    systemPrompt: agentConfig.systemPrompt ? resolveSystemVars(agentConfig.systemPrompt) : null,
-    directive: agentConfig.directive ?? null,
-    promptTemplate: agentConfig.promptTemplate ?? null,
-    // `AgentSlotConfig.tools` is a Claude-native comma string; spawn-config forwards a string
-    // through `rawTools`. P2.1 canonicalizes it — for now keep the exact legacy input byte-for-byte.
-    tools: (agentConfig.tools || null) as unknown as string[] | null,
-    pluginDirs: agentConfig.pluginDirs || [],
-    mcp: { composition: 'direct', allowlist: agentConfig.mcpToolAllowlist ?? null },
-    backendOptions: {
-      ...(agentConfig.claudeAgent ? { claudeAgent: agentConfig.claudeAgent } : {}),
-      ...(agentConfig.outputStyle ? { outputStyle: agentConfig.outputStyle } : {}),
-    },
-  };
 
   const request: RunRequest = {
     runId: randomUUID(),

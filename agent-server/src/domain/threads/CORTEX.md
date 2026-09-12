@@ -15,7 +15,7 @@ Consumed by the orchestration and UI layers through the index barrel.
 | template-validate.ts | config | validates templates, agents, shells and tool gates |
 | template-validate.parity.ts | guard | pins the validator schemas to the thread types |
 | template-writer.ts | config | creates, replaces and deletes template config files |
-| prompt-builder.ts | build | assembles prompts and resolves canonical tool gates |
+| prompt-builder.ts | build | assembles thread step prompts (composition itself is domain/runs/prompt.ts) and resolves canonical tool gates |
 | pending-user-inputs.ts | state | gates asynchronous buffered-input preparation |
 | evidence-context.ts | guard | inherits immutable benchmark evidence from parents |
 | state-machine.ts | state | drives lifecycle and inherits benchmark evidence |

@@ -1,7 +1,7 @@
 Please update me when files in this folder change
 
 Run layer — the backend-neutral event vocabulary, the fully-resolved run request contract, the
-run ownership object, and the legacy continuation-sink bridge the P1.5 background holds use.
+run ownership object, prompt composition, and the legacy continuation-sink bridge the P1.5 background holds use.
 `startRun` wraps today's facade and owns the execution/registry lifecycle; the conversation,
 thread-step, hook-agent, edit-retry, ask-user-resume, scheduled auto-compound and Claude-subagent
 paths all build a `RunRequest` and open a run. Phases 2–4 replace the engine path underneath.
@@ -14,6 +14,7 @@ paths all build a `RunRequest` and open a run. Phases 2–4 replace the engine p
 | engine-spec.ts | core | buildEngineSpec + engineIdentity(); owns the scoped-plugin gate and PI gateway-path derivation |
 | adapters.ts | entry | builds the daemon's Claude and PI engine adapters, injecting the collaborators the adapter may not import (usage store, rate-limit throttle, PI home) — getAdapter/getEngineAdapter |
 | engines.ts | core | SessionEngines — the one owner of pooled engine sessions for both backends (acquire/close/kill/closeByPrefix/closeAll/registerSessionPath); module singleton `engines` + transitional PI and Claude run adapters |
+| prompt.ts | core | composeSystemPrompt / composeUserPrompt — the one place a run's system and user prompts are assembled, plus the rules and USER.md block loaders |
 | request.ts | core | RunRequest, AgentSpec (with appendSystemPrompt), RunObserver and the RunResult alias (nullable session id, legacy useCoreMcp) |
 | run.ts | core | AgentRun state machine wrapping facade.runAgent directly; phases, results, cancel, steer (mid-turn injection + ack events), fan-out |
 | service.ts | entry | startRun(request, observers) — opens the execution record and returns an AgentRun |

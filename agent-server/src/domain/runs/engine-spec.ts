@@ -10,7 +10,7 @@ import type {
 } from '../../agent-adapter/types.js';
 import { resolveMcpComposition } from '../../agent-adapter/types.js';
 import { GATEWAY_URL } from '../costs/gateway-manager.js';
-import { loadCortexRules } from '../memory/rules-loader.js';
+import { composeSystemPrompt, globalRuleBodies } from './prompt.js';
 import { resolvePluginRuntime } from '../plugins/runtime.js';
 import type { ModeEnv } from '../agents/config.js';
 import type { AgentConfig, RunAgentOptions } from '../agents/spawn-config.js';
@@ -107,17 +107,6 @@ function hasSpawnContext(context: CortexContextEnv): boolean {
   return Object.entries(context).some(([key, value]) => {
     return key === 'threadDepth' ? value != null : Boolean(value);
   });
-}
-
-/** Everything appended to the backend's own system prompt: the ambient global rules, then the
- *  caller's own text. A subagent role reaches its child through the second half — with
- *  `loadCortexRules: false` the role body is all the child sees. */
-function rulesPrompt(options: RunAgentOptions): string | undefined {
-  const rules = options.loadCortexRules === false ? [] : loadCortexRules().global;
-  const parts = rules.map(rule => rule.body);
-  const extra = options.appendSystemPrompt?.trim();
-  if (extra) parts.push(extra);
-  return parts.length > 0 ? parts.join('\n\n---\n\n') : undefined;
 }
 
 function canonicalToolList(options: RunAgentOptions): string[] | undefined {
@@ -238,7 +227,9 @@ export function buildEngineSpec(
 ): EngineSpec {
   const mcpComposition = resolveMcpComposition(options.mcpComposition, options.useCoreMcp);
   const context = spawnContext(options);
-  const appendSystemPrompt = rulesPrompt(options);
+  const appendSystemPrompt = composeSystemPrompt(options, {
+    rules: globalRuleBodies(options.loadCortexRules !== false),
+  });
   const plugins = pluginFields(options, config, mcpComposition);
   const policy = spawnPolicy(options);
   const routeEnv = routeEnvFields(route, config.extraEnv);

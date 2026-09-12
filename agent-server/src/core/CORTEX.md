@@ -3,7 +3,7 @@ Please update me when files in this folder change
 Layer-0 foundation of the agent server: depends on nothing above it and is imported by every other layer.
 Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config generation, live-run state,
 and the vocabulary both the adapter and the domain speak (agent roles, the subagent contract, tool names,
-Codex quota, attachment mimetypes).
+Codex quota, attachment mimetypes, the prompt template engine).
 
 | filename | role | function |
 |---|---|---|
@@ -37,6 +37,7 @@ Codex quota, attachment mimetypes).
 | platform-settings-spec.ts | contract | Validates platform credential patches and snapshots |
 | production-benchmark-evidence.ts | guard | Validates immutable benchmark admission facts, including the attested context a daemon-created root adopts |
 | profile-generator.ts | config | generates the agent profiles file |
+| prompt-template.ts | util | renders the `{{var}}` / `{{#if}}` prompt mini-template and resolves system vars |
 | resilient-watch.ts | util | falls back from filesystem watchers to polling |
 | resume-reminder.ts | data | continuation prompt for interrupted work |
 | run-registry.ts | state | the one index of live runs and background holds; answers sessionState; carries the live AgentRun for mid-turn injection lookup and the per-channel streaming callback slot |
