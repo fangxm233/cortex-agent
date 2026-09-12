@@ -7,6 +7,8 @@ import * as path from 'node:path';
 import { createLogger } from '@core/log.js';
 import type { AgentResult } from '@core/types/agent-types.js';
 import type { CodexQuotaReading } from '@core/codex-quota.js';
+import type { PiSubagentBridge } from './subagent-bridge.js';
+import type { OpenBundledMcpServer } from './mcp-bridge.js';
 import type {
   AgentCompactResult, AgentCompactUsage, InjectionAckSink, UserMessage,
 } from '../types.js';
@@ -43,6 +45,10 @@ export interface PISessionOptions {
   onClose?: (sessionKey: string, session: unknown) => void;
   /** Called with each provider quota reading; set only for gateway-routed runs. */
   onProviderQuota?: (reading: CodexQuotaReading) => void;
+  /** The daemon's subagent machinery, handed to this session's `agent` tool (D10). */
+  subagent?: PiSubagentBridge;
+  /** Builds the in-process Cortex bundle server for this session and its children (D10). */
+  openBundledMcpServer?: OpenBundledMcpServer;
 }
 
 function errorValue(error: unknown): Error {
@@ -123,6 +129,8 @@ export class PISession {
   private readonly registry: Map<string, string>;
   private readonly onClose: PISessionOptions['onClose'];
   private readonly onProviderQuota: PISessionOptions['onProviderQuota'];
+  private readonly subagent: PISessionOptions['subagent'];
+  private readonly openBundledMcpServer: PISessionOptions['openBundledMcpServer'];
   private readonly identity: string;
   private alive = true;
   /** Buffer for assistant_text deltas; flushed on message_end / turn_complete / non-text events. */
@@ -150,6 +158,8 @@ export class PISession {
     this.registry = opts.registry;
     this.onClose = opts.onClose;
     this.onProviderQuota = opts.onProviderQuota;
+    this.subagent = opts.subagent;
+    this.openBundledMcpServer = opts.openBundledMcpServer;
     this.ready = this.start(opts.runtimeFactory);
     // Consumers observe the failure through send()/compact(); an unobserved start must not crash.
     this.ready.catch(() => undefined);
@@ -162,7 +172,7 @@ export class PISession {
       handle = await factory(this.request, {
         onEvent: (event) => this.handleRawEvent(event),
         onProviderQuota: (reading) => this.handleProviderQuota(reading),
-      });
+      }, { subagent: this.subagent, openBundledMcpServer: this.openBundledMcpServer });
     } catch (error) {
       const failure = errorValue(error);
       this.fail(failure);

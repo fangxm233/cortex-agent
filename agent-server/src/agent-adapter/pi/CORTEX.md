@@ -21,7 +21,7 @@ Adds Cortex MCP tools, hooks, subagents, shims, and web tools as inline extensio
 | providers-config.ts | config | writes routed PI catalogs with frozen compatibility |
 | custom-catalog.ts | config | Reads custom provider catalog entries |
 | event-parser.ts | parser | Translates PI session events and forwarded subagent events |
-| mcp-bridge.ts | bridge | Loads the in-memory Cortex bundle plus plugin MCP tools, gating the tools PI supplies natively |
+| mcp-bridge.ts | bridge | Hosts the injected Cortex bundle server plus plugin MCP tools, gating the tools PI supplies natively |
 | mcp-bridge-logic.ts | core | decides server loading and maps tool content |
 | hook-bridge.ts | bridge | runs registry hooks in-process when they expose an entry point, otherwise as scripts |
 | web-fetch.ts | tool | fetches bounded HTTP(S) and strips data images |
@@ -29,8 +29,8 @@ Adds Cortex MCP tools, hooks, subagents, shims, and web tools as inline extensio
 | subagent.ts | tool | The PI `agent` / `agent_stop` tools: role resolution, modes, backgrounding |
 | child-runner.ts | core | Runs one nested PI child to completion, for either backend's parent |
 | child-events.ts | parser | Turns a nested child's raw session records into parent-transcript notices |
-| foreign-subagent.ts | bridge | Deferred hand-off of a non-PI child to the daemon-side runner |
-| background-subagent.ts | bridge | Deferred hand-off of a backgrounded PI run to the shared registry |
+| background-subagent.ts | contract | Port types for a backgrounded PI run; orchestration/pi-background-subagent.ts implements it |
+| subagent-bridge.ts | contract | PiSubagentBridge — the daemon collaborators the `agent` tool needs, injected by the host |
 | tool-shims.ts | bridge | gates PI-local agent/agent_stop, todo, and web tools |
 | quota-probe.ts | bridge | hands provider quota read off response headers to the host |
 | quota-sink.ts | core | persists labeled quota under routed provider keys and feeds throttle |

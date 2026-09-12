@@ -21,6 +21,7 @@ import { startRun } from '../../runs/service.js';
 import type { RunObserver, RunRequest } from '../../runs/request.js';
 import type { RunEvent } from '../../runs/events.js';
 import { emptyUsage } from '@core/agents/subagent/usage.js';
+import { openBundledMcpServer } from '../../mcp/bundled-server.js';
 import type {
   ChildAccumulator, ChildEventForwarder, SubagentResult, SubagentTask, SubagentUsage,
 } from '@core/agents/subagent/types.js';
@@ -169,7 +170,9 @@ async function runPiSubagent(request: SubagentRunRequest): Promise<SubagentResul
     agentDir: adapter.agentDir,
     parentEnv: request.parent.env ?? process.env,
     fallbackModel: model ? { id: model, provider } : null,
-    childExtensions,
+    // A Claude parent delegating to a `pi` child builds the child outside any PI session, so the
+    // Cortex bundle opener is bound here rather than inherited from a parent session (D10).
+    childExtensions: (env) => childExtensions(env, openBundledMcpServer),
     signal: request.signal,
     forward: piForwarder(request),
   });

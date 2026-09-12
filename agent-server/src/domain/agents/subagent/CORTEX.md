@@ -11,4 +11,5 @@ The contract itself (types, schema, catalog, orchestrate, attribution, usage) li
 |---|---|---|
 | runner.ts | core | Backend dispatch for one child: model resolution, routing, and the capability gate; the Claude child opens a startRun with its role/task config |
 | service.ts | entry | Daemon-side entry: validates, resolves roles, and registers the run |
+| foreign.ts | bridge | implements the adapter's cross-backend delegation port for PI's `agent` tool |
 | registry.ts | state | Lifecycle of one `agent` call — wait slices, stop, abandonment sweep, TTL |

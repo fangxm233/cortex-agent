@@ -119,6 +119,8 @@ import { createUiService } from '@domain/ui-service/index.js';
 import { activeClaudeCaptureRegistry } from '../agent-adapter/claude/active-capture-registry.js';
 import { sendWebUserMessage } from '../orchestration/session-send.js';
 import { setSubagentTurnSender } from '@orch/subagent-delivery.js';
+import { startBackgroundSubagent, stopBackgroundSubagent } from '@orch/pi-background-subagent.js';
+import { setPiBackgroundSubagentBridge } from '@domain/runs/adapters.js';
 import { rewindWebSession } from '../orchestration/session-rewind.js';
 import { compactActiveSessionContext, compactSessionContext } from '../orchestration/session-compact.js';
 import { recoverPendingInjections } from '../orchestration/pending-injection-recovery.js';
@@ -820,6 +822,9 @@ process.on('SIGTERM', async () => {
   // A backgrounded `agent` run reports back as an ordinary user turn, the same seam a non-blocking
   // cortex_ask_user answer uses. Bound here because only the composition root holds the adapter.
   setSubagentTurnSender(({ channel, text }) => sendWebUserMessage({ channel, text, adapter }));
+  // The same seam for PI's in-process `agent`: registering a background run reaches the delivery
+  // route above, so the adapter declares the port (D10) and the composition root fills it.
+  setPiBackgroundSubagentBridge({ startBackgroundSubagent, stopBackgroundSubagent });
 
   startMemoryWatcher();
   startDispatchReconciler(getSettings().dispatchReconcilerEnabled);

@@ -40,8 +40,6 @@ import {
   PI_COMMISSION_TOOLS_ENV, PI_INTERACTION_BRIDGE_ENV, PI_MCP_COMPOSITION_ENV,
 } from './session-options.js';
 import { safeNativeComposite, safeNativeName } from '@core/native-name.js';
-import { createBundledServer } from '../../domain/mcp/bundled-server.js';
-import { toolContextFromEnv } from '../../domain/mcp/tools/context.js';
 
 const log = createLogger('pi-mcp-bridge');
 
@@ -71,6 +69,20 @@ type StateDiscovery =
   | { state: ServerState; status: 'skip' }
   | { state: ServerState; status: 'ready'; tools: McpTool[] }
   | { state: ServerState; status: 'failed'; failure: unknown };
+
+/** A running Cortex bundle server, as this bridge uses it. Structural so the adapter never names
+ *  `domain/mcp` (D10): what the bundles *are* is the host's business, hosting one is the bridge's. */
+export interface BundledMcpServerHandle {
+  connect(transport: Transport): Promise<void>;
+  close(): Promise<void>;
+}
+
+/** Builds the in-process Cortex bundle server for one session's environment. Injected by the host
+ *  — `domain/mcp/bundled-server.ts` supplies the real one through `domain/runs/adapters.ts`. */
+export type OpenBundledMcpServer = (
+  bundles: McpBundleName[],
+  env: Record<string, string>,
+) => Promise<BundledMcpServerHandle>;
 
 export interface McpBridgeDeps {
   /** The session's environment: composition markers, channel, Cortex context, tool gate. */
@@ -269,8 +281,9 @@ export function createMcpTransport(
  *  build, bound to a tool context derived from the session's environment, no child process. */
 async function connectBundledServer(
   state: ServerState, bundles: McpBundleName[], env: Record<string, string>,
+  openBundled: OpenBundledMcpServer,
 ): Promise<McpClientHandle> {
-  const server = await createBundledServer(bundles, toolContextFromEnv(env));
+  const server = await openBundled(bundles, env);
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: `pi-mcp-bridge-${state.name}`, version: '1.0.0' });
   await server.connect(serverTransport);
@@ -308,13 +321,20 @@ async function connectPluginServer(
 export function createMcpBridgeDeps(
   env: NodeJS.ProcessEnv,
   pluginServers: readonly McpServerConfig[] = [],
+  openBundled?: OpenBundledMcpServer,
 ): McpBridgeDeps {
   return {
     env,
     pluginServers,
-    spawnClient: (state) => state.source.kind === 'bundled'
-      ? connectBundledServer(state, state.source.bundles, state.source.env)
-      : connectPluginServer(state, state.source.config, env),
+    spawnClient: (state) => {
+      if (state.source.kind !== 'bundled') return connectPluginServer(state, state.source.config, env);
+      // No opener injected ⇒ this process was never given the Cortex bundles. Failing loudly beats
+      // registering a server with no tools, which would read to the model as "Cortex has none".
+      if (!openBundled) {
+        return Promise.reject(new Error('Cortex MCP bundles are unavailable in this session.'));
+      }
+      return connectBundledServer(state, state.source.bundles, state.source.env, openBundled);
+    },
     reportFailure: reportBridgeFailure,
   };
 }

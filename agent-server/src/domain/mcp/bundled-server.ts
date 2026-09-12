@@ -169,3 +169,13 @@ if (isMainModule(import.meta.url)) {
     process.exit(1);
   });
 }
+
+/** The `OpenBundledMcpServer` port `agent-adapter/pi/mcp-bridge.ts` declares: bundles plus the
+ *  session env, with the tool context derived here rather than there (D10 — deriving it reaches
+ *  the session registry and the subagent catalog). Injected at `domain/runs/adapters.ts`. */
+export function openBundledMcpServer(
+  bundles: McpBundleName[],
+  env: Record<string, string>,
+): Promise<McpServer> {
+  return createBundledServer(bundles, toolContextFromEnv(env));
+}

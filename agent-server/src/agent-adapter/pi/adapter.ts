@@ -20,6 +20,8 @@ import {
 import { readCustomProviderEntries } from './custom-catalog.js';
 import { findPISessionFilePath } from './session-files.js';
 import { reportCodexQuota, resolveQuotaSource, type CodexQuotaSinkDeps } from './quota-sink.js';
+import type { PiSubagentBridge } from './subagent-bridge.js';
+import type { OpenBundledMcpServer } from './mcp-bridge.js';
 
 type SubmitRateLimit = CodexQuotaSinkDeps['submit'];
 import { CODEX_PROVIDER, type CodexQuotaReading } from '@core/codex-quota.js';
@@ -110,6 +112,13 @@ export interface PIAdapterHooks {
    *  rather than defaulted (D10): the throttle is domain state, and an omitted sink means this
    *  instance reports nothing rather than writing the daemon's. */
   submitRateLimit?: SubmitRateLimit;
+  /** The daemon's subagent machinery, reached by PI's in-process `agent` tool. Injected because
+   *  it lives in the run registry and the delivery route (D10); unset ⇒ a session delegates to
+   *  nested `pi` children only. */
+  subagent?: PiSubagentBridge;
+  /** Builds the in-process Cortex bundle server every session of this instance hosts (D10).
+   *  Unset ⇒ sessions run with plugin MCP servers only and no Cortex tools. */
+  openBundledMcpServer?: OpenBundledMcpServer;
 }
 
 export class PIAdapter implements EngineAdapter {
@@ -127,6 +136,8 @@ export class PIAdapter implements EngineAdapter {
   private readonly userModelsPath: string | undefined;
   private readonly usageStore: Pick<UsageStore, 'get' | 'update'> | undefined;
   private readonly submitRateLimit: SubmitRateLimit | undefined;
+  private readonly subagent: PiSubagentBridge | undefined;
+  private readonly openBundledMcpServer: OpenBundledMcpServer | undefined;
   /** sessionDir for the <sessionId>.jsonl path convention. Exposed for tests. */
   readonly sessionDir: string;
 
@@ -144,6 +155,8 @@ export class PIAdapter implements EngineAdapter {
     this.userModelsPath = hooks.userModelsPath;
     this.usageStore = hooks.usageStore;
     this.submitRateLimit = hooks.submitRateLimit;
+    this.subagent = hooks.subagent;
+    this.openBundledMcpServer = hooks.openBundledMcpServer;
   }
 
   async getUsage(scope: AgentUsageScope): Promise<ProviderUsage[] | null> {
@@ -322,6 +335,8 @@ export class PIAdapter implements EngineAdapter {
       registry: this.sessionPathRegistry,
       onClose: hooks.onSelfClose,
       onProviderQuota: this.quotaReporter(spec),
+      subagent: this.subagent,
+      openBundledMcpServer: this.openBundledMcpServer,
     });
     return new PIEngineSession(session, request, {
       onEvict: hooks.onEvict,

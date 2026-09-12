@@ -29,6 +29,7 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | subagent-rows.ts | util | maps native-subagent attribution to history and payload fields |
 | subagent-attribution.ts | core | streams a delegated child into its parent turn's live transcript |
 | subagent-delivery.ts | core | holds a session for a backgrounded run and delivers its answer as a turn |
+| pi-background-subagent.ts | bridge | implements the adapter's background-subagent port for PI's in-process `agent` tool |
 | subagent-webhook.ts | entry | serves start / wait / stop / list for the `agent` MCP tool |
 | session-rewind.ts | chat | restores and pins snapshots before Web resend |
 | session-retention-controller.ts | timer | serializes startup and periodic retention sweeps |

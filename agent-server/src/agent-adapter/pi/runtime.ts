@@ -16,6 +16,8 @@ import type { CodexQuotaReading } from '@core/codex-quota.js';
 import type { PiSessionRequest } from './session-options.js';
 import { createPiUiContext } from './ui-context.js';
 import { createCortexExtensions } from './extensions.js';
+import type { PiSubagentBridge } from './subagent-bridge.js';
+import type { OpenBundledMcpServer } from './mcp-bridge.js';
 
 const log = createLogger('pi-runtime');
 
@@ -43,10 +45,19 @@ export interface PiRuntimeCallbacks {
   onProviderQuota?(reading: CodexQuotaReading): void;
 }
 
-/** Builds the runtime for one session. The adapter's injection seam: tests substitute a fake. */
+/** Host-owned collaborators a session's extensions need but the adapter may not import (D10).
+ *  Separate from `PiRuntimeCallbacks`, which is about events this session produces. */
+export interface PiHostCollaborators {
+  subagent?: PiSubagentBridge;
+  openBundledMcpServer?: OpenBundledMcpServer;
+}
+
+/** Builds the runtime for one session. The adapter's injection seam: tests substitute a fake.
+ *  `collaborators` is optional so every existing fake factory keeps its two-argument shape. */
 export type PiRuntimeFactory = (
   request: PiSessionRequest,
   callbacks: PiRuntimeCallbacks,
+  collaborators?: PiHostCollaborators,
 ) => Promise<PiRuntimeHandle>;
 
 /** PI's thinking level union, taken from its own model resolver (the type is not re-exported). */
@@ -158,10 +169,13 @@ function runtimeFactory(
 export async function createPiRuntime(
   request: PiSessionRequest,
   callbacks: PiRuntimeCallbacks,
+  collaborators: PiHostCollaborators = {},
 ): Promise<PiRuntimeHandle> {
   const sdk = await loadPiSdk();
   const ui = createPiUiContext((record) => callbacks.onEvent(record), ensureTheme(sdk));
   const extensions = createCortexExtensions(request, {
+    subagent: collaborators.subagent,
+    openBundledMcpServer: collaborators.openBundledMcpServer,
     onProviderQuota: callbacks.onProviderQuota,
     // A subagent's events reach the parent's stream as one raw record per event, no codec in between.
     onSubagentEvent: (notice) => callbacks.onEvent({ type: 'cortex_subagent_event', notice }),
