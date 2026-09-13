@@ -9,7 +9,7 @@ import { t } from '../core/i18n.js';
 import { buildSessionTag } from '../core/status-format.js';
 import type { Destination, PlatformAdapter } from '@platform/index.js';
 import { getOutboundQueue, durablePost } from '@store/outbound-queue.js';
-import { isInteractiveChannel } from './bg-continuation.js';
+import { isInteractiveChannel } from './background-hold-gates.js';
 
 const log = createLogger('turn-notify');
 

@@ -141,7 +141,7 @@ test('setHoldHandles registers handles and stopHolds() fires them once', () => {
   const r = new RunRegistry();
   let fired = 0;
   r.markBackgroundHeld('s1', 'web:abc');
-  r.setHoldHandles('s1', 'web-bg-hold', { onStop: () => { fired++; } });
+  r.setHoldHandles('s1', 'web-status-hold', { onStop: () => { fired++; } });
 
   assert.equal(r.stopHolds('s1'), true);
   assert.equal(fired, 1);
@@ -176,7 +176,7 @@ test('supersedeHolds fires a status-only hold and leaves it unable to fire twice
   const seen: string[] = [];
   const seal = (): void => { seen.push('seal'); };
   r.markBackgroundHeld('s1', 'web:abc');
-  r.setHoldHandles('s1', 'web-bg-hold', { onSuperseded: seal, onStop: seal });
+  r.setHoldHandles('s1', 'web-status-hold', { onSuperseded: seal, onStop: seal });
 
   assert.equal(r.supersedeHolds('s1'), true);
   assert.deepEqual(seen, ['seal']);
@@ -188,7 +188,7 @@ test('two owners hold one session independently — neither erases the other', (
   const r = new RunRegistry();
   const seen: string[] = [];
   r.markBackgroundHeld('s1', 'web:abc');
-  r.setHoldHandles('s1', 'web-bg-hold', { onSuperseded: () => seen.push('web-seal'), onStop: () => seen.push('web-seal') });
+  r.setHoldHandles('s1', 'web-status-hold', { onSuperseded: () => seen.push('web-seal'), onStop: () => seen.push('web-seal') });
   r.setHoldHandles('s1', 'agent-run:sa_1', { onStop: () => seen.push('stop-child') });
 
   assert.equal(r.stopHolds('s1'), true);
@@ -260,7 +260,7 @@ test('onSessionStatus clears the hold when the seal republishes running:false', 
   const r = new RunRegistry();
   let fired = 0;
   r.onSessionStatus({ sessionId: 's1', channel: 'web:abc', running: true, backgroundRunning: true });
-  r.setHoldHandles('s1', 'web-bg-hold', { onStop: () => {
+  r.setHoldHandles('s1', 'web-status-hold', { onStop: () => {
     fired++;
     r.onSessionStatus({ sessionId: 's1', channel: 'web:abc', running: false, backgroundRunning: false });
   } });

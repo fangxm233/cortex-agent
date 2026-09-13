@@ -40,7 +40,7 @@ export interface BgHoldCancelDeps {
 /** Stop the web background-task hold(s) on a channel; returns the number stopped.
  *
  *  Why this exists: a bg-held session is logically running (the UI shows Stop) but its execution
- *  has ALREADY been torn down — `holdWebForBg` is installed after `teardownExecution` removed the
+ *  has ALREADY been torn down — the web hold is installed after `teardownExecution` removed the
  *  entry from `runRegistry`. So the channel-keyed cancel below found zero executions and
  *  returned 0, and Stop was a silent no-op: the click resolved ok, nothing changed, and the session
  *  stayed "Background" until the grace / max-wait cap fired.

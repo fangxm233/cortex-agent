@@ -70,10 +70,10 @@ export interface AgentRun {
    */
   legacyProcess(): AgentProcess | undefined;
   /**
-   * True once a legacy background hold has subscribed through `runToContinuationSink` and taken
-   * over persisting the background turn's rows. `AgentProcess.setContinuationSink` used to be a
-   * single slot, so exactly one consumer ever wrote those rows; this flag keeps that guarantee now
-   * that several observers can watch the same run. P4.1 removes it with the holds.
+   * True once a background surface (`status-renderer` / `web-status-renderer`) has claimed the
+   * background turn's rows. `AgentProcess.setContinuationSink` used to be a single slot, so exactly
+   * one consumer ever wrote those rows; this flag keeps that guarantee now that several observers
+   * can watch the same run.
    */
   readonly backgroundTranscriptOwned: boolean;
   /** Claim the background transcript for a hold. Idempotent. */

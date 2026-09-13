@@ -1,7 +1,7 @@
 Please update me when files in this folder change
 
 Run layer — the backend-neutral event vocabulary, the fully-resolved run request contract, the
-run ownership object, spec and prompt composition, and the legacy continuation-sink bridge the P1.5 background holds use.
+run ownership object, and spec and prompt composition.
 `startRun` wraps today's facade and owns the execution/registry lifecycle; the conversation,
 thread-step, hook-agent, edit-retry, ask-user-resume, scheduled auto-compound and Claude-subagent
 paths all build a `RunRequest` and open a run. Phases 2–4 replace the engine path underneath.
@@ -9,7 +9,6 @@ paths all build a `RunRequest` and open a run. Phases 2–4 replace the engine p
 | filename | role | function |
 |---|---|---|
 | config-resolver.ts | core | resolveRunConfig — D5's five-layer profile priority plus the channel model override |
-| continuation-sink.ts | core | runToContinuationSink(run, sink, waits) — replays a run's background events as legacy ContinuationSink callbacks, and delivers the run's grace/max-wait verdict |
 | events.ts | core | re-exports RunPhase/RunEvent/toRunEvent from agent-adapter and translates ContinuationSink callbacks into them |
 | engine-spec.ts | core | buildEngineSpec + engineIdentity(); owns the scoped-plugin gate and PI gateway-path derivation |
 | adapters.ts | entry | builds the daemon's Claude and PI engine adapters, injecting the collaborators the adapter may not import (usage store, rate-limit throttle, PI home) — getAdapter/getEngineAdapter |

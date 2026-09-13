@@ -6,7 +6,7 @@
 //         a backend is.
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { isWebChannel } from './bg-continuation.js';
+import { isWebChannel } from './background-hold-gates.js';
 import { isStreamDeltasEnabled } from '../agent-adapter/claude/spawn-args.js';
 import { publishSessionMessageDelta } from './session-events.js';
 

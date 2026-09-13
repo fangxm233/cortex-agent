@@ -2,7 +2,7 @@
 // output: RunObserver that appends transcript rows and publishes session events; the mid-turn
 //         injection ledger that persists injected messages and commits them from run events
 // pos:    orchestration — the one history+publish observer every run surface shares, replacing
-//         the four hand-wired copies (agent-runner foreground, web-bg-hold, bg-continuation,
+//         the four hand-wired copies (agent-runner foreground, the two background surfaces,
 //         mid-turn-inject). P1.8 moved the pending-injection two-phase persistence here.
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 

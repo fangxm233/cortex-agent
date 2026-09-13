@@ -3,7 +3,7 @@
 // pos:    Background-hold cancellation and busy-release regression tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
-// The bug: holdWebForBg is installed AFTER teardownExecution removed the execution from
+// The bug: the web hold is installed AFTER teardownExecution removed the execution from
 // runningExecutions, so the channel-keyed cancel path found zero executions, returned 0, and the
 // click resolved ok while nothing happened. cancelBgHolds is the branch that closes the gap.
 
@@ -73,7 +73,7 @@ test('end-to-end against the real registry: held session is found by channel and
     // The real seal publishes running:false, which flows back through the bus into the registry.
     runRegistry.onSessionStatus({ sessionId: 'sess-1', channel: 'web:live', running: false, backgroundRunning: false });
   };
-  runRegistry.setHoldHandles('sess-1', 'web-bg-hold', { onSuperseded: seal, onStop: seal });
+  runRegistry.setHoldHandles('sess-1', 'web-status-hold', { onSuperseded: seal, onStop: seal });
 
   const n = cancelBgHolds('web:live', { killPooled: () => true });
   assert.equal(n, 1);
@@ -93,7 +93,7 @@ test('new foreground turn releases the old hold before publishing running:true',
       sessionId: 'sess-1', channel: 'web:live', running: false, backgroundRunning: false,
     });
   };
-  runRegistry.setHoldHandles('sess-1', 'web-bg-hold', { onSuperseded: seal, onStop: seal });
+  runRegistry.setHoldHandles('sess-1', 'web-status-hold', { onSuperseded: seal, onStop: seal });
 
   beginForegroundSession('sess-1', 'web:live', {
     supersedeHolds: (sessionId) => runRegistry.supersedeHolds(sessionId),

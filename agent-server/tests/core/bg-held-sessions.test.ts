@@ -89,7 +89,7 @@ test('stopHolds() fires the registered seal exactly once', () => {
   let fired = 0;
   const seal = (): void => { fired++; };
   t.onSessionStatus({ sessionId: 's1', channel: 'web:abc', running: true, backgroundRunning: true });
-  t.setHoldHandles('s1', 'web-bg-hold', { onSuperseded: seal, onStop: seal });
+  t.setHoldHandles('s1', 'web-status-hold', { onSuperseded: seal, onStop: seal });
   assert.equal(t.stopHolds('s1'), true);
   assert.equal(fired, 1);
   assert.equal(t.stopHolds('s1'), false, 'single-fire: handles dropped before invoking');
@@ -106,7 +106,7 @@ test('sealing the hold drops its handles (no stale Stop after the hold ends)', (
   let fired = 0;
   const seal = (): void => { fired++; };
   t.onSessionStatus({ sessionId: 's1', channel: 'web:abc', running: true, backgroundRunning: true });
-  t.setHoldHandles('s1', 'web-bg-hold', { onSuperseded: seal, onStop: seal });
+  t.setHoldHandles('s1', 'web-status-hold', { onSuperseded: seal, onStop: seal });
   t.onSessionStatus({ sessionId: 's1', channel: 'web:abc', running: false });
   assert.equal(t.stopHolds('s1'), false);
   assert.equal(fired, 0);
@@ -116,7 +116,7 @@ test('clear() drops hold handles too', () => {
   const t = new RunRegistry();
   const boom = (): never => { throw new Error('must not fire'); };
   t.onSessionStatus({ sessionId: 's1', channel: 'web:abc', running: true, backgroundRunning: true });
-  t.setHoldHandles('s1', 'web-bg-hold', { onSuperseded: boom, onStop: boom });
+  t.setHoldHandles('s1', 'web-status-hold', { onSuperseded: boom, onStop: boom });
   t.clear();
   assert.equal(t.stopHolds('s1'), false);
   assert.deepEqual(t.sessionsOnChannel('web:abc'), []);

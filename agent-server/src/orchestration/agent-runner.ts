@@ -45,7 +45,6 @@ import { runRegistry } from '@core/run-registry.js';
 import { recordDirectResume } from '@domain/runs/observers/resume-recorder.js';
 import { getAgent } from '@domain/threads/index.js';
 import { runConversation } from './conversation-runner.js';
-import { runToContinuationSink } from '@domain/runs/continuation-sink.js';
 import type { HeldRun } from './status-renderer.js';
 import type { AgentRun } from '@domain/runs/run.js';
 import type { RunEvent } from '@domain/runs/events.js';
@@ -53,8 +52,8 @@ import type { RunObserver } from '@domain/runs/request.js';
 import { acquireBrowser, releaseBrowser, backendSupportsBrowser, BROWSER_DEVICE_SERVER } from '@platform/browser/managed-browser.js';
 import { acquireDeviceBrowser, releaseDeviceBrowser } from '@domain/remote/device-browser.js';
 import { tryAnswerFromHuman } from './manager-qa.js';
-import { shouldHoldForBg, shouldHoldWebForBg } from './bg-continuation.js';
-import { holdWebForBg } from './web-bg-hold.js';
+import { shouldHoldForBg, shouldHoldWebForBg } from './background-hold-gates.js';
+import { holdWebSessionForBackground } from './web-status-renderer.js';
 import type { ContinuationSink } from '../agent-adapter/types.js';
 import { downloadFiles as downloadPlatformFiles } from './routing/file-handler.js';
 import { WORKSPACE_DIR, resolveWorkspaceRelPath } from '@core/utils.js';
@@ -421,8 +420,8 @@ export class AgentRunner {
       });
     };
     // The conversation path's one foreground observer. Background-phase events are deliberately
-    // NOT forwarded to the sink: the legacy holds (`web-bg-hold`, `bg-continuation`) still own
-    // background persistence until P4.1, so forwarding them here would double-append the transcript.
+    // NOT forwarded to the sink: the background surfaces (`status-renderer`, `web-status-renderer`)
+    // own background persistence, so forwarding them here would double-append the transcript.
     const foregroundObserver: RunObserver = {
       onEvent(event: RunEvent): void | Promise<void> {
         switch (event.type) {
@@ -570,21 +569,21 @@ export class AgentRunner {
         continuationToolUse: composeToolUse(callbacks.onToolUse, persistToolUse),
         continuationToolResult: persistToolResult,
         continuationContextUsage: persistContinuationContext,
-        backgroundRun: holdForBg && run ? run : null,
+        backgroundRun: holdForBg ? run : null,
       });
       // Web background-task hold: the Slack/Feishu status-message hold (above) never fires for a
       // web: channel. Keep the session marked running+backgroundRunning and stream the spontaneous
       // continuation as new session messages, instead of dropping it and sealing the session idle.
       if (sessionId && shouldHoldWebForBg(convResult.result, channel, canSink)) {
         const sid = sessionId;
-        webBgHeld = holdWebForBg({
+        webBgHeld = holdWebSessionForBackground({
           result: convResult.result,
-          registerSink: (sink, waits) => { if (run) runToContinuationSink(run, sink, waits); },
+          run,
           // Stop during the hold: the cancel path finds the hold by channel in this registry and
           // fires the abort to seal it (see core/run-registry.ts).
           // This hold owns STATUS, not work: its seal releases the busy bracket and publishes
           // running:false, so it is the right response to both verbs.
-          registerAbort: (abort) => runRegistry.setHoldHandles(sid, 'web-bg-hold', {
+          registerAbort: (abort) => runRegistry.setHoldHandles(sid, 'web-status-hold', {
             onSuperseded: abort, onStop: abort,
           }),
           track: trackPendingTask,

@@ -8,7 +8,7 @@ queueing, mid-turn injection, background holds and execution lifecycle.
 | agent-runner-wake-guard.test.ts | test | Covers synthetic wake notice routing guard |
 | agent-runner.test.ts | test | Covers routing, download reuse and supersession |
 | ask-user-question-pi.test.ts | test | Covers native PI and MCP-over-PI answer routing |
-| bg-continuation.test.ts | test | Covers reset-isolated continuation dispatch |
+| background-hold-gates.test.ts | test | Covers the hold gates and channel-scope predicates |
 | busy-tracker.test.ts | test | Covers busy counter publish and aggregation |
 | cancel-bg-hold.test.ts | test | Covers stopping and superseding background holds, and the channel→session bridge that cancels delegated `agent` runs |
 | channel-queue.test.ts | test | Covers per-channel queue serialization |
@@ -41,4 +41,4 @@ queueing, mid-turn injection, background holds and execution lifecycle.
 | transcript-sink.test.ts | test | Covers transcript sink history/publish, subagent attribution and delta-flush ordering |
 | turn-notify.test.ts | test | Covers reset-isolated notification gating |
 | turn-tracking.test.ts | test | Covers snapshot barriers and turn mutation locks |
-| web-bg-hold.test.ts | test | Covers Web background hold status, resume and seal |
+| web-status-renderer.test.ts | test | Drives the web hold with run events: status, resume, timeout and seal |
