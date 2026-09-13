@@ -68,7 +68,14 @@ test('open().run() yields the same phased events, in order, as spawn().send()', 
 
   t.onTestFinished(async () => { await Promise.allSettled([piPool(spawnAdapter).close(sessionKey), engine.close()]); });
 
-  const expected = [...spawn.events.map((event) => toRunEvent(event, 'foreground')), DONE];
+  // Same contract as Claude: the terminal marker is dropped and the authoritative result pushed.
+  const expected = [
+    ...spawn.events
+      .filter((event) => event.type !== 'turn_complete')
+      .map((event) => toRunEvent(event, 'foreground')),
+    { type: 'foreground_result', result: spawn.result },
+    DONE,
+  ];
   assert.deepEqual(engineEvents, expected);
   assert.deepEqual(engineResult, spawn.result);
 });

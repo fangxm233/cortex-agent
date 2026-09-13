@@ -5,6 +5,7 @@
 
 import type { AgentResult } from '@core/types/agent-types.js';
 import { CAPABILITIES_BY_BACKEND, type Capability } from '../capabilities.js';
+import { ContinuationPhase, type AwaitBackground } from '../continuation-phase.js';
 import { RunEventQueue, toRunEvent, type RunEvent } from '../run-events.js';
 import { createEventStream } from '../normalize/event-stream.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
@@ -85,9 +86,9 @@ export class ClaudeEngineSession implements EngineSession {
   private injectionSeq = 0;
   /** Only the first run of a session emits `session_started`, matching `spawn()`'s `started` flag. */
   private started = false;
-  /** Accepted and recorded; see `run()`. Claude continuation turns still travel the legacy
-   *  `ContinuationSink` installed on the `spawn()` process, so this changes nothing yet (P4.1). */
-  private lastAwaitBackground: 'none' | 'inline' | 'hold' = 'none';
+  /** What this run asked for. The background phase it selects is carried by `ContinuationPhase`,
+   *  which the engine installs the moment the run begins. */
+  private lastAwaitBackground: AwaitBackground = 'none';
 
   /** `identity` is passed in rather than computed here: it is derived from `adapter.ts`'s private
    *  `compatibilityFromOptions`, and importing that back would make `adapter.ts` ↔ `engine.ts` a
@@ -106,7 +107,7 @@ export class ClaudeEngineSession implements EngineSession {
     return this.session.sessionId;
   }
 
-  run(prompt: UserMessage, opts: { awaitBackground: 'none' | 'inline' | 'hold' }): EngineRun {
+  run(prompt: UserMessage, opts: { awaitBackground: AwaitBackground }): EngineRun {
     const queue = new RunEventQueue();
     const pending: PendingInjection[] = [];
     this.active = { queue, pending };
@@ -130,9 +131,6 @@ export class ClaudeEngineSession implements EngineSession {
         });
       },
     });
-    // Accepted and recorded, but changes nothing yet: Claude's spontaneous continuation turns still
-    // reach the caller through the legacy `ContinuationSink` that `AgentRun` installs on the
-    // `spawn()` process. Routing them onto this run's stream is P4.1.
     this.lastAwaitBackground = opts.awaitBackground;
     if (!this.started) {
       // Claude has no turn-stream `session_started`; synthesize it exactly as `spawn().send()` does.
@@ -140,17 +138,34 @@ export class ClaudeEngineSession implements EngineSession {
       this.started = true;
     }
 
-    const push = (event: NormalizedEvent) => queue.push(toRunEvent(event, 'foreground'));
-    const result = this.driveTurn(prompt, push, queue);
+    const deferred = deferredResult();
+    // The run's background phase. The sink goes in BEFORE the foreground result can land: Claude
+    // fires a background task's continuation the moment that result does, and a sink installed any
+    // later would drop it. The phase also decides when the run is over — see continuation-phase.ts.
+    const phase = new ContinuationPhase(opts.awaitBackground, {
+      push: (event) => queue.push(event),
+      settle: (result) => deferred.resolve(result),
+      reject: (error) => deferred.reject(error),
+      close: () => queue.close(),
+    });
+    this.session.setContinuationSink(phase.sink());
+
+    // `turn_complete` is the callback stream's terminal marker, not a result: the engine pushes the
+    // authoritative `foreground_result` itself once the turn resolves, and translating the marker
+    // too would emit a second, lossy result event for the same turn.
+    const push = (event: NormalizedEvent) => {
+      if (event.type !== 'turn_complete') queue.push(toRunEvent(event, 'foreground'));
+    };
+    void this.driveRun(prompt, push, queue, phase, deferred);
     // The caller observes rejection through `EngineRun.result`; this only prevents an unhandled
     // rejection when a consumer reads `events` without awaiting `result`.
-    result.catch(() => undefined);
+    deferred.promise.catch(() => undefined);
 
     return {
       events: {
         [Symbol.asyncIterator]: (): AsyncIterator<RunEvent> => ({ next: () => queue.next() }),
       },
-      result,
+      result: deferred.promise,
       // Ends this run, not the session: `spawn()`'s `AgentProcess.close()` does `stream.close()`
       // and deliberately not `session.close()`, so the pooled session serves the next run. Session
       // teardown goes through SessionEngines.close(key) / kill(key) (P2.3c).
@@ -158,37 +173,37 @@ export class ClaudeEngineSession implements EngineSession {
     };
   }
 
-  private async driveTurn(
+  /** One run: the foreground turn, then the background phase it leaves behind. */
+  private async driveRun(
     prompt: UserMessage,
     push: (event: NormalizedEvent) => void,
     queue: RunEventQueue,
-  ): Promise<AgentResult> {
+    phase: ContinuationPhase,
+    deferred: { resolve: (r: AgentResult) => void; reject: (e: unknown) => void },
+  ): Promise<void> {
+    let base: AgentResult;
     try {
-      const result = await this.session.sendMessage(prompt.text, {
+      base = await this.session.sendMessage(prompt.text, {
         attachments: prompt.attachments,
         ...claudeTurnCallbacks(push),
       });
       pushDerivedTurnEvents(
-        push, result, this.session, this.spec.flags.preserveUnreportedAccounting === true,
+        push, base, this.session, this.spec.flags.preserveUnreportedAccounting === true,
       );
-      queue.push({
-        type: 'phase', phase: 'done',
-        pendingBackground: result.pendingBackgroundTasks ?? 0,
-        undeliveredBackground: result.undeliveredBackgroundTasks ?? 0,
-      });
-      return result;
     } catch (err: any) {
       // Same suppression as `spawn().send()`: a cancelled turn is not an error worth surfacing.
       if (!err?.cancelled) {
         push({ type: 'error', message: String(err?.message ?? err), fatal: true });
       }
-      queue.push({
-        type: 'phase', phase: 'done', pendingBackground: 0, undeliveredBackground: 0,
-      });
-      throw err;
-    } finally {
+      queue.push({ type: 'phase', phase: 'done', pendingBackground: 0, undeliveredBackground: 0 });
       queue.close();
+      deferred.reject(err);
+      return;
     }
+    // The authoritative result, pushed once — `turn_complete` was filtered out of `push` above, so
+    // this is the only result event a consumer sees for this turn.
+    queue.push({ type: 'foreground_result', result: base });
+    phase.start(base);
   }
 
   steer(msg: UserMessage): { accepted: boolean; injectionId?: string } {
@@ -283,4 +298,11 @@ export class ClaudeEngineSession implements EngineSession {
   private nextInjectionId(): string {
     return `claude-run-inj-${++this.injectionSeq}`;
   }
+}
+
+function deferredResult(): { promise: Promise<AgentResult>; resolve: (r: AgentResult) => void; reject: (e: unknown) => void } {
+  let resolve!: (r: AgentResult) => void;
+  let reject!: (e: unknown) => void;
+  const promise = new Promise<AgentResult>((res, rej) => { resolve = res; reject = rej; });
+  return { promise, resolve, reject };
 }

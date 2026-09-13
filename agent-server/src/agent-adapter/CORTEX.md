@@ -12,7 +12,8 @@ Defines shared contracts, capabilities, and normalized backend events.
 | mcp-remote-fetch.ts | util | Rejects remote MCP HTTP redirects |
 | browser-mcp-server.ts | core | Defines the Playwright MCP server every backend uses for browser control |
 | capabilities.ts | core | Declares shared interaction and subagent-hosting backend capabilities |
-| bg-wait.ts | core | emits exact continuation request accounting |
+| bg-wait.ts | core | background-continuation policy knobs: settings gate, grace/max-wait bounds, remaining-work arithmetic |
+| continuation-phase.ts | core | the background phase of one engine run: RunEvents for continuation turns, the merged result, and the grace/max-wait watchdog |
 | event-tee.ts | core | fans out run events and enforces required sinks |
 | claude/ | subdir | Claude Code backend adapter |
 | normalize/ | subdir | backend-neutral events, accounting and tool schema |

@@ -102,7 +102,13 @@ test('Claude open().run() is spawn().send() retagged as RunEvents plus a termina
   const engineResult = await run.result;
 
   const expected: RunEvent[] = [
-    ...normalized.map((event) => toRunEvent(event, 'foreground')),
+    // `turn_complete` is the callback stream's terminal MARKER, not a result: the engine drops it
+    // and pushes the authoritative `foreground_result` instead, so a run sees exactly one result
+    // event for its turn (and it carries the full AgentResult, not the marker's lossy one).
+    ...normalized
+      .filter((event) => event.type !== 'turn_complete')
+      .map((event) => toRunEvent(event, 'foreground')),
+    { type: 'foreground_result', result: spawnResult },
     { type: 'phase', phase: 'done', pendingBackground: 0, undeliveredBackground: 0 },
   ];
   assert.deepEqual(runEvents, expected);

@@ -5,6 +5,7 @@
 
 import type { AgentResult } from '@core/types/agent-types.js';
 import { CAPABILITIES_BY_BACKEND, type Capability } from '../capabilities.js';
+import { ContinuationPhase, type AwaitBackground } from '../continuation-phase.js';
 import { RunEventQueue, toRunEvent, type RunEvent } from '../run-events.js';
 import type {
   AgentCompactResult, Backend, EngineRun, EngineSession, UserMessage,
@@ -61,8 +62,9 @@ export class PIEngineSession implements EngineSession {
    *  time). `steer()` targets it for id correlation and immediate refusals. */
   private active: { queue: RunEventQueue; pending: PendingInjection[] } | null = null;
   private injectionSeq = 0;
-  /** Recorded for diagnostics; PI has no background phase yet, so it never changes run behaviour. */
-  private lastAwaitBackground: 'none' | 'inline' | 'hold' = 'none';
+  /** Recorded for diagnostics. PI has no spontaneous continuation turns, so every run takes the
+   *  `none` path through `ContinuationPhase` and ends at its own foreground result. */
+  private lastAwaitBackground: AwaitBackground = 'none';
 
   constructor(
     session: PISession,
@@ -83,7 +85,7 @@ export class PIEngineSession implements EngineSession {
     return this.session.sessionId;
   }
 
-  run(prompt: UserMessage, opts: { awaitBackground: 'none' | 'inline' | 'hold' }): EngineRun {
+  run(prompt: UserMessage, opts: { awaitBackground: AwaitBackground }): EngineRun {
     const stream = this.session.openTurnStream();
     const queue = new RunEventQueue();
     const pending: PendingInjection[] = [];
@@ -116,19 +118,67 @@ export class PIEngineSession implements EngineSession {
     // rejection when a consumer reads `events` without awaiting `result`.
     result.catch(() => undefined);
 
+    const deferred = deferredResult();
+    // PI has no spontaneous continuation turn, so the run's background phase is a formality: the
+    // phase settles with the foreground result and closes the stream. It is still the phase that
+    // decides, so both engines have ONE definition of when a run ends.
+    const phase = new ContinuationPhase(opts.awaitBackground, {
+      push: (event) => queue.push(event),
+      settle: (result_) => deferred.resolve(result_),
+      reject: (error) => deferred.reject(error),
+      close: () => queue.close(),
+    });
+    // PI's turn events arrive on a stream of their own while the turn promise settles beside it,
+    // so the two ends can land in either order. The run's stream may only be closed once the
+    // turn's events have all been forwarded — otherwise a phase that seals early would drop the
+    // tail of its own turn. Both completions therefore meet on this gate.
+    let drained = false;
+    let waiting: (() => void)[] = [];
+    const whenDrained = (fn: () => void): void => { if (drained) fn(); else waiting.push(fn); };
+    const markDrained = (): void => { drained = true; const fns = waiting; waiting = []; for (const fn of fns) fn(); };
+
+    let turnSettled = false;
+    void result.then(
+      (base) => {
+        turnSettled = true;
+        whenDrained(() => {
+          queue.push({ type: 'foreground_result', result: base });
+          phase.start(base);
+        });
+      },
+      (error) => {
+        turnSettled = true;
+        whenDrained(() => {
+          queue.push({ type: 'phase', phase: 'done', pendingBackground: 0, undeliveredBackground: 0 });
+          queue.close();
+        });
+        deferred.reject(error);
+      },
+    );
     void (async () => {
       for await (const event of turnStreamIterable(stream)) {
+        // `turn_complete` is the stream's terminal MARKER, not a result: `toRunEvent` would turn it
+        // into a second, lossy `foreground_result` beside the authoritative one pushed below.
+        if (event.type === 'turn_complete') continue;
         queue.push(toRunEvent(event, 'foreground'));
       }
-      queue.push({ type: 'phase', phase: 'done', pendingBackground: 0, undeliveredBackground: 0 });
-      queue.close();
+      markDrained();
+      // The stream ended without a result yet: the caller cancelled this run. Give a result that
+      // settles in the same turn one microtask to land, then seal; the pooled session lives on and
+      // `result` stays with its awaiter.
+      await Promise.resolve();
+      if (!turnSettled) {
+        queue.push({ type: 'phase', phase: 'done', pendingBackground: 0, undeliveredBackground: 0 });
+        queue.close();
+      }
     })();
+    deferred.promise.catch(() => undefined);
 
     return {
       events: {
         [Symbol.asyncIterator]: (): AsyncIterator<RunEvent> => ({ next: () => queue.next() }),
       },
-      result,
+      result: deferred.promise,
       // Ends this run, not the session: the session stays pooled and serves the next run.
       cancel: () => { this.session.closeTurnStreamFor(stream); },
     };
@@ -232,4 +282,11 @@ export class PIEngineSession implements EngineSession {
   private nextInjectionId(): string {
     return `pi-run-inj-${++this.injectionSeq}`;
   }
+}
+
+function deferredResult(): { promise: Promise<AgentResult>; resolve: (r: AgentResult) => void; reject: (e: unknown) => void } {
+  let resolve!: (r: AgentResult) => void;
+  let reject!: (e: unknown) => void;
+  const promise = new Promise<AgentResult>((res, rej) => { resolve = res; reject = rej; });
+  return { promise, resolve, reject };
 }
