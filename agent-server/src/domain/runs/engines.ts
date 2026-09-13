@@ -5,9 +5,7 @@
 
 import { createLogger } from '@core/log.js';
 import { getAdapter, getEngineAdapter } from './adapters.js';
-import type {
-  AgentAdapter, AgentCompactResult, AgentProcess, Backend, EngineSpec,
-} from '../../agent-adapter/types.js';
+import type { AgentCompactResult, EngineSpec } from '../../agent-adapter/types.js';
 import type { PIAdapter } from '../../agent-adapter/pi/adapter.js';
 import type { ClaudeAdapter } from '../../agent-adapter/claude/adapter.js';
 import type { PIEngineSession } from '../../agent-adapter/pi/engine.js';
@@ -194,35 +192,3 @@ export const engines = new SessionEngines({
   pi: PI_ENGINE_ADAPTER,
   claude: CLAUDE_ENGINE_ADAPTER,
 });
-
-/**
- * The AgentAdapter-shaped view of the PI pool the facade still calls `spawn()` on. `spawn` is
- * exactly `engines.acquire(spec).openLegacyProcess`.
- */
-export const piRunAdapter: AgentAdapter = {
-  backend: 'pi',
-  capabilities: PI_ENGINE_ADAPTER.capabilities,
-  spawn: (spec: EngineSpec): AgentProcess => engines.acquire(spec).openLegacyProcess(spec.engineKey),
-  close: (key: string): Promise<void> => engines.close(key),
-  kill: (key: string): boolean => engines.kill(key),
-  listSessions: (): string[] => engines.listKeys(),
-  getUsage: (scope) => PI_ENGINE_ADAPTER.getUsage(scope),
-};
-
-/**
- * The AgentAdapter-shaped view of the Claude pool the facade still calls `spawn()` on. `spawn` is
- * exactly `engines.acquire(spec).openLegacyProcess`.
- */
-export const claudeRunAdapter: AgentAdapter = {
-  backend: 'claude',
-  capabilities: CLAUDE_ENGINE_ADAPTER.capabilities,
-  spawn: (spec: EngineSpec): AgentProcess => engines.acquire(spec).openLegacyProcess(spec.engineKey),
-  close: (key: string): Promise<void> => engines.close(key),
-  kill: (key: string): boolean => engines.kill(key),
-  listSessions: (): string[] => engines.listKeys(),
-};
-
-/** The run/compact adapter for a backend: the pool facade both backends now share. */
-export function getRunAdapter(backend: Backend): AgentAdapter {
-  return backend === 'pi' ? piRunAdapter : claudeRunAdapter;
-}

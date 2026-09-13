@@ -102,10 +102,10 @@ function unhandled(event: never): never {
 
 /**
  * `NormalizedEvent.turn_complete` is the stream's terminal marker and carries only the turn count
- * and cost; the authoritative `AgentResult` is returned by `AgentProcess.send()` /
- * `ContinuationSink.onResult`. `RunEvent`'s result kinds are typed to carry a full `AgentResult`
- * (plan §3.3), so the fields the marker cannot supply degrade to their absent values. The run layer
- * must prefer the resolved `send()` result when it needs an authoritative one.
+ * and cost; the authoritative `AgentResult` is the engine run's `EngineRun.result`, folded with the
+ * background phase into `EngineRun.settled`. `RunEvent`'s result kinds are typed to carry a full
+ * `AgentResult` (plan §3.3), so the fields the marker cannot supply degrade to their absent values.
+ * A consumer must prefer the resolved run result when it needs an authoritative one.
  */
 function resultFromTurnComplete(
   event: Extract<NormalizedEvent, { type: 'turn_complete' }>,

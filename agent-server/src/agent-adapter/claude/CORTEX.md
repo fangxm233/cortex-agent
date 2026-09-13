@@ -6,7 +6,7 @@ Translates Claude stream and transcript events into the normalized event schema.
 | filename | role | function |
 |---|---|---|
 | adapter.ts | adapter | Stateless Claude EngineAdapter: session open, spec identity, resume target, process transport |
-| engine.ts | engine | Claude EngineSession: RunEvent runs, steer acks, run-scoped cancel over one ClaudeSession, plus the transitional legacy AgentProcess |
+| engine.ts | engine | Claude EngineSession: RunEvent runs, steer acks, run-scoped cancel over one ClaudeSession |
 | turn-machine.ts | core | drives one Claude turn: line handling, accounting, continuation and injection |
 | transcript-path.ts | util | resolves the Claude jsonl transcript path and the --resume-vs-create decision |
 | spawn-args.ts | core | Builds Claude args and bundled MCP selection, swapping native Agent for the MCP one, plus the sidecar's PI model catalog env |

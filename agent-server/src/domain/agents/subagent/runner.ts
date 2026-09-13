@@ -354,7 +354,7 @@ function claudeNoticeObserver(request: SubagentRunRequest): RunObserver {
       // A child's own events carry no subagent attribution — it has no delegation tools — so an
       // attributed one was pushed into this run's stream from outside, by `parentNoticeSink`. It
       // belongs to a nesting we did not create, and forwarding it would send it straight back to
-      // the sink that pushed it: notice → pushTurnEvent → event → notice, an unbounded loop that
+      // the sink that pushed it: notice → ingestExternal → event → notice, an unbounded loop that
       // starves the event loop and takes the whole daemon's I/O down with it. Drop it.
       if ('subagent' in event && event.subagent) return;
       if (event.type === 'assistant_text') {

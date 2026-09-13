@@ -6,7 +6,7 @@ Defines shared contracts, capabilities, and normalized backend events.
 | filename | role | function |
 |---|---|---|
 | index.ts | entry | re-exports the shared adapter contract (types, capabilities, events, hooks); the daemon assembly lives in domain/runs/adapters.ts |
-| types.ts | types | Shared adapter, EngineSpec/CortexContextEnv, usage, tool-gate, out-of-band turn event and plugin contracts |
+| types.ts | types | Shared engine/session contracts (EngineSpec, EngineRun, EngineSession, EngineAdapter), usage, tool-gate, MCP and the continuation/injection sink shapes |
 | run-events.ts | types | RunPhase/RunEvent vocabulary, the NormalizedEvent → RunEvent translation and the RunEventQueue backing EngineRun.events |
 | mcp-private-dir.ts | util | Guards private physical MCP directories |
 | mcp-remote-fetch.ts | util | Rejects remote MCP HTTP redirects |
@@ -14,7 +14,6 @@ Defines shared contracts, capabilities, and normalized backend events.
 | capabilities.ts | core | Declares shared interaction and subagent-hosting backend capabilities |
 | bg-wait.ts | core | background-continuation policy knobs: settings gate, grace/max-wait bounds, remaining-work arithmetic |
 | continuation-phase.ts | core | the background phase of one engine run: RunEvents for continuation turns, the merged result, and the grace/max-wait watchdog |
-| event-tee.ts | core | fans out run events and enforces required sinks |
 | claude/ | subdir | Claude Code backend adapter |
 | normalize/ | subdir | backend-neutral events, accounting and tool schema |
 | pi/ | subdir | PI backend adapter |

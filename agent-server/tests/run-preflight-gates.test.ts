@@ -1,5 +1,5 @@
-// input:  a seeded profiles.json, an armed throttle, startRun and the provider helpers
-// output: provider identity, the pre-flight skip gate, blocked-run notices/evidence, fallback events
+// input:  a seeded profiles.json, an armed throttle, startRun and the provider-identity helper
+// output: provider identity and its run-side attribution, the pre-flight skip gate, blocked-run notices/evidence, fallback events
 // pos:    Run layer — what a run can decide before it ever reaches an engine
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
@@ -13,18 +13,31 @@
 // `loadThrottleHome` before any module that imports the throttle is loaded (all runtime imports
 // below are dynamic for exactly that reason). `_testReset()` between tests prevents leakage.
 
-import { afterAll, test } from 'vitest';
+import { afterAll, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
+import type { AgentResult } from '../src/core/types/agent-types.js';
 import type { RunRequest, RunObserver } from '../src/domain/runs/request.js';
 import type { RunEvent } from '../src/domain/runs/events.js';
+import type { RunAttempt } from '../src/domain/runs/attempt.js';
 import { loadThrottleHome } from './runs/throttle-fixture.js';
 
+const attempt = vi.hoisted(() => ({ startAttempt: vi.fn() }));
+
+// The provider-attribution facts this suite asserts now live on the run, above the attempt seam:
+// `AgentRunImpl.attribute()` stamps a result that named no provider, and `attributeError()` stamps
+// a retryable thrown error. Intercept `startAttempt` so a synthetic attempt can hand the run an
+// unattributed outcome without spawning a backend; the run owns the assertions' subject.
+vi.mock('@domain/runs/attempt.js', async (importOriginal) => {
+  const original = await importOriginal<Record<string, unknown>>();
+  return { ...original, startAttempt: attempt.startAttempt };
+});
+
 const home = await loadThrottleHome('run-preflight-gates-test');
-const { resolveRateLimitProvider, withRateLimitProvider } = await import(
+const { resolveRateLimitProvider } = await import(
   '../src/domain/agents/provider-run-lifecycle.js'
 );
 const { resolveProfileConfig } = await import('../src/domain/agents/profile-manager.js');
@@ -149,20 +162,37 @@ test('provider identity accepts arbitrary configured providers and generic backe
   assert.equal(resolveRateLimitProvider({ backend: 'custom-backend', provider: null } as any), 'custom-backend');
 });
 
-test('provider wrapper attributes results and retryable thrown errors', async () => {
-  const baseResult = {
+/** A synthetic attempt over an outcome the test chose: only the fields `AgentRunImpl` reads, so
+ *  the run walks its own settle/attribute path without a backend. */
+function attemptOutcome(foreground: Promise<AgentResult>): RunAttempt {
+  return {
+    engine: {
+      backend: 'claude', capabilities: new Set(), backendSessionId: null,
+      run: () => ({}), steer: () => ({ accepted: false }),
+      ingestExternal: () => false, respondToDialog: () => false,
+      compact: async () => ({}), close: async () => {}, kill: () => true,
+    },
+    engineRun: {}, spec: {}, backend: 'claude', identity: null,
+    foreground, settled: foreground, backendSessionId: null, kill: () => true,
+  } as unknown as RunAttempt;
+}
+
+test('the run stamps the attempt provider on an unattributed result and on a retryable error', async () => {
+  home.rl._testReset();
+  const providerProfile = { ...resolveProfileConfig('scan'), provider: 'provider-z' };
+  const request = (): RunRequest => requestFor('scan', { profile: providerProfile });
+
+  const baseResult: AgentResult = {
     sessionId: 's', total_cost_usd: 0, num_turns: 1,
     rateLimited: false, rateLimitMessage: null, planFilePath: null,
     enteredPlanMode: false, exitedPlanMode: false, finalOutput: null,
   };
-  const wrappedResult = withRateLimitProvider({
-    promise: Promise.resolve(baseResult), kill: () => false, sessionId: 's',
-  } as any, 'provider-z');
-  assert.equal((await wrappedResult.promise).rateLimitProvider, 'provider-z');
+  attempt.startAttempt.mockImplementationOnce(() => attemptOutcome(Promise.resolve(baseResult)));
+  const success = startRun(request(), []);
+  assert.equal((await success.settled).rateLimitProvider, 'provider-z');
 
   const error = new Error('rate limit exceeded');
-  const wrappedError = withRateLimitProvider({
-    promise: Promise.reject(error), kill: () => false, sessionId: null,
-  } as any, 'provider-z');
-  await assert.rejects(wrappedError.promise, (caught: any) => caught.rateLimitProvider === 'provider-z');
+  attempt.startAttempt.mockImplementationOnce(() => attemptOutcome(Promise.reject(error)));
+  const failure = startRun(request(), []);
+  await assert.rejects(failure.settled, (caught: any) => caught.rateLimitProvider === 'provider-z');
 });

@@ -1,6 +1,6 @@
 // input:  events, capabilities, process, MCP and usage types
-// output: shared adapter, usage and runtime contracts
-// pos:    Shared adapter runtime contracts
+// output: shared engine/session contracts, usage and MCP types, and sink shapes
+// pos:    Shared engine and session runtime contracts
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from 'node:child_process';
@@ -216,59 +216,6 @@ export interface AgentCompactResult {
   usage: AgentCompactUsage | null;
 }
 
-export interface AgentProcess {
-  sessionKey: string;
-  /** Present when the process was launched through a containment supervisor. */
-  readonly supervision?: AgentProcessSupervision;
-  /** May be null at spawn time; adapter fills in asynchronously when the backend assigns a session id. */
-  sessionId: string | null;
-  /** Run one turn. Resolves with the AgentResult for that turn (carries rateLimited / planFilePath / askUserQuestions / cost accounting the outer fallback depends on). Events for the same turn are also emitted via the `events` iterable. */
-  send(message: UserMessage): Promise<AgentResult>;
-  /** Async iterable of normalized events. Iterator returns done after close(). */
-  events: AsyncIterable<NormalizedEvent>;
-  /** Run backend-native manual context compaction without creating a conversational turn. */
-  compact?(): Promise<AgentCompactResult>;
-  /** Register a sink for spontaneous background-task continuation turns (Claude backend only).
-   *  Persists across normal turns; the adapter clears it on session close/kill. */
-  setContinuationSink?(sink: ContinuationSink): void;
-  /** Inject a user message into a turn already in flight, without opening a new Cortex run.
-   *  Returns false when the backend cannot inject right now (no live process / no active turn). */
-  injectUserMessage?(message: UserMessage): boolean;
-  /** Register a backend-neutral sink for mid-turn injection lifecycle acks. Persists across turns;
-   *  the adapter clears it on session close/kill. */
-  setInjectionAckSink?(sink: InjectionAckSink): void;
-  /**
-   * Push an event the backend did not produce into the turn's own event stream.
-   *
-   * This is the attribution seam for work Cortex runs *beside* the turn — today, the children of
-   * the `agent` MCP tool, whose events have no other way into the parent transcript. Only events
-   * that already carry their own attribution (a `subagent` block) belong here; anything else would
-   * be indistinguishable from the main agent's output.
-   *
-   * Returns false when there is no live stream to push into — the turn has ended, or the backend
-   * has no such seam. That is the caller's cue to fall back to a post-turn delivery route, not an
-   * error.
-   */
-  pushTurnEvent?(event: NormalizedEvent): boolean;
-  close(): Promise<void>;
-  kill(): boolean;
-}
-
-export interface AgentAdapter {
-  readonly backend: Backend;
-  readonly capabilities: Set<Capability>;
-  /** Start or resume a session. */
-  spawn(spec: EngineSpec): AgentProcess;
-  /** Graceful close. */
-  close(sessionKey: string): Promise<void>;
-  /** Forced kill. */
-  kill(sessionKey: string): boolean;
-  /** List currently open session keys. */
-  listSessions(): string[];
-  /** Return scoped provider usage from the backend's pull source or push cache. */
-  getUsage?(scope: AgentUsageScope): Promise<ProviderUsage[] | null>;
-}
-
 /**
  * One engine-side run (plan §3.3): the event stream and the foreground result for a single
  * `EngineSession.run()` call.
@@ -349,7 +296,9 @@ export interface EngineSession {
 
 /**
  * Stateless engine factory (plan §3.3). Implemented by `PIAdapter` and `ClaudeAdapter`.
- * Replaces the pooled `AgentAdapter` contract for new callers.
+ * This is the only adapter contract: the pooled `AgentAdapter`/`AgentProcess` pair it replaced
+ * (start/close/kill/list a session, then push turns into it) is gone, and the per-backend usage
+ * probe a caller needs is asked of the adapter directly.
  */
 export interface EngineAdapter {
   readonly backend: Backend;

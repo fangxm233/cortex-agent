@@ -17,7 +17,7 @@ edit-retry, ask-user-resume, scheduled auto-compound and Claude-subagent paths a
 | events.ts | core | re-exports RunPhase/RunEvent/toRunEvent from agent-adapter and translates ContinuationSink callbacks into them |
 | engine-spec.ts | core | buildEngineSpec + engineIdentity(); owns the scoped-plugin gate and PI gateway-path derivation |
 | adapters.ts | entry | builds the daemon's Claude and PI engine adapters, injecting the collaborators the adapter may not import (usage store, rate-limit throttle, PI home) — getAdapter/getEngineAdapter |
-| engines.ts | core | SessionEngines — the one owner of pooled engine sessions for both backends (acquire/close/kill/closeByPrefix/closeAll/registerSessionPath); module singleton `engines` + transitional PI and Claude run adapters |
+| engines.ts | core | SessionEngines — the one owner of pooled engine sessions for both backends (acquire/close/kill/closeByPrefix/closeAll/registerSessionPath); module singleton `engines` |
 | prompt.ts | core | composeSystemPrompt / composeUserPrompt — the one place a run's system and user prompts are assembled, plus the rules and USER.md block loaders |
 | request.ts | core | RunRequest, RunObserver and the RunResult alias (nullable session id, legacy useCoreMcp); re-exports AgentSpec from spec-loader |
 | run.ts | core | AgentRun state machine: walks the attempt chain, runs the notice stage, phases, results, cancel, steer (mid-turn injection + ack events), provider/auth attribution, fan-out |

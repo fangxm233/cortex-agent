@@ -5,7 +5,7 @@
 
 import { getAdapter as getDaemonAdapter, getEngineAdapter } from '../runs/adapters.js';
 import { Capability } from '../../agent-adapter/capabilities.js';
-import type { AgentAdapter, AgentUsageScope, Backend } from '../../agent-adapter/types.js';
+import type { AgentUsageScope, Backend } from '../../agent-adapter/types.js';
 import { getSettings as readSettings, type Settings } from '@core/settings.js';
 import { GATEWAY_URL } from './gateway-manager.js';
 import {
@@ -29,10 +29,15 @@ const MONTH_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
 type GatewayPeriod = 'today' | 'month';
 
-type UsageAdapter = Pick<AgentAdapter, 'capabilities' | 'getUsage'>;
+/** The slice of a backend adapter the usage service reads: its capability set (the Codex
+ *  subscription probe is capability-gated) and its usage pull, which only some backends have. */
+type UsageAdapter = {
+  readonly capabilities: Set<Capability>;
+  getUsage?(scope: AgentUsageScope): Promise<ProviderUsage[] | null>;
+};
 type AdapterResolver = (backend: Backend) => UsageAdapter;
 
-/** PI is not a pooled AgentAdapter; its usage probe lives on the engine adapter. */
+/** PI's usage probe lives on the engine adapter; the other backends keep it on the daemon adapter. */
 function defaultUsageAdapter(backend: Backend): UsageAdapter {
   return backend === 'pi' ? getEngineAdapter('pi') : getDaemonAdapter(backend);
 }

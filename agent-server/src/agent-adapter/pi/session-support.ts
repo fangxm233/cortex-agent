@@ -5,7 +5,7 @@
 
 import { createLogger } from '@core/log.js';
 import type { AgentResult, AskUserQuestionInfo } from '@core/types/agent-types.js';
-import type { AgentProcess, InjectionAckSink, UserMessage } from '../types.js';
+import type { InjectionAckSink, UserMessage } from '../types.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
 import { buildPrompt } from '../normalize/prompt-builder.js';
 
@@ -17,10 +17,6 @@ export const PI_TURN_IDLE_TIMEOUT = 60 * 60 * 1000;
 export const PI_CONTEXT_USAGE_SAMPLE_MS = 2000;
 
 export type SwitchResult = { ok: boolean; cancelled: boolean };
-
-export interface PIAgentProcess extends AgentProcess {
-  sendExtensionUiResponse(id: string, payload: Record<string, unknown>): boolean;
-}
 
 export interface PendingPiTurn {
   resolve: (result: AgentResult) => void;

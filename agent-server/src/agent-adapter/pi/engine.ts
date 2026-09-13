@@ -1,6 +1,6 @@
 // input:  PISession, resolved PiSessionRequest, PI normalized events
 // output: PIEngineSession: EngineSession over one PISession plus its RunEvent queue
-// pos:    PI backend's session surface: RunEvent runs plus the transitional legacy AgentProcess
+// pos:    PI backend's session surface: one RunEvent stream per run over a pooled PISession
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { AgentResult } from '@core/types/agent-types.js';
@@ -13,14 +13,14 @@ import type {
 } from '../types.js';
 import { turnStreamIterable, type PISession } from './pi-session.js';
 import { sessionIdentity, type PiSessionRequest } from './session-options.js';
-import type { EventQueue, PIAgentProcess, SwitchResult } from './session-support.js';
+import type { EventQueue, SwitchResult } from './session-support.js';
 
 /** Hooks the owning pool injects when it opens a session. Optional so a bare `open()` used by
  *  tests and other callers can construct an engine without an owner. */
 export interface PIEngineOpenHooks {
   /** Forwarded to `PISession.onClose`: the session terminated itself (start failure, idle timeout). */
   onSelfClose?: (sessionKey: string, session: unknown) => void;
-  /** The pool evicts this engine after a successful `kill()` (the legacy AgentProcess path). */
+  /** The pool evicts this engine after a successful `kill()`. */
   onEvict?: (session: PIEngineSession) => void;
   /** Registry + disk lookup the legacy spawn path uses to resolve the transcript to send into. */
   resolveSessionPath?: (sessionId: string) => string | null;
@@ -44,10 +44,8 @@ function takePending(pending: PendingInjection[], text: string): PendingInjectio
 }
 
 /**
- * PI's `EngineSession`. `run()` opens a RunEvent stream over the same `PISession`, while
- * `openLegacyProcess()` exposes the byte-identical `AgentProcess` surface the pool used
- * (`createAgentProcess` / `sendSpawnedTurn` moved here verbatim); `cancel()` ends a run through
- * `closeTurnStreamFor`, never the pooled session.
+ * PI's `EngineSession`. `run()` opens a RunEvent stream over the same `PISession`, `steer()` is an
+ * injection and `cancel()` ends a run through `closeTurnStreamFor`, never the pooled session.
  */
 export class PIEngineSession implements EngineSession {
   readonly backend: Backend = 'pi';
@@ -271,47 +269,6 @@ export class PIEngineSession implements EngineSession {
     const result = await this.session.sendSwitchSession(targetPath);
     if (result.ok) this.session.currentSessionId = sessionId;
     return result;
-  }
-
-  /** The legacy AgentProcess surface over this same session, byte-identical to what
-   *  PIAdapter.createAgentProcess built: the facade's take on the pooled session. */
-  openLegacyProcess(engineKey: string): PIAgentProcess {
-    return this.createLegacyProcess(engineKey, this.session.openTurnStream());
-  }
-
-  private sendSpawnedTurn(session: PISession, msg: UserMessage): Promise<AgentResult> {
-    return new Promise<AgentResult>((resolve, reject) => {
-      session.beginTurn(resolve, reject);
-      const targetId = session.sessionId;
-      const targetPath = targetId === null ? null : this.resolveSessionPath?.(targetId) ?? null;
-      session.sendTurn(targetId, targetPath, msg)
-        .catch((error) => session.beginTurnReject(errorValue(error)));
-    });
-  }
-
-  private createLegacyProcess(engineKey: string, turnStream: EventQueue): PIAgentProcess {
-    const session = this.session;
-    return {
-      sessionKey: engineKey,
-      get sessionId(): string | null { return session.sessionId; },
-      send: (msg) => this.sendSpawnedTurn(session, msg),
-      compact: () => session.compact(),
-      sendExtensionUiResponse: (id, payload) => session.sendExtensionUiResponse(id, payload),
-      injectUserMessage: (msg) => session.injectUserMessage(msg),
-      setInjectionAckSink: (sink) => session.setInjectionAckSink(sink),
-      events: turnStreamIterable(turnStream),
-      // Out-of-band attribution (see AgentProcess.pushTurnEvent). Bound to THIS run's queue, so a
-      // late push from an abandoned run cannot leak into the turn that replaced it.
-      pushTurnEvent: (event) => {
-        if (turnStream.isClosed) return false;
-        turnStream.push(event);
-        return true;
-      },
-      // Ends this run, not the session: the session is pooled per engineKey and serves the next
-      // turn. Session teardown goes through SessionEngines.close(key) / kill(key).
-      close: async () => { session.closeTurnStreamFor(turnStream); },
-      kill: () => this.kill(),
-    };
   }
 
   private nextInjectionId(): string {

@@ -1,24 +1,15 @@
-// input:  continuation results, exact accounting, wait policy
-// output: cache-inclusive continuation events and bounded results
-// pos:    Background continuation wait policy
+// input:  continuation results and the bg-continuation settings flag
+// output: remaining-background arithmetic and the inline-wait eligibility guards
+// pos:    Pure background-continuation wait policy predicates
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 //
-// Interactive turns hold their Slack status asynchronously (orchestration/lifecycle +
-// the run's own watchdog). Thread/dispatch turns have no status message to hold — the step's
-// RESULT is the deliverable — so they wait INLINE: the run keeps the turn promise
-// open until the spontaneous continuation completes, then resolves with the merged
-// result. The thread's own busy bracket covers the wait (no extra track here). Ordinary
-// callers use grace/cap bounds; supervised one-shot runs use completion-only mode and their
-// process-stop boundary so ambient caps cannot publish success while work remains.
+// The engine owns the wait itself now (`continuation-phase.ts`): it merges the continuation
+// turns, runs the grace/max-wait watchdog, and bounds the run. What stays here is the pure
+// policy around it: whether background work remains, which backend/result combinations are
+// eligible, and how long the ambient bounds are.
 
-import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
-import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
-import type { ContinuationSink } from './types.js';
-import type { NormalizedEvent, ToolUseSubagent } from './normalize/event-types.js';
-import { parseTodoWriteByName } from './normalize/todo.js';
-
-const log = createLogger('bg-wait');
+import type { AgentResult } from '@core/types/agent-types.js';
 
 /** Background-task continuation feature gate. */
 export function isBgContinuationEnabled(): boolean {
@@ -51,7 +42,7 @@ export function remainingBg(result: { pendingBackgroundTasks?: number; undeliver
   return (result.pendingBackgroundTasks ?? 0) + (result.undeliveredBackgroundTasks ?? 0);
 }
 
-/** Backend and result prerequisites shared by explicit and legacy inline waiting. */
+/** Backend and result prerequisites shared by the engine's background phase and the hold gates. */
 export function canAwaitBgContinuation(
   backend: string,
   result: AgentResult | null | undefined,
@@ -62,7 +53,7 @@ export function canAwaitBgContinuation(
   return remainingBg(result) > 0;
 }
 
-/** Legacy inline policy: settings-enabled thread turns wait; interactive turns do not. */
+/** Inline policy: settings-enabled thread turns wait; interactive turns do not. */
 export function shouldAwaitBgInline(
   backend: string,
   threadId: string | null | undefined,
@@ -71,263 +62,4 @@ export function shouldAwaitBgInline(
 ): boolean {
   if (!isBgContinuationEnabled() || !threadId) return false;
   return canAwaitBgContinuation(backend, result, canRegisterSink);
-}
-
-export interface WaitForBgOpts {
-  proc: { setContinuationSink?: (sink: ContinuationSink) => void };
-  baseResult: AgentResult;
-  /** Continuation assistant text forwarded here (the step's transcript/stream callback). */
-  onAssistantText?: ((text: string, subagent?: ToolUseSubagent) => void) | null;
-  onToolUse?: ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null;
-  onToolResult?: ((
-    toolUseId: string, content: string, isError: boolean, subagent?: ToolUseSubagent,
-  ) => void) | null;
-  onContextUsage?: ((usage: ContextUsage) => void | Promise<void>) | null;
-  onEvent?: ((event: NormalizedEvent) => void) | null;
-  graceMs?: number;
-  maxWaitMs?: number;
-  /** Wait without ambient release timers until continuation completion or supervised stop. */
-  completionOnly?: boolean;
-  /** Process termination boundary required by completion-only waits. */
-  stopPromise?: Promise<unknown>;
-  /** Injectable timers for tests. Production timers are unref'd. */
-  timers?: { set: (fn: () => void, ms: number) => unknown; clear: (h: unknown) => void };
-}
-
-const realTimers = {
-  set: (fn: () => void, ms: number): unknown => {
-    const h = setTimeout(fn, ms);
-    (h as any).unref?.();
-    return h;
-  },
-  clear: (h: unknown): void => clearTimeout(h as NodeJS.Timeout),
-};
-
-/** Merge a continuation turn into the accumulated result: costs/turns summed, latest
- *  non-empty output wins, rate-limit and remaining counts taken from the continuation. */
-function mergeContinuation(acc: AgentResult, cont: AgentResult): AgentResult {
-  const bothCostNull = acc.total_cost_usd == null && cont.total_cost_usd == null;
-  const bothTurnsNull = acc.num_turns == null && cont.num_turns == null;
-  const costReported = acc.costReported === undefined && cont.costReported === undefined
-    ? undefined
-    : acc.costReported === true || cont.costReported === true;
-  return {
-    ...acc,
-    costReported,
-    total_cost_usd: bothCostNull ? null : (acc.total_cost_usd ?? 0) + (cont.total_cost_usd ?? 0),
-    num_turns: bothTurnsNull ? null : (acc.num_turns ?? 0) + (cont.num_turns ?? 0),
-    finalOutput: cont.finalOutput || acc.finalOutput,
-    rateLimited: acc.rateLimited || cont.rateLimited,
-    rateLimitMessage: cont.rateLimitMessage ?? acc.rateLimitMessage,
-    pendingBackgroundTasks: cont.pendingBackgroundTasks ?? 0,
-    undeliveredBackgroundTasks: cont.undeliveredBackgroundTasks ?? 0,
-  };
-}
-
-function continuationCostRecord(result: AgentResult): NormalizedEvent | null {
-  const accounting = result.reportedAccounting;
-  if (result.costReported !== true && accounting?.usageReported !== true) return null;
-  return {
-    type: 'cost_record', provider: 'anthropic', model: accounting?.model ?? 'unknown',
-    tokens_in: accounting?.promptTokens ?? null,
-    tokens_out: accounting?.outputTokens ?? null,
-    prompt_tokens: accounting?.promptTokens ?? null,
-    cached_tokens: accounting?.cachedTokens ?? null,
-    input_tokens: accounting?.inputTokens ?? null,
-    output_tokens: accounting?.outputTokens ?? null,
-    cache_read_tokens: accounting?.cacheReadTokens ?? null,
-    cache_creation_tokens: accounting?.cacheCreationTokens ?? null,
-    provider_requests: Number.isSafeInteger(result.num_turns)
-      && Number(result.num_turns) > 0 ? result.num_turns : null,
-    cost_usd: result.costReported === false ? null : result.total_cost_usd,
-  };
-}
-
-/**
- * Wait inline for the spontaneous background-task continuation of a turn that ended with
- * work remaining. Registers a ContinuationSink on the process and resolves with the merged
- * result when the continuation completes (chained continuations keep waiting). Observer failures
- * reject; otherwise the grace watchdog or max-wait cap resolves with the accumulated result.
- */
-class BackgroundContinuationWait {
-  private acc: AgentResult;
-  private settled = false;
-  private handle: unknown = null;
-  private resolve!: (result: AgentResult) => void;
-  private reject!: (error: unknown) => void;
-
-  constructor(
-    private readonly opts: WaitForBgOpts,
-    private readonly timers: typeof realTimers,
-    private readonly graceMs: number,
-    private readonly maxWaitMs: number,
-    private readonly completionOnly: boolean,
-  ) {
-    this.acc = opts.baseResult;
-  }
-
-  run(): Promise<AgentResult> {
-    const promise = new Promise<AgentResult>((resolve, reject) => {
-      this.resolve = resolve;
-      this.reject = reject;
-      this.opts.proc.setContinuationSink?.(this.sink());
-      this.arm(
-        this.opts.baseResult.pendingBackgroundTasks ?? 0,
-        this.opts.baseResult.undeliveredBackgroundTasks ?? 0,
-      );
-    });
-    if (this.opts.stopPromise) {
-      void this.opts.stopPromise.then(
-        () => this.stop(),
-        error => this.stop(error),
-      );
-    }
-    return promise;
-  }
-
-  private settle(complete: () => void): void {
-    if (this.settled) return;
-    this.settled = true;
-    if (this.handle !== null) this.timers.clear(this.handle);
-    this.handle = null;
-    complete();
-  }
-
-  private finish(result: AgentResult): void {
-    this.settle(() => this.resolve(result));
-  }
-
-  private stop(error?: unknown): void {
-    const failure = error instanceof Error
-      ? error
-      : new Error('Agent process stopped before background continuation completed');
-    this.settle(() => this.reject(failure));
-  }
-
-  private emit(event: NormalizedEvent): boolean {
-    try { this.opts.onEvent?.(event); return true; }
-    catch (error) { this.settle(() => this.reject(error)); return false; }
-  }
-
-  private pause(): void {
-    if (this.settled || this.handle === null) return;
-    this.timers.clear(this.handle);
-    this.handle = null;
-  }
-
-  private arm(running: number, undelivered: number): void {
-    if (this.handle !== null) this.timers.clear(this.handle);
-    this.handle = null;
-    if (running > 0) {
-      if (this.completionOnly) return;
-      this.handle = this.timers.set(() => {
-        log.info(`bg-wait cap (${this.maxWaitMs}ms) reached with ${running} task(s) still running — releasing the step`);
-        this.finish(this.acc);
-      }, this.maxWaitMs);
-      return;
-    }
-    if (undelivered > 0) {
-      if (this.completionOnly) return;
-      this.handle = this.timers.set(() => {
-        log.info(`bg-wait grace (${this.graceMs}ms) elapsed with no notification — releasing the step`);
-        this.finish(this.acc);
-      }, this.graceMs);
-      return;
-    }
-    this.finish(this.acc);
-  }
-
-  private sink(): ContinuationSink {
-    return {
-      // The continuation opened: its length is unbounded, so the ambient grace/cap timers stop
-      // and its result re-arms (chained work) or finishes the wait.
-      onTurnOpen: () => this.pause(),
-      onAssistantText: (text, model, subagent) => this.assistantText(text, model, subagent),
-      onToolUse: (name, input, id, subagent) => this.toolUse(name, input, id, subagent),
-      onToolResult: (id, content, isError, subagent) => this.toolResult(id, content, isError, subagent),
-      onContextUsage: (usage) => this.contextUsage(usage),
-      onResult: (result) => this.result(result),
-    };
-  }
-
-  private assistantText(text: string, model?: string | null, subagent?: ToolUseSubagent): void {
-    if (this.settled || !this.emit({
-      type: 'assistant_text', text,
-      ...(model != null ? { model } : {}),
-      ...(subagent ? { subagent } : {}),
-    })) return;
-    try { this.opts.onAssistantText?.(text, subagent); }
-    catch (error) { log.warn('bg-wait onAssistantText threw:', (error as Error).message); }
-  }
-
-  private toolUse(name: string, input: any, toolUseId?: string, subagent?: ToolUseSubagent): void {
-    const id = toolUseId ?? '';
-    const event = { type: 'tool_use' as const, name, input, toolUseId: id, ...(subagent ? { subagent } : {}) };
-    if (this.settled || !this.emit(event)) return;
-    // Continuation turns run the same derivation as the live stream, so a background task that
-    // updates the task list still moves the progress surfaces. Subagent lists stay dropped.
-    if (!subagent) {
-      const snapshot = parseTodoWriteByName(name, input);
-      if (snapshot) this.emit({ type: 'todo_update', toolUseId: id, snapshot });
-    }
-    try { this.opts.onToolUse?.(name, input, id, subagent); }
-    catch (error) { log.warn('bg-wait onToolUse threw:', (error as Error).message); }
-  }
-
-  private toolResult(
-    toolUseId: string, content: string, isError: boolean, subagent?: ToolUseSubagent,
-  ): void {
-    if (this.settled || !this.emit({
-      type: 'tool_result', toolUseId, content, ok: !isError, ...(subagent ? { subagent } : {}),
-    })) return;
-    try { this.opts.onToolResult?.(toolUseId, content, isError, subagent); }
-    catch (error) { log.warn('bg-wait onToolResult threw:', (error as Error).message); }
-  }
-
-  private contextUsage(usage: ContextUsage): void {
-    if (this.settled || !this.emit({ type: 'context_usage', ...usage })) return;
-    try {
-      void Promise.resolve(this.opts.onContextUsage?.(usage))
-        .catch((error) => log.warn('bg-wait onContextUsage rejected:', (error as Error).message));
-    } catch (error) {
-      log.warn('bg-wait onContextUsage threw:', (error as Error).message);
-    }
-  }
-
-  private result(continuation: AgentResult): void {
-    if (this.settled) return;
-    if (continuation.backgroundInterrupted) {
-      if (this.completionOnly) this.stop();
-      else this.finish({ ...this.acc, backgroundInterrupted: true });
-      return;
-    }
-    const costRecord = continuationCostRecord(continuation);
-    if (costRecord && !this.emit(costRecord)) return;
-    const preserveReportedness = continuation.reportedAccounting !== undefined;
-    if (!this.emit({
-      type: 'turn_complete',
-      numTurns: preserveReportedness ? continuation.num_turns : continuation.num_turns ?? 0,
-      totalCostUsd: continuation.total_cost_usd ?? null,
-    })) return;
-    this.acc = mergeContinuation(this.acc, continuation);
-    if (this.acc.rateLimited) { this.finish(this.acc); return; }
-    const running = continuation.pendingBackgroundTasks ?? 0;
-    const undelivered = continuation.undeliveredBackgroundTasks ?? 0;
-    if (running + undelivered > 0) this.arm(running, undelivered);
-    else this.finish(this.acc);
-  }
-}
-
-export function waitForBgContinuation(opts: WaitForBgOpts): Promise<AgentResult> {
-  const completionOnly = opts.completionOnly === true;
-  if (completionOnly && !opts.stopPromise) {
-    return Promise.reject(new Error('Completion-only background wait requires a stop promise'));
-  }
-  return new BackgroundContinuationWait(
-    opts,
-    opts.timers ?? realTimers,
-    completionOnly ? 0 : (opts.graceMs ?? getBgGraceMs()),
-    completionOnly ? 0 : (opts.maxWaitMs ?? getBgMaxWaitMs()),
-    completionOnly,
-  ).run();
 }

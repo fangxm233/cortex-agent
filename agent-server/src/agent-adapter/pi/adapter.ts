@@ -35,7 +35,6 @@ import {
 } from './session-options.js';
 import type { SwitchResult } from './session-support.js';
 import { DEFAULT_SESSION_DIR, PI_AGENT_DIR, piModelsPath } from './defaults.js';
-export type { PIAgentProcess } from './session-support.js';
 
 /** The pool SessionEngines registers on the adapter so `switchSession` can reach the live
  *  engine without the adapter importing domain. */

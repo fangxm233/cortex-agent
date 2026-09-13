@@ -94,7 +94,7 @@ export interface AgentResult {
   rateLimited: boolean;
   rateLimitMessage: string | null;
   /** Opaque provider key used by provider-scoped throttle and resume bookkeeping. Set by the
-   *  agent facade for every attempt, including successful turns whose continuation may fail. */
+   *  run layer for every attempt, including successful turns whose continuation may fail. */
   rateLimitProvider?: string;
   planFilePath: string | null;
   enteredPlanMode: boolean;
@@ -116,14 +116,6 @@ export interface AgentResult {
   /** Set on a synthetic continuation result produced when the Claude process died while
    *  background tasks were pending — the waiting status must seal as "interrupted". */
   backgroundInterrupted?: boolean;
-}
-
-export interface AgentHandle {
-  promise: Promise<AgentResult>;
-  kill: () => boolean;
-  sessionId?: string | null;
-  /** Opaque reference to the underlying agent process. Used by PI backend for sendExtensionUiResponse. */
-  agentProcess?: unknown;
 }
 
 export interface AgentProgress {

@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { describe, test, vi } from 'vitest';
-import type { AgentAdapter, Backend } from '../src/agent-adapter/types.js';
+import type { AgentUsageScope, Backend } from '../src/agent-adapter/types.js';
 import { Capability } from '../src/agent-adapter/capabilities.js';
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
 import { reportCodexQuota } from '../src/agent-adapter/pi/quota-sink.js';
@@ -57,15 +57,22 @@ function usage(
   };
 }
 
+/** The adapter shape the usage service reads (its dependency is structural, not a class). */
+interface UsageProbeAdapter {
+  backend: Backend;
+  capabilities: Set<Capability>;
+  getUsage: (scope: AgentUsageScope) => Promise<ProviderUsage[] | null>;
+}
+
 function fakeAdapter(
   backend: Backend,
-  getUsage: NonNullable<AgentAdapter['getUsage']>,
-): AgentAdapter {
+  getUsage: UsageProbeAdapter['getUsage'],
+): UsageProbeAdapter {
   return {
     backend,
     capabilities: new Set([Capability.Usage]),
     getUsage,
-  } as AgentAdapter;
+  };
 }
 
 function json(body: unknown, status = 200): Response {
@@ -127,14 +134,14 @@ function serviceWith(options: {
   store?: MemoryUsageStore;
   anthropicModes?: string[];
   subscriptionModes?: string[];
-  claude?: AgentAdapter;
-  pi?: AgentAdapter;
+  claude?: UsageProbeAdapter;
+  pi?: UsageProbeAdapter;
   fetch?: typeof globalThis.fetch;
 }) {
   const store = options.store ?? new MemoryUsageStore();
   const claude = options.claude ?? fakeAdapter('claude', async () => []);
   const pi = options.pi ?? fakeAdapter('pi', async () => []);
-  const adapters: Record<Backend, AgentAdapter> = { claude, pi };
+  const adapters: Record<Backend, UsageProbeAdapter> = { claude, pi };
   const service = new UsageService({
     store,
     getAdapter: (backend) => adapters[backend],

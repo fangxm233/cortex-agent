@@ -6,7 +6,7 @@ Adds Cortex MCP tools, hooks, subagents, shims, and web tools as inline extensio
 | filename | role | function |
 |---|---|---|
 | adapter.ts | adapter | Stateless PI EngineAdapter: spec identity, session open, usage and transcript registry |
-| engine.ts | adapter | PIEngineSession over one PISession: RunEvent runs plus the transitional legacy AgentProcess |
+| engine.ts | adapter | PIEngineSession over one PISession: one RunEvent stream per run |
 | pi-session.ts | core | One pooled in-process PI session: turns, steering, compaction, lifecycle |
 | runtime.ts | core | Creates and owns the PI SDK session runtime behind a PISession |
 | child-session.ts | core | Builds the nested in-memory PI sessions subagents run on |

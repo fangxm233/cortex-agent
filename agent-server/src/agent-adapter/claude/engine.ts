@@ -11,7 +11,7 @@ import type { EngineRunOptions } from '../types.js';
 import { createEventStream } from '../normalize/event-stream.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
 import type {
-  AgentCompactResult, AgentProcess, AgentProcessSupervision, Backend, ContinuationSink,
+  AgentCompactResult, AgentProcessSupervision, Backend, ContinuationSink,
   EngineRun, EngineSession, EngineSpec, InjectionAckSink, UserMessage,
 } from '../types.js';
 import {
@@ -178,9 +178,9 @@ export class ClaudeEngineSession implements EngineSession {
       },
       result: deferred.promise,
       settled: settled.promise,
-      // Ends this run, not the session: `spawn()`'s `AgentProcess.close()` does `stream.close()`
-      // and deliberately not `session.close()`, so the pooled session serves the next run. Session
-      // teardown goes through SessionEngines.close(key) / kill(key).
+      // Ends this run, not the session: a run's cancel closes its stream and deliberately not the
+      // pooled session, which serves the next run. Session teardown goes through
+      // SessionEngines.close(key) / kill(key).
       cancel: () => queue.close(),
     };
   }
@@ -248,59 +248,6 @@ export class ClaudeEngineSession implements EngineSession {
 
   compact(): Promise<AgentCompactResult> {
     return this.session.compact();
-  }
-
-  /** The legacy AgentProcess surface over this same session, byte-identical to what
-   *  ClaudeAdapter.spawn built: the facade's take on the pooled session. */
-  openLegacyProcess(engineKey: string): AgentProcess {
-    const session = this.session;
-    const spec = this.spec;
-    const stream = createEventStream<NormalizedEvent>();
-    let started = false;
-
-    return {
-      sessionKey: engineKey,
-      get sessionId(): string | null { return session.sessionId; },
-      get supervision(): AgentProcessSupervision | undefined { return session.getSupervision(); },
-      async send(message: UserMessage): Promise<AgentResult> {
-        if (!started) {
-          stream.push({ type: 'session_started', sessionId: session.sessionId });
-          started = true;
-        }
-        try {
-          const result = await session.sendMessage(message.text, {
-            attachments: message.attachments,
-            ...claudeTurnCallbacks(stream.push),
-          });
-          pushDerivedTurnEvents(stream.push, result, session, spec.flags.preserveUnreportedAccounting === true);
-          stream.close();
-          return result;
-        } catch (err: any) {
-          if (!err?.cancelled) {
-            stream.push({ type: 'error', message: String(err?.message ?? err), fatal: true });
-          }
-          stream.close();                         // unblock any for-await consumer
-          throw err;
-        }
-      },
-      events: stream.iterable,
-      compact: (): Promise<AgentCompactResult> => session.compact(),
-      setContinuationSink(sink: ContinuationSink): void { session.setContinuationSink(sink); },
-      injectUserMessage(message: UserMessage): boolean { return session.injectUserMessage(message); },
-      setInjectionAckSink(sink: InjectionAckSink): void { session.setInjectionAckSink(sink); },
-      // Out-of-band attribution (see AgentProcess.pushTurnEvent). The stream is closed the moment
-      // send() settles, so "still open" is exactly "the turn is still running".
-      pushTurnEvent(event: NormalizedEvent): boolean {
-        if (stream.isClosed()) return false;
-        stream.push(event);
-        return true;
-      },
-      // Intentionally does NOT call session.close(): sessions are pooled per sessionKey and
-      // reused across runAgentOnce turns. Pool-level cleanup goes through SessionEngines.close(key)
-      // / kill(key).
-      async close(): Promise<void> { stream.close(); },
-      kill(): boolean { return session.kill(); },
-    };
   }
 
   async close(): Promise<void> {

@@ -610,8 +610,8 @@ export class PISession {
    *   select/input/editor: { value: string } or { cancelled: true }
    *   confirm: { confirmed: boolean } or { cancelled: true }
    *
-   * Returns false when the session is closed or no live dialog waits on the id. The legacy
-   * `AgentProcess` callers ignored the result; `EngineSession.respondToDialog` surfaces it.
+   * Returns false when the session is closed or no live dialog waits on the id, so
+   * `EngineSession.respondToDialog` can report whether the answer was delivered.
    */
   sendExtensionUiResponse(id: string, payload: Record<string, unknown>): boolean {
     if (!this.alive) return false;
