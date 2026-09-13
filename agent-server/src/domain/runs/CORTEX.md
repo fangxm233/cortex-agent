@@ -9,6 +9,8 @@ paths all build a `RunRequest` and open a run. Phases 2–4 replace the engine p
 | filename | role | function |
 |---|---|---|
 | config-resolver.ts | core | resolveRunConfig — D5's five-layer profile priority plus the channel model override |
+| fallback.ts | core | planAttempts / attemptLabel / allConfigsRateLimited — the ordered attempt chain a run walks and the gate that skips a blocked attempt |
+| notices.ts | core | AttemptNoticeTracker + assistantNoticeLevel — the only place run lifecycle becomes prose; holds a 429 card until the outcome is known |
 | events.ts | core | re-exports RunPhase/RunEvent/toRunEvent from agent-adapter and translates ContinuationSink callbacks into them |
 | engine-spec.ts | core | buildEngineSpec + engineIdentity(); owns the scoped-plugin gate and PI gateway-path derivation |
 | adapters.ts | entry | builds the daemon's Claude and PI engine adapters, injecting the collaborators the adapter may not import (usage store, rate-limit throttle, PI home) — getAdapter/getEngineAdapter |

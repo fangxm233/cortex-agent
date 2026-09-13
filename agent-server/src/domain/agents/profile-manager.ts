@@ -42,8 +42,12 @@ export interface ResolvedProfile extends ProfileEntry {
   name: string;
 }
 
-export interface ResolvedProfileConfig {
-  name: string;
+/**
+ * One entry in a run's attempt chain: everything that decides WHICH engine runs and how it is
+ * configured, and nothing about what it is asked to do. A profile is its own first attempt (see
+ * {@link ResolvedProfileConfig}), and each declared fallback is another one.
+ */
+export interface RunAttemptConfig {
   model: string;
   backend: Backend;
   mode: string | null;
@@ -57,7 +61,12 @@ export interface ResolvedProfileConfig {
   /** Thinking level (backend-native value). null → nothing is passed to the CLI. */
   thinking: string | null;
   maxOutputTokens?: number | null;
-  fallback: Array<{ model: string; backend: Backend; mode: string | null; provider: string | null; extraEnv: Record<string, string>; extraOption: Record<string, string>; claudeBackend: 'print' | 'tui'; thinking: string | null; maxOutputTokens?: number | null }>;
+}
+
+/** A named profile, resolved: its own engine selection plus the chain it falls back through. */
+export interface ResolvedProfileConfig extends RunAttemptConfig {
+  name: string;
+  fallback: RunAttemptConfig[];
 }
 
 const PROFILE_NAME_RE = /^[a-zA-Z0-9_-]+$/;

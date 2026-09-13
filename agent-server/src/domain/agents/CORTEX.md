@@ -6,7 +6,7 @@ Agent runtime domain for profiles and provider-attributed turns.
 |---|---|---|
 | agent-state.ts | state | The one reader/writer of data/agent-state.json; migrates mode.json once |
 | config.ts | config | Selects modes and stores Claude credentials |
-| facade.ts | core | Freezes identity and journals attributed adapter turns; runAgent/runAgentOnce are internal to the run layer |
+| facade.ts | core | Drives one run's attempt chain over the engine pool: identity, journalling, accounting. The chain order and the notices it produces now live in domain/runs/{fallback,notices}.ts |
 | provider-run-lifecycle.ts | core | Attributes providers and publishes auth lifecycle |
 | index.ts | entry | Re-exports the public agents-domain API (profiles/roles/credentials); run entry points and facade/adapter internals are not re-exported |
 | profile-manager.ts | core | Resolves profile identities and output caps |

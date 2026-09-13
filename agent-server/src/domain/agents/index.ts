@@ -18,7 +18,6 @@ export {
   runWithAdapter,
   isSessionCompactionSupported,
   compactAgentContext,
-  allConfigsRateLimited,
 } from './facade.js';
 export type {
   AgentConfig, RunAgentOptions, RunObserver, CompactAgentRequest, CompactAgentDeps,

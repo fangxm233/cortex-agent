@@ -16,7 +16,7 @@ import { getActiveProfile } from '../../agents/index.js';
 import { projectStore } from '@domain/projects/index.js';
 import { normalizeSkillCommandPrefix } from '../../memory/skill-scanner.js';
 import { isValidDispatchPrompt, hasRunningExecutionForSchedule } from '../../tasks/dispatcher.js';
-import { allConfigsRateLimited } from '../../agents/facade.js';
+import { allConfigsRateLimited } from '../../runs/fallback.js';
 import { createThread } from '../../threads/index.js';
 import { runThread as runThreadExec, continueThread } from '../../threads/runner.js';
 import { buildUserProcessingMessage, computeElapsed, buildSessionTag } from '@core/status-format.js';

@@ -38,135 +38,14 @@ import {
   withAuthLifecycle, withRateLimitProvider,
 } from './provider-run-lifecycle.js';
 import { t } from '../../core/i18n.js';
+import {
+  AttemptNoticeTracker, assistantNoticeLevel, type NoticeContext,
+} from '../runs/notices.js';
+import { planAttempts } from '../runs/fallback.js';
 
 export { resolveRateLimitProvider };
 
 const log = createLogger('facade');
-
-function assistantNoticeLevel(text: string): ChatNoticeLevel | undefined {
-  return text.startsWith('API Error:') ? 'error' : undefined;
-}
-
-function configLabel(config: AgentConfig): string {
-  return `${config.model}/${config.mode || 'default'}`;
-}
-
-function terminalErrorText(message: string): string {
-  return message.startsWith('API Error:') ? message : t('status.errorBody', { message });
-}
-
-/** Track error notices within one provider attempt so terminal handling is durable but not noisy.
- *  runWithAdapter drains its event loop before rejecting, so any API Error from that attempt has
- *  already reached this tracker. A fallback starts a new dedupe window because its terminal
- *  failure must not be hidden by the previous provider's notice.
- *
- *  Rate-limit API errors are HELD rather than forwarded on arrival: the backend surfaces a 429 as
- *  an assistant message before the turn settles, and only the settle tells us whether it was a
- *  failure (card) or a pause the resume registry already owns (auto-resume warning instead). */
-class AttemptNoticeTracker {
-  readonly options: RunAgentOptions;
-  private readonly forward: RunAgentOptions['onAssistantMessage'];
-  private readonly generateNotices: boolean;
-  private attemptHasErrorNotice = false;
-  private heldError: { text: string; blockId?: string } | null = null;
-
-  constructor(private readonly original: RunAgentOptions) {
-    this.forward = original.onAssistantMessage ?? null;
-    this.generateNotices = original.channel?.startsWith('web:') === true;
-    this.options = this.forward
-      ? { ...original, onAssistantMessage: (text, blockId, level, action, subagent) => this.observe(text, blockId, level, action, subagent) }
-      : original;
-  }
-
-  private observe(
-    text: string, blockId?: string, level?: ChatNoticeLevel, action?: NoticeAction,
-    subagent?: ToolUseSubagent,
-  ): void {
-    if (level === 'error' && this.generateNotices && isApiRateLimitError(text)) {
-      this.heldError = { text, ...(blockId ? { blockId } : {}) };
-      return;
-    }
-    if (level === 'error') this.attemptHasErrorNotice = true;
-    // Forward the subagent attribution too. This wrapper sits on EVERY assistant message (tool
-    // calls bypass it), so dropping the argument here silently untagged every subagent's prose
-    // while its tool calls stayed attributed.
-    this.forward?.(text, blockId, level, action, subagent);
-  }
-
-  /** Release a held rate-limit card. Every settle path calls this except the resumable one,
-   *  which drops the card in favour of the auto-resume warning. */
-  private flushHeldError(): void {
-    const held = this.heldError;
-    this.heldError = null;
-    if (!held || !this.forward) return;
-    this.attemptHasErrorNotice = true;
-    this.forward(held.text, held.blockId, 'error');
-  }
-
-  /** The attempt produced a result: a turn that recovered from a mid-flight API error still
-   *  reports it, just once the outcome is known. */
-  settleSuccess(): void {
-    this.flushHeldError();
-  }
-
-  private emitTerminal(message: string, displayText = terminalErrorText(message)): void {
-    this.flushHeldError();
-    if (!this.generateNotices || !this.forward || this.attemptHasErrorNotice) return;
-    this.attemptHasErrorNotice = true;
-    this.forward(displayText, undefined, 'error');
-  }
-
-  private emitAutoResume(provider: string | undefined): boolean {
-    if (!this.original.isUserInitiated || !isProviderRateLimited(provider)) return false;
-    // Paused, not failed — the held card would misreport the outcome.
-    this.heldError = null;
-    if (this.generateNotices && this.forward && !this.attemptHasErrorNotice) {
-      this.attemptHasErrorNotice = true;
-      this.forward(t('notify.rateLimitAutoResume'), undefined, 'warning', { kind: 'cancel-resume' });
-    }
-    return true;
-  }
-
-  async transitionToFallback(
-    current: AgentConfig,
-    next: AgentConfig,
-    result: AgentResult | null,
-    error?: Error,
-  ): Promise<void> {
-    await this.original.onFallback?.(current, next, result, error);
-    // This attempt is over: its held card is now terminal for that provider.
-    this.flushHeldError();
-    if (this.generateNotices) {
-      this.observe(t('notify.agentFallback', {
-        from: configLabel(current), to: configLabel(next),
-      }), undefined, 'warning');
-    }
-    this.attemptHasErrorNotice = false;
-  }
-
-  emitTerminalError(error: unknown): void {
-    const value = error as {
-      message?: unknown;
-      cancelled?: boolean;
-      rateLimitProvider?: string;
-    } | null | undefined;
-    if (value?.cancelled) return;
-    const message = typeof value?.message === 'string' && value.message.length > 0
-      ? value.message
-      : String(error);
-    const resumableDirectError = this.original.trigger !== 'edit-retry'
-      && isApiRateLimitError(message)
-      && this.emitAutoResume(value?.rateLimitProvider);
-    if (!resumableDirectError) this.emitTerminal(message);
-  }
-
-  emitTerminalRateLimit(result: AgentResult): void {
-    if (this.emitAutoResume(result.rateLimitProvider)) return;
-    const detail = result.rateLimitMessage;
-    if (typeof detail === 'string' && detail.startsWith('API Error:')) this.emitTerminal(detail);
-    else this.emitTerminal(t('status.rateLimitedExhausted'), t('status.rateLimitedExhausted'));
-  }
-}
 
 function withTerminalNotices<T extends AgentHandle>(handle: T, notices: AttemptNoticeTracker): T {
   let killed = false;
@@ -586,13 +465,22 @@ export function runAgent(message: string, options: RunAgentOptions = {}): Engine
   const profileConfig: ResolvedProfileConfig = resolved && resolved.model
     ? resolved
     : resolveProfileConfig(options.profileName);
-  const configs: AgentConfig[] = [
-    { model: profileConfig.model, backend: profileConfig.backend, mode: profileConfig.mode, provider: profileConfig.provider, extraEnv: profileConfig.extraEnv, extraOption: profileConfig.extraOption, claudeBackend: profileConfig.claudeBackend, thinking: profileConfig.thinking, maxOutputTokens: profileConfig.maxOutputTokens },
-    ...(profileConfig.fallback || []),
-  ];
-  const notices = new AttemptNoticeTracker(options);
+  const configs: AgentConfig[] = planAttempts(profileConfig);
+  const noticeContext: NoticeContext = {
+    channel: options.channel, isUserInitiated: options.isUserInitiated, trigger: options.trigger,
+  };
+  const notices = new AttemptNoticeTracker(noticeContext, options.onAssistantMessage ?? null);
+  // Every assistant line is routed through the tracker so a rate-limit card can be held until the
+  // outcome is known; a run with no prose surface keeps its (absent) callback untouched.
   const trackedOptions: RunAgentOptions = {
-    ...notices.options, resolvedProfileConfig: profileConfig,
+    ...options,
+    resolvedProfileConfig: profileConfig,
+    ...(options.onAssistantMessage
+      ? {
+        onAssistantMessage: (text, blockId, level, action, subagent) =>
+          notices.observe(text, blockId, level, action, subagent),
+      }
+      : {}),
   };
 
   // Single config — only terminal notice wrapping is needed.
@@ -633,7 +521,8 @@ export function runAgent(message: string, options: RunAgentOptions = {}): Engine
           return result;
         }
         log.info(`${config.model}/${effectiveMode} rate-limited, skipping to fallback[${i}]`);
-        await notices.transitionToFallback(config, configs[i + 1], null);
+        await options.onFallback?.(config, configs[i + 1], null);
+        notices.transitionToFallback(config, configs[i + 1]);
         continue;
       }
 
@@ -648,7 +537,8 @@ export function runAgent(message: string, options: RunAgentOptions = {}): Engine
         }
         const modeLabel = config.mode || 'api';
         log.info(`${config.model}/${modeLabel} rate limited, trying fallback[${i}]`);
-        await notices.transitionToFallback(config, configs[i + 1], result);
+        await options.onFallback?.(config, configs[i + 1], result);
+        notices.transitionToFallback(config, configs[i + 1]);
       } catch (error) {
         if (killed) throw error;
         if (!isRetryableError(error as Error) || isLast) {
@@ -657,7 +547,8 @@ export function runAgent(message: string, options: RunAgentOptions = {}): Engine
         }
         const modeLabel = config.mode || 'api';
         log.info(`${config.model}/${modeLabel} retryable error, trying fallback[${i}]`);
-        await notices.transitionToFallback(config, configs[i + 1], null, error as Error);
+        await options.onFallback?.(config, configs[i + 1], null, error as Error);
+        notices.transitionToFallback(config, configs[i + 1]);
       }
     }
     const error = new Error('All fallback configs exhausted without result');
@@ -678,24 +569,10 @@ export function runAgent(message: string, options: RunAgentOptions = {}): Engine
   };
 }
 
-/** Returns true when every mode in the profile's fallback chain is currently rate-limited.
- *  Enables job runners to skip claiming/running when all paths are blocked. */
-export function allConfigsRateLimited(profileName: string | null): boolean {
-  if (!isThrottled()) return false;
-  try {
-    const config = resolveProfileConfig(profileName);
-    const configs: AgentConfig[] = [config, ...config.fallback];
-    return configs.every((candidate) => configIsRateLimited(candidate));
-  } catch {
-    return false;
-  }
-}
-
 // Exposed for tests/run-with-adapter.test.ts; not intended as a public API.
 export const _test = {
   runWithAdapter,
   configureRunRoute,
-  AttemptNoticeTracker,
   withTerminalNotices,
   resolveRateLimitProvider,
   withRateLimitProvider,

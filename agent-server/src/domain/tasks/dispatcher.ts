@@ -17,7 +17,7 @@ import { taskStore } from './store.js';
 import { taskMutator } from './mutator.js';
 import { listTemplateNames } from '../threads/template-loader.js';
 import { resolveTemplateProfiles } from '../threads/index.js';
-import { allConfigsRateLimited } from '../agents/facade.js';
+import { allConfigsRateLimited } from '../runs/fallback.js';
 
 // --- Interfaces ---
 

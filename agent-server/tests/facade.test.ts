@@ -112,51 +112,6 @@ async function initThrottle(modes: string[]) {
   return rl;
 }
 
-/// --- allConfigsRateLimited ---
-
-test('allConfigsRateLimited returns false when not throttled', async (t) => {
-  const rl = await getRl();
-  rl._testReset();
-  t.onTestFinished(() => rl._testReset());
-
-  const facade = await getFacade();
-  assert.equal(facade.allConfigsRateLimited('plan'), false);
-  assert.equal(facade.allConfigsRateLimited('scan'), false);
-  assert.equal(facade.allConfigsRateLimited(null), false);
-});
-
-test('allConfigsRateLimited returns true when all modes in profile are rate-limited', async (t) => {
-  // plan profile: mode=plan, fallback=[{mode:api}, {mode:plan}]
-  // Need plan and api both rate-limited
-  const rl = await initThrottle(['plan', 'api']);
-  t.onTestFinished(() => rl._testReset());
-
-  const facade = await getFacade();
-  assert.equal(facade.allConfigsRateLimited('plan'), true);
-});
-
-test('allConfigsRateLimited returns false when only some modes rate-limited', async (t) => {
-  // plan profile: mode=plan, fallback=[api, plan]
-  // Only rate-limit plan — api still available
-  const rl = await initThrottle(['plan']);
-  t.onTestFinished(() => rl._testReset());
-
-  const facade = await getFacade();
-  assert.equal(facade.allConfigsRateLimited('plan'), false);
-});
-
-test('allConfigsRateLimited returns false on unknown profile', async (t) => {
-  await initThrottle(['plan']);
-  const rl = await getRl();
-  t.onTestFinished(() => rl._testReset());
-
-  const facade = await getFacade();
-  // Unknown profile — catch in resolveProfileConfig -> return false (conservative)
-  assert.equal(facade.allConfigsRateLimited('nonexistent-profile'), false);
-});
-
-/// --- runAgent pre-flight skip ---
-
 test('evidence-enabled preflight rate limit creates no attempt evidence and keeps the refusal result', async (t) => {
   const rl = await initThrottle(['plan']);
   const identity = await import('../src/domain/runs/observers/production-attempt-identity.js');
@@ -290,127 +245,22 @@ test('runAgent fallback loop calls onFallback for each skipped config', async (t
 
 const RATE_LIMIT_TEXT = "API Error: Server is temporarily limiting requests (not your usage limit) · This request would exceed your account's rate limit. Please try again later.";
 
-function rateLimitError(): Error {
-  return Object.assign(new Error(RATE_LIMIT_TEXT), { rateLimitProvider: 'anthropic' });
-}
-
-function makeTracker(facade: any, notices: Array<{ text: string; level?: string }>, extra: Record<string, unknown> = {}) {
-  return new facade._test.AttemptNoticeTracker({
-    channel: 'web:rate-limit',
-    isUserInitiated: true,
-    onAssistantMessage: (text: string, _blockId: string | undefined, level?: string) => notices.push({ text, level }),
-    ...extra,
-  });
-}
-
-test('a held rate-limit card is replaced by the auto-resume warning when the provider is throttled', async (t) => {
-  const rl = await initThrottle(['plan']);
-  t.onTestFinished(() => rl._testReset());
-  const facade = await getFacade();
-
-  const notices: Array<{ text: string; level?: string }> = [];
-  const tracker = makeTracker(facade, notices);
-
-  tracker.options.onAssistantMessage(RATE_LIMIT_TEXT, undefined, 'error');
-  assert.deepEqual(notices, [], 'the card is held until the attempt settles');
-
-  tracker.emitTerminalError(rateLimitError());
-
-  assert.deepEqual(notices, [{
-    text: 'Rate limited — this chat will resume automatically when the limit resets.',
-    level: 'warning',
-  }], 'a paused turn reports the resume promise, not the API error');
-});
-
-test('the notice wrapper forwards native-subagent attribution', async (t) => {
-  // This wrapper sits on EVERY assistant message while tool calls bypass it. When it took only
-  // four parameters it silently swallowed the fifth, so a subagent's prose reached the transcript
-  // untagged and leaked into the main stream while that same subagent's tool rows stayed grouped.
-  const facade = await getFacade();
-  const seen: Array<{ text: string; subagent?: unknown }> = [];
-  const tracker = new facade._test.AttemptNoticeTracker({
-    channel: 'web:subagent',
-    isUserInitiated: true,
-    onAssistantMessage: (text: string, _b?: string, _l?: string, _a?: unknown, subagent?: unknown) =>
-      seen.push({ text, subagent }),
-  });
-
-  const subagent = { parentToolUseId: 'toolu_01abc', type: 'Explore', description: 'Survey the repo' };
-  tracker.options.onAssistantMessage('subagent notes', undefined, undefined, undefined, subagent);
-  tracker.options.onAssistantMessage('main agent answer');
-
-  assert.deepEqual(seen, [
-    { text: 'subagent notes', subagent },
-    { text: 'main agent answer', subagent: undefined },
-  ]);
-});
-
-test('the auto-resume warning carries the cancel-resume action', async (t) => {
-  const rl = await initThrottle(['plan']);
-  t.onTestFinished(() => rl._testReset());
-  const facade = await getFacade();
-
-  const emitted: Array<{ text: string; level?: string; action?: unknown }> = [];
-  const tracker = new facade._test.AttemptNoticeTracker({
-    channel: 'web:rate-limit',
-    isUserInitiated: true,
-    onAssistantMessage: (text: string, _blockId: string | undefined, level?: string, action?: unknown) =>
-      emitted.push({ text, level, action }),
-  });
-
-  tracker.emitTerminalError(rateLimitError());
-
-  assert.equal(emitted.length, 1);
-  assert.equal(emitted[0].level, 'warning');
-  assert.deepEqual(emitted[0].action, { kind: 'cancel-resume' }, 'the promise is opt-out-able');
-});
-
-test('a held rate-limit card is emitted exactly once when the attempt fails terminally', async (t) => {
-  const rl = await getRl();
-  rl._testReset(); // no active throttle — nothing can promise a resume
-  t.onTestFinished(() => rl._testReset());
-  const facade = await getFacade();
-
-  const notices: Array<{ text: string; level?: string }> = [];
-  const tracker = makeTracker(facade, notices);
-
-  tracker.options.onAssistantMessage(RATE_LIMIT_TEXT, undefined, 'error');
-  tracker.emitTerminalError(rateLimitError());
-
-  assert.deepEqual(notices, [{ text: RATE_LIMIT_TEXT, level: 'error' }]);
-});
-
-test('a fallback transition flushes the held card before the fallback warning', async (t) => {
-  const rl = await getRl();
-  rl._testReset();
-  t.onTestFinished(() => rl._testReset());
-  const facade = await getFacade();
-
-  const notices: Array<{ text: string; level?: string }> = [];
-  const tracker = makeTracker(facade, notices);
-
-  tracker.options.onAssistantMessage(RATE_LIMIT_TEXT, undefined, 'error');
-  await tracker.transitionToFallback(
-    { model: 'm1', backend: 'claude', mode: 'plan' },
-    { model: 'm2', backend: 'claude', mode: 'api' },
-    null,
-  );
-
-  assert.deepEqual(notices, [
-    { text: RATE_LIMIT_TEXT, level: 'error' },
-    { text: 'Model fallback: m1/plan → m2/api.', level: 'warning' },
-  ]);
-});
-
+// The tracker's own behaviour is specified in tests/runs/notices.test.ts. What remains here is the
+// facade-side glue: the handle's promise is what triggers the settle, and that wrapper is the last
+// piece of the old decorator chain still standing.
 test('withTerminalNotices flushes a held card when the turn recovers and succeeds', async (t) => {
   const rl = await getRl();
   rl._testReset();
   t.onTestFinished(() => rl._testReset());
   const facade = await getFacade();
+  const { AttemptNoticeTracker } = await import('../src/domain/runs/notices.js');
 
   const notices: Array<{ text: string; level?: string }> = [];
-  const tracker = makeTracker(facade, notices);
-  tracker.options.onAssistantMessage(RATE_LIMIT_TEXT, undefined, 'error');
+  const tracker = new AttemptNoticeTracker(
+    { channel: 'web:rate-limit', isUserInitiated: true },
+    (text, _blockId, level) => notices.push({ text, level }),
+  );
+  tracker.observe(RATE_LIMIT_TEXT, undefined, 'error');
 
   const result = {
     sessionId: 's', total_cost_usd: 0, num_turns: 1, rateLimited: false, rateLimitMessage: null,

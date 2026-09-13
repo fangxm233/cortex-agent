@@ -1,12 +1,15 @@
 Please update me when files in this folder change
 
 Run layer tests: RunEvent translation, the RunRegistry, startRun, config
-resolution, spec and prompt composition, the EngineSpec builder, the engine pool and the run
-observers' policies.
+resolution, spec and prompt composition, the EngineSpec builder, the engine pool, the attempt-chain
+policies (what a run tries and what it says about it) and the run observers' policies.
 
 | filename | role | function |
 |---|---|---|
 | config-resolver.test.ts | test | resolveRunConfig/resolveProfileName/resolveRunBackend across D5's five priority layers |
+| fallback.test.ts | test | planAttempts chain order, and allConfigsRateLimited's all-blocked gate (fails open on an unknown profile) |
+| notices.test.ts | test | the held rate-limit card (auto-resume vs failure), fallback warnings and per-attempt dedupe, subagent attribution, and the web-only synthesis gate |
+| throttle-fixture.ts | fixture | loadThrottleHome — the private CORTEX_HOME + seeded profiles + armed throttle both attempt-policy suites need |
 | engine-spec.test.ts | test | buildEngineSpec exact captured-output assertions, and engineIdentity key-order stability plus its three exclusions |
 | engines.test.ts | test | SessionEngines pool ownership: reuse, retirement, synchronous eviction on close, and the detached registerSessionPath reference |
 | events.test.ts | test | every NormalizedEvent translation and phase tag, and every ContinuationSink callback |
