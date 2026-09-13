@@ -1,5 +1,8 @@
-{"$cortex":"note","text":"A backgrounded native subagent keeps streaming after its parent turn closed. With no turn open its lines reach the ContinuationSink carrying subagent attribution, and they must not open a continuation turn."}
+{"$cortex":"note","text":"A backgrounded native subagent keeps streaming after its parent turn closed. The run that spawned it holds its background phase (pending task), so with no turn open the orphan lines reach the run's background stream carrying subagent attribution, and they must not open a continuation turn."}
+{"$cortex":"turn","text":"probe the repo in the background"}
 {"type":"system","subtype":"task_started","task_id":"a25248b17e8a0b69d","tool_use_id":"toolu_parent01","subagent_type":"Explore","description":"probe the repo"}
+{"type":"assistant","message":{"model":"claude-opus-5","content":[{"type":"text","text":"Started the probe."}]}}
+{"type":"result","subtype":"success","is_error":false,"num_turns":1,"total_cost_usd":0.1,"session_id":"test-session","result":"Started the probe."}
 {"type":"assistant","parent_tool_use_id":"toolu_parent01","subagent_type":"Explore","message":{"model":"claude-opus-5","content":[{"type":"tool_use","id":"toolu_child01","name":"Read","input":{"file_path":"/repo/agent-server/src/app.ts"}}]}}
 {"type":"user","parent_tool_use_id":"toolu_parent01","subagent_type":"Explore","message":{"content":[{"type":"tool_result","tool_use_id":"toolu_child01","content":"file body"}]}}
 {"type":"assistant","parent_tool_use_id":"toolu_parent01","subagent_type":"Explore","message":{"model":"claude-opus-5","content":[{"type":"text","text":"## Report\nno leaks found"}]}}

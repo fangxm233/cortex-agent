@@ -114,6 +114,7 @@ void function normalizedEventExhaustive(event: NormalizedEvent): string {
     case 'turn_progress': return String(event.numTurns);
     case 'turn_complete': return String(event.numTurns);
     case 'subagent_activity': return event.parentToolUseId;
+    case 'subagent_end': return event.parentToolUseId;
     case 'error': return event.message;
     default: {
       const unreachable: never = event;

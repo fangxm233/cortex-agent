@@ -1,15 +1,15 @@
-// input:  backgrounded-subagent lines arriving with no turn open
-// output: orphan-subagent routing and continuation-sink delivery specs
-// pos:    Claude print backgrounded-subagent trace-continuity tests
+// input:  backgrounded-subagent lines arriving with no turn open, while a run holds
+// output: orphan-subagent routing and background-run-stream delivery specs
+// pos:    Claude print backgrounded-subagent trace-continuity tests (engine-owned background phase)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
-import { _test } from '../../src/agent-adapter/claude/adapter.js';
 import { BgTaskTracker, routeLine } from '../../src/agent-adapter/claude/bg-task-tracker.js';
+import { openClaudeTestEngine, collectRun, tick } from './replay-harness.js';
+import type { RunEvent } from '../../src/agent-adapter/run-events.js';
 
-const FAKE_STREAM = { write() {}, end() {} } as any;
 const PARENT = 'toolu_parent01';
 
 const SUB_TOOL_USE = JSON.stringify({
@@ -61,31 +61,25 @@ const BASH_TASK_STARTED = JSON.stringify({
 const BASH_TASK_UPDATED_DONE = JSON.stringify({
   type: 'system', subtype: 'task_updated', task_id: 'bhyarwdtr', patch: { status: 'completed' },
 });
+const FOREGROUND_RESULT = JSON.stringify({
+  type: 'result', subtype: 'success', is_error: false,
+  num_turns: 1, total_cost_usd: 0.1, session_id: 'test-session',
+});
 
-interface Captured {
-  tools: Array<{ name: string; id: string; sub: any }>;
-  texts: Array<{ text: string; sub: any }>;
-  results: Array<{ id: string; content: string; sub: any }>;
-  ends: Array<{ parentToolUseId: string; status: string }>;
-}
-
-function sessionWithSink(t: { onTestFinished: (fn: () => void) => void }) {
-  const s: any = _test.makeSessionForTest();
-  s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
-  t.onTestFinished(() => s.close());
-  const cap: Captured = { tools: [], texts: [], results: [], ends: [] };
-  s.setContinuationSink({
-    onResult() {},
-    onAssistantText: (text: string, _model: any, sub: any) => { cap.texts.push({ text, sub }); },
-    onToolUse: (name: string, _input: any, id: string, sub: any) => { cap.tools.push({ name, id, sub }); },
-    onToolResult: (id: string, content: string, _err: boolean, sub: any) => {
-      cap.results.push({ id, content, sub });
-    },
-    onSubagentEnd: (parentToolUseId: string, status: string) => {
-      cap.ends.push({ parentToolUseId, status });
-    },
-  });
-  return { s, cap };
+/**
+ * Open one held run (the parent turn leaves the backgrounded subagent pending on its result) and
+ * hand back the session so a test can feed the orphan lines that arrive after that turn closed.
+ * The run is what installs the background-phase sink; without it the orphan route has no home.
+ */
+async function orphanRun(t: { onTestFinished: (fn: () => void) => void }) {
+  const { engine, session, close } = openClaudeTestEngine();
+  t.onTestFinished(close);
+  const run = engine.run({ text: 'go' }, { awaitBackground: 'hold' });
+  const { events, done } = collectRun(run);
+  session.handleLine(TASK_STARTED);
+  session.handleLine(FOREGROUND_RESULT);
+  await tick(); // the parent result settles and the phase starts before orphan lines arrive
+  return { engine, session, run, events, done };
 }
 
 test('routeLine: a subagent-linked line with no turn open routes to subagent-orphan', () => {
@@ -108,53 +102,79 @@ test('routeLine: subagent-orphan wins over open-continuation once a notification
   assert.equal(routeLine(tracker, JSON.parse(MAIN_ASSISTANT), false), 'open-continuation');
 });
 
-test('handleLine: a backgrounded subagent tool call after the turn closed reaches the sink', (t) => {
-  const { s, cap } = sessionWithSink(t);
+test('run: a backgrounded subagent tool call after the turn closed reaches the background stream', async (t) => {
+  const { session, run, events, done } = await orphanRun(t);
 
-  s.handleLine(SUB_TOOL_USE);
+  session.handleLine(SUB_TOOL_USE);
+  await tick();
 
-  assert.equal(cap.tools.length, 1, 'tool call delivered');
-  assert.equal(cap.tools[0].name, 'Read');
-  assert.equal(cap.tools[0].id, 'toolu_child01');
-  assert.equal(cap.tools[0].sub?.parentToolUseId, PARENT, 'carries subagent attribution');
-  assert.equal(cap.tools[0].sub?.type, 'Explore');
-  assert.equal(s.currentTurn, null, 'no continuation turn was opened');
+  const tools = events.filter((e): e is Extract<RunEvent, { type: 'tool_use' }> => e.type === 'tool_use');
+  assert.equal(tools.length, 1, 'tool call delivered');
+  assert.equal(tools[0].phase, 'background');
+  assert.equal(tools[0].name, 'Read');
+  assert.equal(tools[0].toolUseId, 'toolu_child01');
+  assert.equal(tools[0].subagent?.parentToolUseId, PARENT, 'carries subagent attribution');
+  assert.equal(tools[0].subagent?.type, 'Explore');
+  assert.equal(session.currentTurn, null, 'no continuation turn was opened');
+  run.cancel();
+  await done;
 });
 
-test('handleLine: a backgrounded subagent tool result after the turn closed reaches the sink', (t) => {
-  const { s, cap } = sessionWithSink(t);
+test('run: a backgrounded subagent tool result after the turn closed reaches the background stream', async (t) => {
+  const { session, run, events, done } = await orphanRun(t);
 
-  s.handleLine(SUB_TOOL_RESULT);
+  session.handleLine(SUB_TOOL_RESULT);
+  await tick();
 
-  assert.equal(cap.results.length, 1, 'tool result delivered');
-  assert.equal(cap.results[0].id, 'toolu_child01');
-  assert.equal(cap.results[0].content, 'file body');
-  assert.equal(cap.results[0].sub?.parentToolUseId, PARENT);
-  assert.equal(s.currentTurn, null, 'no continuation turn was opened');
+  const results = events.filter((e): e is Extract<RunEvent, { type: 'tool_result' }> => e.type === 'tool_result');
+  assert.equal(results.length, 1, 'tool result delivered');
+  assert.equal(results[0].phase, 'background');
+  assert.equal(results[0].toolUseId, 'toolu_child01');
+  assert.equal(results[0].content, 'file body');
+  assert.equal(results[0].subagent?.parentToolUseId, PARENT);
+  assert.equal(session.currentTurn, null, 'no continuation turn was opened');
+  run.cancel();
+  await done;
 });
 
-test("handleLine: a backgrounded subagent's final report reaches the sink as attributed text", (t) => {
-  const { s, cap } = sessionWithSink(t);
+test("run: a backgrounded subagent's final report reaches the background stream as attributed text", async (t) => {
+  const { session, run, events, done } = await orphanRun(t);
 
-  s.handleLine(SUB_FINAL_TEXT);
+  session.handleLine(SUB_FINAL_TEXT);
+  await tick();
 
-  assert.equal(cap.texts.length, 1, 'final report delivered');
-  assert.equal(cap.texts[0].text, '## Report');
-  assert.equal(cap.texts[0].sub?.parentToolUseId, PARENT, 'attributed, so it cannot read as the answer');
-  assert.equal(s.currentTurn, null, 'no continuation turn was opened');
+  const texts = events.filter((e): e is Extract<RunEvent, { type: 'assistant_text' }> => e.type === 'assistant_text');
+  assert.equal(texts.length, 1, 'final report delivered');
+  assert.equal(texts[0].text, '## Report');
+  assert.equal(texts[0].phase, 'background');
+  assert.equal(texts[0].subagent?.parentToolUseId, PARENT, 'attributed, so it cannot read as the answer');
+  assert.equal(session.currentTurn, null, 'no continuation turn was opened');
+  run.cancel();
+  await done;
 });
 
-test('handleLine: orphan subagent lines do not consume the armed continuation', (t) => {
-  const { s, cap } = sessionWithSink(t);
+test('run: orphan subagent lines do not consume the armed continuation', async (t) => {
+  const { session, run, events, done } = await orphanRun(t);
 
-  s.handleLine(TASK_STARTED);
-  s.handleLine(TASK_NOTIFICATION);
-  s.handleLine(SUB_FINAL_TEXT);     // subagent speaks first — must not become the continuation turn
-  assert.equal(s.currentTurn, null, 'subagent line did not open the continuation turn');
+  session.handleLine(TASK_NOTIFICATION);
+  session.handleLine(SUB_FINAL_TEXT);     // subagent speaks first — must not become the continuation turn
+  await tick();
+  assert.equal(session.currentTurn, null, 'subagent line did not open the continuation turn');
 
-  s.handleLine(MAIN_ASSISTANT);     // the main agent's re-invocation still opens it
-  assert.ok(s.currentTurn, 'main-agent line opened the continuation turn');
-  assert.equal(cap.texts[0].sub?.parentToolUseId, PARENT, 'subagent text stayed attributed');
+  session.handleLine(MAIN_ASSISTANT);     // the main agent's re-invocation still opens it
+  await tick();
+  assert.ok(session.currentTurn, 'main-agent line opened the continuation turn');
+  const subText = events.find((e): e is Extract<RunEvent, { type: 'assistant_text' }> =>
+    e.type === 'assistant_text' && e.subagent !== undefined);
+  assert.equal(subText?.text, '## Report', 'subagent text stayed attributed');
+  assert.equal(subText?.subagent?.parentToolUseId, PARENT);
+  const mainText = events.find((e): e is Extract<RunEvent, { type: 'assistant_text' }> =>
+    e.type === 'assistant_text' && e.subagent === undefined);
+  assert.equal(mainText?.phase, 'background');
+  assert.equal(mainText?.text, 'the agent finished');
+
+  run.cancel();
+  await done;
 });
 
 test('subagentEndFor: task_started linkage turns a task_updated into a parent-keyed end signal', () => {
@@ -190,24 +210,37 @@ test('subagentEndFor: an unknown task (no task_started seen, e.g. after resume) 
   assert.equal(tracker.subagentEndFor(JSON.parse(TASK_UPDATED_DONE)), null);
 });
 
-test('handleLine: subagent completion reaches the sink keyed by its spawning tool call', (t) => {
-  const { s, cap } = sessionWithSink(t);
+test('run: subagent completion reaches the background stream keyed by its spawning tool call', async (t) => {
+  const { session, run, events, done } = await orphanRun(t);
 
-  s.handleLine(TASK_STARTED);
-  s.handleLine(SUB_TOOL_USE);
-  assert.equal(cap.ends.length, 0, 'still running');
+  session.handleLine(SUB_TOOL_USE);
+  await tick();
+  assert.equal(events.filter((e) => e.type === 'subagent_end').length, 0, 'still running');
 
-  s.handleLine(TASK_UPDATED_DONE);
+  session.handleLine(TASK_UPDATED_DONE);
+  await tick();
 
-  assert.deepEqual(cap.ends, [{ parentToolUseId: PARENT, status: 'completed' }]);
+  const ends = events.filter((e): e is Extract<RunEvent, { type: 'subagent_end' }> => e.type === 'subagent_end');
+  assert.equal(ends.length, 1);
+  assert.equal(ends[0].phase, 'background');
+  assert.equal(ends[0].parentToolUseId, PARENT);
+  assert.equal(ends[0].status, 'completed');
+  run.cancel();
+  await done;
 });
 
-test('handleLine: a killed subagent is sealed without any main-agent line', (t) => {
-  const { s, cap } = sessionWithSink(t);
+test('run: a killed subagent is sealed without any main-agent line', async (t) => {
+  const { session, run, events, done } = await orphanRun(t);
 
-  s.handleLine(TASK_STARTED);
-  s.handleLine(TASK_UPDATED_KILLED);
+  session.handleLine(TASK_UPDATED_KILLED);
+  await tick();
 
-  assert.deepEqual(cap.ends, [{ parentToolUseId: PARENT, status: 'killed' }]);
-  assert.equal(s.currentTurn, null, 'no turn was opened to carry it');
+  const ends = events.filter((e): e is Extract<RunEvent, { type: 'subagent_end' }> => e.type === 'subagent_end');
+  assert.equal(ends.length, 1);
+  assert.equal(ends[0].phase, 'background');
+  assert.equal(ends[0].parentToolUseId, PARENT);
+  assert.equal(ends[0].status, 'killed');
+  assert.equal(session.currentTurn, null, 'no turn was opened to carry it');
+  run.cancel();
+  await done;
 });

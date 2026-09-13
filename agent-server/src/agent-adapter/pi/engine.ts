@@ -196,9 +196,24 @@ export class PIEngineSession implements EngineSession {
   private sendTurn(message: UserMessage): Promise<AgentResult> {
     return new Promise<AgentResult>((resolve, reject) => {
       this.session.beginTurn(resolve, reject);
-      this.session.sendTurn(this.session.sessionId, this.session.sessionFile, message)
+      this.session.sendTurn(this.session.sessionId, this.turnPath(), message)
         .catch((error) => this.session.beginTurnReject(errorValue(error)));
     });
+  }
+
+  /**
+   * The transcript file this turn resumes, preferring the one that exists on disk.
+   *
+   * `PISession.sessionFile` is whatever the session was announced with — for a session whose
+   * registry entry was synthesized (`<sessionId>.jsonl`) that file never appeared, and PI wrote a
+   * timestamped one instead. A turn that comes back to it after an internal switch therefore has
+   * to re-resolve the path, or it hands PI a switch target that does not exist. `sendSpawnedTurn`
+   * did this per turn; the engine has to as well.
+   */
+  private turnPath(): string | null {
+    const targetId = this.session.sessionId;
+    if (targetId === null) return null;
+    return this.resolveSessionPath?.(targetId) ?? this.session.sessionFile;
   }
 
   steer(msg: UserMessage, callerInjectionId?: string): { accepted: boolean; injectionId?: string } {

@@ -218,10 +218,19 @@ export class ContinuationPhase {
   }
 
   /** A synthetic continuation turn opened. Its length is unbounded, so the ambient timers stop;
-   *  the turn's own result re-arms them or ends the run. */
+   *  the turn's own result re-arms them or ends the run.
+   *
+   *  This is also where an injected message's obligation ends. A message consumed with no turn in
+   *  flight is exactly what makes the backend open a turn of its own, so the turn opening here IS
+   *  that message's reply arriving: the run stops owing anything on its behalf and the turn's own
+   *  result decides what happens next. Releasing it on the ack instead would close the stream
+   *  before the reply it is owed could land; never releasing it (as was the case) left a run whose
+   *  foreground turn ended with one injected message pending open forever — the max-wait watchdog
+   *  bounds a WAIT, it does not finish a run. */
   onTurnOpen(): void {
     if (this.settled || !this.started) return;
     this.backgroundTurnOpen = true;
+    this.outstandingInjections = 0;
     this.pause();
     this.enterBackground();
   }

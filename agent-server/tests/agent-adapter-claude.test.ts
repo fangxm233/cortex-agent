@@ -1,5 +1,5 @@
 // input:  Claude modules, hooks, MCP gates, settings
-// output: Spawn, interaction, pool, fallback, and compact tests
+// output: Spawn-args, interaction, pool, fallback, and compact tests
 // pos:    Tests Claude adapter behavior
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { engineSpecFixture, type EngineSpecFixtureInput } from './engine-spec-fixture.js';
@@ -791,7 +791,7 @@ function spawnPoolFixture(
   shared: ClaudeSpawnOverrides,
   overrides: ClaudeSpawnOverrides,
 ): void {
-  pool.spawn(engineSpecFixture({ sessionId: key, sessionKey: key, resume: false, ...shared, ...overrides }));
+  pool.open(engineSpecFixture({ sessionId: key, sessionKey: key, resume: false, ...shared, ...overrides }));
 }
 
 async function assertPoolReplacement(fixture: PoolReplacementFixture): Promise<void> {
@@ -877,7 +877,7 @@ test('Claude print respawn revalidates supplemental MCP content before spawning 
   const counter = { value: 0 };
   const adapter = new ClaudeAdapter();
   const pool = claudePool(adapter);
-  pool.spawn(engineSpecFixture({
+  pool.open(engineSpecFixture({
     sessionId: 'revalidate-print',
     sessionKey: 'revalidate-print',
     resume: false,
@@ -1338,16 +1338,16 @@ test('Claude print surfaces one valid model_refusal_fallback event from snake_ca
   }]);
 });
 
-// --- ClaudeAdapter.spawn — EngineSpec.env.unsets reaches the child ---
+// --- ClaudeAdapter.open — EngineSpec.env.unsets reaches the child ---
 
-test('ClaudeAdapter.spawn: config.unsetEnv removes the key from the spawned child env', async () => {
+test('ClaudeAdapter.open: config.unsetEnv removes the key from the spawned child env', async () => {
   const prevKey = process.env.ANTHROPIC_API_KEY;
   process.env.ANTHROPIC_API_KEY = 'sk-ant-inherited';
   const captured: NodeJS.ProcessEnv[] = [];
   const adapter = new ClaudeAdapter();
   const pool = claudePool(adapter);
   try {
-    pool.spawn(engineSpecFixture({
+    pool.open(engineSpecFixture({
       sessionId: 'unset-env-key', sessionKey: 'unset-env-key', resume: false,
       env: { ANTHROPIC_API_KEY: 'cortex-gateway-managed', KEPT_ENV: 'kept' },
       unsetEnv: ['ANTHROPIC_API_KEY'],
@@ -1366,9 +1366,9 @@ test('ClaudeAdapter.spawn: config.unsetEnv removes the key from the spawned chil
   }
 });
 
-// --- ClaudeAdapter.spawn — EngineSpec → CLI args parity (Blocker fix from Plan Review iter 1) ---
+// --- ClaudeAdapter.open — EngineSpec → CLI args parity (Blocker fix from Plan Review iter 1) ---
 
-test('ClaudeAdapter.spawn: full EngineSpec produces expected CLI args (canonical → native tool names)', () => {
+test('ClaudeAdapter.open: full EngineSpec produces expected CLI args (canonical → native tool names)', () => {
   const args = adapterTest.computeSpawnArgs(engineSpecFixture({
     sessionId: 'uuid-xxx',
     sessionKey: 'thr:e0b6:1',
@@ -1403,7 +1403,7 @@ test('ClaudeAdapter.spawn: full EngineSpec produces expected CLI args (canonical
   assert.deepEqual(args, expected);
 });
 
-test('ClaudeAdapter.spawn: resume:true swaps --session-id for --resume', () => {
+test('ClaudeAdapter.open: resume:true swaps --session-id for --resume', () => {
   const args = adapterTest.computeSpawnArgs(engineSpecFixture({
     sessionId: 'uuid-yyy',
     sessionKey: 'k',
@@ -1413,7 +1413,7 @@ test('ClaudeAdapter.spawn: resume:true swaps --session-id for --resume', () => {
   assert.deepEqual(last2, ['--resume', 'uuid-yyy']);
 });
 
-test('ClaudeAdapter.spawn: no tools provided → --tools uses DEFAULT_TOOLS', () => {
+test('ClaudeAdapter.open: no tools provided → --tools uses DEFAULT_TOOLS', () => {
   const args = adapterTest.computeSpawnArgs(engineSpecFixture({
     sessionId: 'uuid-zzz',
     sessionKey: 'k',
@@ -1426,7 +1426,7 @@ test('ClaudeAdapter.spawn: no tools provided → --tools uses DEFAULT_TOOLS', ()
 
 // Regression: appendSystemPrompt must be propagated through deriveClaudeSpawnOptions()
 // to the --append-system-prompt CLI flag.
-test('ClaudeAdapter.spawn: appendSystemPrompt is propagated to --append-system-prompt (regression)', () => {
+test('ClaudeAdapter.open: appendSystemPrompt is propagated to --append-system-prompt (regression)', () => {
   const args = adapterTest.computeSpawnArgs(engineSpecFixture({
     sessionId: 'uuid-append',
     sessionKey: 'k',
@@ -1487,12 +1487,12 @@ function assertPortableRuntimeSpawnArgs(args: string[]): void {
   );
 }
 
-test('ClaudeAdapter.spawn: portable MCP runtime is passed only through a supplemental config path', () => {
+test('ClaudeAdapter.open: portable MCP runtime is passed only through a supplemental config path', () => {
   assertPortableRuntimeSpawnArgs(portableRuntimeSpawnArgs());
 });
 
-// task f7cf satisfied the previous "iterating rejects with task f7cf" test: ClaudeAdapter.spawn()
-// now returns a real event stream driven by the pooled ClaudeSession. End-to-end coverage
+// task f7cf satisfied the previous "iterating rejects with task f7cf" test: ClaudeAdapter.open()
+// now hands back an EngineSession whose run() streams events from the pooled ClaudeSession. End-to-end coverage
 // lives in tests/run-with-adapter.test.ts (fake-adapter regression: callback ordering,
 // rate-limit surfacing via AgentResult, error, kill). Here we keep pure-function parity
 // tests for _test.computeSpawnArgs / buildSpawnArgs / buildHooksSettings.

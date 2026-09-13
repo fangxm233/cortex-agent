@@ -7,7 +7,9 @@ import { engineSpecFixture } from './engine-spec-fixture.js';
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { PIAdapter, type PIAgentProcess } from '../src/agent-adapter/pi/adapter.js';
+import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
+import type { PIEngineSession } from '../src/agent-adapter/pi/engine.js';
+import type { EngineRun } from '../src/agent-adapter/types.js';
 import { piPool } from './agent-adapter/pi-pool-fixture.js';
 import type { NormalizedEvent } from '../src/agent-adapter/normalize/event-types.js';
 import { resetSettingsForTests } from '../src/core/settings.js';
@@ -23,27 +25,56 @@ function textDelta(delta: string, id?: string): Record<string, unknown> & { type
   return ev;
 }
 
-/** Drain exactly `n` events from the (already-buffered) queue, skipping the opening session_started. */
-async function collect(proc: { events: AsyncIterable<NormalizedEvent> }, n: number): Promise<NormalizedEvent[]> {
-  const iter = proc.events[Symbol.asyncIterator]();
-  const out: NormalizedEvent[] = [];
-  while (out.length < n) {
-    const r = await iter.next();
-    if (r.done) break;
-    if (r.value.type === 'session_started') continue;
-    out.push(r.value);
-  }
-  return out;
+/** A queue over the engine's raw NormalizedEvent port, drained like the old `proc.events`. */
+interface RawTap {
+  push(event: NormalizedEvent): void;
+  collect(n: number): Promise<NormalizedEvent[]>;
+}
+
+/**
+ * Tap `run(msg, { onNormalizedEvent })` and replay its events like the old `proc.events` queue,
+ * skipping the opening `session_started`. These tests assert the PI SDK wire shape (incremental
+ * delta chunks, stable blockIds, the session announcement), which only exists on the raw
+ * `NormalizedEvent` stream: the run's translated `RunEvent` stream retags `session_started` and
+ * adds a phase.
+ */
+function rawTap(): RawTap {
+  const pending: NormalizedEvent[] = [];
+  let wake: (() => void) | null = null;
+  return {
+    push(event) {
+      pending.push(event);
+      const resolve = wake;
+      wake = null;
+      resolve?.();
+    },
+    async collect(n) {
+      const out: NormalizedEvent[] = [];
+      while (out.length < n) {
+        while (pending.length > 0) {
+          const event = pending.shift()!;
+          if (event.type !== 'session_started') out.push(event);
+        }
+        if (out.length >= n) break;
+        await new Promise<void>((resolve) => { wake = resolve; });
+      }
+      return out;
+    },
+  };
 }
 
 async function spawnStreaming(sessionKey: string): Promise<{
-  proc: PIAgentProcess; runtime: FakeRuntime;
+  engine: PIEngineSession; run: EngineRun; tap: RawTap; runtime: FakeRuntime;
 }> {
   const fake = makeFakeRuntimeFactory();
   const adapter = new PIAdapter(fake.factory);
-  const proc = piPool(adapter).spawn(engineSpecFixture({ sessionId: null, sessionKey, resume: false }));
+  const tap = rawTap();
+  const engine = piPool(adapter).open(engineSpecFixture({ sessionId: null, sessionKey, resume: false }));
+  // `open()` alone has no turn stream; a run opens it. The tap keeps the raw protocol events that
+  // the old pooled `proc.events` exposed, and no prompt has to be answered to observe them.
+  const run = engine.run({ text: 'opening' }, { awaitBackground: 'none', onNormalizedEvent: tap.push });
   const runtime = await fake.runtime();
-  return { proc, runtime };
+  return { engine, run, tap, runtime };
 }
 
 /**
@@ -61,15 +92,15 @@ async function runBlock(
   else process.env['CORTEX_STREAM_DELTAS'] = streamEnv;
   try {
     resetSettingsForTests();
-    const { proc, runtime } = await spawnStreaming(`stream-${id ?? 'noid'}-${streamEnv ?? 'on'}`);
+    const { run, tap, runtime } = await spawnStreaming(`stream-${id ?? 'noid'}-${streamEnv ?? 'on'}`);
 
     runtime.emit(textDelta('Hel', id));
     runtime.emit(textDelta('lo ', id));
     runtime.emit(textDelta('world', id));
     runtime.emit({ type: 'message_end' });
 
-    const events = await collect(proc, expectedCount);
-    await proc.close();
+    const events = await tap.collect(expectedCount);
+    run.cancel();
     return events;
   } finally {
     if (prev === undefined) delete process.env['CORTEX_STREAM_DELTAS'];
@@ -79,7 +110,7 @@ async function runBlock(
 }
 
 test('PI keeps attribution on a subagent assistant message instead of merging it into main text', async () => {
-  const { proc, runtime } = await spawnStreaming('stream-subagent-text');
+  const { run, tap, runtime } = await spawnStreaming('stream-subagent-text');
 
   runtime.emit({
     type: 'cortex_subagent_event',
@@ -90,8 +121,8 @@ test('PI keeps attribution on a subagent assistant message instead of merging it
   });
   runtime.emit({ type: 'message_end' });
 
-  const events = await collect(proc, 2);
-  await proc.close();
+  const events = await tap.collect(2);
+  run.cancel();
 
   const text = events.find((event) => event.type === 'assistant_text');
   assert.ok(text && text.type === 'assistant_text');
@@ -167,7 +198,7 @@ test('a text_delta without a message id yields no assistant_delta but still flus
 // --- the real PI wire shape (no message.id; responseId is the stable per-message field) ---
 
 test('a genuine PI message_update (responseId, contentIndex, partial) streams with a stable blockId', async () => {
-  const { proc, runtime } = await spawnStreaming('stream-real-shape');
+  const { run, tap, runtime } = await spawnStreaming('stream-real-shape');
 
   // Shape taken from the PI SDK: MessageUpdateEvent.message is an AssistantMessage, which has
   // role/content/api/provider/model/responseId/usage/stopReason/timestamp — and no `id`.
@@ -192,8 +223,8 @@ test('a genuine PI message_update (responseId, contentIndex, partial) streams wi
   runtime.emit({ type: 'message_end' });
 
   // 2 deltas + flushed assistant_text + turn_progress = 4
-  const events = await collect(proc, 4);
-  await proc.close();
+  const events = await tap.collect(4);
+  run.cancel();
 
   const deltas = events.filter((e) => e.type === 'assistant_delta') as Extract<NormalizedEvent, { type: 'assistant_delta' }>[];
   assert.deepEqual(deltas.map((d) => [d.text, d.blockId]), [['Hel', 'msg_01XyZ'], ['lo', 'msg_01XyZ']]);
@@ -207,15 +238,15 @@ test('a genuine PI message_update (responseId, contentIndex, partial) streams wi
 // --- edge: a new block id starts a new block, so a flush never mixes two blocks ---
 
 test('a delta from a new message id flushes the previous block, keeping blockId 1:1 with its text', async () => {
-  const { proc, runtime } = await spawnStreaming('stream-two-blocks');
+  const { run, tap, runtime } = await spawnStreaming('stream-two-blocks');
 
   runtime.emit(textDelta('alpha', 'm1'));
   runtime.emit(textDelta('beta', 'm2'));
   runtime.emit({ type: 'message_end' });
 
   // delta(m1) + flush(m1) + delta(m2) + flush(m2) + turn_progress = 5
-  const events = await collect(proc, 5);
-  await proc.close();
+  const events = await tap.collect(5);
+  run.cancel();
 
   const texts = events.filter((e) => e.type === 'assistant_text') as Extract<NormalizedEvent, { type: 'assistant_text' }>[];
   assert.equal(texts.length, 2, 'each message id finalizes as its own assistant_text');

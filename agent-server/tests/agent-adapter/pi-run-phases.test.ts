@@ -1,6 +1,7 @@
 // input:  PIAdapter over the fake PI runtime in tests/agent-adapter/pi-fake-runtime.ts
-// output: PI run-phase regression: steer form per loop state, deferred turn_complete, refusal acks, session_started placement
-// pos:    PI backend run-phase fixture (plan §9.2 P0.2), freezing today's behaviour before Phase 1.8/2.2
+// output: PI run-phase regression: steer form per loop state, deferred foreground result, injection
+//         acks, session_started placement
+// pos:    PI backend run-phase fixture (plan §9.2 P0.2), now driven through the EngineSession seam
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { engineSpecFixture, type EngineSpecFixtureInput } from '../engine-spec-fixture.js';
 
@@ -10,55 +11,49 @@ import assert from 'node:assert/strict';
 
 import { PIAdapter } from '../../src/agent-adapter/pi/adapter.js';
 import { piPool } from './pi-pool-fixture.js';
-import type { AgentProcess, InjectionAckSink } from '../../src/agent-adapter/types.js';
+import type { PIEngineSession } from '../../src/agent-adapter/pi/engine.js';
+import type { EngineRun } from '../../src/agent-adapter/types.js';
 import type { AgentResult } from '../../src/core/types/agent-types.js';
+import type { RunEvent } from '../../src/agent-adapter/run-events.js';
 import type { NormalizedEvent } from '../../src/agent-adapter/normalize/event-types.js';
 import {
   makeFakeRuntimeFactory, type FakeRuntime, type FakeRuntimeFactory, type FakeSessionCall,
 } from './pi-fake-runtime.js';
 
-type ErrorEvent = Extract<NormalizedEvent, { type: 'error' }>;
-type TerminalEvent = Extract<NormalizedEvent, { type: 'turn_complete' }>;
+type ErrorEvent = Extract<RunEvent, { type: 'error' }>;
+type ResultEvent = Extract<RunEvent, { type: 'foreground_result' | 'background_result' }>;
+type InjectionEvent = Extract<RunEvent, { type: 'injection_delivered' | 'injection_rejected' }>;
+type DonePhase = Extract<RunEvent, { type: 'phase' }>;
 
 interface Fixture {
   adapter: PIAdapter;
   fake: FakeRuntimeFactory;
-  proc: AgentProcess;
+  engine: PIEngineSession;
   runtime: FakeRuntime;
 }
 
-function spawnConfig(sessionKey: string): EngineSpecFixtureInput {
+function phaseSpec(sessionKey: string): EngineSpecFixtureInput {
   return { sessionId: null, sessionKey, resume: false };
 }
 
-/** One spawned PI process with its runtime already resolved, so `send` dispatches at once. */
-async function spawnProcess(sessionKey: string): Promise<Fixture> {
+/** One pooled PI engine with its runtime already resolved, so `run` dispatches at once. */
+async function openSession(sessionKey: string): Promise<Fixture> {
   const fake = makeFakeRuntimeFactory();
   const adapter = new PIAdapter(fake.factory);
-  const proc = piPool(adapter).spawn(engineSpecFixture(spawnConfig(sessionKey)));
+  const engine = piPool(adapter).open(engineSpecFixture(phaseSpec(sessionKey)));
   const runtime = await fake.runtime(0);
-  return { adapter, fake, proc, runtime };
+  return { adapter, fake, engine, runtime };
 }
 
 /**
- * Open a turn and wait until its prompt reached PI: injections before that are refused by design.
- * The turn promise is boxed so awaiting this helper does not await the turn itself.
+ * Open a run and wait until its prompt reached PI: injections before that are refused by design.
+ * The returned run is boxed so awaiting this helper does not await the run itself.
  */
-async function openTurn(fixture: Fixture, text = 'opening'): Promise<{ turn: Promise<AgentResult> }> {
-  const turn = fixture.proc.send({ text });
-  void turn.catch(() => undefined);
+async function openTurn(fixture: Fixture, text = 'opening'): Promise<EngineRun> {
+  const run = fixture.engine.run({ text }, { awaitBackground: 'none' });
+  void run.result.catch(() => undefined);
   await fixture.runtime.nextCall('prompt');
-  return { turn };
-}
-
-/** Next lifecycle event on the process stream; per-message cost and context readings are skipped. */
-async function nextEvent(proc: AgentProcess): Promise<NormalizedEvent | undefined> {
-  const iterator = proc.events[Symbol.asyncIterator]();
-  for (;;) {
-    const result = await iterator.next();
-    if (result.done) return undefined;
-    if (result.value.type !== 'cost_record' && result.value.type !== 'context_usage') return result.value;
-  }
+  return run;
 }
 
 /** Every steering SDK call made after the opening prompt, in call order. */
@@ -76,11 +71,11 @@ function settleRun(runtime: FakeRuntime, cost: number): void {
   runtime.emitAgentEnd({ usage: { cost: { total: cost } } });
 }
 
-/** Consume one process's whole event stream in the background; `done` resolves when it closes. */
-function collect(proc: AgentProcess): { events: NormalizedEvent[]; done: Promise<void> } {
-  const events: NormalizedEvent[] = [];
+/** Consume one run's whole event stream in the background; `done` resolves when it closes. */
+function collect(run: EngineRun): { events: RunEvent[]; done: Promise<void> } {
+  const events: RunEvent[] = [];
   const done = (async () => {
-    for await (const event of proc.events) events.push(event);
+    for await (const event of run.events) events.push(event);
   })();
   return { events, done };
 }
@@ -88,69 +83,72 @@ function collect(proc: AgentProcess): { events: NormalizedEvent[]; done: Promise
 /** Flush every microtask queued by an emit before the assertions run. */
 const tick = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
 
-function errorEvents(events: NormalizedEvent[]): ErrorEvent[] {
+function errorEvents(events: RunEvent[]): ErrorEvent[] {
   return events.filter((event): event is ErrorEvent => event.type === 'error');
 }
 
-function terminals(events: NormalizedEvent[]): TerminalEvent[] {
-  return events.filter((event): event is TerminalEvent => event.type === 'turn_complete');
+/** The run stream's own terminal results. The engine drops `turn_complete`; it maps onto these. */
+function results(events: RunEvent[]): ResultEvent[] {
+  return events.filter((event): event is ResultEvent =>
+    event.type === 'foreground_result' || event.type === 'background_result');
 }
 
-/** Resolves to a getter for whether the turn promise has already settled. */
-function trackSettled(turn: Promise<AgentResult>): () => boolean {
+/** The run stream's terminal marker, pushed exactly once when the whole run has ended. */
+function donePhases(events: RunEvent[]): DonePhase[] {
+  return events.filter((event): event is DonePhase =>
+    event.type === 'phase' && event.phase === 'done');
+}
+
+/** Injection lifecycle acks, which replaced the legacy `InjectionAckSink` arrays. */
+function injectionEvents(events: RunEvent[]): InjectionEvent[] {
+  return events.filter((event): event is InjectionEvent =>
+    event.type === 'injection_delivered' || event.type === 'injection_rejected');
+}
+
+/** Resolves to a getter for whether the foreground result promise has already settled. */
+function trackSettled(result: Promise<AgentResult>): () => boolean {
   let settled = false;
-  void turn.then(() => { settled = true; }, () => { settled = true; });
+  void result.then(() => { settled = true; }, () => { settled = true; });
   return () => settled;
 }
 
-interface AckSink extends InjectionAckSink {
-  delivered: string[];
-  undelivered: string[];
-}
-
-function ackSink(): AckSink {
-  const delivered: string[] = [];
-  const undelivered: string[] = [];
-  return {
-    delivered,
-    undelivered,
-    onDelivered: ({ text }) => delivered.push(text),
-    onUndelivered: ({ text }) => undelivered.push(text),
-  };
-}
-
 test('a steer while PI is still in preflight takes the dedicated steer call', async (t) => {
-  const fixture = await spawnProcess('pi-phases-preflight');
-  const { proc, runtime } = fixture;
-  t.onTestFinished(() => proc.close());
-  const sink = ackSink();
-  proc.setInjectionAckSink?.(sink);
-  const { turn } = await openTurn(fixture);
+  const fixture = await openSession('pi-phases-preflight');
+  const { engine, runtime } = fixture;
+  t.onTestFinished(() => engine.close());
+  const run = await openTurn(fixture);
+  const { events, done } = collect(run);
 
   // PI has the opening prompt but has not entered its agent loop, so its own run flag is still
   // clear: only the dedicated steer call survives that window, and the loop's opening steering
   // poll is what drains it into the turn.
-  assert.equal(proc.injectUserMessage?.({ text: 'preflight steer' }), true);
+  const steer = engine.steer({ text: 'preflight steer' });
+  assert.equal(steer.accepted, true);
   assert.deepEqual(steeringForms(runtime), ['steer']);
   assert.match(runtime.steers()[0]!, /preflight steer/);
 
   runtime.emitAgentStart();
-  assert.deepEqual(sink.delivered, [], 'a preflight steer is not delivered before the loop opens');
+  assert.deepEqual(injectionEvents(events), [], 'a preflight steer is not delivered before the loop opens');
   runtime.emitUserMessage('preflight steer');
-  assert.deepEqual(sink.delivered, ['preflight steer']);
+  await tick();
+  assert.deepEqual(injectionEvents(events), [
+    { type: 'injection_delivered', injectionId: steer.injectionId, foldedIntoTurn: true },
+  ]);
 
   settleRun(runtime, 0.01);
-  await turn;
+  await run.result;
+  await done;
 });
 
 test("a steer while PI's loop runs takes prompt with streamingBehavior=steer", async (t) => {
-  const fixture = await spawnProcess('pi-phases-running');
-  const { proc, runtime } = fixture;
-  t.onTestFinished(() => proc.close());
-  const { turn } = await openTurn(fixture);
+  const fixture = await openSession('pi-phases-running');
+  const { engine, runtime } = fixture;
+  t.onTestFinished(() => engine.close());
+  const run = await openTurn(fixture);
   runtime.emitAgentStart();
 
-  assert.equal(proc.injectUserMessage?.({ text: 'while running' }), true);
+  const steer = engine.steer({ text: 'while running' });
+  assert.equal(steer.accepted, true);
   const [call] = steeringCalls(runtime);
   assert.ok(call && call.kind === 'prompt', 'the running loop is steered with a streaming prompt');
   assert.equal(call.options?.streamingBehavior, 'steer');
@@ -158,23 +156,23 @@ test("a steer while PI's loop runs takes prompt with streamingBehavior=steer", a
 
   runtime.emitUserMessage('while running');
   settleRun(runtime, 0.01);
-  await turn;
+  await run.result;
 });
 
 test('a steer after PI settled reopens with prompt+steer, and the fresh preflight takes steer', async (t) => {
-  const fixture = await spawnProcess('pi-phases-idle');
-  const { proc, runtime } = fixture;
-  t.onTestFinished(() => proc.close());
-  const { turn } = await openTurn(fixture);
+  const fixture = await openSession('pi-phases-idle');
+  const { engine, runtime } = fixture;
+  t.onTestFinished(() => engine.close());
+  const run = await openTurn(fixture);
   runtime.emitAgentStart();
 
-  assert.equal(proc.injectUserMessage?.({ text: 'while running' }), true);
+  assert.equal(engine.steer({ text: 'while running' }).accepted, true);
   // PI settles its low-level run while that steer is still undelivered, so it is provably idle
   // again: the next message must be a prompt to reopen a turn ...
   settleRun(runtime, 0.02);
-  assert.equal(proc.injectUserMessage?.({ text: 'reopens the turn' }), true);
+  assert.equal(engine.steer({ text: 'reopens the turn' }).accepted, true);
   // ... and the one after that lands in the reopened turn's preflight, which is only safe as steer.
-  assert.equal(proc.injectUserMessage?.({ text: 'rides the new preflight' }), true);
+  assert.equal(engine.steer({ text: 'rides the new preflight' }).accepted, true);
   assert.deepEqual(steeringForms(runtime), ['prompt+steer', 'prompt+steer', 'steer']);
 
   runtime.emitUserMessage('while running');
@@ -182,61 +180,67 @@ test('a steer after PI settled reopens with prompt+steer, and the fresh prefligh
   runtime.emitUserMessage('rides the new preflight');
   settleRun(runtime, 0.03);
 
-  const result = await turn;
+  const result = await run.result;
   assert.equal(result.num_turns, 2);
   assert.equal(result.total_cost_usd, 0.05);
 });
 
 test('a turn_complete is deferred while a steering message is still undelivered', async (t) => {
-  const fixture = await spawnProcess('pi-phases-deferred');
-  const { proc, runtime } = fixture;
-  t.onTestFinished(() => proc.close());
-  const { events, done } = collect(proc);
-  const { turn } = await openTurn(fixture);
-  const settled = trackSettled(turn);
+  const fixture = await openSession('pi-phases-deferred');
+  const { engine, runtime } = fixture;
+  t.onTestFinished(() => engine.close());
+  const run = await openTurn(fixture);
+  const { events, done } = collect(run);
+  const settled = trackSettled(run.result);
 
   runtime.emitAgentStart();
-  assert.equal(proc.injectUserMessage?.({ text: 'late steer' }), true);
+  assert.equal(engine.steer({ text: 'late steer' }).accepted, true);
   settleRun(runtime, 0.02);
   await tick();
 
   assert.equal(settled(), false, 'a settled PI run cannot close Cortex while a steer is pending');
-  assert.deepEqual(terminals(events), [], 'the terminal event is withheld until the steer lands');
+  // The engine drops the raw `turn_complete` marker; the withheld terminal work is visible as the
+  // missing authoritative `foreground_result` and its trailing `done` phase.
+  assert.deepEqual(results(events), [], 'the foreground result is withheld until the steer lands');
+  assert.deepEqual(donePhases(events), [], 'the terminal done phase is withheld until the steer lands');
 
   runtime.emitUserMessage('late steer');
   settleRun(runtime, 0.03);
-  const result = await turn;
+  const result = await run.result;
   await done;
 
   assert.equal(result.num_turns, 2);
   assert.equal(result.total_cost_usd, 0.05);
-  const [terminal, ...rest] = terminals(events);
-  assert.deepEqual(rest, [], 'the deferred terminal is emitted exactly once');
-  assert.equal(terminal?.numTurns, 2);
-  assert.equal(terminal?.totalCostUsd, 0.05);
+  const [foreground, ...restResults] = results(events);
+  assert.deepEqual(restResults, [], 'the deferred result is emitted exactly once');
+  assert.equal(foreground?.result.num_turns, 2);
+  assert.equal(foreground?.result.total_cost_usd, 0.05);
+  assert.equal(donePhases(events).length, 1, 'the run emits exactly one terminal done phase');
 });
 
 test('a refused steer reports error{fatal:false} and seals the message as undelivered', async (t) => {
-  const fixture = await spawnProcess('pi-phases-refused-steer');
-  const { proc, runtime } = fixture;
-  t.onTestFinished(() => proc.close());
-  const sink = ackSink();
-  proc.setInjectionAckSink?.(sink);
-  const { events, done } = collect(proc);
-  const { turn } = await openTurn(fixture);
+  const fixture = await openSession('pi-phases-refused-steer');
+  const { engine, runtime } = fixture;
+  t.onTestFinished(() => engine.close());
+  const run = await openTurn(fixture);
+  const { events, done } = collect(run);
   runtime.emitAgentStart();
 
   runtime.promptRejections.push(new Error('prompt rejected'));
-  assert.equal(proc.injectUserMessage?.({ text: 'refused steer' }), true);
+  const steer = engine.steer({ text: 'refused steer' });
+  assert.equal(steer.accepted, true);
   // The refusal lands a microtask later, i.e. after PI already settled this run.
   settleRun(runtime, 0.02);
   await tick();
 
-  const result = await turn;
+  const result = await run.result;
   await done;
 
-  assert.deepEqual(sink.delivered, [], 'a refused steer is never delivered');
-  assert.deepEqual(sink.undelivered, ['refused steer']);
+  assert.deepEqual(injectionEvents(events).filter((event) => event.type === 'injection_delivered'),
+    [], 'a refused steer is never delivered');
+  assert.deepEqual(injectionEvents(events).filter((event) => event.type === 'injection_rejected'), [
+    { type: 'injection_rejected', injectionId: steer.injectionId, reason: 'undelivered' },
+  ]);
   assert.equal(result.num_turns, 1);
   assert.equal(result.total_cost_usd, 0.02);
 
@@ -244,70 +248,91 @@ test('a refused steer reports error{fatal:false} and seals the message as undeli
   assert.deepEqual(extraErrors, []);
   assert.equal(refusal?.fatal, false, 'a refused injection stays non-fatal on the turn stream');
   assert.equal(refusal?.message, 'injection refused: prompt rejected');
-  assert.equal(terminals(events).length, 1, 'the deferred terminal is restored once the steer is sealed');
+  assert.equal(results(events).length, 1, 'the deferred result is restored once the steer is sealed');
 });
 
 test('a refused steer during the preflight window keeps its turn open', async (t) => {
-  const fixture = await spawnProcess('pi-phases-refused-preflight');
-  const { proc, runtime } = fixture;
-  t.onTestFinished(() => proc.close());
-  const sink = ackSink();
-  proc.setInjectionAckSink?.(sink);
-  const { events, done } = collect(proc);
-  // Still in the preflight window: this steer is the dedicated call, not a streaming prompt.
-  const { turn } = await openTurn(fixture);
+  const fixture = await openSession('pi-phases-refused-preflight');
+  const { engine, runtime } = fixture;
+  t.onTestFinished(() => engine.close());
+  const run = await openTurn(fixture);
+  const { events, done } = collect(run);
 
+  // Still in the preflight window: this steer is the dedicated call, not a streaming prompt.
   runtime.steerRejections.push(new Error('steer rejected'));
-  assert.equal(proc.injectUserMessage?.({ text: 'refused preflight steer' }), true);
+  const steer = engine.steer({ text: 'refused preflight steer' });
+  assert.equal(steer.accepted, true);
   assert.deepEqual(steeringForms(runtime), ['steer']);
   await tick();
 
-  assert.deepEqual(sink.undelivered, ['refused preflight steer']);
+  assert.deepEqual(injectionEvents(events).filter((event) => event.type === 'injection_rejected'), [
+    { type: 'injection_rejected', injectionId: steer.injectionId, reason: 'undelivered' },
+  ]);
   assert.deepEqual(errorEvents(events).map((event) => event.fatal), [false]);
-  assert.deepEqual(terminals(events), [], 'nothing terminal is reported before PI ends its run');
+  assert.deepEqual(results(events), [], 'nothing terminal is reported before PI ends its run');
+  assert.deepEqual(donePhases(events), [], 'nothing terminal is reported before PI ends its run');
 
   settleRun(runtime, 0.02);
-  const result = await turn;
+  const result = await run.result;
   await done;
 
   assert.equal(result.num_turns, 1);
-  assert.equal(terminals(events).length, 1, "the turn still ends on PI's own terminal event");
+  assert.equal(results(events).length, 1, "the turn still ends on PI's own terminal result");
+  assert.equal(donePhases(events).length, 1, "the turn still ends on PI's own terminal marker");
 });
 
 test('session_started lands on the stream of the first turn, never on a reused one', async (t) => {
-  const fixture = await spawnProcess('pi-phases-session-start');
-  const { adapter, fake, proc, runtime } = fixture;
-  t.onTestFinished(() => proc.close());
+  const fake = makeFakeRuntimeFactory();
+  const adapter = new PIAdapter(fake.factory);
+  const key = 'pi-phases-session-start';
+  const engine = piPool(adapter).open(engineSpecFixture(phaseSpec(key)));
+  t.onTestFinished(() => engine.close());
 
-  // Runtime creation is asynchronous and no prompt has been sent yet, yet the announcement is
-  // already waiting on the stream the first spawn opened.
-  const announced = await nextEvent(proc);
-  assert.deepEqual(runtime.calls, [], 'nothing was asked of PI before the announcement');
-  assert.equal(announced?.type, 'session_started');
+  // Runtime creation is asynchronous and the run opens its turn stream synchronously, before the
+  // runtime resolves, so the announcement is already waiting on the stream the first run opened.
+  // The raw tap is what preserves the wire-level `session_started` (the run stream translates it
+  // to `engine_started`), and reading the call log inside the tap is what proves it is announced
+  // before PI is asked for anything.
+  const runtime = fake.runtimes[0]!;
+  const firstPrompt = runtime.nextCall('prompt');
+  const firstRaw: NormalizedEvent[] = [];
+  let callsWhenAnnounced = -1;
+  const first = engine.run({ text: 'first' }, {
+    awaitBackground: 'none',
+    onNormalizedEvent: (event) => {
+      firstRaw.push(event);
+      if (event.type === 'session_started') callsWhenAnnounced = runtime.calls.length;
+    },
+  });
+  void first.result.catch(() => undefined);
+  await firstPrompt;
+
+  assert.equal(callsWhenAnnounced, 0, 'nothing was asked of PI before the announcement');
+  const announced = firstRaw.find((event) => event.type === 'session_started');
+  assert.ok(announced && announced.type === 'session_started', 'the first turn must be announced');
   if (announced?.type !== 'session_started') assert.fail('the first turn must be announced');
   assert.equal(announced.sessionId, runtime.sessionId);
   assert.equal(announced.sessionFile, runtime.sessionFile);
 
-  const turn = proc.send({ text: 'first' });
-  await runtime.nextCall('prompt');
   runtime.emitAgentStart();
   runtime.emitAssistantText('first reply');
   settleRun(runtime, 0.01);
-  await turn;
+  await first.result;
 
-  // A second spawn reuses the pooled runtime, so its stream starts at PI's own events: the
+  // A second run reuses the pooled runtime, so its stream starts at PI's own events: the
   // announcement belongs to the stream that was open when the runtime was created.
-  const second = piPool(adapter).spawn(engineSpecFixture(spawnConfig('pi-phases-session-start')));
-  t.onTestFinished(() => second.close());
-  const reused = collect(second);
-  const secondTurn = second.send({ text: 'second' });
+  const secondRaw: NormalizedEvent[] = [];
+  const second = piPool(adapter).open(engineSpecFixture(phaseSpec(key))).run(
+    { text: 'second' },
+    { awaitBackground: 'none', onNormalizedEvent: (event) => secondRaw.push(event) },
+  );
+  void second.result.catch(() => undefined);
   await runtime.nextCall('prompt');
   runtime.emitAgentStart();
   runtime.emitAssistantText('second reply');
   settleRun(runtime, 0.01);
-  await secondTurn;
-  await reused.done;
+  await second.result;
 
   assert.equal(fake.runtimes.length, 1, 'the second turn reused the pooled PI runtime');
-  assert.equal(reused.events.some((event) => event.type === 'session_started'), false);
+  assert.equal(secondRaw.some((event) => event.type === 'session_started'), false);
 });

@@ -1,15 +1,14 @@
-// input:  ClaudeSession lines, costs, rate limits, late sinks
-// output: continuation routing, cursor, limit, and compaction specs
-// pos:    Claude print spontaneous-continuation wiring tests
+// input:  ClaudeSession lines, costs, rate limits, late sinks; the engine-run seam
+// output: continuation routing, cursor, limit, compaction and interruption specs on RunEvents
+// pos:    Claude run-phase wiring tests (engine-owned background phase, no process surface)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
 import { _test } from '../../src/agent-adapter/claude/adapter.js';
-import { waitForBgContinuation } from '../../src/agent-adapter/bg-wait.js';
-import { continuationSinkToEvents } from '../../src/domain/runs/events.js';
-import type { RunEvent } from '../../src/domain/runs/events.js';
+import { openClaudeTestEngine, collectRun, tick } from './replay-harness.js';
+import type { RunEvent } from '../../src/agent-adapter/run-events.js';
 
 const FAKE_STREAM = { write() {}, end() {} } as any;
 
@@ -36,6 +35,34 @@ const RATE_LIMIT_MESSAGE = "API Error: Server is temporarily limiting requests (
 const ASSISTANT_RATE_LIMIT = JSON.stringify({ type: 'assistant', message: { model: '<synthetic>', content: [{ type: 'text', text: RATE_LIMIT_MESSAGE }] } });
 const RESULT_CONT_RATE_LIMIT = JSON.stringify({ type: 'result', subtype: 'error_during_execution', is_error: true, result: RATE_LIMIT_MESSAGE, session_id: 'test-session', total_cost_usd: 0, num_turns: 1 });
 
+type BackgroundResult = Extract<RunEvent, { type: 'background_result' }>;
+function backgroundResults(events: RunEvent[]): BackgroundResult[] {
+  return events.filter((event): event is BackgroundResult => event.type === 'background_result');
+}
+
+/**
+ * Open one run over a fresh pooled engine and feed the session raw CLI lines. This is the seam the
+ * old `setContinuationSink`/`waitForBgContinuation` tests move onto: the run's own policy
+ * (`awaitBackground`) decides what the phase does, and the run stream carries the background events.
+ */
+function engineRun(
+  t: { onTestFinished: (fn: () => void) => void },
+  opts: {
+    awaitBackground?: 'none' | 'hold' | 'inline' | 'completion-only';
+    model?: string | null;
+    preserveUnreportedAccounting?: boolean;
+  } = {},
+) {
+  const { engine, session, close } = openClaudeTestEngine({
+    model: opts.model,
+    preserveUnreportedAccounting: opts.preserveUnreportedAccounting,
+  });
+  t.onTestFinished(close);
+  const run = engine.run({ text: 'go' }, { awaitBackground: opts.awaitBackground ?? 'hold' });
+  const { events, done } = collectRun(run);
+  return { engine, session, run, events, done };
+}
+
 test('handleLine: normal turn result carries pendingBackgroundTasks count', (t) => {
   const s: any = _test.makeSessionForTest();
   s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
@@ -51,176 +78,180 @@ test('handleLine: normal turn result carries pendingBackgroundTasks count', (t) 
   assert.equal(cap.value.pendingBackgroundTasks, 1, 'result reports 1 pending background task');
 });
 
-test('handleLine: one-shot buffers a continuation until its sink is registered', (t) => {
-  const s: any = _test.makeSessionForTest();
-  s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
-  s.preserveUnreportedAccounting = true;
-  t.onTestFinished(() => s.close());
+// The engine installs its own continuation sink when `run()` opens, but a one-shot CLI can deliver
+// a continuation before that: the session buffers it (`preserveUnreportedAccounting`) and the phase
+// replays it once it starts. This is the same fact the old `setContinuationSink` buffering test
+// asserted, observed through the run stream the engine actually installs.
+test('run: one-shot buffers a continuation until the run installs its sink', async (t) => {
+  const { engine, session, close } = openClaudeTestEngine({ preserveUnreportedAccounting: true });
+  t.onTestFinished(close);
 
-  s.handleLine(TASK_STARTED);
-  s.handleLine(TASK_NOTIFICATION);
-  s.handleLine(ASSISTANT_CONT);
-  s.handleLine(RESULT_CONT);
+  // The continuation lands before `run()`: text and result are buffered on the session.
+  session.handleLine(TASK_STARTED);
+  session.handleLine(TASK_NOTIFICATION);
+  session.handleLine(ASSISTANT_CONT);
+  session.handleLine(RESULT_CONT);
+  // A second task keeps the run's background phase open so the buffered result is replayed.
+  session.handleLine(JSON.stringify({ type: 'system', subtype: 'task_started', task_id: 'second' }));
 
-  const texts: string[] = [];
-  const results: any[] = [];
-  s.setContinuationSink({
-    onAssistantText: (text: string) => texts.push(text),
-    onResult: (result: any) => results.push(result),
-  });
-  assert.deepEqual(texts, ['Background task done: DONE']);
-  assert.equal(results.length, 1);
-  assert.equal(results[0].costReported, true);
-});
-
-test('handleLine: absent middle cost preserves the cumulative cursor across chained continuations', async (t) => {
-  const s: any = _test.makeSessionForTest();
-  s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
-  s.preserveUnreportedAccounting = true;
-  t.onTestFinished(() => s.close());
-
-  const first: { value?: any } = {};
-  s.currentTurn = fakeTurn(first);
-  s.handleLine(JSON.stringify({ type: 'system', subtype: 'task_started', task_id: 'first' }));
-  s.handleLine(JSON.stringify({
+  const run = engine.run({ text: 'go' }, { awaitBackground: 'hold' });
+  const { events, done } = collectRun(run);
+  session.handleLine(JSON.stringify({
     type: 'result', subtype: 'success', is_error: false, session_id: 'test-session',
     total_cost_usd: 0.05, num_turns: 1,
   }));
 
-  const mergedPromise = waitForBgContinuation({
-    proc: { setContinuationSink: (sink) => s.setContinuationSink(sink) },
-    baseResult: first.value,
-    graceMs: 1_000,
-    maxWaitMs: 5_000,
+  const settled = await run.settled;
+  await done;
+  assert.equal(settled.costReported, true);
+  const texts = events
+    .filter((e): e is Extract<RunEvent, { type: 'assistant_text' }> => e.type === 'assistant_text')
+    .map((e) => e.text);
+  assert.deepEqual(texts, ['Background task done: DONE'], 'the buffered continuation text is delivered');
+  const results = backgroundResults(events);
+  assert.equal(results.length, 1, 'the buffered continuation result is delivered');
+  assert.equal(results[0].result.costReported, true);
+});
+
+test('run: absent middle cost preserves the cumulative cursor across chained continuations', async (t) => {
+  const { session, run } = engineRun(t, {
+    awaitBackground: 'hold', preserveUnreportedAccounting: true,
   });
-  s.handleLine(JSON.stringify({
-    type: 'system', subtype: 'task_notification', task_id: 'first', status: 'completed',
+
+  session.handleLine(JSON.stringify({ type: 'system', subtype: 'task_started', task_id: 'first' }));
+  session.handleLine(JSON.stringify({
+    type: 'result', subtype: 'success', is_error: false, session_id: 'test-session',
+    total_cost_usd: 0.05, num_turns: 1,
   }));
-  s.handleLine(ASSISTANT_CONT);
-  s.handleLine(JSON.stringify({ type: 'system', subtype: 'task_started', task_id: 'second' }));
-  s.handleLine(JSON.stringify({
+  await tick(); // let the foreground result settle and the phase start
+
+  session.handleLine(JSON.stringify({ type: 'system', subtype: 'task_notification', task_id: 'first', status: 'completed' }));
+  session.handleLine(ASSISTANT_CONT);
+  session.handleLine(JSON.stringify({ type: 'system', subtype: 'task_started', task_id: 'second' }));
+  session.handleLine(JSON.stringify({
     type: 'result', subtype: 'success', is_error: false, session_id: 'test-session', num_turns: 1,
   }));
-  s.handleLine(JSON.stringify({
-    type: 'system', subtype: 'task_notification', task_id: 'second', status: 'completed',
-  }));
-  s.handleLine(ASSISTANT_CONT);
-  s.handleLine(JSON.stringify({
+  session.handleLine(JSON.stringify({ type: 'system', subtype: 'task_notification', task_id: 'second', status: 'completed' }));
+  session.handleLine(ASSISTANT_CONT);
+  session.handleLine(JSON.stringify({
     type: 'result', subtype: 'success', is_error: false, session_id: 'test-session',
     total_cost_usd: 0.1, num_turns: 1,
   }));
 
-  const merged = await mergedPromise;
+  const merged = await run.settled;
   assert.equal(merged.total_cost_usd, 0.1);
   assert.equal(merged.costReported, true);
 });
 
-test('handleLine: spontaneous continuation routes assistant text + final result to the sink', (t) => {
-  const s: any = _test.makeSessionForTest();
-  s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
-  t.onTestFinished(() => s.close());
-
-  const texts: string[] = [];
-  let finalResult: any = null;
-  s.setContinuationSink({
-    onAssistantText: (txt: string) => texts.push(txt),
-    onResult: (r: any) => { finalResult = r; },
-  });
+test('run: spontaneous continuation routes assistant text + final result to the background stream', async (t) => {
+  const { session, run, events, done } = engineRun(t, { awaitBackground: 'hold' });
 
   // Background task completes → CLI re-invokes the model with no active turn.
-  s.handleLine(TASK_STARTED);
-  s.handleLine(TASK_NOTIFICATION);     // arms continuation, pending → 0
-  s.handleLine(ASSISTANT_CONT);        // opens a synthetic continuation turn, routes text
-  s.handleLine(RESULT_CONT);           // finalizes continuation
+  session.handleLine(TASK_STARTED);
+  session.handleLine(RESULT_FIRST);
+  await tick();
+  session.handleLine(TASK_NOTIFICATION);     // arms continuation, pending → 0
+  session.handleLine(ASSISTANT_CONT);        // opens a synthetic continuation turn, routes text
+  session.handleLine(RESULT_CONT);           // finalizes continuation
 
-  assert.deepEqual(texts, ['Background task done: DONE'], 'assistant text routed to sink');
-  assert.ok(finalResult, 'sink received continuation result');
-  assert.equal(finalResult.pendingBackgroundTasks, 0, 'no background tasks remain at continuation end');
+  await run.settled;
+  await done;
+
+  const texts = events.filter((e) => e.type === 'assistant_text').map((e) => e.text);
+  assert.deepEqual(texts, ['Background task done: DONE'], 'assistant text routed to the background stream');
+  const results = backgroundResults(events);
+  assert.equal(results.length, 1, 'the run stream received the continuation result');
+  assert.equal(results[0].result.pendingBackgroundTasks, 0, 'no background tasks remain at continuation end');
 });
 
-test('handleLine: spontaneous continuation normalizes a temporary 429 into a rate-limited sink result', (t) => {
-  const s: any = _test.makeSessionForTest();
-  s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
-  t.onTestFinished(() => s.close());
+test('run: spontaneous continuation normalizes a temporary 429 into a rate-limited background result', async (t) => {
+  const { session, run, events, done } = engineRun(t, { awaitBackground: 'hold' });
 
-  const texts: string[] = [];
-  const results: any[] = [];
-  s.setContinuationSink({
-    onAssistantText: (text: string) => texts.push(text),
-    onResult: (result: any) => results.push(result),
-  });
+  session.handleLine(TASK_STARTED);
+  session.handleLine(RESULT_FIRST);
+  await tick();
+  session.handleLine(TASK_NOTIFICATION);
+  session.handleLine(ASSISTANT_RATE_LIMIT);
+  session.handleLine(RESULT_CONT_RATE_LIMIT);
 
-  s.handleLine(TASK_STARTED);
-  s.handleLine(TASK_NOTIFICATION);
-  s.handleLine(ASSISTANT_RATE_LIMIT);
-  s.handleLine(RESULT_CONT_RATE_LIMIT);
+  await run.settled;
+  await done;
 
+  const texts = events.filter((e) => e.type === 'assistant_text').map((e) => e.text);
   assert.deepEqual(texts, [RATE_LIMIT_MESSAGE]);
-  assert.equal(results.length, 1, 'rate-limited continuation reaches the sink');
-  assert.equal(results[0].rateLimited, true);
-  assert.equal(results[0].rateLimitMessage, RATE_LIMIT_MESSAGE);
+  const results = backgroundResults(events);
+  assert.equal(results.length, 1, 'rate-limited continuation reaches the run stream');
+  assert.equal(results[0].result.rateLimited, true);
+  assert.equal(results[0].result.rateLimitMessage, RATE_LIMIT_MESSAGE);
 });
 
-test('handleLine: spontaneous continuation forwards final and reconciled context snapshots', (t) => {
-  const s: any = _test.makeSessionForTest('claude-opus-5[1m]');
-  s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
-  t.onTestFinished(() => s.close());
-
-  const contexts: Array<{ usedTokens: number; contextWindow: number }> = [];
-  s.setContinuationSink({
-    onAssistantText: () => {},
-    onContextUsage: (usage: { usedTokens: number; contextWindow: number }) => contexts.push(usage),
-    onResult: () => {},
+test('run: spontaneous continuation forwards final and reconciled context snapshots', async (t) => {
+  const { session, run, events, done } = engineRun(t, {
+    awaitBackground: 'hold', model: 'claude-opus-5[1m]',
   });
 
-  s.handleLine(TASK_STARTED);
-  s.handleLine(TASK_NOTIFICATION);
-  s.handleLine(CONTEXT_START); // seeds the tracker before the synthetic turn opens
-  s.handleLine(ASSISTANT_CONT); // opens the synthetic continuation turn
-  s.handleLine(CONTEXT_DELTA); // first callback-visible exact boundary
-  s.handleLine(RESULT_CONT); // provider-reported window correction
+  session.handleLine(TASK_STARTED);
+  session.handleLine(RESULT_FIRST);
+  await tick();
+  session.handleLine(TASK_NOTIFICATION);
+  session.handleLine(CONTEXT_START); // seeds the tracker before the synthetic turn opens
+  session.handleLine(ASSISTANT_CONT); // opens the synthetic continuation turn
+  session.handleLine(CONTEXT_DELTA); // first callback-visible exact boundary
+  session.handleLine(RESULT_CONT); // provider-reported window correction
 
-  assert.deepEqual(contexts.map((usage) => [usage.usedTokens, usage.contextWindow]), [
+  await run.settled;
+  await done;
+
+  const contexts = events
+    .filter((e): e is Extract<RunEvent, { type: 'context_usage' }> => e.type === 'context_usage')
+    .filter((e) => e.phase === 'background')
+    .map((e) => [e.usedTokens, e.contextWindow]);
+  assert.deepEqual(contexts, [
     [500, 1_000_000],
     [500, 900_000],
   ]);
 });
 
-test('handleLine: assistant with no active turn and NO continuation armed is dropped (no sink call)', (t) => {
-  const s: any = _test.makeSessionForTest();
-  s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
-  t.onTestFinished(() => s.close());
+test('run: assistant with no active turn and NO continuation armed is dropped (no background event)', async (t) => {
+  const { session, events, done } = engineRun(t, { awaitBackground: 'hold' });
 
-  let called = false;
-  s.setContinuationSink({ onAssistantText: () => { called = true; }, onResult: () => { called = true; } });
+  session.handleLine(RESULT_FIRST);   // closes the foreground with nothing owed
+  await tick();
+  session.handleLine(ASSISTANT_CONT); // no task ever started → not armed
+  await tick();
 
-  s.handleLine(ASSISTANT_CONT); // no task ever started → not armed
-  assert.equal(called, false, 'stray assistant output is not treated as a continuation');
+  assert.equal(
+    events.some((e) => e.type === 'assistant_text' || e.type === 'background_result'),
+    false,
+    'stray assistant output is not treated as a continuation',
+  );
+  await done;
 });
 
-test('integration: real captured line sequence becomes the background RunEvents a run fans out', (t) => {
-  const s: any = _test.makeSessionForTest();
-  s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
-  t.onTestFinished(() => s.close());
+test('integration: real captured line sequence becomes the background RunEvents a run fans out', async (t) => {
+  const { session, run, events, done } = engineRun(t, { awaitBackground: 'hold' });
 
-  // Wire the adapter session to the PRODUCTION translation `AgentRun` installs. Every background
-  // surface (Slack status line, Web session stream) subscribes to these events, so asserting the
-  // event stream asserts what all of them see.
-  const events: RunEvent[] = [];
-  s.setContinuationSink(continuationSinkToEvents((e) => events.push(e)));
-
+  // The engine owns the PRODUCTION translation every background surface subscribes to, so
+  // asserting the run stream asserts what all of them see.
   // Replay the exact event order captured from a real `claude -p` background run.
-  s.handleLine(TASK_STARTED);        // pending → 1
-  s.handleLine(TASK_NOTIFICATION);   // completion → arms continuation, pending → 0
-  s.handleLine(ASSISTANT_CONT);      // continuation text
-  s.handleLine(RESULT_CONT);         // continuation result → background_result
+  session.handleLine(TASK_STARTED);        // pending → 1
+  session.handleLine(RESULT_FIRST);
+  await tick();
+  session.handleLine(TASK_NOTIFICATION);   // completion → arms continuation, pending → 0
+  session.handleLine(ASSISTANT_CONT);      // continuation text
+  session.handleLine(RESULT_CONT);         // continuation result → background_result
+
+  await run.settled;
+  await done;
 
   const text = events
     .filter((e): e is Extract<RunEvent, { type: 'assistant_text' }> => e.type === 'assistant_text')
     .map((e) => e.text).join('');
   assert.match(text, /Background task done: DONE/);
-  assert.ok(events.every((e) => !('phase' in e) || e.phase === 'background'), 'every event is tagged background');
-  const settled = events.filter((e): e is Extract<RunEvent, { type: 'background_result' }> => e.type === 'background_result');
+  const continuation = events.filter((e) => 'phase' in e && e.phase === 'background');
+  assert.ok(continuation.some((e) => e.type === 'assistant_text'), 'the continuation text is background');
+  assert.ok(continuation.some((e) => e.type === 'background_result'), 'the terminal result is background');
+  const settled = backgroundResults(events);
   assert.equal(settled.length, 1, 'exactly one terminal background result');
   assert.equal(settled[0].result.pendingBackgroundTasks, 0, 'no work left — the surfaces seal');
   assert.equal(settled[0].result.undeliveredBackgroundTasks ?? 0, 0, 'nothing left unnotified either');
@@ -247,55 +278,56 @@ test('handleLine: task completed without notification → undelivered, not pendi
   assert.equal(cap.value.undeliveredBackgroundTasks, 1, 'reported as undelivered completion');
 });
 
-// F2 (2026-07-10): any process death during the waiting window must notify the sink so the
+// F2 (2026-07-10): any process death during the waiting window must notify the run stream so the
 // held "background task running" status can be sealed instead of waiting forever.
-test('handleProcessClose: waiting window (bg pending, no active turn) → sink gets backgroundInterrupted exactly once', (t) => {
-  const s: any = _test.makeSessionForTest();
-  s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
-  t.onTestFinished(() => s.close());
+test('handleProcessClose: waiting window (bg pending, no active turn) → one backgroundInterrupted result', async (t) => {
+  const { session, events, done } = engineRun(t, { awaitBackground: 'hold' });
 
-  const results: any[] = [];
-  s.setContinuationSink({ onAssistantText: () => {}, onResult: (r: any) => results.push(r) });
+  session.handleLine(TASK_STARTED); // pending → 1, then the turn ends (waiting window)
+  session.handleLine(RESULT_FIRST);
+  await tick();
+  session.handleProcessClose(1);    // process dies (restart / crash / kill)
+  await tick();
 
-  s.handleLine(TASK_STARTED); // pending → 1, then the turn ends (no currentTurn: waiting window)
-  s.handleProcessClose(1);    // process dies (restart / crash / kill)
+  const results = backgroundResults(events);
+  assert.equal(results.length, 1, 'run stream notified once');
+  assert.equal(results[0].result.backgroundInterrupted, true, 'result flagged as interrupted');
+  assert.equal(session.continuationSink, null, 'the engine sink is released after the notify');
 
-  assert.equal(results.length, 1, 'sink notified once');
-  assert.equal(results[0].backgroundInterrupted, true, 'result flagged as interrupted');
-  assert.equal(s.continuationSink, null, 'sink cleared after notify');
-
-  s.handleProcessClose(1);    // double close must not re-notify
-  assert.equal(results.length, 1, 'no double delivery');
+  session.handleProcessClose(1);    // double close must not re-notify
+  await tick();
+  assert.equal(backgroundResults(events).length, 1, 'no double delivery');
+  await done;
 });
 
-test('handleProcessClose: nothing pending → sink cleared silently (no interrupted call)', (t) => {
-  const s: any = _test.makeSessionForTest();
-  s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
-  t.onTestFinished(() => s.close());
+test('handleProcessClose: nothing pending → sink released silently (no interrupted result)', async (t) => {
+  const { session, events, done } = engineRun(t, { awaitBackground: 'none' });
 
-  const results: any[] = [];
-  s.setContinuationSink({ onAssistantText: () => {}, onResult: (r: any) => results.push(r) });
-  s.handleProcessClose(0);
+  session.handleLine(RESULT_FIRST);
+  await tick();
+  await done;
+  session.handleProcessClose(0);
+  await tick();
 
-  assert.equal(results.length, 0, 'no interrupted delivery for a clean close');
-  assert.equal(s.continuationSink, null, 'sink still cleared (session is gone)');
+  assert.equal(backgroundResults(events).length, 0, 'no interrupted delivery for a clean close');
+  assert.equal(session.continuationSink, null, 'sink still released (session is gone)');
 });
 
-test('handleProcessClose: crash mid-continuation (spontaneous turn open) → sink gets backgroundInterrupted', (t) => {
-  const s: any = _test.makeSessionForTest();
-  s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
-  t.onTestFinished(() => s.close());
+test('handleProcessClose: crash mid-continuation (spontaneous turn open) → backgroundInterrupted result', async (t) => {
+  const { session, events, done } = engineRun(t, { awaitBackground: 'hold' });
 
-  const results: any[] = [];
-  s.setContinuationSink({ onAssistantText: () => {}, onResult: (r: any) => results.push(r) });
+  session.handleLine(TASK_STARTED);
+  session.handleLine(RESULT_FIRST);
+  await tick();
+  session.handleLine(TASK_NOTIFICATION);  // arms continuation
+  session.handleLine(ASSISTANT_CONT);     // opens the spontaneous continuation turn
+  session.handleProcessClose(1);          // process dies before the continuation result
+  await tick();
 
-  s.handleLine(TASK_STARTED);
-  s.handleLine(TASK_NOTIFICATION);  // arms continuation
-  s.handleLine(ASSISTANT_CONT);     // opens the spontaneous continuation turn
-  s.handleProcessClose(1);          // process dies before the continuation result
-
-  assert.equal(results.length, 1, 'sink notified despite the open spontaneous turn');
-  assert.equal(results[0].backgroundInterrupted, true);
+  const results = backgroundResults(events);
+  assert.equal(results.length, 1, 'run stream notified despite the open spontaneous turn');
+  assert.equal(results[0].result.backgroundInterrupted, true);
+  await done;
 });
 
 // 2026-09-06 investigation (cortex-self K-070): on `--resume` with background work orphaned by
@@ -330,52 +362,49 @@ test('handleLine: notification-turn result on resume does not settle the user tu
   assert.equal(cap.value.undeliveredBackgroundTasks, 0, 'orphan notices owe no continuation');
 });
 
-test('handleLine: a spontaneous turn is still settled by its notification-turn result', (t) => {
-  const s: any = _test.makeSessionForTest();
-  s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
-  t.onTestFinished(() => s.close());
+test('run: a spontaneous turn is still settled by its notification-turn result', async (t) => {
+  const { session, run, events, done } = engineRun(t, { awaitBackground: 'hold' });
 
-  const results: any[] = [];
-  s.setContinuationSink({ onAssistantText: () => {}, onResult: (r: any) => results.push(r) });
-  s.handleLine(TASK_STARTED);
-  s.handleLine(TASK_NOTIFICATION);
-  s.handleLine(ASSISTANT_CONT);
-  s.handleLine(RESULT_CONT);
-  assert.equal(results.length, 1, 'continuation result delivered');
+  session.handleLine(TASK_STARTED);
+  session.handleLine(RESULT_FIRST);
+  await tick();
+  session.handleLine(TASK_NOTIFICATION);
+  session.handleLine(ASSISTANT_CONT);
+  session.handleLine(RESULT_CONT);
+
+  await run.settled;
+  await done;
+  assert.equal(backgroundResults(events).length, 1, 'continuation result delivered');
 });
 
 // Two background completions seconds apart: A's notification opens turn A; B's lands while the
 // model is producing turn A's final text, so the CLI queues turn B. At turn A's result both
 // notifications have been observed (counts 0) — the hold used to seal idle there, and turn B
 // (93 minutes, 114 turns on 2026-09-06) streamed into an "idle" session.
-test('handleLine: notification observed mid-turn without its own turn yet → result owes one delivery', (t) => {
-  const s: any = _test.makeSessionForTest();
-  s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
-  t.onTestFinished(() => s.close());
+test('run: notification observed mid-turn without its own turn yet → result owes one delivery', async (t) => {
+  const { session, run, events, done } = engineRun(t, { awaitBackground: 'hold' });
 
-  const results: any[] = [];
-  const opens: number[] = [];
-  s.setContinuationSink({
-    onTurnOpen: () => opens.push(results.length),
-    onAssistantText: () => {},
-    onResult: (r: any) => results.push(r),
-  });
+  session.handleLine(JSON.stringify({ type: 'system', subtype: 'task_started', task_id: 'a', is_backgrounded: true, task_type: 'local_agent' }));
+  session.handleLine(JSON.stringify({ type: 'system', subtype: 'task_started', task_id: 'b', is_backgrounded: true, task_type: 'local_agent' }));
+  session.handleLine(RESULT_FIRST);
+  await tick();
+  session.handleLine(JSON.stringify({ type: 'system', subtype: 'task_notification', task_id: 'a', status: 'completed' }));
+  session.handleLine(ASSISTANT_CONT); // turn A opens
+  session.handleLine(JSON.stringify({ type: 'system', subtype: 'task_notification', task_id: 'b', status: 'completed' }));
+  session.handleLine(RESULT_CONT);    // turn A ends; turn B is queued inside the CLI
+  await tick();
 
-  s.handleLine(JSON.stringify({ type: 'system', subtype: 'task_started', task_id: 'a', is_backgrounded: true, task_type: 'local_agent' }));
-  s.handleLine(JSON.stringify({ type: 'system', subtype: 'task_started', task_id: 'b', is_backgrounded: true, task_type: 'local_agent' }));
-  s.handleLine(JSON.stringify({ type: 'system', subtype: 'task_notification', task_id: 'a', status: 'completed' }));
-  s.handleLine(ASSISTANT_CONT); // turn A opens
-  s.handleLine(JSON.stringify({ type: 'system', subtype: 'task_notification', task_id: 'b', status: 'completed' }));
-  s.handleLine(RESULT_CONT);    // turn A ends; turn B is queued inside the CLI
+  const results = backgroundResults(events);
   assert.equal(results.length, 1);
-  assert.equal(results[0].pendingBackgroundTasks, 0);
-  assert.equal(results[0].undeliveredBackgroundTasks, 1, 'B\'s turn has not opened yet — hold must wait');
+  assert.equal(results[0].result.pendingBackgroundTasks, 0);
+  assert.equal(results[0].result.undeliveredBackgroundTasks, 1, "B's turn has not opened yet — hold must wait");
 
-  s.handleLine(ASSISTANT_CONT); // turn B opens
-  s.handleLine(RESULT_CONT);
+  session.handleLine(ASSISTANT_CONT); // turn B opens
+  session.handleLine(RESULT_CONT);
+  await run.settled;
+  await done;
   assert.equal(results.length, 2);
-  assert.equal(results[1].undeliveredBackgroundTasks, 0, 'nothing owed after turn B');
-  assert.deepEqual(opens, [0, 1], 'sink told when each continuation turn opened');
+  assert.equal(results[1].result.undeliveredBackgroundTasks, 0, 'nothing owed after turn B');
 });
 
 test('handleLine: notification folded into the active turn (replay echo) owes nothing at result', (t) => {
@@ -421,14 +450,6 @@ test('handleLine: compact_boundary with no active turn is a no-op', (t) => {
   );
 });
 
-test('setContinuationSink/clearContinuationSink and close clear the sink', (t) => {
-  const s: any = _test.makeSessionForTest();
-  s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
-  t.onTestFinished(() => s.close());
-
-  const sink = { onAssistantText: () => {}, onResult: () => {} };
-  s.setContinuationSink(sink);
-  assert.equal(s.continuationSink, sink);
-  s.clearContinuationSink();
-  assert.equal(s.continuationSink, null);
-});
+// The old `setContinuationSink/clearContinuationSink and close clear the sink` test drove a surface
+// that no longer exists: the engine installs and releases the sink itself as part of `run()`, which
+// the interruption tests above already exercise.

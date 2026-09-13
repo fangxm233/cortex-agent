@@ -17,7 +17,7 @@ Agent adapter tests: Claude and PI streams normalized into shared events, plus s
 | claude-run-phases.test.ts | test | Claude run phases: background continuation, mid-turn injection fold-in and post-result, orphan subagent, resume notification turn |
 | claude-stream-deltas.test.ts | test | Claude delta and reported model parsing |
 | claude-subagent-activity.test.ts | test | proves the native-subagent census event and that a subagent line still reaches every handler it reaches today |
-| claude-subagent-orphan.test.ts | test | proves a backgrounded subagent's lines still reach the continuation sink after its parent turn closed |
+| claude-subagent-orphan.test.ts | test | proves a backgrounded subagent's lines still reach the run's background stream after its parent turn closed |
 | claude-tmux-control.test.ts | test | tmux argv, secure buffers, and tempfiles for the startup orphan sweep |
 | claude-transcript-path.test.ts | test | transcript-path resume/create guard (survived the D9 TUI retirement) |
 | fixtures/ | subdir | recorded backend streams and golden outputs |
@@ -30,7 +30,7 @@ Agent adapter tests: Claude and PI streams normalized into shared events, plus s
 | pi-discovery.test.ts | test | forced PI provider refresh and retry policy |
 | pi-engine.test.ts | test | PI EngineSession parity with spawn(): events, result, steer acks, run-scoped cancel |
 | pi-fake-runtime.ts | helper | in-memory PI runtime double for adapter and session tests |
-| pi-mid-turn-inject.test.ts | test | PI switch guard and mid-turn prompt steering |
+| pi-mid-turn-inject.test.ts | test | PI switch guard and mid-turn steering: RunEvent injection_delivered/injection_rejected on the engine seam |
 | pi-run-phases.test.ts | test | PI run phases: steer form per loop state, deferred turn_complete, refusal acks, session_started placement |
 | pi-usage.test.ts | test | PI cached Codex usage without provider traffic |
 | replay-harness.ts | helper | fixture replay, golden comparison and Claude run-phase trace helpers |

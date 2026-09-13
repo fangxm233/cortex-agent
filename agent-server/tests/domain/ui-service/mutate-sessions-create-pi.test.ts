@@ -15,7 +15,7 @@ import { PI_MODELS_PATH, PI_SESSIONS_DIR } from '../../../src/agent-adapter/pi/a
 import { createPIProviderDiscovery } from '../../../src/agent-adapter/pi/discovery.js';
 import type { PiDiscoveredModel } from '../../../src/core/gateway-generator.js';
 import type { PiRuntimeFactory } from '../../../src/agent-adapter/pi/runtime.js';
-import type { PIAgentProcess } from '../../../src/agent-adapter/pi/session-support.js';
+import type { PIEngineSession } from '../../../src/agent-adapter/pi/engine.js';
 import { handleCreateAndSend } from '../../../src/domain/ui-service/mutate/sessions.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 import { makeFakeRuntimeFactory } from '../../agent-adapter/pi-fake-runtime.js';
@@ -37,14 +37,14 @@ test('fresh PI createAndSend responds and exposes the user event before slow dis
   });
   const timeline: string[] = [];
   const fake = makeFakeRuntimeFactory();
-  // The session invokes its runtime factory synchronously inside spawn(), so this marker lands
+  // The session invokes its runtime factory synchronously inside open(), so this marker lands
   // exactly where the PI session is created relative to the response and the user event.
   const factory: PiRuntimeFactory = (request, callbacks) => {
     timeline.push('pi-spawn');
     return fake.factory(request, callbacks);
   };
   const adapter = new PIAdapter(factory, PI_SESSIONS_DIR, discovery);
-  let agentProcess: PIAgentProcess | null = null;
+  let engine: PIEngineSession | null = null;
   let markVisible!: () => void;
   const visible = new Promise<void>((resolve) => { markVisible = resolve; });
   const deps = {
@@ -59,7 +59,7 @@ test('fresh PI createAndSend responds and exposes the user event before slow dis
         timeline.push('user-event-visible');
         markVisible();
       });
-      agentProcess = piPool(adapter).spawn(engineSpecFixture({
+      engine = piPool(adapter).open(engineSpecFixture({
         sessionId: null,
         sessionKey: 'fresh-web-pi',
         resume: false,
@@ -103,7 +103,7 @@ test('fresh PI createAndSend responds and exposes the user event before slow dis
     await Promise.resolve();
     assert.equal(discoverySettled, true);
   } finally {
-    await agentProcess?.close();
+    await engine?.close();
     await piPool(adapter).close('fresh-web-pi');
   }
 });

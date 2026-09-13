@@ -1,6 +1,6 @@
 // input:  provider overrides, PI catalog refresh fixtures, a fake PI runtime
-// output: custom providers and frozen DeepSeek caps in spawned catalogs
-// pos:    Unit tests for PI provider routing at spawn time
+// output: custom providers and frozen DeepSeek caps in opened catalogs
+// pos:    Unit tests for PI provider routing at session open time
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { engineSpecFixture } from './engine-spec-fixture.js';
 
@@ -67,7 +67,7 @@ test('withCustomEntries: leaves overrides untouched when no definitions are supp
   assert.deepEqual(withCustomEntries(overrides, {}), overrides);
 });
 
-test('spawn: a custom provider from the user catalog reaches the spawned PI catalog complete', () => {
+test('open: a custom provider from the user catalog reaches the opened PI catalog complete', () => {
   const dir = mkdtempSync(pathJoin(tmpdir(), 'cortex-pi-custom-spawn-'));
   try {
     const agentDir = pathJoin(dir, 'agent');
@@ -88,7 +88,7 @@ test('spawn: a custom provider from the user catalog reaches the spawned PI cata
       { agentDir, userModelsPath },
     );
 
-    piPool(adapter).spawn(engineSpecFixture({
+    piPool(adapter).open(engineSpecFixture({
       sessionId: null,
       sessionKey: 'custom-provider-spawn',
       resume: false,
@@ -108,7 +108,7 @@ test('spawn: a custom provider from the user catalog reaches the spawned PI cata
   }
 });
 
-test('spawn: a discovered custom provider is completed even when another provider runs', () => {
+test('open: a discovered custom provider is completed even when another provider runs', () => {
   const dir = mkdtempSync(pathJoin(tmpdir(), 'cortex-pi-custom-spawn-'));
   try {
     const agentDir = pathJoin(dir, 'agent');
@@ -124,7 +124,7 @@ test('spawn: a discovered custom provider is completed even when another provide
       { agentDir, userModelsPath },
     );
 
-    piPool(adapter).spawn(engineSpecFixture({
+    piPool(adapter).open(engineSpecFixture({
       sessionId: null,
       sessionKey: 'custom-provider-bystander',
       resume: false,
@@ -141,7 +141,7 @@ test('spawn: a discovered custom provider is completed even when another provide
   }
 });
 
-test('spawn: an absent user catalog leaves built-in routing untouched', () => {
+test('open: an absent user catalog leaves built-in routing untouched', () => {
   const dir = mkdtempSync(pathJoin(tmpdir(), 'cortex-pi-custom-spawn-'));
   try {
     const agentDir = pathJoin(dir, 'agent');
@@ -154,7 +154,7 @@ test('spawn: an absent user catalog leaves built-in routing untouched', () => {
       { agentDir, userModelsPath: pathJoin(dir, 'missing.json') },
     );
 
-    piPool(adapter).spawn(engineSpecFixture({
+    piPool(adapter).open(engineSpecFixture({
       sessionId: null,
       sessionKey: 'custom-provider-absent',
       resume: false,
@@ -170,7 +170,7 @@ test('spawn: an absent user catalog leaves built-in routing untouched', () => {
   }
 });
 
-test('spawn: DeepSeek child preserves the admitted cap after a model-store refresh', () => {
+test('open: DeepSeek child preserves the admitted cap after a model-store refresh', () => {
   const dir = mkdtempSync(pathJoin(tmpdir(), 'cortex-pi-cap-refresh-'));
   try {
     const agentDir = pathJoin(dir, 'agent');
@@ -182,7 +182,7 @@ test('spawn: DeepSeek child preserves the admitted cap after a model-store refre
       { getProviders: () => ['deepseek'], refresh: () => {}, getModels: () => [], peekModels: () => [] },
       { agentDir },
     );
-    const spawn = (sessionKey: string) => piPool(adapter).spawn(engineSpecFixture({
+    const openSession = (sessionKey: string) => piPool(adapter).open(engineSpecFixture({
       sessionId: null,
       sessionKey,
       resume: false,
@@ -193,7 +193,7 @@ test('spawn: DeepSeek child preserves the admitted cap after a model-store refre
       piGatewayPath: '/deepseek',
     }));
 
-    spawn('root-before-refresh');
+    openSession('root-before-refresh');
     writeFileSync(pathJoin(agentDir, 'models-store.json'), JSON.stringify({
       deepseek: {
         checkedAt: Date.now(),
@@ -203,7 +203,7 @@ test('spawn: DeepSeek child preserves the admitted cap after a model-store refre
         }],
       },
     }));
-    spawn('child-after-refresh');
+    openSession('child-after-refresh');
 
     const catalog = JSON.parse(readFileSync(pathJoin(agentDir, 'models.json'), 'utf8'));
     const deepseek = catalog.providers.deepseek;

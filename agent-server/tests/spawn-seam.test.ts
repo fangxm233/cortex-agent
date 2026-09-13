@@ -26,6 +26,7 @@ import {
   type EngineSpec,
   type McpComposition,
 } from '../src/agent-adapter/types.js';
+import type { NormalizedEvent } from '../src/agent-adapter/normalize/event-types.js';
 import { engineSpecFixture, type EngineSpecFixtureInput } from './engine-spec-fixture.js';
 import {
   attemptFromFixture, runRequestFixture, specFromFixture, type RunRequestFixtureInput,
@@ -513,7 +514,7 @@ test('PI carries the empty MCP composition strictly', () => {
   const fake = makeFakeRuntimeFactory();
   const adapter = new PIAdapter(fake.factory, root);
 
-  piPool(adapter).spawn(engineSpecFixture({
+  piPool(adapter).open(engineSpecFixture({
     sessionId: null, sessionKey: 'pi-none', resume: false,
     mcpComposition: 'none',
   }));
@@ -524,7 +525,7 @@ test('PI carries the empty MCP composition strictly', () => {
 });
 
 function spawnPrivatePluginServer(adapter: PIAdapter): void {
-  piPool(adapter).spawn(engineSpecFixture({
+  piPool(adapter).open(engineSpecFixture({
     sessionId: null,
     sessionKey: 'pi-plugin-mcp',
     resume: false,
@@ -635,17 +636,18 @@ function overrideEnvironment(values: Record<string, string>): () => void {
 }
 
 async function probeContextUsage(adapter: ClaudeAdapter, key: string, cwd: string) {
-  const proc = claudePool(adapter).spawn(engineSpecFixture({
+  const engine = claudePool(adapter).open(engineSpecFixture({
     sessionId: null, sessionKey: key, resume: false, cwd, model: 'claude-opus-5[1m]',
   }));
-  const eventsPromise = (async () => {
-    const events = [];
-    for await (const event of proc.events) events.push(event);
-    return events;
-  })();
-  await proc.send({ text: 'usage probe' });
-  await proc.close();
-  return (await eventsPromise).find((event) => event.type === 'context_usage');
+  // The assertion below is about the raw protocol record, so it reads the engine's normalized
+  // tap rather than the translated run stream.
+  const raw: NormalizedEvent[] = [];
+  const run = engine.run({ text: 'usage probe' }, {
+    awaitBackground: 'none', onNormalizedEvent: (event) => raw.push(event),
+  });
+  await run.result;
+  run.cancel();
+  return raw.find((event) => event.type === 'context_usage');
 }
 
 async function runCwdProbe(marker: string, sessionKey: string, cwd?: string): Promise<void> {
@@ -706,15 +708,14 @@ test('Claude daemon print mode reports cache-inclusive input tokens', async (t) 
     restore();
     rmSync(root, { recursive: true, force: true });
   });
-  const proc = claudePool(adapter).spawn(engineSpecFixture({ sessionId: null, sessionKey: 'print-accounting', resume: false }));
-  const eventsPromise = (async () => {
-    const events = [];
-    for await (const event of proc.events) events.push(event);
-    return events;
-  })();
-  await proc.send({ text: 'accounting probe' });
-  await proc.close();
-  const cost = (await eventsPromise).find((event) => event.type === 'cost_record');
+  const engine = claudePool(adapter).open(engineSpecFixture({ sessionId: null, sessionKey: 'print-accounting', resume: false }));
+  const raw: NormalizedEvent[] = [];
+  const run = engine.run({ text: 'accounting probe' }, {
+    awaitBackground: 'none', onNormalizedEvent: (event) => raw.push(event),
+  });
+  await run.result;
+  run.cancel();
+  const cost = raw.find((event) => event.type === 'cost_record');
   assert.deepEqual(cost, {
     type: 'cost_record', provider: 'anthropic', model: 'claude-sonnet-4-5-20250929',
     tokens_in: 10 + 3 + 7, tokens_out: 5,
@@ -824,7 +825,7 @@ function spawnReplacementSession(
   cwd: string,
   composition: McpComposition,
 ): void {
-  claudePool(fixture.adapter).spawn(engineSpecFixture({
+  claudePool(fixture.adapter).open(engineSpecFixture({
     sessionId: null, sessionKey: fixture.key, resume: false, cwd, mcpComposition: composition,
   }));
 }
@@ -1078,9 +1079,9 @@ test('a mode switch on one channel cannot reuse the session started on the old r
   const key = 'route-pool-switch';
   const codex: Partial<RunAttemptConfig> = { ...FIXTURE_CONFIG, mode: 'openai-codex' };
 
-  claudePool(adapter).spawn(pooledRouteSpawn(key, resolveRunRoute(planConfig()), planConfig()));
+  claudePool(adapter).open(pooledRouteSpawn(key, resolveRunRoute(planConfig()), planConfig()));
   const first = claudePool(adapter).getPooledSession(key);
-  claudePool(adapter).spawn(pooledRouteSpawn(key, resolveRunRoute(codex), codex));
+  claudePool(adapter).open(pooledRouteSpawn(key, resolveRunRoute(codex), codex));
 
   assert.ok(first);
   assert.notEqual(claudePool(adapter).getPooledSession(key), first,
@@ -1094,9 +1095,9 @@ test('an unchanged mode route still reuses the pooled session', async (t) => {
   const adapter = new ClaudeAdapter();
   const key = 'route-pool-stable';
 
-  claudePool(adapter).spawn(pooledRouteSpawn(key, resolveRunRoute(planConfig()), planConfig()));
+  claudePool(adapter).open(pooledRouteSpawn(key, resolveRunRoute(planConfig()), planConfig()));
   const first = claudePool(adapter).getPooledSession(key);
-  claudePool(adapter).spawn(pooledRouteSpawn(key, resolveRunRoute(planConfig()), planConfig()));
+  claudePool(adapter).open(pooledRouteSpawn(key, resolveRunRoute(planConfig()), planConfig()));
 
   assert.ok(first);
   assert.equal(claudePool(adapter).getPooledSession(key), first,
@@ -1109,9 +1110,9 @@ test('the pool separates two routes that differ only by credential', async () =>
   const key = 'route-pool-credential';
   const endpoint = { anthropicBaseUrl: POOL_ROUTE_URL };
 
-  claudePool(adapter).spawn(pooledRouteConfig(key, { ...endpoint, env: { ANTHROPIC_API_KEY: `${POOL_SECRET}-a` } }));
+  claudePool(adapter).open(pooledRouteConfig(key, { ...endpoint, env: { ANTHROPIC_API_KEY: `${POOL_SECRET}-a` } }));
   const first = claudePool(adapter).getPooledSession(key);
-  claudePool(adapter).spawn(pooledRouteConfig(key, { ...endpoint, env: { ANTHROPIC_API_KEY: `${POOL_SECRET}-b` } }));
+  claudePool(adapter).open(pooledRouteConfig(key, { ...endpoint, env: { ANTHROPIC_API_KEY: `${POOL_SECRET}-b` } }));
 
   assert.ok(first);
   assert.notEqual(claudePool(adapter).getPooledSession(key), first,
@@ -1128,13 +1129,13 @@ describe.skip('Claude TUI pool (removed by D9)', () => {
       claudeBackend: 'tui', anthropicBaseUrl: POOL_ROUTE_URL,
     };
 
-    claudePool(adapter).spawn(pooledRouteConfig(key, tui));
+    claudePool(adapter).open(pooledRouteConfig(key, tui));
     const first = claudePool(adapter).getPooledSession(key);
-    claudePool(adapter).spawn(pooledRouteConfig(key, tui));
+    claudePool(adapter).open(pooledRouteConfig(key, tui));
     assert.equal(claudePool(adapter).getPooledSession(key), first,
       'an identical route keeps the tmux session alive');
 
-    claudePool(adapter).spawn(pooledRouteConfig(key, { ...tui, unsetEnv: ['ANTHROPIC_API_KEY'] }));
+    claudePool(adapter).open(pooledRouteConfig(key, { ...tui, unsetEnv: ['ANTHROPIC_API_KEY'] }));
     assert.ok(first);
     assert.notEqual(claudePool(adapter).getPooledSession(key), first,
       'dropping the key changes which account the TUI session bills');

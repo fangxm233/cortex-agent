@@ -11,6 +11,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createQuotaProbe } from '../src/agent-adapter/pi/quota-probe.js';
+import type { NormalizedEvent } from '../src/agent-adapter/normalize/event-types.js';
 import type { CodexQuotaReading } from '@core/codex-quota.js';
 import { reportCodexQuota, resolveQuotaSource } from '../src/agent-adapter/pi/quota-sink.js';
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
@@ -267,6 +268,15 @@ async function waitForThrottle(attempts = 50) {
   }
 }
 
+/** Poll until the raw protocol tap has delivered what the assertion needs. */
+async function waitFor(condition: () => boolean, label: string, attempts = 200) {
+  for (let i = 0; i < attempts; i++) {
+    if (condition()) return;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  assert.fail(`timed out waiting for ${label}`);
+}
+
 test('a quota reading from the PI session throttles the provider it was routed under', async (t) => {
   t.onTestFinished(() => _testReset());
   let saved: RateLimitThrottleState | null = null;
@@ -284,7 +294,7 @@ test('a quota reading from the PI session throttles the provider it was routed u
     usageStore: { get: async () => null, update: async (record) => { persisted.push(record); } },
     submitRateLimit: handleRateLimitEvent,
   });
-  const proc = piPool(adapter).spawn(engineSpecFixture({
+  const engine = piPool(adapter).open(engineSpecFixture({
     sessionId: null,
     sessionKey: 'quota-wire',
     resume: false,
@@ -293,6 +303,13 @@ test('a quota reading from the PI session throttles the provider it was routed u
     piGatewayBaseUrl: 'http://127.0.0.1:9880',
   }));
   assert.equal(fake.requests[0].reportsProviderQuota, true, 'a gateway-routed run installs the probe');
+  // The reading is a raw protocol event that the run's translated stream cannot reconstruct
+  // (`session_started` has no RunEvent equivalent), so tap the engine's NormalizedEvent port.
+  const raw: NormalizedEvent[] = [];
+  const run = engine.run({ text: 'opening' }, {
+    awaitBackground: 'none', onNormalizedEvent: (event) => raw.push(event),
+  });
+  void run.result.catch(() => undefined);
 
   const reading: CodexQuotaReading = {
     provider: 'openai-codex',
@@ -303,11 +320,10 @@ test('a quota reading from the PI session throttles the provider it was routed u
   runtime.emitQuota(reading);
 
   await waitForThrottle();
-  const surfaced = await proc.events[Symbol.asyncIterator]().next();
-  assert.equal(surfaced.value?.type, 'session_started');
-  const rateLimit = await proc.events[Symbol.asyncIterator]().next();
-  assert.deepEqual(rateLimit.value, { type: 'rate_limit', raw: reading });
-  proc.kill();
+  await waitFor(() => raw.length >= 2, 'session_started and rate_limit');
+  assert.equal(raw[0]?.type, 'session_started');
+  assert.deepEqual(raw[1], { type: 'rate_limit', raw: reading });
+  engine.kill();
   const state = getThrottleState();
   assert.deepEqual(state.providers.map((p) => p.provider), ['openai-codex']);
   assert.deepEqual(state.providers[0].modes, ['openai-codex']);
@@ -324,7 +340,8 @@ test('an unwired PI adapter surfaces the reading but never reaches the daemon th
   );
 
   const fake = makeFakeRuntimeFactory();
-  const proc = piPool(new PIAdapter(fake.factory)).spawn(engineSpecFixture({
+  const adapter = new PIAdapter(fake.factory);
+  const engine = piPool(adapter).open(engineSpecFixture({
     sessionId: null,
     sessionKey: 'quota-unwired',
     resume: false,
@@ -332,6 +349,11 @@ test('an unwired PI adapter surfaces the reading but never reaches the daemon th
     piGatewayPath: '/m/openai-codex/openai-codex',
     piGatewayBaseUrl: 'http://127.0.0.1:9880',
   }));
+  const raw: NormalizedEvent[] = [];
+  const run = engine.run({ text: 'opening' }, {
+    awaitBackground: 'none', onNormalizedEvent: (event) => raw.push(event),
+  });
+  void run.result.catch(() => undefined);
   const reading: CodexQuotaReading = {
     provider: 'openai-codex',
     planType: 'pro',
@@ -341,16 +363,15 @@ test('an unwired PI adapter surfaces the reading but never reaches the daemon th
   runtime.emitQuota(reading);
 
   // The transcript-facing half is unchanged — the reading still becomes a normalized event.
-  const started = await proc.events[Symbol.asyncIterator]().next();
-  assert.equal(started.value?.type, 'session_started');
-  const rateLimit = await proc.events[Symbol.asyncIterator]().next();
-  assert.deepEqual(rateLimit.value, { type: 'rate_limit', raw: reading });
+  await waitFor(() => raw.length >= 2, 'session_started and rate_limit');
+  assert.equal(raw[0]?.type, 'session_started');
+  assert.deepEqual(raw[1], { type: 'rate_limit', raw: reading });
   // What changed (D10/P2.5b): with no injected sink the reading activates no throttle. Before this
   // slice the sink defaulted to the daemon's `handleRateLimitEvent` and a bare adapter — a trial,
   // a test — wrote the real one.
   await waitForThrottle(10);
   assert.deepEqual(getThrottleState().providers, []);
-  proc.kill();
+  engine.kill();
 });
 
 test('resolves the provider and mode that the dispatch gate looks up', () => {

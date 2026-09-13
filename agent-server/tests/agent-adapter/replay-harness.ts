@@ -1,23 +1,32 @@
 // input:  Claude/PI stream-json fixtures, Claude run-script fixtures (fixtures/runs/)
-// output: Claude/PI replay, golden, and run-phase trace helpers
-// pos:    Backend fixture replay infrastructure (normalized events and P0 run-phase traces)
+// output: Claude/PI replay + golden helpers, plus engine-driven Claude run-phase traces
+// pos:    Backend fixture replay infrastructure (normalized events and engine-seam run traces)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
+import { PassThrough } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import * as path from 'node:path';
 
-import type { NormalizedEvent, QuestionSpec, ToolUseSubagent } from '../../src/agent-adapter/normalize/event-types.js';
+import type { NormalizedEvent, QuestionSpec } from '../../src/agent-adapter/normalize/event-types.js';
 import {
   extractAskUserQuestions,
   isPlanFilePath,
 } from '../../src/agent-adapter/claude/event-parser.js';
-import { _test } from '../../src/agent-adapter/claude/adapter.js';
+import { ClaudeAdapter } from '../../src/agent-adapter/claude/adapter.js';
+import type { ClaudeEngineSession } from '../../src/agent-adapter/claude/engine.js';
+import type { AwaitBackground } from '../../src/agent-adapter/continuation-phase.js';
+import type { RunEvent } from '../../src/agent-adapter/run-events.js';
+import type { EngineRun } from '../../src/agent-adapter/types.js';
+import type { AgentResult } from '../../src/core/types/agent-types.js';
 import {
   piEventToNormalized,
   createPIEventParserState,
 } from '../../src/agent-adapter/pi/event-parser.js';
+import { claudePool } from './claude-pool-fixture.js';
+import { engineSpecFixture } from '../engine-spec-fixture.js';
 
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 export const FIXTURES_DIR = path.join(MODULE_DIR, 'fixtures');
@@ -285,68 +294,44 @@ export function assertMatchesGolden(
 // performs around them. Each fixture line is JSONL and is one of:
 //   - a Claude stream-json object, fed to the session verbatim, or
 //   - a `$cortex` directive naming what the caller does around the stream:
-//       {"$cortex":"turn","text":"…"}   open the user turn          (production: `sendMessage`)
-//       {"$cortex":"inject","text":"…"} inject a mid-turn message   (`injectUserMessage`)
-//       {"$cortex":"close","code":1}    the process exited      (`handleProcessClose`)
+//       {"$cortex":"turn","text":"…"}   open a run / user turn     (production: `engine.run`)
+//       {"$cortex":"inject","text":"…"} inject a mid-turn message   (`engine.steer`)
+//       {"$cortex":"close","code":1}    the process exited          (`handleProcessClose`)
 //       {"$cortex":"note","text":"…"}   documentation only — never replayed
-// The session is the real `ClaudeSession` (no child process), both sinks are installed before the
-// first line, and every sink call is appended to an ordered trace, so the *order* of deliveries is
-// part of what a run fixture locks down. Observation `step`s are 1-based fixture line numbers, so
-// an expected trace can be read against the fixture itself.
+//
+// The session is a real `ClaudeSession` (the pool's child process is a passive fake — the fixture
+// drives `session.handleLine` directly). Observation is the engine seam, not the legacy process
+// surface: `engine.run()` installs the run's own continuation/injection sinks, so a test reads the
+// run's `RunEvent` stream, its `result` and its `settled` instead of an ordered sink trace. The
+// raw wire-level events of the foreground turn survive through the `onNormalizedEvent` tap.
+// Observation `step`s are 1-based fixture line numbers, so a trace can be read against the fixture.
 
-/** Attribution the adapter attaches to a line produced by a native subagent. */
-export interface ClaudeRunSubagentRef {
-  parentToolUseId: string | null;
-  type: string | null;
+/** One `$cortex inject` outcome, keyed to the id the engine returned. */
+export interface ClaudeRunSteer {
+  text: string;
+  accepted: boolean;
+  injectionId?: string;
 }
 
-/** The subset of an `AgentResult` a run fixture freezes; absent counts are normalized to 0. */
-export interface ClaudeRunResultSnapshot {
-  sessionId: string | null;
-  num_turns: number | null;
-  total_cost_usd: number | null;
-  finalOutput: string | null;
-  pendingBackgroundTasks: number;
-  undeliveredBackgroundTasks: number;
-  rateLimited: boolean;
-}
-
-/** One trace entry. `kind` names where it came from: `turn.*` is the awaited user turn's own
- *  callbacks, `continuation.*` is `ContinuationSink`, `injection.delivered`/`injection.undelivered`
- *  are `InjectionAckSink`, and `injection.write` is the caller-side `injectUserMessage` outcome. */
-export type ClaudeRunObservationBody =
-  | { kind: 'turn.assistant_text'; text: string; subagent: ClaudeRunSubagentRef | null }
-  | { kind: 'turn.tool_use'; name: string; toolUseId: string; subagent: ClaudeRunSubagentRef | null }
-  | { kind: 'turn.tool_result'; toolUseId: string; content: string; isError: boolean }
-  | { kind: 'turn.subagent_end'; parentToolUseId: string; status: string }
-  | { kind: 'turn.result'; result: ClaudeRunResultSnapshot }
-  | { kind: 'continuation.turn_open' }
-  | { kind: 'continuation.assistant_text'; text: string; subagent: ClaudeRunSubagentRef | null }
-  | { kind: 'continuation.tool_use'; name: string; toolUseId: string; subagent: ClaudeRunSubagentRef | null }
-  | { kind: 'continuation.tool_result'; toolUseId: string; content: string; isError: boolean; subagent: ClaudeRunSubagentRef | null }
-  | { kind: 'continuation.subagent_end'; parentToolUseId: string; status: string }
-  | { kind: 'continuation.result'; result: ClaudeRunResultSnapshot }
-  | { kind: 'injection.write'; text: string; accepted: boolean }
-  | { kind: 'injection.delivered'; text: string; foldedIntoTurn: boolean }
-  | { kind: 'injection.undelivered'; text: string };
-
-export type ClaudeRunObservation = ClaudeRunObservationBody & {
-  /** 1-based fixture line that produced this call. */
-  step: number;
-};
-
+/** What one run fixture produced, observed through the `EngineRun` seam. */
 export interface ClaudeRunTrace {
-  /** Every recorded call, in the order the adapter made it. */
-  observed: ClaudeRunObservation[];
-  /** One entry per fixture line (index 0 = line 1): was a turn still open after that line? The
-   *  awaited user turn and a synthetic continuation turn share this one slot — the adapter has a
-   *  single turn machine, and Phase 1/2 split it into phases. */
-  turnOpenAtStep: boolean[];
+  /** Every `RunEvent` the run fanned out, in order (foreground, background, terminal phase). */
+  events: RunEvent[];
+  /** The foreground turn's raw `NormalizedEvent`s, in order — the `onNormalizedEvent` tap,
+   *  including the `turn_complete` marker the `RunEvent` stream drops. Background turns do not
+   *  reach this tap: they exist only as `RunEvent`s. */
+  raw: NormalizedEvent[];
+  /** The run's foreground result. Null when the run never resolved one (e.g. a cancelled hold). */
+  result: AgentResult | null;
+  /** The accumulated whole-run result. Null when the run never ended (e.g. a cancelled hold). */
+  settled: AgentResult | null;
   /** Rejection of the user turn, when it failed instead of resolving. */
   turnError: string | null;
+  /** One entry per fixture line (index 0 = line 1): was a turn still open after that line? */
+  turnOpenAtStep: boolean[];
+  /** Every `engine.steer()` a `$cortex inject` line issued, in order. */
+  steers: ClaudeRunSteer[];
 }
-
-const RUN_STREAM = { write() {}, end() {} } as any;
 
 type RunAction =
   | { kind: 'line'; value: Record<string, unknown> }
@@ -399,80 +384,95 @@ function readRunScript(name: string): RunScriptStep[] {
   return steps;
 }
 
-function subagentRef(subagent: ToolUseSubagent | undefined): ClaudeRunSubagentRef | null {
-  if (!subagent) return null;
-  return { parentToolUseId: subagent.parentToolUseId ?? null, type: subagent.type ?? null };
+/** A stand-in for the CLI child the pool would normally spawn. The fixtures feed the session line
+ *  by line through `session.handleLine`, so the child only has to accept the opening prompt's
+ *  stdin write and expose the streams `ClaudeSession` attaches to. */
+function fakeClaudeChild(): any {
+  const child = new EventEmitter() as any;
+  child.stdout = new PassThrough();
+  child.stderr = new PassThrough();
+  child.stdin = new PassThrough();
+  child.exitCode = null;
+  child.kill = () => true;
+  return child;
 }
 
-function snapshotResult(result: any): ClaudeRunResultSnapshot {
-  return {
-    sessionId: result?.sessionId ?? null,
-    num_turns: result?.num_turns ?? null,
-    total_cost_usd: result?.total_cost_usd ?? null,
-    finalOutput: result?.finalOutput ?? null,
-    pendingBackgroundTasks: result?.pendingBackgroundTasks ?? 0,
-    undeliveredBackgroundTasks: result?.undeliveredBackgroundTasks ?? 0,
-    rateLimited: result?.rateLimited === true,
-  };
-}
-
-/** Let the replay loop see what a line settled: `sendMessage` resolves the user turn in a microtask. */
-function flushMicrotasks(): Promise<void> {
-  return new Promise((resolve) => setImmediate(resolve));
+/** A bare, pooled Claude engine over a `ClaudeSession` with no real child process, plus the
+ *  session so a test can feed it raw CLI lines. */
+export interface ClaudeTestEngine {
+  engine: ClaudeEngineSession;
+  session: any;
+  /** Retire the pool entry without arming the session's shutdown grace timer. */
+  close(): void;
 }
 
 /**
- * Replay one `fixtures/runs/<name>.jsonl` script through a real `ClaudeSession` and return the
- * ordered trace of everything the adapter delivered, plus the per-line turn-open timeline.
+ * The shared seam the three Claude run-phase suites drive. It goes through the pool fixture
+ * (`claudePool`) rather than `new SessionEngines`; the adapter spawns a passive fake child, so the
+ * test owns the stream line by line. `preserveUnreportedAccounting` is the one engine-spec flag the
+ * run-phase tests vary (the CLI's one-shot accounting contract).
  */
-export async function replayClaudeRun(name: string): Promise<ClaudeRunTrace> {
+export function openClaudeTestEngine(
+  opts: { model?: string | null; preserveUnreportedAccounting?: boolean } = {},
+): ClaudeTestEngine {
+  const adapter = new ClaudeAdapter();
+  const pool = claudePool(adapter);
+  const key = 'claude-test-engine';
+  const spec = engineSpecFixture({
+    sessionId: 'test-session',
+    sessionKey: key,
+    resume: false,
+    captureTranscriptLogs: false,
+    model: opts.model ?? undefined,
+    preserveUnreportedAccounting: opts.preserveUnreportedAccounting === true,
+    processSpawner: (() => ({ process: fakeClaudeChild() })) as any,
+  });
+  const engine = pool.open(spec);
+  const session = pool.getPooledSession(key) as any;
+  return {
+    engine,
+    session,
+    close: () => {
+      // kill() clears the session's idle timers first, so the pool's close() takes its
+      // already-dead early return instead of arming a 30s shutdown grace timer.
+      session.kill();
+      void pool.close(key);
+    },
+  };
+}
+
+/** Drain one run's `RunEvent` stream in the background; `done` resolves when the stream closes. */
+export function collectRun(run: EngineRun): { events: RunEvent[]; done: Promise<void> } {
+  const events: RunEvent[] = [];
+  const done = (async () => {
+    for await (const event of run.events) events.push(event);
+  })();
+  return { events, done };
+}
+
+/** Flush every microtask queued by a `handleLine` before the assertions run. */
+export const tick = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
+
+/**
+ * Replay one `fixtures/runs/<name>.jsonl` script through a real `ClaudeSession` driven by the
+ * engine, and return the run's events, results and per-line turn-open timeline.
+ *
+ * The run is always cancelled at the end: a held background phase may still owe work the fixture
+ * never completes, and the trace must not hang. Whatever settled before the cancel is kept.
+ */
+export async function replayClaudeRun(
+  name: string,
+  awaitBackground: AwaitBackground = 'hold',
+): Promise<ClaudeRunTrace> {
   const script = readRunScript(name);
-  const trace: ClaudeRunTrace = { observed: [], turnOpenAtStep: [], turnError: null };
+  const { engine, session, close } = openClaudeTestEngine();
+  const trace: ClaudeRunTrace = {
+    events: [], raw: [], result: null, settled: null, turnError: null, turnOpenAtStep: [], steers: [],
+  };
+  let run: EngineRun | null = null;
+  let done: Promise<void> | null = null;
   let step = 0;
   let userTurnOpened = false;
-
-  const session: any = _test.makeSessionForTest();
-  session.createTurnStreams = () => ({ rawStream: RUN_STREAM, txtStream: RUN_STREAM });
-  session.proc = {
-    stdin: { write: () => true, end() {} },
-    on() {}, kill() {}, exitCode: null,
-  };
-
-  const push = (body: ClaudeRunObservationBody): void => {
-    trace.observed.push({ ...body, step } as ClaudeRunObservation);
-  };
-
-  session.setContinuationSink({
-    onTurnOpen: () => push({ kind: 'continuation.turn_open' }),
-    onAssistantText: (text: string, _model: string | null, subagent?: ToolUseSubagent) =>
-      push({ kind: 'continuation.assistant_text', text, subagent: subagentRef(subagent) }),
-    onToolUse: (name: string, _input: any, toolUseId?: string, subagent?: ToolUseSubagent) =>
-      push({ kind: 'continuation.tool_use', name, toolUseId: toolUseId ?? '', subagent: subagentRef(subagent) }),
-    onToolResult: (toolUseId: string, content: string, isError: boolean, subagent?: ToolUseSubagent) =>
-      push({ kind: 'continuation.tool_result', toolUseId, content, isError, subagent: subagentRef(subagent) }),
-    onSubagentEnd: (parentToolUseId: string, status: 'completed' | 'failed' | 'killed') =>
-      push({ kind: 'continuation.subagent_end', parentToolUseId, status }),
-    onResult: (result: any) => push({ kind: 'continuation.result', result: snapshotResult(result) }),
-  });
-  session.setInjectionAckSink({
-    onDelivered: (message: { text: string; foldedIntoTurn: boolean }) =>
-      push({ kind: 'injection.delivered', text: message.text, foldedIntoTurn: message.foldedIntoTurn }),
-    onUndelivered: (message: { text: string }) =>
-      push({ kind: 'injection.undelivered', text: message.text }),
-  });
-
-  // The callbacks production orchestration passes to the awaited turn, recorded on the same trace
-  // so a run fixture can assert what the user turn itself received.
-  const turnCallbacks = () => ({
-    onAssistantMessage: (text: string, _blockId?: string, _model?: string | null, subagent?: ToolUseSubagent) =>
-      push({ kind: 'turn.assistant_text', text, subagent: subagentRef(subagent) }),
-    onToolUse: (name: string, _input: any, toolUseId?: string, subagent?: ToolUseSubagent) =>
-      push({ kind: 'turn.tool_use', name, toolUseId: toolUseId ?? '', subagent: subagentRef(subagent) }),
-    onToolResult: (toolUseId: string, content: string, isError: boolean) =>
-      push({ kind: 'turn.tool_result', toolUseId, content, isError }),
-    onSubagentEnd: (parentToolUseId: string, status: 'completed' | 'failed' | 'killed') =>
-      push({ kind: 'turn.subagent_end', parentToolUseId, status }),
-  });
 
   try {
     for (const entry of script) {
@@ -483,27 +483,33 @@ export async function replayClaudeRun(name: string): Promise<ClaudeRunTrace> {
       } else if (action.kind === 'turn') {
         if (userTurnOpened) throw new Error(`${name}: one run fixture, one user turn`);
         userTurnOpened = true;
-        session.sendMessage(action.text, turnCallbacks())
-          .then((result: any) => push({ kind: 'turn.result', result: snapshotResult(result) }))
-          .catch((error: any) => { trace.turnError = String(error?.message ?? error); });
+        run = engine.run({ text: action.text }, {
+          awaitBackground,
+          onNormalizedEvent: (event) => trace.raw.push(event),
+        });
+        run.result.then(
+          (result) => { trace.result = result; },
+          (error) => { trace.turnError = String(error?.message ?? error); },
+        );
+        run.settled.then(
+          (result) => { trace.settled = result; },
+          () => undefined,
+        );
+        const collected = collectRun(run);
+        trace.events = collected.events;
+        done = collected.done;
       } else if (action.kind === 'inject') {
-        const accepted = session.injectUserMessage({ text: action.text });
-        push({ kind: 'injection.write', text: action.text, accepted });
+        trace.steers.push({ text: action.text, ...engine.steer({ text: action.text }) });
       } else if (action.kind === 'close') {
         session.handleProcessClose(action.code);
       }
-      // 'note' is documentation.
-      await flushMicrotasks();
+      await tick();
       trace.turnOpenAtStep.push(session.currentTurn !== null);
     }
   } finally {
-    // Tear down without letting the teardown itself reach the sinks (that would append calls the
-    // fixture never scripted): no sink, no process ⇒ close() is a no-op beyond clearing timers.
-    session.clearContinuationSink();
-    session.clearInjectionAckSink();
-    session.proc = null;
-    session.alive = false;
-    session.close();
+    run?.cancel();
+    if (done) await done;
+    close();
   }
   return trace;
 }

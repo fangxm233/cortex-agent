@@ -1,6 +1,6 @@
-// input:  ClaudeAdapter.spawn / ClaudeAdapter.open driven over one scripted fake CLI process
-// output: equivalence spec for Claude's two session surfaces, plus steer/cancel/identity coverage
-// pos:    P2.3b gate — the RunEvent stream must be the spawn() stream retagged, nothing more
+// input:  ClaudeAdapter.open driven over one scripted fake CLI process
+// output: engine contract: phased RunEvent order/result, failure, cancel/reuse, steer, identity, rate limits
+// pos:    Claude EngineSession contract after the legacy spawn() parity half was deleted
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -9,10 +9,10 @@ import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 
 import { ClaudeAdapter, claudeCompatibilityIdentity, sameClaudeSpawnCompatibility } from '../../src/agent-adapter/claude/adapter.js';
-import { claudePool } from './claude-pool-fixture.js';
 import type { ClaudeSpawnCompatibility } from '../../src/agent-adapter/claude/adapter.js';
 import { toRunEvent, type RunEvent } from '../../src/agent-adapter/run-events.js';
 import type { NormalizedEvent } from '../../src/agent-adapter/normalize/event-types.js';
+import type { AgentResult } from '../../src/core/types/agent-types.js';
 import { engineSpecFixture } from '../engine-spec-fixture.js';
 
 /** One turn's worth of Claude stream-json: prose, a tool call, its result, then the turn result. */
@@ -86,38 +86,68 @@ async function drain<T>(iterable: AsyncIterable<T>): Promise<T[]> {
   return out;
 }
 
-// --- (1) The two surfaces must agree, event for event -------------------------------------------
+// --- (1) The RunEvent stream is the tapped wire record, phased and terminated -------------------
 
-test('Claude open().run() is spawn().send() retagged as RunEvents plus a terminal phase', async () => {
+test('Claude open().run() yields the phased RunEvent stream plus a terminal phase', async () => {
   const adapter = new ClaudeAdapter();
+  const engine = adapter.open(specFor('engine-equiv', [TURN_SCRIPT]));
 
-  const proc = claudePool(adapter).spawn(specFor('engine-equiv-spawn', [TURN_SCRIPT]));
-  const collectNormalized = drain(proc.events as AsyncIterable<NormalizedEvent>);
-  const spawnResult = await proc.send({ text: 'hi' } as any);
-  const normalized = await collectNormalized;
-
-  const engine = adapter.open(specFor('engine-equiv-open', [TURN_SCRIPT]));
-  const run = engine.run({ text: 'hi' } as any, { awaitBackground: 'none' });
+  // The raw protocol record this run forwarded is the authority for the phased stream; tapping the
+  // run itself keeps the assertion on the wire rather than on the deleted spawn() surface.
+  const raw: NormalizedEvent[] = [];
+  const run = engine.run({ text: 'hi' } as any, {
+    awaitBackground: 'none',
+    onNormalizedEvent: (event) => raw.push(event),
+  });
   const runEvents = await drain(run.events);
   const engineResult = await run.result;
+  const settled = await run.settled;
+
+  // Literal Claude stream protocol facts (legacy spawn() parity expectations folded in).
+  assert.deepEqual(raw.map((event) => event.type), [
+    'assistant_text', 'turn_progress', 'tool_use', 'turn_progress', 'tool_result',
+    'cost_record', 'turn_complete',
+  ]);
+  // Non-trivial: the script really did produce a full turn, not an empty stream.
+  assert.ok(raw.some((event) => event.type === 'tool_use'), 'script produced no tool_use');
+  assert.ok(raw.some((event) => event.type === 'turn_complete'), 'script produced no turn_complete');
+
+  const expectedResult: AgentResult = {
+    sessionId: 'engine-equiv',
+    total_cost_usd: 0.25,
+    num_turns: 2,
+    rateLimited: false,
+    rateLimitMessage: null,
+    planFilePath: null,
+    enteredPlanMode: false,
+    exitedPlanMode: false,
+    askUserQuestions: [],
+    finalOutput: 'hello',
+    reportedAccounting: {
+      usageReported: false,
+      inputTokens: null, outputTokens: null,
+      cacheReadTokens: null, cacheCreationTokens: null,
+      promptTokens: null, cachedTokens: null, model: null,
+    },
+    pendingBackgroundTasks: 0,
+    undeliveredBackgroundTasks: 0,
+  };
 
   const expected: RunEvent[] = [
+    { type: 'engine_started', backendSessionId: 'engine-equiv' },
     // `turn_complete` is the callback stream's terminal MARKER, not a result: the engine drops it
     // and pushes the authoritative `foreground_result` instead, so a run sees exactly one result
     // event for its turn (and it carries the full AgentResult, not the marker's lossy one).
-    ...normalized
+    ...raw
       .filter((event) => event.type !== 'turn_complete')
       .map((event) => toRunEvent(event, 'foreground')),
-    { type: 'foreground_result', result: spawnResult },
+    { type: 'foreground_result', result: expectedResult },
     { type: 'phase', phase: 'done', pendingBackground: 0, undeliveredBackground: 0 },
   ];
   assert.deepEqual(runEvents, expected);
-  // Non-trivial: the script really did produce a full turn, not an empty stream.
-  assert.ok(normalized.some((event) => event.type === 'tool_use'), 'script produced no tool_use');
-  assert.ok(normalized.some((event) => event.type === 'turn_complete'), 'script produced no turn_complete');
-  assert.deepEqual(engineResult, spawnResult);
+  assert.deepEqual(engineResult, expectedResult);
+  assert.deepEqual(settled, expectedResult);
 
-  await claudePool(adapter).close('engine-equiv-spawn');
   await engine.close();
 });
 

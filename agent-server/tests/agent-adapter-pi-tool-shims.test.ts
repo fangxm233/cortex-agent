@@ -12,7 +12,6 @@ import { join as pathJoin } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
 import { piPool } from './agent-adapter/pi-pool-fixture.js';
-import type { PIAgentProcess } from '../src/agent-adapter/pi/adapter.js';
 import { installToolShims } from '../src/agent-adapter/pi/tool-shims.js';
 import { makeFakeRuntimeFactory, type FakeRuntime } from './agent-adapter/pi-fake-runtime.js';
 
@@ -34,27 +33,27 @@ afterEach(() => {
 async function spawnSession(sessionKey: string, sessionId = 'sess-abc', config: Record<string, unknown> = {}) {
   const fake = makeFakeRuntimeFactory({ sessionId });
   const adapter = new PIAdapter(fake.factory, SESSION_DIR);
-  const proc = piPool(adapter).spawn(engineSpecFixture({ sessionKey, sessionId: null, resume: false, ...config })) as PIAgentProcess;
+  const engine = piPool(adapter).open(engineSpecFixture({ sessionKey, sessionId: null, resume: false, ...config }));
   const runtime: FakeRuntime = await fake.runtime();
-  return { fake, adapter, proc, runtime };
+  return { fake, adapter, engine, runtime };
 }
 
 // Tests A-D: turn lifecycle over the in-process session
 test('A: basic send', async () => {
-  const { proc, runtime } = await spawnSession('k1');
-  const turnPromise = proc.send({ text: 'hello' });
+  const { engine, runtime } = await spawnSession('k1');
+  const run = engine.run({ text: 'hello' }, { awaitBackground: 'none' });
   await runtime.nextCall('prompt');
   runtime.emit({ type: 'agent_end', messages: [{ role: 'assistant', content: 'ok', usage: { cost: { total: 0.005 } } }] });
   runtime.emit({ type: 'agent_settled' });
-  const result = await turnPromise;
+  const result = await run.result;
   assert.equal(result.sessionId, 'sess-abc');
   assert.deepEqual(runtime.prompts(), ['hello']);
-  await proc.close();
+  run.cancel();
 });
 
 test('B: successful PI auto-retry does not mark the settled turn rate-limited', async () => {
-  const { proc, runtime } = await spawnSession('k2');
-  const turnPromise = proc.send({ text: 'do stuff' });
+  const { engine, runtime } = await spawnSession('k2');
+  const run = engine.run({ text: 'do stuff' }, { awaitBackground: 'none' });
   await runtime.nextCall('prompt');
   const transientError = 'Codex error: An error occurred while processing your request. You can retry your request.';
   runtime.emit({ type: 'agent_end', messages: [{
@@ -64,15 +63,15 @@ test('B: successful PI auto-retry does not mark the settled turn rate-limited', 
   runtime.emit({ type: 'auto_retry_end', success: true, attempt: 1 });
   runtime.emit({ type: 'agent_end', messages: [{ role: 'assistant', stopReason: 'stop' }] });
   runtime.emit({ type: 'agent_settled' });
-  const result = await turnPromise;
+  const result = await run.result;
   assert.equal(result.rateLimited, false);
-  await proc.close();
+  run.cancel();
 });
 
 test('B2: exhausted PI auto-retry rejects with the final provider error', async () => {
-  const { proc, runtime } = await spawnSession('k2-failed');
-  const turnPromise = proc.send({ text: 'do stuff' });
-  const rejection = assert.rejects(turnPromise, /You can retry your request/);
+  const { engine, runtime } = await spawnSession('k2-failed');
+  const run = engine.run({ text: 'do stuff' }, { awaitBackground: 'none' });
+  const rejection = assert.rejects(run.result, /You can retry your request/);
   await runtime.nextCall('prompt');
   const finalError = 'Codex error: An error occurred while processing your request. You can retry your request.';
   runtime.emit({ type: 'agent_end', messages: [{
@@ -81,55 +80,55 @@ test('B2: exhausted PI auto-retry rejects with the final provider error', async 
   runtime.emit({ type: 'auto_retry_end', success: false, attempt: 3, finalError });
   runtime.emit({ type: 'agent_settled' });
   await rejection;
-  await proc.close();
+  run.cancel();
 });
 
-test('C: sendExtensionUiResponse', async () => {
-  const { proc, runtime } = await spawnSession('k3');
-  proc.sendExtensionUiResponse('ui-req-1', { confirmed: true });
+test('C: respondToDialog', async () => {
+  const { engine, runtime } = await spawnSession('k3');
+  engine.respondToDialog('ui-req-1', { confirmed: true });
   assert.deepEqual(runtime.uiResponses, [{ id: 'ui-req-1', payload: { confirmed: true } }]);
-  await proc.close();
+  await engine.close();
 });
 
-test('D: sendExtensionUiResponse with value', async () => {
-  const { proc, runtime } = await spawnSession('k4');
-  proc.sendExtensionUiResponse('ui-req-2', { value: 'Option A' });
+test('D: respondToDialog with value', async () => {
+  const { engine, runtime } = await spawnSession('k4');
+  engine.respondToDialog('ui-req-2', { value: 'Option A' });
   assert.deepEqual(runtime.uiResponses, [{ id: 'ui-req-2', payload: { value: 'Option A' } }]);
-  await proc.close();
+  await engine.close();
 });
 
 // Test F: generic extension dialog routing remains available
 test('F: generic extension dialog', async () => {
-  const { proc, runtime } = await spawnSession('k6');
-  const turnPromise = proc.send({ text: 'ask me something' });
+  const { engine, runtime } = await spawnSession('k6');
+  const run = engine.run({ text: 'ask me something' }, { awaitBackground: 'none' });
   await runtime.nextCall('prompt');
   runtime.emit({ type: 'extension_ui_request', id: 'ui-sel-1', method: 'select', title: 'What color?', options: ['Red', 'Blue'] });
-  proc.sendExtensionUiResponse('ui-sel-1', { value: 'Blue' });
+  engine.respondToDialog('ui-sel-1', { value: 'Blue' });
   runtime.emit({ type: 'agent_end', messages: [] });
   runtime.emit({ type: 'agent_settled' });
-  const result = await turnPromise;
+  const result = await run.result;
   assert.equal(result.askUserQuestions, undefined);
   assert.deepEqual(runtime.uiResponses, [{ id: 'ui-sel-1', payload: { value: 'Blue' } }]);
-  await proc.close();
+  run.cancel();
 });
 
 // Test G: the prompt is refused before PI enters its loop (auth/model failure)
 test('G: fatal error', async () => {
-  const { proc, runtime } = await spawnSession('k7');
+  const { engine, runtime } = await spawnSession('k7');
   runtime.promptRejections.push(new Error('fatal: something broke'));
-  const turnPromise = proc.send({ text: 'do something' });
-  await assert.rejects(turnPromise, /something broke/i);
-  await proc.close().catch(() => {});
+  const run = engine.run({ text: 'do something' }, { awaitBackground: 'none' });
+  await assert.rejects(run.result, /something broke/i);
+  run.cancel();
 });
 
 // Test H: the session is closed while a turn is still waiting on PI
 test('H: session closed before turn_complete', async () => {
-  const { adapter, proc } = await spawnSession('k8');
-  const turnPromise = proc.send({ text: 'do work' });
-  const rejection = assert.rejects(turnPromise, /closed before turn_complete/i);
+  const { adapter, engine } = await spawnSession('k8');
+  const run = engine.run({ text: 'do work' }, { awaitBackground: 'none' });
+  const rejection = assert.rejects(run.result, /closed before turn_complete/i);
   await piPool(adapter).close('k8');
   await rejection;
-  await proc.close().catch(() => {});
+  run.cancel();
 });
 
 // ─── Tool allowlist gating (thread agents must not get interaction tools) ───
@@ -521,19 +520,19 @@ test('J11b: WebFetch rejects non-application structured JSON suffixes', async ()
   assert.equal(body.wasCancelled(), true);
 });
 
-test('K: spawn forwards rawTools allowlist to the session env', async () => {
-  const { fake, proc } = await spawnSession('kEnv', 'sess-abc', { rawTools: CODER_TOOLS });
+test('K: open forwards rawTools allowlist to the session env', async () => {
+  const { fake, engine } = await spawnSession('kEnv', 'sess-abc', { rawTools: CODER_TOOLS });
   assert.equal(fake.requests[0].env.CORTEX_PI_ALLOWED_TOOLS, CODER_TOOLS);
-  await proc.close();
+  await engine.close();
 });
 
-test('K2: spawn omits CORTEX_PI_ALLOWED_TOOLS when rawTools is unset', async () => {
+test('K2: open omits CORTEX_PI_ALLOWED_TOOLS when rawTools is unset', async () => {
   const prev = process.env.CORTEX_PI_ALLOWED_TOOLS;
   delete process.env.CORTEX_PI_ALLOWED_TOOLS;
   try {
-    const { fake, proc } = await spawnSession('kEnv2');
+    const { fake, engine } = await spawnSession('kEnv2');
     assert.equal(fake.requests[0].env.CORTEX_PI_ALLOWED_TOOLS, undefined);
-    await proc.close();
+    await engine.close();
   } finally {
     if (prev !== undefined) process.env.CORTEX_PI_ALLOWED_TOOLS = prev;
   }
