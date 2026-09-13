@@ -1,48 +1,33 @@
-// input:  turns, mutation leases, results, run service
-// output: snapshot barriers, finalization, exact continuation cost
-// pos:    Agent turn initialization, completion and run-backed continuations
+// input:  a turn's terminal result or error, plus its mutation lease
+// output: turn tracking + snapshot barriers, and the success/failure finalization of a turn
+// pos:    orchestration — where a turn opens and closes; the surfaces that render it live in
+//         status-renderer.ts / web-status-renderer.ts, and the follow-up runs in edit-retry.ts
+//         and interactions/ask-user-resume.ts
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-import { randomUUID } from 'node:crypto';
 import { createLogger } from '@core/log.js';
-import { getSettings } from '@core/settings.js';
-import { Icons } from '../core/icons.js';
 import { t } from '../core/i18n.js';
-import type { Destination, PlatformAdapter, MessageRef } from '@platform/index.js';
+import type { Destination, PlatformAdapter, MessageRef, OutputStream } from '@platform/index.js';
 import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
-import type { ExecutionRecord } from '@domain/executions/registry.js';
-import { trackPendingTask } from './busy-tracker.js';
-import { enqueue } from './conduit-queue.js';
 import { supersededEdits } from './superseded-edits.js';
 import { acquireTurnMutationLock, type TurnMutationRelease } from './turn-mutation-lock.js';
 import { runRegistry } from '../core/run-registry.js';
 
-import { finalizeLocalExecution, buildUserProcessingMessage, renderTurnStatus, makeFallbackLabelNotifier, makeStreamingMessageCallback, computeElapsed, formatMetricsSuffix, writeStatus, sealStatus, buildStatusActionBlocks, buildSealedStatusActionBlocks, initStatusBlocks } from './status-helpers.js';
-import { getSessionAsync, setSessionAsync } from '@domain/sessions/session.js';
-import { sessionStore, effectiveBackendSessionId } from '@store/session-registry-repo.js';
+import { finalizeLocalExecution, renderTurnStatus, computeElapsed, formatMetricsSuffix, sealStatus, buildSealedStatusActionBlocks } from './status-helpers.js';
+import { setSessionAsync } from '@domain/sessions/session.js';
+import { sessionStore } from '@store/session-registry-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import * as sessionBackup from '@domain/sessions/session-backup.js';
-import { isOnMessageEndHookConfigured, runMessageEndSessionHook } from '@domain/sessions/session-hooks.js';
+import { runMessageEndForTurn } from '@domain/sessions/session-hooks.js';
 import * as askUserQuestion from './interactions/ask-user-question.js';
 import { getActiveProfile, resolveBackendForChannel } from '@domain/agents/index.js';
-import { resolveProfileConfig, type ResolvedProfileConfig } from '@domain/agents/profile-manager.js';
-import { startRun } from '@domain/runs/service.js';
-import type { AgentRun } from '@domain/runs/run.js';
-import type { RunObserver, RunRequest } from '@domain/runs/request.js';
-import { bareSpec } from '@domain/runs/spec-loader.js';
-import type { RunEvent } from '@domain/runs/events.js';
 
-import { setStreamingCallback, clearStreamingCallback } from './routing/hook-bridge.js';
 import { maybeNotifyTurnComplete } from './turn-notify.js';
 import { holdBackgroundStatus, type HeldRun } from './status-renderer.js';
-import { recordCost } from '@domain/costs/cost-tracker.js';
 import { recordDirectResume } from '@domain/runs/observers/resume-recorder.js';
 import { isApiRateLimitError } from '@domain/agents/config.js';
 import { isProviderRateLimited } from '@domain/costs/rate-limit-throttle.js';
-import { normalizeSkillCommandPrefix } from '@domain/memory/skill-scanner.js';
 import { getOutboundQueue } from '@store/outbound-queue.js';
-import { buildDurableHooks, durablePost } from './durable-helpers.js';
-import type { OutputStream } from '@platform/index.js';
-import { resolveRunConfig } from '@domain/runs/config-resolver.js';
+import { durablePost } from './durable-helpers.js';
 
 const log = createLogger('lifecycle');
 
@@ -110,38 +95,10 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
   // Re-sending here would duplicate the plan message (and historically could
   // desync when the hook's mtime-based lookup picked a stale file).
 
-  // onMessageEnd hook: extends the assistant turn's OutputStream so hook lines
-  // (status/preview/error) and any injected agent turn share one continuous Slack
-  // thread with the reply we just finished — no top-level leak, no detached stream.
-  if (isOnMessageEndHookConfigured() && result?.sessionId) {
-    const hookStream = (onAssistantMessage as any)?.stream as OutputStream | undefined;
-    if (hookStream) {
-      try {
-        const conv = await conversationLedger.getConversation(channel);
-        const profileName = conv?.profileName ?? null;
-        await runMessageEndSessionHook({
-          channel,
-          sessionId: result.sessionId,
-          sessionName: sessionName ?? '',
-          executionId: executionId ?? '',
-          profile: profileName,
-          stream: hookStream,
-        });
-      } catch (err) {
-        log.error('onMessageEnd hook failed:', (err as any)?.message || err);
-      }
-    } else {
-      log.warn('onMessageEnd hook skipped: assistant stream unavailable on onAssistantMessage');
-    }
-  }
-}
-
-async function backfillLedgerSessionId(result: { sessionId?: string | null }, channel: string): Promise<void> {
-  if (!result?.sessionId) return;
-  const conv = await conversationLedger.getConversation(channel);
-  if (conv && !conv.sessionId) {
-    await conversationLedger.updateSessionId(channel, result.sessionId);
-  }
+  await runMessageEndForTurn({
+    channel, sessionId: result?.sessionId ?? null, sessionName, executionId,
+    stream: (onAssistantMessage as any)?.stream as OutputStream | undefined,
+  });
 }
 
 // --- Agent error handler ---
@@ -200,296 +157,14 @@ async function persistErrorSession(resolvedSessionId: string | null, sessionName
   if (!resolvedSessionId) return;
   const backend = resolveBackendForChannel(channel);
   await setSessionAsync(channel, resolvedSessionId);
-  await backfillLedgerSessionId({ sessionId: resolvedSessionId }, channel);
+  // Backfill the ledger's session id: a conversation opened before the backend reported one.
+  const conv = await conversationLedger.getConversation(channel);
+  if (conv && !conv.sessionId) await conversationLedger.updateSessionId(channel, resolvedSessionId);
   if (!sessionName) return;
   const existing = await sessionStore.lookupBySessionId(resolvedSessionId);
   if (!existing) {
     await sessionStore.registerSession(sessionName, { sessionId: resolvedSessionId, channel, backend, kind: 'local', origin: 'direct', profileName: getActiveProfile(channel), projectId: (await adapter.resolveInboundProject(channel)) ?? 'general' });
   }
-}
-
-// --- AskUserQuestion resume ---
-
-/** Synthetic profile for an unknown configured name. Keeps the requested name so the facade still
- *  rejects it inside the run (after the execution record is opened), while its backend/mode mirror
- *  the legacy active-backend execution record. */
-function fallbackRunProfile(profileName: string | null, channel: string): ResolvedProfileConfig {
-  return {
-    name: profileName ?? '',
-    model: '',
-    backend: resolveBackendForChannel(channel),
-    mode: resolveRunConfig({ channel }).profile.mode,
-    provider: null,
-    extraEnv: {}, extraOption: {}, claudeBackend: 'print', thinking: null,
-    maxOutputTokens: null, fallback: [],
-  };
-}
-
-/** Resolve the profile a continuation run spawns, preserving the legacy "open the execution, then
- *  let the facade reject an unknown name" ordering. */
-function resolveRunProfile(profileName: string | null, channel: string): ResolvedProfileConfig {
-  try {
-    return resolveProfileConfig(profileName);
-  } catch {
-    return fallbackRunProfile(profileName, channel);
-  }
-}
-
-/** Ask-user groups are thread-less in practice, but the legacy facade fell back to
- *  `shouldAwaitBgInline` (settings-gated, thread-keyed); mirror that decision here. */
-export async function resumeAskUserQuestionGroup({ adapter, group, responseText }: { adapter: PlatformAdapter; group: { channel: string; sessionId: string; groupId: string; threadId?: string | null }; responseText: string }): Promise<void> {
-  let sessionRelease: (() => void) | null = null;
-  let statusMsg: MessageRef | null = null;
-  const startTime = Date.now();
-  let executionId: string | null = null;
-  let run: AgentRun | null = null;
-  try {
-    sessionRelease = await sessionStore.acquireSessionUse(group.sessionId);
-    if (!sessionRelease) {
-      log.warn(`AskUserQuestion resume skipped for missing or deleting session: ${group.sessionId}`);
-      return;
-    }
-    const askDest: Destination = { type: 'interactive-reply', conduit: group.channel, sessionId: group.sessionId };
-    statusMsg = await adapter.postMessage(askDest, { text: `${Icons.processing} ${t('status.processingAskResponse')}` });
-    // group.sessionId is the stable track id; resolve the backend resume target + name + project
-    // from its registry record. Cost/execution attribution uses the session's bound project, NOT a
-    // re-derivation from the response text.
-    const askRec = await sessionStore.getById(group.sessionId);
-    const askBackendSessionId = askRec ? effectiveBackendSessionId(askRec) : null;
-    const askSessionName = askRec?.name ?? null;
-    const askProjectId = askRec?.projectId ?? 'general';
-    const askQueue = getOutboundQueue();
-    const askDurable = askQueue ? buildDurableHooks(askQueue) : null;
-    const onAssistantMsg = makeStreamingMessageCallback(adapter, askDest, null, null, askDurable);
-    const request: RunRequest = {
-      runId: randomUUID(),
-      session: {
-        sessionId: group.sessionId,
-        backendSessionId: askBackendSessionId,
-        // Legacy `runAgent` set no sessionKey, so spawn-config fell back to the channel.
-        engineKey: group.channel,
-        sessionName: askSessionName,
-      },
-      profile: resolveRunProfile(null, group.channel),
-      spec: bareSpec(),
-      prompt: { text: responseText, attachments: [] },
-      context: {
-        channel: group.channel,
-        project: askProjectId,
-        trigger: 'ask-user-question',
-        // The pre-refactor resume passed no threadId and never waited for background work inline.
-        // Both are load-bearing: a threadId lands in CORTEX_THREAD_ID and switches the facade's
-        // inline background wait on, which would make the resume turn block on background tasks.
-        threadId: null,
-        executionKind: 'local',
-        isUserInitiated: false,
-        commissionMode: false,
-        commissionTools: false,
-        scheduleTaskId: null,
-      },
-      policy: {
-        background: 'none',
-        recordCost: true,
-        hooks: true,
-        loadRules: true,
-        mcpComposition: 'direct',
-        browserCdpEndpoint: null,
-        // Claude writes a per-turn transcript file unless told not to; only a frozen subagent
-        // child opts out. `captureTranscriptLogs` defaults to ON, so this must stay true.
-        captureTranscripts: true,
-      },
-    };
-    const observer: RunObserver = {
-      onEvent(event: RunEvent): void {
-        if (event.type === 'assistant_text') onAssistantMsg(event.text);
-      },
-    };
-    run = startRun(request, [observer]);
-    executionId = run.executionId;
-    sessionRelease();
-    sessionRelease = null;
-    const result = await run.result;
-    await handleAgentSuccess({ result, channel: group.channel, adapter, statusMsg, startTime, userMessage: responseText, executionId, trigger: 'ask-user-question', sessionName: askSessionName, trackSessionId: group.sessionId, projectId: askProjectId, onAssistantMessage: onAssistantMsg });
-  } catch (error) {
-    if (statusMsg) {
-      await handleAgentError({ error: error as { message: string; cancelled?: boolean }, channel: group.channel, adapter, statusMsg, startTime, executionId, effectiveSessionId: run?.backendSessionId ?? null });
-    } else {
-      log.error(`AskUserQuestion resume failed before status creation: ${(error as Error).message}`);
-    }
-  } finally {
-    sessionRelease?.();
-    askUserQuestion.deleteGroup(group.groupId);
-  }
-}
-
-// --- Edit retry (reprocessMessage) ---
-
-export function reprocessMessage(channel: string, text: string, adapter: PlatformAdapter, opts: { originalTs: string; isRetry: boolean; sessionId: string | null; sessionName: string | null; supersededStatusTimestamps?: string[] }): void {
-  trackPendingTask(+1);
-  enqueue(channel, async () => {
-    try {
-      await executeRetry(channel, text, adapter, opts);
-    } finally {
-      trackPendingTask(-1);
-    }
-  });
-}
-
-async function executeRetry(channel: string, text: string, adapter: PlatformAdapter, opts: { originalTs: string; isRetry: boolean; sessionId: string | null; sessionName: string | null; supersededStatusTimestamps?: string[] }): Promise<void> {
-  const startTime = Date.now();
-  // sessionId here is the stable track id; resolve the backend resume target from its record.
-  const sessionId = opts.sessionId ?? await getSessionAsync(channel);
-  const retryRec = sessionId ? await sessionStore.getById(sessionId) : null;
-  const backendSessionId = retryRec ? effectiveBackendSessionId(retryRec) : null;
-  const projectId = retryRec?.projectId ?? 'general';
-  const sessionName = opts.sessionName || await sessionStore.generateSessionName();
-  const userMessageTs = opts.originalTs;
-  const retryDest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: sessionId ?? '' };
-
-  const retryPrefix = `${Icons.refresh} ${t('status.retry')} (${t('status.retryEdited')}) | `;
-  const retryStatusText = retryPrefix + buildUserProcessingMessage({ startTime, profileName: getActiveProfile(channel), sessionName, sessionId });
-  const retryBlocksTemplate = { channel, sessionName, isDm: true };
-  const statusMsg = await adapter.postMessage(retryDest, {
-    text: retryStatusText,
-    richBlocks: buildStatusActionBlocks(retryStatusText, retryBlocksTemplate),
-  });
-  initStatusBlocks(statusMsg, retryBlocksTemplate);
-
-  updateRetryPermalinks(adapter, channel, userMessageTs, statusMsg, opts.supersededStatusTimestamps, retryPrefix, startTime, sessionName, sessionId);
-  const turnTrackingToken = await initTurnTracking(
-    channel, sessionId, backendSessionId, sessionName,
-    userMessageTs, text, statusMsg.messageId,
-  );
-  if (consumePendingTurnSupersession(channel, turnTrackingToken)) {
-    finishTurnTracking(channel, turnTrackingToken);
-    return;
-  }
-  const onMessagePosted = (ref: MessageRef) => void conversationLedger.addResponseTs(channel, userMessageTs, ref.messageId).catch((e) => log.error(e));
-  await runRetryAgent({
-    channel, text, adapter, statusMsg, startTime, sessionId, backendSessionId,
-    sessionName, projectId, userMessageTs, retryPrefix, onMessagePosted,
-    retryDest, turnTrackingToken,
-  });
-}
-
-export async function runRetryAgent({ channel, text, adapter, statusMsg, startTime, sessionId, backendSessionId, sessionName, projectId, userMessageTs, retryPrefix, onMessagePosted, retryDest, turnTrackingToken }: { channel: string; text: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; sessionId: string | null; backendSessionId: string | null; sessionName: string | null; projectId: string; userMessageTs: string; retryPrefix: string; onMessagePosted: (ref: MessageRef) => void; retryDest: Destination; turnTrackingToken: TurnTrackingToken }): Promise<void> {
-  const agentMessage = normalizeSkillCommandPrefix(text || '');
-  let executionId: string | null = null;
-  let run: AgentRun | null = null;
-  let sessionRelease: (() => void) | null = null;
-  try {
-    if (sessionId) {
-      sessionRelease = await sessionStore.acquireSessionUse(sessionId);
-      if (!sessionRelease) throw new Error(`Session not found or pending deletion: ${sessionId}`);
-    }
-    const retryQueue = getOutboundQueue();
-    const retryDurable = retryQueue ? buildDurableHooks(retryQueue) : null;
-    const onAssistantMsg = makeStreamingMessageCallback(adapter, retryDest, null, onMessagePosted, retryDurable);
-    setStreamingCallback(channel, onAssistantMsg);
-    const progressUpdater = buildRetryProgressUpdater(adapter, channel, statusMsg, retryPrefix, startTime, sessionName, sessionId);
-    const fallbackNotifier = makeFallbackLabelNotifier(statusMsg, adapter);
-    const request: RunRequest = {
-      runId: randomUUID(),
-      session: {
-        sessionId,
-        backendSessionId,
-        // Legacy `runAgent` set no sessionKey, so spawn-config fell back to the channel.
-        engineKey: channel,
-        sessionName,
-      },
-      profile: resolveRunProfile(getActiveProfile(channel), channel),
-      spec: bareSpec(),
-      prompt: { text: agentMessage, attachments: [] },
-      context: {
-        channel,
-        project: projectId,
-        trigger: 'edit-retry',
-        executionKind: 'local',
-        isUserInitiated: true,
-        commissionMode: false,
-        commissionTools: false,
-        scheduleTaskId: null,
-      },
-      policy: {
-        // Legacy `awaitBackground` was undefined with no threadId -> no inline wait.
-        background: 'none',
-        recordCost: true,
-        hooks: true,
-        loadRules: true,
-        mcpComposition: 'direct',
-        browserCdpEndpoint: null,
-        // Claude writes a per-turn transcript file unless told not to; only a frozen subagent
-        // child opts out. `captureTranscriptLogs` defaults to ON, so this must stay true.
-        captureTranscripts: true,
-      },
-    };
-    const observer: RunObserver = {
-      onEvent(event: RunEvent): void {
-        switch (event.type) {
-          case 'assistant_text': onAssistantMsg(event.text); return;
-          case 'turn_progress': progressUpdater({ num_turns: event.numTurns, duration_ms: null }); return;
-          case 'run_fallback': void fallbackNotifier(event.from, event.to); return;
-          default: return;
-        }
-      },
-    };
-    run = startRun(request, [observer]);
-    executionId = run.executionId;
-    sessionRelease?.();
-    sessionRelease = null;
-    finishTurnTracking(channel, turnTrackingToken);
-    const result = await run.result;
-    clearStreamingCallback(channel);
-
-    if (result?.rateLimited) {
-      // Record the interrupted edit-retry conversation for auto-resume when the window resets.
-      recordDirectResume({ provider: result.rateLimitProvider, channel, trackSessionId: sessionId, userMessage: text });
-      const { elapsedStr } = computeElapsed(startTime);
-      const rateLimitText = renderTurnStatus({ kind: 'rate-limited' }, { sessionName, sessionId, elapsedStr });
-      await sealStatus(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));
-    } else {
-      await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, userMessage: text, executionId, trigger: 'edit-retry', sessionName, trackSessionId: sessionId, projectId, userMessageTs, onAssistantMessage: onAssistantMsg });
-    }
-  } catch (error) {
-    clearStreamingCallback(channel);
-    await handleAgentError({ error, channel, adapter, statusMsg, startTime, executionId, sessionName, sessionId, effectiveSessionId: run?.backendSessionId ?? null, userMessageTs });
-  } finally {
-    sessionRelease?.();
-    finishTurnTracking(channel, turnTrackingToken);
-  }
-}
-
-function buildRetryProgressUpdater(adapter: PlatformAdapter, channel: string, statusMsg: MessageRef, retryPrefix: string, startTime: number, sessionName: string | null, sessionId: string | null) {
-  return (progress: { duration_ms?: number | null; num_turns?: number | null } | null) => {
-    writeStatus(adapter, statusMsg, retryPrefix + buildUserProcessingMessage({
-      startTime, elapsed_s: progress?.duration_ms != null ? progress.duration_ms / 1000 : null,
-      num_turns: progress?.num_turns ?? null,
-      profileName: getActiveProfile(channel), sessionName, sessionId,
-    }));
-  };
-}
-
-// --- Internal helpers ---
-
-function updateRetryPermalinks(adapter: PlatformAdapter, channel: string, userMessageTs: string, statusMsg: MessageRef, supersededTimestamps: string[] | undefined, retryPrefix: string, startTime: number, sessionName: string | null, sessionId: string | null): void {
-  const userPermalinkP = adapter.getPermalink({ conduit: channel, messageId: userMessageTs }).catch(() => null);
-  const statusPermalinkP = supersededTimestamps?.length
-    ? adapter.getPermalink(statusMsg).catch(() => null)
-    : Promise.resolve(null);
-
-  Promise.all([userPermalinkP, statusPermalinkP]).then(([userPermalink, statusPermalink]) => {
-    if (userPermalink) {
-      writeStatus(adapter, statusMsg, `${Icons.refresh} ${t('status.retry')} (<${userPermalink}|${t('status.retryEdited')}>) | ` + buildUserProcessingMessage({ startTime, profileName: getActiveProfile(channel), sessionName, sessionId }));
-    }
-    if (statusPermalink && supersededTimestamps?.length) {
-      for (const oldTs of supersededTimestamps) {
-        adapter.updateMessage(
-          { conduit: channel, messageId: oldTs },
-          { text: `${Icons.superseded} ${t('status.supersededByEdit')} \u2014 <${statusPermalink}|${t('status.supersededSeeNewReply')}>` },
-        ).catch(() => {});
-      }
-    }
-  }).catch(() => {});
 }
 
 interface TurnTrackingDeps {
@@ -549,10 +224,6 @@ const supersededPendingTurns = new Map<string, TurnTrackingToken>();
 export function markPendingTurnSuperseded(channel: string): void {
   const token = currentTurnTracking.get(channel);
   if (token) supersededPendingTurns.set(channel, token);
-}
-
-export function isPendingTurnSuperseded(channel: string): boolean {
-  return supersededPendingTurns.has(channel);
 }
 
 export function consumePendingTurnSupersession(channel: string, token: TurnTrackingToken): boolean {

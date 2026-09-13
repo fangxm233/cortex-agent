@@ -28,7 +28,8 @@ vi.mock('@domain/agents/index.js', async (importOriginal) => {
   };
 });
 
-import { resumeAskUserQuestionGroup, runRetryAgent } from '../../src/orchestration/lifecycle.js';
+import { resumeAskUserQuestionGroup } from '../../src/orchestration/interactions/ask-user-resume.js';
+import { runRetryAgent } from '../../src/orchestration/edit-retry.js';
 import { sessionStore } from '../../src/store/session-registry-repo.js';
 import { MockAdapter } from '../../src/platform/testing.js';
 import * as executionRegistry from '../../src/domain/executions/registry.js';

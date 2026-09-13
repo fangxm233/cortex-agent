@@ -522,3 +522,31 @@ export async function runMessageEndSessionHook(args: OnMessageEndArgs): Promise<
   };
   await runSessionHook(spec, args.stream);
 }
+
+/** Run the onMessageEnd hook for a turn that just finished. The hook's lines extend the assistant
+ *  turn's OutputStream, so hook output (status / preview / error) and any injected agent turn share
+ *  one continuous thread with the reply we just finished — no top-level leak, no detached stream.
+ *  The profile comes from the turn's conversation record, never from a global. */
+export async function runMessageEndForTurn(args: {
+  channel: string; sessionId: string | null; sessionName: string | null;
+  executionId: string | null; stream: OutputStream | null | undefined;
+}): Promise<void> {
+  if (!isOnMessageEndHookConfigured() || !args.sessionId) return;
+  if (!args.stream) {
+    log.warn('onMessageEnd hook skipped: assistant stream unavailable on onAssistantMessage');
+    return;
+  }
+  try {
+    const conv = await conversationLedger.getConversation(args.channel);
+    await runMessageEndSessionHook({
+      channel: args.channel,
+      sessionId: args.sessionId,
+      sessionName: args.sessionName ?? '',
+      executionId: args.executionId ?? '',
+      profile: conv?.profileName ?? null,
+      stream: args.stream,
+    });
+  } catch (err) {
+    log.error('onMessageEnd hook failed:', (err as Error)?.message || err);
+  }
+}

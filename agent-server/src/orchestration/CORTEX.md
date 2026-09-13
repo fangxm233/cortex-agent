@@ -17,12 +17,14 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | delta-coalescer.ts | stream | batches assistant text deltas for web sessions |
 | dispatch-reconciler.ts | timer | optionally cleans up stale dispatch executions |
 | durable-helpers.ts | util | builds durable post and update hooks |
-| lifecycle.ts | core | finalizes turns, decides the background hold, and resumes edit-retry/ask-user turns through startRun |
+| edit-retry.ts | chat | re-runs an edited user message as a retry turn: new status message, permalink backfill, its run |
+| lifecycle.ts | core | opens and closes a turn: tracking, snapshot barrier, and success/failure finalization |
 | manager-qa.ts | channel | durably relays subtask manager questions and answers |
 | mid-turn-inject.ts | core | routes a busy-channel message to the live AgentRun.steer; the ledger it feeds lives in transcript-sink |
 | orchestrator.ts | router | picks the thread or default routing branch |
 | pending-injection-recovery.ts | recovery | commits and recovers pending injected turns |
 | resume-dispatcher.ts | runner | Resumes paused work under runtime settings |
+| run-profile.ts | helper | resolves the profile a follow-up run spawns under, with the legacy unknown-name fallback |
 | session-compact.ts | control | compacts an idle session's context |
 | session-events.ts | events | Publishes session and remote tool metadata |
 | subagent-rows.ts | util | maps native-subagent attribution to history and payload fields |

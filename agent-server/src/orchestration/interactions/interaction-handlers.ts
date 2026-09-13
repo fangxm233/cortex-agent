@@ -11,7 +11,7 @@ import { trackPendingTask } from '../busy-tracker.js';
 import { enqueue } from '../conduit-queue.js';
 import * as askUserQuestion from './ask-user-question.js';
 import { getStreamingCallback } from '../routing/hook-bridge.js';
-import { resumeAskUserQuestionGroup } from '../lifecycle.js';
+import { resumeAskUserQuestionGroup } from './ask-user-resume.js';
 import { planApprovals } from './plan-approvals.js';
 import { runRegistry } from '../../core/run-registry.js';
 import * as executionRegistry from '@domain/executions/registry.js';

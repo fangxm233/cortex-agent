@@ -71,7 +71,7 @@ import { buildSessionRetentionLiveness } from '@core/session-retention-liveness.
 import { planApprovals } from '@orch/interactions/plan-approvals.js';
 import { busyTracker } from '@orch/busy-tracker.js';
 import { buildExecutionStatusReport } from '@orch/status-helpers.js';
-import { reprocessMessage } from '@orch/lifecycle.js';
+import { reprocessMessage } from '@orch/edit-retry.js';
 import { initScheduledRunner, initAuthExpiryScan, createScheduler, setSchedulerRef, setBus, setInteractiveCallbacksFactory, cancelDispatchedTask } from '@domain/scheduling/runner.js';
 import { startBuiltinJobs, stopBuiltinJobs } from '@domain/scheduling/builtin-jobs.js';
 import { migrateBuiltinJobSchedules } from '@domain/scheduling/builtin-job-migration.js';
