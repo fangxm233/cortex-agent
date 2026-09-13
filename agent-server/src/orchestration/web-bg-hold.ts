@@ -4,7 +4,7 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
 // Why this exists (the gap): the background-task continuation machinery (BgTaskTracker /
-// buildContinuationSink / bg-wait-guard) was wired only for slack:/feishu: channels
+// buildContinuationSink / the background wait bounds) was wired only for slack:/feishu: channels
 // (isInteractiveChannel). A web: turn that ended with a live background task fell through both
 // hold paths — no ContinuationSink was registered, so when the task later completed the adapter
 // dropped its continuation turn, AND the agent-runner finally published running:false immediately,
@@ -20,15 +20,16 @@ import { isApiRateLimitError } from '@domain/agents/config.js';
 import type { ContinuationSink } from '../agent-adapter/types.js';
 import type { ToolUseSubagent } from '../agent-adapter/normalize/event-types.js';
 import { t } from '../core/i18n.js';
-import { startBgWaitGuard, type BgWaitGuard } from './bg-wait-guard.js';
+import type { BackgroundWaitCallbacks } from '@domain/runs/continuation-sink.js';
 
 const log = createLogger('web-bg-hold');
 
 export interface WebBgHoldDeps {
   /** The turn's terminal result (carries pending/undelivered background-task counts). */
   result: AgentResult;
-  /** Register the continuation sink on the live agent process (proc.setContinuationSink). */
-  registerSink: (sink: ContinuationSink) => void;
+  /** Subscribe the hold to the run's background phase: the sink receives the continuation's
+   *  output, `waits` receives the run's grace / max-wait verdict and the one-shot end-of-wait. */
+  registerSink: (sink: ContinuationSink, waits: BackgroundWaitCallbacks) => void;
   /** Publish a session.status delta. During the hold: running:true, backgroundRunning:true;
    *  on seal: running:false. */
   publishStatus: (p: { running: boolean; backgroundRunning: boolean }) => void;
@@ -54,29 +55,23 @@ export interface WebBgHoldDeps {
    *  error card must be shown instead of the auto-resume notice. */
   onRateLimited: (result: AgentResult) => boolean;
   /** Busy bracket (trackPendingTask). +1 for the whole wait window so a deferred daemon restart
-   *  does not fire and kill the Claude child (F1); -1 when the guard settles. */
+   *  does not fire and kill the Claude child (F1); -1 once the run reports the wait is over. */
   track: (delta: number) => void;
   /** Register the hold's seal so something outside can end it. Invoked once, right after the hold
-   *  is installed, with a function that seals: guard settled (busy bracket released) + running:false
+   *  is installed, with a function that seals: busy bracket released + running:false
    *  published. Idempotent with every other seal path.
    *
    *  This hold owns STATUS, not work — there is no child process to outlive it — so the same seal is
    *  the right answer to a user Stop AND to a new foreground turn taking the session over. Holds
    *  that own live work answer those two differently (see `SessionHoldHandles`). */
   registerAbort?: (abort: () => void) => void;
-  /** Injectable guard factory for tests (defaults to the real startBgWaitGuard). */
-  startGuard?: typeof startBgWaitGuard;
-  /** Injectable timers forwarded to the guard (tests drive grace/max-wait deterministically). */
-  guardTimers?: { set: (fn: () => void, ms: number) => unknown; clear: (h: unknown) => void };
-  graceMs?: number;
-  maxWaitMs?: number;
 }
 
 /**
  * Hold a web session open for its spontaneous background-task continuation. The turn's foreground
  * work has ended, but background work (running or finished-but-unnotified) remains. Instead of
  * sealing running:false immediately, keep the session marked running+backgroundRunning, register a
- * ContinuationSink, and arm a bg-wait-guard. When the background task later re-invokes the model, its
+ * ContinuationSink, and let the run bound the wait. When the background task later re-invokes the model, its
  * output streams in as new session messages; when no work remains (or on grace / max-wait / interrupt)
  * we seal running:false.
  *
@@ -89,8 +84,16 @@ export function holdWebForBg(deps: WebBgHoldDeps): boolean {
   const undelivered0 = deps.result.undeliveredBackgroundTasks ?? 0;
   if (running0 + undelivered0 <= 0) return false;
 
-  const startGuard = deps.startGuard ?? startBgWaitGuard;
   let sealed = false;
+  // Busy bracket for the whole waiting window (F1): +1 now, -1 exactly once when the run reports
+  // the wait is over. The run owns the grace / max-wait timers.
+  deps.track(+1);
+  let waitReleased = false;
+  const releaseWait = (): void => {
+    if (waitReleased) return;
+    waitReleased = true;
+    deps.track(-1);
+  };
 
   // Rate-limit API errors are HELD, not streamed. The backend surfaces a 429 as ordinary assistant
   // prose BEFORE the continuation settles, and only the result says whether it was a failure (show
@@ -110,7 +113,7 @@ export function holdWebForBg(deps: WebBgHoldDeps): boolean {
     if (sealed) return;
     sealed = true;
     flushHeldApiError();
-    guard.settle();
+    releaseWait();
     deps.publishStatus({ running: false, backgroundRunning: false });
   };
 
@@ -118,32 +121,24 @@ export function holdWebForBg(deps: WebBgHoldDeps): boolean {
   // running" instead of idle, and does NOT stop tracking the session.
   deps.publishStatus({ running: true, backgroundRunning: true });
 
-  const guard: BgWaitGuard = startGuard({
-    running: running0,
-    undelivered: undelivered0,
-    track: deps.track,
-    graceMs: deps.graceMs,
-    maxWaitMs: deps.maxWaitMs,
-    timers: deps.guardTimers,
+  const waits: BackgroundWaitCallbacks = {
+    onWaitEnded: releaseWait,
     // F5: work finished but CC never delivered the notification (old-CLI same-turn completions /
     // killed tasks). The model already saw the outcome inside the turn — nothing more will stream,
     // so seal as a normal completion.
     onGraceTimeout: () => { log.info('web bg-hold grace timeout — sealing session idle'); seal(); },
-    // F6: a legitimately never-ending task (tunnel / monitor) exceeded the max-wait cap. The guard
-    // has already released the busy bracket; publish running:false so the session is not held
-    // "running" forever, but KEEP the sink registered (do not set `sealed`) so a very late
-    // continuation still streams as new messages and re-seals.
+    // F6: a legitimately never-ending task (tunnel / monitor) exceeded the max-wait cap. The
+    // bracket is already released; publish running:false so the session is not held "running"
+    // forever, but KEEP the sink registered (do not set `sealed`) so a very late continuation still
+    // streams as new messages and re-seals.
     onMaxWait: () => {
       if (sealed) return;
       log.info('web bg-hold max-wait cap — releasing (sink kept for a late continuation)');
       deps.publishStatus({ running: false, backgroundRunning: false });
     },
-  });
+  };
 
   const sink: ContinuationSink = {
-    // The wait is over once the continuation turn opens; its length is unbounded (a 93-minute
-    // continuation was observed 2026-09-06), so the watchdogs must not fire mid-turn.
-    onTurnOpen: () => guard.pause(),
     // A background subagent finishes AFTER the turn that spawned it has ended, so its output
     // arrives here rather than through the in-turn path. Dropping the attribution at this seam
     // published the subagent's final report as the agent's own prose, in the NEXT turn.
@@ -181,12 +176,11 @@ export function holdWebForBg(deps: WebBgHoldDeps): boolean {
       const running = cont.pendingBackgroundTasks ?? 0;
       const undelivered = cont.undeliveredBackgroundTasks ?? 0;
       if (running + undelivered > 0) {
-        // Chained background work: re-arm the guard and keep holding. Once the guard has settled
-        // (sealed, or released at the max-wait cap) it cannot re-arm, so publishing running:true
+        // Chained background work: keep holding — the run re-arms its own bound. Once the wait ended
+        // (sealed, or released at the max-wait cap) it cannot come back, so publishing running:true
         // here would leave the session "running" with nothing left to seal it (observed
         // 2026-09-06); the sink still streams and a final 0-remaining result re-seals.
-        if (guard.settled) return;
-        guard.rearm(running, undelivered);
+        if (waitReleased) return;
         deps.publishStatus({ running: true, backgroundRunning: true });
       } else {
         seal();
@@ -194,7 +188,7 @@ export function holdWebForBg(deps: WebBgHoldDeps): boolean {
     },
   };
 
-  deps.registerSink(sink);
+  deps.registerSink(sink, waits);
   // Stop button: the foreground execution is already gone from the live-run registry by the time we
   // get here, so the channel-keyed cancel path has nothing to kill and used to no-op. Expose the
   // seal so it can end the hold explicitly (the cancel path also kills the backend process that

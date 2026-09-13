@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import { handleAgentSuccess } from '../../src/orchestration/lifecycle.js';
 import { MockAdapter, MockOutputStream } from '../../src/platform/testing.js';
 import type { ContinuationSink } from '../../src/agent-adapter/types.js';
+import type { BackgroundWaitCallbacks } from '../../src/domain/runs/continuation-sink.js';
 import { costRepo } from '../../src/domain/costs/cost-tracker.js';
 
 function baseResult(overrides: Record<string, unknown> = {}) {
@@ -30,6 +31,10 @@ function harness() {
   const stream = new MockOutputStream(adapter, { type: 'interactive-reply', conduit: 'slack:D1', sessionId: '' });
   const onAssistantMessage = Object.assign((_t: string) => {}, { stream });
   let sink: ContinuationSink | null = null;
+  // The RUN owns the grace / max-wait bounds (which one it arms, and pausing them while a
+  // continuation streams, are pinned in tests/runs/service.test.ts). Here we deliver its verdict
+  // directly, so these tests no longer depend on env-tuned wall-clock timers at all.
+  let waits: BackgroundWaitCallbacks | null = null;
   const contexts: number[] = [];
   const args = {
     channel: 'slack:D1', adapter: adapter as any, statusMsg: statusMsg as any,
@@ -38,16 +43,20 @@ function harness() {
     projectId: 'cortex-self', threadAnchorId: null, userMessageTs: null,
     onAssistantMessage: onAssistantMessage as any, onToolUse: null,
     onContextUsage: (usage: { contextWindow: number }) => contexts.push(usage.contextWindow),
-    registerContinuationSink: (s: ContinuationSink) => { sink = s; },
+    registerContinuationSink: (s: ContinuationSink, w: BackgroundWaitCallbacks) => { sink = s; waits = w; },
   };
   const lastStatus = () => (adapter.updated.at(-1)?.content?.text ?? '') as string;
-  return { adapter, args, contexts, lastStatus, getSink: () => sink };
+  return {
+    adapter, args, contexts, lastStatus, getSink: () => sink,
+    grace: () => { waits!.onWaitEnded?.(); waits!.onGraceTimeout?.(); },
+    maxWait: () => { waits!.onWaitEnded?.(); waits!.onMaxWait?.(); },
+  };
 }
 
-// The guard's grace/cap timers are env-injected to tiny values (50ms) and the rest is
-// real promise-chain settling, so fake timers buy nothing here. Poll for the observable
-// status instead of sleeping fixed padding. Returns quietly on timeout — the caller's
-// assertion then fails with its own message.
+// The timeout verdicts are delivered synchronously now; what is still asynchronous is the
+// promise chain each one kicks off (seal, cost, ledger). Poll for the observable status instead of
+// sleeping fixed padding. Returns quietly on timeout — the caller's assertion then fails with its
+// own message.
 async function waitFor(cond: () => boolean, timeoutMs = 2000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (!cond() && Date.now() < deadline) {
@@ -55,14 +64,7 @@ async function waitFor(cond: () => boolean, timeoutMs = 2000): Promise<void> {
   }
 }
 
-function withEnv(t: any, key: string, value: string | undefined) {
-  const prev = process.env[key];
-  if (value === undefined) delete process.env[key]; else process.env[key] = value;
-  t.onTestFinished(() => { if (prev === undefined) delete process.env[key]; else process.env[key] = prev; });
-}
-
-test('undelivered-only completions hold the status waiting and register a sink; continuation completes → sealed done', async (t) => {
-  withEnv(t, 'CORTEX_BG_GRACE_S', '600'); // long grace — must NOT fire during this test
+test('undelivered-only completions hold the status waiting and register a sink; continuation completes → sealed done', async () => {
   const h = harness();
 
   await handleAgentSuccess({ ...h.args, result: baseResult({ pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 1 }) } as any);
@@ -101,19 +103,18 @@ test('undelivered-only completions hold the status waiting and register a sink; 
   });
 });
 
-test('grace watchdog: no notification within grace → auto-finalized (status sealed, no hang)', async (t) => {
-  withEnv(t, 'CORTEX_BG_GRACE_S', '0.05'); // 50ms grace
+test('grace watchdog: no notification within grace → auto-finalized (status sealed, no hang)', async () => {
   const h = harness();
 
   await handleAgentSuccess({ ...h.args, result: baseResult({ pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 1 }) } as any);
   assert.match(h.lastStatus(), /Background task running/i, 'initially waiting');
 
-  await waitFor(() => /Done/i.test(h.lastStatus())); // 50ms grace + settle
+  h.grace();
+  await waitFor(() => /Done/i.test(h.lastStatus()));
   assert.match(h.lastStatus(), /Done/i, 'grace timeout sealed the turn instead of waiting forever');
 });
 
-test('interrupted continuation (process death) → sealed with interruption note, not done', async (t) => {
-  withEnv(t, 'CORTEX_BG_GRACE_S', '600');
+test('interrupted continuation (process death) → sealed with interruption note, not done', async () => {
   const h = harness();
 
   await handleAgentSuccess({ ...h.args, result: baseResult({ pendingBackgroundTasks: 1 }) } as any);
@@ -127,15 +128,14 @@ test('interrupted continuation (process death) → sealed with interruption note
   assert.doesNotMatch(h.lastStatus(), /Background task running/i, 'no longer waiting');
 });
 
-test('max-wait cap: long-running task exceeds cap → status sealed as still-running, sink kept for late merge', async (t) => {
-  withEnv(t, 'CORTEX_BG_WAIT_MAX_S', '0.05'); // 50ms cap
-  withEnv(t, 'CORTEX_BG_GRACE_S', '600');
+test('max-wait cap: long-running task exceeds cap → status sealed as still-running, sink kept for late merge', async () => {
   const h = harness();
 
   await handleAgentSuccess({ ...h.args, result: baseResult({ pendingBackgroundTasks: 1 }) } as any);
   assert.ok(h.getSink(), 'sink registered');
 
-  await waitFor(() => /still running/i.test(h.lastStatus())); // 50ms cap + settle
+  h.maxWait();
+  await waitFor(() => /still running/i.test(h.lastStatus()));
   assert.match(h.lastStatus(), /still running/i, 'cap sealed the status with a still-running note');
 
   // A very late continuation still finalizes cleanly (sink was kept).

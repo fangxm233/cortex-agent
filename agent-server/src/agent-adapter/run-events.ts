@@ -82,6 +82,11 @@ export type RunEvent =
   | { type: 'run_fallback'; from: AttemptLabel; to: AttemptLabel; reason: string }
   | { type: 'foreground_result'; result: AgentResult }
   | { type: 'background_result'; result: AgentResult }
+  // The run's own background watchdog gave up waiting. `grace` = finished-but-unnotified work
+  // never produced its notification (the backend does not always send one), so the run finalizes.
+  // `max-wait` = still-running work passed the cap (a tunnel, a monitor); the run stays in the
+  // background phase and keeps listening, but stops holding anything open on its behalf.
+  | { type: 'background_timeout'; reason: 'grace' | 'max-wait' }
   | { type: 'error'; message: string; fatal: boolean };
 
 /** Compile-time guard: a future `NormalizedEvent` member makes `toRunEvent` fail to typecheck

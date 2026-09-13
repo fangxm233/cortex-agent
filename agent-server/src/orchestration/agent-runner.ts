@@ -45,7 +45,7 @@ import { runRegistry } from '@core/run-registry.js';
 import { recordDirectResume } from '@domain/runs/observers/resume-recorder.js';
 import { getAgent } from '@domain/threads/index.js';
 import { runConversation } from './conversation-runner.js';
-import { runToContinuationSink } from '@domain/runs/continuation-sink.js';
+import { runToContinuationSink, type BackgroundWaitCallbacks } from '@domain/runs/continuation-sink.js';
 import type { AgentRun } from '@domain/runs/run.js';
 import type { RunEvent } from '@domain/runs/events.js';
 import type { RunObserver } from '@domain/runs/request.js';
@@ -480,6 +480,9 @@ export class AgentRunner {
           case 'subagent_activity':
           case 'plan_written':
           case 'plan_mode_entered':
+          // The run's background watchdog giving up is a lifecycle fact, not transcript content:
+          // the hold observers react to it, the foreground transcript has nothing to record.
+          case 'background_timeout':
             return;
           default:
             // assistant_text / tool_result / todo_update / context_usage / subagent_end
@@ -549,7 +552,7 @@ export class AgentRunner {
       // Background-task continuation: if the turn left background work remaining (running OR
       // finished-but-unnotified) and the feature is enabled for this interactive channel, keep
       // the streaming callback alive so the spontaneous continuation turn merges into the same
-      // reply (handleAgentSuccess holds the status, registers a sink, and arms the bg-wait-guard).
+      // reply (handleAgentSuccess holds the status and subscribes to the run's background phase).
       // Otherwise clear the callback as usual.
       const proc = convResult.agentProcess as { setContinuationSink?: (s: ContinuationSink) => void } | undefined;
       const canSink = typeof proc?.setContinuationSink === 'function';
@@ -566,7 +569,9 @@ export class AgentRunner {
         continuationToolUse: composeToolUse(callbacks.onToolUse, persistToolUse),
         continuationToolResult: persistToolResult,
         continuationContextUsage: persistContinuationContext,
-        registerContinuationSink: holdForBg && run ? (sink: ContinuationSink) => { runToContinuationSink(run, sink); } : null,
+        registerContinuationSink: holdForBg && run
+          ? (sink: ContinuationSink, waits) => { runToContinuationSink(run, sink, waits); }
+          : null,
       });
       // Web background-task hold: the Slack/Feishu status-message hold (above) never fires for a
       // web: channel. Keep the session marked running+backgroundRunning and stream the spontaneous
@@ -575,7 +580,7 @@ export class AgentRunner {
         const sid = sessionId;
         webBgHeld = holdWebForBg({
           result: convResult.result,
-          registerSink: (sink) => { if (run) runToContinuationSink(run, sink); },
+          registerSink: (sink, waits) => { if (run) runToContinuationSink(run, sink, waits); },
           // Stop during the hold: the cancel path finds the hold by channel in this registry and
           // fires the abort to seal it (see core/run-registry.ts).
           // This hold owns STATUS, not work: its seal releases the busy bracket and publishes
@@ -702,7 +707,7 @@ async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, s
   continuationToolUse: ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null;
   continuationToolResult: ((toolUseId: string, content: string, isError: boolean) => void) | null;
   continuationContextUsage: ((usage: ContextUsage) => void) | null;
-  registerContinuationSink?: ((sink: ContinuationSink) => void) | null;
+  registerContinuationSink?: ((sink: ContinuationSink, waits: BackgroundWaitCallbacks) => void) | null;
 }): Promise<void> {
   if (result?.rateLimited) {
     // Record the interrupted conversation so it auto-resumes when the rate-limit window

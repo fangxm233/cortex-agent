@@ -310,6 +310,135 @@ test('startRun enters the background phase and settles after the continuation re
   assert.deepEqual(phaseEvents(seen.events), ['background', 'done']);
 });
 
+// ── the background watchdog (P4.1c) ──────────────────────────────────────
+//
+// The run owns the grace / max-wait bounds. Before P4.1c they lived in each SURFACE's hold, so a
+// run whose hold sealed its own status and walked away stayed in `background` forever: execution
+// record `running`, registry entry present, session reported busy — with nothing left that could
+// ever end it.
+
+const GRACE_MS = 90_000;
+const MAX_WAIT_MS = 1_800_000;
+
+async function startHeldRun(result: Partial<AgentResult>) {
+  const process = makeFakeProcess({
+    events: [{ type: 'session_started', sessionId: 'backend-1' }],
+    result: defaultResult('backend-1', { finalOutput: 'fg', ...result }),
+  });
+  holder.adapter = makeFakeAdapter(process);
+  const seen = collector();
+  const run = startRun(makeRequest(), [seen.observer]);
+  await run.result;
+  return { process, seen, run };
+}
+
+test('grace: unnotified background work finalizes the run instead of waiting forever', async () => {
+  vi.useFakeTimers();
+  try {
+    const { seen, run } = await startHeldRun({ pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 1 });
+    assert.equal(run.phase, 'background');
+    assert.ok(runRegistry.getById(run.executionId), 'held while waiting');
+
+    await vi.advanceTimersByTimeAsync(GRACE_MS + 1);
+
+    assert.deepEqual(
+      seen.events.filter((e) => e.type === 'background_timeout'),
+      [{ type: 'background_timeout', reason: 'grace' }],
+    );
+    assert.equal(run.phase, 'done');
+    assert.equal(run.status, 'completed');
+    assert.equal(runRegistry.getById(run.executionId), null, 'registry entry released');
+    assert.equal(executionRegistry.getExecution(run.executionId)?.status, 'completed');
+    assert.equal((await run.settled).finalOutput, 'fg');
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test('max-wait: a never-ending task stops the wait but NOT the run', async () => {
+  vi.useFakeTimers();
+  try {
+    const { process, seen, run } = await startHeldRun({ pendingBackgroundTasks: 1 });
+
+    await vi.advanceTimersByTimeAsync(GRACE_MS + 1);
+    assert.equal(seen.events.some((e) => e.type === 'background_timeout'), false,
+      'running work is bounded by the cap, not the grace period');
+
+    await vi.advanceTimersByTimeAsync(MAX_WAIT_MS);
+    assert.deepEqual(
+      seen.events.filter((e) => e.type === 'background_timeout'),
+      [{ type: 'background_timeout', reason: 'max-wait' }],
+    );
+    // The cap releases the WAIT, not the run: a tunnel that finishes an hour later still lands.
+    assert.equal(run.phase, 'background');
+    assert.ok(runRegistry.getById(run.executionId), 'still registered after the cap');
+
+    process.continuationSink!.onResult(defaultResult('backend-1', { pendingBackgroundTasks: 0, finalOutput: 'late' }));
+    assert.equal((await run.settled).finalOutput, 'late');
+    assert.equal(run.phase, 'done');
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test('an open continuation turn pauses the watchdog — its length is unbounded', async () => {
+  vi.useFakeTimers();
+  try {
+    const { process, seen, run } = await startHeldRun({ pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 1 });
+
+    // The spontaneous turn opens just before the grace period would have expired.
+    process.continuationSink!.onTurnOpen!();
+    await vi.advanceTimersByTimeAsync(MAX_WAIT_MS * 2);
+
+    assert.equal(seen.events.some((e) => e.type === 'background_timeout'), false,
+      'a watchdog that fires mid-turn would seal a turn that is actively streaming');
+    assert.equal(run.phase, 'background');
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test('chained background work re-arms the watchdog with the new counts', async () => {
+  vi.useFakeTimers();
+  try {
+    const { process, seen, run } = await startHeldRun({ pendingBackgroundTasks: 1 });
+
+    // The continuation turn reports MORE work, of the unnotified kind: the bound changes from the
+    // 30-minute cap to the 90-second grace period.
+    process.continuationSink!.onTurnOpen!();
+    process.continuationSink!.onResult(defaultResult('backend-1', {
+      pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 2, finalOutput: 'chained',
+    }));
+    assert.equal(run.phase, 'background', 'work remains, so the run keeps holding');
+
+    await vi.advanceTimersByTimeAsync(GRACE_MS + 1);
+    assert.deepEqual(
+      seen.events.filter((e) => e.type === 'background_timeout'),
+      [{ type: 'background_timeout', reason: 'grace' }],
+    );
+    assert.equal(run.phase, 'done');
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test('an expired wait never re-arms: the cap means stop waiting, not restart the clock', async () => {
+  vi.useFakeTimers();
+  try {
+    const { process, seen, run } = await startHeldRun({ pendingBackgroundTasks: 1 });
+    await vi.advanceTimersByTimeAsync(MAX_WAIT_MS);
+    assert.equal(seen.events.filter((e) => e.type === 'background_timeout').length, 1);
+
+    process.continuationSink!.onResult(defaultResult('backend-1', { pendingBackgroundTasks: 3, finalOutput: 'more' }));
+    await vi.advanceTimersByTimeAsync(MAX_WAIT_MS * 3);
+    assert.equal(seen.events.filter((e) => e.type === 'background_timeout').length, 1,
+      'one cap per run, not one per report');
+    assert.equal(run.phase, 'background');
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 // ── cancel ───────────────────────────────────────────────────────────────
 
 test('cancel() kills the process, closes the record and reaches the cancelled terminal', async () => {

@@ -9,7 +9,6 @@ queueing, mid-turn injection, background holds and execution lifecycle.
 | agent-runner.test.ts | test | Covers routing, download reuse and supersession |
 | ask-user-question-pi.test.ts | test | Covers native PI and MCP-over-PI answer routing |
 | bg-continuation.test.ts | test | Covers reset-isolated continuation dispatch |
-| bg-wait-guard.test.ts | test | Covers background wait bracket, grace and cap |
 | busy-tracker.test.ts | test | Covers busy counter publish and aggregation |
 | cancel-bg-hold.test.ts | test | Covers stopping and superseding background holds, and the channel→session bridge that cancels delegated `agent` runs |
 | channel-queue.test.ts | test | Covers per-channel queue serialization |

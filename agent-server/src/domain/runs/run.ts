@@ -22,6 +22,7 @@ import {
   type RunEvent, type RunPhase,
 } from './events.js';
 import type { RunObserver, RunRequest, RunResult } from './request.js';
+import { getBgGraceMs, getBgMaxWaitMs } from '../../agent-adapter/bg-wait.js';
 
 const log = createLogger('run');
 
@@ -96,6 +97,22 @@ export interface RunTerminalInfo {
 /** The slice of facade.runAgent the run depends on. Injectable for tests and P2. */
 export type RunAgentFn = (message: string, options: RunAgentOptions) => AgentHandle;
 
+/** Timer seam for the background watchdog. Production timers are unref'd so a waiting run can
+ *  never be the reason the process stays alive. */
+export interface RunTimers {
+  set: (fn: () => void, ms: number) => unknown;
+  clear: (handle: unknown) => void;
+}
+
+const realTimers: RunTimers = {
+  set: (fn, ms) => {
+    const handle = setTimeout(fn, ms);
+    (handle as { unref?: () => void }).unref?.();
+    return handle;
+  },
+  clear: (handle) => clearTimeout(handle as NodeJS.Timeout),
+};
+
 export interface CreateAgentRunArgs {
   request: RunRequest;
   observers: RunObserver[];
@@ -107,6 +124,10 @@ export interface CreateAgentRunArgs {
   startedAt: number;
   /** Override for tests; defaults to facade.runAgent. */
   runAgentFn?: RunAgentFn;
+  /** Background-watchdog seams. Tests drive grace / max-wait deterministically. */
+  timers?: RunTimers;
+  graceMs?: number;
+  maxWaitMs?: number;
 }
 
 function asError(error: unknown): Error {
@@ -261,6 +282,9 @@ export class AgentRunImpl implements AgentRun {
   private readonly onTerminal: (info: RunTerminalInfo) => void;
   private readonly startedAt: number;
   private readonly runAgentFn: RunAgentFn;
+  private readonly timers: RunTimers;
+  private readonly graceMs: number;
+  private readonly maxWaitMs: number;
   private readonly settleDeferred = deferred<RunResult>();
   private readonly resultDeferred = deferred<RunResult>();
 
@@ -275,6 +299,11 @@ export class AgentRunImpl implements AgentRun {
   private terminal = false;
   private observersClosed = false;
   private cancelRequested = false;
+  /** Live background-watchdog timer, or null when nothing is being waited on. */
+  private bgTimer: unknown = null;
+  /** True once a watchdog fired. A run whose wait has expired never re-arms: the max-wait cap
+   *  means "stop holding anything open for this", not "restart the clock on the next report". */
+  private bgWaitExpired = false;
 
   constructor(args: CreateAgentRunArgs) {
     this.request = args.request;
@@ -288,6 +317,9 @@ export class AgentRunImpl implements AgentRun {
     this.onTerminal = args.onTerminal;
     this.startedAt = args.startedAt;
     this.runAgentFn = args.runAgentFn ?? runAgent;
+    this.timers = args.timers ?? realTimers;
+    this.graceMs = args.graceMs ?? getBgGraceMs();
+    this.maxWaitMs = args.maxWaitMs ?? getBgMaxWaitMs();
     this.result = this.resultDeferred.promise;
     this.settled = this.settleDeferred.promise;
     // Both promises reject on a failed/cancelled run, and not every caller awaits both (a surface
@@ -517,6 +549,13 @@ export class AgentRunImpl implements AgentRun {
         this.backgroundResult = event.result;
         this.absorbResultCounts(event.result);
         break;
+      case 'phase':
+        // The ONLY `phase: background` reaching absorb() is the adapter's `onTurnOpen` — the run's
+        // own entry marker is fanned out directly from onForegroundResult. A continuation turn has
+        // opened, and its length is unbounded (a 93-minute one was observed 2026-09-06), so the
+        // watchdogs must not fire mid-turn. The turn's own result re-arms or settles.
+        if (event.phase === 'background') this.clearBackgroundWait();
+        break;
       default:
         break;
     }
@@ -524,6 +563,12 @@ export class AgentRunImpl implements AgentRun {
     if (event.type === 'background_result') {
       if (event.result.backgroundInterrupted || remainingBg(event.result) === 0) {
         this.finishTerminal(event.result.rateLimited ? 'rate-limited' : 'completed', event.result);
+      } else {
+        // Chained background work: the continuation reported more to wait for.
+        this.armBackgroundWait(
+          event.result.pendingBackgroundTasks ?? 0,
+          event.result.undeliveredBackgroundTasks ?? 0,
+        );
       }
     }
     // A post-result injection keeps the run in `background` until its spontaneous turn results.
@@ -560,6 +605,51 @@ export class AgentRunImpl implements AgentRun {
     if (result.sessionId) this.backendSessionIdValue = result.sessionId;
   }
 
+  // ── background watchdog ────────────────────────────────────────────────
+  //
+  // The run owns this because the run is the only thing that knows when the background phase
+  // begins and ends. It used to live in each SURFACE's hold (bg-wait-guard, armed once by the
+  // Slack status hold and once by the web one), which meant a run with no hold — or a hold that
+  // sealed its own status and walked away — waited forever: phase stuck on `background`, execution
+  // record stuck on `running`, registry entry never removed.
+  //
+  // Two bounds, and they are not interchangeable:
+  //   grace     finished-but-unnotified work. The backend does not always deliver the
+  //             notification (same-turn completions on old CLIs never do; killed tasks never do).
+  //             The model already saw the outcome inside the turn, so nothing more will stream —
+  //             give up after a short wait and finalize as a normal completion.
+  //   max-wait  still-running work. A tunnel or a monitor legitimately never ends, so the cap
+  //             stops the run holding anything open on its behalf — but it does NOT finalize:
+  //             the run stays in the background phase and a very late continuation still arrives.
+
+  private armBackgroundWait(running: number, undelivered: number): void {
+    this.clearBackgroundWait();
+    if (this.terminal || this.bgWaitExpired) return;
+    if (running > 0) {
+      this.bgTimer = this.timers.set(() => this.onBackgroundTimeout('max-wait'), this.maxWaitMs);
+    } else if (undelivered > 0) {
+      this.bgTimer = this.timers.set(() => this.onBackgroundTimeout('grace'), this.graceMs);
+    }
+  }
+
+  private clearBackgroundWait(): void {
+    if (this.bgTimer === null) return;
+    this.timers.clear(this.bgTimer);
+    this.bgTimer = null;
+  }
+
+  private onBackgroundTimeout(reason: 'grace' | 'max-wait'): void {
+    if (this.terminal) return;
+    this.bgTimer = null;
+    this.bgWaitExpired = true;
+    this.fanOut({ type: 'background_timeout', reason });
+    if (this.terminal) return;
+    if (reason === 'grace') {
+      const result = this.backgroundResult ?? this.foregroundResult;
+      this.finishTerminal(result?.rateLimited ? 'rate-limited' : 'completed', result);
+    }
+  }
+
   // ── terminal transitions ───────────────────────────────────────────────
 
   private onForegroundResult(result: RunResult): void {
@@ -586,6 +676,7 @@ export class AgentRunImpl implements AgentRun {
       this.phaseValue = 'background';
       this.statusValue = 'background';
       this.fanOut({ type: 'phase', phase: 'background', pendingBackground, undeliveredBackground });
+      this.armBackgroundWait(pendingBackground, undeliveredBackground);
       return;
     }
     this.finishTerminal(result.rateLimited ? 'rate-limited' : 'completed', result);
@@ -620,6 +711,7 @@ export class AgentRunImpl implements AgentRun {
   private finishTerminal(status: RunStatus, result: RunResult | null, error?: Error): void {
     if (this.terminal) return;
     this.terminal = true;
+    this.clearBackgroundWait();
     this.statusValue = status;
     this.phaseValue = 'done';
     this.fanOut({ type: 'phase', phase: 'done', pendingBackground: 0, undeliveredBackground: 0 });

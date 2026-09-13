@@ -1,5 +1,5 @@
 // input:  AgentRun + legacy ContinuationSink (agent-adapter)
-// output: runToContinuationSink(run, sink) — a background-phase RunObserver mapped to the sink
+// output: runToContinuationSink(run, sink, waits) — a background-phase RunObserver mapped to the sink
 // pos:    domain/runs — lets legacy background holds subscribe to a run without owning
 //         proc.setContinuationSink (which AgentRun already installed).
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -19,7 +19,23 @@ import type { AgentRun } from './run.js';
  * directly; they subscribe here and receive the same callbacks they always did. P4.1 folds the hold
  * logic into the run and deletes this.
  */
-export function runToContinuationSink(run: AgentRun, sink: ContinuationSink): () => void {
+/** The three things a hold used to get from its own `bg-wait-guard`. The run owns the timers now
+ *  (it is the only thing that knows when the background phase starts and ends); these deliver its
+ *  verdict to the surface that renders it. */
+export interface BackgroundWaitCallbacks {
+  /** Unnotified work never reported in: the run has finalized, so seal as a normal completion. */
+  onGraceTimeout?: () => void;
+  /** Still-running work passed the cap: seal the status as "still running". The run stays in the
+   *  background phase, so a very late continuation still streams through this same sink. */
+  onMaxWait?: () => void;
+  /** The wait is over, whatever ended it — a timeout, a final result, an interruption. Fires
+   *  exactly once. This is the old guard's `settle()`: release the busy bracket here. */
+  onWaitEnded?: () => void;
+}
+
+export function runToContinuationSink(
+  run: AgentRun, sink: ContinuationSink, waits: BackgroundWaitCallbacks = {},
+): () => void {
   // A hold both streams and persists the background turn, so it owns those rows; any other observer
   // watching the same run (today: the mid-turn injection ledger) must not write them a second time.
   run.claimBackgroundTranscript();
@@ -29,6 +45,12 @@ export function runToContinuationSink(run: AgentRun, sink: ContinuationSink): ()
   // result therefore has one marker to skip; a caller that subscribes after (the P1.5 holds, which
   // register once `runConversation` returns) never sees it and this flag stays false.
   let enteringBackground = false;
+  let waitEnded = false;
+  const endWait = (): void => {
+    if (waitEnded) return;
+    waitEnded = true;
+    waits.onWaitEnded?.();
+  };
 
   const observer: RunObserver = {
     onEvent(event: RunEvent): void {
@@ -36,7 +58,14 @@ export function runToContinuationSink(run: AgentRun, sink: ContinuationSink): ()
         case 'foreground_result':
           enteringBackground = true;
           return;
+        case 'background_timeout':
+          // Order matches the guard this replaced: release the bracket, then report the verdict.
+          endWait();
+          if (event.reason === 'grace') waits.onGraceTimeout?.();
+          else waits.onMaxWait?.();
+          return;
         case 'phase':
+          if (event.phase === 'done') { endWait(); return; }
           if (event.phase !== 'background') return;
           if (enteringBackground) {
             enteringBackground = false;

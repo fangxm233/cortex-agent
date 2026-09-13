@@ -184,35 +184,34 @@ test('buildContinuationSink: backgroundInterrupted falls back to onComplete when
 });
 
 // F5 routing (2026-07-10): work-done-but-unnotified tasks keep the turn in waiting (with a
-// grace watchdog upstream), reported alongside truly-running ones with the split detail.
-test('buildContinuationSink: undelivered-only result → onWaiting with combined count + split', () => {
+// grace watchdog upstream), reported alongside truly-running ones as one combined count. Which
+// BOUND that new work gets (grace vs cap) is the run's decision, not the surface's.
+test('buildContinuationSink: undelivered-only result → onWaiting with the combined count', () => {
   const { stream } = makeStream();
   let waited = -1;
-  let split: any = null;
+
   const sink = buildContinuationSink({
     stream,
-    onWaiting: (n, s) => { waited = n; split = s; },
+    onWaiting: (n) => { waited = n; },
     onComplete: () => {},
     onRateLimited: () => {},
   });
   sink.onResult({ pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 2 } as any);
   assert.equal(waited, 2, 'undelivered completions still count as remaining');
-  assert.deepEqual(split, { running: 0, undelivered: 2 });
 });
 
 test('buildContinuationSink: running + undelivered are summed for the waiting count', () => {
   const { stream } = makeStream();
   let waited = -1;
-  let split: any = null;
+
   const sink = buildContinuationSink({
     stream,
-    onWaiting: (n, s) => { waited = n; split = s; },
+    onWaiting: (n) => { waited = n; },
     onComplete: () => {},
     onRateLimited: () => {},
   });
   sink.onResult({ pendingBackgroundTasks: 1, undeliveredBackgroundTasks: 1 } as any);
   assert.equal(waited, 2);
-  assert.deepEqual(split, { running: 1, undelivered: 1 });
 });
 
 test('shouldHoldForBg: hold gates — remaining count, rate limit, channel scope, sink capability, feature flag', async () => {

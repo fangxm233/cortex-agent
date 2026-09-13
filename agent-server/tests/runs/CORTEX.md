@@ -15,4 +15,4 @@ observers' policies.
 | registry.test.ts | test | RunRegistry.sessionState combinations and the background-hold lifecycle |
 | resume-recorder.test.ts | test | recordDirectResume's throttle gate (and why an un-throttled 429 is terminal) vs recordThreadResume's unconditional record |
 | spec-loader.test.ts | test | bareSpec / fromAgentSlot / fromRole field by field, incl. the Claude MCP tool-name prefixing |
-| service.test.ts | test | startRun event order/phases, foreground→background→done, bookkeeping, cancel, observer safety |
+| service.test.ts | test | startRun event order/phases, foreground→background→done, the background watchdog (grace finalizes, the cap does not), bookkeeping, cancel, observer safety |

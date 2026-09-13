@@ -23,9 +23,9 @@ export interface ContinuationSinkDeps {
   /** Optional: the continuation turn opened — the caller pauses its wait watchdogs. */
   onTurnOpen?: (() => void) | null;
   /** Called when the continuation result still has background work remaining (chained /
-   *  undelivered tasks): keep the status waiting with the combined remaining count. The
-   *  split lets the caller re-arm the bg-wait-guard (grace vs max-wait). */
-  onWaiting: (remaining: number, split?: { running: number; undelivered: number }) => void;
+   *  undelivered tasks): keep the status waiting with the combined remaining count. Re-arming the
+   *  bound for that new work is the RUN's job, so only the count reaches the surface. */
+  onWaiting: (remaining: number) => void;
   /** Called when the continuation turn is rate-limited: seal the status as rate-limited
    *  and record for auto-resume, instead of leaving it in waiting or sealing as done. */
   onRateLimited: (result: AgentResult) => void;
@@ -59,7 +59,7 @@ export function buildContinuationSink(deps: ContinuationSinkDeps): ContinuationS
       if (result.rateLimited) { deps.onRateLimited(result); return; }
       const running = result.pendingBackgroundTasks ?? 0;
       const undelivered = result.undeliveredBackgroundTasks ?? 0;
-      if (running + undelivered > 0) deps.onWaiting(running + undelivered, { running, undelivered });
+      if (running + undelivered > 0) deps.onWaiting(running + undelivered);
       else deps.onComplete(result);
     },
   };

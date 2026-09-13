@@ -1,5 +1,5 @@
-// input:  web background hold, resume callback, injected timers
-// output: status, resume, guard, timeout, and seal regressions
+// input:  web background hold, resume callback, the run's background-wait verdict
+// output: status, resume, timeout, and seal regressions
 // pos:    Web background-task hold unit tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -8,8 +8,7 @@ import assert from 'node:assert/strict';
 
 import { holdWebForBg } from '../../src/orchestration/web-bg-hold.js';
 import type { ContinuationSink } from '../../src/agent-adapter/types.js';
-
-interface FakeTimer { fn: () => void; ms: number; id: number }
+import type { BackgroundWaitCallbacks } from '../../src/domain/runs/continuation-sink.js';
 
 function makeHarness() {
   const statuses: Array<{ running: boolean; backgroundRunning: boolean }> = [];
@@ -21,20 +20,16 @@ function makeHarness() {
   const track: number[] = [];
   let resumable = true;
   let sink: ContinuationSink | null = null;
-
-  let pending: FakeTimer | null = null;
-  let nextId = 1;
-  const timers = {
-    set: (fn: () => void, ms: number): unknown => { const id = nextId++; pending = { fn, ms, id }; return id; },
-    clear: (id: unknown): void => { if (pending && pending.id === id) pending = null; },
-  };
+  // The run owns the grace / max-wait timers (tests/runs/service.test.ts pins WHICH bound it picks);
+  // the hold only reacts to the verdict, so the harness delivers it straight.
+  let waits: BackgroundWaitCallbacks | null = null;
 
   let abort: (() => void) | null = null;
 
   const install = (result: any): boolean =>
     holdWebForBg({
       result,
-      registerSink: (s) => { sink = s; },
+      registerSink: (s, w) => { sink = s; waits = w; },
       registerAbort: (a) => { abort = a; },
       track: (d) => track.push(d),
       publishStatus: (p) => statuses.push(p),
@@ -43,7 +38,6 @@ function makeHarness() {
       publishContextUsage: (usage) => contexts.push(usage.contextWindow),
       publishNotice: (text, level, action) => { notices.push({ text, level, action }); },
       onRateLimited: (continuation) => { rateLimits.push(continuation); return resumable; },
-      guardTimers: timers,
     });
 
   return {
@@ -52,8 +46,9 @@ function makeHarness() {
     setResumable: (value: boolean) => { resumable = value; },
     get sink() { return sink!; },
     get abort() { return abort; },
-    get pendingMs() { return pending?.ms ?? null; },
-    fire: () => { if (pending) { const f = pending.fn; pending = null; f(); } },
+    get waits() { return waits!; },
+    grace: () => { waits!.onWaitEnded?.(); waits!.onGraceTimeout?.(); },
+    maxWait: () => { waits!.onWaitEnded?.(); waits!.onMaxWait?.(); },
   };
 }
 
@@ -107,11 +102,10 @@ test('holdWebForBg: chained continuation (remaining>0) → re-publish held state
   assert.deepEqual(h.track, [+1, -1]);
 });
 
-test('holdWebForBg: undelivered-only → grace timer; firing it seals idle', () => {
+test('holdWebForBg: the run\'s grace verdict seals the session idle', () => {
   const h = makeHarness();
   h.install({ pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 2 });
-  assert.equal(h.pendingMs, 90_000, 'grace watchdog armed (default 90s)');
-  h.fire();
+  h.grace();
   assert.deepEqual(h.statuses.at(-1), { running: false, backgroundRunning: false }, 'grace seal');
   assert.deepEqual(h.track, [+1, -1]);
 });
@@ -119,8 +113,7 @@ test('holdWebForBg: undelivered-only → grace timer; firing it seals idle', () 
 test('holdWebForBg: max-wait cap → publish running:false but keep sink for a late continuation', () => {
   const h = makeHarness();
   h.install({ pendingBackgroundTasks: 1 });
-  assert.equal(h.pendingMs, 1_800_000, 'max-wait cap armed (default 30min)');
-  h.fire();
+  h.maxWait();
   assert.deepEqual(h.statuses.at(-1), { running: false, backgroundRunning: false }, 'released to idle');
   assert.deepEqual(h.track, [+1, -1], 'bracket released at the cap');
   // A very late continuation still streams and re-seals (no throw).
@@ -216,7 +209,6 @@ test('holdWebForBg: abort → seals idle and releases the busy bracket (Stop is 
   h.abort!();
   assert.deepEqual(h.statuses.at(-1), { running: false, backgroundRunning: false }, 'sealed on Stop');
   assert.deepEqual(h.track, [+1, -1], 'busy bracket balanced');
-  assert.equal(h.pendingMs, null, 'guard timer cleared');
 });
 
 test('holdWebForBg: abort is idempotent and wins over a later interrupt/continuation seal', () => {
@@ -234,7 +226,7 @@ test('holdWebForBg: abort is idempotent and wins over a later interrupt/continua
 test('holdWebForBg: abort after a max-wait release still seals only once', () => {
   const h = makeHarness();
   h.install({ pendingBackgroundTasks: 1 });
-  h.fire(); // max-wait cap: publishes running:false but keeps the sink (not sealed)
+  h.maxWait(); // publishes running:false but keeps the sink (not sealed)
   const after = h.statuses.length;
   h.abort!();
   assert.deepEqual(h.statuses.at(-1), { running: false, backgroundRunning: false });
@@ -242,21 +234,16 @@ test('holdWebForBg: abort after a max-wait release still seals only once', () =>
   assert.deepEqual(h.track, [+1, -1], 'bracket not double-released');
 });
 
-// The wait watchdogs bound the WAIT for the continuation, not the continuation: a turn that
-// opens and then runs longer than the grace/max-wait window must not be sealed idle mid-stream
-// (2026-09-06: a 93-minute continuation streamed into a session already flipped to idle).
-test('holdWebForBg: continuation turn opening pauses the watchdog; its result re-arms or seals', () => {
+// Which BOUND the wait gets, and pausing it while a continuation streams, are the RUN's job now
+// (tests/runs/service.test.ts). What stays here: a chained continuation keeps the session held,
+// and only a 0-remaining result seals it.
+test('holdWebForBg: chained work keeps the hold; the final result seals it', () => {
   const h = makeHarness();
   h.install({ pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 1 });
-  assert.equal(h.pendingMs, 90_000, 'grace armed while waiting for the turn');
-  h.sink.onTurnOpen!();
-  assert.equal(h.pendingMs, null, 'no watchdog while the continuation streams');
-  assert.deepEqual(h.track, [+1], 'busy bracket still held');
+  assert.deepEqual(h.track, [+1], 'busy bracket held for the whole window');
   h.sink.onAssistantText('working…');
   h.sink.onResult({ pendingBackgroundTasks: 1 } as any);
-  assert.equal(h.pendingMs, 1_800_000, 'chained work re-arms the cap');
-  assert.deepEqual(h.statuses.at(-1), { running: true, backgroundRunning: true });
-  h.sink.onTurnOpen!();
+  assert.deepEqual(h.statuses.at(-1), { running: true, backgroundRunning: true }, 'still held');
   h.sink.onResult({ pendingBackgroundTasks: 0 } as any);
   assert.deepEqual(h.statuses.at(-1), { running: false, backgroundRunning: false }, 'sealed by the final result');
   assert.deepEqual(h.track, [+1, -1]);
@@ -265,7 +252,7 @@ test('holdWebForBg: continuation turn opening pauses the watchdog; its result re
 test('holdWebForBg: after a seal, a late continuation reporting more work does not flip running back on', () => {
   const h = makeHarness();
   h.install({ pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 1 });
-  h.fire(); // grace seal
+  h.grace();
   assert.deepEqual(h.statuses.at(-1), { running: false, backgroundRunning: false });
   const after = h.statuses.length;
   h.sink.onAssistantText('late');

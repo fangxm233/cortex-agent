@@ -11,7 +11,6 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | outputs-store.ts | core | shared workspace outputs placement and filename discipline |
 | agent-runner.ts | core | Routes turns with transcript tool metadata |
 | bg-continuation.ts | helper | forwards background continuation output |
-| bg-wait-guard.ts | guard | bounds the background task waiting window |
 | busy-tracker.ts | tracker | counts active LLM runs and signals busy state |
 | conduit-queue.ts | queue | serializes work per conduit |
 | conversation-runner.ts | runner | builds the plain-turn RunRequest and runs it through startRun |
@@ -41,6 +40,6 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | transcript-sink.ts | core | single history+publish observer for the RunEvent stream, plus the mid-turn injection ledger that persists/commits injected messages from injection events |
 | turn-mutation-lock.ts | guard | grants per-channel mutation leases |
 | turn-notify.ts | notify | applies settings and notifies completed long turns |
-| web-bg-hold.ts | helper | holds Web turns, forwards continuation limits, owns the continuation's rate-limit notice |
+| web-bg-hold.ts | helper | holds Web turns, renders the run's grace/cap verdict, owns the continuation's rate-limit notice |
 | interactions/ | subdir | approvals, prompts, and user interaction handling |
 | routing/ | subdir | message, edit, file, and webhook routing |
