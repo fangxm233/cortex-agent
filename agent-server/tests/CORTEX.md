@@ -26,6 +26,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | agent-adapter-pi-web-search.test.ts | test | PI WebSearch routing and decoding |
 | agent-adapter-pi.test.ts | test | PI interaction env, in-process session lifecycle and resume |
 | agent-adapter.test.ts | test | adapter dispatch, native tools and event contracts |
+| subagent-attribution.test.ts | test | live child attribution: the pinned parent target and the no-refeed guard |
 | subagent-roles.test.ts | test | role frontmatter, per-backend tool translation, seeding and migration |
 | subagent-runner.test.ts | test | invocation validation, mode semantics, caps and backend precedence |
 | subagent-mcp-tool.test.ts | test | the `agent` MCP surface, webhook payloads and the child-is-a-leaf guards |
@@ -62,7 +63,8 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | daemon.test.ts | test | daemon import, rebuild and abort notice behavior |
 | disk-monitor.test.ts | test | disk path, hot toggle and alert decisions |
 | dispatch-utils-watcher.test.ts | test | machine config polling after watcher failure |
-| domain/ | subdir | domain service, agent-run, MCP and UI tests |
+| domain/ | subdir | domain service, run observer, MCP and UI tests |
+| engine-spec-fixture.ts | helper | Groups flat spawn-shaped test fixtures into EngineSpec |
 | entry/ | subdir | Runtime wiring and CLI entry-point tests |
 | events/ | subdir | event bus tests |
 | event-loop-monitor.test.ts | test | event-loop lag sampling, reset and stop lifecycle |
@@ -120,6 +122,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | restart-command.test.ts | test | server restart trigger and command route |
 | resume-registry.test.ts | test | provider-ready drains and waiting counts |
 | run-with-adapter.test.ts | test | tests attributed events, notices and waits |
+| runs/ | subdir | run event translation and continuation-sink adapter tests |
 | schedule-cli.test.ts | test | schedule API, CLI and fired lifecycle hooks |
 | scheduled-runner-jobs.test.ts | test | scheduled job dispatch, sync paths and isolation |
 | scheduled-target-dispatch.test.ts | test | scheduled target and fallback decisions |

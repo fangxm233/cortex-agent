@@ -21,8 +21,7 @@ import { WORKSPACE_DIR, CONFIG_DIR, DATA_DIR, STORE_DIR, DEFAULTS_DIR, CONTEXT_D
 import { loadRuntimeDotenv } from '@core/runtime-env.js';
 import { migrateEnvToSettings } from '@core/settings-migration.js';
 import { tryAcquireSingletonLock, releaseSingletonLock } from '@core/singleton-lock.js';
-import { closeAllSessions, closeSession as closePooledSession } from '@domain/agents/index.js';
-import { closeAllAdapters } from '../agent-adapter/index.js';
+import { engines } from '@domain/runs/engines.js';
 import { recoverTuiOrphans } from '../agent-adapter/claude/adapter.js';
 import { startWebhookServer } from '@orch/routing/webhook.js';
 import * as pendingTaskTracker from '@domain/tasks/pending-tracker.js';
@@ -54,9 +53,9 @@ import { conversationHistory } from '@store/conversation-history-repo.js';
 import { pendingInjectionRepo } from '@store/pending-injection-repo.js';
 import { executionRepo } from '@store/execution-repo.js';
 import { getThreadConfigRevision, loadConfig as loadThreadConfig, startConfigWatcher as startThreadConfigWatcher, setAdminNotifier as setConfigNotifier, migrateThreadTemplatesToDir, mergeThreadTemplates } from '@domain/threads/index.js';
-import { initializeProductionAttemptIdentity } from '@domain/agent-run/production-attempt-identity.js';
+import { initializeProductionAttemptIdentity } from '@domain/runs/observers/production-attempt-identity.js';
 import { startMemoryWatcher } from '@domain/memory/watcher.js';
-import { getActiveBackend, applyAuthEnv } from '@domain/agents/index.js';
+import { applyAuthEnv } from '@domain/agents/index.js';
 import { createEditHandler } from '@orch/routing/edit-handler.js';
 import { setLocale, normalizeLocale } from '@core/i18n.js';
 import { loadLang } from '@domain/system/preferences.js';
@@ -65,15 +64,14 @@ import { loadLang } from '@domain/system/preferences.js';
 import { ensureMcpConfig, shouldSyncManagedStartupAssets } from './startup-helpers.js';
 import { createLogger } from '@core/log.js';
 import { captureAuthTokensForRuntime, ensureAuthTokens } from '@core/auth.js';
-import { runningExecutions } from '@core/running-executions.js';
+import { runRegistry } from '@core/run-registry.js';
 import { getSettings, onSettingsChange } from '@core/settings.js';
-import { bgHeldSessions } from '@core/bg-held-sessions.js';
 import { sessionTodos } from '@core/session-todos.js';
 import { buildSessionRetentionLiveness } from '@core/session-retention-liveness.js';
 import { planApprovals } from '@orch/interactions/plan-approvals.js';
 import { busyTracker } from '@orch/busy-tracker.js';
 import { buildExecutionStatusReport } from '@orch/status-helpers.js';
-import { reprocessMessage } from '@orch/lifecycle.js';
+import { reprocessMessage } from '@orch/edit-retry.js';
 import { initScheduledRunner, initAuthExpiryScan, createScheduler, setSchedulerRef, setBus, setInteractiveCallbacksFactory, cancelDispatchedTask } from '@domain/scheduling/runner.js';
 import { startBuiltinJobs, stopBuiltinJobs } from '@domain/scheduling/builtin-jobs.js';
 import { migrateBuiltinJobSchedules } from '@domain/scheduling/builtin-job-migration.js';
@@ -86,7 +84,8 @@ import { CommandActionRouter } from '@orch/interactions/command-action-router.js
 import { createUpdatePrompt } from '@orch/interactions/update-prompt.js';
 import { registerMessageHandler } from '@orch/routing/message-router.js';
 import { initRateLimitThrottle, clearThrottle, RATE_LIMIT_CLEAR_ACTION_ID } from '@domain/costs/rate-limit-throttle.js';
-import { initResumeRegistry, getResumeCount, pendingDirectTrackSessionIds, recordResume } from '@domain/costs/resume-registry.js';
+import { initResumeRegistry, getResumeCount, pendingDirectTrackSessionIds } from '@domain/costs/resume-registry.js';
+import { recordThreadResume } from '@domain/runs/observers/resume-recorder.js';
 import {
   dispatchPendingResumes,
   registerResumeWakeOnAgentSettle,
@@ -121,6 +120,9 @@ import { createUiService } from '@domain/ui-service/index.js';
 import { activeClaudeCaptureRegistry } from '../agent-adapter/claude/active-capture-registry.js';
 import { sendWebUserMessage } from '../orchestration/session-send.js';
 import { setSubagentTurnSender } from '@orch/subagent-delivery.js';
+import { startBackgroundSubagent, stopBackgroundSubagent } from '@orch/pi-background-subagent.js';
+import { setPiBackgroundSubagentBridge } from '@domain/runs/adapters.js';
+import { resolveRunConfig } from '@domain/runs/config-resolver.js';
 import { rewindWebSession } from '../orchestration/session-rewind.js';
 import { compactActiveSessionContext, compactSessionContext } from '../orchestration/session-compact.js';
 import { recoverPendingInjections } from '../orchestration/pending-injection-recovery.js';
@@ -159,8 +161,8 @@ const log = createLogger('app');
 
 function retentionLiveness(): RetentionLivenessSnapshot {
   return buildSessionRetentionLiveness({
-    runningExecutions,
-    bgHeldSessions,
+    runningExecutions: runRegistry,
+    bgHeldSessions: runRegistry,
     interactionRecords,
     pendingDirectResumeSessionIds: pendingDirectTrackSessionIds(),
     threads: threadStore.getAll(),
@@ -301,10 +303,10 @@ setOnStale((requestId, channel) => {
   planApprovals.reject(requestId);
   askUserQuestion.deleteGroupByHookRequestId(requestId);
 });
-runningExecutions.setBus(bus);   // S6-A: wire lifecycle events
+runRegistry.setBus(bus);   // S6-A: wire lifecycle events
 // Web bg-hold snapshot: mirror every session.status event into the bg-held registry so
 // sessions.list can serve the held state as a queryable snapshot (snapshot + delta).
-bus.subscribe('session.status', (e) => bgHeldSessions.onSessionStatus(e));
+bus.subscribe('session.status', (e) => runRegistry.onSessionStatus(e));
 planApprovals.setBus(bus);  // S6-A: wire plan.approved events
 busyTracker.setBus(bus);    // S6-C: wire busy/idle IPC through event bus
 taskMutator.setBus(bus);    // c39d: wire task lifecycle events
@@ -385,13 +387,13 @@ const updatePrompt = createUpdatePrompt(adapter, commandRouter);
 commandRouter.bindToAdapter(adapter);
 
 const handleMessageEdit = createEditHandler({
-  activeAgents: runningExecutions,
+  activeAgents: runRegistry,
   reprocessMessage,
   // Both backends pool their subprocess per channel, and an alive pooled process keeps the
   // conversation history in memory — it would ignore the rolled-back JSONL on disk. Close it
   // here so the next runAgent spawns a fresh process against the rewound transcript. The close
   // is backend-neutral and a no-op for a key with no live session.
-  closePooledSession: (channel) => closePooledSession(channel),
+  closePooledSession: (channel) => { void engines.close(channel); },
 });
 
 // --- Register interaction handlers ---
@@ -416,7 +418,7 @@ process.on('SIGTERM', async () => {
   }).catch(() => {});
   await stopBuiltinJobs();
   await retentionController.stop().catch(() => {});
-  closeAllSessions(); closeAllAdapters().catch(() => {}); await stopClientManager(); stopMachineRegistryWatcher(); _stopProfileWatcher?.();
+  engines.closeAll(); await stopClientManager(); stopMachineRegistryWatcher(); _stopProfileWatcher?.();
   // A Chrome that outlives the daemon keeps the profile locked, so the next launch would attach to
   // an instance nothing is supervising.
   stopBrowser();
@@ -528,7 +530,7 @@ process.on('SIGTERM', async () => {
     executionRegistry,
     executionLogTailer,
     approvalsPath: path.join(CONTEXT_DIR, 'PENDING_APPROVALS.md'),
-    runningExecutions,
+    runningExecutions: runRegistry,
     costSummary: getCostSummary,
     conversationHistory,
     pendingInjections: pendingInjectionRepo,
@@ -594,9 +596,6 @@ process.on('SIGTERM', async () => {
     },
     // Transcript materialization liveness signal (pending rows with no live entry derive to expired).
     isInteractionPending: (id) => interactionRecords.isPending(id),
-    // Web bg-hold snapshot: sessions.list serves the held state so it survives session switches /
-    // app restarts (the registry mirrors session.status events — subscribed at the bus wiring above).
-    isSessionBgHeld: (sessionId) => bgHeldSessions.has(sessionId),
     // Web UI ask-user-question: resolve a pending interaction by requestId. The MCP tool blocks
     // on the HTTP response; this callback collects answers, resolves the entity (which persists
     // the record and broadcasts session.interaction to every client), and unblocks the tool.
@@ -669,6 +668,23 @@ process.on('SIGTERM', async () => {
   pendingTaskTracker.init(adapter);
   taskStore.load();
 
+  // P3.2: collapse sessions.json `backend:channel` keys onto `channel`. Idempotent — a migrated
+  // file has no legacy keys left, so this is a no-op on every boot after the first.
+  try {
+    const keys = await sessionRepo.migrateSessionKeys({
+      lastUsedAt: async (sessionId) => (await sessionStore.getById(sessionId))?.lastUsedAt ?? null,
+      log: (message) => log.warn(message),
+    });
+    if (keys.migrated > 0) {
+      log.info(
+        `sessions.json: migrated ${keys.migrated} backend-prefixed key(s) to channel keys`
+        + (keys.conflicts > 0 ? ` (${keys.conflicts} channel(s) had two bindings)` : ''),
+      );
+    }
+  } catch (e) {
+    log.warn(`sessions.json key migration failed: ${(e as Error).message}`);
+  }
+
   // DR-0017 D6 Phase 2.5: migrate a legacy single thread-templates.json to the directory form,
   // then per-file copy-if-missing the shipped defaults dir (so new agents/templates/shells — e.g.
   // a new shell definition — reach existing installs). Sealed trial homes supply their complete
@@ -714,17 +730,16 @@ process.on('SIGTERM', async () => {
     save: (entries) => providerStateRepo.setResumeQueue(entries),
     load: () => providerStateRepo.getResumeQueue(),
   }, () => { bus.publish({ type: 'rate-limit.changed' }); }, async (entry) => {
-    const backend = resolveBackendForChannel(entry.channel);
-    const bound = await sessionRepo.getSessionAsync(entry.channel, backend);
+    const bound = await sessionRepo.getSessionAsync(entry.channel);
     return bound && await sessionStore.getById(bound) ? bound : null;
   });
   let reQueuedRateLimited = 0;
   for (const t of threadStore.getAll()) {
     if (t.status === 'rate_limited') {
-      recordResume({
-        kind: 'thread', provider: t.metadata?.rateLimitProvider ?? null,
+      recordThreadResume({
+        provider: t.metadata?.rateLimitProvider ?? null,
         threadId: t.id, channel: t.channel,
-        userMessage: t.userMessage ?? '', recordedAt: Date.now(),
+        userMessage: t.userMessage ?? '',
       });
       reQueuedRateLimited++;
     }
@@ -822,6 +837,9 @@ process.on('SIGTERM', async () => {
   // A backgrounded `agent` run reports back as an ordinary user turn, the same seam a non-blocking
   // cortex_ask_user answer uses. Bound here because only the composition root holds the adapter.
   setSubagentTurnSender(({ channel, text }) => sendWebUserMessage({ channel, text, adapter }));
+  // The same seam for PI's in-process `agent`: registering a background run reaches the delivery
+  // route above, so the adapter declares the port (D10) and the composition root fills it.
+  setPiBackgroundSubagentBridge({ startBackgroundSubagent, stopBackgroundSubagent });
 
   startMemoryWatcher();
   startDispatchReconciler(getSettings().dispatchReconcilerEnabled);
@@ -847,5 +865,17 @@ process.on('SIGTERM', async () => {
     version: CORTEX_VERSION,
     pid: process.pid,
   }).catch(() => {});
-  log.info(`Cortex agent is running (${adapter.name}) — backend: ${getActiveBackend()}`);
+  // D5: there is no global backend any more — the default profile's is what a channel with no
+  // selection of its own will use, and that is what belongs in the banner.
+  const bootConfig = resolveRunConfig();
+  // The "daemon's Claude model" PI's subagent catalog and the MCP tool context read. Seeded from
+  // the migrated state at config.ts import; corrected here to the default profile's model, which
+  // is where D5 says a model lives.
+  if (bootConfig.profile.backend === 'claude' && bootConfig.profile.model) {
+    process.env.CORTEX_CLAUDE_MODEL = bootConfig.profile.model;
+  }
+  log.info(
+    `Cortex agent is running (${adapter.name}) — profile: ${bootConfig.profileName}`
+    + ` · backend: ${bootConfig.profile.backend}`,
+  );
 })();

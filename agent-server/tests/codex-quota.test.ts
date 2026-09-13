@@ -9,7 +9,7 @@ import {
   parseCodexQuotaHeaders,
   encodeQuotaNotice,
   decodeQuotaNotice,
-} from '../src/domain/costs/codex-quota.js';
+} from '@core/codex-quota.js';
 
 /** Real capture from chatgpt.com/backend-api via the Cortex gateway (2026-08-04, pro plan). */
 const LIVE_HEADERS: Record<string, string> = {

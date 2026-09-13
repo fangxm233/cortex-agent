@@ -1,0 +1,6 @@
+{"$cortex":"note","text":"A backgrounded native subagent keeps streaming after its parent turn closed. With no turn open its lines reach the ContinuationSink carrying subagent attribution, and they must not open a continuation turn."}
+{"type":"system","subtype":"task_started","task_id":"a25248b17e8a0b69d","tool_use_id":"toolu_parent01","subagent_type":"Explore","description":"probe the repo"}
+{"type":"assistant","parent_tool_use_id":"toolu_parent01","subagent_type":"Explore","message":{"model":"claude-opus-5","content":[{"type":"tool_use","id":"toolu_child01","name":"Read","input":{"file_path":"/repo/agent-server/src/app.ts"}}]}}
+{"type":"user","parent_tool_use_id":"toolu_parent01","subagent_type":"Explore","message":{"content":[{"type":"tool_result","tool_use_id":"toolu_child01","content":"file body"}]}}
+{"type":"assistant","parent_tool_use_id":"toolu_parent01","subagent_type":"Explore","message":{"model":"claude-opus-5","content":[{"type":"text","text":"## Report\nno leaks found"}]}}
+{"type":"system","subtype":"task_updated","task_id":"a25248b17e8a0b69d","patch":{"status":"completed","end_time":1788744452630}}

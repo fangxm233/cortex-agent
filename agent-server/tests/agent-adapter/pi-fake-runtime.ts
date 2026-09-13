@@ -7,7 +7,7 @@ import type {
   PiAgentSessionLike, PiRawEvent, PiRuntimeCallbacks, PiRuntimeFactory, PiRuntimeHandle,
 } from '../../src/agent-adapter/pi/runtime.js';
 import type { PiSessionRequest } from '../../src/agent-adapter/pi/session-options.js';
-import type { CodexQuotaReading } from '../../src/domain/costs/codex-quota.js';
+import type { CodexQuotaReading } from '@core/codex-quota.js';
 
 type SessionStats = ReturnType<PiAgentSessionLike['getSessionStats']>;
 type CompactionResult = Awaited<ReturnType<PiAgentSessionLike['compact']>>;

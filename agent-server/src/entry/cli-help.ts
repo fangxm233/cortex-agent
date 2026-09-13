@@ -15,12 +15,12 @@ export function getInitHelp(): string {
     'Creates the CORTEX_HOME directory structure, prompts for backends,',
     'interaction platform (Slack / Feishu), gateway usage, and system service.',
     'Generates .env with platform tokens, copies default configs, and',
-    'auto-generates mcp-config.json and mode.json.',
+    'auto-generates mcp-config.json and agent-state.json.',
     '',
     'Options:',
     '  --home <path>               Set CORTEX_HOME (default: $CORTEX_HOME or ~/.cortex/)',
     '  --gateway-config-dir <path>  Gateway config output directory (default: ~/.aistatus/)',
-    '  --force                     Overwrite existing configs (.env, budget.json, mode.json, etc.)',
+    '  --force                     Overwrite existing configs (.env, budget.json, agent-state.json, etc.)',
     '  --help, -h                  Show this help',
   ].join('\n');
 }

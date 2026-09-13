@@ -7,25 +7,25 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join as pathJoin } from 'node:path';
-import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
 import {
-  getAdapter,
-  registerPISessionPath,
   toCanonical,
   fromCanonical,
   type Backend,
   type NormalizedEvent,
 } from '../src/agent-adapter/index.js';
+import { getAdapter, getEngineAdapter } from '../src/domain/runs/adapters.js';
+import { engines } from '../src/domain/runs/engines.js';
+import { claudePool } from './agent-adapter/claude-pool-fixture.js';
 
-test('getAdapter dispatches to the claude and pi adapters only', () => {
+test('getAdapter dispatches Claude and getEngineAdapter dispatches PI', () => {
   const claude = getAdapter('claude');
-  const pi = getAdapter('pi');
+  const pi = getEngineAdapter('pi');
   assert.equal(claude.backend, 'claude');
   assert.equal(pi.backend, 'pi');
 });
 
-test('registerPISessionPath updates the same PI singleton returned by getAdapter', () => {
-  const adapter = getAdapter('pi') as PIAdapter;
+test('engines.registerSessionPath updates the same PI singleton returned by getEngineAdapter', () => {
+  const adapter = getEngineAdapter('pi');
   const sessionId = `singleton-path-${process.pid}-${Date.now()}`;
   const restoredPath = pathJoin(adapter.sessionDir, `2026-08-01T00-00-00Z_${sessionId}.jsonl`);
   const canonicalPath = pathJoin(adapter.sessionDir, `${sessionId}.jsonl`);
@@ -34,8 +34,8 @@ test('registerPISessionPath updates the same PI singleton returned by getAdapter
   writeFileSync(canonicalPath, 'canonical-context');
 
   try {
-    registerPISessionPath(sessionId, restoredPath);
-    assert.equal((getAdapter('pi') as PIAdapter).resolveSessionPath(sessionId), restoredPath);
+    engines.registerSessionPath(sessionId, restoredPath);
+    assert.equal(getEngineAdapter('pi').resolveSessionPath(sessionId), restoredPath);
   } finally {
     rmSync(restoredPath, { force: true });
     rmSync(canonicalPath, { force: true });
@@ -73,23 +73,24 @@ test('toCanonical / fromCanonical round-trip per DR-0008 §3.4 tool table', () =
   assert.equal(fromCanonical('claude', 'no_such_tool'), null);
 });
 
-test('PIAdapter exposes the real AgentAdapter contract (no spawn side effects)', async () => {
-  const adapter = getAdapter('pi');
-  assert.deepEqual(adapter.listSessions(), [], 'listSessions returns empty array before any spawn');
-  assert.equal(adapter.kill('nonexistent'), false, 'kill on unknown key returns false');
-  await assert.doesNotReject(adapter.close('nonexistent'), 'close on unknown key resolves');
-  assert.equal(adapter.backend, 'pi');
+test('SessionEngines exposes the real pool contract (no spawn side effects)', async () => {
+  assert.deepEqual(engines.listKeys(), [], 'listKeys returns empty array before any spawn');
+  assert.equal(engines.kill('nonexistent'), false, 'kill on unknown key returns false');
+  await assert.doesNotReject(engines.close('nonexistent'), 'close on unknown key resolves');
+  assert.equal(getEngineAdapter('pi').backend, 'pi');
 });
 
-test('ClaudeAdapter exposes the real AgentAdapter contract (no spawn side effects)', async () => {
+test('Claude engine pool exposes the real pool contract (no spawn side effects)', async () => {
   // Replaces the claude case in the stub-strict iteration above. After task e0b6 the claude
   // adapter is no longer a Phase-1 stub: spawn/close/kill/listSessions are real. spawn itself
   // is not exercised here because it fork-execs the `claude` CLI and would leak timers;
   // `tests/agent-adapter-claude.test.ts` covers the pure buildSpawnArgs / computeSpawnArgs surface.
+  // P2.3c moved the pool to SessionEngines, so the contract is reached through the test fixture.
   const adapter = getAdapter('claude');
-  assert.deepEqual(adapter.listSessions(), [], 'listSessions returns empty array before any spawn');
-  assert.equal(adapter.kill('nonexistent'), false, 'kill on unknown key returns false');
-  await assert.doesNotReject(adapter.close('nonexistent'), 'close on unknown key resolves');
+  const pool = claudePool(adapter);
+  assert.deepEqual(pool.listSessions(), [], 'listSessions returns empty array before any spawn');
+  assert.equal(pool.kill('nonexistent'), false, 'kill on unknown key returns false');
+  await assert.doesNotReject(pool.close('nonexistent'), 'close on unknown key resolves');
   assert.equal(adapter.backend, 'claude');
 });
 

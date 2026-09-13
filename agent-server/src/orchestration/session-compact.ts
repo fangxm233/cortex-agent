@@ -4,8 +4,7 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { SessionContextUsage } from '@core/types/agent-types.js';
-import { bgHeldSessions } from '@core/bg-held-sessions.js';
-import { runningExecutions } from '@core/running-executions.js';
+import { runRegistry } from '@core/run-registry.js';
 import { sessionRepo } from '@store/session-repo.js';
 import {
   effectiveBackendSessionId,
@@ -65,8 +64,8 @@ export interface CompactSessionDeps {
 
 const defaultDeps: CompactSessionDeps = {
   sessions: sessionStore,
-  running: runningExecutions,
-  background: bgHeldSessions,
+  running: runRegistry,
+  background: runRegistry,
   queue: {
     has: (channel) => conduitQueues.has(channel),
     run: enqueueAndWait,
@@ -118,7 +117,7 @@ export async function compactActiveSessionContext(
   opts: { channel: string },
 ): Promise<CompactActiveSessionOutcome> {
   const backend = resolveBackendForChannel(opts.channel);
-  const sessionId = await sessionRepo.getSessionAsync(opts.channel, backend);
+  const sessionId = await sessionRepo.getSessionAsync(opts.channel);
   if (!sessionId) return { ok: false, reason: 'no-session' };
   return compactSessionContext(sessionId);
 }

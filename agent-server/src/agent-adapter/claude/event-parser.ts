@@ -140,7 +140,7 @@ export function formatUserEvent(data: any): string | null {
   // `user` lines come in two shapes: the tool_result carriers this formatter exists for (block
   // array), and — since `--replay-user-messages` — the prompt echo, whose content is a bare
   // string. Without this guard the loop below would iterate that string character by character
-  // (a 40 KB prompt = 40 000 no-op iterations per echo). Mirrors jsonl-tail.ts's guard.
+  // (a 40 KB prompt = 40 000 no-op iterations per echo).
   if (!Array.isArray(content)) return null;
   const parts: string[] = [];
   for (const block of content) {
@@ -178,10 +178,10 @@ export function formatEvent(data: any): string | null {
   return fn ? fn(data) : null;
 }
 
-export function buildPrompt(userMessage: string, files: any[]): string {
-  const normalized = files.map(f => ({ mimeType: f.mimetype ?? f.mimeType, path: f.localPath ?? f.path }));
-  return sharedBuildPrompt(userMessage, normalized);
-}
+// D6: attachments reach the prompt in the one shape `UserMessage` declares. This used to map
+// `{mimetype, localPath, name}` back to `{mimeType, path}` — the inverse of a map the caller had
+// just applied, with `name` computed and then thrown away because the builder derives it itself.
+export { sharedBuildPrompt as buildPrompt };
 
 /** Merge a brief epilogue with a substantially longer earlier message (e.g. an orient briefing) so Slack gets the real content.
  *  Triggers only when final is both absolutely short (<300) AND relatively short (<50% of longest). */

@@ -4,6 +4,7 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { createLogger } from '@core/log.js';
+import { runRegistry } from '@core/run-registry.js';
 import type { EventBus } from '@events/index.js';
 import type { ChatNoticeLevel } from '@core/types/agent-types.js';
 
@@ -130,26 +131,24 @@ setInterval(() => cleanupStale(), 5 * 60 * 1000).unref();
 
 // --- Per-channel streaming context (for thread-aware hook messages) ---
 
-const streamingCallbacks = new Map<string, (text: string) => void>();
-
 /** Register the active onAssistantMessage callback for a channel (called by app.ts before runAgent). */
 function setStreamingCallback(channel: string, cb: (text: string) => void) {
-  streamingCallbacks.set(channel, cb);
+  runRegistry.setStreaming(channel, cb);
 }
 
 /** Clear the streaming callback when the turn ends (called by app.ts after runAgent). */
 function clearStreamingCallback(channel: string) {
-  streamingCallbacks.delete(channel);
+  runRegistry.clearStreaming(channel);
 }
 
 /** Get the active streaming callback for a channel, if any. */
 function getStreamingCallback(channel: string): ((text: string) => void) | null {
-  return streamingCallbacks.get(channel) || null;
+  return runRegistry.getStreaming(channel);
 }
 
 /**
  * Publish plan.submitted directly (non-blocking, no pendingRequest).
- * Used by PI backend: the resolution goes through sendExtensionUiResponse, not resolveRequest.
+ * Used by PI backend: the resolution goes through respondToDialog, not resolveRequest.
  */
 function publishPlanSubmitted(
   requestId: string,
@@ -167,8 +166,8 @@ function publishPlanSubmitted(
 
 /**
  * Publish ask-user.requested directly (non-blocking, no pendingRequest).
- * Used by PI backend: the resolution goes through sendExtensionUiResponse, not resolveRequest.
- * @param extensionUiId — original PI extension_ui_request id; required for sendExtensionUiResponse to unblock the PI subprocess.
+ * Used by PI backend: the resolution goes through respondToDialog, not resolveRequest.
+ * @param extensionUiId — original PI extension_ui_request id; required for respondToDialog to unblock the PI subprocess.
  */
 function publishAskUserRequested(requestId: string, channel: string, sessionId: string, questions: any[], extensionUiId?: string, threadId?: string | null): void {
   if (!_bus) { log.error('bus not initialised; dropping PI ask-user.requested'); return; }

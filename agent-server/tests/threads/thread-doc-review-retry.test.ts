@@ -10,11 +10,16 @@ import * as path from 'node:path';
 
 const agent = vi.hoisted(() => ({ runAgent: vi.fn() }));
 
+// startRun reaches the facade directly (runAgent is no longer exported by the agents barrel).
+vi.mock('@domain/agents/facade.js', async (importOriginal) => {
+  const original = await importOriginal<Record<string, unknown>>();
+  return { ...original, runAgent: agent.runAgent };
+});
+
 vi.mock('@domain/agents/index.js', async (importOriginal) => {
   const original = await importOriginal<Record<string, unknown>>();
   return {
     ...original,
-    runAgent: agent.runAgent,
     getActiveBackend: () => 'claude',
     getActiveProfile: () => 'default',
     getClaudeMode: () => 'api',

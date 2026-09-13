@@ -7,6 +7,7 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { handleSessionsList, handleSessionsTranscript } from '../../../src/domain/ui-service/query/sessions.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
+import { RunRegistry } from '../../../src/core/run-registry.js';
 
 const mockSessions = [
   { sessionId: 's1', name: 'cortex-abc', projectId: 'proj1', channel: 'C1', backend: 'pi', kind: 'local' as const, origin: 'direct' as const, createdAt: '2026-01-01T00:00:00Z', lastUsedAt: '2026-05-01T00:00:00Z', label: 'dev', profileName: 'default', contextUsage: { usedTokens: 60000, contextWindow: 200000, percent: 30, accuracy: 'estimate' as const, updatedAt: '2026-07-27T12:00:00.000Z' } },
@@ -39,7 +40,10 @@ function makeDeps(overrides: Partial<UiServiceDeps> = {}): UiServiceDeps {
     conversationHistory: { getHistory: async () => null },
     sendSessionMessage: () => {},
     approvalsPath: '/tmp/nonexistent-approvals.md',
-    runningExecutions: { getAll: () => [], getByChannel: () => [] } as any,
+    runningExecutions: {
+      getAll: () => [],
+      sessionState: () => ({ running: false, backgroundRunning: false, numTurns: null, executionId: null }),
+    } as any,
     costSummary: async () => ({ today: 0, week: 0, month: 0, total: 0, byMode: {} as any, byProject: {}, byTrigger: {}, bySource: {}, byBackend: {}, tokens: {} as any, entryCount: 0, dailyBudget: 0, monthlyBudget: 0, budgetScope: 'global' as const, forecastToday: 0, dailyCost: [], byTriggerScoped: {} }),
     bus: { subscribe: () => ({ unsubscribe: () => {} }), publish: () => {} } as any,
     createDirectSession: async () => ({ sessionId: '', sessionName: '', channel: '' }),
@@ -130,13 +134,14 @@ test('sessions.list with origin + projectId scopes to both', async () => {
   assert.equal(none.length, 0);
 });
 
-test('sessions.list running snapshot: true when a live interactive turn is on the session channel', async () => {
+test('sessions.list running snapshot: true when a live interactive turn is on the session', async () => {
   const deps = makeDeps({
     runningExecutions: {
       getAll: () => [],
-      // s1's channel C1 has a live interactive (non-thread) execution.
-      getByChannel: (channel: string) =>
-        channel === 'C1' ? [{ threadId: null, channel: 'C1', executionId: 'exec_1' }] : [],
+      // s1 itself has a live interactive (non-thread) execution.
+      sessionState: (sessionId: string) => sessionId === 's1'
+        ? { running: true, backgroundRunning: false, numTurns: null, executionId: 'exec_1' }
+        : { running: false, backgroundRunning: false, numTurns: null, executionId: null },
     } as any,
   });
   const result = await handleSessionsList(deps, {});
@@ -146,34 +151,68 @@ test('sessions.list running snapshot: true when a live interactive turn is on th
   assert.equal(byId['s3'], false);
 });
 
-test('sessions.list running snapshot: a thread execution on the channel does NOT mark the session running', async () => {
-  const deps = makeDeps({
-    runningExecutions: {
-      getAll: () => [],
-      // C1 only has a THREAD execution — the session itself is not in a turn.
-      getByChannel: (channel: string) =>
-        channel === 'C1' ? [{ threadId: 'thr_x', channel: 'C1', executionId: 'exec_t' }] : [],
-    } as any,
+test('sessions.list running snapshot: a thread execution does NOT mark the session running', async () => {
+  // Driven through a REAL RunRegistry, not a stub: the `!threadId` rule moved into
+  // sessionState (pinned directly in tests/runs/registry.test.ts), and this asserts the whole
+  // join still holds — a thread step running for s1 leaves the session's own row idle.
+  const registry = new RunRegistry();
+  registry.register({
+    threadId: 'thr_x', channel: 'C1', executionId: 'exec_t', agentSlotId: null,
+    kill: () => true, backend: 'pi', trackSessionId: 's1',
   });
+  const deps = makeDeps({ runningExecutions: registry as any });
   const result = await handleSessionsList(deps, { projectId: 'proj1' });
   assert.ok(result.every(s => s.running === false));
 });
 
 test('sessions.list running snapshot: no live executions → running false everywhere', async () => {
   const deps = makeDeps({
-    runningExecutions: { getAll: () => [], getByChannel: () => [] } as any,
+    runningExecutions: {
+      getAll: () => [],
+      sessionState: () => ({ running: false, backgroundRunning: false, numTurns: null, executionId: null }),
+    } as any,
   });
   const result = await handleSessionsList(deps, {});
   assert.ok(result.every(s => s.running === false));
+});
+
+test('sessions.list running snapshot: a session is NOT running just because a DIFFERENT session on its channel is', async () => {
+  // Session-switch false positive (the P4.2 fix): the old session record keeps the `channel` value it
+  // had, so the pre-P4.2 channel lookup (`getByChannel`) marked the OLD record running whenever the
+  // NEW session on that channel ran. sessionState keys off the session id — the stale row stays idle.
+  const switched = [
+    { ...mockSessions[0] }, // s1, channel C1 — the record left behind by the switch
+    { ...mockSessions[0], sessionId: 's1-new', name: 'cortex-new', channel: 'C1' },
+  ];
+  const deps = makeDeps({
+    sessionStore: {
+      listByProject: async () => switched,
+      listByOrigin: async () => switched,
+      listResumable: async () => switched,
+      getById: async () => null,
+    } as any,
+    runningExecutions: {
+      getAll: () => [],
+      // Only the NEW session on C1 is in turn; the old record shares the channel, not the run.
+      sessionState: (sessionId: string) => sessionId === 's1-new'
+        ? { running: true, backgroundRunning: false, numTurns: 4, executionId: 'exec_new' }
+        : { running: false, backgroundRunning: false, numTurns: null, executionId: null },
+    } as any,
+  });
+  const result = await handleSessionsList(deps, { projectId: 'proj1' });
+  const byId = Object.fromEntries(result.map(s => [s.sessionId, s.running]));
+  assert.equal(byId['s1'], false, 'stale record sharing the channel must not read as running');
+  assert.equal(byId['s1-new'], true, 'the session that actually owns the run is running');
 });
 
 test('sessions.list numTurns: running session → live running execution numTurns', async () => {
   const deps = makeDeps({
     runningExecutions: {
       getAll: () => [],
-      // s1's channel C1 has a live interactive (non-thread) execution mid-run at 6 turns.
-      getByChannel: (channel: string) =>
-        channel === 'C1' ? [{ threadId: null, channel: 'C1', executionId: 'exec_1', numTurns: 6 }] : [],
+      // s1's live interactive (non-thread) execution is mid-run at 6 turns.
+      sessionState: (sessionId: string) => sessionId === 's1'
+        ? { running: true, backgroundRunning: false, numTurns: 6, executionId: 'exec_1' }
+        : { running: false, backgroundRunning: false, numTurns: null, executionId: null },
     } as any,
   });
   const result = await handleSessionsList(deps, {});
@@ -187,8 +226,9 @@ test('sessions.list numTurns: running session but no progress yet → null (no s
   const deps = makeDeps({
     runningExecutions: {
       getAll: () => [],
-      getByChannel: (channel: string) =>
-        channel === 'C1' ? [{ threadId: null, channel: 'C1', executionId: 'exec_1', numTurns: null }] : [],
+      sessionState: (sessionId: string) => sessionId === 's1'
+        ? { running: true, backgroundRunning: false, numTurns: null, executionId: 'exec_1' }
+        : { running: false, backgroundRunning: false, numTurns: null, executionId: null },
     } as any,
     // A previous completed run on C1 exists — must NOT leak into the fresh running turn.
     executionRegistry: {
@@ -204,7 +244,10 @@ test('sessions.list numTurns: running session but no progress yet → null (no s
 
 test('sessions.list numTurns: idle session → last non-thread execution numTurns (latest by startedAt)', async () => {
   const deps = makeDeps({
-    runningExecutions: { getAll: () => [], getByChannel: () => [] } as any,
+    runningExecutions: {
+      getAll: () => [],
+      sessionState: () => ({ running: false, backgroundRunning: false, numTurns: null, executionId: null }),
+    } as any,
     executionRegistry: {
       getExecution: () => null, cancelExecution: () => null,
       getAll: () => [
@@ -228,7 +271,10 @@ test('sessions.list numTurns: no execution data anywhere → null', async () => 
 
 test('sessions.list costUsd: idle session → last non-thread execution costUsd (latest by startedAt)', async () => {
   const deps = makeDeps({
-    runningExecutions: { getAll: () => [], getByChannel: () => [] } as any,
+    runningExecutions: {
+      getAll: () => [],
+      sessionState: () => ({ running: false, backgroundRunning: false, numTurns: null, executionId: null }),
+    } as any,
     executionRegistry: {
       getExecution: () => null, cancelExecution: () => null,
       getAll: () => [
@@ -249,8 +295,9 @@ test('sessions.list costUsd: running session → null (no live cost source, no s
   const deps = makeDeps({
     runningExecutions: {
       getAll: () => [],
-      getByChannel: (channel: string) =>
-        channel === 'C1' ? [{ threadId: null, channel: 'C1', executionId: 'exec_1', numTurns: 3 }] : [],
+      sessionState: (sessionId: string) => sessionId === 's1'
+        ? { running: true, backgroundRunning: false, numTurns: 3, executionId: 'exec_1' }
+        : { running: false, backgroundRunning: false, numTurns: null, executionId: null },
     } as any,
     // A previous completed run on C1 has a cost — must NOT leak into the fresh running turn.
     executionRegistry: {
@@ -274,8 +321,13 @@ test('sessions.list bg-held session: running true + backgroundRunning true with 
   // session logically running via the session.status event stream. The snapshot must mirror that,
   // or a session switch / app restart loses the state (the original bug).
   const deps = makeDeps({
-    runningExecutions: { getAll: () => [], getByChannel: () => [] } as any,
-    isSessionBgHeld: (id: string) => id === 's1',
+    runningExecutions: {
+      getAll: () => [],
+      // The session is held with NO live foreground execution (executionId null).
+      sessionState: (sessionId: string) => sessionId === 's1'
+        ? { running: true, backgroundRunning: true, numTurns: null, executionId: null }
+        : { running: false, backgroundRunning: false, numTurns: null, executionId: null },
+    } as any,
   });
   const result = await handleSessionsList(deps, { projectId: 'proj1' });
   const s1 = result.find(s => s.sessionId === 's1')!;
@@ -288,8 +340,12 @@ test('sessions.list bg-held session: running true + backgroundRunning true with 
 
 test('sessions.list bg-held session: numTurns/costUsd fall back to the last completed run (foreground turn is over)', async () => {
   const deps = makeDeps({
-    runningExecutions: { getAll: () => [], getByChannel: () => [] } as any,
-    isSessionBgHeld: (id: string) => id === 's1',
+    runningExecutions: {
+      getAll: () => [],
+      sessionState: (sessionId: string) => sessionId === 's1'
+        ? { running: true, backgroundRunning: true, numTurns: null, executionId: null }
+        : { running: false, backgroundRunning: false, numTurns: null, executionId: null },
+    } as any,
     executionRegistry: {
       getExecution: () => null, cancelExecution: () => null,
       getAll: () => [
@@ -307,11 +363,12 @@ test('sessions.list live foreground turn wins over the bg flag (backgroundRunnin
   const deps = makeDeps({
     runningExecutions: {
       getAll: () => [],
-      getByChannel: (channel: string) =>
-        channel === 'C1' ? [{ threadId: null, channel: 'C1', executionId: 'exec_1' }] : [],
+      // Defensive: the registry still flags a background hold AND a live foreground turn; the row
+      // must mask backgroundRunning while in a turn.
+      sessionState: (sessionId: string) => sessionId === 's1'
+        ? { running: true, backgroundRunning: true, numTurns: null, executionId: 'exec_1' }
+        : { running: false, backgroundRunning: false, numTurns: null, executionId: null },
     } as any,
-    // Defensive: even if the tracker still flags the session, a live turn renders as plain running.
-    isSessionBgHeld: (id: string) => id === 's1',
   });
   const result = await handleSessionsList(deps, { projectId: 'proj1' });
   const s1 = result.find(s => s.sessionId === 's1')!;
@@ -319,7 +376,7 @@ test('sessions.list live foreground turn wins over the bg flag (backgroundRunnin
   assert.equal(s1.backgroundRunning, false);
 });
 
-test('sessions.list without an isSessionBgHeld dep → backgroundRunning false everywhere (fixtures/TUI)', async () => {
+test('sessions.list with no registry background hold → backgroundRunning false everywhere', async () => {
   const result = await handleSessionsList(makeDeps(), {});
   assert.ok(result.every(s => s.backgroundRunning === false));
 });

@@ -6,7 +6,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
-import { _test } from '../src/domain/agents/index.js';
+import { _test } from '../src/domain/agents/facade.js';
 
 const { filterChannelScopedPlugins, filterScopedPlugins } = _test;
 

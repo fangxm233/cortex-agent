@@ -11,15 +11,16 @@ import { trackPendingTask } from '../busy-tracker.js';
 import { enqueue } from '../conduit-queue.js';
 import * as askUserQuestion from './ask-user-question.js';
 import { getStreamingCallback } from '../routing/hook-bridge.js';
-import { resumeAskUserQuestionGroup } from '../lifecycle.js';
+import { resumeAskUserQuestionGroup } from './ask-user-resume.js';
 import { planApprovals } from './plan-approvals.js';
-import { runningExecutions } from '../../core/running-executions.js';
+import { runRegistry } from '../../core/run-registry.js';
 import * as executionRegistry from '@domain/executions/registry.js';
 import { conduitQueues } from '../conduit-queue.js';
 import { setSessionAsync, deleteSessionAsync } from '@domain/sessions/session.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
-import { closeSession, getActiveBackend, getActiveProfile, setActiveProfile, resolveBackendForChannel } from '@domain/agents/index.js';
+import { getActiveProfile, setActiveProfile } from '@domain/agents/index.js';
+import { engines } from '@domain/runs/engines.js';
 import { fireAndForgetPreCloseHook } from '@domain/sessions/session-hooks.js';
 import { Icons } from '../../core/icons.js';
 import { t } from '../../core/i18n.js';
@@ -235,12 +236,12 @@ async function handleStatusCancel(ctx: ActionContext): Promise<void> {
   // Cancel button carries an executionId. Resolve and kill via the execution index;
   // there is no thread to cancel.
   if (!threadId && executionId) {
-    const exec = runningExecutions.getById(executionId);
+    const exec = runRegistry.getById(executionId);
     if (!exec) {
       log.warn('Cancel button clicked but no running execution for executionId', { channel, executionId });
       return;
     }
-    if (exec.sessionId) await setSessionAsync(exec.channel ?? channel, exec.sessionId, getActiveBackend()).catch(() => {});
+    if (exec.sessionId) await setSessionAsync(exec.channel ?? channel, exec.sessionId).catch(() => {});
     // teardownExecution(cancelled): record→cancelled, kill the handle, publish a balanced event.
     executionRegistry.teardownExecution({ executionId, status: 'cancelled', durationS: 0 });
     conduitQueues.delete(exec.channel ?? channel);
@@ -256,17 +257,17 @@ async function handleStatusCancel(ctx: ActionContext): Promise<void> {
     log.warn('Cancel button clicked but threadId/executionId missing in value', { channel });
     return;
   }
-  const exec = runningExecutions.getByThreadId(threadId);
+  const exec = runRegistry.getByThreadId(threadId);
   if (!exec) {
     log.warn('Cancel button clicked but no running execution for threadId', { channel, threadId });
     return;
   }
   await cancelThreadById(threadId).catch(() => {});
-  if (exec.sessionId) await setSessionAsync(exec.channel ?? channel, exec.sessionId, getActiveBackend()).catch(() => {});
+  if (exec.sessionId) await setSessionAsync(exec.channel ?? channel, exec.sessionId).catch(() => {});
   if (exec.executionId) {
     executionRegistry.teardownExecution({ executionId: exec.executionId, status: 'cancelled', durationS: 0 });
   } else {
-    runningExecutions.killByThreadId(threadId);
+    runRegistry.killByThreadId(threadId);
   }
   conduitQueues.delete(exec.channel ?? channel);
   if (ctx.messageRef) {
@@ -282,7 +283,7 @@ async function handleStatusResume(ctx: ActionContext): Promise<void> {
   const record = await sessionStore.lookupSession(sessionName);
   if (!record) return;
   if (record.profileName) setActiveProfile(record.profileName, ctx.channelId);
-  await setSessionAsync(ctx.channelId, record.sessionId, record.backend);
+  await setSessionAsync(ctx.channelId, record.sessionId);
   await conversationLedger.switchSession(ctx.channelId, {
     sessionId: record.sessionId, sessionName, backend: record.backend, profileName: record.profileName,
   });
@@ -314,14 +315,14 @@ async function resetChannelFromStatusButton(ctx: ActionContext, opts: { skipHook
   // The quiet variant (!newq) skips the hook entirely.
   if (!opts.skipHook) void fireAndForgetPreCloseHook(channel, _adapter, threadAnchorId);
 
-  closeSession(channel);
+  void engines.close(channel);
   const conv = await conversationLedger.getConversation(channel);
   const profileName = getActiveProfile(channel) || 'default';
   if (conv) {
     sessionBackup.cleanupAllBackups(conv.sessionId);
     await conversationLedger.clearConversation(channel);
   }
-  await deleteSessionAsync(channel, resolveBackendForChannel(channel));
+  await deleteSessionAsync(channel);
   planApprovals.clearByChannel(channel);
   const newDest: Destination = { type: 'interactive-reply', conduit: ctx.channelId, sessionId: '' };
   await _adapter.postMessage(newDest, {

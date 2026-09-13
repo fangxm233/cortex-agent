@@ -8,8 +8,7 @@ queueing, mid-turn injection, background holds and execution lifecycle.
 | agent-runner-wake-guard.test.ts | test | Covers synthetic wake notice routing guard |
 | agent-runner.test.ts | test | Covers routing, download reuse and supersession |
 | ask-user-question-pi.test.ts | test | Covers native PI and MCP-over-PI answer routing |
-| bg-continuation.test.ts | test | Covers reset-isolated continuation dispatch |
-| bg-wait-guard.test.ts | test | Covers background wait bracket, grace and cap |
+| background-hold-gates.test.ts | test | Covers the hold gates and channel-scope predicates |
 | busy-tracker.test.ts | test | Covers busy counter publish and aggregation |
 | cancel-bg-hold.test.ts | test | Covers stopping and superseding background holds, and the channel→session bridge that cancels delegated `agent` runs |
 | channel-queue.test.ts | test | Covers per-channel queue serialization |
@@ -18,7 +17,7 @@ queueing, mid-turn injection, background holds and execution lifecycle.
 | first-turn-interrupt-resume.test.ts | test | Covers attachment prompt capture and interrupt |
 | hook-bridge-subscribers-web.test.ts | test | Covers Web question and plan persistence |
 | interaction-records.test.ts | test | Covers interaction create and resolve lifecycle |
-| lifecycle-bg-hold.test.ts | test | Covers lifecycle hold, accounting, grace and cap |
+| lifecycle-bg-hold.test.ts | test | Drives the hold with run events: waiting, merge, accounting, grace and cap |
 | lifecycle-rate-limit.test.ts | test | Covers provider-attributed error recovery |
 | lifecycle-session-lease.test.ts | test | Covers ask/retry session lease handoff to live executions |
 | mid-turn-inject-persistence.test.ts | test | Covers durable ordering of pending injection |
@@ -39,6 +38,7 @@ queueing, mid-turn injection, background holds and execution lifecycle.
 | teardown-execution.test.ts | test | Covers execution teardown and balanced events |
 | thread-detached.test.ts | test | Covers detached thread busy gate bracket |
 | thread-executor.test.ts | test | Covers queueing, file buffering and eviction |
+| transcript-sink.test.ts | test | Covers transcript sink history/publish, subagent attribution and delta-flush ordering |
 | turn-notify.test.ts | test | Covers reset-isolated notification gating |
 | turn-tracking.test.ts | test | Covers snapshot barriers and turn mutation locks |
-| web-bg-hold.test.ts | test | Covers Web background hold status, resume and seal |
+| web-status-renderer.test.ts | test | Drives the web hold with run events: status, resume, timeout and seal |

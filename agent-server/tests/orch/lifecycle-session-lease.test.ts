@@ -8,22 +8,32 @@ import assert from 'node:assert/strict';
 
 const mockRunAgent = vi.fn();
 
-vi.mock('@domain/agents/index.js', async (importOriginal) => {
+// The continuation paths now go through startRun -> domain/runs -> facade.runAgent, so the spawn
+// is intercepted on the facade module (runAgent is no longer on the agents barrel).
+vi.mock('@domain/agents/facade.js', async (importOriginal) => {
   const orig = await importOriginal<Record<string, unknown>>();
   return {
     ...orig,
     runAgent: (...args: unknown[]) => mockRunAgent(...args),
+  };
+});
+
+vi.mock('@domain/agents/index.js', async (importOriginal) => {
+  const orig = await importOriginal<Record<string, unknown>>();
+  return {
+    ...orig,
     getClaudeMode: () => 'api',
     getActiveProfile: () => 'default',
     resolveBackendForChannel: () => 'claude',
   };
 });
 
-import { resumeAskUserQuestionGroup, runRetryAgent } from '../../src/orchestration/lifecycle.js';
+import { resumeAskUserQuestionGroup } from '../../src/orchestration/interactions/ask-user-resume.js';
+import { runRetryAgent } from '../../src/orchestration/edit-retry.js';
 import { sessionStore } from '../../src/store/session-registry-repo.js';
 import { MockAdapter } from '../../src/platform/testing.js';
 import * as executionRegistry from '../../src/domain/executions/registry.js';
-import { runningExecutions } from '../../src/core/running-executions.js';
+import { runRegistry } from '../../src/core/run-registry.js';
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -43,8 +53,8 @@ function installLeaseOrder(trackSessionId: string, events: string[]): void {
     label: null, profileName: null, backendSessionId: `backend-${trackSessionId}`,
   });
   vi.spyOn(executionRegistry, 'startLocalExecution').mockReturnValue({ id: `exec-${trackSessionId}` } as any);
-  vi.spyOn(runningExecutions, 'register').mockImplementation(() => { events.push('register'); return `rk-${trackSessionId}`; });
-  vi.spyOn(runningExecutions, 'complete').mockImplementation(() => true);
+  vi.spyOn(runRegistry, 'register').mockImplementation(() => { events.push('register'); return `rk-${trackSessionId}`; });
+  vi.spyOn(runRegistry, 'complete').mockImplementation(() => true);
 }
 
 test('AskUserQuestion resume hands its session lease to the registered execution without a gap', async () => {

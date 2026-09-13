@@ -12,19 +12,20 @@ import * as os from 'os';
 
 import { registerCommands as createCommandDispatcher } from '../src/orchestration/routing/commands/index.js';
 import { CommandActionRouter } from '../src/orchestration/interactions/command-action-router.js';
-import { handleBackendCmd } from '../src/orchestration/routing/commands/mode.js';
+import { handleBackendCmd, handleModelCmd } from '../src/orchestration/routing/commands/mode.js';
 import { handleBudgetCmd } from '../src/orchestration/routing/commands/cost.js';
 import { formatUsageReport } from '../src/orchestration/routing/commands/usage.js';
 import type { ProviderUsage } from '../src/domain/costs/usage-store.js';
 import { projectStore } from '../src/domain/projects/index.js';
-import { getActiveBackend, setActiveBackend } from '../src/domain/agents/config.js';
+import { clearChannelProfile, setChannelModelOverride } from '../src/domain/agents/config.js';
+import { resolveRunConfig } from '../src/domain/runs/config-resolver.js';
 import { getDefaultProfileName } from '../src/domain/agents/profile-manager.js';
 import { costRepo } from '../src/store/cost-repo.js';
 import { MockAdapter } from '../src/platform/testing.js';
 import { CONFIG_DIR, PROJECTS_DIR } from '../src/core/paths.js';
 import { profileRepo } from '../src/store/profile-repo.js';
 import { _testSetRegistry } from '../src/domain/tasks/dispatch-utils.js';
-import { runningExecutions } from '../src/core/running-executions.js';
+import { runRegistry } from '../src/core/run-registry.js';
 import * as executionRegistry from '../src/domain/executions/registry.js';
 import { conduitQueues } from '../src/orchestration/conduit-queue.js';
 import { threadStore } from '../src/store/thread-repo.js';
@@ -92,15 +93,100 @@ function withTempCostData(t, entries) {
 }
 
 
-test('!backend selects PI and reports the live backend label', async (t) => {
-  const previous = getActiveBackend();
-  t.onTestFinished(() => setActiveBackend(previous));
+// D5/P3.1c: `!backend` moves THIS CHANNEL to that backend's default profile. There is no global
+// backend field any more — a backend is a property of a profile, so switching one means switching
+// the other, through the same rule `!profile` uses.
+test('!backend moves the channel to that backend default profile', async (t) => {
+  t.onTestFinished(() => clearChannelProfile('C-backend'));
   const adapter = new MockAdapter();
 
+  assert.equal(resolveRunConfig({ channel: 'C-backend' }).profile.backend, 'claude');
   await handleBackendCmd('C-backend', adapter, '!backend pi');
 
-  assert.equal(getActiveBackend(), 'pi');
-  assert.match(adapter.posted[0].content.text, /PI/);
+  // `execute` is the only pi profile in the fixture, so it is that backend's default.
+  const after = resolveRunConfig({ channel: 'C-backend' });
+  assert.equal(after.profileName, 'execute');
+  assert.equal(after.profile.backend, 'pi');
+  // A sibling channel is untouched — the point of making this channel-scoped.
+  assert.equal(resolveRunConfig({ channel: 'C-other' }).profile.backend, 'claude');
+});
+
+test('!backend on a backend with no profile refuses instead of switching to something else', async (t) => {
+  t.onTestFinished(() => clearChannelProfile('C-noprofile'));
+  const adapter = new MockAdapter();
+  const before = resolveRunConfig({ channel: 'C-noprofile' }).profileName;
+
+  fs.writeFileSync(path.join(CONFIG_DIR, 'profiles.json'), JSON.stringify({
+    defaultProfile: 'plan',
+    profiles: { plan: { model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' } },
+  }));
+  profileRepo.invalidate();
+  t.onTestFinished(() => {
+    fs.writeFileSync(path.join(CONFIG_DIR, 'profiles.json'), JSON.stringify({
+      defaultProfile: 'plan',
+      profiles: {
+        plan: { model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' },
+        execute: { model: 'claude-sonnet-4-6', backend: 'pi', provider: 'anthropic', mode: 'plan' },
+        qa: { model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' },
+      },
+    }));
+    profileRepo.invalidate();
+  });
+
+  await handleBackendCmd('C-noprofile', adapter, '!backend pi');
+  assert.match(adapter.posted[0].content.text, /No profile|没有使用/);
+  assert.equal(resolveRunConfig({ channel: 'C-noprofile' }).profileName, before);
+});
+
+test('!backend honours defaultProfileByBackend over declaration order', async (t) => {
+  t.onTestFinished(() => clearChannelProfile('C-declared'));
+  fs.writeFileSync(path.join(CONFIG_DIR, 'profiles.json'), JSON.stringify({
+    defaultProfile: 'plan',
+    defaultProfileByBackend: { pi: 'pi-b' },
+    profiles: {
+      plan: { model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' },
+      'pi-a': { model: 'm', backend: 'pi', provider: 'anthropic', mode: 'plan' },
+      'pi-b': { model: 'm', backend: 'pi', provider: 'anthropic', mode: 'plan' },
+    },
+  }));
+  profileRepo.invalidate();
+  t.onTestFinished(() => {
+    fs.writeFileSync(path.join(CONFIG_DIR, 'profiles.json'), JSON.stringify({
+      defaultProfile: 'plan',
+      profiles: {
+        plan: { model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' },
+        execute: { model: 'claude-sonnet-4-6', backend: 'pi', provider: 'anthropic', mode: 'plan' },
+        qa: { model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' },
+      },
+    }));
+    profileRepo.invalidate();
+  });
+
+  await handleBackendCmd('C-declared', new MockAdapter(), '!backend pi');
+  assert.equal(resolveRunConfig({ channel: 'C-declared' }).profileName, 'pi-b');
+});
+
+test('!model sets, reports and resets a channel-scoped override', async (t) => {
+  t.onTestFinished(() => setChannelModelOverride('C-model', null));
+
+  const show = new MockAdapter();
+  await handleModelCmd('C-model', show, '!model');
+  assert.match(show.posted[0].content.text, /claude-sonnet-4-6/, 'with no override the profile model is shown');
+
+  const set = new MockAdapter();
+  await handleModelCmd('C-model', set, '!model haiku-test');
+  assert.equal(resolveRunConfig({ channel: 'C-model' }).modelOverride, 'haiku-test');
+  // The profile itself is untouched, which is what makes `reset` a real undo.
+  assert.equal(resolveRunConfig({ channel: 'C-model' }).profile.model, 'claude-sonnet-4-6');
+  assert.equal(resolveRunConfig({ channel: 'C-elsewhere' }).modelOverride, null);
+
+  const shown = new MockAdapter();
+  await handleModelCmd('C-model', shown, '!model');
+  assert.match(shown.posted[0].content.text, /haiku-test/);
+
+  const reset = new MockAdapter();
+  await handleModelCmd('C-model', reset, '!model reset');
+  assert.equal(resolveRunConfig({ channel: 'C-model' }).modelOverride, null);
 });
 
 test('!cost <project> filters report to the requested project scope', async (t) => {
@@ -624,10 +710,10 @@ test('!cancel <taskId> cancels a dispatched task via injected handler', async ()
 test('plain !cancel still cancels the current active process', async (t) => {
   const adapter = new MockAdapter();
   let killed = false;
-  runningExecutions.register({ threadId: null, channel: 'C123', agentSlotId: null, executionId: 'exec-conv1', kill: () => { killed = true; return true; }, backend: 'test' });
+  runRegistry.register({ threadId: null, channel: 'C123', agentSlotId: null, executionId: 'exec-conv1', kill: () => { killed = true; return true; }, backend: 'test' });
   // Simulate a running queue entry so cancel can clear it
   conduitQueues.set('C123', Promise.resolve());
-  t.onTestFinished(() => { runningExecutions.remove('exec-conv1'); conduitQueues.delete('C123'); });
+  t.onTestFinished(() => { runRegistry.remove('exec-conv1'); conduitQueues.delete('C123'); });
   const dispatchCommand = createCommandDispatcher({
     scheduler: null,
     cancelDispatchedTask: async () => ({ ok: false, message: 'should not be called' }),
@@ -646,8 +732,8 @@ test('plain !cancel still cancels the current active process', async (t) => {
 test('!cancel marks the execution record cancelled (not failed), idempotently', async (t) => {
   const adapter = new MockAdapter();
   const rec = executionRegistry.startLocalExecution({ channel: 'Ccancel', project: 'general', trigger: 'user', backend: 'test' });
-  runningExecutions.register({ threadId: null, channel: 'Ccancel', agentSlotId: null, executionId: rec.id, kill: () => true, backend: 'test' });
-  t.onTestFinished(() => { runningExecutions.remove(rec.id); });
+  runRegistry.register({ threadId: null, channel: 'Ccancel', agentSlotId: null, executionId: rec.id, kill: () => true, backend: 'test' });
+  t.onTestFinished(() => { runRegistry.remove(rec.id); });
 
   const dispatchCommand = createCommandDispatcher({
     scheduler: null,
@@ -669,10 +755,10 @@ test('!cancel --all kills all running executions for current channel, spares oth
   let killedC1 = false;
   let killedC2 = false;
 
-  runningExecutions.register({ threadId: 'thr_11111111', channel: 'C1', agentSlotId: null, executionId: 'exec-1', kill: () => { killedC1 = true; return true; }, backend: 'test' });
-  runningExecutions.register({ threadId: 'thr_22222222', channel: 'C2', agentSlotId: null, executionId: 'exec-2', kill: () => { killedC2 = true; return true; }, backend: 'test' });
+  runRegistry.register({ threadId: 'thr_11111111', channel: 'C1', agentSlotId: null, executionId: 'exec-1', kill: () => { killedC1 = true; return true; }, backend: 'test' });
+  runRegistry.register({ threadId: 'thr_22222222', channel: 'C2', agentSlotId: null, executionId: 'exec-2', kill: () => { killedC2 = true; return true; }, backend: 'test' });
   conduitQueues.set('C1', Promise.resolve());
-  t.onTestFinished(() => { runningExecutions.remove('exec-1'); runningExecutions.remove('exec-2'); conduitQueues.delete('C1'); });
+  t.onTestFinished(() => { runRegistry.remove('exec-1'); runRegistry.remove('exec-2'); conduitQueues.delete('C1'); });
 
   const dispatchCommand = createCommandDispatcher({ scheduler: null });
   const handled = dispatchCommand('!cancel --all', 'C1', adapter);
@@ -700,8 +786,8 @@ test('!cancel <threadId> kills by threadId', async (t) => {
   const adapter = new MockAdapter();
   let killed = false;
 
-  runningExecutions.register({ threadId: 'thr_a1b2c3d4', channel: 'C1', agentSlotId: null, executionId: 'exec-1', kill: () => { killed = true; return true; }, backend: 'test' });
-  t.onTestFinished(() => { runningExecutions.remove('exec-1'); });
+  runRegistry.register({ threadId: 'thr_a1b2c3d4', channel: 'C1', agentSlotId: null, executionId: 'exec-1', kill: () => { killed = true; return true; }, backend: 'test' });
+  t.onTestFinished(() => { runRegistry.remove('exec-1'); });
 
   const dispatchCommand = createCommandDispatcher({ scheduler: null, cancelDispatchedTask: null });
   const handled = dispatchCommand('!cancel thr_a1b2c3d4', 'C1', adapter);
@@ -710,7 +796,7 @@ test('!cancel <threadId> kills by threadId', async (t) => {
 
   assert.equal(killed, true);
   assert.match(adapter.posted[0].content.text, /thr_a1b2c3d4.*cancelled/i);
-  assert.equal(runningExecutions.getByThreadId('thr_a1b2c3d4'), null);
+  assert.equal(runRegistry.getByThreadId('thr_a1b2c3d4'), null);
 });
 
 test('!cancel <threadId> with unknown threadId shows not found', async (t) => {
@@ -743,9 +829,9 @@ test('!cancel <threadId> with non-thread-id arg falls back to taskId dispatch', 
 test('!thread cancel is alias for !cancel (kills by channel)', async (t) => {
   const adapter = new MockAdapter();
   let killed = false;
-  runningExecutions.register({ threadId: null, channel: 'C123', agentSlotId: null, executionId: 'exec-conv2', kill: () => { killed = true; return true; }, backend: 'test' });
+  runRegistry.register({ threadId: null, channel: 'C123', agentSlotId: null, executionId: 'exec-conv2', kill: () => { killed = true; return true; }, backend: 'test' });
   conduitQueues.set('C123', Promise.resolve());
-  t.onTestFinished(() => { runningExecutions.remove('exec-conv2'); conduitQueues.delete('C123'); });
+  t.onTestFinished(() => { runRegistry.remove('exec-conv2'); conduitQueues.delete('C123'); });
 
   const dispatchCommand = createCommandDispatcher({ scheduler: null });
   const handled = dispatchCommand('!thread cancel', 'C123', adapter);
@@ -770,9 +856,9 @@ test('!thread cancel with nothing running shows "Nothing running"', async (t) =>
 
 test('!thread list --running shows running threads across channels', async (t) => {
   const adapter = new MockAdapter();
-  runningExecutions.register({ threadId: 'thr_a1111111', channel: 'C1', agentSlotId: null, executionId: 'exec-1', kill: () => true, backend: 'test' });
-  runningExecutions.register({ threadId: 'thr_b2222222', channel: 'C2', agentSlotId: null, executionId: 'exec-2', kill: () => true, backend: 'pi' });
-  t.onTestFinished(() => { runningExecutions.remove('exec-1'); runningExecutions.remove('exec-2'); });
+  runRegistry.register({ threadId: 'thr_a1111111', channel: 'C1', agentSlotId: null, executionId: 'exec-1', kill: () => true, backend: 'test' });
+  runRegistry.register({ threadId: 'thr_b2222222', channel: 'C2', agentSlotId: null, executionId: 'exec-2', kill: () => true, backend: 'pi' });
+  t.onTestFinished(() => { runRegistry.remove('exec-1'); runRegistry.remove('exec-2'); });
 
   const dispatchCommand = createCommandDispatcher({ scheduler: null });
   const handled = dispatchCommand('!thread list --running', 'C1', adapter);

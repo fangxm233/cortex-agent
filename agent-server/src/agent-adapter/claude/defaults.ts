@@ -10,27 +10,15 @@ import { COMMISSION_TOOLS, SUBAGENT_TOOLS } from '../../core/mcp-tool-gate.js';
 
 export const IDLE_SESSION_TIMEOUT = 65 * 60 * 1000;
 export const TURN_IDLE_TIMEOUT = 60 * 60 * 1000;
-/** DR-0012: fast-fail window for a fresh turn. The jsonl file appears only after the first submit,
- *  so the tail no longer blocks at spawn; this bounds the "claude never started" case to seconds
- *  instead of the 60-min TURN_IDLE_TIMEOUT. Cleared on the first jsonl event of the turn. */
-export const JSONL_FIRST_EVENT_TIMEOUT = 30 * 1000;
-/** DR-0012: delay between pasting the prompt and sending Enter. Claude Code's Ink TUI uses
- *  bracketed paste; an Enter sent immediately after paste-buffer is swallowed and the prompt is
- *  never submitted. A short settle delay lets the paste register before the submit keystroke.
- *  Verified empirically (2.1.160): 0ms → never submits; ~300ms+ → reliable. */
-export const PASTE_SUBMIT_DELAY_MS = 400;
-/** DR-0012: after spawning the tmux session, Claude's Ink TUI takes several seconds to boot and
- *  start accepting input. Pasting before then drops the prompt into a not-yet-ready terminal, so
- *  the submit Enter does nothing and no jsonl is ever written (the turn then dies on the
- *  first-event watchdog). We poll capture-pane for a readiness marker before the first paste.
- *  Verified empirically (2.1.162): paste at ~0s → never submits; paste after the prompt UI is
- *  drawn (~5-6s) → reliable. */
-export const PANE_READY_TIMEOUT = 25 * 1000;
-export const PANE_READY_POLL_MS = 250;
-/** Markers that prove the Claude TUI prompt is interactive and ready to receive a paste. The
- *  bottom status line ("bypass permissions on …") and the shortcuts hint only render once the
- *  Ink app has finished its initial layout. */
-export const PANE_READY_MARKER = /bypass permissions on|\? for shortcuts/;
+
+/** DR-0012: tmux session name prefix used by the startup migration sweep
+ *  ({@link recoverTuiOrphans}) to find sessions left by pre-D9 builds. D9 retired the TUI mode
+ *  that used to create them, so no new session carries this prefix. */
+export const TUI_TMUX_NAME_PREFIX = 'cortex-claude-';
+
+/** Base directory where Claude writes per-session jsonl transcripts (per-cwd encoded).
+ *  Read by {@link computeTranscriptPath} to gate `--resume` vs `--session-id`. */
+export const TUI_JSONL_BASE = path.join(os.homedir(), '.claude', 'projects');
 
 export const LOGS_DIR = path.join(DATA_DIR, 'logs', 'sessions');
 
@@ -64,10 +52,10 @@ const MCP_PREFIX = 'mcp__cortex-core__';
 
 /**
  * The cortex-interaction-bridge MCP tools that replace the native EnterPlanMode / ExitPlanMode /
- * AskUserQuestion. Shared by direct Claude TUI, user-initiated Claude print, and user-initiated PI
- * sessions. `commissionTools` appends the two standalone commission-creation tools — they are
- * additive, not a swap: a session drafting a commission keeps the ordinary plan tools too. Every
- * other session simply never lists them, which is what keeps them invisible (DR-0037 v3).
+ * AskUserQuestion. Shared by user-initiated Claude print sessions and user-initiated PI sessions.
+ * `commissionTools` appends the two standalone commission-creation tools — they are additive, not a
+ * swap: a session drafting a commission keeps the ordinary plan tools too. Every other session
+ * simply never lists them, which is what keeps them invisible (DR-0037 v3).
  */
 export function interactionBridgeTools(commissionTools = false): string[] {
   return [
@@ -78,22 +66,13 @@ export function interactionBridgeTools(commissionTools = false): string[] {
   ];
 }
 
-/** Default (non-commission) bridge surface, used as the TUI tool-list baseline. */
+/** Default (non-commission) bridge surface. */
 export const INTERACTION_BRIDGE_TOOLS: readonly string[] = interactionBridgeTools();
 
-/**
- * DR-0012: Tool whitelist for TUI mode. Removes the three interaction tools that conflict with
- * Cortex's MCP-mediated approval flow (AskUserQuestion / EnterPlanMode / ExitPlanMode) and adds
- * their MCP replacements from the bundled Cortex MCP server.
- */
-export const TUI_TOOLS = [
-  'Bash', 'Edit', 'Glob', 'Grep', 'Read', 'Skill', 'TaskStop', 'TodoWrite', 'WebFetch', 'WebSearch', 'Write',
-  ...INTERACTION_BRIDGE_TOOLS,
-].join(',');
-
-/** Native interaction tools that must be stripped in TUI mode (all sessions, including threads).
- *  These tools require stdin/stdout interaction that TUI mode cannot provide. */
-export const TUI_STRIP_TOOLS = new Set(['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode']);
+/** Native interaction tools that must be stripped wherever the interaction bridge replaces them —
+ *  i.e. a direct, user-initiated session, which is the only composition that loads the bridge.
+ *  The native tools drop the prompt into a mode Cortex cannot mediate headlessly. */
+export const INTERACTION_STRIP_TOOLS = new Set(['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode']);
 
 /**
  * Native tools stripped in EVERY mode because Cortex ships its own replacement.
@@ -111,12 +90,6 @@ export const ALWAYS_STRIP_TOOLS = new Set(['Agent']);
 export function subagentBridgeTools(): string[] {
   return SUBAGENT_TOOLS.map(name => MCP_PREFIX + name);
 }
-
-/** DR-0012: tmux session name prefix for TUI-mode Claude processes. */
-export const TUI_TMUX_NAME_PREFIX = 'cortex-claude-';
-
-/** DR-0012: Base directory where Claude writes per-session jsonl transcripts (per-cwd encoded). */
-export const TUI_JSONL_BASE = path.join(os.homedir(), '.claude', 'projects');
 
 export { HOOKS_DIR };
 export const HOOK_TIMEOUT_S = 60 * 60;

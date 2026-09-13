@@ -1,19 +1,20 @@
-// input:  AgentSpawnConfig with and without a browser CDP endpoint, on the PI session path
+// input:  EngineSpec with and without a browser CDP endpoint, on the PI session path
 // output: pinned opt-in behaviour of the Playwright MCP layer for the PI backend
 // pos:    tests for per-session browser control on the backend that has no --mcp-config
 // >>> If I am updated, update CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
+import { engineSpecFixture, type EngineSpecFixtureInput } from '../engine-spec-fixture.js';
 import {
   buildSessionRequest, sessionIdentity, type PiSessionRequest,
 } from '../../src/agent-adapter/pi/session-options.js';
-import type { AgentSpawnConfig, McpComposition } from '../../src/agent-adapter/types.js';
+import type { McpComposition } from '../../src/agent-adapter/types.js';
 import { browserMcpServer, BROWSER_MCP_SERVER_NAME } from '../../src/agent-adapter/browser-mcp-server.js';
 
 const ENDPOINT = 'http://127.0.0.1:9222';
 
-function request(extra: Partial<AgentSpawnConfig>, composition: McpComposition = 'direct'): PiSessionRequest {
+function request(extra: EngineSpecFixtureInput, composition: McpComposition = 'direct'): PiSessionRequest {
   return buildSessionRequest(
-    { sessionId: 's', sessionKey: 'k', resume: false, mcpComposition: composition, ...extra },
+    engineSpecFixture({ sessionId: 's', sessionKey: 'k', resume: false, mcpComposition: composition, ...extra }),
     { agentDir: '/tmp/pi-agent', sessionDir: '/tmp/pi-sessions', sessionPath: null, cwd: '/tmp', streamDeltas: true },
   );
 }

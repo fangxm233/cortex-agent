@@ -7,11 +7,91 @@ import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from 'n
 import type { ProviderUsage } from '../domain/costs/usage-store.js';
 import type { Capability } from './capabilities.js';
 import type { NormalizedEvent, ToolUseSubagent } from './normalize/event-types.js';
-import type { NormalizedHookSpec } from './normalize/hooks.js';
+import type { RunEvent } from './run-events.js';
 import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
 
-export type Backend = 'claude' | 'pi';
+// Re-exported so every `import { Backend } from '.../agent-adapter/types.js'` keeps working;
+// the definition moved to core so `core/agents/*` can name a backend without importing up.
+import type { Backend } from '@core/types/agent-types.js';
+export type { Backend };
 export type McpComposition = 'direct' | 'thread-control' | 'none';
+
+/** One provider rate-limit window as the backend reported it. Declared structurally here rather
+ *  than imported from `domain/costs`: the adapter's job ends at observing the window, and what a
+ *  throttle *means* is the host's decision (D10). Shaped to match the throttle's own input. */
+export interface RateLimitObservation {
+  status?: string;
+  resetsAt?: number;
+  rateLimitType?: string;
+  rateLimitLabel?: string;
+  utilization?: number;
+  isUsingOverage?: boolean;
+  surpassedThreshold?: number;
+}
+
+/** Who the observation is attributed to — the gateway route the session actually used. */
+export interface RateLimitOrigin {
+  provider: string;
+  displayName: string;
+  mode?: string;
+}
+
+/** The host's throttle entry point, injected into an adapter at construction. Returns the
+ *  submission promise so the caller can log a failure without owning the policy. */
+export type RateLimitReporter = (
+  info: RateLimitObservation,
+  origin: RateLimitOrigin,
+) => Promise<void>;
+
+/** Cortex execution context surfaced to child processes as CORTEX_* env vars. */
+export interface CortexContextEnv {
+  threadId?: string | null;
+  profile?: string | null;
+  project?: string | null;
+  sessionName?: string | null;
+  /** Stable Cortex tracking id (decoupled from the backend `sessionId`). Surfaced as
+   *  CORTEX_SESSION_ID so session-activity logs + MCP context tools key on the stable UI-facing
+   *  identity rather than the backend CLI's self-assigned id. Falls back to `sessionId` when unset. */
+  trackSessionId?: string | null;
+  /** Cortex execution record id, surfaced as CORTEX_EXECUTION_ID to subprocess env. */
+  executionId?: string | null;
+  /** When true, load core + tasks + manager-answer + thread MCP layers. */
+  useCoreMcp?: boolean;
+  threadDepth?: number | null;
+  /** Owning dispatch task identity surfaced through CORTEX_TASK_* variables. */
+  taskId?: string | null;
+  taskProject?: string | null;
+  taskGeneration?: string | null;
+}
+
+/**
+ * Backend-neutral engine description (plan §3.3). Backend-private options travel in the
+ * `backend` discriminated union rather than as flat passthrough fields. Optionality is
+ * load-bearing: several readers branch on `undefined` specifically, so an absent field must
+ * stay absent and `undefined` must never be normalised to `null`/`false`/`[]`.
+ */
+export interface EngineSpec {
+  engineKey: string;
+  cwd?: string;
+  resume: { backendSessionId: string | null; resume: boolean };
+  model: { id?: string; provider?: string; thinking?: string; maxOutputTokens?: number };
+  prompt: { system?: string; append?: string };
+  tools: { canonical?: string[]; rawClaude?: string };
+  plugins: { dirs?: string[]; skillDirs?: string[]; fingerprint?: string };
+  mcp: { composition?: McpComposition; servers?: McpServerConfig[]; allowlist?: string[];
+         configPaths?: string[]; commissionTools?: boolean; browserCdpEndpoint?: string };
+  env: { sets?: Record<string, string>; unsets?: string[]; pinned?: NodeJS.ProcessEnv;
+         context?: CortexContextEnv };
+  route: { anthropicBaseUrl?: string; gatewayBaseUrl?: string; gatewayPath?: string };
+  flags: { disableHooks?: boolean; streamDeltas?: boolean; captureTranscripts?: boolean;
+           preserveUnreportedAccounting?: boolean; isUserInitiated: boolean };
+  context: { channel?: string; callbackSource?: string; scheduleTaskId?: string };
+  extraOption?: Record<string, string>;
+  backend:
+    | { kind: 'claude'; claudeAgent?: string; outputStyle?: string; claudeBackend?: 'print' | 'tui' }
+    | { kind: 'pi' };
+  process: { spawner?: AgentProcessSpawner; cliPath?: string };
+}
 
 export interface AgentUsageScope {
   provider?: string;
@@ -70,119 +150,6 @@ export type AgentProcessSpawner = (
   args: string[],
   options: SpawnOptionsWithoutStdio,
 ) => SpawnedAgentProcess;
-
-export interface AgentSpawnConfig {
-  sessionId: string | null;
-  /** Used to deduplicate sessions within a channel — multiple thread agents share a channel but need separate sessions. */
-  sessionKey: string;
-  resume: boolean;
-  systemPrompt?: string;
-  appendSystemPrompt?: string;
-  /** Canonical tool names (see normalize/tool-names.ts). Adapter translates to backend-native at spawn time. */
-  tools?: string[];
-  pluginDirs?: string[];
-  pluginSkillDirs?: string[];
-  model?: string;
-  env?: Record<string, string>;
-  /** Keys deleted from the child environment AFTER `env` is applied. Needed because `env` can only
-   *  set: a per-spawn route may require a variable to be absent (plan mode must not carry
-   *  ANTHROPIC_API_KEY), and the empty string cannot serve as a delete sentinel — it is already a
-   *  legal value here (pi/discovery.ts passes PI_CODING_AGENT_DIR: ''). */
-  unsetEnv?: string[];
-  extraOption?: Record<string, string>;
-  mcpServers?: McpServerConfig[];
-  pluginCapabilityFingerprint?: string;
-  hooks?: NormalizedHookSpec[];
-  outputStyle?: string;
-  cwd?: string;
-  mcpComposition?: McpComposition;
-  /** Concrete MCP files for a frozen one-shot role. */
-  mcpConfigPaths?: string[];
-  /** Canonical per-tool MCP allowlist; absent preserves the composition's full surface. */
-  mcpToolAllowlist?: string[];
-  /** Add the two standalone commission-creation tools to the interaction bridge. Set only while a
-   *  NEW commission is being drafted; ignored when the bridge is off. */
-  commissionTools?: boolean;
-  /** Suppress ambient lifecycle hooks for an isolated one-shot role. */
-  disableHooks?: boolean;
-  /** Explicit delta policy avoids loading watched daemon settings in one-shot mode. */
-  streamDeltas?: boolean;
-  /** Disable legacy raw/text transcript files when the required journal is authoritative. */
-  captureTranscriptLogs?: boolean;
-  /** Preserve absent backend cost/usage for provenance-sensitive one-shot runs. */
-  preserveUnreportedAccounting?: boolean;
-  /** Optional process boundary used by daemon-free runs. Ordinary callers spawn directly. */
-  processSpawner?: AgentProcessSpawner;
-  /** Absolute backend CLI path frozen by a trial policy. Absent resolves the CLI from PATH. */
-  cliPath?: string;
-  /** Exact allowlisted child environment for an isolated process. */
-  pinnedEnv?: NodeJS.ProcessEnv;
-
-  // --- Claude-specific passthroughs (task f7cf); other backends ignore these ---
-  /** Channel identifier used for Claude session-pool key fallback. */
-  channel?: string;
-  /** DR-0008 Phase 3 cleanup target. Claude `--agent` CLI flag. */
-  claudeAgent?: string;
-  /** MCP environment and Claude log context. */
-  callbackSource?: string;
-  /** DR-0008 Phase 3 cleanup target. Forwarded to MCP env + Claude log context. */
-  scheduleTaskId?: string;
-  /** DR-0008 Phase 3 cleanup target. */
-  isUserInitiated?: boolean;
-  /** DR-0008 Phase 3 cleanup target. Raw Claude-native comma-separated tool names; bypasses canonical→native translation. */
-  rawTools?: string;
-  /** DR-0008 Phase 3 cleanup target. Per-request ANTHROPIC_BASE_URL override (gateway-routed mode URL). */
-  anthropicBaseUrl?: string;
-  /** CDP endpoint of the browser this session opted into. Present → Playwright MCP is added to the
-   *  spawn; absent → the session has no browser tools at all. */
-  browserCdpEndpoint?: string;
-
-  // --- PI-specific passthroughs; other backends ignore these ---
-  /** PI provider name / protocol (e.g. "anthropic", "deepseek", "openai-codex"). Sourced from the
-   *  active cortex profile's `provider` field (defaults to "anthropic"). PI adapter passes it to the
-   *  subprocess as `--provider <name>`. */
-  piProvider?: string;
-  /** Gateway sub-path for `piProvider`'s models.json override, derived in code as `/m/<mode>/<provider>`
-   *  from the profile's logical `mode` (gateway.yaml owns the route → upstream + keys). Decouples the
-   *  gateway route from the provider name. Omitted (no mode) → adapter defaults to `/<piProvider>`. */
-  piGatewayPath?: string;
-  /** Base URL of the cortex local gateway (e.g. "http://127.0.0.1:9880"). PI adapter writes a
-   *  multi-provider models.json overriding every discovered provider's baseUrl to land on this
-   *  gateway, so PI traffic is monitored / cost-tracked rather than going direct to upstreams. */
-  piGatewayBaseUrl?: string;
-  /** Trial-scoped built-in model output cap, committed by benchmark policy. */
-  piModelMaxTokens?: number;
-
-  /** DR-0012: Claude adapter mode. 'print' (default, -p stream-json) or 'tui' (interactive tmux + jsonl tail).
-   *  Ignored for non-claude backends. Sourced from the active profile's claudeBackend field. */
-  claudeBackend?: 'print' | 'tui';
-
-  /** Thinking level from the active profile's `thinking` field (backend-native value, validated at
-   *  profile load). Claude passes `--effort <level>`; PI passes `--thinking <level>`. */
-  thinking?: string;
-
-  /** Cortex execution context surfaced to MCP children as CORTEX_* environment variables so
-   *  agents can discover their thread, profile, project, and session without guessing. */
-  cortexContext?: {
-    threadId?: string | null;
-    profile?: string | null;
-    project?: string | null;
-    sessionName?: string | null;
-    /** Stable Cortex tracking id (decoupled from the backend `sessionId`). Surfaced as
-     *  CORTEX_SESSION_ID so session-activity logs + MCP context tools key on the stable UI-facing
-     *  identity rather than the backend CLI's self-assigned id. Falls back to `sessionId` when unset. */
-    trackSessionId?: string | null;
-    /** Cortex execution record id, surfaced as CORTEX_EXECUTION_ID to subprocess env. */
-    executionId?: string | null;
-    /** When true, load core + tasks + manager-answer + thread MCP layers. */
-    useCoreMcp?: boolean;
-    threadDepth?: number | null;
-    /** Owning dispatch task identity surfaced through CORTEX_TASK_* variables. */
-    taskId?: string | null;
-    taskProject?: string | null;
-    taskGeneration?: string | null;
-  };
-}
 
 /**
  * Session-level sink for background-task continuation turns (run_in_background Bash/Agent).
@@ -290,7 +257,7 @@ export interface AgentAdapter {
   readonly backend: Backend;
   readonly capabilities: Set<Capability>;
   /** Start or resume a session. */
-  spawn(config: AgentSpawnConfig): AgentProcess;
+  spawn(spec: EngineSpec): AgentProcess;
   /** Graceful close. */
   close(sessionKey: string): Promise<void>;
   /** Forced kill. */
@@ -299,4 +266,56 @@ export interface AgentAdapter {
   listSessions(): string[];
   /** Return scoped provider usage from the backend's pull source or push cache. */
   getUsage?(scope: AgentUsageScope): Promise<ProviderUsage[] | null>;
+}
+
+/**
+ * One engine-side run (plan §3.3): the event stream and the foreground result for a single
+ * `EngineSession.run()` call.
+ */
+export interface EngineRun {
+  /** The run's events. Does NOT close at the foreground result: a session that owes background
+   *  work keeps emitting with `phase: 'background'` until it emits `phase: 'done'` (D1). */
+  events: AsyncIterable<RunEvent>;
+  /** The foreground turn's result. Background phases continue through `events`. */
+  result: Promise<AgentResult>;
+  cancel(): void;
+}
+
+/**
+ * A live backend session (Claude subprocess / PI SDK session); plan §3.3. Implemented by
+ * `pi/engine.ts` and `claude/engine.ts`; `domain/runs/engines.ts: SessionEngines` owns lifetime.
+ */
+export interface EngineSession {
+  readonly backend: Backend;
+  /** The pool's reuse test: a stable string derived from the spec this session was opened from.
+   *  Produced by the BACKEND (`pi.specIdentity` / `claude.specIdentity`), not by the shared
+   *  `engineIdentity(spec)` — each backend's own identity covers resolved env / MCP / args and is
+   *  strictly more precise. See the note on `engineIdentity` in domain/runs/engine-spec.ts. */
+  readonly identity: string;
+  /** Feature gates this *session* supports. Per session, not per backend (D9): a profile can
+   *  declare a backend-level capability the concrete session does not implement, so the run layer
+   *  consults this set rather than the backend capability matrix. */
+  readonly capabilities: ReadonlySet<Capability>;
+  readonly backendSessionId: string | null;
+  run(prompt: UserMessage, opts: { awaitBackground: 'none' | 'inline' | 'hold' }): EngineRun;
+  /** Mid-turn injection. `accepted:false` means the backend cannot take it right now. */
+  steer(msg: UserMessage): { accepted: boolean; injectionId?: string };
+  /** Answer an in-flight dialog (ask_user / plan approval / …). Replaces PI's
+   *  `sendExtensionUiResponse`. Returns false when no such dialog is open. */
+  respondToDialog(dialogId: string, payload: Record<string, unknown>): boolean;
+  compact(): Promise<AgentCompactResult>;
+  close(): Promise<void>;
+  kill(): boolean;
+}
+
+/**
+ * Stateless engine factory (plan §3.3). Implemented by `PIAdapter` and `ClaudeAdapter`.
+ * Replaces the pooled `AgentAdapter` contract for new callers.
+ */
+export interface EngineAdapter {
+  readonly backend: Backend;
+  /** Pure construction: no pool, no registration, no side effects. The caller
+   *  (`domain/runs/engines.ts: SessionEngines`) owns lifetime and reuse. */
+  open(spec: EngineSpec): EngineSession;
+  usage?(scope: AgentUsageScope): Promise<ProviderUsage[] | null>;
 }

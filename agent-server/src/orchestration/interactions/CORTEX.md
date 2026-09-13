@@ -6,6 +6,7 @@ Covers user questions, plan approvals, version-update prompts, and the delivery 
 | filename | role | function |
 |---|---|---|
 | ask-user-question.ts | state | tracks pending user questions and answers |
+| ask-user-resume.ts | runner | delivers an answer back to the agent as a follow-up run |
 | command-action-router.ts | router | routes button and modal events to commands |
 | interaction-handlers.ts | handlers | registers question, plan and status actions |
 | interaction-records.ts | store | records interactions and their outcomes |

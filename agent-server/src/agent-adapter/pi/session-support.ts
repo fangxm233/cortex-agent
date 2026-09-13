@@ -19,7 +19,7 @@ export const PI_CONTEXT_USAGE_SAMPLE_MS = 2000;
 export type SwitchResult = { ok: boolean; cancelled: boolean };
 
 export interface PIAgentProcess extends AgentProcess {
-  sendExtensionUiResponse(id: string, payload: Record<string, unknown>): void;
+  sendExtensionUiResponse(id: string, payload: Record<string, unknown>): boolean;
 }
 
 export interface PendingPiTurn {

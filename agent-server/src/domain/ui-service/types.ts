@@ -11,7 +11,7 @@ import type { CostSummary } from '@domain/costs/cost-tracker.js';
 import type { ProviderUsage } from '@domain/costs/usage-store.js';
 export type { ProviderUsage, UsageBilling, UsageFreshness, UsageWindow } from '@domain/costs/usage-store.js';
 import type { EventBus } from '@events/index.js';
-import type { RunningExecutions } from '@core/running-executions.js';
+import type { RunRegistry } from '@core/run-registry.js';
 import type {
   ProviderRateLimitPolicyOverride,
   ProviderRateLimits,
@@ -2705,7 +2705,7 @@ export interface UiServiceDeps {
     stopTail(executionId: string): void;
     refCount(executionId: string): number;
   };
-  runningExecutions: RunningExecutions;
+  runningExecutions: RunRegistry;
   costSummary: (projectId?: string | null) => Promise<CostSummary>;
   /**
    * Registry of connected cortex-client devices (from remote/client-manager) plus the
@@ -2768,10 +2768,4 @@ export interface UiServiceDeps {
    * still-`pending` persisted rows derive to `expired` at read time.
    */
   isInteractionPending?: (id: string) => boolean;
-  /**
-   * Web bg-hold snapshot (core/bg-held-sessions, fed from `session.status` events in entry/app.ts):
-   * true while the session's foreground turn ended but a background task still holds it. Optional so
-   * fixtures / the TUI need not provide it — absent ⇒ no session is held.
-   */
-  isSessionBgHeld?: (sessionId: string) => boolean;
 }

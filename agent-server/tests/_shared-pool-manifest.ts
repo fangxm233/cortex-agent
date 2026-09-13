@@ -22,7 +22,6 @@
 export const SHARED_POOL_FILES: string[] = [
   'tests/agent-adapter/claude-bg-task-tracker.test.ts',
   'tests/agent-adapter/claude-compact-window.test.ts',
-  'tests/agent-adapter/claude-cost-from-usage.test.ts',
   'tests/agent-adapter/normalize-assistant-delta.test.ts',
   'tests/agent-adapter-pi-agent-dir.test.ts',
   'tests/agent-adapter-pi-mcp-bridge.test.ts',
@@ -63,7 +62,7 @@ export const SHARED_POOL_FILES: string[] = [
   'tests/feishu-client.test.ts',
   'tests/feishu-user-mode.test.ts',
   'tests/memory-index-regen.test.ts',
-  'tests/orch/web-bg-hold.test.ts',
+  'tests/orch/web-status-renderer.test.ts',
   'tests/platform/app-update.test.ts',
   'tests/platform/tui-protocol.test.ts',
   'tests/platform/tui-transcript.test.ts',

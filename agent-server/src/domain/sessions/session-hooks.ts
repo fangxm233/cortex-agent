@@ -1,17 +1,21 @@
-// input:  hook registry/events, agent sessions, OutputStream
+// input:  hook registry/events, agent sessions, run service, OutputStream
 // output: session dispatch, diagnostics, and injection helpers
 // pos:    Dispatches session events and injects prompt results
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import * as path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { emitCortexEvent, type HookEmitResult } from '@core/hook-bus.js';
 import { createLogger } from '@core/log.js';
 import { HOOKS_DIR } from '@core/paths.js';
 import { Icons } from '../../core/icons.js';
 import type { PlatformAdapter, OutputStream } from '@platform/index.js';
-import { runAgent, resolveBackendForChannel } from '@domain/agents/index.js';
-import { getAdapter } from '../../agent-adapter/index.js';
-import type { Backend } from '../../agent-adapter/index.js';
-import type { AgentHandle } from '@core/types/agent-types.js';
+import { resolveBackendForChannel } from '@domain/agents/index.js';
+import { resolveProfileConfig, type ResolvedProfileConfig } from '@domain/agents/profile-manager.js';
+import { startRun } from '@domain/runs/service.js';
+import type { RunObserver, RunRequest } from '@domain/runs/request.js';
+import { bareSpec } from '@domain/runs/spec-loader.js';
+import type { RunEvent } from '@domain/runs/events.js';
+import { engines } from '@domain/runs/engines.js';
 import { getSessionAsync } from '@domain/sessions/session.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
@@ -103,7 +107,7 @@ export interface SessionHookInject {
  *
  *  MUST be distinct from the channel's live session-pool slot (which is keyed by the channel
  *  itself, see ClaudeAdapter / facade `sessionKey: options.channel`). Race it guards against:
- *  `!new` fires this hook fire-and-forget, then synchronously closeSession(channel) +
+ *  `!new` fires this hook fire-and-forget, then synchronously closes the pooled session +
  *  resetChannelSession(channel). The hook's memory-write subprocess finishes LATER and injects
  *  its stdout as a final turn that RESUMES the old session. If that turn used `channel` as its
  *  pool key it would re-create (resurrect) a live session under the channel slot AFTER the reset
@@ -114,19 +118,33 @@ export function onNewInjectSessionKey(channel: string): string {
   return `${channel}::onnew-hook`;
 }
 
-/** Injected-turn dependencies — seam for unit tests (default binds the real runAgent + a
+/** Injected-turn dependencies — seam for unit tests (default binds the real run service + a
  *  backend-aware session close). */
 export interface InjectDeps {
-  runAgent: typeof runAgent;
+  startRun: typeof startRun;
   /** Close the pooled session created for the injected turn (by sessionKey). */
   closeInjectedSession: (channel: string, sessionKey: string) => void | Promise<void>;
 }
 
+/** Synthetic profile for an unknown/missing configured name: keeps the requested name so the
+ *  facade still rejects it, while its backend mirrors the channel's live session. */
+function hookInjectionProfile(profileName: string | null, channel: string): ResolvedProfileConfig {
+  try {
+    return resolveProfileConfig(profileName);
+  } catch {
+    return {
+      name: profileName ?? '', model: '', backend: resolveBackendForChannel(channel), mode: null,
+      provider: null, extraEnv: {}, extraOption: {}, claudeBackend: 'print', thinking: null,
+      maxOutputTokens: null, fallback: [],
+    };
+  }
+}
+
 const defaultInjectDeps: InjectDeps = {
-  runAgent,
+  startRun,
   closeInjectedSession: async (channel: string, sessionKey: string) => {
     try {
-      await getAdapter(resolveBackendForChannel(channel) as Backend).close(sessionKey);
+      await engines.close(sessionKey);
     } catch (e: any) {
       log.warn(`closeInjectedSession failed (${sessionKey}): ${e?.message || e}`);
     }
@@ -146,16 +164,52 @@ export async function runHookInjection(
   const inject = spec.inject;
   if (!inject) return;
   try {
-    const handle: AgentHandle = deps.runAgent(output, {
-      channel: spec.ctx.channel,
-      sessionId: inject.targetSessionId,
-      sessionKey: inject.sessionKey,
-      isUserInitiated: false,
-      profileName: inject.profileName,
-      trigger: inject.trigger ?? `hook:${spec.name}`,
-      onAssistantMessage: (text: string) => stream.emitText(text),
-    });
-    await handle.promise;
+    const request: RunRequest = {
+      runId: randomUUID(),
+      session: {
+        // The injected turn resumes the OLD backend session; the legacy call supplied no separate
+        // track id, so it defaults to the same id.
+        sessionId: inject.targetSessionId,
+        backendSessionId: inject.targetSessionId,
+        // Preserve the exact pool key the legacy `runAgent` call used (onNew: the isolated
+        // `${channel}::onnew-hook`; onMessageEnd: the channel). D4's `<sessionId>::hook` is a
+        // Phase-2 rename; changing the key now would re-pool live sessions.
+        engineKey: inject.sessionKey,
+        sessionName: null,
+      },
+      profile: hookInjectionProfile(inject.profileName, spec.ctx.channel),
+      spec: bareSpec(),
+      prompt: { text: output, attachments: [] },
+      context: {
+        channel: spec.ctx.channel,
+        project: 'general',
+        trigger: inject.trigger ?? `hook:${spec.name}`,
+        executionKind: 'local',
+        isUserInitiated: false,
+        commissionMode: false,
+        commissionTools: false,
+        scheduleTaskId: null,
+      },
+      policy: {
+        // Legacy `awaitBackground` was undefined with no threadId -> no inline wait.
+        background: 'none',
+        recordCost: true,
+        hooks: true,
+        loadRules: true,
+        mcpComposition: 'direct',
+        browserCdpEndpoint: null,
+        // Claude writes a per-turn transcript file unless told not to; only a frozen subagent
+        // child opts out. `captureTranscriptLogs` defaults to ON, so this must stay true.
+        captureTranscripts: true,
+      },
+    };
+    const observer: RunObserver = {
+      onEvent(event: RunEvent): void {
+        if (event.type === 'assistant_text') stream.emitText(event.text);
+      },
+    };
+    const run = deps.startRun(request, [observer]);
+    await run.result;
   } catch (err: any) {
     const msg = err?.message || String(err);
     log.error(`hook ${spec.name} injected agent failed: ${msg}`);
@@ -370,7 +424,7 @@ async function prepareOnNewRun(
   if (!isOnNewHookConfigured()) return null;
 
   const backend = resolveBackendForChannel(channel);
-  const sessionId = await getSessionAsync(channel, backend);
+  const sessionId = await getSessionAsync(channel);
   if (!sessionId) {
     log.info('onNew hook skipped: no active session for channel', channel);
     return null;
@@ -467,4 +521,32 @@ export async function runMessageEndSessionHook(args: OnMessageEndArgs): Promise<
     },
   };
   await runSessionHook(spec, args.stream);
+}
+
+/** Run the onMessageEnd hook for a turn that just finished. The hook's lines extend the assistant
+ *  turn's OutputStream, so hook output (status / preview / error) and any injected agent turn share
+ *  one continuous thread with the reply we just finished — no top-level leak, no detached stream.
+ *  The profile comes from the turn's conversation record, never from a global. */
+export async function runMessageEndForTurn(args: {
+  channel: string; sessionId: string | null; sessionName: string | null;
+  executionId: string | null; stream: OutputStream | null | undefined;
+}): Promise<void> {
+  if (!isOnMessageEndHookConfigured() || !args.sessionId) return;
+  if (!args.stream) {
+    log.warn('onMessageEnd hook skipped: assistant stream unavailable on onAssistantMessage');
+    return;
+  }
+  try {
+    const conv = await conversationLedger.getConversation(args.channel);
+    await runMessageEndSessionHook({
+      channel: args.channel,
+      sessionId: args.sessionId,
+      sessionName: args.sessionName ?? '',
+      executionId: args.executionId ?? '',
+      profile: conv?.profileName ?? null,
+      stream: args.stream,
+    });
+  } catch (err) {
+    log.error('onMessageEnd hook failed:', (err as Error)?.message || err);
+  }
 }

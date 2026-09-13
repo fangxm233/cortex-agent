@@ -3,7 +3,8 @@
 // pos:    Shared type definitions for the thread system
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import type { Backend, McpComposition } from '../../agent-adapter/types.js';
+import type { Backend } from './agent-types.js';
+import type { McpComposition } from '../../agent-adapter/types.js';
 
 // --- Thread Identity ---
 

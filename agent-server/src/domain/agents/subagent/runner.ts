@@ -3,23 +3,29 @@
 // pos:    Backend dispatch for a single subagent child
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
+import { randomUUID } from 'node:crypto';
 import { withoutSubagentTools } from '@core/mcp-tool-gate.js';
 import { createLogger } from '@core/log.js';
 import type { AgentResult } from '@core/types/agent-types.js';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../../../agent-adapter/capabilities.js';
 import type { Backend } from '../../../agent-adapter/types.js';
-import type { NormalizedEvent } from '../../../agent-adapter/normalize/event-types.js';
 import type { SubagentNotice } from '../../../agent-adapter/pi/event-parser.js';
 import { noticesFor } from '../../../agent-adapter/pi/child-events.js';
-import { getAdapter } from '../../../agent-adapter/index.js';
+import { getEngineAdapter } from '../../runs/adapters.js';
+import { resolveRunConfig } from '../../runs/config-resolver.js';
 import { GATEWAY_URL } from '../../costs/gateway-manager.js';
-import { getClaudeMode, getClaudeModel } from '../config.js';
-import { roleToolsForBackend, type AgentRole } from '../roles.js';
-import { buildPiGatewaySubPath, type AgentConfig, type RunAgentOptions } from '../spawn-config.js';
-import { emptyUsage } from './usage.js';
+import { type AgentRole } from '@core/agents/roles.js';
+import { buildPiGatewaySubPath, type AgentConfig } from '../spawn-config.js';
+import type { ResolvedProfileConfig } from '../profile-manager.js';
+import { startRun } from '../../runs/service.js';
+import { fromRole } from '../../runs/spec-loader.js';
+import type { RunObserver, RunRequest } from '../../runs/request.js';
+import type { RunEvent } from '../../runs/events.js';
+import { emptyUsage } from '@core/agents/subagent/usage.js';
+import { openBundledMcpServer } from '../../mcp/bundled-server.js';
 import type {
   ChildAccumulator, ChildEventForwarder, SubagentResult, SubagentTask, SubagentUsage,
-} from './types.js';
+} from '@core/agents/subagent/types.js';
 
 const log = createLogger('subagent-runner');
 
@@ -138,7 +144,7 @@ async function runPiSubagent(request: SubagentRunRequest): Promise<SubagentResul
   const inherited = parentModel(request);
   const spec = resolveSpec(request);
   const provider = spec.provider ?? inherited.provider;
-  const adapter = getAdapter('pi') as unknown as {
+  const adapter = getEngineAdapter('pi') as unknown as {
     agentDir: string;
     ensureProviderRouting?: (opts: {
       provider: string; gatewayPath?: string | null; gatewayBaseUrl: string; model?: string;
@@ -165,7 +171,9 @@ async function runPiSubagent(request: SubagentRunRequest): Promise<SubagentResul
     agentDir: adapter.agentDir,
     parentEnv: request.parent.env ?? process.env,
     fallbackModel: model ? { id: model, provider } : null,
-    childExtensions,
+    // A Claude parent delegating to a `pi` child builds the child outside any PI session, so the
+    // Cortex bundle opener is bound here rather than inherited from a parent session (D10).
+    childExtensions: (env) => childExtensions(env, openBundledMcpServer),
     signal: request.signal,
     forward: piForwarder(request),
   });
@@ -192,53 +200,96 @@ function piForwarder(request: SubagentRunRequest): ChildEventForwarder | undefin
 // ─── claude child ─────────────────────────────────────────────────
 
 /**
- * No profile is consulted (plan §3.2): the model comes from the task or the role, falling back to
- * the parent's own when the parent is itself Claude and finally to the daemon's configured Claude
- * model. The gateway `mode` follows the same rule, so a child bills through the parent's route.
+ * No profile is consulted for the CHILD (plan §3.2): the model comes from the task or the role,
+ * falling back to the parent's own when the parent is itself Claude. The last resort used to be
+ * the daemon's global Claude model/mode; with D5 there is no global, so it is the profile the
+ * parent's channel resolves to — the same answer whenever that global was ever correct.
+ * The gateway `mode` follows the same rule, so a child bills through the parent's route.
  */
 function claudeChildConfig(request: SubagentRunRequest, spec: ModelSpec): AgentConfig {
   const sameBackend = request.parent.backend === 'claude';
+  const channelDefault = resolveRunConfig({ channel: request.parent.channel }).profile;
   return {
-    model: spec.model ?? (sameBackend ? request.parent.model : null) ?? getClaudeModel(),
+    model: spec.model ?? (sameBackend ? request.parent.model : null) ?? channelDefault.model,
     backend: 'claude',
-    mode: (sameBackend ? request.parent.mode : null) ?? getClaudeMode(),
+    mode: (sameBackend ? request.parent.mode : null) ?? channelDefault.mode,
     thinking: spec.thinking ?? null,
   };
 }
 
-function claudeChildOptions(request: SubagentRunRequest): RunAgentOptions {
-  const tools = roleToolsForBackend(request.role, 'claude');
+/** Wrap the child's resolved config as the run's profile. The run layer treats a non-empty-model
+ *  `resolvedProfileConfig` as authoritative (see facade.runAgent), so the role/task model reaches
+ *  the spawn exactly as `runAgentOnce(message, options, config)` used to pass it. */
+function claudeChildProfile(config: AgentConfig): ResolvedProfileConfig {
   return {
-    sessionId: null,
+    name: 'subagent',
+    model: config.model,
+    backend: config.backend,
+    mode: config.mode,
+    provider: config.provider ?? null,
+    extraEnv: config.extraEnv ?? {},
+    extraOption: config.extraOption ?? {},
+    claudeBackend: config.claudeBackend ?? 'print',
+    thinking: config.thinking ?? null,
+    maxOutputTokens: config.maxOutputTokens ?? null,
+    fallback: [],
+  };
+}
+
+/** The RunRequest equivalent of the legacy `claudeChildOptions`. A frozen one-shot role: no
+ *  session to resume, no hooks, no ambient rules, no transcript log, and a leaf tool surface. */
+function claudeChildRequest(request: SubagentRunRequest, config: AgentConfig): RunRequest {
+  const mcpToolAllowlist = withoutSubagentTools(undefined, CHILD_MCP_BUNDLES);
+  return {
+    runId: randomUUID(),
+    session: {
+      sessionId: null,
+      backendSessionId: null,
+      // Legacy `runAgentOnce` set no sessionKey, so spawn-config resolved
+      // `options.channel || 'default'`.
+      engineKey: request.parent.channel || 'default',
+      sessionName: null,
+    },
+    profile: claudeChildProfile(config),
+    // The child runs where the caller asked (the parent's workspace), not where the server lives.
     cwd: request.cwd,
-    channel: request.parent.channel,
-    project: request.parent.project,
-    trigger: 'subagent',
-    isUserInitiated: false,
-    // A frozen one-shot role: no session to resume, no hooks, no ambient rules, no transcript log.
-    disableHooks: true,
-    loadCortexRules: false,
-    captureTranscriptLogs: false,
-    mcpComposition: 'direct',
-    // The lever that makes a child a leaf: it cannot see the delegation tools (plan §6.1).
-    mcpToolAllowlist: withoutSubagentTools(undefined, CHILD_MCP_BUNDLES),
-    ...(tools ? { tools: tools.join(',') } : {}),
-    ...(request.role.systemPrompt ? { appendSystemPrompt: request.role.systemPrompt } : {}),
-    observers: request.onNotice ? [{ onEvent: claudeNoticeObserver(request) }] : undefined,
+    spec: fromRole(request.role, 'claude', { mcpAllowlist: mcpToolAllowlist ?? null }),
+    prompt: { text: `Task: ${request.task.prompt}`, attachments: [] },
+    context: {
+      channel: request.parent.channel ?? '',
+      project: request.parent.project ?? 'general',
+      trigger: 'subagent',
+      executionKind: 'local',
+      isUserInitiated: false,
+      commissionMode: false,
+      commissionTools: false,
+      scheduleTaskId: null,
+    },
+    policy: {
+      // Legacy `awaitBackground` was undefined with no threadId -> no inline wait.
+      background: 'none',
+      // The legacy default (undefined) still recorded cost.
+      recordCost: true,
+      hooks: false,               // disableHooks: true
+      loadRules: false,           // loadCortexRules: false
+      mcpComposition: 'direct',
+      mcpToolAllowlist,
+      browserCdpEndpoint: null,
+      captureTranscripts: false,  // captureTranscriptLogs: false
+    },
   };
 }
 
 async function runClaudeSubagent(request: SubagentRunRequest): Promise<SubagentResult> {
-  const { runAgentOnce } = await import('../facade.js');
   const spec = resolveSpec(request);
   const config = claudeChildConfig(request, spec);
   if (!config.model) throw new Error('A claude subagent needs a model: set one on the task or the role.');
-  const handle = runAgentOnce(`Task: ${request.task.prompt}`, claudeChildOptions(request), config);
-  const onAbort = (): void => { handle.kill(); };
+  const run = startRun(claudeChildRequest(request, config), request.onNotice ? [claudeNoticeObserver(request)] : []);
+  const onAbort = (): void => { run.cancel('user'); };
   request.signal?.addEventListener('abort', onAbort, { once: true });
   let result: AgentResult;
   try {
-    result = await handle.promise;
+    result = await run.result;
   } finally {
     request.signal?.removeEventListener('abort', onAbort);
   }
@@ -276,8 +327,8 @@ function claudeResult(
   };
 }
 
-/** Live attribution: the child's own normalized events, re-stamped with the parent's block key. */
-function claudeNoticeObserver(request: SubagentRunRequest): (event: NormalizedEvent) => void {
+/** Live attribution: the child's own run events, re-stamped with the parent's block key. */
+function claudeNoticeObserver(request: SubagentRunRequest): RunObserver {
   const onNotice = request.onNotice!;
   const ref = request.ref;
   const base = {
@@ -292,26 +343,35 @@ function claudeNoticeObserver(request: SubagentRunRequest): (event: NormalizedEv
       promptSent = true;
     } catch { /* attribution is best-effort */ }
   };
-  return (event: NormalizedEvent): void => {
-    // A child's own subagent-attributed events cannot occur — it has no delegation tools — so any
-    // attribution present belongs to a nesting we did not create and is ignored rather than merged.
-    if (event.type === 'assistant_text') {
-      if (event.model) model = event.model;
-      if (event.text) send({ ...base, model, kind: 'assistant_text', text: event.text });
-      return;
-    }
-    if (event.type === 'tool_use') {
-      send({
-        ...base, model, kind: 'tool_use',
-        toolUseId: `${ref}:${event.toolUseId}`, name: event.name, input: event.input,
-      });
-      return;
-    }
-    if (event.type === 'tool_result') {
-      send({
-        ...base, model, kind: 'tool_result',
-        toolUseId: `${ref}:${event.toolUseId}`, ok: event.ok, content: event.content,
-      });
-    }
+  return {
+    onEvent(event: RunEvent): void {
+      // A child's own events carry no subagent attribution — it has no delegation tools — so an
+      // attributed one was pushed into this run's stream from outside, by `parentNoticeSink`. It
+      // belongs to a nesting we did not create, and forwarding it would send it straight back to
+      // the sink that pushed it: notice → pushTurnEvent → event → notice, an unbounded loop that
+      // starves the event loop and takes the whole daemon's I/O down with it. Drop it.
+      if ('subagent' in event && event.subagent) return;
+      if (event.type === 'assistant_text') {
+        if (event.model) model = event.model;
+        if (event.text) send({ ...base, model, kind: 'assistant_text', text: event.text });
+        return;
+      }
+      if (event.type === 'tool_use') {
+        send({
+          ...base, model, kind: 'tool_use',
+          toolUseId: `${ref}:${event.toolUseId}`, name: event.name, input: event.input,
+        });
+        return;
+      }
+      if (event.type === 'tool_result') {
+        send({
+          ...base, model, kind: 'tool_result',
+          toolUseId: `${ref}:${event.toolUseId}`, ok: event.ok, content: event.content,
+        });
+      }
+    },
   };
 }
+
+/** Internals exposed for tests only. */
+export const _test = { claudeNoticeObserver };

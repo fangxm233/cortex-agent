@@ -52,6 +52,76 @@ function fakeProcess(opts: { accepts?: boolean; hasMethod?: boolean } = {}) {
   return p;
 }
 
+/**
+ * P1.8: `tryInjectIntoLiveTurn` now steers the live `AgentRun`, which owns both the backend
+ * injection-ack sink and the process's single continuation sink. This fake run mirrors that
+ * translation so the existing ledger assertions can keep driving the same acks/continuations.
+ */
+function attachRun(exec: any): void {
+  if (!exec || exec.run) return;
+  const proc = exec.agentProcess;
+  const observers = new Set<any>();
+  const pending: Array<{ id: string; text: string }> = [];
+  const supported = exec.backend === 'claude' || exec.backend === 'pi';
+  const emit = async (event: any): Promise<void> => {
+    for (const observer of [...observers]) await observer.onEvent(event);
+  };
+  if (proc?.setInjectionAckSink) {
+    proc.setInjectionAckSink({
+      onDelivered: ({ text, foldedIntoTurn }: any) => {
+        const index = pending.findIndex((entry) => entry.text === text);
+        if (index === -1) return Promise.resolve();
+        const [entry] = pending.splice(index, 1);
+        return emit({ type: 'injection_delivered', injectionId: entry.id, foldedIntoTurn });
+      },
+      onUndelivered: ({ text }: any) => {
+        const index = pending.findIndex((entry) => entry.text === text);
+        if (index === -1) return Promise.resolve();
+        const [entry] = pending.splice(index, 1);
+        return emit({ type: 'injection_rejected', injectionId: entry.id, reason: 'undelivered' });
+      },
+    });
+  }
+  if (proc?.setContinuationSink) {
+    proc.setContinuationSink({
+      onAssistantText: (text: string, model: any, subagent: any) => emit({
+        type: 'assistant_text', text, phase: 'background',
+        ...(model ? { model } : {}), ...(subagent ? { subagent } : {}),
+      }),
+      onToolUse: (name: string, input: any, toolUseId: string, subagent: any) => emit({
+        type: 'tool_use', name, input, toolUseId: toolUseId ?? '', phase: 'background',
+        ...(subagent ? { subagent } : {}),
+      }),
+      onToolResult: (toolUseId: string, content: string, isError: boolean, subagent: any) => emit({
+        type: 'tool_result', toolUseId, ok: !isError, content, phase: 'background',
+        ...(subagent ? { subagent } : {}),
+      }),
+      onContextUsage: (usage: any) => emit({ type: 'context_usage', ...usage, phase: 'background' }),
+      onResult: (result: any) => emit({ type: 'background_result', result }),
+    });
+  }
+  exec.run = {
+    capabilities: new Set(supported ? ['mid-turn-inject'] : []),
+    steer: async (msg: any, injectionId?: string) => {
+      if (!supported) return 'refused';
+      if (typeof proc?.injectUserMessage !== 'function') return 'refused';
+      const id = injectionId ?? 'unknown';
+      pending.push({ id, text: msg.text });
+      const accepted = proc.injectUserMessage(msg);
+      if (!accepted) {
+        const index = pending.findIndex((entry) => entry.id === id);
+        if (index !== -1) pending.splice(index, 1);
+        return 'refused';
+      }
+      return 'folded';
+    },
+    subscribe: (observer: any) => {
+      observers.add(observer);
+      return () => { observers.delete(observer); };
+    },
+  };
+}
+
 interface Recorder {
   deps: MidTurnInjectDeps;
   history: any[];
@@ -68,6 +138,7 @@ interface Recorder {
 }
 
 function recorder(overrides: Partial<MidTurnInjectDeps> = {}, exec?: any): Recorder {
+  attachRun(exec);
   const history: any[] = [];
   const published: any[] = [];
   const delivered: any[] = [];

@@ -2,7 +2,7 @@
 // output: exact transcript rollback and reprocessing
 // pos:    Platform message edit retry orchestration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-import { registerPISessionPath } from '../../agent-adapter/index.js';
+import { engines } from '@domain/runs/engines.js';
 import type { PlatformAdapter, MessageEditContext } from '@platform/index.js';
 import type { LedgerTurn, ChannelConversation } from '@store/conversation-ledger-repo.js';
 import { effectiveBackendSessionId, sessionStore } from '@store/session-registry-repo.js';
@@ -12,7 +12,7 @@ import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import * as sessionBackup from '@domain/sessions/session-backup.js';
 import { deleteSessionAsync } from '@domain/sessions/session.js';
 import { resolveBackendForChannel } from '@domain/agents/index.js';
-import type { RunningExecutions } from '../../core/running-executions.js';
+import type { RunRegistry } from '../../core/run-registry.js';
 import { conduitQueues } from '../conduit-queue.js';
 import { supersededEdits } from '../superseded-edits.js';
 import { isTurnTrackingPending, markPendingTurnSuperseded, waitForTurnTracking } from '../lifecycle.js';
@@ -36,7 +36,7 @@ const pendingEdits = new Map();
  *   and ignores the freshly-restored JSONL.
  */
 function createEditHandler(deps: {
-  activeAgents: RunningExecutions;
+  activeAgents: RunRegistry;
   reprocessMessage: (channel: string, text: string, adapter: PlatformAdapter, opts: {
     originalTs: string;
     isRetry: boolean;
@@ -162,7 +162,7 @@ async function restoreFirstEditedTurn(
       ? sessionBackup.sessionFileFromBackupPath(input.targetBackupPath, input.turnIndex)
       : state.backendSessionId ? await sessionBackup.findPISessionFile(state.backendSessionId) : null;
   }
-  await deleteSessionAsync(input.channel, input.backend);
+  await deleteSessionAsync(input.channel);
   return { ...state, useSessionId: null, sessionName: null, piSessionFile };
 }
 
@@ -176,7 +176,7 @@ async function restoreEditedPISession(
   const next = { ...state, restored: restored.restored, piSessionFile: restored.sessionFile };
   if (restored.restored) return next;
   log.warn('No backup found for PI session, falling back to new session');
-  await deleteSessionAsync(input.channel, input.backend);
+  await deleteSessionAsync(input.channel);
   return { ...next, useSessionId: null, sessionName: null };
 }
 
@@ -189,7 +189,7 @@ async function restoreEditedClaudeSession(
     : false;
   if (restored) return { ...state, restored };
   log.warn('No backup found, falling back to new session');
-  await deleteSessionAsync(input.channel, input.backend);
+  await deleteSessionAsync(input.channel);
   return { ...state, restored, useSessionId: null, sessionName: null };
 }
 
@@ -215,7 +215,7 @@ async function restoreEditedSession(
   return restoreEditedClaudeSession(input, state);
 }
 
-function stopActiveEdit(channel: string, activeAgents: RunningExecutions): void {
+function stopActiveEdit(channel: string, activeAgents: RunRegistry): void {
   if (!activeAgents.hasChannel(channel)) return;
   supersededEdits.mark(channel);
   activeAgents.supersedeByChannel(channel, 'edit');
@@ -271,7 +271,10 @@ async function processEditLocked(args: ProcessEditArgs): Promise<void> {
   const rollback = await rollbackEditedTurn(args);
   if (!rollback) return;
   const state = await restoreEditedSession(args, backend, rollback.targetBackupPath);
-  registerRestoredEditPath(backend, state, deps.registerPISessionPath ?? registerPISessionPath);
+  registerRestoredEditPath(
+    backend, state,
+    deps.registerPISessionPath ?? ((id, path) => engines.registerSessionPath(id, path)),
+  );
   deps.closePooledSession?.(channel, backend);
   await conversationLedger.truncateTurns(channel, turnIndex);
   cleanupEditedSession(backend, turnIndex, state);

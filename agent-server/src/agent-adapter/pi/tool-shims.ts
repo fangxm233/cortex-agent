@@ -6,18 +6,16 @@ import { Type } from '@sinclair/typebox';
 import type { ExtensionAPI, ExtensionContext, InlineExtension } from '@earendil-works/pi-coding-agent';
 import * as path from 'node:path';
 import { PI_AGENT_DIR, ensurePIAgentRoles } from './agent-dir.js';
-import { loadRoles } from '@domain/agents/roles.js';
+import { loadRoles } from '@core/agents/roles.js';
 import {
   claudeModelOptions, piModelOptions, roleOptionsFrom, type SubagentCatalog,
-} from '@domain/agents/subagent/catalog.js';
+} from '@core/agents/subagent/catalog.js';
 import { createChildSession, type ChildSessionFactory } from './child-session.js';
 import type { SubagentNotice } from './event-parser.js';
-import { createMcpBridgeDeps, installMcpBridge } from './mcp-bridge.js';
-import { runForeignSubagent } from './foreign-subagent.js';
 import {
-  startBackgroundSubagent, stopBackgroundSubagent,
-  type StartBackgroundSubagent, type StopBackgroundSubagent,
-} from './background-subagent.js';
+  createMcpBridgeDeps, installMcpBridge, type OpenBundledMcpServer,
+} from './mcp-bridge.js';
+import type { StartBackgroundSubagent, StopBackgroundSubagent } from './background-subagent.js';
 import {
   createSubagentStopTool, createSubagentTool,
   type RunForeignSubagent, type SubagentToolDeps,
@@ -30,11 +28,15 @@ export interface ToolShimHooks {
   onSubagentEvent?: (notice: SubagentNotice) => void;
   /** Nested session factory for subagents; tests substitute a fake. */
   createChildSession?: ChildSessionFactory;
-  /** Runs children whose backend is not `pi`. Defaults to the daemon-side runner; tests override. */
+  /** Runs children whose backend is not `pi`. Supplied by the host (D10); absent ⇒ the `agent`
+   *  tool refuses a cross-backend delegation instead of silently running it somewhere else. */
   runForeignSubagent?: RunForeignSubagent;
-  /** Backgrounds a run through the daemon's registry. Defaults to the real one; tests override. */
+  /** Backgrounds a run through the daemon's registry. Supplied by the host (D10); absent ⇒ the
+   *  tool reports `run_in_background` unavailable and `agent_stop` is not registered at all. */
   startBackgroundSubagent?: StartBackgroundSubagent;
   stopBackgroundSubagent?: StopBackgroundSubagent;
+  /** Builds the in-process Cortex bundle server, for this session and for the children it spawns. */
+  openBundledMcpServer?: OpenBundledMcpServer;
 }
 
 const TodoWriteParameters = Type.Object({
@@ -105,10 +107,19 @@ function runtimeCatalog(
  *  over the child's own env. Its subagent marker keeps the Agent tool out of the child, and its
  *  stripped scope keeps the child's bridge to the core bundle. Exported because a `pi` child
  *  delegated from a Claude parent is built by the daemon runner, outside any PI session. */
-export function childExtensions(env: NodeJS.ProcessEnv): InlineExtension[] {
+export function childExtensions(
+  env: NodeJS.ProcessEnv,
+  openBundledMcpServer?: OpenBundledMcpServer,
+): InlineExtension[] {
   return [
-    { name: 'cortex-mcp-bridge', factory: (pi) => installMcpBridge(pi, createMcpBridgeDeps(env, [])) },
-    { name: 'cortex-tool-shims', factory: (pi) => installToolShims(pi, env) },
+    {
+      name: 'cortex-mcp-bridge',
+      factory: (pi) => installMcpBridge(pi, createMcpBridgeDeps(env, [], openBundledMcpServer)),
+    },
+    {
+      name: 'cortex-tool-shims',
+      factory: (pi) => installToolShims(pi, env, { openBundledMcpServer }),
+    },
   ];
 }
 
@@ -118,12 +129,13 @@ function registerRuntimeAgent(pi: ExtensionAPI, env: NodeJS.ProcessEnv, hooks: T
     agentDir,
     ensureRoles: () => ensurePIAgentRoles({ legacyDir: path.join(agentDir, 'agents') }),
     createSession: hooks.createChildSession ?? createChildSession,
-    childExtensions,
+    // The child inherits this session's opener: it is the same daemon, hosting the same bundles.
+    childExtensions: (childEnv) => childExtensions(childEnv, hooks.openBundledMcpServer),
     parentEnv: env,
     onEvent: hooks.onSubagentEvent,
-    runForeignSubagent: hooks.runForeignSubagent ?? runForeignSubagent,
-    startBackgroundSubagent: hooks.startBackgroundSubagent ?? startBackgroundSubagent,
-    stopBackgroundSubagent: hooks.stopBackgroundSubagent ?? stopBackgroundSubagent,
+    runForeignSubagent: hooks.runForeignSubagent,
+    startBackgroundSubagent: hooks.startBackgroundSubagent,
+    stopBackgroundSubagent: hooks.stopBackgroundSubagent,
   };
   pi.on('session_start', (_event, ctx) => {
     pi.registerTool(createSubagentTool(deps, runtimeCatalog(ctx, env, deps)));

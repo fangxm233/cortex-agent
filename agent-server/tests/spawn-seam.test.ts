@@ -3,7 +3,7 @@
 // pos:    Verifies the backend process spawn contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { afterAll, beforeAll, test } from 'vitest';
+import { afterAll, beforeAll, describe, test } from 'vitest';
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { EventEmitter } from 'node:events';
@@ -23,10 +23,13 @@ import { fileURLToPath } from 'node:url';
 
 import {
   resolveMcpComposition,
-  type AgentSpawnConfig,
+  type EngineSpec,
   type McpComposition,
 } from '../src/agent-adapter/types.js';
+import { buildEngineSpec } from '../src/domain/runs/engine-spec.js';
+import { engineSpecFixture, type EngineSpecFixtureInput } from './engine-spec-fixture.js';
 import { ClaudeAdapter, _test as claudeTest } from '../src/agent-adapter/claude/adapter.js';
+import { claudePool } from './agent-adapter/claude-pool-fixture.js';
 import {
   buildClaudeEnv,
   buildSpawnArgs,
@@ -34,11 +37,12 @@ import {
   resolveClaudeMcpBundles,
 } from '../src/agent-adapter/claude/spawn-args.js';
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
+import { piPool } from './agent-adapter/pi-pool-fixture.js';
 import {
   buildServerStates,
   pluginServerStateName,
 } from '../src/agent-adapter/pi/mcp-bridge.js';
-import { safeNativeComposite } from '../src/domain/plugins/native-name.js';
+import { safeNativeComposite } from '@core/native-name.js';
 import { buildPiEnv, PI_MCP_COMPOSITION_ENV } from '../src/agent-adapter/pi/session-options.js';
 import { makeFakeRuntimeFactory } from './agent-adapter/pi-fake-runtime.js';
 import { generateMcpConfig } from '../src/core/config-generator.js';
@@ -108,18 +112,18 @@ function canonicalize(value: unknown): unknown {
   );
 }
 
-function childEnvironment(config: AgentSpawnConfig): NodeJS.ProcessEnv {
-  const channel = config.channel ?? config.sessionKey;
+function childEnvironment(spec: EngineSpec): NodeJS.ProcessEnv {
+  const channel = spec.context.channel ?? spec.engineKey;
   const env = buildClaudeEnv(
-    channel, config.sessionId!, config.callbackSource, config.scheduleTaskId,
-    config.anthropicBaseUrl, config.env, config.cortexContext, config.pinnedEnv, config.unsetEnv,
+    channel, spec.resume.backendSessionId!, spec.context.callbackSource, spec.context.scheduleTaskId,
+    spec.route.anthropicBaseUrl, spec.env.sets, spec.env.context, spec.env.pinned, spec.env.unsets,
   );
   env[MCP_BUNDLES_ENV] = encodeMcpBundles(resolveClaudeMcpBundles({
     tools: null,
-    needsResume: config.resume,
-    sessionId: config.sessionId!,
-    mcpComposition: config.mcpComposition,
-    isUserInitiated: config.isUserInitiated,
+    needsResume: spec.resume.resume,
+    sessionId: spec.resume.backendSessionId!,
+    mcpComposition: spec.mcp.composition,
+    isUserInitiated: spec.flags.isUserInitiated,
     loadSlackMcp: channel.startsWith('slack:'),
     loadFeishuMcp: channel.startsWith('feishu:'),
     loadWebMcp: channel.startsWith('web:'),
@@ -127,16 +131,16 @@ function childEnvironment(config: AgentSpawnConfig): NodeJS.ProcessEnv {
   return env;
 }
 
-function resolvedGolden(config: AgentSpawnConfig): string {
+function resolvedGolden(spec: EngineSpec): string {
   const output = canonicalize({
-    argv: claudeTest.computeSpawnArgs(config),
-    environment: sortedEnvironment(childEnvironment(config)),
+    argv: claudeTest.computeSpawnArgs(spec),
+    environment: sortedEnvironment(childEnvironment(spec)),
   });
   return `${JSON.stringify(output, null, 2)}\n`;
 }
 
-function directSpawnConfig(): AgentSpawnConfig {
-  const config = facadeTest.buildSpawnConfig({
+function directSpawnConfig(): EngineSpec {
+  const spec = buildEngineSpec({
     channel: 'general',
     sessionId: '11111111-1111-4111-8111-111111111111',
     sessionKey: 'direct-fixture',
@@ -144,12 +148,12 @@ function directSpawnConfig(): AgentSpawnConfig {
     trackSessionId: 'tracked-direct',
     executionId: 'exec-direct',
   }, FIXTURE_CONFIG, undefined);
-  config.resume = false;
-  return config;
+  spec.resume.resume = false;
+  return spec;
 }
 
-function threadSpawnConfig(): AgentSpawnConfig {
-  const config = facadeTest.buildSpawnConfig({
+function threadSpawnConfig(): EngineSpec {
+  const spec = buildEngineSpec({
     channel: 'thread-fixture',
     sessionId: '22222222-2222-4222-8222-222222222222',
     sessionKey: 'thread-fixture:1',
@@ -163,8 +167,8 @@ function threadSpawnConfig(): AgentSpawnConfig {
     taskId: 'abcd',
     taskProject: 'atlas',
   }, FIXTURE_CONFIG, undefined);
-  config.resume = false;
-  return config;
+  spec.resume.resume = false;
+  return spec;
 }
 
 function mcpConfigPaths(argv: string[]): string[] {
@@ -208,8 +212,8 @@ test('resolveMcpComposition gives explicit values precedence over the legacy boo
   assert.equal(resolveMcpComposition(undefined, undefined), 'direct');
 });
 
-test('buildSpawnConfig carries isolated one-shot values and resolves legacy composition', () => {
-  const explicit = facadeTest.buildSpawnConfig({
+test('buildEngineSpec carries isolated one-shot values and resolves legacy composition', () => {
+  const explicit = buildEngineSpec({
     cwd: '/fixture/task',
     mcpComposition: 'none',
     useCoreMcp: true,
@@ -220,28 +224,28 @@ test('buildSpawnConfig carries isolated one-shot values and resolves legacy comp
     loadCortexRules: false,
     recordCost: false,
   }, FIXTURE_CONFIG, undefined);
-  const legacy = facadeTest.buildSpawnConfig({ useCoreMcp: true }, FIXTURE_CONFIG, undefined);
+  const legacy = buildEngineSpec({ useCoreMcp: true }, FIXTURE_CONFIG, undefined);
 
   assert.equal(explicit.cwd, '/fixture/task');
-  assert.equal(explicit.mcpComposition, 'none');
-  assert.deepEqual(explicit.mcpConfigPaths, ['/fixture/mcp-empty.json']);
-  assert.equal(explicit.disableHooks, true);
-  assert.equal(explicit.streamDeltas, false);
-  assert.equal(explicit.captureTranscriptLogs, false);
-  assert.equal(explicit.appendSystemPrompt, undefined);
-  assert.equal(explicit.cortexContext?.useCoreMcp, true);
-  assert.equal(legacy.mcpComposition, 'thread-control');
+  assert.equal(explicit.mcp.composition, 'none');
+  assert.deepEqual(explicit.mcp.configPaths, ['/fixture/mcp-empty.json']);
+  assert.equal(explicit.flags.disableHooks, true);
+  assert.equal(explicit.flags.streamDeltas, false);
+  assert.equal(explicit.flags.captureTranscripts, false);
+  assert.equal(explicit.prompt.append, undefined);
+  assert.equal(explicit.env.context?.useCoreMcp, true);
+  assert.equal(legacy.mcp.composition, 'thread-control');
 });
 
-test('buildSpawnConfig canonicalizes a declared MCP tool allowlist', () => {
-  const config = facadeTest.buildSpawnConfig({
+test('buildEngineSpec canonicalizes a declared MCP tool allowlist', () => {
+  const spec = buildEngineSpec({
     mcpToolAllowlist: ['thread_wait', 'ask_manager', 'thread_wait'],
   }, FIXTURE_CONFIG, undefined);
-  assert.deepEqual(config.mcpToolAllowlist, ['ask_manager', 'thread_wait']);
+  assert.deepEqual(spec.mcp.allowlist, ['ask_manager', 'thread_wait']);
 });
 
 test('task dispatch generation reaches both backend environments without inheriting stale state', () => {
-  const config = facadeTest.buildSpawnConfig({
+  const spec = buildEngineSpec({
     channel: 'thread-fixture',
     sessionId: '33333333-3333-4333-8333-333333333333',
     sessionKey: 'thread-fixture:2',
@@ -250,18 +254,18 @@ test('task dispatch generation reaches both backend environments without inherit
     taskProject: 'atlas',
     taskGeneration: 'generation-b',
   }, FIXTURE_CONFIG, undefined);
-  assert.equal(config.cortexContext?.taskGeneration, 'generation-b');
+  assert.equal(spec.env.context?.taskGeneration, 'generation-b');
 
   const claudeEnv = buildClaudeEnv(
-    'thread-fixture', config.sessionId!, null, null, undefined,
-    { CORTEX_TASK_GENERATION: 'forged-generation' }, config.cortexContext,
+    'thread-fixture', spec.resume.backendSessionId!, null, null, undefined,
+    { CORTEX_TASK_GENERATION: 'forged-generation' }, spec.env.context,
   );
   assert.equal(claudeEnv.CORTEX_TASK_GENERATION, 'generation-b');
 
   const piEnv = buildPiEnv({
-    sessionId: config.sessionId,
+    sessionId: spec.resume.backendSessionId,
     channel: 'thread-fixture',
-    context: config.cortexContext,
+    context: spec.env.context,
     piAgentDir: '/fixture/pi-agent',
   }, { CORTEX_TASK_GENERATION: 'stale-generation' });
   assert.equal(piEnv.CORTEX_TASK_GENERATION, 'generation-b');
@@ -354,29 +358,29 @@ function pluginRuntimeSpawnOptions() {
   };
 }
 
-function assertFingerprint(config: AgentSpawnConfig): void {
-  assert.equal(typeof config.pluginCapabilityFingerprint, 'string');
-  assert.ok(config.pluginCapabilityFingerprint!.length > 0);
+function assertFingerprint(spec: EngineSpec): void {
+  assert.equal(typeof spec.plugins.fingerprint, 'string');
+  assert.ok(spec.plugins.fingerprint!.length > 0);
 }
 
-function assertClaudePluginRuntime(config: AgentSpawnConfig): void {
-  assert.deepEqual(config.mcpConfigPaths, RUNTIME_MCP_PATHS);
-  assert.equal(config.pluginDirs?.length, 3);
-  assert.ok(config.pluginDirs?.[0].includes(path.join('plugin-runtime', 'claude')));
-  assert.deepEqual(config.pluginDirs?.slice(1), [LEGACY_ROOT, UNMANAGED_ROOT]);
-  assert.equal(config.pluginSkillDirs, undefined);
-  assert.deepEqual(config.mcpServers?.map((server) => server.name), [PORTABLE_SERVER_NAME]);
-  assertFingerprint(config);
+function assertClaudePluginRuntime(spec: EngineSpec): void {
+  assert.deepEqual(spec.mcp.configPaths, RUNTIME_MCP_PATHS);
+  assert.equal(spec.plugins.dirs?.length, 3);
+  assert.ok(spec.plugins.dirs?.[0].includes(path.join('plugin-runtime', 'claude')));
+  assert.deepEqual(spec.plugins.dirs?.slice(1), [LEGACY_ROOT, UNMANAGED_ROOT]);
+  assert.equal(spec.plugins.skillDirs, undefined);
+  assert.deepEqual(spec.mcp.servers?.map((server) => server.name), [PORTABLE_SERVER_NAME]);
+  assertFingerprint(spec);
 }
 
-function assertPiPluginRuntime(config: AgentSpawnConfig): void {
-  assert.deepEqual(config.mcpConfigPaths, RUNTIME_MCP_PATHS);
-  assert.deepEqual(config.pluginDirs, [LEGACY_ROOT, UNMANAGED_ROOT]);
-  assert.equal(config.pluginSkillDirs?.length, 1);
-  assert.ok(config.pluginSkillDirs?.[0].includes(path.join('plugin-runtime', 'pi')));
-  assert.notEqual(config.pluginSkillDirs?.[0], path.join(PORTABLE_ROOT, 'skills', 'portable-skill'));
-  assert.deepEqual(config.mcpServers?.map((server) => server.name), [PORTABLE_SERVER_NAME]);
-  assertFingerprint(config);
+function assertPiPluginRuntime(spec: EngineSpec): void {
+  assert.deepEqual(spec.mcp.configPaths, RUNTIME_MCP_PATHS);
+  assert.deepEqual(spec.plugins.dirs, [LEGACY_ROOT, UNMANAGED_ROOT]);
+  assert.equal(spec.plugins.skillDirs?.length, 1);
+  assert.ok(spec.plugins.skillDirs?.[0].includes(path.join('plugin-runtime', 'pi')));
+  assert.notEqual(spec.plugins.skillDirs?.[0], path.join(PORTABLE_ROOT, 'skills', 'portable-skill'));
+  assert.deepEqual(spec.mcp.servers?.map((server) => server.name), [PORTABLE_SERVER_NAME]);
+  assertFingerprint(spec);
 }
 
 function assertPortableRuntimePropagation(): void {
@@ -384,20 +388,20 @@ function assertPortableRuntimePropagation(): void {
   try {
     installPluginRuntimeFixture();
     const options = pluginRuntimeSpawnOptions();
-    const claude = facadeTest.buildSpawnConfig(options, FIXTURE_CONFIG, undefined);
-    const pi = facadeTest.buildSpawnConfig(options, {
+    const claude = buildEngineSpec(options, FIXTURE_CONFIG, undefined);
+    const pi = buildEngineSpec(options, {
       model: 'pi-fixture', backend: 'pi', mode: null, provider: 'anthropic',
     }, undefined);
     assertClaudePluginRuntime(claude);
     assertPiPluginRuntime(pi);
-    assert.notEqual(pi.pluginCapabilityFingerprint, claude.pluginCapabilityFingerprint);
+    assert.notEqual(pi.plugins.fingerprint, claude.plugins.fingerprint);
   } finally {
     removePluginRuntimeFixture();
   }
 }
 
 test(
-  'buildSpawnConfig resolves plugin runtime per backend and preserves explicit mcpConfigPaths',
+  'buildEngineSpec resolves plugin runtime per backend and preserves explicit mcpConfigPaths',
   assertPortableRuntimePropagation,
 );
 
@@ -411,11 +415,11 @@ function assertChannelPluginFiltering(): void {
       'feishu-skill',
       'feishu fixture skill.',
     );
-    const config = facadeTest.buildSpawnConfig({
+    const spec = buildEngineSpec({
       channel: 'general', pluginDirs: ['plugins/cortex-feishu'], loadCortexRules: false,
     }, FIXTURE_CONFIG, undefined);
-    assert.equal(config.pluginDirs, undefined);
-    assert.equal(config.pluginCapabilityFingerprint, undefined);
+    assert.equal(spec.plugins.dirs, undefined);
+    assert.equal(spec.plugins.fingerprint, undefined);
   } finally {
     rmSync(pluginRoot, { recursive: true, force: true });
   }
@@ -424,18 +428,18 @@ function assertChannelPluginFiltering(): void {
 test('channel-scoped plugin filtering happens before runtime projection', assertChannelPluginFiltering);
 
 function assertMalformedPluginDirsIgnored(): void {
-  const config = facadeTest.buildSpawnConfig({
+  const spec = buildEngineSpec({
     channel: 'general',
     pluginDirs: 'plugins/not-an-array' as never,
     loadCortexRules: false,
   }, FIXTURE_CONFIG, undefined);
 
-  assert.equal(config.pluginDirs, undefined);
-  assert.equal(config.pluginCapabilityFingerprint, undefined);
+  assert.equal(spec.plugins.dirs, undefined);
+  assert.equal(spec.plugins.fingerprint, undefined);
 }
 
 test(
-  'buildSpawnConfig ignores malformed pluginDirs values instead of crashing',
+  'buildEngineSpec ignores malformed pluginDirs values instead of crashing',
   assertMalformedPluginDirsIgnored,
 );
 
@@ -487,10 +491,10 @@ test('PI carries the empty MCP composition strictly', () => {
   const fake = makeFakeRuntimeFactory();
   const adapter = new PIAdapter(fake.factory, root);
 
-  adapter.spawn({
+  piPool(adapter).spawn(engineSpecFixture({
     sessionId: null, sessionKey: 'pi-none', resume: false,
     mcpComposition: 'none',
-  });
+  }));
   const { env, pluginMcpServers } = fake.requests[0];
   assert.equal(env[PI_MCP_COMPOSITION_ENV], 'none');
   assert.deepEqual(buildServerStates(env, pluginMcpServers), []);
@@ -498,7 +502,7 @@ test('PI carries the empty MCP composition strictly', () => {
 });
 
 function spawnPrivatePluginServer(adapter: PIAdapter): void {
-  adapter.spawn({
+  piPool(adapter).spawn(engineSpecFixture({
     sessionId: null,
     sessionKey: 'pi-plugin-mcp',
     resume: false,
@@ -511,7 +515,7 @@ function spawnPrivatePluginServer(adapter: PIAdapter): void {
       env: { API_KEY: 'secret-env' },
       cwd: '/opt/private-cwd',
     }],
-  });
+  }));
 }
 
 test(
@@ -609,9 +613,9 @@ function overrideEnvironment(values: Record<string, string>): () => void {
 }
 
 async function probeContextUsage(adapter: ClaudeAdapter, key: string, cwd: string) {
-  const proc = adapter.spawn({
+  const proc = claudePool(adapter).spawn(engineSpecFixture({
     sessionId: null, sessionKey: key, resume: false, cwd, model: 'claude-opus-5[1m]',
-  });
+  }));
   const eventsPromise = (async () => {
     const events = [];
     for await (const event of proc.events) events.push(event);
@@ -627,14 +631,14 @@ async function runCwdProbe(marker: string, sessionKey: string, cwd?: string): Pr
   const adapter = new ClaudeAdapter();
   try {
     await facadeTest.runWithAdapter(
-      adapter,
+      claudePool(adapter).asAdapter(),
       'cwd request',
       { channel: sessionKey, sessionKey, cwd },
       FIXTURE_CONFIG,
       undefined,
     ).promise;
   } finally {
-    await adapter.close(sessionKey);
+    await claudePool(adapter).close(sessionKey);
   }
 }
 
@@ -652,7 +656,7 @@ test('Claude print uses an injected process spawner without changing argv or cwd
   const calls: Array<{ command: string; args: string[]; cwd?: string }> = [];
   const adapter = new ClaudeAdapter();
   t.onTestFinished(async () => {
-    await adapter.close('injected-spawner');
+    await claudePool(adapter).close('injected-spawner');
     restore();
     rmSync(root, { recursive: true, force: true });
   });
@@ -661,7 +665,7 @@ test('Claude print uses an injected process spawner without changing argv or cwd
     calls.push({ command, args, cwd: options.cwd });
     return { process: spawn(command, args, options) };
   }) as any;
-  await facadeTest.runWithAdapter(adapter, 'probe', {
+  await facadeTest.runWithAdapter(claudePool(adapter).asAdapter(), 'probe', {
     channel: 'injected-spawner', sessionKey: 'injected-spawner', cwd, processSpawner,
   }, FIXTURE_CONFIG, undefined).promise;
 
@@ -681,11 +685,11 @@ test('Claude daemon print mode reports cache-inclusive input tokens', async (t) 
   });
   const adapter = new ClaudeAdapter();
   t.onTestFinished(async () => {
-    await adapter.close('print-accounting');
+    await claudePool(adapter).close('print-accounting');
     restore();
     rmSync(root, { recursive: true, force: true });
   });
-  const proc = adapter.spawn({ sessionId: null, sessionKey: 'print-accounting', resume: false });
+  const proc = claudePool(adapter).spawn(engineSpecFixture({ sessionId: null, sessionKey: 'print-accounting', resume: false }));
   const eventsPromise = (async () => {
     const events = [];
     for await (const event of proc.events) events.push(event);
@@ -747,7 +751,7 @@ test('Claude context usage reads autoCompactWindow from the requested cwd', asyn
   });
   const adapter = new ClaudeAdapter();
   t.onTestFinished(async () => {
-    await adapter.close(key);
+    await claudePool(adapter).close(key);
     restore();
     rmSync(root, { recursive: true, force: true });
   });
@@ -803,9 +807,9 @@ function spawnReplacementSession(
   cwd: string,
   composition: McpComposition,
 ): void {
-  fixture.adapter.spawn({
+  claudePool(fixture.adapter).spawn(engineSpecFixture({
     sessionId: null, sessionKey: fixture.key, resume: false, cwd, mcpComposition: composition,
-  });
+  }));
 }
 
 async function assertReplacementSurvives(
@@ -825,12 +829,12 @@ async function assertReplacementSurvives(
   );
   await waitFor(() => !existsSync(`/proc/${oldPid}`), `${item.label} old process did not close`);
   await new Promise<void>((resolve) => setImmediate(resolve));
-  assert.ok(fixture.adapter.listSessions().includes(fixture.key),
+  assert.ok(claudePool(fixture.adapter).listSessions().includes(fixture.key),
     `${item.label} replacement was removed from the pool`);
 }
 
 async function cleanupReplacementFixture(fixture: ReplacementFixture): Promise<void> {
-  await fixture.adapter.close(fixture.key);
+  await claudePool(fixture.adapter).close(fixture.key);
   const started = readSessionMarker(fixture.marker).filter((event) => event.event === 'started');
   for (const event of started) {
     try { process.kill(event.pid, 'SIGTERM'); } catch {}
@@ -885,8 +889,8 @@ function routeSpawnConfig(
   key: string,
   route: ModeEnv,
   config: AgentConfig = FIXTURE_CONFIG,
-): AgentSpawnConfig {
-  return facadeTest.buildSpawnConfig({
+): EngineSpec {
+  return buildEngineSpec({
     channel: key, sessionKey: key, sessionId: `${key}-session`, loadCortexRules: false,
   }, config, route);
 }
@@ -935,10 +939,10 @@ test('a plan route deletes the API key and carries its base URL on exactly one f
     'route-plan-gateway', facadeTest.configureRunRoute({}, planConfig()),
   );
 
-  assert.equal(spawn.anthropicBaseUrl, `${GATEWAY_URL}/m/plan/anthropic`);
-  assert.equal(spawn.env?.ANTHROPIC_BASE_URL, undefined,
+  assert.equal(spawn.route.anthropicBaseUrl, `${GATEWAY_URL}/m/plan/anthropic`);
+  assert.equal(spawn.env.sets?.ANTHROPIC_BASE_URL, undefined,
     'the base URL needs one source: production-attempt-identity reads config.env before the field');
-  assert.deepEqual(spawn.unsetEnv, ['ANTHROPIC_API_KEY']);
+  assert.deepEqual(spawn.env.unsets, ['ANTHROPIC_API_KEY']);
 
   repointDaemonGlobals();
   const env = childEnvironment(spawn);
@@ -953,8 +957,8 @@ test('a route without a base URL deletes the one the daemon left behind', (t) =>
   assert.equal(route.ANTHROPIC_BASE_URL, undefined, 'the direct plan route has no base URL');
 
   const spawn = routeSpawnConfig('route-plan-direct', route);
-  assert.equal(spawn.anthropicBaseUrl, undefined);
-  assert.deepEqual([...spawn.unsetEnv!].sort(), ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL']);
+  assert.equal(spawn.route.anthropicBaseUrl, undefined);
+  assert.deepEqual([...spawn.env.unsets!].sort(), ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL']);
 
   repointDaemonGlobals();
   const env = childEnvironment(spawn);
@@ -973,7 +977,7 @@ test('profile extraEnv outranks the credentials a mode route sets', (t) => {
     ...codex, extraEnv: { ANTHROPIC_API_KEY: 'profile-key' },
   });
 
-  assert.equal(spawn.env?.ANTHROPIC_API_KEY, 'profile-key');
+  assert.equal(spawn.env.sets?.ANTHROPIC_API_KEY, 'profile-key');
   assert.equal(childEnvironment(spawn).ANTHROPIC_API_KEY, 'profile-key');
 });
 
@@ -985,7 +989,7 @@ test('a key the profile sets explicitly is never deleted by the route', (t) => {
     ANTHROPIC_API_KEY: 'profile-key', ANTHROPIC_BASE_URL: 'https://profile.example',
   }));
 
-  assert.equal(spawn.unsetEnv, undefined,
+  assert.equal(spawn.env.unsets, undefined,
     'the profile configured both keys explicitly, so the mode may not delete either');
   const env = childEnvironment(spawn);
   assert.equal(env.ANTHROPIC_API_KEY, 'profile-key');
@@ -1004,18 +1008,21 @@ function pooledRouteSpawn(
   key: string,
   route: ModeEnv,
   config: AgentConfig = FIXTURE_CONFIG,
-): AgentSpawnConfig {
-  return facadeTest.buildSpawnConfig({
+): EngineSpec {
+  return buildEngineSpec({
     channel: key, sessionKey: key, sessionId: `${key}-session`, loadCortexRules: false,
     processSpawner: poolSpawner,
   }, config, route);
 }
 
-function pooledRouteConfig(key: string, overrides: Partial<AgentSpawnConfig>): AgentSpawnConfig {
-  return {
+function pooledRouteConfig(
+  key: string,
+  overrides: EngineSpecFixtureInput,
+): EngineSpec {
+  return engineSpecFixture({
     sessionId: key, sessionKey: key, resume: false, cwd: DATA_DIR,
     processSpawner: poolSpawner, ...overrides,
-  };
+  });
 }
 
 test('the pooled route identity fingerprints a credential instead of keeping it', () => {
@@ -1054,14 +1061,14 @@ test('a mode switch on one channel cannot reuse the session started on the old r
   const key = 'route-pool-switch';
   const codex: AgentConfig = { ...FIXTURE_CONFIG, mode: 'openai-codex' };
 
-  adapter.spawn(pooledRouteSpawn(key, facadeTest.configureRunRoute({}, planConfig()), planConfig()));
-  const first = claudeTest.getPooledPrintSession(key);
-  adapter.spawn(pooledRouteSpawn(key, facadeTest.configureRunRoute({}, codex), codex));
+  claudePool(adapter).spawn(pooledRouteSpawn(key, facadeTest.configureRunRoute({}, planConfig()), planConfig()));
+  const first = claudePool(adapter).getPooledSession(key);
+  claudePool(adapter).spawn(pooledRouteSpawn(key, facadeTest.configureRunRoute({}, codex), codex));
 
   assert.ok(first);
-  assert.notEqual(claudeTest.getPooledPrintSession(key), first,
+  assert.notEqual(claudePool(adapter).getPooledSession(key), first,
     'the pooled process was launched against the plan gateway with no key — it cannot serve codex');
-  await adapter.close(key);
+  await claudePool(adapter).close(key);
 });
 
 test('an unchanged mode route still reuses the pooled session', async (t) => {
@@ -1070,14 +1077,14 @@ test('an unchanged mode route still reuses the pooled session', async (t) => {
   const adapter = new ClaudeAdapter();
   const key = 'route-pool-stable';
 
-  adapter.spawn(pooledRouteSpawn(key, facadeTest.configureRunRoute({}, planConfig()), planConfig()));
-  const first = claudeTest.getPooledPrintSession(key);
-  adapter.spawn(pooledRouteSpawn(key, facadeTest.configureRunRoute({}, planConfig()), planConfig()));
+  claudePool(adapter).spawn(pooledRouteSpawn(key, facadeTest.configureRunRoute({}, planConfig()), planConfig()));
+  const first = claudePool(adapter).getPooledSession(key);
+  claudePool(adapter).spawn(pooledRouteSpawn(key, facadeTest.configureRunRoute({}, planConfig()), planConfig()));
 
   assert.ok(first);
-  assert.equal(claudeTest.getPooledPrintSession(key), first,
+  assert.equal(claudePool(adapter).getPooledSession(key), first,
     'a re-resolved identical route must compare by value, or the pool stops pooling');
-  await adapter.close(key);
+  await claudePool(adapter).close(key);
 });
 
 test('the pool separates two routes that differ only by credential', async () => {
@@ -1085,32 +1092,35 @@ test('the pool separates two routes that differ only by credential', async () =>
   const key = 'route-pool-credential';
   const endpoint = { anthropicBaseUrl: POOL_ROUTE_URL };
 
-  adapter.spawn(pooledRouteConfig(key, { ...endpoint, env: { ANTHROPIC_API_KEY: `${POOL_SECRET}-a` } }));
-  const first = claudeTest.getPooledPrintSession(key);
-  adapter.spawn(pooledRouteConfig(key, { ...endpoint, env: { ANTHROPIC_API_KEY: `${POOL_SECRET}-b` } }));
+  claudePool(adapter).spawn(pooledRouteConfig(key, { ...endpoint, env: { ANTHROPIC_API_KEY: `${POOL_SECRET}-a` } }));
+  const first = claudePool(adapter).getPooledSession(key);
+  claudePool(adapter).spawn(pooledRouteConfig(key, { ...endpoint, env: { ANTHROPIC_API_KEY: `${POOL_SECRET}-b` } }));
 
   assert.ok(first);
-  assert.notEqual(claudeTest.getPooledPrintSession(key), first,
+  assert.notEqual(claudePool(adapter).getPooledSession(key), first,
     'one endpoint reached with another account is another route');
-  await adapter.close(key);
+  await claudePool(adapter).close(key);
 });
 
-test('the TUI pool compares the route the same way', async () => {
-  const adapter = new ClaudeAdapter();
-  const key = 'route-pool-tui';
-  const tui: Partial<AgentSpawnConfig> = {
-    claudeBackend: 'tui', anthropicBaseUrl: POOL_ROUTE_URL,
-  };
+// D9: Claude TUI is deprecated; P2.3c routes tui → print.
+describe.skip('Claude TUI pool (removed by D9)', () => {
+  test('the TUI pool compares the route the same way', async () => {
+    const adapter = new ClaudeAdapter();
+    const key = 'route-pool-tui';
+    const tui: EngineSpecFixtureInput = {
+      claudeBackend: 'tui', anthropicBaseUrl: POOL_ROUTE_URL,
+    };
 
-  adapter.spawn(pooledRouteConfig(key, tui));
-  const first = claudeTest.getPooledTuiSession(key);
-  adapter.spawn(pooledRouteConfig(key, tui));
-  assert.equal(claudeTest.getPooledTuiSession(key), first,
-    'an identical route keeps the tmux session alive');
+    claudePool(adapter).spawn(pooledRouteConfig(key, tui));
+    const first = claudePool(adapter).getPooledSession(key);
+    claudePool(adapter).spawn(pooledRouteConfig(key, tui));
+    assert.equal(claudePool(adapter).getPooledSession(key), first,
+      'an identical route keeps the tmux session alive');
 
-  adapter.spawn(pooledRouteConfig(key, { ...tui, unsetEnv: ['ANTHROPIC_API_KEY'] }));
-  assert.ok(first);
-  assert.notEqual(claudeTest.getPooledTuiSession(key), first,
-    'dropping the key changes which account the TUI session bills');
-  await adapter.close(key);
+    claudePool(adapter).spawn(pooledRouteConfig(key, { ...tui, unsetEnv: ['ANTHROPIC_API_KEY'] }));
+    assert.ok(first);
+    assert.notEqual(claudePool(adapter).getPooledSession(key), first,
+      'dropping the key changes which account the TUI session bills');
+    await claudePool(adapter).close(key);
+  });
 });

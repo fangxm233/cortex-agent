@@ -4,10 +4,9 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { createLogger } from '@core/log.js';
-import { bgHeldSessions } from '@core/bg-held-sessions.js';
-import { runningExecutions } from '@core/running-executions.js';
+import { runRegistry } from '@core/run-registry.js';
 import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
-import type { SubagentToolResult } from '@domain/agents/subagent/orchestrate.js';
+import type { SubagentToolResult } from '@core/agents/subagent/orchestrate.js';
 import {
   stopSubagentRun, type StartSubagentRunOptions, type SubagentRunView,
 } from '@domain/agents/subagent/registry.js';
@@ -44,9 +43,10 @@ export function setSubagentTurnSender(sender: SubagentTurnSender | null): void {
  *   background rather than idle. The foreground turn publishes `running:false` when it ends, which
  *   would clear the hold, so the hold re-asserts itself whenever it sees that happen while the run
  *   is still going.
- * - **The abort handle.** Once the foreground execution is torn down the channel-keyed Stop path
- *   can only reach a session through `bgHeldSessions`; without it the Stop button silently does
- *   nothing while children keep spending tokens.
+ * - **The Stop handle.** Once the foreground execution is torn down the channel-keyed Stop path
+ *   can only reach a session through `runRegistry`; without it the Stop button silently does
+ *   nothing while children keep spending tokens. Registered as `onStop` ONLY: a new foreground turn
+ *   supersedes the hold, and superseding must not kill a child that is still working.
  *
  * Returns the release, which is idempotent and must be called exactly once when the run settles.
  */
@@ -54,17 +54,22 @@ export function holdSessionForBackgroundRun(
   view: SubagentRunView, channel: string | undefined,
 ): () => void {
   const { sessionId } = view;
+  // Owner key: this run, not this session. Several runs (and the web continuation hold) can hold
+  // one session at the same time, and each must be able to end without erasing the others.
+  const holdOwner = `agent-run:${view.id}`;
   let released = false;
   trackPendingTask(+1);
 
   const assert = (): void => {
     if (!sessionId || !channel) return;
     publishSessionStatus({ sessionId, channel, running: true, backgroundRunning: true });
-    bgHeldSessions.setAbort(sessionId, () => { stopSubagentRun(view.id); });
+    runRegistry.setHoldHandles(sessionId, holdOwner, { onStop: () => { stopSubagentRun(view.id); } });
   };
 
-  // Re-assert on the foreground turn's own `running:false`, which is published while this run is
-  // still going and would otherwise drop the hold. Ignores our own release (already flagged).
+  // Re-assert the STATUS on the foreground turn's own `running:false`, which is published while
+  // this run is still going and would otherwise leave the session looking idle. The Stop handle
+  // outlives the status on its own (it owns work, not status) — re-registering it is a no-op for
+  // the same owner. Ignores our own release (already flagged).
   const subscription = sessionId && channel
     ? jobCtx.bus?.subscribe('session.status', (event) => {
       const status = event as { sessionId?: string; running?: boolean };
@@ -79,10 +84,11 @@ export function holdSessionForBackgroundRun(
     if (released) return;
     released = true;
     subscription?.unsubscribe();
+    if (sessionId) runRegistry.dropHoldHandles(sessionId, holdOwner);
     trackPendingTask(-1);
     // Only seal the session idle if nothing else is running on it — the common case is a
     // background run that outlived nothing at all, with the parent's turn still in flight.
-    if (sessionId && channel && !runningExecutions.getBySessionId(sessionId)) {
+    if (sessionId && channel && !runRegistry.getBySessionId(sessionId)) {
       publishSessionStatus({ sessionId, channel, running: false, backgroundRunning: false });
     }
   };

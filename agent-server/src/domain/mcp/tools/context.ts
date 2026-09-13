@@ -5,7 +5,7 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { parseMcpToolAllowlist, MCP_TOOL_ALLOWLIST_ENV } from '@core/mcp-tool-gate.js';
-import { decodeSubagentModels, type SubagentModelOption } from '@domain/agents/subagent/catalog.js';
+import { decodeSubagentModels, type SubagentModelOption } from '@core/agents/subagent/catalog.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 
 /**

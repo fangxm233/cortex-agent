@@ -9,7 +9,7 @@ import { t } from '../../../core/i18n.js';
 import type { Destination, PlatformAdapter } from '@platform/index.js';
 import { threadStore } from '@store/thread-repo.js';
 import { listTemplates, listAgents } from '@domain/threads/index.js';
-import { runningExecutions } from '../../../core/running-executions.js';
+import { runRegistry } from '../../../core/run-registry.js';
 import * as executionRegistry from '@domain/executions/registry.js';
 import { conduitQueues } from '../../conduit-queue.js';
 
@@ -80,10 +80,10 @@ async function handleThreadCancelAlias(channel: string, adapter: PlatformAdapter
   const dest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: '' };
   // Alias for !cancel — tear down every live execution on the channel as 'cancelled'
   // (record→cancelled, kill the handle, balanced event), matching the !cancel path.
-  const execs = runningExecutions.getByChannel(channel);
+  const execs = runRegistry.getByChannel(channel);
   for (const e of execs) {
     if (e.executionId) executionRegistry.teardownExecution({ executionId: e.executionId, status: 'cancelled', durationS: 0 });
-    else runningExecutions.killById(e.registryKey);
+    else runRegistry.killById(e.registryKey);
   }
   if (execs.length > 0) {
     log.info('Cancel requested for channel:', channel);
@@ -111,7 +111,7 @@ async function handleThreadList(channel: string, adapter: PlatformAdapter) {
 
 async function handleThreadListRunning(channel: string, adapter: PlatformAdapter) {
   const dest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: '' };
-  const executions = runningExecutions.getAll().filter(e => e.threadId);
+  const executions = runRegistry.getAll().filter(e => e.threadId);
   if (executions.length === 0) {
     await adapter.postMessage(dest, { text: t('cmd.thread.noRunning') });
     return;

@@ -9,14 +9,14 @@ import assert from 'node:assert/strict';
 import { PIAdapter } from '../../src/agent-adapter/pi/adapter.js';
 import { createEditHandler } from '../../src/orchestration/routing/edit-handler.js';
 import { conversationLedger } from '../../src/store/conversation-ledger-repo.js';
-import { runningExecutions } from '../../src/core/running-executions.js';
+import { runRegistry } from '../../src/core/run-registry.js';
 import { MockAdapter } from '../../src/platform/testing.js';
 import {
   setActiveProfile,
   clearChannelProfile,
   resolveBackendForChannel,
-  getActiveBackend,
 } from '../../src/domain/agents/config.js';
+import { resolveRunBackend } from '../../src/domain/runs/config-resolver.js';
 import * as sessionBackup from '../../src/domain/sessions/session-backup.js';
 import { sessionStore } from '../../src/store/session-registry-repo.js';
 import { resolveProfileConfig } from '../../src/domain/agents/profile-manager.js';
@@ -118,7 +118,7 @@ async function stagePIEditFixture(withBackup: boolean): Promise<PIEditFixture> {
 function buildPIEditHandler(fixture: PIEditFixture, run: PIEditRun) {
   const piAdapter = new PIAdapter(undefined, fixture.piDir);
   return createEditHandler({
-    activeAgents: runningExecutions,
+    activeAgents: runRegistry,
     registerPISessionPath: (id, filePath) => {
       run.registerCalls.push(`${id}:${filePath}`);
       piAdapter.registerSessionPath(id, filePath);
@@ -153,14 +153,16 @@ async function cleanupPIEditFixture(fixture: PIEditFixture): Promise<void> {
 
 // ── Bug 2 (root cause): channel-aware backend resolution ─────────────────────
 
-test('resolveBackendForChannel returns global activeBackend when channel has no profile', () => {
+// D5: "global activeBackend" is retired — a channel with no profile of its own falls through to
+// the default profile's backend, which is what `resolveRunBackend` reports.
+test('resolveBackendForChannel returns the default profile backend when the channel has no profile', () => {
   const ch = freshChannel();
   clearChannelProfile(ch); // ensure clean state
-  assert.equal(resolveBackendForChannel(ch), getActiveBackend());
+  assert.equal(resolveBackendForChannel(ch), resolveRunBackend({ channel: ch }));
 });
 
-test('resolveBackendForChannel falls back to global activeBackend when channel arg is undefined', () => {
-  assert.equal(resolveBackendForChannel(), getActiveBackend());
+test('resolveBackendForChannel falls back to the default profile backend with no channel', () => {
+  assert.equal(resolveBackendForChannel(), resolveRunBackend());
 });
 
 test('resolveBackendForChannel returns profile backend when channel has a profile override', () => {
@@ -218,7 +220,7 @@ test('Bug 1: edit restores the backend id then invokes closePooledSession', asyn
   const closeCalls: Array<{ channel: string; backend: string }> = [];
   const reprocessCalls: any[] = [];
   const handler = createEditHandler({
-    activeAgents: runningExecutions,
+    activeAgents: runRegistry,
     reprocessMessage: (ch, text, _adapter, opts) => { reprocessCalls.push({ ch, text, opts }); },
     closePooledSession: (ch, backend) => { closeCalls.push({ channel: ch, backend }); },
   });
@@ -272,7 +274,7 @@ test('Bug 2: edit on conversation with PI channel profile routes through PI rest
   const closeCalls: Array<{ channel: string; backend: string }> = [];
   const reprocessCalls: any[] = [];
   const handler = createEditHandler({
-    activeAgents: runningExecutions,
+    activeAgents: runRegistry,
     reprocessMessage: (ch, text, _adapter, opts) => { reprocessCalls.push({ ch, text, opts }); },
     closePooledSession: (ch, backend) => { closeCalls.push({ channel: ch, backend }); },
   });
@@ -334,7 +336,7 @@ test('edit waits for an in-flight snapshot and supersedes the not-yet-started ba
   const reprocessCalls: any[] = [];
   let markedSuperseded = false;
   const handler = createEditHandler({
-    activeAgents: runningExecutions,
+    activeAgents: runRegistry,
     reprocessMessage: (...args) => { order.push('reprocess'); reprocessCalls.push(args); },
     isTurnTrackingPending: () => true,
     markPendingTurnSuperseded: () => { markedSuperseded = true; },
@@ -362,7 +364,7 @@ test('processEdit no-ops when ledger has no entry for the edited message', async
   const closeCalls: any[] = [];
   const reprocessCalls: any[] = [];
   const handler = createEditHandler({
-    activeAgents: runningExecutions,
+    activeAgents: runRegistry,
     reprocessMessage: (ch, text, _adapter, opts) => { reprocessCalls.push({ ch, text, opts }); },
     closePooledSession: (ch, backend) => { closeCalls.push({ channel: ch, backend }); },
   });

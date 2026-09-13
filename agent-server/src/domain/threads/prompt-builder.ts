@@ -1,48 +1,30 @@
 // input:  templates, tool gates, thread state, buffered-input readiness
-// output: ready prompts and canonical resolved runtime configs
-// pos:    Thread prompt assembly and agent slot resolution
+// output: ready step prompts and canonical resolved runtime configs
+// pos:    Thread step prompt assembly (composition itself lives in domain/runs/prompt.ts)
 // >>> If I am updated, update my header comment and parent CORTEX.md <<<
 
 import { threadStore } from '@store/thread-repo.js';
 import { buildResumeReminder } from '@core/resume-reminder.js';
 import { canonicalizeMcpToolAllowlist } from '@core/mcp-tool-gate.js';
+import { resolveSystemVars } from '@core/prompt-template.js';
 import { getAgent, getTemplate, resolveFileRef } from './template-loader.js';
 import { getModifiedFilesFromSession } from './artifact-io.js';
 import { getDefaultAgent } from '../agents/index.js';
-import { loadUserContext } from '../memory/user-context.js';
+import { composeUserPrompt } from '../runs/prompt.js';
 import { waitForPendingUserInputs } from './pending-user-inputs.js';
 import type {
-  AgentDefinition, AgentSlot, AgentSlotConfig, AgentSlotId, AgentStep, TemplateAgentRef, ThreadRecord, ThreadTemplate,
+  AgentSlot, AgentSlotConfig, TemplateAgentRef, ThreadRecord, ThreadTemplate,
 } from '@core/types/thread-types.js';
-import type {
-  ActiveCommissionContext, CommissionPromptContext, DraftCommissionContext,
-} from '../commissions/commission-context.js';
+
+/** Re-exported so `@domain/threads` stays the one import surface for thread callers; the
+ *  implementation is the layer-0 template engine every prompt composer shares. */
+export { resolveSystemVars };
 
 /** Resolve the `__active__` agent ref placeholder to the currently active default agent
  *  (set by `!agent`). Falls back to `'main'` when no default is configured. Other names
  *  pass through unchanged. */
 export function resolveActiveAgentName(name: string): string {
   return name === '__active__' ? (getDefaultAgent() || 'main') : name;
-}
-
-// --- System variable resolution ---
-// System variables are resolved at step execution time (not config load time).
-
-function getSystemVars(): Record<string, string> {
-  const now = new Date();
-  return {
-    currentDateTime: now.toLocaleString('en-US', {
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', second: '2-digit',
-      hour12: false,
-    }),
-  };
-}
-
-/** Replace {{systemVar}} placeholders with system variable values. Unknown vars are left as-is. */
-export function resolveSystemVars(text: string): string {
-  const vars = getSystemVars();
-  return text.replace(/\{\{(\w+)\}\}/g, (match, key) => key in vars ? vars[key] : match);
 }
 
 // --- Agent slot config resolution ---
@@ -155,25 +137,6 @@ export const THREAD_PROTOCOL_PREAMBLE = [
 
 // --- Prompt assembly ---
 
-function buildPromptVars(thread: import('@core/types/thread-types.js').ThreadRecord, lastStep: AgentStep | undefined): Record<string, string> {
-  const prevModifiedFiles = getModifiedFilesFromSession(lastStep?.sessionId);
-  return {
-    input: thread.userMessage,
-    artifactPath: thread.artifactPath,
-    previousOutput: lastStep?.output || '',
-    modifiedFiles: prevModifiedFiles.length > 0 ? prevModifiedFiles.map(f => `- ${f}`).join('\n') : '',
-    ...getSystemVars(),
-  };
-}
-
-function applyPromptTemplate(templateStr: string, vars: Record<string, string>): string {
-  const withBlocks = templateStr.replace(
-    /\{\{#if (\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g,
-    (_, varName, content) => vars[varName] ? content : '',
-  );
-  return withBlocks.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] || '');
-}
-
 function hasBackendResumeTarget(slot: AgentSlot | undefined): boolean {
   if (!slot) return false;
   if (slot.backendSessionId === undefined) return !!slot.sessionId;
@@ -208,6 +171,16 @@ export async function buildReadyStepPrompt(
   return buildStepPrompt(threadId, agentConfig, stage, { ...opts, pendingSnapshot });
 }
 
+/**
+ * Assemble one thread step's prompt. The composition itself — template, prefix blocks, trim — is
+ * the run layer's ({@link composeUserPrompt}); everything this function adds is thread state: which
+ * stage's template applies, what the previous step produced, whether the slot's session already
+ * carries the bootstrap, and which buffered user replies ride along.
+ *
+ * Thread steps deliberately carry NO user profile and no project/commission block — only
+ * thread-free conversation turns do (see conversation-runner). That keeps multi-agent pipelines
+ * profile-agnostic.
+ */
 export function buildStepPrompt(
   threadId: string,
   agentConfig: AgentSlotConfig,
@@ -219,40 +192,35 @@ export function buildStepPrompt(
   // Interrupted-step rerun: the original step prompt and the partial work are already in the
   // resumed backend session's history — send only the continuation reminder (plus any buffered
   // user replies), mirroring the direct-session resume (orchestration/resume-dispatcher).
-  const prompt = opts.interruptedResume
-    ? buildResumeReminder()
-    : buildRegularStepPrompt(thread, agentConfig, stage, opts.disableControlPlane === true);
-  return appendPendingMessages(thread, prompt, opts.pendingSnapshot).trim();
-}
+  if (opts.interruptedResume) {
+    return (buildResumeReminder() + (pendingAppendix(thread, opts.pendingSnapshot) ?? '')).trim();
+  }
 
-function buildRegularStepPrompt(
-  thread: ThreadRecord, agentConfig: AgentSlotConfig,
-  stage: string | null, disableControlPlane: boolean,
-): string {
-  const { template: templateStr, continuesSession } = pickStepTemplate(agentConfig, stage);
+  const { template, continuesSession } = pickStepTemplate(agentConfig, stage);
   const lastStep = [...thread.steps].reverse().find(s => s.output != null);
-  const vars = buildPromptVars(thread, lastStep);
+  // A live persistent session already received the directive and the protocol preamble on an
+  // earlier step, so none of the prefix blocks are resent. `continuesSession` says the step
+  // continues the same piece of work, which additionally means the previous output is already
+  // in that session's history and must not be pasted in again.
+  const resumed = !!(agentConfig.persistSession && hasBackendResumeTarget(thread.agents[agentConfig.slotId]));
+  const carryPrevious = !(continuesSession && resumed) && !thread.templateName
+    && !!lastStep?.output && !template.includes('{{previousOutput}}');
 
-  let prompt = applyPromptTemplate(templateStr, vars);
-
-  const slot = thread.agents[agentConfig.slotId];
-  const resumingPersistentSession = agentConfig.persistSession && hasBackendResumeTarget(slot);
-  const incremental = continuesSession && resumingPersistentSession;
-
-  if (!incremental && !thread.templateName && lastStep?.output && !templateStr.includes('{{previousOutput}}')) {
-    prompt = `Previous agent output:\n\n${lastStep.output}\n\n---\n\n${prompt}`;
-  }
-
-  if (!resumingPersistentSession) {
-    const prefixes: string[] = [];
-    // Thread steps never carry the user profile — only thread-free conversation turns do
-    // (see buildConversationPrompt). This keeps multi-agent pipelines profile-agnostic.
-    if (agentConfig.directive) prefixes.push(resolveSystemVars(agentConfig.directive));
-    if (thread.artifactPath && !disableControlPlane) prefixes.push(THREAD_PROTOCOL_PREAMBLE);
-    if (prefixes.length > 0) prompt = prefixes.join('\n\n') + '\n\n' + prompt;
-  }
-
-  return prompt;
+  return composeUserPrompt(
+    { directive: agentConfig.directive, promptTemplate: template },
+    thread.userMessage,
+    {
+      vars: {
+        artifactPath: thread.artifactPath,
+        previousOutput: lastStep?.output || '',
+        modifiedFiles: getModifiedFilesFromSession(lastStep?.sessionId).map(f => `- ${f}`).join('\n'),
+      },
+      lead: carryPrevious ? `Previous agent output:\n\n${lastStep!.output}` : null,
+      preamble: thread.artifactPath && !opts.disableControlPlane ? THREAD_PROTOCOL_PREAMBLE : null,
+      resumed,
+      appendix: pendingAppendix(thread, opts.pendingSnapshot),
+    },
+  );
 }
 
 function legacyMessagesAfterSnapshot(current: string[], snapshot: string[]): string[] {
@@ -286,125 +254,15 @@ function consumePendingInputs(
   };
 }
 
-/** Append a stable snapshot of buffered notices and user inputs. */
-function appendPendingMessages(
-  thread: ThreadRecord, prompt: string, snapshot?: PendingInputSnapshot,
-): string {
+/** The buffered notices and user replies that arrived while the step was queued, rendered as the
+ *  block appended after the step body. Draining is a side effect: the snapshot is removed from the
+ *  thread record and the record persisted, so the same replies are never delivered twice. */
+function pendingAppendix(thread: ThreadRecord, snapshot?: PendingInputSnapshot): string | null {
   const { messages, dropped } = consumePendingInputs(thread, snapshot);
-  if (messages.length === 0) return prompt;
+  if (messages.length === 0) return null;
   const header = dropped > 0
     ? `User replies (${messages.length} buffered, ${dropped} earlier notices dropped):`
     : `User replies (${messages.length} buffered):`;
-  const appended = prompt + `\n\n---\n\n${header}\n\n${messages.join('\n\n')}`;
   threadStore.set(thread).catch(() => {});
-  return appended;
-}
-
-/**
- * Assemble the prompt for a single plain user-conversation turn — the thread-independent
- * counterpart of buildStepPrompt. Plain user messages are NOT wrapped in a thread, so there
- * is no thread record, artifact, previous step, or transition to consider.
- *
- * Fidelity with the legacy default-thread path (templateName='default', isUserInitiated=true):
- *  - applies the default agent's promptTemplate (typically `{{input}}`) with empty thread vars;
- *  - prepends the agent directive (resolved for {{systemVar}});
- *  - prepends the user profile (loadUserContext) — plain conversation is the ONLY path that
- *    injects USER.md; it is on by default unless CORTEX_DISABLE_USER_CONTEXT=1. Thread steps
- *    (buildStepPrompt) never inject it. The caller gates it via opts.includeUserContext so the
- *    profile is sent only on a session's FIRST turn (session resume keeps it in history thereafter);
- *  - prepends a [Session Project] block when opts.project is given — the caller (conversation-runner
- *    via resolveConversationProject) passes it only on the FIRST turn of a Web UI direct session
- *    bound to a user project, so the agent knows which project the session belongs to;
- *  - prepends a [Commission] block when opts.commission is given (fresh commission-bound sessions
- *    only — see resolveConversationCommission): an INDEX of the commission directory plus the
- *    execution protocol (DR-0037) — contract.md / ledger.md are named, never pasted. Pure text
- *    assembly; all file I/O stays in the commissions domain loader;
- *  - NEVER injects THREAD_PROTOCOL_PREAMBLE (no artifact, no [ABORT] protocol for conversations).
- */
-export function buildConversationPrompt(
-  agentConfig: AgentSlotConfig,
-  input: string,
-  opts: {
-    includeUserContext?: boolean;
-    project?: { id: string; contextDir: string } | null;
-    commission?: CommissionPromptContext | null;
-  } = {},
-): string {
-  const { includeUserContext = true, project = null, commission = null } = opts;
-  const { template: templateStr } = pickStepTemplate(agentConfig, null);
-  const vars: Record<string, string> = {
-    input,
-    artifactPath: '',
-    previousOutput: '',
-    modifiedFiles: '',
-    ...getSystemVars(),
-  };
-  let prompt = applyPromptTemplate(templateStr, vars);
-
-  const prefixes: string[] = [];
-  const userCtx = includeUserContext ? loadUserContext() : null;
-  if (userCtx) prefixes.push(userCtx);
-  if (agentConfig.directive) prefixes.push(resolveSystemVars(agentConfig.directive));
-  if (project) {
-    prefixes.push(
-      `[Session Project] This session is bound to the project "${project.id}".\n`
-      + `Project context directory: ${project.contextDir}\n`
-      + `Treat messages in this session as pertaining to this project unless stated otherwise, `
-      + `and record project-related findings and status updates there.`,
-    );
-  }
-  if (commission) prefixes.push(buildCommissionBlock(commission));
-  if (prefixes.length > 0) prompt = prefixes.join('\n\n') + '\n\n' + prompt;
-
-  return prompt.trim();
-}
-
-/** Execution protocol for commission-bound sessions (DR-0037). Deliberately compact: the four
- *  rules the agent must not lose mid-run — surprise triage, evidence, checkpoints, gates. */
-const COMMISSION_PROTOCOL = `Commission protocol:
-1. Surprises are three kinds: an obstacle you route around; a fork you align on (send_decision for low-stakes picks, a blocking question for high-stakes ones); a discovery that invalidates a contract premise. A discovery MUST be surfaced against the contract — never silently absorbed.
-2. Completion claims need evidence pointers (file paths, command outputs, EXP ids) in ledger.md. Scope cuts and deferrals go in the plan section's "Cuts and deferrals" note.
-3. Before this session ends, and at each stage boundary, append a checkpoint CP-N to ledger.md with three diffs — plan vs done, contract vs current direction, assumptions vs reality — graded ok / attention / gate. Re-read contract.md (including its Revisions section) before writing it.
-4. Contract gates are blocking: ask the user and wait. A streak of approvals never downgrades a gate.`;
-
-/** A session that is about to CREATE a commission. It has no contract and no ledger yet, so the
- *  block's whole job is to say so and hand the agent to cortex_commission_start, which carries the
- *  drill protocol. Without this the first session of every commission is the one that is told
- *  nothing (DR-0037 v3). */
-function buildDraftCommissionBlock(c: DraftCommissionContext): string {
-  return [
-    '[Commission] This session was created to START a new commission: a long task anchored by '
-    + 'a contract the user approves before any work begins.',
-    `Draft directory (already created by the server): ${c.dir}`,
-    '',
-    'Call cortex_commission_start now, before investigating or asking anything — it carries the '
-    + 'drill protocol and the contract structure. Implement nothing until the contract is approved '
-    + 'through cortex_commission_submit.',
-  ].join('\n');
-}
-
-/** Index, not snapshot: the block names the two files and tells the agent to read them. Their
- *  contents are deliberately NOT pasted in — they grow without bound and the user may edit
- *  contract.md at any time, so a snapshot is both expensive and potentially stale. */
-function buildActiveCommissionBlock(c: ActiveCommissionContext): string {
-  const ledgerLine = c.hasLedger
-    ? `  ledger.md   — your state record: Status line, Plan items, checkpoints CP-N, log entries L-NNN`
-    : `  ledger.md   — NOT created yet. Derive it from the contract's acceptance criteria before working`;
-  return [
-    `[Commission] This session belongs to the commission "${c.title}" (${c.id}).`,
-    `Commission directory: ${c.dir}`,
-    `  contract.md — the binding intent reference: goal, inferences, acceptance criteria, exclusions, gates, revisions`,
-    ledgerLine,
-    `  assets/     — rich content you generate; decisions.jsonl — server-written, never touch it`,
-    '',
-    `Read both files now, before anything else — their contents are not reproduced here, and the `
-    + `copies on disk are the only source of truth. Re-read contract.md (including its Revisions `
-    + `section) at every checkpoint; the user may have edited it since you last looked.`,
-    '',
-    COMMISSION_PROTOCOL,
-  ].join('\n');
-}
-
-function buildCommissionBlock(c: CommissionPromptContext): string {
-  return c.phase === 'draft' ? buildDraftCommissionBlock(c) : buildActiveCommissionBlock(c);
+  return `\n\n---\n\n${header}\n\n${messages.join('\n\n')}`;
 }

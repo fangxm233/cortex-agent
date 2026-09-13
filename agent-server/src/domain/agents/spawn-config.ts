@@ -1,22 +1,23 @@
-// input:  run options, settings, profile and tool gates
-// output: canonical spawn config and scoped plugin selection
-// pos:    Registry-free spawn-config builder
+// input:  run options, agent config, mode route
+// output: the legacy option types plus engine-spec helper re-exports
+// pos:    Deprecated flat spawn-config module; canonical builder is domain/runs/engine-spec.ts
 // >>> Once updated, update this header and parent CORTEX.md <<<
 
-import { getSettings } from '@core/settings.js';
-import { resolveMcpComposition } from '../../agent-adapter/types.js';
-import { canonicalizeMcpToolAllowlist } from '@core/mcp-tool-gate.js';
 import type {
-  AgentProcessSpawner, AgentSpawnConfig, Backend, McpComposition,
+  AgentProcessSpawner, Backend, EngineSpec, McpComposition,
 } from '../../agent-adapter/types.js';
-import type { NormalizedEvent, TodoSnapshot, ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
-import type { AgentResult, ChatNoticeLevel, ContextUsage, NoticeAction } from '@core/types/agent-types.js';
+import type { NormalizedEvent, ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
+import type { AgentResult, ChatNoticeLevel, NoticeAction } from '@core/types/agent-types.js';
 import type { ProductionBenchmarkEvidenceContext } from '@core/types/thread-types.js';
-import { GATEWAY_URL } from '../costs/gateway-manager.js';
-import { loadCortexRules } from '../memory/rules-loader.js';
-import { resolvePluginRuntime } from '../plugins/runtime.js';
-import type { ModeEnv } from './config.js';
 import type { ResolvedProfileConfig } from './profile-manager.js';
+
+// The Pi gateway derivation and the scoped-plugin gate now live with the EngineSpec builder in
+// `domain/runs/engine-spec.ts`. Re-exported here so every existing importer keeps working.
+export {
+  buildPiGatewaySubPath, CHANNEL_SCOPED_PLUGINS, COMMISSION_SCOPED_PLUGINS,
+  filterChannelScopedPlugins, filterScopedPlugins,
+} from '../runs/engine-spec.js';
+export type { PluginScope } from '../runs/engine-spec.js';
 
 // --- Types ---
 
@@ -69,7 +70,7 @@ export interface RunAgentOptions {
   /** Optional containment-aware process boundary for daemon-free runs. */
   processSpawner?: AgentProcessSpawner;
   /** Pre-resolved spawn input used when identity must hash the exact object before launch. */
-  preparedSpawnConfig?: AgentSpawnConfig;
+  preparedSpec?: EngineSpec;
   /** Optional absolute backend CLI path. */
   cliPath?: string;
   /** Exact allowlisted child environment for an isolated process. */
@@ -136,274 +137,19 @@ export interface RunAgentOptions {
   taskId?: string | null;
   taskProject?: string | null;
   taskGeneration?: string | null;
-  onProgress?: ((progress: any) => void) | null;
-  onContextUsage?: ((usage: ContextUsage) => void | Promise<void>) | null;
+  /** Full system-prompt override (replaces the backend default). P3.3 canonicalizes this. */
+  systemPrompt?: string | null;
+  /** Claude Code output style name (backend='claude'). */
+  outputStyle?: string | null;
+  /** Claude Code agent name (backend='claude'). */
+  claudeAgent?: string | null;
+  /** Legacy raw tool list: a comma string for Claude, canonical names for PI. */
+  tools?: string | string[] | null;
   /** A complete assistant text block. `blockId` ties it to prior deltas; `noticeLevel` turns
    *  system-authored text into semantic chat chrome without changing plain platform output.
    *  `subagent` is present only when a native subagent produced the text — its absence is how a
    *  surface tells the main agent's answer from a subagent's working notes. */
   onAssistantMessage?: ((msg: string, blockId?: string, noticeLevel?: ChatNoticeLevel, noticeAction?: NoticeAction, subagent?: ToolUseSubagent) => void) | null;
-  /** An incremental text chunk of a block still being generated (never the accumulated total).
-   *  Opt-in: callers that leave it unset receive complete messages only, exactly as before. */
-  onAssistantDelta?: ((text: string, blockId: string) => void) | null;
-  onToolUse?: ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null;
-  /** The agent's task list after a TodoWrite call. Replace-all: each snapshot is complete and
-   *  supersedes the previous one, so consumers store rather than merge. Subagent lists are
-   *  filtered out at the adapter boundary and never arrive here. */
-  onTodoUpdate?: ((snapshot: TodoSnapshot) => void) | null;
-  onToolResult?: ((toolUseId: string, content: string, isError: boolean, subagent?: ToolUseSubagent) => void) | null;
-  /** One native subagent reached a terminal state, keyed by the `Agent`/`Task` call that spawned
-   *  it. Reported by the backend, never inferred — the only signal that can seal a backgrounded or
-   *  killed child while its parent turn is still running. */
-  onSubagentEnd?: ((parentToolUseId: string, status: 'completed' | 'failed' | 'killed') => void) | null;
   onFallback?: (current: AgentConfig, next: AgentConfig, result: AgentResult | null, error?: Error) => Promise<void>;
-  [key: string]: any;
 }
 
-// --- PI gateway routing ---
-
-/**
- * Build the gateway sub-path for a PI provider's models.json override, following the gateway's URL
- * convention `/m/<mode>/<endpoint>`. The `mode` selects the gateway route (gateway.yaml owns the
- * upstream + keys); the `provider` is both the PI `--provider` and the gateway endpoint segment.
- *
- * `provider` is required for pi profiles (validated at load time — no default, no fallback). Returns
- * undefined when `mode` is absent — the PI adapter then falls back to the default `/<provider>` path
- * (direct per-provider routing, no `/m/` mode indirection).
- *
- * Keeping this derivation in code (not in the profile) means profiles only carry the logical
- * `mode` name; no gateway path string leaks into profiles.json.
- */
-export function buildPiGatewaySubPath(mode: string | null, provider: string): string | undefined {
-  if (!mode) return undefined;
-  return `/m/${mode}/${provider}`;
-}
-
-// --- Scoped plugin gating ---
-
-/** Default channel scopes. The Feishu skill bundle also permits web: sessions when
- * feishuSkillsInWeb is enabled; MCP channel rules are separate and unchanged. */
-export const CHANNEL_SCOPED_PLUGINS: ReadonlyArray<{ plugin: string; channelPrefix: string }> = [
-  { plugin: 'cortex-feishu', channelPrefix: 'feishu:' },
-];
-
-/** Plugins that load only for sessions in commission mode. The commission skill is long and
- *  prescriptive (drill protocol, contract shape, checkpoint discipline); loading it into every
- *  session would put a procedure nobody asked for in front of the model (DR-0037 v2). */
-export const COMMISSION_SCOPED_PLUGINS: readonly string[] = ['cortex-commission'];
-
-/** Session scope and current policy evaluated at spawn time, after agent assignment. */
-export interface PluginScope {
-  channel?: string;
-  feishuSkillsInWeb?: boolean;
-  /** True while the session is in commission mode, drafting or already bound. */
-  commissionMode?: boolean;
-}
-
-/** Drop scoped plugin dirs the current session does not qualify for. Non-scoped plugins always pass
- *  through. Matched by the plugin dir's final path segment (basename) so substrings like
- *  `cortex-feishu-x` are not affected. */
-export function filterScopedPlugins(
-  dirs: string[] | undefined,
-  scope: PluginScope,
-): string[] | undefined {
-  if (!dirs) return dirs;
-  if (!Array.isArray(dirs)) return undefined;
-  return dirs.filter((dir) => {
-    if (typeof dir !== 'string') return false;
-    const base = dir.split('/').filter(Boolean).pop() ?? '';
-    if (COMMISSION_SCOPED_PLUGINS.includes(base)) return scope.commissionMode === true;
-    const rule = CHANNEL_SCOPED_PLUGINS.find((r) => r.plugin === base);
-    if (!rule) return true;
-    const webFeishu = base === 'cortex-feishu' && scope.feishuSkillsInWeb === true && scope.channel?.startsWith('web:');
-    return !!webFeishu || !!scope.channel?.startsWith(rule.channelPrefix);
-  });
-}
-
-/** @deprecated Kept for callers that only gate on the channel; prefer {@link filterScopedPlugins}. */
-export function filterChannelScopedPlugins(
-  dirs: string[] | undefined,
-  channel: string | undefined,
-): string[] | undefined {
-  return filterScopedPlugins(dirs, { channel, commissionMode: false });
-}
-
-// --- Spawn config ---
-
-type SpawnContext = NonNullable<AgentSpawnConfig['cortexContext']>;
-
-function spawnContext(options: RunAgentOptions): SpawnContext {
-  return {
-    threadId: options.threadId ?? null,
-    profile: options.profileName ?? null,
-    project: options.project ?? null,
-    sessionName: options.sessionName ?? null,
-    trackSessionId: options.trackSessionId ?? options.sessionId ?? null,
-    executionId: options.executionId ?? null,
-    useCoreMcp: options.useCoreMcp ?? undefined,
-    threadDepth: options.threadDepth ?? null,
-    taskId: options.taskId ?? null,
-    taskProject: options.taskProject ?? null,
-    taskGeneration: options.taskGeneration ?? null,
-  };
-}
-
-function hasSpawnContext(context: SpawnContext): boolean {
-  return Object.entries(context).some(([key, value]) => {
-    return key === 'threadDepth' ? value != null : Boolean(value);
-  });
-}
-
-/** Everything appended to the backend's own system prompt: the ambient global rules, then the
- *  caller's own text. A subagent role reaches its child through the second half — with
- *  `loadCortexRules: false` the role body is all the child sees. */
-function rulesPrompt(options: RunAgentOptions): string | undefined {
-  const rules = options.loadCortexRules === false ? [] : loadCortexRules().global;
-  const parts = rules.map(rule => rule.body);
-  const extra = options.appendSystemPrompt?.trim();
-  if (extra) parts.push(extra);
-  return parts.length > 0 ? parts.join('\n\n---\n\n') : undefined;
-}
-
-function spawnIdentity(
-  options: RunAgentOptions,
-  config: AgentConfig,
-  mcpComposition: McpComposition,
-): Pick<AgentSpawnConfig, 'sessionId' | 'sessionKey' | 'resume'> & Partial<AgentSpawnConfig> {
-  return {
-    sessionId: options.sessionId ?? null,
-    sessionKey: options.sessionKey || options.channel || 'default',
-    resume: !!options.sessionId,
-    model: config.model,
-    systemPrompt: typeof options.systemPrompt === 'string' ? options.systemPrompt : undefined,
-    outputStyle: typeof options.outputStyle === 'string' ? options.outputStyle : undefined,
-    cwd: options.cwd,
-    mcpComposition,
-  };
-}
-
-function spawnPolicy(options: RunAgentOptions): Partial<AgentSpawnConfig> {
-  return {
-    mcpConfigPaths: options.mcpConfigPaths,
-    mcpToolAllowlist: options.mcpToolAllowlist === undefined
-      ? undefined : canonicalizeMcpToolAllowlist(options.mcpToolAllowlist),
-    commissionTools: options.commissionTools,
-    disableHooks: options.disableHooks,
-    streamDeltas: options.streamDeltas,
-    captureTranscriptLogs: options.captureTranscriptLogs,
-    preserveUnreportedAccounting: options.preserveUnreportedAccounting,
-    processSpawner: options.processSpawner,
-    cliPath: typeof options.cliPath === 'string' ? options.cliPath : undefined,
-    pinnedEnv: options.pinnedEnv,
-  };
-}
-
-function pluginSpawnFields(
-  options: RunAgentOptions,
-  config: AgentConfig,
-  mcpComposition: McpComposition,
-): Partial<AgentSpawnConfig> {
-  const selectedPluginDirs = filterScopedPlugins(options.pluginDirs, {
-    channel: options.channel,
-    commissionMode: options.commissionMode,
-    feishuSkillsInWeb: getSettings().feishuSkillsInWeb,
-  });
-  const runtime = resolvePluginRuntime({
-    backend: config.backend, selectedPluginDirs, mcpComposition,
-  });
-  return {
-    pluginDirs: runtime.pluginDirs,
-    pluginSkillDirs: runtime.pluginSkillDirs,
-    mcpServers: runtime.mcpServers,
-    pluginCapabilityFingerprint: runtime.pluginCapabilityFingerprint,
-  };
-}
-
-/** The credentials a mode route decides. ANTHROPIC_BASE_URL is deliberately absent: it travels on
- *  the dedicated `anthropicBaseUrl` spawn field, and writing it into `env` as well would give
- *  production-attempt-identity two sources for the attested route host — a drift source. */
-const ROUTE_CREDENTIAL_KEYS = ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN'] as const;
-
-function routeEnvSets(route: ModeEnv): Record<string, string> {
-  const sets: Record<string, string> = {};
-  for (const key of ROUTE_CREDENTIAL_KEYS) {
-    const value = route[key];
-    if (typeof value === 'string') sets[key] = value;
-  }
-  return sets;
-}
-
-/** A route fully decides the base URL, so an absent one means "delete": otherwise this spawn
- *  inherits whatever mode configured the daemon last. A key the profile set explicitly is never
- *  deleted — profile configuration outranks the mode's delete intent. */
-function routeEnvDeletes(route: ModeEnv, extraEnv?: Record<string, string>): string[] {
-  const deletes: string[] = ROUTE_CREDENTIAL_KEYS.filter(key => route[key] === null);
-  if (!route.ANTHROPIC_BASE_URL) deletes.push('ANTHROPIC_BASE_URL');
-  return deletes.filter(key => !extraEnv || !(key in extraEnv));
-}
-
-/** Per-spawn env: the route's sets first, then the profile's extraEnv (last-wins), then the
- *  route's deletes. An absent route states no routing opinion and touches neither channel. */
-function routeEnvFields(
-  route: ModeEnv | undefined,
-  extraEnv?: Record<string, string>,
-): Partial<AgentSpawnConfig> {
-  const env = { ...(route ? routeEnvSets(route) : {}), ...extraEnv };
-  const unsetEnv = route ? routeEnvDeletes(route, extraEnv) : [];
-  return {
-    env: Object.keys(env).length > 0 ? env : undefined,
-    unsetEnv: unsetEnv.length > 0 ? unsetEnv : undefined,
-  };
-}
-
-function adapterSpawnFields(
-  options: RunAgentOptions,
-  config: AgentConfig,
-  route: ModeEnv | undefined,
-): Partial<AgentSpawnConfig> {
-  return {
-    ...routeEnvFields(route, config.extraEnv),
-    extraOption: config.extraOption && Object.keys(config.extraOption).length > 0 ? config.extraOption : undefined,
-    claudeBackend: config.claudeBackend,
-    thinking: config.thinking || undefined,
-    channel: options.channel,
-    claudeAgent: options.claudeAgent ?? undefined,
-    callbackSource: options.callbackSource ?? undefined,
-    scheduleTaskId: options.scheduleTaskId ?? undefined,
-    isUserInitiated: !!options.isUserInitiated,
-    rawTools: typeof options.tools === 'string' ? options.tools : undefined,
-    anthropicBaseUrl: route?.ANTHROPIC_BASE_URL,
-    browserCdpEndpoint: options.browserCdpEndpoint ?? undefined,
-  };
-}
-
-function piSpawnFields(config: AgentConfig): Partial<AgentSpawnConfig> {
-  const provider = config.backend === 'pi' ? config.provider : undefined;
-  return {
-    piProvider: provider || undefined,
-    piModelMaxTokens: config.backend === 'pi' ? config.maxOutputTokens ?? undefined : undefined,
-    piGatewayPath: provider
-      ? buildPiGatewaySubPath(config.mode, provider)
-      : undefined,
-    piGatewayBaseUrl: config.backend === 'pi' ? GATEWAY_URL : undefined,
-  };
-}
-
-export function buildAgentSpawnConfig(
-  options: RunAgentOptions,
-  config: AgentConfig,
-  route: ModeEnv | undefined,
-): AgentSpawnConfig {
-  const mcpComposition = resolveMcpComposition(options.mcpComposition, options.useCoreMcp);
-  const context = spawnContext(options);
-  const appendSystemPrompt = rulesPrompt(options);
-  return {
-    ...spawnIdentity(options, config, mcpComposition),
-    ...spawnPolicy(options),
-    ...pluginSpawnFields(options, config, mcpComposition),
-    ...adapterSpawnFields(options, config, route),
-    ...piSpawnFields(config),
-    cortexContext: hasSpawnContext(context) ? context : undefined,
-    appendSystemPrompt,
-  };
-}

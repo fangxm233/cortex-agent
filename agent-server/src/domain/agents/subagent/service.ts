@@ -4,12 +4,12 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { SubagentNotice } from '../../../agent-adapter/pi/event-parser.js';
-import { findRole, loadRoles } from '../roles.js';
-import { failedChildResult, runInvocation } from './orchestrate.js';
-import { resolveInvocation } from './schema.js';
+import { findRole, loadRoles } from '@core/agents/roles.js';
+import { failedChildResult, runInvocation } from '@core/agents/subagent/orchestrate.js';
+import { resolveInvocation } from '@core/agents/subagent/schema.js';
 import { startSubagentRun, type SubagentRunView } from './registry.js';
 import { runSubagent, type SubagentParentContext } from './runner.js';
-import type { RunChildFn } from './types.js';
+import type { RunChildFn } from '@core/agents/subagent/types.js';
 
 export interface DaemonSubagentRequest {
   /** Exactly the object the model passed to the tool; validated here, not by the caller. */

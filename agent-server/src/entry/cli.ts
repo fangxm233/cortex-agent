@@ -409,7 +409,8 @@ export function getConfigOutput(): string {
 
   const dotEnvPath = path.join(paths.CONFIG_DIR, '.env');
   const mcpConfigPath = path.join(paths.CONFIG_DIR, 'mcp-config.json');
-  const modeJsonPath = path.join(paths.STORE_DIR, 'mode.json');
+  const modeJsonPath = path.join(paths.STORE_DIR, 'agent-state.json');
+  const legacyModePath = path.join(paths.STORE_DIR, 'mode.json');
 
   let storeFileCount = 0;
   try { storeFileCount = readdirSync(paths.STORE_DIR).length; } catch {}
@@ -418,7 +419,7 @@ export function getConfigOutput(): string {
     dataDirExists: existsSync(paths.DATA_DIR) && storeFileCount > 0,
     dotEnvExists: existsSync(dotEnvPath),
     mcpConfigExists: existsSync(mcpConfigPath),
-    modeJsonExists: existsSync(modeJsonPath),
+    modeJsonExists: existsSync(modeJsonPath) || existsSync(legacyModePath),
   };
 
   return formatConfigOutput(paths, status);

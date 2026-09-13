@@ -6,7 +6,7 @@
 import type { Destination, PlatformAdapter, OutputStream } from '@platform/index.js';
 import { createLogger } from '@core/log.js';
 import { buildQuestionGroupBlocks, buildQuestionModalDefinition } from '@platform/index.js';
-import { runningExecutions } from '../../core/running-executions.js';
+import { runRegistry } from '../../core/run-registry.js';
 
 const log = createLogger('ask-user');
 
@@ -71,7 +71,7 @@ const pendingHookResolvers = new Map();
 
 /** Create a question group from a PreToolUse hook request (not from Claude output).
  *  @param extensionUiId — original PI extension_ui_request id; when set, tryResolveHook
- *         uses this for sendExtensionUiResponse instead of the hookRequestId.
+ *         uses this for respondToDialog instead of the hookRequestId.
  *  @param level — optional severity ('info'|'warning'|'error') rendered by the block builders. */
 function createHookGroup(requestId, channel, sessionId, questions, extensionUiId?: string, threadId?: string | null, level?: 'info' | 'warning' | 'error' | null) {
   const groupId = buildGroupId(sessionId, requestId);
@@ -120,18 +120,22 @@ function collectHookAnswers(group) {
   return answers;
 }
 
-/** Resolve a native PI dialog only when its real extension request ID is present. */
+/** Resolve a native PI dialog only when its real extension request ID is present.
+ *
+ *  Walks the channel's live runs and hands the answer to the first one that claims the dialog.
+ *  A run whose `respondToDialog` returns false (no live dialog on that id) is skipped, and when
+ *  none accepts, this returns false so the caller falls through to the blocking webhook. */
 function tryResolvePiExtension(group, answers): boolean {
   if (!group.extensionUiId) return false;
-  const exec = runningExecutions.getByChannel(group.channel).find(e => e.agentProcess) ?? null;
-  if (!exec?.agentProcess) return false;
-  const proc = exec.agentProcess as any;
-  if (typeof proc.sendExtensionUiResponse !== 'function') return false;
   const value = Object.values(answers).join('\n');
-  log.info(`sendExtensionUiResponse id=${group.extensionUiId}`);
-  proc.sendExtensionUiResponse(group.extensionUiId, { value });
-  deleteGroup(group.groupId);
-  return true;
+  for (const entry of runRegistry.getByChannel(group.channel)) {
+    if (entry.run?.respondToDialog(group.extensionUiId, { value })) {
+      log.info(`respondToDialog id=${group.extensionUiId}`);
+      deleteGroup(group.groupId);
+      return true;
+    }
+  }
+  return false;
 }
 
 /** Resolve a complete group through its native PI or blocking webhook channel. */

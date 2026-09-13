@@ -6,8 +6,9 @@
 import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 
-import { _test as modeManagerTest, isRetryableResult } from '../src/domain/agents/index.js';
-import type { AgentAdapter, AgentProcess, AgentSpawnConfig, Backend, UserMessage } from '../src/agent-adapter/index.js';
+import { _test as modeManagerTest } from '../src/domain/agents/facade.js';
+import { isRetryableResult } from '../src/domain/agents/index.js';
+import type { AgentAdapter, AgentProcess, EngineSpec, Backend, UserMessage } from '../src/agent-adapter/index.js';
 import { CAPABILITIES_BY_BACKEND } from '../src/agent-adapter/index.js';
 import type { NormalizedEvent } from '../src/agent-adapter/normalize/event-types.js';
 import type { AgentResult } from '../src/core/types/agent-types.js';
@@ -95,7 +96,7 @@ function makeFakeAdapter(backend: Backend, spec: FakeProcessSpec): AgentAdapter 
   return {
     backend,
     capabilities: CAPABILITIES_BY_BACKEND[backend],
-    spawn(_config: AgentSpawnConfig): AgentProcess {
+    spawn(_spec: EngineSpec): AgentProcess {
       return makeFakeProcess(spec);
     },
     async close(_key: string): Promise<void> {},
@@ -118,7 +119,7 @@ function defaultAgentResult(sessionId: string): AgentResult {
   };
 }
 
-test('runWithAdapter: assistant_text / tool_use / turn_complete drive callbacks in order and AgentResult flows through', async () => {
+test('runWithAdapter: assistant_text / tool_use / turn_complete reach observers in order and AgentResult flows through', async () => {
   const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
   const result = defaultAgentResult('s-happy');
   const adapter = makeFakeAdapter('claude', {
@@ -133,9 +134,7 @@ test('runWithAdapter: assistant_text / tool_use / turn_complete drive callbacks 
   });
 
   const assistantMsgs: string[] = [];
-  const toolCalls: Array<{ name: string; input: any; toolUseId?: string }> = [];
-  const toolResults: Array<{ toolUseId: string; content: string; isError: boolean }> = [];
-  const progressCalls: Array<{ num_turns: number | null; total_cost_usd: number | null; duration_ms: number | null }> = [];
+  const observed: NormalizedEvent[] = [];
 
   const handle = runWithAdapter(
     adapter,
@@ -143,9 +142,7 @@ test('runWithAdapter: assistant_text / tool_use / turn_complete drive callbacks 
     {
       channel: 'C1',
       onAssistantMessage: (t: string) => assistantMsgs.push(t),
-      onToolUse: (name: string, input: any, toolUseId?: string) => toolCalls.push({ name, input, toolUseId }),
-      onToolResult: (toolUseId: string, content: string, isError: boolean) => toolResults.push({ toolUseId, content, isError }),
-      onProgress: (p: any) => progressCalls.push(p),
+      observers: [{ onEvent: (event) => observed.push(event) }],
     },
     { model: 'm', backend: 'claude', mode: null },
     undefined,
@@ -154,19 +151,18 @@ test('runWithAdapter: assistant_text / tool_use / turn_complete drive callbacks 
   const final = await handle.promise;
 
   assert.deepEqual(assistantMsgs, ['hello', 'done'], 'assistant_text events preserve order');
-  assert.equal(toolCalls.length, 1);
-  assert.equal(toolCalls[0].name, 'Bash');
-  assert.deepEqual(toolCalls[0].input, { command: 'ls' });
-  assert.equal(toolCalls[0].toolUseId, 't1', 'the correlation id is preserved');
-  assert.deepEqual(toolResults, [], 'no result callback is invented without a tool_result event');
-  assert.equal(progressCalls.length, 1, 'onProgress fires exactly once on turn_complete');
-  assert.deepEqual(progressCalls[0], { num_turns: 2, total_cost_usd: 0.01, duration_ms: null });
+  assert.deepEqual(observed.map((event) => event.type),
+    ['assistant_text', 'tool_use', 'assistant_text', 'turn_complete']);
+  const toolUse = observed.find((event) => event.type === 'tool_use');
+  assert.equal(toolUse?.name, 'Bash');
+  assert.deepEqual(toolUse?.input, { command: 'ls' });
+  assert.equal(toolUse?.toolUseId, 't1', 'the correlation id is preserved');
   assert.equal(final, result, 'handle.promise resolves with the exact AgentResult from send()');
   assert.equal(recorded.sendCalls.length, 1);
   assert.equal(recorded.closed, true, 'proc.close() called in the runWithAdapter finally block');
 });
 
-test('runWithAdapter: context_usage reaches the backend-neutral callback before progress', async () => {
+test('runWithAdapter: context_usage reaches observers before the turn_complete marker', async () => {
   const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
   const adapter = makeFakeAdapter('pi', {
     events: [
@@ -183,14 +179,13 @@ test('runWithAdapter: context_usage reaches the backend-neutral callback before 
     'msg',
     {
       channel: 'web:context',
-      onContextUsage: (usage) => { seen.push(`context:${usage.usedTokens}/${usage.contextWindow}`); },
-      onProgress: () => seen.push('progress'),
+      observers: [{ onEvent: (event) => seen.push(event.type) }],
     },
     { model: 'm', backend: 'pi', mode: null },
     undefined,
   ).promise;
 
-  assert.deepEqual(seen, ['context:60000/200000', 'progress']);
+  assert.deepEqual(seen, ['context_usage', 'turn_complete']);
 });
 
 test('runWithAdapter: model fallback emits one warning and the turn continues', async (t) => {
@@ -361,7 +356,11 @@ test('runWithAdapter: tool_result preserves full multiline content, error status
     'msg',
     {
       channel: 'C1',
-      onToolResult: (toolUseId: string, content: string, isError: boolean) => seen.push({ toolUseId, content, isError }),
+      observers: [{ onEvent: (event) => {
+        if (event.type === 'tool_result') {
+          seen.push({ toolUseId: event.toolUseId, content: event.content, isError: !event.ok });
+        }
+      } }],
     },
     { model: 'm', backend: 'claude', mode: null },
     undefined,
@@ -370,7 +369,7 @@ test('runWithAdapter: tool_result preserves full multiline content, error status
   assert.deepEqual(seen, [{ toolUseId: 'toolu-result', content: 'first line\nsecond line\nthird line', isError: true }]);
 });
 
-test('runWithAdapter: tool_use → assistant_text arrives to callbacks in FIFO order', async () => {
+test('runWithAdapter: tool_use → assistant_text reaches observers in FIFO order', async () => {
   const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
   const adapter = makeFakeAdapter('claude', {
     events: [
@@ -388,8 +387,10 @@ test('runWithAdapter: tool_use → assistant_text arrives to callbacks in FIFO o
     'm',
     {
       channel: 'C1',
-      onAssistantMessage: (t: string) => log.push(`text:${t}`),
-      onToolUse: (name: string) => log.push(`tool:${name}`),
+      observers: [{ onEvent: (event) => {
+        if (event.type === 'tool_use') log.push(`tool:${event.name}`);
+        if (event.type === 'assistant_text') log.push(`text:${event.text}`);
+      } }],
     },
     { model: 'm', backend: 'claude', mode: null },
     undefined,
@@ -399,7 +400,7 @@ test('runWithAdapter: tool_use → assistant_text arrives to callbacks in FIFO o
   assert.deepEqual(log, ['tool:Read', 'text:after tool'], 'FIFO: tool event fires before subsequent text');
 });
 
-test('runWithAdapter: observers synchronously receive the complete source stream while legacy callbacks stop at completion', async () => {
+test('runWithAdapter: observers synchronously receive the complete source stream including post-completion events', async () => {
   const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
   const initial: NormalizedEvent[] = [
     { type: 'session_started', sessionId: 's-observed' },
@@ -413,23 +414,19 @@ test('runWithAdapter: observers synchronously receive the complete source stream
     events: initial, afterResolveEvents: tail,
     resultOnResolve: defaultAgentResult('s-observed'), recorded,
   });
-  const observed: NormalizedEvent[] = [], order: string[] = [];
+  const observed: NormalizedEvent[] = [];
   let closed = 0;
+  let notices = 0;
   await runWithAdapter(adapter, 'msg', {
     observers: [{
-      onEvent: (event) => { observed.push(event); order.push(`observer:${event.type}`); },
+      onEvent: (event) => { observed.push(event); },
       onClose: () => { closed += 1; },
     }],
-    onAssistantMessage: () => order.push('legacy:assistant_text'),
-    onProgress: () => order.push('legacy:turn_complete'),
-    onToolUse: () => order.push('legacy:tool_use'),
+    onAssistantMessage: () => { notices += 1; },
   }, { model: 'm', backend: 'claude', mode: null }, undefined).promise;
 
-  assert.deepEqual(observed, source);
-  assert.deepEqual(order, [
-    'observer:session_started', 'observer:assistant_text', 'legacy:assistant_text',
-    'observer:turn_complete', 'legacy:turn_complete', 'observer:tool_use',
-  ]);
+  assert.deepEqual(observed, source, 'observers see the full source stream, tail included');
+  assert.equal(notices, 1, 'the facade still classifies the in-turn assistant prose');
   assert.equal(closed, 1);
 });
 test('runWithAdapter: a throwing legacy callback cannot truncate observer delivery', async () => {
@@ -602,7 +599,7 @@ function makeSinkCapableAdapter(backend: Backend, spec: SinkCapableSpec): AgentA
   return {
     backend,
     capabilities: CAPABILITIES_BY_BACKEND[backend],
-    spawn(_config: AgentSpawnConfig): AgentProcess {
+    spawn(_spec: EngineSpec): AgentProcess {
       const proc = makeFakeProcess(spec) as AgentProcess & { setContinuationSink?: (s: any) => void };
       proc.setContinuationSink = (sink: any) => {
         spec.sinks.push(sink);
@@ -625,8 +622,7 @@ test('runWithAdapter: thread turn with pending background task waits for the con
   };
   const adapter = makeSinkCapableAdapter('claude', spec);
   const texts: string[] = [];
-  const toolResults: any[] = [];
-  const contextWindows: number[] = [];
+  const observed: NormalizedEvent[] = [];
 
   const handle = runWithAdapter(
     adapter, 'msg',
@@ -634,8 +630,7 @@ test('runWithAdapter: thread turn with pending background task waits for the con
       channel: 'thread-x',
       threadId: 'thr_abc',
       onAssistantMessage: (t: string) => texts.push(t),
-      onToolResult: (toolUseId: string, content: string, isError: boolean) => toolResults.push({ toolUseId, content, isError }),
-      onContextUsage: (usage) => { contextWindows.push(usage.contextWindow); },
+      observers: [{ onEvent: (event) => observed.push(event) }],
     },
     { model: 'm', backend: 'claude', mode: null },
     undefined,
@@ -658,8 +653,16 @@ test('runWithAdapter: thread turn with pending background task waits for the con
   assert.ok(Math.abs((final.total_cost_usd ?? 0) - 0.03) < 1e-9, 'continuation cost merged into the step result');
   assert.equal(final.finalOutput, 'bg result: PASS', 'continuation output becomes the step output');
   assert.deepEqual(texts, ['bg result: PASS'], 'continuation text forwarded to the step stream');
-  assert.deepEqual(toolResults, [{ toolUseId: 'toolu-bg', content: 'complete background output', isError: false }], 'continuation tool results use the same callback path');
-  assert.deepEqual(contextWindows, [1_000_000], 'continuation context uses the same callback path');
+  assert.deepEqual(
+    observed.filter((event) => event.type === 'tool_result'),
+    [{ type: 'tool_result', toolUseId: 'toolu-bg', ok: true, content: 'complete background output' }],
+    'continuation tool results reach the run observers',
+  );
+  assert.deepEqual(
+    observed.filter((event) => event.type === 'context_usage').map((event) => (event as { contextWindow: number }).contextWindow),
+    [1_000_000],
+    'continuation context usage reaches the run observers',
+  );
 });
 
 test('runWithAdapter: awaitBackground true waits without a threadId', async () => {
@@ -823,7 +826,7 @@ test('runWithAdapter: handle.kill() forwards to adapter process.kill()', async (
   await assert.rejects(handle.promise, /Cancelled by user/);
 });
 
-test('runWithAdapter: assistant_delta drives onAssistantDelta, interleaved with the complete message in FIFO order', async () => {
+test('runWithAdapter: assistant_delta events reach observers before the complete assistant_text', async () => {
   const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
   const adapter = makeFakeAdapter('claude', {
     events: [
@@ -845,8 +848,10 @@ test('runWithAdapter: assistant_delta drives onAssistantDelta, interleaved with 
     'msg',
     {
       channel: 'web:abc',
-      onAssistantDelta: (text: string, blockId: string) => { deltas.push([text, blockId]); order.push('delta'); },
       onAssistantMessage: (text: string, blockId?: string) => { finals.push([text, blockId]); order.push('final'); },
+      observers: [{ onEvent: (event) => {
+        if (event.type === 'assistant_delta') { deltas.push([event.text, event.blockId]); order.push('delta'); }
+      } }],
     },
     { model: 'm', backend: 'claude', mode: null },
     undefined,

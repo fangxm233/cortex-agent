@@ -4,8 +4,8 @@
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { Backend } from '../../agent-adapter/types.js';
-import type { AgentSlot } from '../agent-run/journal.js';
-import type { TerminalReason, TerminalState } from '../agent-run/manifest-contract.js';
+import type { AgentSlot } from '../runs/observers/journal.js';
+import type { TerminalReason, TerminalState } from '../runs/observers/manifest-contract.js';
 
 /**
  * An attempt is a FRAGMENT — one process or one thread — never a step. §17 (17.3.1) ruled this

@@ -6,7 +6,7 @@ session, so tools never read session scope from `process.env`.
 
 | filename | role | function |
 |---|---|---|
-| bundled-server.ts | entry | Serves selected Cortex tool bundles against one tool context |
+| bundled-server.ts | entry | Serves selected Cortex tool bundles against one tool context; openBundledMcpServer fills the PI bridge's port |
 | core-server.ts | entry | Serves remote execution and time tools |
 | feishu-server.ts | entry | Serves Feishu file tools |
 | manager-qa-server.ts | entry | Serves subtask answer tools |

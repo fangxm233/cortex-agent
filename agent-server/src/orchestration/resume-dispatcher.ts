@@ -15,7 +15,7 @@ import { buildResumeOptions, sealSuspendedStatusMsg, fireThreadCallback, closeRe
 import { trackPendingTask } from './busy-tracker.js';
 import { threadStore } from '@store/thread-repo.js';
 import { sessionStore } from '@store/session-registry-repo.js';
-import { runningExecutions } from '@core/running-executions.js';
+import { runRegistry } from '@core/run-registry.js';
 import { createLogger } from '@core/log.js';
 
 const log = createLogger('resume-dispatcher');
@@ -81,8 +81,8 @@ function defaultDeps(): ResumeDeps {
     requeue: recordResume,
     buildResumeOptions: (thread) => buildResumeOptions(thread),
     getThread: (id) => threadStore.get(id),
-    channelBusy: (ch) => runningExecutions.hasChannel(ch),
-    directSessionBusy: (ch) => runningExecutions.getByChannel(ch).some(e => !e.threadId),
+    channelBusy: (ch) => runRegistry.hasChannel(ch),
+    directSessionBusy: (ch) => runRegistry.getByChannel(ch).some(e => !e.threadId),
     acquireSessionUse: (sessionId) => sessionStore.acquireSessionUse(sessionId),
     track: trackPendingTask,
     delay: (ms) => new Promise((r) => setTimeout(r, ms)),

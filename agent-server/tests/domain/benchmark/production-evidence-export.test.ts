@@ -9,8 +9,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import type { ProductionAttemptIdentityRecord } from '../../../src/domain/agent-run/production-attempt-identity.js';
-import type { ProductionAttemptJournalRecord } from '../../../src/domain/agent-run/production-attempt-journal.js';
+import type { ProductionAttemptIdentityRecord } from '../../../src/domain/runs/observers/production-attempt-identity.js';
+import type { ProductionAttemptJournalRecord } from '../../../src/domain/runs/observers/production-attempt-journal.js';
 import type { CostEntry } from '../../../src/domain/costs/cost-tracker.js';
 import type { ProductionTopologyFact } from '../../../src/domain/tasks/production-topology-ledger.js';
 import type { ExecutionRecord } from '../../../src/store/execution-repo.js';
@@ -97,7 +97,7 @@ function attemptFixture(root: string, input: {
   const journalPath = path.join(root, `${attemptId}.source.ndjson`);
   fs.writeFileSync(journalPath, bytes);
   const identity = {
-    schema_version: 'cortex-production-attempt-identity/2', trial_id: 'trial-1',
+    schema_version: 'cortex-production-attempt-identity/3', trial_id: 'trial-1',
     root_run_id: input.rootRunId, attempt_id: attemptId,
     root_attempt_id: input.rootAttemptId ?? attemptId,
     spawn_parent_attempt_id: input.parentAttemptId ?? null,

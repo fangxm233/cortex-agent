@@ -1,6 +1,6 @@
 // input:  TodoSnapshot values keyed by sessionId
 // output: SessionTodos / sessionTodos singleton — queryable snapshot of each session's task list
-// pos:    core/ zero-dependency state registry (sibling of bg-held-sessions.ts)
+// pos:    core/ zero-dependency state registry (sibling of run-registry.ts)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
 // Why this exists, and why it is NOT persisted: the task list is live state of a run. Snapshot +
@@ -11,7 +11,7 @@
 // disk and a `put` is written per update; TodoWrite fires roughly once per completed step, which
 // would multiply the journal's write rate for state that is worthless after a restart — the run
 // that owned the list died with the process. An empty registry after boot is the truth, exactly as
-// it is for bg-held-sessions.
+// it is for run-registry.
 
 import type { TodoSnapshot } from './types/agent-types.js';
 

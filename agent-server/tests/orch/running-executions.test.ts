@@ -1,13 +1,13 @@
-// input:  Node test runner, RunningExecutions + EventBus
-// output: regression tests for RunningExecutions — executionId-keyed registry with channel/thread
+// input:  Node test runner, RunRegistry + EventBus
+// output: regression tests for RunRegistry — executionId-keyed registry with channel/thread
 //         secondary indices. Validates P3 fix (multiple live executions per channel coexist),
 //         balanced lifecycle events, and identity-guarded index cleanup.
 // pos:    validates the Stage 1 backbone refactor (plan: execution lifecycle).
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { RunningExecutions } from '../../src/core/running-executions.js';
-import type { RunningExecutionInput } from '../../src/core/running-executions.js';
+import { RunRegistry } from '../../src/core/run-registry.js';
+import type { RunningExecutionInput } from '../../src/core/run-registry.js';
 import { EventBus } from '../../src/events/index.js';
 import type { CortexEvent } from '../../src/events/index.js';
 
@@ -41,7 +41,7 @@ function collectEvents(bus: EventBus): CortexEvent[] {
 // ── Index consistency ─────────────────────────────────────────────────
 
 test('register by executionId: resolvable by id and channel; not by unknown thread', () => {
-  const exec = new RunningExecutions();
+  const exec = new RunRegistry();
   exec.register(makeInput({ executionId: 'E1', channel: 'C123' }));
 
   assert.ok(exec.hasId('E1'));
@@ -52,7 +52,7 @@ test('register by executionId: resolvable by id and channel; not by unknown thre
 });
 
 test('register returns the primary key (executionId)', () => {
-  const exec = new RunningExecutions();
+  const exec = new RunRegistry();
   const key = exec.register(makeInput({ executionId: 'E1', channel: 'C1' }));
   assert.equal(key, 'E1');
 });
@@ -60,7 +60,7 @@ test('register returns the primary key (executionId)', () => {
 // ── Live numTurns (S4 chat: real agent-turn snapshot on the running execution) ──
 
 test('numTurns: defaults to null on register; setNumTurns updates the live entry', () => {
-  const exec = new RunningExecutions();
+  const exec = new RunRegistry();
   exec.register(makeInput({ executionId: 'E1', channel: 'C1' }));
   assert.equal(exec.getById('E1')!.numTurns, null);
 
@@ -74,13 +74,13 @@ test('numTurns: defaults to null on register; setNumTurns updates the live entry
 });
 
 test('setNumTurns: no-op for an unknown key', () => {
-  const exec = new RunningExecutions();
+  const exec = new RunRegistry();
   // Must not throw when the execution is already gone / never registered.
   assert.doesNotThrow(() => exec.setNumTurns('missing', 2));
 });
 
 test('register with threadId: appears in byThreadId and byChannel; remove(id) cleans all', () => {
-  const exec = new RunningExecutions();
+  const exec = new RunRegistry();
   exec.register(makeInput({ executionId: 'E1', threadId: 'T1', channel: 'C123' }));
 
   assert.equal(exec.getByThreadId('T1')!.executionId, 'E1');
@@ -96,7 +96,7 @@ test('register with threadId: appears in byThreadId and byChannel; remove(id) cl
 // ── P3 regression: multiple live executions per channel ────────────────
 
 test('two executions on the same channel coexist — neither evicts the other', () => {
-  const exec = new RunningExecutions();
+  const exec = new RunRegistry();
   const hA = makeKillTracker();
   const hB = makeKillTracker();
   exec.register(makeInput({ executionId: 'EA', channel: 'C1', kill: () => hA.kill() }));
@@ -117,7 +117,7 @@ test('two executions on the same channel coexist — neither evicts the other', 
 });
 
 test('killByChannel kills every execution on the channel and returns the count', () => {
-  const exec = new RunningExecutions();
+  const exec = new RunRegistry();
   const hA = makeKillTracker();
   const hB = makeKillTracker();
   exec.register(makeInput({ executionId: 'EA', channel: 'C1', kill: () => hA.kill() }));
@@ -138,7 +138,7 @@ test('killByChannel kills every execution on the channel and returns the count',
 // ── Kill chain ────────────────────────────────────────────────────────
 
 test('killById: calls kill(), removes from all indices, returns true; second call false', () => {
-  const exec = new RunningExecutions();
+  const exec = new RunRegistry();
   const handle = makeKillTracker();
   exec.register(makeInput({ executionId: 'E1', threadId: 'T1', channel: 'C1', kill: () => handle.kill() }));
 
@@ -152,7 +152,7 @@ test('killById: calls kill(), removes from all indices, returns true; second cal
 });
 
 test('killByThreadId: resolves via byThreadId, kills, cleans all indices', () => {
-  const exec = new RunningExecutions();
+  const exec = new RunRegistry();
   const handle = makeKillTracker();
   exec.register(makeInput({ executionId: 'E1', threadId: 'T1', channel: 'C1', kill: () => handle.kill() }));
 
@@ -169,7 +169,7 @@ test('killByThreadId: resolves via byThreadId, kills, cleans all indices', () =>
 test('register with executionId publishes agent.started', () => {
   const bus = new EventBus();
   const events = collectEvents(bus);
-  const exec = new RunningExecutions(bus);
+  const exec = new RunRegistry(bus);
 
   exec.register(makeInput({ channel: 'C123', executionId: 'exec-1', backend: 'claude' }));
 
@@ -184,7 +184,7 @@ test('register with executionId publishes agent.started', () => {
 
 test('complete publishes agent.completed with cost + durationMs and removes entry', async () => {
   const bus = new EventBus();
-  const exec = new RunningExecutions(bus);
+  const exec = new RunRegistry(bus);
   exec.register(makeInput({ channel: 'C123', executionId: 'exec-2', backend: 'pi' }));
 
   await new Promise((r) => setTimeout(r, 5));
@@ -207,7 +207,7 @@ test('complete publishes agent.completed with cost + durationMs and removes entr
 
 test('fail publishes agent.failed with error and removes entry', () => {
   const bus = new EventBus();
-  const exec = new RunningExecutions(bus);
+  const exec = new RunRegistry(bus);
   exec.register(makeInput({ channel: 'C123', executionId: 'exec-3', backend: 'claude' }));
 
   const events = collectEvents(bus);
@@ -225,7 +225,7 @@ test('fail publishes agent.failed with error and removes entry', () => {
 
 test('supersede(id) kills handle, removes entry, publishes agent.superseded', () => {
   const bus = new EventBus();
-  const exec = new RunningExecutions(bus);
+  const exec = new RunRegistry(bus);
   const handle = makeKillTracker();
   exec.register(makeInput({ channel: 'C123', executionId: 'exec-4', kill: () => handle.kill() }));
 
@@ -245,7 +245,7 @@ test('supersede(id) kills handle, removes entry, publishes agent.superseded', ()
 
 test('supersedeByChannel kills+supersedes every entry on the channel (edit flow)', () => {
   const bus = new EventBus();
-  const exec = new RunningExecutions(bus);
+  const exec = new RunRegistry(bus);
   const hA = makeKillTracker();
   const hB = makeKillTracker();
   exec.register(makeInput({ channel: 'C1', executionId: 'EA', kill: () => hA.kill() }));
@@ -264,7 +264,7 @@ test('supersedeByChannel kills+supersedes every entry on the channel (edit flow)
 // ── kind field (Stage 4 dispatch accounting) ──────────────────────────
 
 test('register stores the kind field for dispatch accounting', () => {
-  const exec = new RunningExecutions();
+  const exec = new RunRegistry();
   exec.register(makeInput({ executionId: 'E1', channel: 'C1', kind: 'dispatch' }));
   assert.equal(exec.getById('E1')!.kind, 'dispatch');
 });
@@ -272,7 +272,7 @@ test('register stores the kind field for dispatch accounting', () => {
 // ── Identity-guarded index cleanup ─────────────────────────────────────
 
 test('removing an entry with a shared threadId must not corrupt byThreadId for the active entry', () => {
-  const exec = new RunningExecutions();
+  const exec = new RunRegistry();
   exec.register(makeInput({ executionId: 'EA', threadId: 'T', channel: 'C1' }));
   exec.register(makeInput({ executionId: 'EB', threadId: 'T', channel: 'C2' }));
   // byThreadId['T'] = EB (second registration wins)
@@ -283,7 +283,7 @@ test('removing an entry with a shared threadId must not corrupt byThreadId for t
 });
 
 test('ad-hoc registryKey (no executionId) is supported and keyed by registryKey', () => {
-  const exec = new RunningExecutions();
+  const exec = new RunRegistry();
   const key = exec.register(makeInput({ executionId: null, registryKey: 'hook:my-handle', channel: 'C1' }));
   assert.equal(key, 'hook:my-handle');
   assert.equal(exec.getById('hook:my-handle')!.registryKey, 'hook:my-handle');
@@ -294,7 +294,7 @@ test('ad-hoc registryKey (no executionId) is supported and keyed by registryKey'
 // ── Misc ───────────────────────────────────────────────────────────────
 
 test('getAll returns snapshot of all registered entries', () => {
-  const exec = new RunningExecutions();
+  const exec = new RunRegistry();
   assert.equal(exec.getAll().length, 0);
 
   exec.register(makeInput({ executionId: 'E1', channel: 'C1' }));
@@ -307,20 +307,20 @@ test('getAll returns snapshot of all registered entries', () => {
 });
 
 test('getById returns null for unknown id', () => {
-  const exec = new RunningExecutions();
+  const exec = new RunRegistry();
   exec.register(makeInput({ executionId: 'E1' }));
   assert.equal(exec.getById('E1')!.executionId, 'E1');
   assert.equal(exec.getById('nope'), null);
 });
 
 test('remove is a no-op for a non-existent id', () => {
-  const exec = new RunningExecutions();
+  const exec = new RunRegistry();
   exec.remove('nonexistent');
   assert.equal(exec.hasId('nonexistent'), false);
 });
 
 test('register stores startTime as a recent timestamp', () => {
-  const exec = new RunningExecutions();
+  const exec = new RunRegistry();
   const before = Date.now();
   exec.register(makeInput({ executionId: 'E1' }));
   const entry = exec.getById('E1')!;
@@ -329,7 +329,7 @@ test('register stores startTime as a recent timestamp', () => {
 });
 
 test('setBus after construction: events not published until bus is wired', () => {
-  const exec = new RunningExecutions();
+  const exec = new RunRegistry();
   exec.register(makeInput({ channel: 'C123', executionId: 'exec-5' }));
 
   const bus = new EventBus();
@@ -342,7 +342,7 @@ test('setBus after construction: events not published until bus is wired', () =>
 });
 
 test('track/backend ids are stored separately on running executions', () => {
-  const exec = new RunningExecutions();
+  const exec = new RunRegistry();
   exec.register(makeInput({
     executionId: 'E1',
     channel: 'C1',
@@ -356,13 +356,13 @@ test('track/backend ids are stored separately on running executions', () => {
 });
 
 test('legacy sessionId field falls back to backendSessionId when trackSessionId is absent', () => {
-  const exec = new RunningExecutions();
+  const exec = new RunRegistry();
   exec.register(makeInput({ executionId: 'E1', backendSessionId: 'backend-only' }));
   assert.equal(exec.getById('E1')!.sessionId, 'backend-only');
 });
 
 test('legacy sessionId is not copied into backendSessionId when a trackSessionId is also present', () => {
-  const exec = new RunningExecutions();
+  const exec = new RunRegistry();
   exec.register(makeInput({ executionId: 'E1', trackSessionId: 'track-1', sessionId: 'legacy-backend' }));
   assert.equal(exec.getById('E1')!.trackSessionId, 'track-1');
   assert.equal(exec.getById('E1')!.backendSessionId, 'legacy-backend');

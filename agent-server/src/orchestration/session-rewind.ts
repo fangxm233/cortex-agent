@@ -3,15 +3,15 @@
 // pos:    Web message edit rollback orchestration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { registerPISessionPath } from '../agent-adapter/index.js';
+import { engines } from '@domain/runs/engines.js';
 import type { PlatformAdapter } from '@platform/index.js';
 import { createLogger } from '@core/log.js';
-import { runningExecutions } from '@core/running-executions.js';
+import { runRegistry } from '@core/run-registry.js';
 import { conversationLedger, type ChannelConversation, type LedgerTurn } from '@store/conversation-ledger-repo.js';
 import { conversationHistory } from '@store/conversation-history-repo.js';
 import { sessionStore, effectiveBackendSessionId, type Session } from '@store/session-registry-repo.js';
 import * as sessionBackup from '@domain/sessions/session-backup.js';
-import { resolveBackendForChannel, closeSession as closePooledSession } from '@domain/agents/index.js';
+import { resolveBackendForChannel } from '@domain/agents/index.js';
 import { publishSessionRewound } from './session-events.js';
 import { sendWebUserMessage } from './session-send.js';
 import { isTurnTrackingPending } from './lifecycle.js';
@@ -60,7 +60,7 @@ export interface RewindDeps {
 
 function defaultDeps(): RewindDeps {
   return {
-    activeAgents: runningExecutions,
+    activeAgents: runRegistry,
     snapshotPending: isTurnTrackingPending,
     tryAcquireMutation: tryAcquireTurnMutationLock,
     ledger: conversationLedger,
@@ -68,10 +68,10 @@ function defaultDeps(): RewindDeps {
     sessionStore,
     backup: sessionBackup,
     resolveBackend: (channel) => resolveBackendForChannel(channel),
-    registerPISessionPath,
+    registerPISessionPath: (sessionId, sessionPath) => engines.registerSessionPath(sessionId, sessionPath),
     // Backend-neutral: every backend pools its subprocess, and a live one would keep the
     // pre-rewind history in memory and ignore the rolled-back transcript on disk.
-    closePooledSession: (channel) => closePooledSession(channel),
+    closePooledSession: (channel) => { void engines.close(channel); },
     send: sendWebUserMessage,
     publishRewound: publishSessionRewound,
   };

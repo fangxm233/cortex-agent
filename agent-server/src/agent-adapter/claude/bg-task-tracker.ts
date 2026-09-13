@@ -31,7 +31,7 @@
  *   - `undelivered` — work finished (task_updated terminal status) but the notification has
  *     not been observed. The CLI may deliver it up to ~24s later (observed gap with several
  *     parallel tasks) — or never. Snapshot as undeliveredBackgroundTasks; orchestration arms
- *     a grace watchdog (bg-wait-guard) for these instead of waiting forever.
+ *     a grace watchdog (owned by AgentRun) for these instead of waiting forever.
  *   - `armed`       — background notifications observed whose model turn has not opened yet.
  *     Each such notification makes the CLI open a turn of its own (a notification landing
  *     while the model is generating a turn's final text cannot fold in, so it is queued as the

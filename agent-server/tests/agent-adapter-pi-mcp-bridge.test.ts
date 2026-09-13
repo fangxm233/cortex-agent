@@ -5,6 +5,7 @@
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
+import { openBundledMcpServer } from '../src/domain/mcp/bundled-server.js';
 import type { ExtensionAPI, ToolDefinition } from '@earendil-works/pi-coding-agent';
 import {
   buildServerStates,
@@ -841,13 +842,24 @@ test('shutdown closes every handle and a later turn can reconnect', async () => 
   ]);
 });
 
+test('createMcpBridgeDeps without an opener refuses a bundled server instead of serving an empty one', async () => {
+  const env: NodeJS.ProcessEnv = directEnv();
+  const deps = createMcpBridgeDeps(env, []);
+  const core = buildServerStates(env).find(state => state.name === 'core');
+  assert.ok(core?.source.kind === 'bundled');
+  await assert.rejects(deps.spawnClient(core), /Cortex MCP bundles are unavailable/);
+});
+
 // Real in-process integration: the production deps serve the bundled core server over an in-memory
 // transport pair (no child process); listing and invoking one tool exercises bundle loading, the
 // tool gate, the MCP round trip, and content mapping.
 
 test('createMcpBridgeDeps serves the bundled core server in-process and cost_query returns text', { timeout: 15000 }, async () => {
   const env: NodeJS.ProcessEnv = directEnv();
-  const deps = createMcpBridgeDeps(env, []);
+  // The opener is injected, not defaulted (D10/P2.5c): building the tool context reaches the
+  // session registry and the subagent catalog, which an adapter may not import. This is the same
+  // wiring `domain/runs/adapters.ts` performs for the daemon.
+  const deps = createMcpBridgeDeps(env, [], openBundledMcpServer);
   const states = buildServerStates(env);
   const core = states.find(state => state.name === 'core');
   assert.ok(core?.source.kind === 'bundled');

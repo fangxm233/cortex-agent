@@ -17,7 +17,6 @@ They support packaging and manual verification outside the running daemon.
 | seed-test-config.sh | test | writes test machine and Claude/PI profiles |
 | serve-ui-standalone.ts | dev | serves the web UI against real local data |
 | smoke-tui-askuser.mjs | smoke | checks the ask-user question round trip |
-| smoke-tui-mode.mjs | smoke | checks the tmux-backed agent session |
 | smoke-tui-notification-fanout.mjs | smoke | checks cross-project notification delivery |
 | smoke-tui-phase2.mjs | smoke | checks the five dashboard tab queries |
 | smoke-tui-phase3.mjs | smoke | checks dashboard mutation operations |

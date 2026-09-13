@@ -5,8 +5,8 @@
 
 import { randomBytes } from 'node:crypto';
 import { createLogger } from '@core/log.js';
-import type { SubagentToolResult } from './orchestrate.js';
-import type { Invocation, SubagentMode } from './types.js';
+import type { SubagentToolResult } from '@core/agents/subagent/orchestrate.js';
+import type { Invocation, SubagentMode } from '@core/agents/subagent/types.js';
 
 const log = createLogger('subagent-registry');
 

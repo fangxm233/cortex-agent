@@ -41,11 +41,6 @@ describe('commission tools — Claude --tools', () => {
     expect(tools).toContain(`${P}cortex_ask_user`);
   });
 
-  it('adds them on top of the TUI baseline too', () => {
-    const tools = toolsOf({ isUserInitiated: true, mode: 'tui', commissionTools: true });
-    for (const tool of [...PLAN, ...COMMISSION]) expect(tools).toContain(tool);
-  });
-
   it('leaves a non-user-initiated session with no bridge tools at all', () => {
     const tools = toolsOf({ commissionTools: true });
     for (const tool of [...PLAN, ...COMMISSION]) expect(tools).not.toContain(tool);

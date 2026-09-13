@@ -4,7 +4,7 @@ A backend is Cortex's adapter for a specific coding agent. Cortex does
 not call LLM APIs directly. It drives a coding agent — Claude Code as a
 child process, PI as a session inside the server process — sends
 messages to it, and consumes a normalized event stream. Each backend
-implements the `AgentAdapter` interface defined in
+implements the `EngineAdapter` interface defined in
 `agent-server/src/agent-adapter/types.ts`.
 
 ## Supported backends
@@ -16,22 +16,44 @@ implements the `AgentAdapter` interface defined in
 
 ## How backends work
 
-When an agent session starts, Cortex resolves the active profile (from
-`profiles.json` or the `--profile` flag) to determine which backend to use.
-It then calls `getAdapter(backend)` to get the adapter instance and calls
-`adapter.spawn(config)` to start a session.
+Three nouns cover the path from a message to a backend process: a **run**, a
+**session**, and an **engine**.
 
-The `AgentSpawnConfig` carries the full session context: system prompt,
-plugin directories, tool allowlist, MCP server config, hooks, model name,
-and backend-specific passthroughs. The adapter translates it into
-backend-native form: command-line arguments for the Claude Code child
-process, session options for the in-process PI session.
+A **run** is one execution of one user request: a conversation turn, a thread
+step, a hook agent, an edit retry, an ask-user resume, or a subagent child.
+`startRun` (`domain/runs/service.ts`) opens one from a fully resolved
+`RunRequest` — profile, prompt, policy, and context, with no callbacks — and
+returns the `AgentRun` (`domain/runs/run.ts`) that owns the run's event stream,
+its cancel and steer handles, its fallback chain, and its result.
 
-From there, Cortex sends user messages and receives a normalized event
-stream. The normalization layer (`agent-adapter/normalize/`) translates
-each backend's native event format into a common `NormalizedEvent`
-discriminated union, so the orchestration layer never needs to know which
-backend is running.
+A **session** is the conversation identity a run continues: the stable Cortex
+session id, the backend's own resume id, the profile it runs, and the channel
+it is bound to. A session owns the engine it resumes into. A run reuses its
+session's pooled engine; separate engine keys (a thread step's slot, a
+hook-injected turn) get their own.
+
+The **engine** is the backend process itself — a pooled `claude` subprocess or
+an in-process PI SDK session. `SessionEngines` (`domain/runs/engines.ts`) is
+the only owner of pooled engines: `acquire(spec)` reuses the session for a
+spec's engine key when it is alive and was opened from the same session
+identity, and otherwise retires it and opens a new one. The adapter is
+stateless; it opens a session from an `EngineSpec` and translates what that
+session emits.
+
+Configuration is resolved once per run. `resolveRunConfig`
+(`domain/runs/config-resolver.ts`) picks the profile by priority — an explicit
+override, the session's recorded profile, the channel's profile, the active
+profile, then `profiles.json`'s `defaultProfile` — and the profile supplies the
+backend, model, provider, gateway mode, thinking level, and fallback chain.
+`buildEngineSpec` (`domain/runs/engine-spec.ts`) turns the resolved run into a
+backend-neutral `EngineSpec`, which the adapter translates into backend-native
+form: command-line arguments for the Claude Code child process, session options
+for the in-process PI session.
+
+From there the engine emits one `RunEvent` stream (`domain/runs/events.ts`).
+The normalization layer (`agent-adapter/normalize/`) translates each backend's
+native event format into `NormalizedEvent`, and `toRunEvent` tags it with the
+run's phase, so the run layer never needs to know which backend is running.
 
 ## Feature matrix
 
@@ -56,21 +78,21 @@ operations.
 ## Claude Code
 
 The reference backend. Supports all eleven capabilities. Two
-adapter modes are available:
+adapter modes are defined; TUI is deprecated:
 
 **Print mode** (`claudeBackend: "print"`, default). Uses a persistent
 `claude -p` process with stream-json input and output. Cortex pools the process
 by session key and sends later turns over the same NDJSON stream until the
 session is closed, times out, or its spawn identity changes.
 
-**TUI mode** (`claudeBackend: "tui"`). Spawns an interactive Claude session
-under tmux and tails the session's JSONL file for events. Supports
-multi-turn conversation with session persistence. Heavier resource usage
-but allows interactive workflows.
+**TUI mode** (`claudeBackend: "tui"`, deprecated). Historically spawned an
+interactive Claude session under tmux and tailed the session's JSONL file for
+events. D9 deprecated it: the adapter warns once and runs the session in print
+mode instead.
 
-Claude Code adapter session pool is keyed by channel for session reuse.
-Cost reporting reverse-derives USD from `message.usage` token counts using
-Anthropic's published pricing.
+Claude Code sessions are pooled by engine key for reuse (`SessionEngines`,
+`domain/runs/engines.ts`). Cost reporting reverse-derives USD from
+`message.usage` token counts using Anthropic's published pricing.
 
 The session-retention coordinator also syncs Claude's user-level
 `cleanupPeriodDays` into `$CLAUDE_CONFIG_DIR/settings.json` (or
@@ -472,20 +494,22 @@ backends — see [mcp.md](./mcp.md) for the `cost_query` tool.
 
 ## Adding a new backend
 
-New backends implement the `AgentAdapter` interface in a new directory
-under `agent-server/src/agent-adapter/`. The required surface:
+New backends implement the `EngineAdapter` interface in a new directory under
+`agent-server/src/agent-adapter/`. The required surface:
 
-1. **`adapter.ts`** — implements `AgentAdapter` with `spawn()`, `close()`,
-   `kill()`, and `listSessions()`. Returns an `AgentProcess` from `spawn()`.
-2. **`AgentProcess`** — exposes `send(message)` for user messages and
-   `events` as an async iterable of `NormalizedEvent`. Must also support
-   `close()` and `kill()`.
-3. **`event-parser.ts`** — translates the backend's native event format to
-   `NormalizedEvent` discriminated union members.
-4. **Registration** — add the adapter to the `ADAPTERS` map in
-   `agent-adapter/index.ts`, add capabilities to `capabilities.ts`, and
-   include the backend label in the `Backend` type union in `types.ts`.
+1. **`adapter.ts`** — implements `EngineAdapter` with `open(spec)`, returning an
+   `EngineSession`. The adapter is stateless: `SessionEngines` owns the pool.
+2. **`EngineSession`** — exposes `run(prompt, opts)` for one turn, returning an
+   `EngineRun` whose `events` is an async iterable of `RunEvent` and whose
+   `result` is the foreground `AgentResult`; plus `steer()`,
+   `respondToDialog()`, `compact()`, `close()`, and `kill()`.
+3. **`event-parser.ts`** — translates the backend's native event format into
+   `NormalizedEvent` / `RunEvent` members.
+4. **Registration** — add the adapter to the assembly in
+   `domain/runs/adapters.ts` and a branch to `SessionEngines.acquire` in
+   `domain/runs/engines.ts`; add capabilities to `capabilities.ts`; include the
+   backend label in the `Backend` type union in `core/types/agent-types.ts`.
 
-The normalization layer (`agent-adapter/normalize/`) provides shared
-utilities for event stream queuing, tool name translation, and hook
-specification that all backends use.
+The normalization layer (`agent-adapter/normalize/`) provides shared utilities
+for event stream queuing, tool name translation, and hook specification that
+all backends use.

@@ -12,6 +12,10 @@
 //   orch    → core, store, events, domain, platform   L4
 //   entry   → *                          L5
 //
+//   agent-adapter → core, store, events   (a driver: it knows how to talk to a CLI, and nothing
+//                                          about what a throttle, a usage row, a subagent run or
+//                                          an MCP bundle *means*. Plan D10.)
+//
 // Severity is `error` so CI breaks on new violations. Type-only imports are excluded
 // (dependencyTypesNot: ['type-only']) — type leaks across layers are tolerated; runtime
 // coupling is what we want to catch.
@@ -57,6 +61,20 @@ module.exports = {
       comment: 'domain may depend on core, store, events, platform — but never on orchestration or entry',
       from: { path: '^src/domain/' },
       to: { path: '^src/(orchestration|entry)/', ...COMMON_OPTS },
+    },
+    {
+      name: 'adapter-no-upward-deps',
+      severity: 'error',
+      comment:
+        'agent-adapter is a driver, not a layer above domain: it may read downward (core, store, '
+        + 'events) but must never import domain, orchestration, entry or platform. Anything it '
+        + 'needs from those is either shared vocabulary that belongs in core, or a collaborator '
+        + 'injected at the one assembly point, domain/runs/adapters.ts (plan D10). NOTE: the plan '
+        + 'named this rule "core|events only"; store is allowed deliberately — it sits BELOW the '
+        + 'adapter (L1) and the hook registry two adapter files read is passive config data, so '
+        + 'forbidding it would buy a pass-through injection and no isolation.',
+      from: { path: '^src/agent-adapter/' },
+      to: { path: '^src/(domain|orchestration|entry|platform)/', ...COMMON_OPTS },
     },
     {
       name: 'orch-not-to-entry',

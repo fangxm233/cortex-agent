@@ -33,6 +33,9 @@ export interface ProfileEntry {
 export interface ProfilesFile {
   defaultProfile: string;
   profiles: Record<string, ProfileEntry>;
+  /** Which profile `!backend <name>` lands on, per backend. Optional: without it the first
+   *  profile declared for that backend is used, which is the answer most homes want anyway. */
+  defaultProfileByBackend?: Partial<Record<Backend, string>>;
 }
 
 export interface ResolvedProfile extends ProfileEntry {
@@ -186,6 +189,20 @@ function validateProfilesFile(data: unknown): void {
   if (!profs[defaultProfile]) {
     throw new Error(`defaultProfile "${defaultProfile}" is missing from profiles`);
   }
+  const byBackend = d.defaultProfileByBackend;
+  if (byBackend !== undefined) {
+    if (!byBackend || typeof byBackend !== 'object' || Array.isArray(byBackend)) {
+      throw new Error('defaultProfileByBackend must be an object');
+    }
+    for (const [backend, name] of Object.entries(byBackend as Record<string, unknown>)) {
+      if (!VALID_BACKENDS.has(backend)) {
+        throw new Error(`defaultProfileByBackend has unknown backend: ${backend}`);
+      }
+      if (typeof name !== 'string' || !profs[name]) {
+        throw new Error(`defaultProfileByBackend.${backend} = "${String(name)}" is missing from profiles`);
+      }
+    }
+  }
 
   for (const [name, profile] of Object.entries(profs)) {
     if (!PROFILE_NAME_RE.test(name)) {
@@ -212,6 +229,25 @@ function listProfiles(): ResolvedProfile[] {
 
 function getDefaultProfileName(): string {
   return loadProfilesFile().defaultProfile;
+}
+
+/**
+ * The profile `!backend <name>` switches a channel to.
+ *
+ * `defaultProfileByBackend` wins when it names one; otherwise the FIRST profile declared for that
+ * backend, because declaration order in profiles.json is the only preference signal a user has
+ * already expressed. Returns null when the home has no profile on that backend at all — the caller
+ * must say so rather than silently switching to something else.
+ */
+export function getDefaultProfileForBackend(backend: Backend): string | null {
+  let file: ProfilesFile;
+  try { file = loadProfilesFile(); } catch { return null; }
+  const declared = file.defaultProfileByBackend?.[backend];
+  if (declared && file.profiles[declared]) return declared;
+  for (const [name, profile] of Object.entries(file.profiles)) {
+    if ((profile.backend ?? 'claude') === backend) return name;
+  }
+  return null;
 }
 
 function getProfile(name: string | null): ResolvedProfile | null {

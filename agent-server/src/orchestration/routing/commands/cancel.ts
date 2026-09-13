@@ -4,9 +4,8 @@ import { t } from '../../../core/i18n.js';
 import type { Destination, PlatformAdapter } from '@platform/index.js';
 import type { CommandResult } from './command-context.js';
 import type { CommandActionRouter } from '@orch/interactions/command-action-router.js';
-import { runningExecutions, type RunningExecution } from '../../../core/running-executions.js';
-import { bgHeldSessions } from '../../../core/bg-held-sessions.js';
-import { killSession as killPooledSession } from '@domain/agents/index.js';
+import { runRegistry, type RunningExecution } from '../../../core/run-registry.js';
+import { engines } from '@domain/runs/engines.js';
 import { stopSubagentRunsForSession } from '@domain/agents/subagent/registry.js';
 import { conduitQueues } from '../../conduit-queue.js';
 import { cancelThread as cancelThreadById } from '@domain/threads/index.js';
@@ -27,7 +26,7 @@ async function cancelLive(exec: RunningExecution): Promise<void> {
   if (exec.executionId) {
     executionRegistry.teardownExecution({ executionId: exec.executionId, status: 'cancelled', durationS: 0 });
   } else {
-    runningExecutions.killById(exec.registryKey);
+    runRegistry.killById(exec.registryKey);
   }
 }
 
@@ -35,31 +34,31 @@ async function cancelLive(exec: RunningExecution): Promise<void> {
 export interface BgHoldCancelDeps {
   heldSessions?: (channel: string) => string[];
   killPooled?: (channel: string) => boolean;
-  abortHold?: (sessionId: string) => boolean;
+  stopHolds?: (sessionId: string) => boolean;
 }
 
 /** Stop the web background-task hold(s) on a channel; returns the number stopped.
  *
  *  Why this exists: a bg-held session is logically running (the UI shows Stop) but its execution
- *  has ALREADY been torn down — `holdWebForBg` is installed after `teardownExecution` removed the
- *  entry from `runningExecutions`. So the channel-keyed cancel below found zero executions and
+ *  has ALREADY been torn down — the web hold is installed after `teardownExecution` removed the
+ *  entry from `runRegistry`. So the channel-keyed cancel below found zero executions and
  *  returned 0, and Stop was a silent no-op: the click resolved ok, nothing changed, and the session
  *  stayed "Background" until the grace / max-wait cap fired.
  *
  *  Two things must happen, in this order: kill the pooled backend process that still owns the
  *  background task (otherwise the work runs on and streams a continuation into a session the user
- *  just stopped), then fire the hold's abort to seal running:false. The kill alone is not enough —
+ *  just stopped), then fire the hold's Stop handle to seal running:false. The kill alone is not enough —
  *  the adapter only delivers its interrupted-notification when work is still pending, so a hold
  *  installed for finished-but-unnotified work would never be sealed by it. */
 export function cancelBgHolds(channel: string, deps: BgHoldCancelDeps = {}): number {
-  const heldSessions = deps.heldSessions ?? ((c: string) => bgHeldSessions.sessionsOnChannel(c));
-  const killPooled = deps.killPooled ?? ((c: string) => killPooledSession(c));
-  const abortHold = deps.abortHold ?? ((s: string) => bgHeldSessions.abort(s));
+  const heldSessions = deps.heldSessions ?? ((c: string) => runRegistry.sessionsOnChannel(c));
+  const killPooled = deps.killPooled ?? ((c: string) => engines.kill(c));
+  const stopHolds = deps.stopHolds ?? ((s: string) => runRegistry.stopHolds(s));
 
   const held = heldSessions(channel);
   if (held.length === 0) return 0;
   try { killPooled(channel); } catch (e) { log.warn('bg-hold cancel: kill failed:', (e as Error).message); }
-  for (const sessionId of held) abortHold(sessionId);
+  for (const sessionId of held) stopHolds(sessionId);
   return held.length;
 }
 
@@ -86,8 +85,8 @@ export interface SubagentCancelDeps {
  *  Not added to the cancelled count: a live subagent run always sits under an execution or a hold,
  *  both of which are already counted. */
 export function cancelSubagentRuns(channel: string, deps: SubagentCancelDeps = {}): number {
-  const liveExecutions = deps.liveExecutions ?? ((c: string) => runningExecutions.getByChannel(c));
-  const heldSessions = deps.heldSessions ?? ((c: string) => bgHeldSessions.sessionsOnChannel(c));
+  const liveExecutions = deps.liveExecutions ?? ((c: string) => runRegistry.getByChannel(c));
+  const heldSessions = deps.heldSessions ?? ((c: string) => runRegistry.sessionsOnChannel(c));
   const stopForSession = deps.stopForSession ?? stopSubagentRunsForSession;
 
   const sessionIds = new Set<string>();
@@ -116,7 +115,7 @@ export function cancelSubagentRuns(channel: string, deps: SubagentCancelDeps = {
  *  {@link cancelBgHolds}). Stops any delegated `agent` runs those sessions own (see
  *  {@link cancelSubagentRuns}). Clears the conduit queue when anything ran. */
 export async function cancelChannelRuns(channel: string): Promise<number> {
-  const executions = runningExecutions.getByChannel(channel);
+  const executions = runRegistry.getByChannel(channel);
   // First, so the children stop spending the moment the user clicks — before their parent's
   // execution is torn down and the channel→session bridge disappears with it.
   cancelSubagentRuns(channel, { liveExecutions: () => executions });
@@ -144,8 +143,8 @@ export function createCancelHandler(cancelDispatchedTask: ((opts: { taskId: stri
       if (!adapter) return;
 
       const exec = threadId
-        ? runningExecutions.getByThreadId(threadId)
-        : (executionId ? runningExecutions.getById(executionId) : null);
+        ? runRegistry.getByThreadId(threadId)
+        : (executionId ? runRegistry.getById(executionId) : null);
       if (exec) await cancelLive(exec);
       conduitQueues.delete(ctx.channelId);
 
@@ -182,7 +181,7 @@ export function createCancelHandler(cancelDispatchedTask: ((opts: { taskId: stri
 
       // Thread ID pattern: kill by threadId + cancel thread store record
       if (THREAD_ID_RE.test(firstArg)) {
-        const exec = runningExecutions.getByThreadId(firstArg);
+        const exec = runRegistry.getByThreadId(firstArg);
         if (exec) {
           await cancelLive(exec);
           log.info('Cancel requested for thread:', firstArg);
@@ -204,7 +203,7 @@ export function createCancelHandler(cancelDispatchedTask: ((opts: { taskId: stri
     }
 
     // No args: check how many executions are running on this channel
-    const executions = runningExecutions.getByChannel(channel);
+    const executions = runRegistry.getByChannel(channel);
 
     // 0 executions: nothing to cancel
     if (executions.length === 0) {

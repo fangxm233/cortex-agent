@@ -4,12 +4,12 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { InlineExtension } from '@earendil-works/pi-coding-agent';
-import type { AgentRole } from '@domain/agents/roles.js';
-import { roleToolsForBackend } from '@domain/agents/roles.js';
-import { addTurnUsage, emptyUsage, finiteNumber } from '@domain/agents/subagent/usage.js';
+import type { AgentRole } from '@core/agents/roles.js';
+import { roleToolsForBackend } from '@core/agents/roles.js';
+import { addTurnUsage, emptyUsage, finiteNumber } from '@core/agents/subagent/usage.js';
 import type {
   ChildAccumulator, ChildEventForwarder, SubagentResult, SubagentTask,
-} from '@domain/agents/subagent/types.js';
+} from '@core/agents/subagent/types.js';
 import { createChildSession, type ChildSessionFactory, type ChildSessionHandle } from './child-session.js';
 import { messageEndMessage, textFromMessage } from './child-events.js';
 import { PI_INTERACTION_BRIDGE_ENV } from './session-options.js';

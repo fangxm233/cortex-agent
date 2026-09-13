@@ -1,0 +1,9 @@
+{"$cortex":"note","text":"Claude run_in_background Bash: the user turn's result fires with the task still running; the CLI then re-invokes the model on task_notification and that turn is delivered through ContinuationSink."}
+{"$cortex":"turn","text":"run the test suite in the background"}
+{"type":"assistant","message":{"model":"claude-opus-5","content":[{"type":"tool_use","id":"toolu_bg01","name":"Bash","input":{"command":"pnpm -C agent-server test","run_in_background":true,"description":"Run the suite"}}]}}
+{"type":"user","isReplay":true,"uuid":"u-bg-01","session_id":"test-session","message":{"role":"user","content":"run the test suite in the background"}}
+{"type":"system","subtype":"task_started","task_id":"b6vp8rywx","tool_use_id":"toolu_bg01","task_type":"local_bash","is_backgrounded":true,"description":"Run the suite"}
+{"type":"result","subtype":"success","is_error":false,"num_turns":2,"total_cost_usd":0.25,"session_id":"test-session","result":"Started the suite in the background."}
+{"type":"system","subtype":"task_notification","task_id":"b6vp8rywx","status":"completed","summary":"suite passed"}
+{"type":"assistant","message":{"model":"claude-opus-5","content":[{"type":"text","text":"Background task done: DONE"}]}}
+{"type":"result","subtype":"success","is_error":false,"origin":{"kind":"task-notification"},"num_turns":1,"total_cost_usd":0.5,"session_id":"test-session","result":"Background task done: DONE"}

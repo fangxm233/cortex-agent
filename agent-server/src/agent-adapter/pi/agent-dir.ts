@@ -18,7 +18,7 @@ import {
 import * as path from 'path';
 import * as os from 'os';
 import { createLogger } from '@core/log.js';
-import { ensureAgentRoles } from '@domain/agents/roles.js';
+import { ensureAgentRoles } from '@core/agents/roles.js';
 import { PI_AGENT_DIR, PI_SESSIONS_DIR } from './defaults.js';
 
 const log = createLogger('pi-agent-dir');

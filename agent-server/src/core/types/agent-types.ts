@@ -3,6 +3,11 @@
 // pos:    Shared type definitions for agent execution and messages
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
+/** Which agent CLI runs a session. Lives here rather than in `agent-adapter/types.ts` so the
+ *  shared agent vocabulary under `core/agents/` can name a backend without importing the
+ *  adapter; `agent-adapter/types.ts` re-exports it, so every existing import site is unchanged. */
+export type Backend = 'claude' | 'pi';
+
 export type ChatNoticeLevel = 'info' | 'warning' | 'error';
 
 export interface AuthNoticeAction {

@@ -3,9 +3,10 @@
 // pos:    Backend-neutral agent run facade
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { getAdapter } from '../../agent-adapter/index.js';
+import { getRunAdapter } from '../runs/engines.js';
 import type {
-  AgentAdapter, AgentCompactResult, AgentProcess, AgentSpawnConfig, Backend, NormalizedEvent,
+  AgentAdapter, AgentCompactResult, AgentProcess, Backend, EngineSpec,
+  NormalizedEvent,
 } from '../../agent-adapter/index.js';
 import type { ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
 import {
@@ -14,12 +15,13 @@ import {
 import {
   consumeEventStream, createProcessCloser, createRunEventTee, settleEventfulRun,
 } from '../../agent-adapter/event-tee.js';
-import { buildAgentSpawnConfig, filterChannelScopedPlugins, filterScopedPlugins } from './spawn-config.js';
+import { filterChannelScopedPlugins, filterScopedPlugins } from './spawn-config.js';
+import { buildEngineSpec } from '../runs/engine-spec.js';
 import type { AgentConfig, RunAgentOptions, RunObserver } from './spawn-config.js';
 import {
   freezeProductionAttemptIdentity, type ProductionAttemptIdentityRecord,
-} from '../agent-run/production-attempt-identity.js';
-import { createProductionAttemptJournalSink } from '../agent-run/production-attempt-journal.js';
+} from '../runs/observers/production-attempt-identity.js';
+import { createProductionAttemptJournalSink } from '../runs/observers/production-attempt-journal.js';
 import { resolveProfileConfig } from './profile-manager.js';
 import type { ResolvedProfileConfig } from './profile-manager.js';
 import type { AgentHandle, AgentResult, ChatNoticeLevel, NoticeAction } from '@core/types/agent-types.js';
@@ -195,14 +197,12 @@ function withTerminalNotices(handle: AgentHandle, notices: AttemptNoticeTracker)
 // can reach them without importing the ambient adapter registry (design §13 S6.1). Re-exported
 // here so every existing importer of the facade keeps working against the single definition.
 export {
-  buildAgentSpawnConfig, buildPiGatewaySubPath, CHANNEL_SCOPED_PLUGINS, COMMISSION_SCOPED_PLUGINS,
+  buildPiGatewaySubPath, CHANNEL_SCOPED_PLUGINS, COMMISSION_SCOPED_PLUGINS,
   filterChannelScopedPlugins, filterScopedPlugins,
 } from './spawn-config.js';
 export type { AgentConfig, RunAgentOptions, RunObserver } from './spawn-config.js';
 
 // --- Adapter execution ---
-
-type LegacyEventHandler = (event: any) => void | Promise<void>;
 
 function costAttribution(
   options: RunAgentOptions,
@@ -224,133 +224,82 @@ function costAttribution(
   });
 }
 
-class LegacyEventDispatcher {
-  private active = true;
-  private readonly handlers: Partial<Record<NormalizedEvent['type'], LegacyEventHandler>>;
+/**
+ * The facade-authored signals the run still needs. These exist nowhere in the raw `NormalizedEvent`
+ * stream: the assistant-prose classification (`assistantNoticeLevel`) plus the synthesized notices
+ * (backend-session reset, compaction, model fallback) and cost accounting. Every other event reaches
+ * the run through its own raw-event observers (plan §3.3).
+ */
+function createFacadeDispatcher(
+  adapter: AgentAdapter,
+  options: RunAgentOptions,
+  config: AgentConfig,
+  spec: EngineSpec,
+  attribution: Readonly<CostAttribution>,
+): (event: NormalizedEvent) => void {
+  // Mirror the legacy post-turn gate: the adapter may keep emitting after `turn_complete`, but the
+  // facade must not re-announce them (background turns arrive through the continuation sink).
+  let active = true;
+  return (event: NormalizedEvent): void => {
+    if (!active) return;
+    switch (event.type) {
+      case 'turn_complete':
+        active = false;
+        return;
+      case 'cost_record':
+        recordRunAccounting(event, adapter, options, config, attribution);
+        return;
+      case 'session_started':
+        if (!options.channel?.startsWith('web:')) return;
+        if (!spec.resume.resume || !spec.resume.backendSessionId) return;
+        if (event.sessionId === spec.resume.backendSessionId) return;
+        options.onAssistantMessage?.(t('notify.backendSessionReset'), undefined, 'warning');
+        return;
+      case 'assistant_text':
+        options.onAssistantMessage?.(
+          event.text, event.blockId, assistantNoticeLevel(event.text), undefined, event.subagent,
+        );
+        return;
+      case 'context_compacted':
+        if (!options.onAssistantMessage) return;
+        if (!getSettings().notifyCompaction) return;
+        options.onAssistantMessage(t('notify.contextCompacted'), undefined, 'info');
+        return;
+      case 'model_fallback':
+        options.onAssistantMessage?.(t('notify.agentFallback', {
+          from: event.originalModel,
+          to: event.fallbackModel,
+        }), undefined, 'warning');
+        return;
+      default:
+        return;
+    }
+  };
+}
 
-  constructor(
-    private readonly adapter: AgentAdapter,
-    private readonly options: RunAgentOptions,
-    private readonly config: AgentConfig,
-    private readonly spawnConfig: AgentSpawnConfig,
-    private readonly attribution: Readonly<CostAttribution>,
-  ) {
-    this.handlers = {
-      session_started: (event) => this.sessionStarted(event),
-      assistant_text: (event) => this.assistantText(event),
-      assistant_delta: (event) => this.assistantDelta(event),
-      tool_use: (event) => this.toolUse(event),
-      todo_update: (event) => this.todoUpdate(event),
-      tool_result: (event) => this.toolResult(event),
-      turn_progress: (event) => this.turnProgress(event),
-      context_usage: (event) => this.contextUsage(event),
-      turn_complete: (event) => this.turnComplete(event),
-      cost_record: (event) => this.recordAccounting(event),
-      context_compacted: () => this.contextCompacted(),
-      model_fallback: (event) => this.modelFallback(event),
-      plan_written: (event) => this.planWritten(event),
-      ask_user_question: (event) => this.askUserQuestion(event),
-      subagent_end: (event) => this.subagentEnd(event),
-    };
-  }
-
-  async dispatch(event: NormalizedEvent): Promise<void> {
-    if (!this.active) return;
-    await this.handlers[event.type]?.(event);
-  }
-
-  private sessionStarted(event: Extract<NormalizedEvent, { type: 'session_started' }>): void {
-    if (!this.options.channel?.startsWith('web:')) return;
-    if (!this.spawnConfig.resume || !this.spawnConfig.sessionId) return;
-    if (event.sessionId === this.spawnConfig.sessionId) return;
-    this.options.onAssistantMessage?.(t('notify.backendSessionReset'), undefined, 'warning');
-  }
-
-  private assistantText(event: Extract<NormalizedEvent, { type: 'assistant_text' }>): void {
-    this.options.onAssistantMessage?.(
-      event.text, event.blockId, assistantNoticeLevel(event.text), undefined, event.subagent,
-    );
-  }
-
-  private assistantDelta(event: Extract<NormalizedEvent, { type: 'assistant_delta' }>): void {
-    this.options.onAssistantDelta?.(event.text, event.blockId);
-  }
-
-  private toolUse(event: Extract<NormalizedEvent, { type: 'tool_use' }>): void {
-    this.options.onToolUse?.(event.name, event.input, event.toolUseId, event.subagent);
-  }
-
-  private todoUpdate(event: Extract<NormalizedEvent, { type: 'todo_update' }>): void {
-    this.options.onTodoUpdate?.(event.snapshot);
-  }
-
-  private toolResult(event: Extract<NormalizedEvent, { type: 'tool_result' }>): void {
-    this.options.onToolResult?.(event.toolUseId, event.content, !event.ok, event.subagent);
-  }
-
-  private progress(numTurns: number | null, totalCostUsd: number | null): void {
-    this.options.onProgress?.({ num_turns: numTurns, total_cost_usd: totalCostUsd, duration_ms: null });
-  }
-
-  private turnProgress(event: Extract<NormalizedEvent, { type: 'turn_progress' }>): void {
-    this.progress(event.numTurns, null);
-  }
-
-  private async contextUsage(event: Extract<NormalizedEvent, { type: 'context_usage' }>): Promise<void> {
-    await this.options.onContextUsage?.({
-      usedTokens: event.usedTokens,
-      contextWindow: event.contextWindow,
-      percent: event.percent,
-      accuracy: event.accuracy,
-    });
-  }
-
-  private turnComplete(event: Extract<NormalizedEvent, { type: 'turn_complete' }>): void {
-    this.progress(event.numTurns, event.totalCostUsd);
-    this.active = false;
-  }
-
-  recordAccounting(event: Extract<NormalizedEvent, { type: 'cost_record' }>): void {
-    if (this.options.recordCost === false) return;
-    void recordCost({
-      ...this.attribution,
-      project: this.options.project || 'general', trigger: this.options.trigger || 'unknown',
-      cost_usd: event.cost_usd, backend: this.adapter.backend,
-      mode: this.config.mode || 'api', source: 'estimate',
-      input_tokens: event.input_tokens, output_tokens: event.output_tokens,
-      prompt_tokens: event.prompt_tokens === undefined
-        ? event.tokens_in : event.prompt_tokens,
-      cache_read_tokens: event.cache_read_tokens,
-      cache_creation_tokens: event.cache_creation_tokens,
-      provider_requests: event.provider_requests,
-      provider: event.provider || undefined, model: event.model || undefined,
-    }).catch(err => log.warn('recordCost failed:', (err as Error)?.message ?? err));
-  }
-
-  private contextCompacted(): void {
-    if (!this.options.onAssistantMessage) return;
-    if (!getSettings().notifyCompaction) return;
-    this.options.onAssistantMessage(t('notify.contextCompacted'), undefined, 'info');
-  }
-
-  private modelFallback(event: Extract<NormalizedEvent, { type: 'model_fallback' }>): void {
-    this.options.onAssistantMessage?.(t('notify.agentFallback', {
-      from: event.originalModel,
-      to: event.fallbackModel,
-    }), undefined, 'warning');
-  }
-
-  private planWritten(event: Extract<NormalizedEvent, { type: 'plan_written' }>): void {
-    this.options.onPlanWritten?.({ path: event.path, content: event.content, toolUseId: event.toolUseId });
-  }
-
-  private askUserQuestion(event: Extract<NormalizedEvent, { type: 'ask_user_question' }>): void {
-    this.options.onAskUserQuestion?.({ toolUseId: event.toolUseId, questions: event.questions });
-  }
-
-  private subagentEnd(event: Extract<NormalizedEvent, { type: 'subagent_end' }>): void {
-    this.options.onSubagentEnd?.(event.parentToolUseId, event.status);
-  }
+/** Record one backend cost event: the foreground loop gates on the turn being active, the
+ *  continuation path records unconditionally. */
+function recordRunAccounting(
+  event: Extract<NormalizedEvent, { type: 'cost_record' }>,
+  adapter: AgentAdapter,
+  options: RunAgentOptions,
+  config: AgentConfig,
+  attribution: Readonly<CostAttribution>,
+): void {
+  if (options.recordCost === false) return;
+  void recordCost({
+    ...attribution,
+    project: options.project || 'general', trigger: options.trigger || 'unknown',
+    cost_usd: event.cost_usd, backend: adapter.backend,
+    mode: config.mode || 'api', source: 'estimate',
+    input_tokens: event.input_tokens, output_tokens: event.output_tokens,
+    prompt_tokens: event.prompt_tokens === undefined
+      ? event.tokens_in : event.prompt_tokens,
+    cache_read_tokens: event.cache_read_tokens,
+    cache_creation_tokens: event.cache_creation_tokens,
+    provider_requests: event.provider_requests,
+    provider: event.provider || undefined, model: event.model || undefined,
+  }).catch(err => log.warn('recordCost failed:', (err as Error)?.message ?? err));
 }
 function shouldAwaitRunBackground(
   adapter: AgentAdapter,
@@ -385,9 +334,6 @@ async function resolveRunResult(
     onAssistantText: options.onAssistantMessage
       ? (text, subagent) => options.onAssistantMessage!(text, undefined, undefined, undefined, subagent)
       : null,
-    onToolUse: options.onToolUse ?? null,
-    onToolResult: options.onToolResult ?? null,
-    onContextUsage: options.onContextUsage ?? null,
     onEvent: onContinuationEvent,
     completionOnly,
     stopPromise: completionOnly ? proc.supervision?.closed : undefined,
@@ -398,13 +344,13 @@ type AttemptJournalSink = ReturnType<typeof createProductionAttemptJournalSink>;
 
 function productionJournalSink(
   identity: ProductionAttemptIdentityRecord | null,
-  spawnConfig: AgentSpawnConfig,
+  spec: EngineSpec,
   options: RunAgentOptions,
   message: string,
 ): AttemptJournalSink | null {
   if (!identity) return null;
   return createProductionAttemptJournalSink({
-    identity, spawnConfig,
+    identity, spec,
     canonicalInstruction: options.identityDirective ?? '', message,
   });
 }
@@ -413,24 +359,24 @@ function prepareAttemptEvidence(
   adapter: AgentAdapter, message: string, options: RunAgentOptions,
   config: AgentConfig, route: ModeEnv | undefined,
 ) {
-  const spawnConfig = options.preparedSpawnConfig
-    ?? buildAgentSpawnConfig(options, config, route);
+  const spec = options.preparedSpec
+    ?? buildEngineSpec(options, config, route);
   const attemptIdentity = freezeProductionAttemptIdentity({
-    adapterBackend: adapter.backend, spawnConfig, options,
+    adapterBackend: adapter.backend, spec, options,
     resolvedProfile: options.resolvedProfileConfig,
   });
   return {
-    spawnConfig, attemptIdentity,
-    attemptJournal: productionJournalSink(attemptIdentity, spawnConfig, options, message),
+    spec, attemptIdentity,
+    attemptJournal: productionJournalSink(attemptIdentity, spec, options, message),
   };
 }
 
 function spawnAdapterAttempt(
-  adapter: AgentAdapter, spawnConfig: AgentSpawnConfig, message: string,
+  adapter: AgentAdapter, spec: EngineSpec, message: string,
   options: RunAgentOptions, attemptJournal: AttemptJournalSink | null,
 ) {
   let proc: AgentProcess;
-  try { proc = adapter.spawn(spawnConfig); }
+  try { proc = adapter.spawn(spec); }
   catch (error) {
     attemptJournal?.onClose();
     throw error;
@@ -466,18 +412,18 @@ export function runWithAdapter(
   adapter: AgentAdapter, message: string, options: RunAgentOptions,
   config: AgentConfig, route: ModeEnv | undefined,
 ): AgentHandle {
-  const { spawnConfig, attemptIdentity, attemptJournal } = prepareAttemptEvidence(
+  const { spec, attemptIdentity, attemptJournal } = prepareAttemptEvidence(
     adapter, message, options, config, route,
   );
   const attribution = costAttribution(options, attemptIdentity);
   const { proc, tee, turnPromise } = spawnAdapterAttempt(
-    adapter, spawnConfig, message, options, attemptJournal,
+    adapter, spec, message, options, attemptJournal,
   );
   const closeProcess = createProcessCloser(proc);
-  const legacy = new LegacyEventDispatcher(adapter, options, config, spawnConfig, attribution);
-  const eventLoop = consumeEventStream({ proc, tee, onEvent: event => legacy.dispatch(event) });
+  const dispatch = createFacadeDispatcher(adapter, options, config, spec, attribution);
+  const eventLoop = consumeEventStream({ proc, tee, onEvent: dispatch });
   const resultPromise = resolveRunResult(turnPromise, eventLoop, adapter, options, proc, (event) => {
-    if (event.type === 'cost_record') legacy.recordAccounting(event);
+    if (event.type === 'cost_record') recordRunAccounting(event, adapter, options, config, attribution);
     tee.dispatch(event);
   });
   return runHandle(
@@ -517,7 +463,7 @@ export interface CompactAgentDeps {
 
 const compactAgentDeps: CompactAgentDeps = {
   resolveProfile: resolveProfileConfig,
-  getAdapter,
+  getAdapter: getRunAdapter,
   configureMode: resolveModeEnv,
   recordCost,
 };
@@ -585,7 +531,7 @@ export async function compactAgentContext(
     project: request.projectId,
     trigger: 'manual-compact',
   });
-  const proc = deps.getAdapter(request.backend).spawn(buildAgentSpawnConfig({
+  const proc = deps.getAdapter(request.backend).spawn(buildEngineSpec({
     sessionId: request.backendSessionId,
     trackSessionId: request.sessionId,
     sessionKey: request.channel,
@@ -621,14 +567,21 @@ function configureRunRoute(options: RunAgentOptions, config: AgentConfig): ModeE
 
 export function runAgentOnce(message: string, options: RunAgentOptions, config: AgentConfig): AgentHandle {
   const route = configureRunRoute(options, config);
-  const adapter = getAdapter(config.backend as Backend);
+  const adapter = getRunAdapter(config.backend as Backend);
   const handle = runWithAdapter(adapter, message, options, config, route);
   const attributed = withRateLimitProvider(handle, resolveRateLimitProvider(config));
   return withAuthLifecycle(attributed, options, config);
 }
 
 export function runAgent(message: string, options: RunAgentOptions = {}): AgentHandle {
-  const profileConfig: ResolvedProfileConfig = resolveProfileConfig(options.profileName);
+  // A `resolvedProfileConfig` carrying a real model is authoritative: the run layer passes the
+  // fully-resolved request profile, and a subagent child passes a synthesized profile for its
+  // role/task model. A synthetic "unknown name" profile (empty model) still falls through to the
+  // named lookup so the facade rejects the unknown name exactly as before.
+  const resolved = options.resolvedProfileConfig;
+  const profileConfig: ResolvedProfileConfig = resolved && resolved.model
+    ? resolved
+    : resolveProfileConfig(options.profileName);
   const configs: AgentConfig[] = [
     { model: profileConfig.model, backend: profileConfig.backend, mode: profileConfig.mode, provider: profileConfig.provider, extraEnv: profileConfig.extraEnv, extraOption: profileConfig.extraOption, claudeBackend: profileConfig.claudeBackend, thinking: profileConfig.thinking, maxOutputTokens: profileConfig.maxOutputTokens },
     ...(profileConfig.fallback || []),
@@ -739,18 +692,6 @@ export const _test = {
   withTerminalNotices,
   resolveRateLimitProvider,
   withRateLimitProvider,
-  buildSpawnConfig: buildAgentSpawnConfig,
   filterChannelScopedPlugins,
   filterScopedPlugins,
 };
-
-// --- Pooled-session control (backend-neutral) and Claude bridge helper re-exports ---
-
-export {
-  closeSession,
-  killSession,
-  closeSessionsByPrefix,
-  closeAllSessions,
-} from '../../agent-adapter/index.js';
-export { _test as claudeTest } from '../../agent-adapter/claude/adapter.js';
-export { getCurrentPlanFilePath } from '../../agent-adapter/claude/event-parser.js';

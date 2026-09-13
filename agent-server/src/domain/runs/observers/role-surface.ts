@@ -1,0 +1,151 @@
+// input:  resolved engine spec prompt, tool gate and plugin runtime trees
+// output: content-addressed role, tool, MCP and guard surface
+// pos:    Anti-divergence identity projection for spawns
+// >>> If I am updated, update my header and folder CORTEX.md <<<
+
+import { createHash } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import { DEFAULT_TOOLS } from '../../../agent-adapter/claude/defaults.js';
+import { buildHooksSettings } from '../../../agent-adapter/claude/hooks-builder.js';
+import type { EngineSpec } from '../../../agent-adapter/types.js';
+import {
+  canonicalJsonSha256, type IdentityJsonValue, type PluginDirIdentityInput,
+  type RoleToolSurfaceInput, type SkillIdentityInput,
+} from './identity.js';
+
+interface ContentEntry {
+  path: string;
+  type: 'file' | 'symlink';
+  sha256?: string;
+  target?: string;
+}
+
+function sha256(value: string | Buffer): string {
+  return createHash('sha256').update(value).digest('hex');
+}
+
+function contentEntries(root: string, directory = root): ContentEntry[] {
+  const result: ContentEntry[] = [];
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const absolute = path.join(directory, entry.name);
+    if (entry.isDirectory()) result.push(...contentEntries(root, absolute));
+    if (entry.isFile()) {
+      result.push({ path: path.relative(root, absolute), type: 'file', sha256: sha256(fs.readFileSync(absolute)) });
+    }
+    if (entry.isSymbolicLink()) {
+      result.push({ path: path.relative(root, absolute), type: 'symlink', target: fs.readlinkSync(absolute) });
+    }
+  }
+  return result;
+}
+
+function compareText(left: string, right: string): number {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+}
+
+function comparePath(a: ContentEntry, b: ContentEntry): number {
+  if (a.path < b.path) return -1;
+  if (a.path > b.path) return 1;
+  return 0;
+}
+
+export function directoryContentSha256(directory: string): string {
+  if (!fs.statSync(directory).isDirectory()) {
+    throw new Error(`Plugin path is not a directory: ${directory}`);
+  }
+  return canonicalJsonSha256(contentEntries(directory).sort(comparePath));
+}
+
+function pluginIdentities(
+  pluginDirs: string[],
+  capabilityFingerprint?: string,
+): PluginDirIdentityInput[] {
+  const identities = pluginDirs.map(directory => ({
+    path: directory,
+    content_sha256: directoryContentSha256(directory),
+  }));
+  if (capabilityFingerprint) {
+    identities.push({
+      path: '@plugin-capability', content_sha256: capabilityFingerprint,
+    });
+  }
+  return identities.sort((left, right) => compareText(left.path, right.path));
+}
+
+function pluginSkills(pluginDir: string): SkillIdentityInput[] {
+  const root = path.join(pluginDir, 'skills');
+  if (!fs.existsSync(root)) return [];
+  return fs.readdirSync(root, { withFileTypes: true })
+    .filter(entry => entry.isDirectory())
+    .map(entry => ({
+      name: entry.name,
+      content_sha256: directoryContentSha256(path.join(root, entry.name)),
+    }));
+}
+
+function directSkills(skillDirs: string[]): SkillIdentityInput[] {
+  return skillDirs.map(directory => ({
+    name: path.basename(directory),
+    content_sha256: directoryContentSha256(directory),
+  }));
+}
+
+function uniqueSkills(skills: SkillIdentityInput[]): SkillIdentityInput[] {
+  const names = new Set<string>();
+  for (const skill of skills) {
+    if (names.has(skill.name)) throw new Error(`Duplicate plugin skill name: ${skill.name}`);
+    names.add(skill.name);
+  }
+  return skills.sort((left, right) => compareText(left.name, right.name));
+}
+
+function discoveredSkills(pluginDirs: string[], skillDirs: string[]): SkillIdentityInput[] {
+  return uniqueSkills([
+    ...pluginDirs.flatMap(pluginSkills),
+    ...directSkills(skillDirs),
+  ]);
+}
+
+function spawnedTools(spec: EngineSpec): string[] {
+  if (spec.tools.rawClaude !== undefined) {
+    return (spec.tools.rawClaude || DEFAULT_TOOLS).split(',');
+  }
+  return spec.tools.canonical?.length ? spec.tools.canonical : DEFAULT_TOOLS.split(',');
+}
+
+function hookPolicy(spec: EngineSpec): IdentityJsonValue {
+  if (spec.flags.disableHooks === true) return {};
+  const tools = spawnedTools(spec).join(',');
+  return buildHooksSettings(tools) as unknown as IdentityJsonValue;
+}
+
+function systemPromptSha256(spec: EngineSpec): string {
+  if (spec.prompt.append === undefined) return sha256(spec.prompt.system ?? '');
+  return canonicalJsonSha256({
+    system_prompt: spec.prompt.system ?? '',
+    append_system_prompt: spec.prompt.append,
+  });
+}
+
+export function roleSurfaceFromSpec(
+  spec: EngineSpec,
+  directive = '',
+): RoleToolSurfaceInput {
+  const pluginDirs = spec.plugins.dirs ?? [];
+  const surface: RoleToolSurfaceInput = {
+    systemPromptSha256: systemPromptSha256(spec),
+    directiveSha256: sha256(directive),
+    tools: spawnedTools(spec),
+    pluginDirs: pluginIdentities(pluginDirs, spec.plugins.fingerprint),
+    skills: discoveredSkills(pluginDirs, spec.plugins.skillDirs ?? []),
+    mcpComposition: spec.mcp.composition ?? 'direct',
+    hookPolicy: hookPolicy(spec),
+  };
+  if (spec.mcp.allowlist !== undefined) {
+    surface.mcpToolAllowlist = spec.mcp.allowlist;
+  }
+  return surface;
+}

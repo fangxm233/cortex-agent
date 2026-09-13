@@ -3,8 +3,8 @@
 // pos:    Translates a PI child's events into parent-visible attribution
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import type { ChildAccumulator, ChildEventForwarder } from '@domain/agents/subagent/types.js';
-import type { SubagentChannel } from '@domain/agents/subagent/orchestrate.js';
+import type { ChildAccumulator, ChildEventForwarder } from '@core/agents/subagent/types.js';
+import type { SubagentChannel } from '@core/agents/subagent/orchestrate.js';
 import type { SubagentNotice } from './event-parser.js';
 
 /** The parent-side sink for a child's events. Absent (or throwing) simply costs attribution — the

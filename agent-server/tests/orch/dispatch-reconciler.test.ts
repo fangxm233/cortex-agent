@@ -18,8 +18,8 @@ vi.mock('../../src/domain/executions/registry.js', () => ({
 vi.mock('../../src/domain/tasks/pending-tracker.js', () => ({
   getTask: mocks.getTask,
 }));
-vi.mock('../../src/core/running-executions.js', () => ({
-  runningExecutions: { getById: mocks.getById },
+vi.mock('../../src/core/run-registry.js', () => ({
+  runRegistry: { getById: mocks.getById },
 }));
 
 import { startDispatchReconciler } from '../../src/orchestration/dispatch-reconciler.js';

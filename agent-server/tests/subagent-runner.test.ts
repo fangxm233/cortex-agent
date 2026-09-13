@@ -11,15 +11,15 @@ import { CONFIG_DIR } from '../src/core/paths.js';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../src/agent-adapter/capabilities.js';
 import {
   buildToolResult, failedChildResult, isFailed, resultText, runInvocation,
-} from '../src/domain/agents/subagent/orchestrate.js';
+} from '@core/agents/subagent/orchestrate.js';
 import {
   MAX_SUBAGENT_CONCURRENCY, MAX_SUBAGENT_TASKS, resolveInvocation,
-} from '../src/domain/agents/subagent/schema.js';
+} from '@core/agents/subagent/schema.js';
 import { parseModelSpec, supportsSubagents } from '../src/domain/agents/subagent/runner.js';
-import { emptyUsage } from '../src/domain/agents/subagent/usage.js';
+import { emptyUsage } from '@core/agents/subagent/usage.js';
 import type {
   RunChildFn, SubagentResult, SubagentTask,
-} from '../src/domain/agents/subagent/types.js';
+} from '@core/agents/subagent/types.js';
 
 // `service.ts` is the only thing that dispatches, so the dispatcher is what gets faked.
 const runSubagent = vi.hoisted(() => vi.fn());

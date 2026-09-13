@@ -9,7 +9,8 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { CONFIG_DIR, HOOKS_DIR } from '../src/core/paths.js';
 import * as hookBus from '../src/core/hook-bus.js';
-import type { AgentHandle } from '../src/core/types/agent-types.js';
+import type { AgentRun } from '../src/domain/runs/run.js';
+import type { RunRequest } from '../src/domain/runs/request.js';
 import type { OutputStream } from '../src/platform/output-stream.js';
 import { MockAdapter } from '../src/platform/testing.js';
 import { threadStore } from '../src/store/thread-repo.js';
@@ -146,13 +147,17 @@ function makeInjectedSpec(): SessionHookSpec {
 }
 
 function makeInjectDeps() {
-  const calls: Array<{ message: string; options: Parameters<InjectDeps['runAgent']>[1] }> = [];
+  const calls: Array<{ message: string; request: RunRequest }> = [];
   const closeCalls: Array<{ channel: string; sessionKey: string }> = [];
   const deps: InjectDeps = {
-    runAgent(message, options): AgentHandle {
-      calls.push({ message, options });
-      options.onAssistantMessage?.('agent follow-up');
-      return { promise: Promise.resolve(null as never), kill: () => false, sessionId: 'agent-session' };
+    startRun(request, observers): AgentRun {
+      calls.push({ message: request.prompt.text, request });
+      // The facade's onAssistantMessage path is now the run's assistant_text event; emit it on
+      // the observer exactly as the real run would.
+      for (const observer of observers) {
+        observer.onEvent({ type: 'assistant_text', text: 'agent follow-up', phase: 'foreground' });
+      }
+      return { executionId: 'exec-hook', result: Promise.resolve(null as never) } as unknown as AgentRun;
     },
     async closeInjectedSession(channel, sessionKey) {
       closeCalls.push({ channel, sessionKey });
@@ -297,10 +302,10 @@ test('session event injects only prompt results with preserved agent context', a
   assert.equal(existsSync(marker), true);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].message, 'inject me');
-  assert.equal(calls[0].options.channel, spec.ctx.channel);
-  assert.equal(calls[0].options.sessionId, 'sess-target');
-  assert.equal(calls[0].options.profileName, 'review-profile');
-  assert.equal(calls[0].options.sessionKey, spec.ctx.channel);
+  assert.equal(calls[0].request.context.channel, spec.ctx.channel);
+  assert.equal(calls[0].request.session.backendSessionId, 'sess-target');
+  assert.equal(calls[0].request.profile.name, 'review-profile');
+  assert.equal(calls[0].request.session.engineKey, spec.ctx.channel);
   assert.deepEqual(closeCalls, []);
   assert.deepEqual(stream.texts, ['status', 'preview:inject me', 'agent follow-up']);
   assert.equal(stream.flushCount, 1);

@@ -8,8 +8,8 @@ import assert from 'node:assert/strict';
 
 import { _test } from '../../src/agent-adapter/claude/adapter.js';
 import { waitForBgContinuation } from '../../src/agent-adapter/bg-wait.js';
-import { buildContinuationSink } from '../../src/orchestration/bg-continuation.js';
-import { MockAdapter, MockOutputStream } from '../../src/platform/testing.js';
+import { continuationSinkToEvents } from '../../src/domain/runs/events.js';
+import type { RunEvent } from '../../src/domain/runs/events.js';
 
 const FAKE_STREAM = { write() {}, end() {} } as any;
 
@@ -198,34 +198,32 @@ test('handleLine: assistant with no active turn and NO continuation armed is dro
   assert.equal(called, false, 'stray assistant output is not treated as a continuation');
 });
 
-test('integration: real captured line sequence merges continuation text + dispatches complete via production sink', (t) => {
+test('integration: real captured line sequence becomes the background RunEvents a run fans out', (t) => {
   const s: any = _test.makeSessionForTest();
   s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
   t.onTestFinished(() => s.close());
 
-  const stream = new MockOutputStream(new MockAdapter(), { type: 'interactive-reply', conduit: 'slack:D1', sessionId: '' });
-  let completedWith: any = null;
-  let waitingCalls = 0;
-  // Wire the adapter session to the PRODUCTION sink builder (orchestration/bg-continuation).
-  s.setContinuationSink(buildContinuationSink({
-    stream: stream as any,
-    onWaiting: () => { waitingCalls++; },
-    onComplete: (r: any) => { completedWith = r; },
-    onRateLimited: () => {},
-  }));
+  // Wire the adapter session to the PRODUCTION translation `AgentRun` installs. Every background
+  // surface (Slack status line, Web session stream) subscribes to these events, so asserting the
+  // event stream asserts what all of them see.
+  const events: RunEvent[] = [];
+  s.setContinuationSink(continuationSinkToEvents((e) => events.push(e)));
 
   // Replay the exact event order captured from a real `claude -p` background run.
   s.handleLine(TASK_STARTED);        // pending → 1
   s.handleLine(TASK_NOTIFICATION);   // completion → arms continuation, pending → 0
-  s.handleLine(ASSISTANT_CONT);      // continuation text (merged into the reply stream)
-  s.handleLine(RESULT_CONT);         // continuation result → onComplete
+  s.handleLine(ASSISTANT_CONT);      // continuation text
+  s.handleLine(RESULT_CONT);         // continuation result → background_result
 
-  // Merge: continuation text went into the SAME output stream (no new root message logic here).
-  const text = stream.segments.map((seg: any) => seg.text ?? '').join('');
+  const text = events
+    .filter((e): e is Extract<RunEvent, { type: 'assistant_text' }> => e.type === 'assistant_text')
+    .map((e) => e.text).join('');
   assert.match(text, /Background task done: DONE/);
-  assert.ok(completedWith, 'production sink dispatched onComplete (seal)');
-  assert.equal(completedWith.pendingBackgroundTasks, 0);
-  assert.equal(waitingCalls, 0, 'no waiting dispatch when no tasks remain');
+  assert.ok(events.every((e) => !('phase' in e) || e.phase === 'background'), 'every event is tagged background');
+  const settled = events.filter((e): e is Extract<RunEvent, { type: 'background_result' }> => e.type === 'background_result');
+  assert.equal(settled.length, 1, 'exactly one terminal background result');
+  assert.equal(settled[0].result.pendingBackgroundTasks, 0, 'no work left — the surfaces seal');
+  assert.equal(settled[0].result.undeliveredBackgroundTasks ?? 0, 0, 'nothing left unnotified either');
 });
 
 // 2026-07-10 investigation: CC does not always deliver task_notification (old-CLI same-turn

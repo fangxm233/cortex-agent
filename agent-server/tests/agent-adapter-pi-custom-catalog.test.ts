@@ -2,6 +2,8 @@
 // output: custom providers and frozen DeepSeek caps in spawned catalogs
 // pos:    Unit tests for PI provider routing at spawn time
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+import { engineSpecFixture } from './engine-spec-fixture.js';
+
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
@@ -12,6 +14,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { makeFakeRuntimeFactory } from './agent-adapter/pi-fake-runtime.js';
 import type { PiRuntimeFactory } from '../src/agent-adapter/pi/runtime.js';
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
+import { piPool } from './agent-adapter/pi-pool-fixture.js';
 import {
   buildProviderOverrides,
   withCustomEntries,
@@ -85,7 +88,7 @@ test('spawn: a custom provider from the user catalog reaches the spawned PI cata
       { agentDir, userModelsPath },
     );
 
-    adapter.spawn({
+    piPool(adapter).spawn(engineSpecFixture({
       sessionId: null,
       sessionKey: 'custom-provider-spawn',
       resume: false,
@@ -93,7 +96,7 @@ test('spawn: a custom provider from the user catalog reaches the spawned PI cata
       piProvider: 'my-vllm',
       piGatewayBaseUrl: 'http://127.0.0.1:9880',
       piGatewayPath: '/m/my-vllm/my-vllm',
-    });
+    }));
 
     const catalog = JSON.parse(readFileSync(pathJoin(agentDir, 'models.json'), 'utf8'));
     assert.equal(catalog.providers['my-vllm'].api, 'anthropic-messages');
@@ -121,14 +124,14 @@ test('spawn: a discovered custom provider is completed even when another provide
       { agentDir, userModelsPath },
     );
 
-    adapter.spawn({
+    piPool(adapter).spawn(engineSpecFixture({
       sessionId: null,
       sessionKey: 'custom-provider-bystander',
       resume: false,
       piProvider: 'anthropic',
       piGatewayBaseUrl: 'http://127.0.0.1:9880',
       piGatewayPath: '/m/plan/anthropic',
-    });
+    }));
 
     const catalog = JSON.parse(readFileSync(pathJoin(agentDir, 'models.json'), 'utf8'));
     assert.deepEqual(catalog.providers['my-vllm'], CUSTOM_ENTRY);
@@ -151,13 +154,13 @@ test('spawn: an absent user catalog leaves built-in routing untouched', () => {
       { agentDir, userModelsPath: pathJoin(dir, 'missing.json') },
     );
 
-    adapter.spawn({
+    piPool(adapter).spawn(engineSpecFixture({
       sessionId: null,
       sessionKey: 'custom-provider-absent',
       resume: false,
       piProvider: 'anthropic',
       piGatewayBaseUrl: 'http://127.0.0.1:9880',
-    });
+    }));
 
     const catalog = JSON.parse(readFileSync(pathJoin(agentDir, 'models.json'), 'utf8'));
     assert.deepEqual(Object.keys(catalog.providers), ['anthropic']);
@@ -179,7 +182,7 @@ test('spawn: DeepSeek child preserves the admitted cap after a model-store refre
       { getProviders: () => ['deepseek'], refresh: () => {}, getModels: () => [], peekModels: () => [] },
       { agentDir },
     );
-    const spawn = (sessionKey: string) => adapter.spawn({
+    const spawn = (sessionKey: string) => piPool(adapter).spawn(engineSpecFixture({
       sessionId: null,
       sessionKey,
       resume: false,
@@ -188,7 +191,7 @@ test('spawn: DeepSeek child preserves the admitted cap after a model-store refre
       piModelMaxTokens: 65_536,
       piGatewayBaseUrl: 'http://127.0.0.1:9880',
       piGatewayPath: '/deepseek',
-    });
+    }));
 
     spawn('root-before-refresh');
     writeFileSync(pathJoin(agentDir, 'models-store.json'), JSON.stringify({

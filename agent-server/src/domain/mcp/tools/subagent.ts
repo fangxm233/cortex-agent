@@ -6,11 +6,11 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { requestLoopbackJson } from '@core/loopback-http.js';
-import { MAX_SUBAGENT_TASKS, SUBAGENT_DESCRIPTION } from '@domain/agents/subagent/schema.js';
+import { MAX_SUBAGENT_TASKS, SUBAGENT_DESCRIPTION } from '@core/agents/subagent/schema.js';
 import {
   claudeModelOptions, describeSubagent, roleOptionsFrom, type SubagentFieldDescriptions,
-} from '@domain/agents/subagent/catalog.js';
-import { loadRoles } from '@domain/agents/roles.js';
+} from '@core/agents/subagent/catalog.js';
+import { loadRoles } from '@core/agents/roles.js';
 import { webhookAuthHeaders, type CortexToolContext } from './context.js';
 
 /** One `wait` hop. Slightly longer than the daemon's own slice so the daemon, not the socket,

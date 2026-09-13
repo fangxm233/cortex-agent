@@ -8,7 +8,7 @@ Also manages schedules, provider state, migrations, hooks, and plugin sync.
 | in-memory-repository.ts | testing | In-memory repository double for tests |
 | outbound-queue.ts | queue | Durable queue for outbound messages |
 | thread-repo.ts | store | Thread state persistence |
-| session-repo.ts | store | Session record persistence |
+| session-repo.ts | state | binds a channel to its session (key = channel since P3.2) and migrates legacy backend-prefixed keys |
 | session-registry-journal.ts | store | Session registry JSONL journal I/O and compaction |
 | session-registry-repo.ts | store | Session identity, delete intents and admission |
 | conversation-ledger-repo.ts | store | Turn to message mapping per conduit |

@@ -1,4 +1,4 @@
-// input:  lifecycle success handler with mock output/context sink
+// input:  lifecycle success handler driven by a fake run's background-phase events
 // output: background hold, accounting, interruption, and cap tests
 // pos:    Lifecycle background-continuation integration tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -7,7 +7,8 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { handleAgentSuccess } from '../../src/orchestration/lifecycle.js';
 import { MockAdapter, MockOutputStream } from '../../src/platform/testing.js';
-import type { ContinuationSink } from '../../src/agent-adapter/types.js';
+import type { RunEvent } from '../../src/domain/runs/events.js';
+import type { RunObserver } from '../../src/domain/runs/request.js';
 import { costRepo } from '../../src/domain/costs/cost-tracker.js';
 
 function baseResult(overrides: Record<string, unknown> = {}) {
@@ -29,7 +30,20 @@ function harness() {
   const statusMsg = { conduit: 'slack:D1', messageId: `status-${++statusSeq}` };
   const stream = new MockOutputStream(adapter, { type: 'interactive-reply', conduit: 'slack:D1', sessionId: '' });
   const onAssistantMessage = Object.assign((_t: string) => {}, { stream });
-  let sink: ContinuationSink | null = null;
+  // The hold subscribes to the RUN now, so the test drives it with the same RunEvents production
+  // emits. Which bound the run arms (and pausing them while a continuation streams) is pinned in
+  // tests/runs/service.test.ts; here we deliver the run's verdict directly, so these tests depend
+  // on no wall-clock timer at all.
+  let observer: RunObserver | null = null;
+  let claimed = false;
+  const backgroundRun = {
+    claimBackgroundTranscript(): void { claimed = true; },
+    subscribe(o: RunObserver): () => void { observer = o; return () => { observer = null; }; },
+  };
+  const emit = (event: RunEvent): void => {
+    assert.ok(observer, 'no observer subscribed — the hold did not install');
+    observer!.onEvent(event);
+  };
   const contexts: number[] = [];
   const args = {
     channel: 'slack:D1', adapter: adapter as any, statusMsg: statusMsg as any,
@@ -38,16 +52,22 @@ function harness() {
     projectId: 'cortex-self', threadAnchorId: null, userMessageTs: null,
     onAssistantMessage: onAssistantMessage as any, onToolUse: null,
     onContextUsage: (usage: { contextWindow: number }) => contexts.push(usage.contextWindow),
-    registerContinuationSink: (s: ContinuationSink) => { sink = s; },
+    backgroundRun,
   };
   const lastStatus = () => (adapter.updated.at(-1)?.content?.text ?? '') as string;
-  return { adapter, args, contexts, lastStatus, getSink: () => sink };
+  return {
+    adapter, args, contexts, lastStatus, stream, emit,
+    held: () => observer !== null,
+    claimedTranscript: () => claimed,
+    result: (r: Record<string, unknown>) => emit({ type: 'background_result', result: r as any }),
+    grace: () => emit({ type: 'background_timeout', reason: 'grace' }),
+    maxWait: () => emit({ type: 'background_timeout', reason: 'max-wait' }),
+  };
 }
 
-// The guard's grace/cap timers are env-injected to tiny values (50ms) and the rest is
-// real promise-chain settling, so fake timers buy nothing here. Poll for the observable
-// status instead of sleeping fixed padding. Returns quietly on timeout — the caller's
-// assertion then fails with its own message.
+// The verdicts are delivered synchronously; what is still asynchronous is the promise chain each
+// one kicks off (seal, cost, ledger). Poll for the observable status instead of sleeping fixed
+// padding. Returns quietly on timeout — the caller's assertion then fails with its own message.
 async function waitFor(cond: () => boolean, timeoutMs = 2000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (!cond() && Date.now() < deadline) {
@@ -55,28 +75,22 @@ async function waitFor(cond: () => boolean, timeoutMs = 2000): Promise<void> {
   }
 }
 
-function withEnv(t: any, key: string, value: string | undefined) {
-  const prev = process.env[key];
-  if (value === undefined) delete process.env[key]; else process.env[key] = value;
-  t.onTestFinished(() => { if (prev === undefined) delete process.env[key]; else process.env[key] = prev; });
-}
-
-test('undelivered-only completions hold the status waiting and register a sink; continuation completes → sealed done', async (t) => {
-  withEnv(t, 'CORTEX_BG_GRACE_S', '600'); // long grace — must NOT fire during this test
+test('undelivered-only completions hold the status waiting and subscribe to the run; continuation completes → sealed done', async () => {
   const h = harness();
 
   await handleAgentSuccess({ ...h.args, result: baseResult({ pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 1 }) } as any);
 
-  const sink = h.getSink();
-  assert.ok(sink, 'continuation sink registered for undelivered-only hold');
+  assert.ok(h.held(), 'hold subscribed to the run for an undelivered-only result');
+  assert.ok(h.claimedTranscript(), 'the hold claims the background transcript so nothing double-writes it');
   assert.match(h.lastStatus(), /Background task running/i, 'status held in waiting state');
-  sink!.onContextUsage?.({
+  h.emit({
+    type: 'context_usage', phase: 'background',
     usedTokens: 500, contextWindow: 1_000_000, percent: 0.05, accuracy: 'exact',
   });
   assert.deepEqual(h.contexts, [1_000_000], 'continuation context reaches the lifecycle callback');
 
   // The (late) notification arrives and the continuation turn completes.
-  sink!.onResult(baseResult({
+  h.result(baseResult({
     pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 0,
     total_cost_usd: 0.01, costReported: true, num_turns: 1,
     reportedAccounting: {
@@ -84,7 +98,7 @@ test('undelivered-only completions hold the status waiting and register a sink; 
       cacheReadTokens: 0, cacheCreationTokens: 3,
       promptTokens: 3, cachedTokens: 0, model: 'claude-fixture',
     },
-  }) as any);
+  }));
   await waitFor(() => /Done/i.test(h.lastStatus()));
   assert.match(h.lastStatus(), /Done/i, 'status sealed done after continuation');
   await costRepo.flush();
@@ -101,45 +115,56 @@ test('undelivered-only completions hold the status waiting and register a sink; 
   });
 });
 
-test('grace watchdog: no notification within grace → auto-finalized (status sealed, no hang)', async (t) => {
-  withEnv(t, 'CORTEX_BG_GRACE_S', '0.05'); // 50ms grace
+test('background prose merges into the originating reply; a subagent\'s notes and foreground events do not', async () => {
+  const h = harness();
+  await handleAgentSuccess({ ...h.args, result: baseResult({ pendingBackgroundTasks: 1 }) } as any);
+
+  h.emit({ type: 'assistant_text', phase: 'background', text: 'the build finished' });
+  h.emit({ type: 'assistant_text', phase: 'background', text: 'inner working notes', subagent: { id: 's1', name: 'explore' } as any });
+  h.emit({ type: 'assistant_text', phase: 'foreground', text: 'this belongs to the turn that already ended' });
+
+  const merged = h.adapter.posted.map(m => (m.content as any)?.text ?? '').join('\n');
+  assert.match(merged, /the build finished/, 'the continuation answer merges into the same reply');
+  assert.doesNotMatch(merged, /inner working notes/, "a subagent's prose stays out of the chat reply");
+  assert.doesNotMatch(merged, /already ended/, 'foreground-phase events are not the hold\'s business');
+});
+
+test('grace watchdog: no notification within grace → auto-finalized (status sealed, no hang)', async () => {
   const h = harness();
 
   await handleAgentSuccess({ ...h.args, result: baseResult({ pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 1 }) } as any);
   assert.match(h.lastStatus(), /Background task running/i, 'initially waiting');
 
-  await waitFor(() => /Done/i.test(h.lastStatus())); // 50ms grace + settle
+  h.grace();
+  await waitFor(() => /Done/i.test(h.lastStatus()));
   assert.match(h.lastStatus(), /Done/i, 'grace timeout sealed the turn instead of waiting forever');
 });
 
-test('interrupted continuation (process death) → sealed with interruption note, not done', async (t) => {
-  withEnv(t, 'CORTEX_BG_GRACE_S', '600');
+test('interrupted continuation (process death) → sealed with interruption note, not done', async () => {
   const h = harness();
 
   await handleAgentSuccess({ ...h.args, result: baseResult({ pendingBackgroundTasks: 1 }) } as any);
-  const sink = h.getSink();
-  assert.ok(sink, 'sink registered for running task');
+  assert.ok(h.held(), 'hold subscribed for a running task');
   assert.match(h.lastStatus(), /Background task running/i);
 
-  sink!.onResult({ ...baseResult({ pendingBackgroundTasks: 0 }), backgroundInterrupted: true } as any);
+  h.result({ ...baseResult({ pendingBackgroundTasks: 0 }), backgroundInterrupted: true });
   await waitFor(() => /interrupted/i.test(h.lastStatus()));
   assert.match(h.lastStatus(), /interrupted/i, 'sealed with the interruption note');
   assert.doesNotMatch(h.lastStatus(), /Background task running/i, 'no longer waiting');
 });
 
-test('max-wait cap: long-running task exceeds cap → status sealed as still-running, sink kept for late merge', async (t) => {
-  withEnv(t, 'CORTEX_BG_WAIT_MAX_S', '0.05'); // 50ms cap
-  withEnv(t, 'CORTEX_BG_GRACE_S', '600');
+test('max-wait cap: long-running task exceeds cap → status sealed as still-running, subscription kept for late merge', async () => {
   const h = harness();
 
   await handleAgentSuccess({ ...h.args, result: baseResult({ pendingBackgroundTasks: 1 }) } as any);
-  assert.ok(h.getSink(), 'sink registered');
+  assert.ok(h.held(), 'hold subscribed');
 
-  await waitFor(() => /still running/i.test(h.lastStatus())); // 50ms cap + settle
+  h.maxWait();
+  await waitFor(() => /still running/i.test(h.lastStatus()));
   assert.match(h.lastStatus(), /still running/i, 'cap sealed the status with a still-running note');
 
-  // A very late continuation still finalizes cleanly (sink was kept).
-  h.getSink()!.onResult(baseResult({ pendingBackgroundTasks: 0, total_cost_usd: 0.01, num_turns: 1 }) as any);
+  // A very late continuation still finalizes cleanly (the subscription was kept).
+  h.result(baseResult({ pendingBackgroundTasks: 0, total_cost_usd: 0.01, num_turns: 1 }));
   await waitFor(() => /Done/i.test(h.lastStatus()));
   assert.match(h.lastStatus(), /Done/i, 'late continuation sealed done after the cap');
 });

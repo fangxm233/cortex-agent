@@ -1,9 +1,9 @@
-// input:  PlanApprovals, InteractionRecords, RunningExecutions
+// input:  PlanApprovals, InteractionRecords, RunRegistry
 // output: deliverPlanResponse and respondToPlan
 // pos:    Shared Web/Slack plan-approval response delivery
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { runningExecutions } from '@core/running-executions.js';
+import { runRegistry } from '@core/run-registry.js';
 import { resolveRequest as resolveHookRequest } from '../routing/hook-bridge.js';
 import type { InteractionRecords } from './interaction-records.js';
 import type { PendingPlan, PlanApprovals } from './plan-approvals.js';
@@ -17,12 +17,11 @@ export function deliverPlanResponse(
   feedback = '',
 ): boolean {
   if (pending.extensionUiId) {
-    const exec = runningExecutions.getByChannel(pending.channel).find((item) => item.agentProcess);
-    const process = exec?.agentProcess as { sendExtensionUiResponse?: (id: string, payload: Record<string, unknown>) => void } | undefined;
-    if (process?.sendExtensionUiResponse) {
-      const payload = { value: approved ? '__APPROVED__' : feedback };
-      process.sendExtensionUiResponse(pending.extensionUiId, payload);
-      return true;
+    const payload = { value: approved ? '__APPROVED__' : feedback };
+    // Walk the channel's live runs; the first that still has this dialog answers it. When none
+    // does (stale id / no run), fall through to the blocking webhook instead of dropping it.
+    for (const entry of runRegistry.getByChannel(pending.channel)) {
+      if (entry.run?.respondToDialog(pending.extensionUiId, payload)) return true;
     }
   }
   return resolveHookRequest(requestId, { approved, reason: feedback });

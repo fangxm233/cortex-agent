@@ -1,11 +1,11 @@
-// input:  AgentSpawnConfig, resolved agent/session dirs, transcript path, inherited env
+// input:  EngineSpec, resolved agent/session dirs, transcript path, inherited env
 // output: PiSessionRequest (everything an in-process PI session is created from), its CORTEX_* env and identity
 // pos:    Resolves Cortex spawn configuration into PI session inputs
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { resolveMcpComposition } from '../types.js';
-import type { AgentSpawnConfig, McpComposition, McpServerConfig } from '../types.js';
-import { fromCanonical } from '../normalize/tool-names.js';
+import type { CortexContextEnv, EngineSpec, McpComposition, McpServerConfig } from '../types.js';
+import { fromCanonical } from '@core/tool-names.js';
 import { browserMcpServer } from '../browser-mcp-server.js';
 import { MCP_TOOL_ALLOWLIST_ENV } from '@core/mcp-tool-gate.js';
 
@@ -22,10 +22,10 @@ export interface PIEnvOptions {
   callbackSource?: string | null;
   scheduleTaskId?: string | null;
   extraEnv?: Record<string, string> | null;
-  /** Keys deleted after the `extraEnv` merge (AgentSpawnConfig.unsetEnv). PI routes purely through
+  /** Keys deleted after the `extraEnv` merge (EngineSpec.env.unsets). PI routes purely through
    *  env, so this is how a mode expresses "this spawn must not carry ANTHROPIC_API_KEY". */
   unsetEnv?: string[] | null;
-  context?: AgentSpawnConfig['cortexContext'];
+  context?: CortexContextEnv;
   piAgentDir: string;
   allowedTools?: string | null;
   /** Resolved MCP composition; the bridge derives its server set from it. */
@@ -157,16 +157,16 @@ function promptValues(value: string | string[] | undefined | null): string[] {
 }
 
 /** Claude-native labels of the allowed tools, the form the tool shims gate on. */
-function allowedToolLabels(config: AgentSpawnConfig): string | undefined {
-  const canonical = config.tools && config.tools.length > 0
-    ? config.tools.map((tool) => fromCanonical('claude', tool))
+function allowedToolLabels(spec: EngineSpec): string | undefined {
+  const canonical = spec.tools.canonical && spec.tools.canonical.length > 0
+    ? spec.tools.canonical.map((tool) => fromCanonical('claude', tool))
       .filter((name): name is string => !!name).join(',')
     : undefined;
-  return config.rawTools ?? canonical;
+  return spec.tools.rawClaude ?? canonical;
 }
 
-function subagentMarker(config: AgentSpawnConfig): string | undefined {
-  return config.env?.CORTEX_PI_SUBAGENT === '1' ? '1' : undefined;
+function subagentMarker(spec: EngineSpec): string | undefined {
+  return spec.env.sets?.CORTEX_PI_SUBAGENT === '1' ? '1' : undefined;
 }
 
 function allowsPluginMcp(composition: McpComposition, marker: string | undefined): boolean {
@@ -180,68 +180,68 @@ function allowsPluginMcp(composition: McpComposition, marker: string | undefined
  * is a cross-run side channel, not a feature.
  */
 export function pluginMcpServers(
-  config: AgentSpawnConfig,
+  spec: EngineSpec,
   composition: McpComposition,
   marker: string | undefined,
 ): McpServerConfig[] {
   if (!allowsPluginMcp(composition, marker)) return [];
-  const servers = [...(config.mcpServers ?? [])];
-  if (config.browserCdpEndpoint && composition === 'direct') {
-    servers.push(browserMcpServer(config.browserCdpEndpoint));
+  const servers = [...(spec.mcp.servers ?? [])];
+  if (spec.mcp.browserCdpEndpoint && composition === 'direct') {
+    servers.push(browserMcpServer(spec.mcp.browserCdpEndpoint));
   }
   return servers;
 }
 
 /** Thinking level: the profile field wins unless `extraOption` carries an explicit `--thinking`. */
-function thinkingLevel(config: AgentSpawnConfig): string | null {
-  const explicit = config.extraOption?.['--thinking'];
-  return explicit || config.thinking || null;
+function thinkingLevel(spec: EngineSpec): string | null {
+  const explicit = spec.extraOption?.['--thinking'];
+  return explicit || spec.model.thinking || null;
 }
 
 /** `extraOption` keys other than `--thinking` were PI CLI flags; there is no CLI to hand them to. */
-export function unsupportedExtraOptions(config: AgentSpawnConfig): string[] {
-  return Object.keys(config.extraOption ?? {}).filter((key) => key !== '--thinking');
+export function unsupportedExtraOptions(spec: EngineSpec): string[] {
+  return Object.keys(spec.extraOption ?? {}).filter((key) => key !== '--thinking');
 }
 
 export function buildSessionRequest(
-  config: AgentSpawnConfig,
+  spec: EngineSpec,
   inputs: SessionRequestInputs,
 ): PiSessionRequest {
-  const composition = resolveMcpComposition(config.mcpComposition, config.cortexContext?.useCoreMcp);
-  const marker = subagentMarker(config);
+  const composition = resolveMcpComposition(spec.mcp.composition, spec.env.context?.useCoreMcp);
+  const marker = subagentMarker(spec);
   const env = buildPiEnv({
-    sessionId: config.sessionId,
-    channel: config.channel,
-    callbackSource: config.callbackSource,
-    scheduleTaskId: config.scheduleTaskId,
-    extraEnv: config.env,
-    unsetEnv: config.unsetEnv,
-    context: config.cortexContext,
+    sessionId: spec.resume.backendSessionId,
+    channel: spec.context.channel,
+    callbackSource: spec.context.callbackSource,
+    scheduleTaskId: spec.context.scheduleTaskId,
+    extraEnv: spec.env.sets,
+    unsetEnv: spec.env.unsets,
+    context: spec.env.context,
     piAgentDir: inputs.agentDir,
-    allowedTools: allowedToolLabels(config),
+    allowedTools: allowedToolLabels(spec),
     mcpComposition: composition,
-    mcpToolAllowlist: config.mcpToolAllowlist,
+    mcpToolAllowlist: spec.mcp.allowlist,
     enableInteractionBridge: composition === 'direct'
-      && config.isUserInitiated === true
+      && spec.flags.isUserInitiated === true
       && marker === undefined,
-    commissionTools: config.commissionTools === true,
+    commissionTools: spec.mcp.commissionTools === true,
     subagentMarker: marker,
-  }, config.pinnedEnv);
+  }, spec.env.pinned);
   return {
-    sessionKey: config.sessionKey,
+    sessionKey: spec.engineKey,
     cwd: inputs.cwd,
     agentDir: inputs.agentDir,
     sessionDir: inputs.sessionDir,
     sessionPath: inputs.sessionPath,
-    provider: config.piProvider ?? null,
-    model: config.model ? stripModelSuffix(config.model) : null,
-    thinking: thinkingLevel(config),
-    systemPrompt: config.systemPrompt || null,
-    appendSystemPrompt: promptValues(config.appendSystemPrompt),
-    skillPaths: [...(config.pluginSkillDirs ?? []), ...(config.pluginDirs ?? [])],
-    disableHooks: config.disableHooks === true,
-    reportsProviderQuota: !!config.piGatewayBaseUrl,
-    pluginMcpServers: pluginMcpServers(config, composition, marker),
+    provider: spec.model.provider ?? null,
+    model: spec.model.id ? stripModelSuffix(spec.model.id) : null,
+    thinking: thinkingLevel(spec),
+    systemPrompt: spec.prompt.system || null,
+    appendSystemPrompt: promptValues(spec.prompt.append),
+    skillPaths: [...(spec.plugins.skillDirs ?? []), ...(spec.plugins.dirs ?? [])],
+    disableHooks: spec.flags.disableHooks === true,
+    reportsProviderQuota: !!spec.route.gatewayBaseUrl,
+    pluginMcpServers: pluginMcpServers(spec, composition, marker),
     env,
     streamDeltas: inputs.streamDeltas,
   };

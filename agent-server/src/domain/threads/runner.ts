@@ -1,8 +1,9 @@
-// input:  thread state, tool gates, buffered input, hooks
+// input:  thread state, tool gates, buffered input, hooks, run service
 // output: evidence runs, device-aware transcripts, and notices
 // pos:    Thread step runtime and lifecycle
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
+import { randomUUID } from 'node:crypto';
 import { threadStore } from '@store/thread-repo.js';
 import {
   resolveNextStep,
@@ -27,31 +28,34 @@ import {
   type PendingControl,
 } from './index.js';
 import {
-  runAgent,
-  getClaudeMode,
-  getActiveBackend,
   getActiveProfile,
   resolveRateLimitProvider,
 } from '../agents/index.js';
+import { resolveRunConfig } from '../runs/config-resolver.js';
 import { isApiRateLimitError, isRetryableError } from '../agents/config.js';
-import { resolveProfileConfig } from '../agents/profile-manager.js';
+import type { ResolvedProfileConfig } from '../agents/profile-manager.js';
 import {
   activateOutageWindow,
   isProviderRateLimited,
   isProviderUsageRateLimited,
 } from '../costs/rate-limit-throttle.js';
-import { recordResume, removeThreadResume } from '../costs/resume-registry.js';
+import { removeThreadResume } from '../costs/resume-registry.js';
+import { recordThreadResume } from '../runs/observers/resume-recorder.js';
 import type { ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
 import { Icons } from '../../core/icons.js';
-import { closeSessionsByPrefix } from '../agents/index.js';
+import { engines } from '../runs/engines.js';
 import * as executionRegistry from '../executions/registry.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { formatDurationCompact } from '@core/utils.js';
 import type { ChatNoticeLevel } from '@core/types/agent-types.js';
 import { buildThreadStatusMessage } from '@core/status-format.js';
 import type { OutputStream } from '@platform/output-stream.js';
-import { runningExecutions } from '../../core/running-executions.js';
-import type { RunningExecution } from '../../core/running-executions.js';
+import { getSettings } from '@core/settings.js';
+import { runRegistry, type RunningExecution } from '@core/run-registry.js';
+import { startRun } from '@domain/runs/service.js';
+import type { AgentSpec, RunObserver, RunRequest } from '@domain/runs/request.js';
+import { fromAgentSlot } from '@domain/runs/spec-loader.js';
+import type { RunEvent } from '@domain/runs/events.js';
 import { executeLifecycleHooks, type LifecycleHookConfigs } from './hook-runner.js';
 import { createToolTrace } from '@platform/tool-trace.js';
 import { conversationHistory } from '@store/conversation-history-repo.js';
@@ -137,7 +141,11 @@ interface StepContext {
   sessionName: string;
   profileName: string;
   profileBackend: string;
+  /** Fully resolved profile the run spawns (fallback-synthesized when the configured name is
+   *  unknown, preserving the legacy "open the execution, then let the facade reject" order). */
+  profile: ResolvedProfileConfig;
   rateLimitProvider: string | null;
+  /** Filled by executeAndAwaitAgent from the run's execution id (startRun owns the record). */
   execution: { id: string; [k: string]: any };
   /** Always set in buildStepConfig — never an empty placeholder. */
   stepStartTime: string;
@@ -156,8 +164,6 @@ interface StepCallbacks {
 }
 
 type StepInfo = Pick<StepContext, 'agentSlotId' | 'agentConfig' | 'isFirstStep' | 'multiAgent' | 'stage'>;
-type ThreadAgentOptions = Parameters<typeof runAgent>[1];
-type ThreadAgentHandle = ReturnType<typeof runAgent>;
 
 /** Render `agent` or `agent:stage` for log/status display — matches the transition endpoint syntax
  *  used in thread-templates.json transitions. Falls back to bare agent name when stage is null. */
@@ -256,17 +262,21 @@ function resolveEffectiveProfileName(
     : configuredProfile;
 }
 
+/**
+ * The profile for one step. D5: name, backend, provider and mode all come out of one resolution —
+ * `resolveRunConfig` keeps an unknown name intact and hands back a profile borrowing the channel's
+ * backend, preserving the "open the execution record, then let the run reject the name" ordering.
+ */
 function resolveStepProfile(
   profileName: string,
-): { backend: string; provider: string | null } {
-  try {
-    const profile = resolveProfileConfig(profileName);
-    return { backend: profile.backend, provider: resolveRateLimitProvider(profile) };
-  } catch {
-    // Preserve ordinary preflight ordering: the facade remains responsible for rejecting a
-    // missing profile after the execution record has been opened with the legacy active backend.
-    return { backend: getActiveBackend(), provider: null };
-  }
+  channel?: string,
+): { profile: ResolvedProfileConfig; backend: string; provider: string | null } {
+  const { profile, resolved } = resolveRunConfig({ channel, override: profileName });
+  return {
+    profile,
+    backend: profile.backend,
+    provider: resolved ? resolveRateLimitProvider(profile) : null,
+  };
 }
 
 function resolveActiveStepProvider(thread: ThreadRecord, channel: string): string | null {
@@ -274,13 +284,15 @@ function resolveActiveStepProvider(thread: ThreadRecord, channel: string): strin
   if (!slot) return null;
   try {
     const profileName = resolveEffectiveProfileName(slot.profile, thread.metadata, channel);
-    return resolveRateLimitProvider(resolveProfileConfig(profileName));
+    const { profile, resolved } = resolveRunConfig({ channel, override: profileName });
+    return resolved ? resolveRateLimitProvider(profile) : null;
   } catch {
     return null;
   }
 }
 
-/** Build prompt, resolve session config, profile, register execution, generate session name + start time.
+/** Build prompt, resolve session config, profile and track/backend ids, and start the transcript
+ *  recorder. The execution record itself is opened later by `startRun` (plan D8).
  *  Returns a fully-populated StepContext — no placeholder fields. */
 async function buildStepConfig(
   threadId: string,
@@ -310,29 +322,14 @@ async function buildStepConfig(
   const sessionKey = getSessionKey(threadId, agentSlotId);
 
   const profileName = resolveEffectiveProfileName(agentConfig.profile, ctx.meta, opts.channel);
-  const profile = resolveStepProfile(profileName);
-  const profileBackend = profile.backend;
-  const rateLimitProvider = profile.provider;
+  const resolved = resolveStepProfile(profileName, opts.channel);
+  const profile = resolved.profile;
+  const profileBackend = resolved.backend;
+  const rateLimitProvider = resolved.provider;
 
-  // Register execution
-  const executionKind = ctx.meta?.trigger === 'task-dispatch' ? 'dispatch'
-    : ctx.meta?.trigger === 'scheduled' ? 'scheduled'
-    : 'local';
-  const executionTrigger = ctx.meta?.trigger || 'thread-step';
-  const label = formatAgentStageLabel(agentSlotId, stage);
-  const execution = executionRegistry.startLocalExecution({
-    kind: executionKind,
-    channel: opts.channel,
-    project: threadStore.get(threadId)?.projectId ?? 'general',
-    trigger: executionTrigger,
-    backend: profileBackend,
-    billingMode: getClaudeMode(),
-    sessionId: trackSessionId,
-    label: `[${label}] ${prompt.substring(0, 40)}`,
-    scheduleTaskId: ctx.meta?.scheduleTaskId || null,
-    threadId,
-    agentSlotId,
-  });
+  // The execution record is opened by `startRun` (via executeAndAwaitAgent), which owns the
+  // registry registration and teardown (plan D8). `execution.id` is filled in once the run starts.
+  const execution = { id: '' };
 
   const recorder = createStepTranscriptRecorder(
     conversationHistory,
@@ -364,7 +361,7 @@ async function buildStepConfig(
     prompt, interruptedResume, sawActivity: false,
     resumeSessionId, trackSessionId, sessionKey,
     sessionName: await sessionStore.generateSessionName(),
-    profileName, profileBackend, rateLimitProvider, execution,
+    profileName, profileBackend, profile, rateLimitProvider, execution,
     stepStartTime: new Date().toISOString(),
     recorder,
   };
@@ -469,90 +466,155 @@ function setupStepCallbacks(
   return { onAssistantMessage, onProgress, onToolUse, onToolResult };
 }
 
-function resolveStepSpawnPolicy(
-  stepCtx: StepContext,
-  ctx: ThreadContext,
-): Partial<ThreadAgentOptions> {
+/** The background policy the facade must honour for a thread step. The legacy path left
+ *  `awaitBackground` undefined, so the facade fell back to `shouldAwaitBgInline` (settings-gated,
+ *  thread-keyed). Mapping that decision onto the RunRequest preserves the exact same behaviour:
+ *  `'inline'` while the bg-continuation feature is enabled (thread steps always carry a threadId),
+ *  `'none'` when it is disabled. */
+function stepBackgroundPolicy(): 'inline' | 'none' {
+  return getSettings().bgContinuation ? 'inline' : 'none';
+}
+
+/** Build the run request for one thread step from the fully-populated StepContext. The engine pool
+ *  key stays the legacy `thr:<threadId>:<slot>` (mapped onto the facade's `sessionKey`). */
+export function buildThreadRunRequest(
+  threadId: string, stepCtx: StepContext, ctx: ThreadContext, opts: RunThreadOptions,
+): RunRequest {
+  const { agentConfig, profile } = stepCtx;
+  const meta = ctx.meta;
+  const thread = threadStore.get(threadId);
+  const mcpComposition = agentConfig.mcpComposition;
+  const resolvedComposition = mcpComposition === undefined ? 'thread-control' : mcpComposition;
+  const executionKind = meta?.trigger === 'task-dispatch' ? 'dispatch'
+    : meta?.trigger === 'scheduled' ? 'scheduled'
+    : 'local';
+
+  const spec: AgentSpec = fromAgentSlot(agentConfig, { mcpComposition: resolvedComposition });
+
   return {
-    useCoreMcp: stepCtx.agentConfig.mcpComposition === undefined,
-    mcpComposition: stepCtx.agentConfig.mcpComposition,
-    mcpToolAllowlist: stepCtx.agentConfig.mcpToolAllowlist,
-    disableHooks: ctx.template?.disableHooks === true,
+    runId: randomUUID(),
+    session: {
+      sessionId: stepCtx.trackSessionId,
+      backendSessionId: stepCtx.resumeSessionId,
+      engineKey: stepCtx.sessionKey ?? getSessionKey(threadId, stepCtx.agentSlotId),
+      sessionName: stepCtx.sessionName,
+    },
+    profile,
+    spec,
+    prompt: {
+      text: stepCtx.prompt,
+      // First-step files only (never re-attached on an interrupted-session resume).
+      attachments: stepCtx.isFirstStep && !stepCtx.interruptedResume
+        ? (opts.files || []).map((file: any) => ({ mimeType: file.mimetype, path: file.localPath }))
+        : [],
+    },
+    context: {
+      channel: opts.channel,
+      project: thread?.projectId ?? 'general',
+      // One trigger for both the execution record and the facade cost attribution (the legacy path
+      // used 'thread-step' for the record and undefined for cost); 'thread-step' is the closest.
+      trigger: meta?.trigger || 'thread-step',
+      threadId,
+      threadDepth: meta?.depth ?? 0,
+      taskId: meta?.taskId ?? null,
+      taskProject: meta?.taskProject ?? null,
+      taskGeneration: meta?.dispatchGeneration ?? null,
+      scheduleTaskId: meta?.scheduleTaskId ?? null,
+      executionKind,
+      isUserInitiated: false,
+      commissionMode: false,
+      commissionTools: false,
+    },
+    policy: {
+      background: stepBackgroundPolicy(),
+      recordCost: true,
+      hooks: ctx.template?.disableHooks !== true,
+      loadRules: true,
+      mcpComposition: resolvedComposition,
+      // Legacy thread surface selector: true only when the agent declared no explicit composition.
+      useCoreMcp: mcpComposition === undefined,
+      mcpToolAllowlist: agentConfig.mcpToolAllowlist,
+      browserCdpEndpoint: null,
+      // Claude writes a per-turn transcript file unless told not to; only a frozen subagent
+      // child opts out. `captureTranscriptLogs` defaults to ON, so this must stay true.
+      captureTranscripts: true,
+    },
+    benchmark: {
+      evidenceContext: meta?.productionBenchmarkEvidenceContext ?? null,
+      identityDirective: agentConfig.directive ? resolveSystemVars(agentConfig.directive) : '',
+      rootThreadId: getRootThreadId(ctx.thread),
+      parentThreadId: meta?.parentThreadId ?? null,
+      templateName: ctx.thread.templateName,
+      agentSlotId: stepCtx.agentSlotId,
+      stage: stepCtx.stage,
+      preserveUnreportedAccounting: false,
+    },
   };
 }
 
-function buildThreadAgentOptions(
+/** Map the run's event stream onto the step's legacy display/transcript callbacks and the
+ *  caller-supplied plan/ask hooks. Assistant prose arrives as `assistant_text` RunEvents (the
+ *  facade's `onAssistantMessage` path, which carries notice classification). */
+export function createStepObserver(
+  stepCtx: StepContext, callbacks: StepCallbacks, opts: RunThreadOptions,
+): RunObserver {
+  return {
+    onEvent(event: RunEvent): void {
+      switch (event.type) {
+        case 'assistant_text':
+          // The step callbacks ignore `noticeAction` (kept undefined for byte-compat with the
+          // legacy facade call, which always passed undefined on the raw assistant_text path).
+          callbacks.onAssistantMessage?.(
+            event.text, event.blockId, event.noticeLevel, undefined, event.subagent,
+          );
+          return;
+        case 'tool_use':
+          callbacks.onToolUse?.(event.name, event.input, event.toolUseId, event.subagent);
+          return;
+        case 'tool_result':
+          callbacks.onToolResult?.(event.toolUseId, event.content, !event.ok);
+          return;
+        case 'turn_progress':
+          callbacks.onProgress?.({ num_turns: event.numTurns, total_cost_usd: null, duration_ms: null });
+          return;
+        case 'plan_written':
+          opts.onPlanWritten?.({ path: event.path, content: event.content, toolUseId: event.toolUseId });
+          return;
+        case 'dialog_request':
+          if (event.kind === 'ask_user') {
+            opts.onAskUserQuestion?.({
+              toolUseId: event.dialogId,
+              questions: event.payload as Array<{ question: string; options?: string[]; multi?: boolean }>,
+            });
+          }
+          return;
+        default:
+          return;
+      }
+    },
+  };
+}
+
+/** Run one thread step through `startRun` and attach the interrupted-step identity to the thrown
+ *  error so the provider-outage/rate-limit pause path can resume the backend session. The execution
+ *  record's registration and teardown are entirely owned by the run (plan D8). */
+async function executeAndAwaitAgent(
   threadId: string, stepCtx: StepContext, callbacks: StepCallbacks,
   ctx: ThreadContext, opts: RunThreadOptions,
-): ThreadAgentOptions {
-  const { agentConfig, execution, profileName } = stepCtx;
-  const meta = ctx.meta;
-  return {
-    channel: opts.channel, executionId: execution.id, sessionId: stepCtx.resumeSessionId,
-    trackSessionId: stepCtx.trackSessionId, sessionKey: stepCtx.sessionKey,
-    files: stepCtx.isFirstStep && !stepCtx.interruptedResume ? (opts.files || []) : [],
-    profileName, project: threadStore.get(threadId)?.projectId,
-    productionBenchmarkEvidenceContext: meta?.productionBenchmarkEvidenceContext ?? null,
-    trigger: meta?.trigger || undefined, threadId, threadDepth: meta?.depth ?? 0,
-    rootThreadId: getRootThreadId(ctx.thread), parentThreadId: meta?.parentThreadId ?? null,
-    templateName: ctx.thread.templateName, agentSlotId: stepCtx.agentSlotId, stage: stepCtx.stage,
-    identityDirective: agentConfig.directive ? resolveSystemVars(agentConfig.directive) : '',
-    taskId: meta?.taskId ?? null, taskProject: meta?.taskProject ?? null,
-    taskGeneration: meta?.dispatchGeneration ?? null,
-    ...resolveStepSpawnPolicy(stepCtx, ctx),
-    sessionName: stepCtx.sessionName, claudeAgent: agentConfig.claudeAgent || null,
-    systemPrompt: agentConfig.systemPrompt ? resolveSystemVars(agentConfig.systemPrompt) : null,
-    outputStyle: agentConfig.outputStyle || null, tools: agentConfig.tools || null,
-    pluginDirs: agentConfig.pluginDirs || null, onFallback: null, isUserInitiated: false,
-    onAssistantMessage: callbacks.onAssistantMessage, onProgress: callbacks.onProgress,
-    onToolUse: callbacks.onToolUse, onToolResult: callbacks.onToolResult,
-    onPlanWritten: opts.onPlanWritten ?? null, onAskUserQuestion: opts.onAskUserQuestion ?? null,
-  };
-}
-
-function failStepExecution(stepCtx: StepContext, error: any): void {
-  const durationS = (Date.now() - new Date(stepCtx.stepStartTime).getTime()) / 1000;
-  executionRegistry.teardownExecution({
-    executionId: stepCtx.execution.id, status: 'failed', durationS,
-    error: { message: error?.message || 'Agent process error' },
-  });
-}
-
-function launchThreadAgent(
-  stepCtx: StepContext,
-  options: ThreadAgentOptions,
-): ThreadAgentHandle {
+): Promise<any> {
+  const request = buildThreadRunRequest(threadId, stepCtx, ctx, opts);
+  const run = startRun(request, [createStepObserver(stepCtx, callbacks, opts)]);
+  stepCtx.execution = { id: run.executionId };
   try {
-    return runAgent(stepCtx.prompt, options);
-  } catch (error) {
-    failStepExecution(stepCtx, error);
-    throw error;
-  }
-}
-
-function registerStepHandle(
-  threadId: string, stepCtx: StepContext, handle: ThreadAgentHandle, opts: RunThreadOptions,
-): void {
-  runningExecutions.register({
-    threadId, channel: opts.channel, agentSlotId: stepCtx.agentSlotId,
-    executionId: stepCtx.execution.id, kind: stepCtx.execution.kind,
-    kill: () => handle.kill(), backend: stepCtx.profileBackend,
-    agentProcess: handle.agentProcess,
-    trackSessionId: stepCtx.trackSessionId,
-    backendSessionId: handle.sessionId ?? stepCtx.resumeSessionId,
-    sessionId: handle.sessionId,
-  });
-}
-
-async function awaitStepHandle(stepCtx: StepContext, handle: ThreadAgentHandle): Promise<any> {
-  try {
-    return await handle.promise;
+    return await run.result;
   } catch (error: any) {
-    failStepExecution(stepCtx, error);
     if (error && typeof error === 'object') {
       error.interruptedStep = {
         agentSlotId: stepCtx.agentSlotId,
-        backendSessionId: handle.sessionId ?? null,
+        // `legacyProcess().sessionId` mirrors the old `handle.sessionId`; the run's recorded id
+        // covers test doubles that expose no process reference (and adapters that never emitted
+        // session_started before the interruption).
+        backendSessionId: run.legacyProcess()?.sessionId ?? run.backendSessionId ?? null,
         sawActivity: stepCtx.sawActivity,
       };
     }
@@ -560,18 +622,8 @@ async function awaitStepHandle(stepCtx: StepContext, handle: ThreadAgentHandle):
   }
 }
 
-/** Run the agent, manage its live handle, and balance failed executions. */
-async function executeAndAwaitAgent(
-  threadId: string, stepCtx: StepContext, callbacks: StepCallbacks,
-  ctx: ThreadContext, opts: RunThreadOptions,
-): Promise<any> {
-  const options = buildThreadAgentOptions(threadId, stepCtx, callbacks, ctx, opts);
-  const handle = launchThreadAgent(stepCtx, options);
-  registerStepHandle(threadId, stepCtx, handle, opts);
-  return awaitStepHandle(stepCtx, handle);
-}
-
-/** Record step result, register session, finalize execution; update aggregate counters. */
+/** Record step result, register session and update aggregate counters. The execution record itself
+ *  is finalized by the run (startRun owns teardown, plan D8). */
 async function recordStepOutcome(
   threadId: string,
   stepCtx: StepContext,
@@ -588,16 +640,12 @@ async function recordStepOutcome(
 
   // Rate-limit interruption (graceful path): the API window is exhausted and the throttle is
   // active. Do NOT record the step result — leaving currentStepIndex unadvanced so resume
-  // re-runs THIS step (matches the thrown path). Tear down the execution as failed and pause the
-  // thread for auto-resume. Require this result's provider throttle to be active so another
-  // provider cannot create a resume entry whose reset callback will never own it.
-  // NOTE: the live recorder has already persisted this step's streamed events — an interrupted
-  // step is partially recorded (honest history); the re-run opens a fresh prompt turn.
+  // re-runs THIS step (matches the thrown path). The run has already torn the execution down as
+  // failed; here we only pause the thread for auto-resume. Require this result's provider throttle
+  // to be active so another provider cannot create a resume entry whose reset callback will never
+  // own it. NOTE: the live recorder has already persisted this step's streamed events — an
+  // interrupted step is partially recorded (honest history); the re-run opens a fresh prompt turn.
   if (result?.rateLimited && isProviderRateLimited(result.rateLimitProvider)) {
-    executionRegistry.teardownExecution({
-      executionId: execution.id, status: 'failed', durationS: stepDurationS,
-      error: { message: 'Rate limited' },
-    });
     await handleRateLimitInterruption(threadId, ctx, opts, result.rateLimitProvider ?? null, {
       agentSlotId, backendSessionId: result?.sessionId ?? null, sawActivity: stepCtx.sawActivity,
     });
@@ -639,18 +687,6 @@ async function recordStepOutcome(
       projectId: currentThread.projectId,
     });
   }
-
-  // Finalize execution: persistent record + registry teardown + balanced agent.* event.
-  if (result?.rateLimited) {
-    executionRegistry.teardownExecution({
-      executionId: execution.id, status: 'failed', durationS: stepDurationS,
-      error: { message: 'Rate limited' },
-    });
-  } else {
-    executionRegistry.teardownExecution({
-      executionId: execution.id, status: 'completed', durationS: stepDurationS, result,
-    });
-  }
 }
 
 /** Identity of the attempt a provider interruption cut short, captured at the interruption
@@ -682,9 +718,9 @@ async function handleRateLimitInterruption(
       if (slot) slot.interruptedBackendSessionId = interrupted.backendSessionId;
     });
   }
-  recordResume({
-    kind: 'thread', provider, threadId, channel: opts.channel,
-    userMessage: threadStore.get(threadId)?.userMessage ?? '', recordedAt: Date.now(),
+  recordThreadResume({
+    provider, threadId, channel: opts.channel,
+    userMessage: threadStore.get(threadId)?.userMessage ?? '',
   });
   return true;
 }
@@ -952,24 +988,14 @@ async function runThread(threadId: string, opts: RunThreadOptions): Promise<Thre
       throw error;
     }
   } finally {
-    // Defensive: the per-step path finalizes each execution on success (recordStepOutcome) and on
-    // error (executeAndAwaitAgent). If the loop threw AFTER an agent result but BEFORE the step was
-    // finalized, the step's execution can still be registered and its persistent record still
-    // 'running' — finalize it as failed across both ledgers so it neither leaks a 'running' record
-    // nor poisons a dispatch slot. Scope to THIS thread's entries so a concurrent run on the same
-    // channel is never touched.
-    for (const e of runningExecutions.getByChannel(opts.channel)) {
-      if (e.threadId !== threadId) continue;
-      if (e.executionId) {
-        executionRegistry.teardownExecution({ executionId: e.executionId, status: 'failed', durationS: 0, error: { message: 'thread ended before step finalized' } });
-      } else {
-        runningExecutions.remove(e.registryKey);
-      }
-    }
+    // Each step's execution record and live-registry entry are owned by its run (`startRun`),
+    // which tears them down on every terminal path — success, failure or cancellation. The old
+    // defensive scan over the live-run registry is therefore gone: a run that outlives the loop is
+    // killed below with the thread's sessions.
     // Cleanup thread-specific sessions. Intentionally also runs on suspension (DR-0014):
     // a waiting parent holds no live session — the artifact is its durable memory, and
     // persistSession slots keep their sessionId so re-entry resumes via --resume.
-    closeSessionsByPrefix(`thr:${threadId}:`);
+    engines.closeByPrefix(`thr:${threadId}:`);
   }
 
   return finalizeThread(threadId, ctx);
@@ -1095,12 +1121,12 @@ function buildThreadSummary(result: ThreadRunResult): string {
 }
 
 // Proxy functions to support existing callers that import cancelActiveThread / getActiveHandle from runner.ts.
-// These delegate to the unified RunningExecutions singleton.
+// These delegate to the unified run registry singleton.
 function cancelActiveThread(channel: string): boolean {
-  return runningExecutions.killByChannel(channel) > 0;
+  return runRegistry.killByChannel(channel) > 0;
 }
 function getActiveHandle(channel: string): RunningExecution | null {
-  return runningExecutions.getByChannel(channel)[0] ?? null;
+  return runRegistry.getByChannel(channel)[0] ?? null;
 }
 
 export {

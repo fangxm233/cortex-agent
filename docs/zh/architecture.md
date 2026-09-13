@@ -44,7 +44,7 @@ L5  entry/         → 所有层（组合根）
 | `cli-utils.ts` | `formatHelp`、`formatError`、`readStdinSync`、`cliError` — 共享 CLI 格式化 |
 | `status-format.ts` | 纯格式化：`computeElapsed`、`formatMetricsSuffix`、`buildSessionTag`、`buildUserProcessingMessage` |
 | `task-parser.ts` | 任务接口定义，带 kebab↔snake_case 键映射的 YAML 解析/序列化，`scanAllTasks`、`scanAvailableTasks`、`filterTasks`、`getTaskStats` |
-| `running-executions.ts` | `RunningExecutions` 单例，带三索引注册表（byKey、byThreadId、byExecutionId）。向 EventBus 发布 `agent.*` 生命周期事件 |
+| `run-registry.ts` | `RunRegistry` — 活跃运行与后台 hold 的唯一内存索引。回答 `sessionState(sessionId)`，并向 EventBus 发布 `agent.*` 生命周期事件 |
 | `types/agent-types.ts` | `AgentResult`、`AgentHandle`、`AgentProgress`、`AskUserQuestionInfo` |
 | `types/thread-types.ts` | 完整线程类型系列：`ThreadRecord`、`AgentDefinition`、`ThreadTemplate`、`TransitionRule`、`HookConfig`、`RunThreadOptions`、`AgentStep` 等 |
 | `config-generator.ts` | 新安装的配置文件初始化 |
@@ -65,7 +65,7 @@ L5  entry/         → 所有层（组合根）
 | `atomic-write.ts` | `atomicWrite(filePath, data)` — 写入 `.tmp.<pid>.<ts>` 然后 `fs.rename` |
 | `outbound-queue.ts` | 基于 WAL 的持久化出站消息队列。30 分钟 TTL，200 条目压缩，5 秒排放循环。合并对同一消息的连续更新 |
 | `thread-repo.ts` | `ThreadRepo` — 内存 `Map<string, ThreadRecord>` + 异步持久化。查询：`findByChannel`、`findActive`、`findByPlatformThread`。启动恢复：`markRunningAsFailedOnStartup`。清理：7 天前的线程（auto-records 为 24 小时） |
-| `session-repo.ts` | `SessionRepo` — `Record<string, string>` 映射 `backend:channel → sessionId` |
+| `session-repo.ts` | `SessionRepo` — `Record<string, string>` 映射 `channel → sessionId`；旧的 `backend:channel` 键仍会读取，并在写入时迁移 |
 | `conversation-ledger-repo.ts` | 每频道轮次追踪：`initConversation`、`beginTurn`、`addResponseTs`、`completeTurn`、`rollbackTo` |
 | `session-registry-repo.ts` | 基于 JSONL 的 `cortex-XXXX` 短名称注册表。回放仅追加日志、接纳会话、写入 `delete-intent`/`delete-commit` 防护，并在日志膨胀后压缩快照 |
 | `execution-repo.ts` | 模式 B 仓库。完整 CRUD：`startLocalExecution`、`registerDispatchExecution`、`completeExecution`、`failExecution`。通过 `reconcileStaleDispatches` 进行异步陈旧检测 |
@@ -97,11 +97,12 @@ L5  entry/         → 所有层（组合根）
 
 ### 第 3 层：`domain/` — 业务逻辑 {#layer-3-domain-business-logic}
 
-最厚的层。包含 14 个子目录，每个封装一个领域关注点。
+最厚的层。包含 23 个子目录，每个封装一个领域关注点；下表覆盖其中主要的几个。
 
 | 子目录 | 用途 |
 |-------------|---------|
 | `agents/` | 智能体执行门面。`runAgent()` 委托给后端适配器。配置解析、后端检测 |
+| `runs/` | 运行层：`startRun` 与 `AgentRun` 所有权对象、`RunRequest` 的 profile/spec/提示解析、后端中立的 `RunEvent` 事件流，以及 `SessionEngines` 池 |
 | `sessions/` | 会话生命周期。钩子管道（onNew、onMessageEnd），带 VirtualMessage 显示和可选的智能体注入 |
 | `tasks/` | 完整任务系统：YAML 解析、调度、归档、等待追踪、锁管理、CLI（`cortex-task`）、验证 |
 | `executions/` | `store/execution-repo.ts` 的薄重导出，带锁释放副作用：每个终止转换自动释放任务锁 |
@@ -137,7 +138,7 @@ L5  entry/         → 所有层（组合根）
 
 | 文件 | 用途 |
 |------|---------|
-| `app.ts` | **组合根**。连接 EventBus → logger → hook-bridge → runningExecutions → adapters → commands → interactions → scheduler → remote clients → webhook → memory watcher。处理 SIGTERM 优雅关闭 |
+| `app.ts` | **组合根**。连接 EventBus → logger → hook-bridge → RunRegistry → adapters → commands → interactions → scheduler → remote clients → webhook → memory watcher。处理 SIGTERM 优雅关闭 |
 | `daemon.ts` | 进程监督器。Fork `app.js`，监视 `src/*.ts` 以自动重建（当 `CORTEX_REPO` 设置时），监视 `.restart` 触发文件，带指数退避的崩溃恢复（1s→30s 最大） |
 | `cli.ts` | `cortex` CLI 入口点。调度到：`init`、`start`、`daemon`、`restart`、`task`、`config`、`setup-gateway` |
 | `init.ts` | 交互式首次初始化 |
@@ -150,8 +151,10 @@ L5  entry/         → 所有层（组合根）
 
 | 后端 | 适配器 | 备注 |
 |---------|---------|-------|
-| Claude Code | `claude/adapter.ts` | 会话池、`stream-json` 模式、TUI 模式（tmux + JSONL tail）。spawn-args 构建器、事件解析器 |
-| PI | `pi/adapter.ts` | PISession、MCP 桥接、钩子桥接、工具填充 |
+| Claude Code | `claude/adapter.ts` | 无状态引擎适配器：打开一个 Claude 进程会话（print 模式）、spawn-args 构建器、事件解析器。TUI 模式（tmux + JSONL tail）已废弃（D9） |
+| PI | `pi/adapter.ts` | 无状态引擎适配器：打开一个进程内 PI 会话、MCP 桥接、钩子桥接、工具填充 |
+
+会话池位于 `domain/runs/engines.ts`（`SessionEngines`），不在任何一个适配器里。
 
 标准化层（`normalize/`）将后端特定事件转换为统一的 `NormalizedEvent` 流。`capabilities.ts` 文件声明 Claude 和 PI 的 `Capability` 能力集。
 
@@ -197,7 +200,7 @@ EventBus 通过单例-注入模式在 `app.ts` 中连接。组件在构造时没
 
 | 组件 | 发布 | 订阅 |
 |-----------|-----------|------------|
-| `runningExecutions` | `agent.started/completed/failed/superseded` | — |
+| `runRegistry` | `agent.started/completed/failed/superseded` | — |
 | `eventLogger` | `event-logger.dropped` | `'*'`（所有事件 → JSONL） |
 | `planApprovals` | `plan.approved` | `plan.submitted` |
 | `busyTracker` | — | `llm.active-count-delta` |
@@ -210,7 +213,7 @@ Cortex 将所有状态存储在 `~/.cortex/` 下的文件系统中。没有数�
 
 | 路径 | 用途 |
 |------|---------|
-| `mode.json` | 当前运行时模式和配置 |
+| `agent-state.json` | 选定的 profile、默认智能体与频道级 override（由 `mode.json` 一次性迁移而来） |
 | `profiles.json` | 命名智能体配置列表 |
 | `schedules.json` | 持久化调度任务列表 |
 | `sessions.json` | 频道到智能体会话的映射 |

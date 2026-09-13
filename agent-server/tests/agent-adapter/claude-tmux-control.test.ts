@@ -3,6 +3,8 @@
 // pos:    Claude tmux utility regression tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
+// NOT retired by D9: `TmuxControl` still backs `recoverTuiOrphans`, which runs on every daemon
+// startup to sweep tmux sessions left by pre-D9 builds.
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'fs';

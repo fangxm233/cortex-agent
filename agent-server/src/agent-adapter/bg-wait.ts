@@ -4,7 +4,7 @@
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 //
 // Interactive turns hold their Slack status asynchronously (orchestration/lifecycle +
-// bg-wait-guard). Thread/dispatch turns have no status message to hold — the step's
+// the run's own watchdog). Thread/dispatch turns have no status message to hold — the step's
 // RESULT is the deliverable — so they wait INLINE: the facade keeps the turn promise
 // open until the spontaneous continuation completes, then resolves with the merged
 // result. The thread's own busy bracket covers the wait (no extra track here). Ordinary

@@ -396,16 +396,20 @@ test('applyAuthEnv never revives the legacy .env token once Claude owns the cred
     'the arbitration covers the OAuth token only — the saved API key still reaches the daemon env');
 });
 
-test('switchMode flips the mode without touching the daemon env', async (t) => {
+test('resolveModeEnv does not repoint the daemon env for either mode', async (t) => {
+  // Replaces the old `switchMode` test. D5 retired the daemon-wide plan/api toggle — mode is a
+  // profile field now — but the property it guarded still matters: resolving a route builds an env
+  // for ONE run and may never repoint the daemon or anything inheriting its env.
   const modeManager = await freshConfigWithSavedEnv(t, 'ANTHROPIC_API_KEY="sk-ant-fixture-switch"\n', true);
   pinClaudeCredential(t, false);
   process.env.ANTHROPIC_API_KEY = 'sk-ant-fixture-switch';
   process.env.ANTHROPIC_BASE_URL = 'https://switch.example.test';
 
-  const { oldMode, newMode } = modeManager.switchMode();
+  const plan = modeManager.resolveModeEnv('plan');
+  const api = modeManager.resolveModeEnv('api');
 
-  assert.notEqual(oldMode, newMode, 'switchMode must still flip the persisted mode');
+  assert.notDeepEqual(plan, api, 'the two modes must still resolve to different routes');
   assert.equal(process.env.ANTHROPIC_API_KEY, 'sk-ant-fixture-switch');
   assert.equal(process.env.ANTHROPIC_BASE_URL, 'https://switch.example.test',
-    'switching modes is a routing decision — it may not repoint the daemon or anything that inherits its env');
+    'resolving a route is a per-run decision — it may not repoint the daemon or anything that inherits its env');
 });

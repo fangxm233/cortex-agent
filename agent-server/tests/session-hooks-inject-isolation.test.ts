@@ -9,7 +9,8 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import type { OutputStream } from '../src/platform/output-stream.js';
-import type { AgentHandle } from '../src/core/types/agent-types.js';
+import type { AgentRun } from '../src/domain/runs/run.js';
+import type { RunObserver, RunRequest } from '../src/domain/runs/request.js';
 import {
   onNewInjectSessionKey,
   runHookInjection,
@@ -33,27 +34,26 @@ function makeStream(): OutputStream & { texts: string[] } {
   };
 }
 
-function resolvedHandle(): AgentHandle {
+function resolvedRun(sessionId: string): AgentRun {
   return {
-    promise: Promise.resolve({ sessionId: 'new-from-run', total_cost_usd: null, num_turns: null } as any),
-    kill: () => false,
-    sessionId: 'new-from-run',
-  };
+    executionId: 'exec-hook',
+    result: Promise.resolve({ sessionId, total_cost_usd: null, num_turns: null } as never),
+  } as unknown as AgentRun;
 }
 
 function makeDeps() {
-  const runAgentCalls: Array<{ message: string; options: any }> = [];
+  const startRunCalls: Array<{ request: RunRequest; observers: RunObserver[] }> = [];
   const closeCalls: Array<{ channel: string; sessionKey: string }> = [];
   const deps: InjectDeps = {
-    runAgent: (message: string, options: any): AgentHandle => {
-      runAgentCalls.push({ message, options });
-      return resolvedHandle();
+    startRun: (request: RunRequest, observers: RunObserver[]): AgentRun => {
+      startRunCalls.push({ request, observers });
+      return resolvedRun('new-from-run');
     },
     closeInjectedSession: async (channel: string, sessionKey: string) => {
       closeCalls.push({ channel, sessionKey });
     },
   };
-  return { deps, runAgentCalls, closeCalls };
+  return { deps, startRunCalls, closeCalls };
 }
 
 function onNewSpec(channel: string, oldSessionId: string): SessionHookSpec {
@@ -85,16 +85,16 @@ test('onNewInjectSessionKey — returns a pool key distinct from the channel (de
 
 test('runHookInjection (onNew) — injects on the isolated key, resumes the OLD session, closes it after', async () => {
   const channel = 'C-chan';
-  const { deps, runAgentCalls, closeCalls } = makeDeps();
+  const { deps, startRunCalls, closeCalls } = makeDeps();
   const stream = makeStream();
 
   await runHookInjection('write memory', onNewSpec(channel, 'old-sess'), stream, deps);
 
-  assert.equal(runAgentCalls.length, 1, 'runAgent called exactly once');
-  const opts = runAgentCalls[0].options;
-  assert.equal(opts.sessionId, 'old-sess', 'injection resumes the OLD session (pre-close turn)');
-  assert.equal(opts.sessionKey, onNewInjectSessionKey(channel), 'injection uses the isolated pool key');
-  assert.notEqual(opts.sessionKey, channel,
+  assert.equal(startRunCalls.length, 1, 'startRun called exactly once');
+  const request = startRunCalls[0].request;
+  assert.equal(request.session.backendSessionId, 'old-sess', 'injection resumes the OLD session (pre-close turn)');
+  assert.equal(request.session.engineKey, onNewInjectSessionKey(channel), 'injection uses the isolated pool key');
+  assert.notEqual(request.session.engineKey, channel,
     'injection must NOT reuse the channel live pool slot — otherwise the new conversation resumes the old session');
 
   assert.equal(closeCalls.length, 1, 'isolated injected session is closed after the turn (no leaked process)');
@@ -105,7 +105,7 @@ test('runHookInjection (onNew) — injects on the isolated key, resumes the OLD 
 
 test('runHookInjection (onMessageEnd) — injects on the channel key and does NOT close the live session', async () => {
   const channel = 'C-chan';
-  const { deps, runAgentCalls, closeCalls } = makeDeps();
+  const { deps, startRunCalls, closeCalls } = makeDeps();
   const stream = makeStream();
   const spec: SessionHookSpec = {
     name: 'onMessageEnd',
@@ -116,7 +116,7 @@ test('runHookInjection (onMessageEnd) — injects on the channel key and does NO
 
   await runHookInjection('reminder', spec, stream, deps);
 
-  assert.equal(runAgentCalls[0].options.sessionKey, channel,
+  assert.equal(startRunCalls[0].request.session.engineKey, channel,
     'onMessageEnd continues the channel live session (same pool slot)');
   assert.equal(closeCalls.length, 0,
     'onMessageEnd must NOT close the channel live session — it is the user conversation');
@@ -128,7 +128,9 @@ test('runHookInjection (onNew) — closes the isolated session even when the inj
   const channel = 'C-chan';
   const closeCalls: Array<{ channel: string; sessionKey: string }> = [];
   const deps: InjectDeps = {
-    runAgent: (): AgentHandle => ({ promise: Promise.reject(new Error('boom')), kill: () => false, sessionId: null }),
+    startRun: (): AgentRun => ({
+      executionId: 'exec-hook', result: Promise.reject(new Error('boom')),
+    } as unknown as AgentRun),
     closeInjectedSession: async (ch: string, key: string) => { closeCalls.push({ channel: ch, sessionKey: key }); },
   };
   const stream = makeStream();

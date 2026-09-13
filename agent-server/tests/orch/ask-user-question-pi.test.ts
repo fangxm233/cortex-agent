@@ -1,18 +1,22 @@
-// input:  ask-user-question.tryResolveHook, RunningExecutions
+// input:  ask-user-question.tryResolveHook, RunRegistry entries with run.respondToDialog
 // output: regression tests for native PI and MCP-over-PI routing
 // pos:    verifies extension UI and webhook resolver separation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { runningExecutions } from '../../src/core/running-executions.js';
+import { runRegistry } from '../../src/core/run-registry.js';
 
-function makeMockPIProcess() {
+function makeMockPIProcess(accepted = true) {
   const calls: Array<{ id: string; payload: Record<string, unknown> }> = [];
   return {
     calls,
-    sendExtensionUiResponse(id: string, payload: Record<string, unknown>) {
-      calls.push({ id, payload });
+    run: {
+      steer: async () => 'refused' as const,
+      respondToDialog(id: string, payload: Record<string, unknown>) {
+        calls.push({ id, payload });
+        return accepted;
+      },
     },
   };
 }
@@ -21,16 +25,16 @@ test('tryResolveHook native PI branch — sends extension_ui_response with joine
   const askUser = await import('../../src/orchestration/interactions/ask-user-question.js');
   const mockProc = makeMockPIProcess();
 
-  runningExecutions.register({
+  runRegistry.register({
     threadId: null,
     channel: 'C_PI_ASK',
     agentSlotId: null,
     executionId: 'exec-pi-ask-1',
     kill: () => true,
     backend: 'pi',
-    agentProcess: mockProc,
+    run: mockProc.run,
   });
-  t.onTestFinished(() => { runningExecutions.remove('exec-pi-ask-1'); });
+  t.onTestFinished(() => { runRegistry.remove('exec-pi-ask-1'); });
 
   const group = askUser.createHookGroup('req-pi-ask', 'C_PI_ASK', 'sess-pi-ask', [
     { header: 'Pick', question: 'Which one?', options: [{ label: 'A', description: 'First' }, { label: 'B', description: 'Second' }] },
@@ -51,16 +55,16 @@ test('tryResolveHook native PI branch — multi-question joins answers with newl
   const askUser = await import('../../src/orchestration/interactions/ask-user-question.js');
   const mockProc = makeMockPIProcess();
 
-  runningExecutions.register({
+  runRegistry.register({
     threadId: null,
     channel: 'C_PI_ASK2',
     agentSlotId: null,
     executionId: 'exec-pi-ask-2',
     kill: () => true,
     backend: 'pi',
-    agentProcess: mockProc,
+    run: mockProc.run,
   });
-  t.onTestFinished(() => { runningExecutions.remove('exec-pi-ask-2'); });
+  t.onTestFinished(() => { runRegistry.remove('exec-pi-ask-2'); });
 
   const group = askUser.createHookGroup('req-pi-ask2', 'C_PI_ASK2', 'sess-pi-ask2', [
     { header: 'Color', question: 'Favorite color?', options: [{ label: 'Red', description: 'R' }] },
@@ -81,16 +85,16 @@ test('tryResolveHook MCP-over-PI branch — resolves blocking webhook instead of
   const askUser = await import('../../src/orchestration/interactions/ask-user-question.js');
   const mockProc = makeMockPIProcess();
 
-  runningExecutions.register({
+  runRegistry.register({
     threadId: null,
     channel: 'C_PI_MCP_ASK',
     agentSlotId: null,
     executionId: 'exec-pi-mcp-ask',
     kill: () => true,
     backend: 'pi',
-    agentProcess: mockProc,
+    run: mockProc.run,
   });
-  t.onTestFinished(() => { runningExecutions.remove('exec-pi-mcp-ask'); });
+  t.onTestFinished(() => { runRegistry.remove('exec-pi-mcp-ask'); });
 
   let resolvedAnswers: Record<string, string> | null = null;
   askUser.registerHookResolver('req-pi-mcp-ask', (data) => { resolvedAnswers = data.answers; });
@@ -108,7 +112,7 @@ test('tryResolveHook MCP-over-PI branch — resolves blocking webhook instead of
 test('tryResolveHook — non-PI backend falls through to Claude resolver', async (t) => {
   const askUser = await import('../../src/orchestration/interactions/ask-user-question.js');
 
-  runningExecutions.register({
+  runRegistry.register({
     threadId: null,
     channel: 'C_CLAUDE_ASK',
     agentSlotId: null,
@@ -116,7 +120,7 @@ test('tryResolveHook — non-PI backend falls through to Claude resolver', async
     kill: () => true,
     backend: 'claude',
   });
-  t.onTestFinished(() => { runningExecutions.remove('exec-claude-ask-1'); });
+  t.onTestFinished(() => { runRegistry.remove('exec-claude-ask-1'); });
 
   let resolverCalled = false;
   askUser.registerHookResolver('req-claude-ask', () => { resolverCalled = true; });
@@ -136,16 +140,16 @@ test('tryResolveHook — incomplete answers do not resolve (PI or Claude)', asyn
   const askUser = await import('../../src/orchestration/interactions/ask-user-question.js');
   const mockProc = makeMockPIProcess();
 
-  runningExecutions.register({
+  runRegistry.register({
     threadId: null,
     channel: 'C_PI_PARTIAL',
     agentSlotId: null,
     executionId: 'exec-pi-partial',
     kill: () => true,
     backend: 'pi',
-    agentProcess: mockProc,
+    run: mockProc.run,
   });
-  t.onTestFinished(() => { runningExecutions.remove('exec-pi-partial'); });
+  t.onTestFinished(() => { runRegistry.remove('exec-pi-partial'); });
 
   const group = askUser.createHookGroup('req-pi-partial', 'C_PI_PARTIAL', 'sess-pi-partial', [
     { header: 'A', question: 'First?', options: [{ label: 'X', description: 'x' }] },
@@ -160,19 +164,19 @@ test('tryResolveHook — incomplete answers do not resolve (PI or Claude)', asyn
   assert.equal(mockProc.calls.length, 0, 'no extension_ui_response should be sent');
 });
 
-test('tryResolveHook — PI with no agentProcess falls through to Claude path', async (t) => {
+test('tryResolveHook — PI with no run falls through to Claude path', async (t) => {
   const askUser = await import('../../src/orchestration/interactions/ask-user-question.js');
 
-  runningExecutions.register({
+  runRegistry.register({
     threadId: null,
     channel: 'C_PI_NOPROC',
     agentSlotId: null,
     executionId: 'exec-pi-noproc',
     kill: () => true,
     backend: 'pi',
-    // no agentProcess
+    // no run
   });
-  t.onTestFinished(() => { runningExecutions.remove('exec-pi-noproc'); });
+  t.onTestFinished(() => { runRegistry.remove('exec-pi-noproc'); });
 
   let resolverCalled = false;
   askUser.registerHookResolver('req-pi-noproc', () => { resolverCalled = true; });
@@ -185,5 +189,133 @@ test('tryResolveHook — PI with no agentProcess falls through to Claude path', 
 
   const resolved = askUser.tryResolveHook(group);
   assert.equal(resolved, true, 'should fall through to Claude resolver');
-  assert.equal(resolverCalled, true, 'Claude resolver should be called when PI has no agentProcess');
+  assert.equal(resolverCalled, true, 'Claude resolver should be called when PI has no run');
+});
+
+test('tryResolveHook — a run that declines the dialog does not delete the group and reports unresolved', async (t) => {
+  const askUser = await import('../../src/orchestration/interactions/ask-user-question.js');
+  const mockProc = makeMockPIProcess(false);
+
+  runRegistry.register({
+    threadId: null,
+    channel: 'C_PI_DECLINED',
+    agentSlotId: null,
+    executionId: 'exec-pi-declined',
+    kill: () => true,
+    backend: 'pi',
+    run: mockProc.run,
+  });
+  t.onTestFinished(() => { runRegistry.remove('exec-pi-declined'); });
+
+  const group = askUser.createHookGroup('req-pi-declined', 'C_PI_DECLINED', 'sess-pi-declined', [
+    { header: 'Q', question: 'Still there?', options: [{ label: 'Yes', description: 'y' }] },
+  ], 'ui-req-pi-declined');
+  group.answers.set(group.questions[0].pendingId, { value: 'Yes' });
+
+  const resolved = askUser.tryResolveHook(group);
+  assert.equal(mockProc.calls.length, 1, 'the run is asked once');
+  assert.equal(resolved, false, 'with no webhook waiting the group stays unresolved');
+  assert.ok(
+    askUser.getGroupByHookRequestId('req-pi-declined'),
+    'a declined dialog must not delete the group',
+  );
+});
+
+test('tryResolveHook — a run that declines the dialog falls through to the blocking webhook', async (t) => {
+  const askUser = await import('../../src/orchestration/interactions/ask-user-question.js');
+  const mockProc = makeMockPIProcess(false);
+
+  runRegistry.register({
+    threadId: null,
+    channel: 'C_PI_DECLINED_HOOK',
+    agentSlotId: null,
+    executionId: 'exec-pi-declined-hook',
+    kill: () => true,
+    backend: 'pi',
+    run: mockProc.run,
+  });
+  t.onTestFinished(() => { runRegistry.remove('exec-pi-declined-hook'); });
+
+  let resolverAnswers: Record<string, string> | null = null;
+  askUser.registerHookResolver('req-pi-declined-hook', (data) => { resolverAnswers = data.answers; });
+
+  const group = askUser.createHookGroup('req-pi-declined-hook', 'C_PI_DECLINED_HOOK', 'sess-pi-declined-hook', [
+    { header: 'Q', question: 'Still there?', options: [{ label: 'Yes', description: 'y' }] },
+  ], 'ui-req-pi-declined-hook');
+  group.answers.set(group.questions[0].pendingId, { value: 'Yes' });
+
+  const resolved = askUser.tryResolveHook(group);
+  assert.equal(mockProc.calls.length, 1, 'the run is asked once before falling through');
+  assert.equal(resolved, true, 'the webhook resolver still resolves the group');
+  assert.deepEqual(resolverAnswers, { 'Still there?': 'Yes' });
+});
+
+test('tryResolveHook — a run that accepts the dialog resolves and deletes the group', async (t) => {
+  const askUser = await import('../../src/orchestration/interactions/ask-user-question.js');
+  const mockProc = makeMockPIProcess(true);
+
+  runRegistry.register({
+    threadId: null,
+    channel: 'C_PI_ACCEPTED',
+    agentSlotId: null,
+    executionId: 'exec-pi-accepted',
+    kill: () => true,
+    backend: 'pi',
+    run: mockProc.run,
+  });
+  t.onTestFinished(() => { runRegistry.remove('exec-pi-accepted'); });
+
+  const group = askUser.createHookGroup('req-pi-accepted', 'C_PI_ACCEPTED', 'sess-pi-accepted', [
+    { header: 'Q', question: 'Go?', options: [{ label: 'Yes', description: 'y' }] },
+  ], 'ui-req-pi-accepted');
+  group.answers.set(group.questions[0].pendingId, { value: 'Yes' });
+
+  const resolved = askUser.tryResolveHook(group);
+  assert.equal(resolved, true);
+  assert.equal(mockProc.calls.length, 1);
+  assert.deepEqual(mockProc.calls[0].payload, { value: 'Yes' });
+  assert.equal(
+    askUser.getGroupByHookRequestId('req-pi-accepted'),
+    null,
+    'an accepted dialog deletes the group',
+  );
+});
+
+test('tryResolveHook — with two runs on a channel the first that returns true wins and the second is not called', async (t) => {
+  const askUser = await import('../../src/orchestration/interactions/ask-user-question.js');
+  const first = makeMockPIProcess(true);
+  const second = makeMockPIProcess(true);
+
+  runRegistry.register({
+    threadId: null,
+    channel: 'C_PI_ORDER',
+    agentSlotId: null,
+    executionId: 'exec-pi-order-1',
+    kill: () => true,
+    backend: 'pi',
+    run: first.run,
+  });
+  runRegistry.register({
+    threadId: null,
+    channel: 'C_PI_ORDER',
+    agentSlotId: null,
+    executionId: 'exec-pi-order-2',
+    kill: () => true,
+    backend: 'pi',
+    run: second.run,
+  });
+  t.onTestFinished(() => {
+    runRegistry.remove('exec-pi-order-1');
+    runRegistry.remove('exec-pi-order-2');
+  });
+
+  const group = askUser.createHookGroup('req-pi-order', 'C_PI_ORDER', 'sess-pi-order', [
+    { header: 'Q', question: 'Which run?', options: [{ label: 'First', description: '1' }] },
+  ], 'ui-req-pi-order');
+  group.answers.set(group.questions[0].pendingId, { value: 'First' });
+
+  const resolved = askUser.tryResolveHook(group);
+  assert.equal(resolved, true);
+  assert.equal(first.calls.length, 1, 'the first run answers the dialog');
+  assert.equal(second.calls.length, 0, 'the run after the winner is never asked');
 });
