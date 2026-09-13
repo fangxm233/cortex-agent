@@ -6,17 +6,16 @@ import '../_test-home.js';
 import { beforeEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 
-const mockRunAgent = vi.fn();
+const { mockStartAttempt } = vi.hoisted(() => ({
+  mockStartAttempt: vi.fn<(input: StartAttemptInput) => RunAttempt>(),
+}));
 
-// The continuation paths now go through startRun -> domain/runs -> facade.runAgent, so the spawn
-// is intercepted on the facade module (runAgent is no longer on the agents barrel).
-vi.mock('@domain/agents/facade.js', async (importOriginal) => {
-  const orig = await importOriginal<Record<string, unknown>>();
-  return {
-    ...orig,
-    runAgent: (...args: unknown[]) => mockRunAgent(...args),
-  };
-});
+// The continuation paths now go through startRun -> domain/runs -> startAttempt, so the attempt
+// chain is intercepted there. Returning a synthetic RunAttempt keeps the test about the lease
+// handoff around execution registration, not about a spawned backend.
+vi.mock('@domain/runs/attempt.js', () => ({
+  startAttempt: (...args: unknown[]) => mockStartAttempt(...args as [StartAttemptInput]),
+}));
 
 vi.mock('@domain/agents/index.js', async (importOriginal) => {
   const orig = await importOriginal<Record<string, unknown>>();
@@ -28,6 +27,7 @@ vi.mock('@domain/agents/index.js', async (importOriginal) => {
   };
 });
 
+import type { RunAttempt, StartAttemptInput } from '../../src/domain/runs/attempt.js';
 import { resumeAskUserQuestionGroup } from '../../src/orchestration/interactions/ask-user-resume.js';
 import { runRetryAgent } from '../../src/orchestration/edit-retry.js';
 import { sessionStore } from '../../src/store/session-registry-repo.js';
@@ -37,8 +37,32 @@ import { runRegistry } from '../../src/core/run-registry.js';
 
 beforeEach(() => {
   vi.restoreAllMocks();
-  mockRunAgent.mockReset();
+  mockStartAttempt.mockReset();
 });
+
+/** The synthetic attempt shape `startAttempt` hands the run; only the fields the run reads. */
+function makeSyntheticAttempt(opts: {
+  backendSessionId: string | null;
+  foreground: Promise<unknown>;
+}): RunAttempt {
+  return {
+    engine: {} as any,
+    engineRun: {} as any,
+    spec: {} as any,
+    backend: 'claude' as any,
+    identity: null,
+    foreground: opts.foreground as Promise<any>,
+    settled: opts.foreground as Promise<any>,
+    backendSessionId: opts.backendSessionId,
+    kill: () => true,
+  };
+}
+
+function rejectedAttempt(backendSessionId: string, error: Error): RunAttempt {
+  const promise = Promise.reject(error);
+  promise.catch(() => {}); // avoid unhandled-rejection noise before the test awaits it
+  return makeSyntheticAttempt({ backendSessionId, foreground: promise });
+}
 
 function installLeaseOrder(trackSessionId: string, events: string[]): void {
   vi.spyOn(sessionStore, 'acquireSessionUse').mockImplementation(async (id) => {
@@ -60,13 +84,9 @@ function installLeaseOrder(trackSessionId: string, events: string[]): void {
 test('AskUserQuestion resume hands its session lease to the registered execution without a gap', async () => {
   const events: string[] = [];
   installLeaseOrder('track-ask', events);
-  mockRunAgent.mockImplementation(() => {
+  mockStartAttempt.mockImplementation(() => {
     events.push('run');
-    return {
-      promise: Promise.reject(new Error('stop after registration')),
-      kill: () => true,
-      sessionId: 'backend-track-ask',
-    };
+    return rejectedAttempt('backend-track-ask', new Error('stop after registration'));
   });
 
   await resumeAskUserQuestionGroup({
@@ -81,13 +101,12 @@ test('AskUserQuestion resume hands its session lease to the registered execution
 test('edit retry hands its session lease to the registered execution without a gap', async () => {
   const events: string[] = [];
   installLeaseOrder('track-retry', events);
-  mockRunAgent.mockImplementation(() => {
+  mockStartAttempt.mockImplementation(() => {
     events.push('run');
-    return {
-      promise: Promise.resolve({ rateLimited: true, total_cost_usd: 0, num_turns: 1 }),
-      kill: () => true,
-      sessionId: 'backend-track-retry',
-    };
+    return makeSyntheticAttempt({
+      backendSessionId: 'backend-track-retry',
+      foreground: Promise.resolve({ rateLimited: true, total_cost_usd: 0, num_turns: 1 }),
+    });
   });
 
   await runRetryAgent({

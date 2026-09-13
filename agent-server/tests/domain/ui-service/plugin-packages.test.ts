@@ -28,7 +28,7 @@ import {
   handlePluginsSkillFile,
 } from '../../../src/domain/ui-service/query/plugin-source.js';
 import { handlePluginsList } from '../../../src/domain/ui-service/query/plugins.js';
-import type { Result, UiServiceDeps } from '../../../src/domain/ui-service/types.js';
+import type { Err, Ok, Result, UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 
 const TT_DIR = path.join(CONFIG_DIR, 'thread-templates');
 
@@ -126,14 +126,16 @@ beforeEach(() => {
   seedAgent('writer', ['plugins/alpha']);
 });
 
+// `Result<T>` is a generic union, so TypeScript will not narrow it here; the assertions below are
+// the narrowing, and the casts are what they establish.
 function ok<T>(result: Result<T>): T {
-  assert.equal(result.ok, true, result.ok ? '' : `${result.code}: ${result.message}`);
-  return (result as { ok: true; data: T }).data;
+  assert.equal(result.ok, true, result.ok ? '' : `${(result as Err).code}: ${(result as Err).message}`);
+  return (result as Ok<T>).data;
 }
 
 function err<T>(result: Result<T>): { code: string; message: string } {
   assert.equal(result.ok, false, 'expected failure');
-  return result as { ok: false; code: string; message: string };
+  return result as Err;
 }
 
 test('reads a SKILL.md with its hash and reports whether Cortex ships it', async () => {

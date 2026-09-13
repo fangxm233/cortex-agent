@@ -70,9 +70,8 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | event-loop-monitor.test.ts | test | event-loop lag sampling, reset and stop lifecycle |
 | execution-lock-release.test.ts | test | task lock release on execution end |
 | execution-log-tailer.test.ts | test | live execution log tailing and refcounts |
-| facade-compact.test.ts | test | manual context compact via agent facade |
-| facade-plugin-gating.test.ts | test | channel-scoped plugin directory filtering |
-| facade.test.ts | test | provider identity and isolated pre-flight gates |
+| plugin-scoped-gating.test.ts | test | scoped plugin directory gating (cortex-feishu by channel, cortex-commission by mode) |
+| run-preflight-gates.test.ts | test | provider identity, the pre-flight skip gate, and blocked-run evidence/notices |
 | feishu-adapter.test.ts | test | Feishu messages, links, forms, and routing |
 | feishu-client.test.ts | test | Feishu SDK logs stay off protocol stdout |
 | feishu-device-login.test.ts | test | Feishu device authorization login flow |

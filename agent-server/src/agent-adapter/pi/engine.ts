@@ -133,6 +133,9 @@ export class PIEngineSession implements EngineSession {
       close: () => queue.close(),
     });
     active.phase = phase;
+    // A failed foreground turn fails the WHOLE run: `settled` has to carry the same rejection, or a
+    // terminal tally awaiting it hangs instead of reporting the failure.
+    deferred.promise.catch((error) => settled.reject(error));
     // PI's turn events arrive on a stream of their own while the turn promise settles beside it,
     // so the two ends can land in either order. The run's stream may only be closed once the
     // turn's events have all been forwarded — otherwise a phase that seals early would drop the

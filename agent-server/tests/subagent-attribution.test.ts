@@ -16,13 +16,25 @@ import type { SubagentRunRequest } from '../src/domain/agents/subagent/runner.js
 const CHANNEL = 'C-attribution';
 const PARENT_SESSION = 'sess-parent';
 
-/** A registered execution whose agent process records everything pushed into its turn. */
+/**
+ * A registered execution whose live run records every event ingested into its stream.
+ *
+ * The attribution sink is a producer into the run's one stream: it resolves the execution by key
+ * and calls `run.ingestExternal(toRunEvent(notice, run.phase))`. `phase` is part of the run shape
+ * the sink reads (production tags each notice with whatever phase the parent is in when it lands).
+ */
 function register(executionId: string, trackSessionId: string | null): RunEvent[] {
   const pushed: RunEvent[] = [];
+  const run = {
+    phase: 'foreground' as const,
+    ingestExternal: (event: RunEvent): boolean => { pushed.push(event); return true; },
+    steer: async () => 'refused' as const,
+    respondToDialog: () => false,
+  };
   runRegistry.register({
     threadId: null, channel: CHANNEL, agentSlotId: null, executionId,
     kind: 'local', kill: () => true, backend: 'test', trackSessionId,
-    agentProcess: { pushTurnEvent: (event: RunEvent) => { pushed.push(event); } },
+    run,
   });
   return pushed;
 }
@@ -41,16 +53,19 @@ afterEach(() => {
 test('the sink pushes into the execution it resolved, and follows it across a retry', () => {
   const parent = register('exec-parent', PARENT_SESSION);
   const sink = parentNoticeSink(PARENT_SESSION, CHANNEL);
-  assert.ok(sink, 'a mid-turn parent with a push seam must produce a sink');
+  assert.ok(sink, 'a mid-turn parent with an ingest seam must produce a sink');
 
   sink!(notice('from the child'));
   assert.equal(parent.length, 1);
-  assert.equal((parent[0] as { text: string }).text, 'from the child');
+  const first = parent[0] as Extract<RunEvent, { type: 'assistant_text' }>;
+  assert.equal(first.type, 'assistant_text');
+  assert.equal(first.text, 'from the child');
+  assert.equal(first.phase, 'foreground', 'the notice is re-tagged with the parent run\'s phase');
 
-  // A retry re-registers the same executionId with a fresh process: the sink follows the key.
+  // A retry re-registers the same executionId with a fresh run: the sink follows the key.
   const retried = register('exec-parent', PARENT_SESSION);
   sink!(notice('after the retry'));
-  assert.equal(retried.length, 1, 'the sink must resolve the key again, not cache the process');
+  assert.equal(retried.length, 1, 'the sink must resolve the key again, not cache the run');
 });
 
 test('the sink goes quiet when its parent turn ends, even if the child is alone on the channel', () => {
@@ -60,7 +75,7 @@ test('the sink goes quiet when its parent turn ends, even if the child is alone 
 
   // The parent's turn ends; its background child outlives it and is now the only live execution on
   // the channel. Resolving by channel here would hand the child its own events back — the notice →
-  // pushTurnEvent → event → notice loop that starves the daemon's event loop.
+  // ingestExternal → event → notice loop that starves the daemon's event loop.
   runRegistry.remove('exec-parent');
   const child = register('exec-child', null);
 

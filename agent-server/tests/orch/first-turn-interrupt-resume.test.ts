@@ -6,17 +6,16 @@
 import { test, expect, vi } from 'vitest';
 import assert from 'node:assert/strict';
 
-const mockRunAgent = vi.fn();
+const { mockStartAttempt } = vi.hoisted(() => ({
+  mockStartAttempt: vi.fn<(input: StartAttemptInput) => RunAttempt>(),
+}));
 
-// `startRun` reaches the facade directly (runAgent is no longer on the agents barrel), so the
-// spawn is intercepted by mocking the facade module.
-vi.mock('@domain/agents/facade.js', async (importOriginal) => {
-  const orig = await importOriginal<Record<string, unknown>>();
-  return {
-    ...orig,
-    runAgent: (...args: unknown[]) => mockRunAgent(...args),
-  };
-});
+// `startRun` opens the attempt chain through `startAttempt`; mocking that one entry point returns a
+// synthetic `RunAttempt` so this orchestration suite observes the request/config the run assembles
+// without ever spawning a backend. (The facade this used to intercept is gone.)
+vi.mock('@domain/runs/attempt.js', () => ({
+  startAttempt: (...args: unknown[]) => mockStartAttempt(...args as [StartAttemptInput]),
+}));
 
 vi.mock('@domain/agents/index.js', async (importOriginal) => {
   const orig = await importOriginal<Record<string, unknown>>();
@@ -48,6 +47,7 @@ vi.mock('@domain/threads/index.js', async (importOriginal) => {
   };
 });
 
+import type { RunAttempt, StartAttemptInput } from '../../src/domain/runs/attempt.js';
 import { runConversation } from '../../src/orchestration/conversation-runner.js';
 import { cancelChannelRuns } from '../../src/orchestration/routing/commands/cancel.js';
 import { sessionStore } from '../../src/store/session-registry-repo.js';
@@ -55,11 +55,30 @@ import { getSessionAsync, setSessionAsync } from '../../src/domain/sessions/sess
 import { resolveRunBackend } from '../../src/domain/runs/config-resolver.js';
 import { runRegistry } from '../../src/core/run-registry.js';
 
-function makeCancelledHandle(backendSessionId: string) {
+/** The synthetic attempt shape `startAttempt` hands the run; only the fields the run reads. */
+function makeSyntheticAttempt(opts: {
+  backendSessionId: string | null;
+  foreground: Promise<unknown>;
+  backend?: string;
+}): RunAttempt {
+  return {
+    engine: {} as any,
+    engineRun: {} as any,
+    spec: {} as any,
+    backend: (opts.backend ?? 'claude') as any,
+    identity: null,
+    foreground: opts.foreground as Promise<any>,
+    settled: opts.foreground as Promise<any>,
+    backendSessionId: opts.backendSessionId,
+    kill: () => true,
+  };
+}
+
+function makeCancelledAttempt(backendSessionId: string): RunAttempt {
   const err = Object.assign(new Error('Cancelled'), { cancelled: true });
   const promise = Promise.reject(err);
   promise.catch(() => {}); // avoid unhandled-rejection noise before the test awaits it
-  return { promise, kill: () => true, sessionId: backendSessionId, agentProcess: undefined };
+  return makeSyntheticAttempt({ backendSessionId, foreground: promise });
 }
 
 function baseOpts(overrides: Record<string, unknown>) {
@@ -80,7 +99,7 @@ test('first-turn kill persists the spawn-time backend session id (resume works o
   await sessionStore.registerSession('cortex-int1', {
     sessionId: 'TRACK-1', channel: 'slack:C-interrupt', backend: 'claude', kind: 'local',
   });
-  mockRunAgent.mockReturnValueOnce(makeCancelledHandle('B-claude-1'));
+  mockStartAttempt.mockReturnValueOnce(makeCancelledAttempt('B-claude-1'));
 
   await expect(runConversation(baseOpts({
     trackSessionId: 'TRACK-1',
@@ -94,7 +113,7 @@ test('first-turn kill persists the spawn-time backend session id (resume works o
 
 test('runConversation exposes the exact assembled prompt passed to the agent', async () => {
   let capturedPrompt: string | null = null;
-  mockRunAgent.mockReturnValueOnce(makeCancelledHandle('B-prompt'));
+  mockStartAttempt.mockReturnValueOnce(makeCancelledAttempt('B-prompt'));
 
   await expect(runConversation(baseOpts({
     trackSessionId: 'TRACK-PROMPT',
@@ -103,13 +122,17 @@ test('runConversation exposes the exact assembled prompt passed to the agent', a
     onPromptBuilt: (prompt: string) => { capturedPrompt = prompt; },
   }))).rejects.toMatchObject({ cancelled: true });
 
-  assert.equal(capturedPrompt, mockRunAgent.mock.calls.at(-1)?.[0], 'capture sees byte-for-byte adapter input');
+  assert.equal(
+    capturedPrompt,
+    mockStartAttempt.mock.calls.at(-1)?.[0]?.request.prompt.text,
+    'capture sees byte-for-byte adapter input',
+  );
   assert.equal(capturedPrompt, 'hello', 'resumed direct turns send the user text without fresh-session context');
 });
 
 test('runConversation DEBUG prompt includes the image path sent through the adapter', async () => {
   let capturedPrompt: string | null = null;
-  mockRunAgent.mockReturnValueOnce(makeCancelledHandle('B-image-prompt'));
+  mockStartAttempt.mockReturnValueOnce(makeCancelledAttempt('B-image-prompt'));
 
   await expect(runConversation(baseOpts({
     trackSessionId: 'TRACK-IMAGE-PROMPT',
@@ -130,7 +153,7 @@ test('interrupt on a RESUMED turn leaves the stored backend session id untouched
     sessionId: 'TRACK-2', channel: 'slack:C-interrupt', backend: 'claude', kind: 'local',
     backendSessionId: 'B-old',
   });
-  mockRunAgent.mockReturnValueOnce(makeCancelledHandle('B-old'));
+  mockStartAttempt.mockReturnValueOnce(makeCancelledAttempt('B-old'));
 
   await expect(runConversation(baseOpts({
     trackSessionId: 'TRACK-2',
@@ -156,7 +179,6 @@ test('cancelChannelRuns keeps the channel bound to the stable track id', async (
     kind: 'local',
     kill: () => true,
     backend,
-    agentProcess: undefined,
     sessionId: 'B-backend-uuid', // spawn-time BACKEND id snapshot — must NOT become the binding
   });
 
@@ -166,7 +188,7 @@ test('cancelChannelRuns keeps the channel bound to the stable track id', async (
 });
 
 test('runConversation registers both track and backend ids on the live execution handle', async () => {
-  mockRunAgent.mockReturnValueOnce(makeCancelledHandle('B-live-1'));
+  mockStartAttempt.mockReturnValueOnce(makeCancelledAttempt('B-live-1'));
   const before = new Set(runRegistry.getAll().map((entry) => entry.registryKey));
   const pending = runConversation(baseOpts({
     trackSessionId: 'TRACK-LIVE',

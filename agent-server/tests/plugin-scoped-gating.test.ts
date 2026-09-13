@@ -1,4 +1,4 @@
-// input:  Node test runner + facade _test.filterScopedPlugins / filterChannelScopedPlugins
+// input:  engine-spec's scoped-plugin gate (filterScopedPlugins / filterChannelScopedPlugins)
 // output: scoped pluginDir filtering tests (cortex-feishu by channel, cortex-commission by mode)
 // pos:    Verify scoped plugins load only for the sessions they belong to
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -6,9 +6,10 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
-import { _test } from '../src/domain/agents/facade.js';
-
-const { filterChannelScopedPlugins, filterScopedPlugins } = _test;
+import {
+  filterChannelScopedPlugins,
+  filterScopedPlugins,
+} from '../src/domain/runs/engine-spec.js';
 
 const BASE = '/home/u/.cortex/plugins';
 const FEISHU = `${BASE}/cortex-feishu`;
@@ -59,7 +60,7 @@ test('an ordinary session never sees the commission skill', () => {
 
 test('the two scopes are independent', () => {
   const out = filterScopedPlugins([FEISHU, COMMISSION], {
-    channel: 'feishu:oc_x', commissionMode: true,
+    channel: 'feishu:oc_abc123', commissionMode: true,
   });
   assert.deepEqual(out, [FEISHU, COMMISSION]);
 });

@@ -1,232 +1,330 @@
-// input:  fake adapters, observers, continuations
-// output: event, notice, accounting, and wait tests
-// pos:    Backend-neutral run event tests
+// input:  a scripted Claude CLI child (request.isolation.spawner) + a fake PI runtime; run observers
+// output: attempt-level event/cost/foreground/settled behaviour + run-level notices and wait policy
+// pos:    Backend-neutral run-attempt and run-stage tests over the engine seam
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+//
+// This file used to drive the deleted `facade._test.runWithAdapter` with hand-rolled mock
+// `AgentProcess`/`AgentAdapter`s. It now drives the two things that replaced it:
+//
+//   * `startAttempt` — one attempt's pooled engine session, its RunEvent stream, and its two
+//     results (`foreground` / `settled`). Protocol facts come from `requiredSinks`, which the
+//     attempt forwards to the engine's `onNormalizedEvent` tap (the raw record; the RunEvent
+//     stream drops `turn_complete` and appends the terminal `phase`).
+//   * `AgentRunImpl` — the run's own stages in `run.ts`: notice synthesis, provider/auth
+//     attribution and terminal notices. It is constructed directly (with an in-memory
+//     `RunRegistry`) so these unit tests never touch the daemon's execution registry.
+//
+// Claude runs against a scripted fake CLI child; PI runs against `pi-fake-runtime`. The pooled
+// engine is the daemon singleton, so this file replaces `domain/runs/engines.ts` with a
+// `SessionEngines` over a real `ClaudeAdapter` and a fake-runtime `PIAdapter`.
 
-import { test, vi } from 'vitest';
+import { afterEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
+import { PassThrough } from 'node:stream';
+import { tmpdir } from 'node:os';
+import { join as pathJoin } from 'node:path';
+import { existsSync, readFileSync, unlinkSync } from 'node:fs';
 
-import { _test as modeManagerTest } from '../src/domain/agents/facade.js';
-import { isRetryableResult } from '../src/domain/agents/index.js';
-import type { AgentAdapter, AgentProcess, EngineSpec, Backend, UserMessage } from '../src/agent-adapter/index.js';
-import { CAPABILITIES_BY_BACKEND } from '../src/agent-adapter/index.js';
+import { startAttempt } from '../src/domain/runs/attempt.js';
+import { AgentRunImpl } from '../src/domain/runs/run.js';
+import type { RunRequest, RunObserver } from '../src/domain/runs/request.js';
+import type { RunEvent } from '../src/agent-adapter/run-events.js';
 import type { NormalizedEvent } from '../src/agent-adapter/normalize/event-types.js';
+import type { AwaitBackground } from '../src/agent-adapter/continuation-phase.js';
+import type { RunAttemptConfig } from '../src/domain/agents/profile-manager.js';
 import type { AgentResult } from '../src/core/types/agent-types.js';
+import { isRetryableResult } from '../src/domain/runs/fallback.js';
 import { getLocale, setLocale } from '../src/core/i18n.js';
 import { resetSettingsForTests } from '../src/core/settings.js';
 import { costRepo } from '../src/store/cost-repo.js';
+import { RunRegistry } from '../src/core/run-registry.js';
+import { runRequestFixture, attemptFromFixture, type RunRequestFixtureInput } from './run-request-fixture.js';
+import type { makeFakeRuntimeFactory } from './agent-adapter/pi-fake-runtime.js';
 
-const { runWithAdapter } = modeManagerTest;
+type FakeRuntimeFactory = ReturnType<typeof makeFakeRuntimeFactory>;
 
-interface FakeProcessSpec {
-  /** Events to emit in order (push into stream as soon as send() is called). */
-  events: NormalizedEvent[];
-  /** If present, send() resolves with this AgentResult after emitting events. */
-  resultOnResolve?: AgentResult;
-  afterResolveEvents?: NormalizedEvent[];
-  /** If present, send() rejects with this error after emitting events (overrides resultOnResolve). */
-  errorOnReject?: Error & { cancelled?: boolean };
-  /** Track calls; populated by the fake. */
-  recorded: { sendCalls: UserMessage[]; killed: boolean; closed: boolean };
+const CLAUDE: Partial<RunAttemptConfig> = { backend: 'claude', mode: null };
+const PI: Partial<RunAttemptConfig> = { backend: 'pi', mode: null };
+
+// `startAttempt` reaches the module singleton, so the fake PI adapter must be installed before
+// that import resolves. The delegating factory reads `fixtures.current`, so each test installs its
+// own fake runtime (and its own session id) before opening a PI attempt.
+const fixtures = vi.hoisted(() => ({
+  current: null as unknown as FakeRuntimeFactory,
+  engines: null as unknown as import('../src/domain/runs/engines.js').SessionEngines,
+}));
+
+vi.mock('../src/domain/runs/engines.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/domain/runs/engines.js')>();
+  const { tmpdir: dir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { mkdirSync } = await import('node:fs');
+  const { PIAdapter } = await import('../src/agent-adapter/pi/adapter.js');
+  const { ClaudeAdapter } = await import('../src/agent-adapter/claude/adapter.js');
+  const { makeFakeRuntimeFactory: makeFake } = await import('./agent-adapter/pi-fake-runtime.js');
+  const sessionDir = join(dir(), `run-with-adapter-sessions-${process.pid}`);
+  mkdirSync(sessionDir, { recursive: true });
+  const delegating = (request: unknown, callbacks: unknown) =>
+    fixtures.current.factory(request as never, callbacks as never);
+  fixtures.engines = new actual.SessionEngines({
+    pi: new PIAdapter(delegating as never, sessionDir),
+    claude: new ClaudeAdapter(),
+  });
+  return { ...actual, engines: fixtures.engines };
+});
+
+// --- scripted Claude child ---------------------------------------------------------------------
+
+const spawnedChildren: any[] = [];
+
+/** A fake `claude` child. Each stdin write (a turn prompt or an injection) consumes the next script
+ *  and replays it on stdout; `emitLines` stages a turn by hand (background continuations). */
+function scriptedClaudeChild(scripts: unknown[][] = []) {
+  const child = new EventEmitter() as any;
+  child.stdout = new PassThrough();
+  child.stderr = new PassThrough();
+  child.stdin = new PassThrough();
+  child.exitCode = null;
+  child.killed = false;
+  child.writes = [] as string[];
+  child.kill = () => { child.killed = true; return true; };
+  child.emitLines = (lines: unknown[]) => {
+    for (const line of lines) child.stdout.write(`${JSON.stringify(line)}\n`);
+  };
+  const write = child.stdin.write.bind(child.stdin);
+  child.stdin.write = (...args: any[]) => { child.writes.push(String(args[0])); return write(...args); };
+  const queue = [...scripts];
+  child.stdin.on('data', () => {
+    const next = queue.shift();
+    if (next) setImmediate(() => child.emitLines(next));
+  });
+  spawnedChildren.push(child);
+  return child;
 }
 
-function makeFakeProcess(spec: FakeProcessSpec): AgentProcess {
-  const buffer: NormalizedEvent[] = [];
-  const waiters: Array<(r: IteratorResult<NormalizedEvent>) => void> = [];
-  let closed = false;
+// --- Claude line helpers -----------------------------------------------------------------------
 
-  const push = (e: NormalizedEvent): void => {
-    if (closed) return;
-    const w = waiters.shift();
-    if (w) w({ value: e, done: false });
-    else buffer.push(e);
-  };
-  const close = (): void => {
-    if (closed) return;
-    closed = true;
-    while (waiters.length) waiters.shift()!({ value: undefined as unknown as NormalizedEvent, done: true });
-  };
+const textLine = (text: string, model = 'claude-opus-5') => ({
+  type: 'assistant', message: { model, content: [{ type: 'text', text }] },
+});
+const toolUseLine = (id: string, name: string, input: Record<string, unknown>) => ({
+  type: 'assistant', message: { content: [{ type: 'tool_use', id, name, input }] },
+});
+const toolResultLine = (id: string, content: string, isError = false) => ({
+  type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content, is_error: isError }] },
+});
+const resultLine = (overrides: Record<string, unknown> = {}) => ({
+  type: 'result', subtype: 'success', is_error: false,
+  num_turns: 1, total_cost_usd: 0, session_id: 'fixture-session', result: 'done', ...overrides,
+});
 
-  const events: AsyncIterable<NormalizedEvent> = {
-    [Symbol.asyncIterator]() {
-      return {
-        next(): Promise<IteratorResult<NormalizedEvent>> {
-          if (buffer.length > 0) return Promise.resolve({ value: buffer.shift()!, done: false });
-          if (closed) return Promise.resolve({ value: undefined as unknown as NormalizedEvent, done: true });
-          return new Promise((resolve) => waiters.push(resolve));
-        },
-      };
+const TASK_STARTED = { type: 'system', subtype: 'task_started', task_id: 'bg-1', task_type: 'local_bash' };
+const TASK_NOTIFICATION = { type: 'system', subtype: 'task_notification', task_id: 'bg-1', status: 'completed', summary: 'done' };
+/** A foreground turn that leaves one background task running. */
+const FOREGROUND_BG = [
+  TASK_STARTED,
+  textLine('started it'),
+  resultLine({ total_cost_usd: 0.25, result: 'started it' }),
+];
+/** The backend's spontaneous continuation once the task finishes. */
+const CONTINUATION = [
+  TASK_NOTIFICATION,
+  textLine('task finished: DONE'),
+  resultLine({
+    origin: { kind: 'task-notification' }, total_cost_usd: 0.01, result: 'task finished: DONE',
+    usage: {
+      iterations: [{
+        input_tokens: 100, cache_creation_input_tokens: 20, cache_read_input_tokens: 300,
+        output_tokens: 80,
+      }],
     },
-  };
+    modelUsage: { 'claude-opus-5[1m]': { canonicalModel: 'claude-opus-5', contextWindow: 900000 } },
+  }),
+];
 
+// --- harness -----------------------------------------------------------------------------------
+
+interface ClaudeHandle {
+  request: RunRequest;
+  children: any[];
+  events: RunEvent[];
+  raw: NormalizedEvent[];
+  run: ReturnType<typeof startAttempt>;
+}
+
+function claudeAttempt(
+  partial: RunRequestFixtureInput,
+  scripts: unknown[][],
+  opts: { background?: AwaitBackground; override?: Partial<RunAttemptConfig> } = {},
+): ClaudeHandle {
+  const children: any[] = [];
+  const override = { ...CLAUDE, ...opts.override };
+  const request = runRequestFixture({
+    ...partial,
+    processSpawner: (() => {
+      const child = scriptedClaudeChild(scripts);
+      children.push(child);
+      return { process: child };
+    }) as never,
+  }, override);
+  if (opts.background) request.policy = { ...request.policy, background: opts.background };
+  const events: RunEvent[] = [];
+  const raw: NormalizedEvent[] = [];
+  const run = startAttempt({
+    request,
+    attempt: attemptFromFixture(partial, override),
+    executionId: null,
+    onEvent: (event) => { events.push(event); },
+    requiredSinks: [{ onEvent: (event) => { raw.push(event); } }],
+  });
+  return { request, children, events, raw, run };
+}
+
+interface PiHandle {
+  request: RunRequest;
+  events: RunEvent[];
+  raw: NormalizedEvent[];
+  run: ReturnType<typeof startAttempt>;
+  runtime: Promise<import('./agent-adapter/pi-fake-runtime.js').FakeRuntime>;
+}
+
+function piAttempt(
+  partial: RunRequestFixtureInput,
+  opts: { background?: AwaitBackground; override?: Partial<RunAttemptConfig> } = {},
+): PiHandle {
+  const index = fixtures.current.runtimes.length;
+  const override = { ...PI, ...opts.override };
+  const request = runRequestFixture(partial, override);
+  if (opts.background) request.policy = { ...request.policy, background: opts.background };
+  const events: RunEvent[] = [];
+  const raw: NormalizedEvent[] = [];
+  const run = startAttempt({
+    request,
+    attempt: attemptFromFixture(partial, override),
+    executionId: null,
+    onEvent: (event) => { events.push(event); },
+    requiredSinks: [{ onEvent: (event) => { raw.push(event); } }],
+  });
+  return { request, events, raw, run, runtime: fixtures.current.runtime(index) };
+}
+
+function openRun(request: RunRequest, observers: RunObserver[]): AgentRunImpl {
+  const run = new AgentRunImpl({
+    request, observers, executionId: 'exec-fixture',
+    registry: new RunRegistry(), onTerminal: () => {}, startedAt: Date.now(),
+  });
+  run.start();
+  return run;
+}
+
+interface Collected {
+  observer: RunObserver;
+  events: RunEvent[];
+  closes(): number;
+}
+
+function collector(required = false): Collected {
+  const events: RunEvent[] = [];
+  let closed = 0;
   return {
-    sessionKey: 'fake-key',
-    sessionId: 'fake-session-id',
-    async send(message: UserMessage): Promise<AgentResult> {
-      spec.recorded.sendCalls.push(message);
-      for (const e of spec.events) push(e);
-      if (spec.errorOnReject) {
-        close();
-        throw spec.errorOnReject;
-      }
-      if (spec.afterResolveEvents) {
-        setImmediate(() => {
-          for (const event of spec.afterResolveEvents!) push(event);
-          close();
-        });
-      } else {
-        close();
-      }
-      return spec.resultOnResolve ?? defaultAgentResult('fake-session-id');
-    },
+    observer: { required, onEvent: (event) => { events.push(event); }, onClose: () => { closed += 1; } },
     events,
-    async close(): Promise<void> {
-      spec.recorded.closed = true;
-      close();
-    },
-    kill(): boolean {
-      spec.recorded.killed = true;
-      close();
-      return true;
-    },
+    closes: () => closed,
   };
 }
 
-function makeFakeAdapter(backend: Backend, spec: FakeProcessSpec): AgentAdapter {
-  return {
-    backend,
-    capabilities: CAPABILITIES_BY_BACKEND[backend],
-    spawn(_spec: EngineSpec): AgentProcess {
-      return makeFakeProcess(spec);
-    },
-    async close(_key: string): Promise<void> {},
-    kill(_key: string): boolean { return false; },
-    listSessions(): string[] { return []; },
-  };
+function notices(events: RunEvent[]): Array<{ text: string; level?: string }> {
+  return events
+    .filter((event): event is Extract<RunEvent, { type: 'assistant_text' }> => event.type === 'assistant_text')
+    .map((event) => ({ text: event.text, level: event.noticeLevel }));
 }
 
-function defaultAgentResult(sessionId: string): AgentResult {
-  return {
-    sessionId,
-    total_cost_usd: 0,
-    num_turns: 1,
-    rateLimited: false,
-    rateLimitMessage: null,
-    planFilePath: null,
-    enteredPlanMode: false,
-    exitedPlanMode: false,
-    finalOutput: null,
-  };
+async function waitFor(check: () => boolean, ticks = 300): Promise<void> {
+  for (let i = 0; i < ticks; i += 1) {
+    if (check()) return;
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  assert.fail('condition never became true');
 }
 
-test('runWithAdapter: assistant_text / tool_use / turn_complete reach observers in order and AgentResult flows through', async () => {
-  const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
-  const result = defaultAgentResult('s-happy');
-  const adapter = makeFakeAdapter('claude', {
-    events: [
-      { type: 'assistant_text', text: 'hello' },
-      { type: 'tool_use', toolUseId: 't1', name: 'Bash', input: { command: 'ls' } },
-      { type: 'assistant_text', text: 'done' },
-      { type: 'turn_complete', numTurns: 2, totalCostUsd: 0.01 },
-    ],
-    resultOnResolve: result,
-    recorded,
-  });
-
-  const assistantMsgs: string[] = [];
-  const observed: NormalizedEvent[] = [];
-
-  const handle = runWithAdapter(
-    adapter,
-    'user msg',
-    {
-      channel: 'C1',
-      onAssistantMessage: (t: string) => assistantMsgs.push(t),
-      observers: [{ onEvent: (event) => observed.push(event) }],
-    },
-    { model: 'm', backend: 'claude', mode: null },
-    undefined,
-  );
-
-  const final = await handle.promise;
-
-  assert.deepEqual(assistantMsgs, ['hello', 'done'], 'assistant_text events preserve order');
-  assert.deepEqual(observed.map((event) => event.type),
-    ['assistant_text', 'tool_use', 'assistant_text', 'turn_complete']);
-  const toolUse = observed.find((event) => event.type === 'tool_use');
-  assert.equal(toolUse?.name, 'Bash');
-  assert.deepEqual(toolUse?.input, { command: 'ls' });
-  assert.equal(toolUse?.toolUseId, 't1', 'the correlation id is preserved');
-  assert.equal(final, result, 'handle.promise resolves with the exact AgentResult from send()');
-  assert.equal(recorded.sendCalls.length, 1);
-  assert.equal(recorded.closed, true, 'proc.close() called in the runWithAdapter finally block');
+afterEach(async () => {
+  for (const key of fixtures.engines.listKeys()) await fixtures.engines.close(key);
+  for (const child of spawnedChildren.splice(0)) child.emit('close', 0);
+  resetSettingsForTests();
 });
 
-test('runWithAdapter: context_usage reaches observers before the turn_complete marker', async () => {
-  const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
-  const adapter = makeFakeAdapter('pi', {
-    events: [
-      { type: 'context_usage', usedTokens: 60000, contextWindow: 200000, percent: 30, accuracy: 'estimate' },
-      { type: 'turn_complete', numTurns: 1, totalCostUsd: 0.01 },
-    ],
-    resultOnResolve: defaultAgentResult('s-context'),
-    recorded,
-  });
-  const seen: string[] = [];
+// ── event stream and result flow ─────────────────────────────────────────
 
-  await runWithAdapter(
-    adapter,
-    'msg',
-    {
-      channel: 'web:context',
-      observers: [{ onEvent: (event) => seen.push(event.type) }],
-    },
-    { model: 'm', backend: 'pi', mode: null },
-    undefined,
-  ).promise;
+test('attempt: the raw protocol events reach the tap in order and the foreground result flows through', async () => {
+  const scripts = [[
+    textLine('hello'),
+    toolUseLine('t1', 'Bash', { command: 'ls' }),
+    textLine('done'),
+    resultLine({ num_turns: 2, total_cost_usd: 0.01, session_id: 's-happy', result: 'done' }),
+  ]];
+  const { run, raw, children } = claudeAttempt({ promptText: 'user msg', sessionKey: 'happy' }, scripts, { background: 'none' });
 
-  assert.deepEqual(seen, ['context_usage', 'turn_complete']);
+  const foreground = await run.foreground;
+
+  const interesting = raw.filter((event) => ['assistant_text', 'tool_use', 'turn_complete'].includes(event.type));
+  assert.deepEqual(interesting.map((event) => event.type),
+    ['assistant_text', 'tool_use', 'assistant_text', 'turn_complete'],
+    'the foreground wire record preserves source order');
+  const toolUse = interesting.find((event) => event.type === 'tool_use') as Extract<NormalizedEvent, { type: 'tool_use' }>;
+  assert.equal(toolUse.name, 'Bash');
+  assert.deepEqual(toolUse.input, { command: 'ls' });
+  assert.equal(toolUse.toolUseId, 't1', 'the correlation id is preserved');
+
+  assert.equal(foreground.finalOutput, 'done', 'the foreground result carries the backend result');
+  assert.equal(foreground.sessionId, 's-happy');
+  assert.equal(children[0].writes.length, 1, 'one prompt reached the child');
 });
 
-test('runWithAdapter: model fallback emits one warning and the turn continues', async (t) => {
+test('attempt: PI context_usage reaches the raw tap before the turn_complete marker', async () => {
+  fixtures.current = (await import('./agent-adapter/pi-fake-runtime.js')).makeFakeRuntimeFactory({ sessionId: 's-context' });
+  const { run, raw, runtime } = piAttempt({ promptText: 'msg', sessionKey: 'context', channel: 'web:context' }, { background: 'none' });
+  const live = await runtime;
+  await live.nextCall('prompt');
+  live.emitAgentStart();
+  (live.stats as unknown as { contextUsage: unknown }).contextUsage = { tokens: 60000, contextWindow: 200000, percent: 30 };
+  live.emitAgentEnd();
+
+  await run.foreground;
+
+  const seen = raw.filter((event) => event.type === 'context_usage' || event.type === 'turn_complete');
+  assert.deepEqual(seen.map((event) => event.type), ['context_usage', 'turn_complete']);
+});
+
+// ── run-level notices ────────────────────────────────────────────────────
+
+test('run: a backend model fallback emits one warning and the turn continues', async (t) => {
   const previousLocale = getLocale();
   t.onTestFinished(() => setLocale(previousLocale));
   setLocale('en');
 
-  const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
-  const adapter = makeFakeAdapter('claude', {
-    events: [
-      {
-        type: 'model_fallback',
-        originalModel: 'claude-fable-5[1m]', fallbackModel: 'claude-opus-4-8[1m]',
-      },
-      { type: 'assistant_text', text: 'continued' },
-      { type: 'turn_complete', numTurns: 1, totalCostUsd: null },
-    ],
-    resultOnResolve: defaultAgentResult('s-fallback'),
-    recorded,
-  });
-  const notices: Array<{ text: string; level?: string }> = [];
+  const scripts = [[
+    { type: 'system', subtype: 'model_refusal_fallback', originalModel: 'claude-fable-5[1m]', fallbackModel: 'claude-opus-4-8[1m]' },
+    textLine('continued'),
+    resultLine({ session_id: 's-fallback' }),
+  ]];
+  const children: any[] = [];
+  const request = runRequestFixture({
+    channel: 'web:session', sessionKey: 'fallback-notice',
+    processSpawner: (() => { const child = scriptedClaudeChild(scripts); children.push(child); return { process: child }; }) as never,
+  }, CLAUDE);
+  const seen = collector();
+  const run = openRun(request, [seen.observer]);
 
-  const result = await runWithAdapter(
-    adapter,
-    'msg',
-    {
-      channel: 'web:session',
-      onAssistantMessage: (text: string, _blockId?: string, level?: string) => notices.push({ text, level }),
-    },
-    { model: 'claude-fable-5', backend: 'claude', mode: null },
-    undefined,
-  ).promise;
-
+  const result = await run.settled;
   assert.equal(result.sessionId, 's-fallback');
-  assert.deepEqual(notices, [
+  assert.deepEqual(notices(seen.events), [
     { text: 'Model fallback: claude-fable-5[1m] → claude-opus-4-8[1m].', level: 'warning' },
     { text: 'continued', level: undefined },
   ]);
 });
 
-test('runWithAdapter: context compaction emits one concise info notice', async (t) => {
+test('run: context compaction emits one concise info notice', async (t) => {
   const previousFlag = process.env.CORTEX_NOTIFY_COMPACTION;
   const previousLocale = getLocale();
   t.onTestFinished(() => {
@@ -239,94 +337,61 @@ test('runWithAdapter: context compaction emits one concise info notice', async (
   resetSettingsForTests();
   setLocale('en');
 
-  const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
-  const adapter = makeFakeAdapter('claude', {
-    events: [
-      { type: 'context_compacted', trigger: 'overflow', preTokens: 48000 },
-      { type: 'turn_complete', numTurns: 1, totalCostUsd: null },
-    ],
-    resultOnResolve: defaultAgentResult('s-compact'),
-    recorded,
-  });
-  const notices: Array<{ text: string; level?: string }> = [];
+  const scripts = [[
+    { type: 'system', subtype: 'compact_boundary', compact_metadata: { trigger: 'overflow', pre_tokens: 48000 } },
+    resultLine({ session_id: 's-compact' }),
+  ]];
+  const request = runRequestFixture({
+    channel: 'C1', sessionKey: 'compact-notice',
+    processSpawner: (() => ({ process: scriptedClaudeChild(scripts) })) as never,
+  }, CLAUDE);
+  const seen = collector();
+  const run = openRun(request, [seen.observer]);
+  await run.settled;
 
-  await runWithAdapter(
-    adapter,
-    'msg',
-    {
-      channel: 'C1',
-      onAssistantMessage: (text: string, _blockId?: string, level?: string) => notices.push({ text, level }),
-    },
-    { model: 'm', backend: 'claude', mode: null },
-    undefined,
-  ).promise;
-
-  assert.deepEqual(notices, [{ text: 'Context auto-compacted.', level: 'info' }]);
+  assert.deepEqual(notices(seen.events), [{ text: 'Context auto-compacted.', level: 'info' }]);
 });
 
-test('runWithAdapter: a leading API Error becomes an error notice without reclassifying prose', async () => {
-  const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
-  const adapter = makeFakeAdapter('claude', {
-    events: [
-      { type: 'assistant_text', text: 'API Error: Unable to connect to API (ECONNRESET)' },
-      { type: 'assistant_text', text: 'The log mentions API Error: timeout.' },
-      { type: 'turn_complete', numTurns: 1, totalCostUsd: null },
-    ],
-    resultOnResolve: defaultAgentResult('s-api-error'),
-    recorded,
-  });
-  const notices: Array<{ text: string; level?: string }> = [];
+test('run: a leading API Error becomes an error notice without reclassifying prose', async () => {
+  const scripts = [[
+    textLine('API Error: Unable to connect to API (ECONNRESET)'),
+    textLine('The log mentions API Error: timeout.'),
+    resultLine({ session_id: 's-api-error' }),
+  ]];
+  const request = runRequestFixture({
+    channel: 'web:session', sessionKey: 'api-error-notice',
+    processSpawner: (() => ({ process: scriptedClaudeChild(scripts) })) as never,
+  }, CLAUDE);
+  const seen = collector();
+  const run = openRun(request, [seen.observer]);
+  await run.settled;
 
-  await runWithAdapter(
-    adapter,
-    'msg',
-    {
-      channel: 'web:session',
-      onAssistantMessage: (text: string, _blockId?: string, level?: string) => notices.push({ text, level }),
-    },
-    { model: 'm', backend: 'claude', mode: null },
-    undefined,
-  ).promise;
-
-  assert.deepEqual(notices, [
+  assert.deepEqual(notices(seen.events), [
     { text: 'API Error: Unable to connect to API (ECONNRESET)', level: 'error' },
     { text: 'The log mentions API Error: timeout.', level: undefined },
   ]);
 });
 
-test('runWithAdapter: changed backend identity on resume emits one warning, same/fresh starts emit none', async (t) => {
+test('run: changed PI identity on resume emits one warning, same/fresh starts emit none', async (t) => {
   const previousLocale = getLocale();
   t.onTestFinished(() => setLocale(previousLocale));
   setLocale('en');
+  const { makeFakeRuntimeFactory } = await import('./agent-adapter/pi-fake-runtime.js');
 
-  const collect = async (
-    requestedSessionId: string | null,
-    startedSessionId: string,
-    channel = 'web:session',
-  ) => {
-    const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
-    const adapter = makeFakeAdapter('pi', {
-      events: [
-        { type: 'session_started', sessionId: startedSessionId },
-        { type: 'turn_complete', numTurns: 1, totalCostUsd: null },
-      ],
-      resultOnResolve: defaultAgentResult(startedSessionId),
-      recorded,
-    });
-    const notices: Array<{ text: string; level?: string }> = [];
-
-    await runWithAdapter(
-      adapter,
-      'msg',
-      {
-        channel,
-        sessionId: requestedSessionId,
-        onAssistantMessage: (text: string, _blockId?: string, level?: string) => notices.push({ text, level }),
-      },
-      { model: 'm', backend: 'pi', mode: null },
-      undefined,
-    ).promise;
-    return notices;
+  const collect = async (requestedSessionId: string | null, startedSessionId: string, channel = 'web:session') => {
+    fixtures.current = makeFakeRuntimeFactory({ sessionId: startedSessionId });
+    const request = runRequestFixture({
+      channel, sessionKey: `reset-${startedSessionId}-${requestedSessionId ?? 'fresh'}`,
+      ...(requestedSessionId ? { sessionId: requestedSessionId } : {}),
+    }, PI);
+    const seen = collector();
+    const run = openRun(request, [seen.observer]);
+    const runtime = await fixtures.current.runtime(0);
+    await runtime.nextCall('prompt');
+    runtime.emitAgentStart();
+    runtime.emitAgentEnd();
+    await run.settled;
+    return notices(seen.events);
   };
 
   assert.deepEqual(await collect('backend-old', 'backend-new'), [{
@@ -338,219 +403,324 @@ test('runWithAdapter: changed backend identity on resume emits one warning, same
   assert.deepEqual(await collect('backend-old', 'backend-new', 'slack:C1'), []);
 });
 
-test('runWithAdapter: tool_result preserves full multiline content, error status, and correlation id', async () => {
-  const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
-  const adapter = makeFakeAdapter('claude', {
-    events: [
-      { type: 'tool_use', toolUseId: 'toolu-result', name: 'Read', input: { file_path: '/secret/full.ts' } },
-      { type: 'tool_result', toolUseId: 'toolu-result', content: 'first line\nsecond line\nthird line', ok: false },
-      { type: 'turn_complete', numTurns: 1, totalCostUsd: null },
-    ],
-    resultOnResolve: defaultAgentResult('s-result'),
-    recorded,
-  });
-  const seen: any[] = [];
+// ── tool events, FIFO and deltas ─────────────────────────────────────────
 
-  await runWithAdapter(
-    adapter,
-    'msg',
-    {
-      channel: 'C1',
-      observers: [{ onEvent: (event) => {
-        if (event.type === 'tool_result') {
-          seen.push({ toolUseId: event.toolUseId, content: event.content, isError: !event.ok });
-        }
-      } }],
-    },
-    { model: 'm', backend: 'claude', mode: null },
-    undefined,
-  ).promise;
+test('attempt: tool_result preserves full multiline content, error status, and correlation id', async () => {
+  const scripts = [[
+    toolUseLine('toolu-result', 'Read', { file_path: '/secret/full.ts' }),
+    toolResultLine('toolu-result', 'first line\nsecond line\nthird line', true),
+    resultLine({ session_id: 's-result' }),
+  ]];
+  const { run, events } = claudeAttempt({ sessionKey: 'tool-result' }, scripts, { background: 'none' });
+  await run.foreground;
 
-  assert.deepEqual(seen, [{ toolUseId: 'toolu-result', content: 'first line\nsecond line\nthird line', isError: true }]);
+  const toolResults = events.filter((event) => event.type === 'tool_result');
+  assert.deepEqual(toolResults, [{
+    type: 'tool_result', toolUseId: 'toolu-result', ok: false,
+    content: 'first line\nsecond line\nthird line', phase: 'foreground',
+  }]);
 });
 
-test('runWithAdapter: tool_use → assistant_text reaches observers in FIFO order', async () => {
-  const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
-  const adapter = makeFakeAdapter('claude', {
-    events: [
-      { type: 'tool_use', toolUseId: 't1', name: 'Read', input: { file_path: '/a' } },
-      { type: 'assistant_text', text: 'after tool' },
-      { type: 'turn_complete', numTurns: 1, totalCostUsd: null },
-    ],
-    resultOnResolve: defaultAgentResult('s-fifo'),
-    recorded,
-  });
+test('attempt: tool_use → assistant_text reaches the stream in FIFO order', async () => {
+  const scripts = [[
+    toolUseLine('t1', 'Read', { file_path: '/a' }),
+    textLine('after tool'),
+    resultLine({ session_id: 's-fifo' }),
+  ]];
+  const { run, events } = claudeAttempt({ sessionKey: 'fifo' }, scripts, { background: 'none' });
+  await run.foreground;
 
-  const log: string[] = [];
-  const handle = runWithAdapter(
-    adapter,
-    'm',
-    {
-      channel: 'C1',
-      observers: [{ onEvent: (event) => {
-        if (event.type === 'tool_use') log.push(`tool:${event.name}`);
-        if (event.type === 'assistant_text') log.push(`text:${event.text}`);
-      } }],
-    },
-    { model: 'm', backend: 'claude', mode: null },
-    undefined,
-  );
-  await handle.promise;
-
-  assert.deepEqual(log, ['tool:Read', 'text:after tool'], 'FIFO: tool event fires before subsequent text');
+  const log = events
+    .filter((event) => event.type === 'tool_use' || event.type === 'assistant_text')
+    .map((event) => event.type === 'tool_use' ? `tool:${event.name}` : `text:${event.text}`);
+  assert.deepEqual(log, ['tool:Read', 'text:after tool'], 'FIFO: the tool event fires before later text');
 });
 
-test('runWithAdapter: observers synchronously receive the complete source stream including post-completion events', async () => {
-  const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
-  const initial: NormalizedEvent[] = [
-    { type: 'session_started', sessionId: 's-observed' },
-    { type: 'assistant_text', text: 'before completion', model: 'claude-reported-fixture' },
-    { type: 'turn_complete', numTurns: 1, totalCostUsd: 0.01 },
-  ];
-  const tail: NormalizedEvent[] = [
-    { type: 'tool_use', toolUseId: 'late', name: 'Read', input: { file_path: '/late' } }];
-  const source = [...initial, ...tail];
-  const adapter = makeFakeAdapter('claude', {
-    events: initial, afterResolveEvents: tail,
-    resultOnResolve: defaultAgentResult('s-observed'), recorded,
-  });
-  const observed: NormalizedEvent[] = [];
-  let closed = 0;
-  let notices = 0;
-  await runWithAdapter(adapter, 'msg', {
-    observers: [{
-      onEvent: (event) => { observed.push(event); },
-      onClose: () => { closed += 1; },
-    }],
-    onAssistantMessage: () => { notices += 1; },
-  }, { model: 'm', backend: 'claude', mode: null }, undefined).promise;
+test('attempt: deltas reach the stream before the complete assistant_text and stay separate from prose', async () => {
+  const scripts = [[
+    { type: 'stream_event', event: { type: 'message_start', message: { id: 'msg_A', type: 'message', role: 'assistant', content: [] } } },
+    { type: 'stream_event', event: { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } } },
+    { type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Tea ' } } },
+    { type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'is a leaf.' } } },
+    textLine('Tea is a leaf.'),
+    resultLine({ session_id: 's-delta' }),
+  ]];
+  const { run, events } = claudeAttempt({ sessionKey: 'deltas', channel: 'web:abc' }, scripts, { background: 'none' });
+  await run.foreground;
 
-  assert.deepEqual(observed, source, 'observers see the full source stream, tail included');
-  assert.equal(notices, 1, 'the facade still classifies the in-turn assistant prose');
-  assert.equal(closed, 1);
-});
-test('runWithAdapter: a throwing legacy callback cannot truncate observer delivery', async () => {
-  const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
-  const seen: string[] = [];
-  const events: NormalizedEvent[] = [
-    { type: 'assistant_text', text: 'legacy throws' },
-    { type: 'turn_complete', numTurns: 1, totalCostUsd: null },
-    { type: 'error', message: 'tail', fatal: false }];
-  await runWithAdapter(makeFakeAdapter('claude', { events, recorded }), 'msg', {
-    observers: [{ onEvent: (event) => seen.push(event.type) }],
-    onAssistantMessage: () => { throw new Error('legacy callback failed'); },
-  }, { model: 'm', backend: 'claude', mode: null }, undefined).promise;
-  assert.deepEqual(seen, events.map((event) => event.type));
+  const order: string[] = [];
+  const deltas: Array<[string, string]> = [];
+  const finals: Array<[string, string | undefined]> = [];
+  for (const event of events) {
+    if (event.type === 'assistant_delta') { deltas.push([event.text, event.blockId]); order.push('delta'); }
+    if (event.type === 'assistant_text') { finals.push([event.text, event.blockId]); order.push('final'); }
+  }
+
+  assert.deepEqual(deltas, [['Tea ', 'msg_A:0'], ['is a leaf.', 'msg_A:0']]);
+  assert.deepEqual(finals, [['Tea is a leaf.', 'msg_A:0']], 'the complete message carries the streamed blockId');
+  assert.deepEqual(order, ['delta', 'delta', 'final'], 'deltas precede the authoritative message');
 });
 
-test('runWithAdapter: throwing diagnostics observers are logged without breaking other observers', async (t) => {
-  const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
-  const source: NormalizedEvent[] = [
-    { type: 'assistant_text', text: 'ok' },
-    { type: 'turn_complete', numTurns: 1, totalCostUsd: null }];
-  const seen: string[] = [], warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-  t.onTestFinished(() => warn.mockRestore());
-  const result = await runWithAdapter(makeFakeAdapter('claude', {
-    events: source, resultOnResolve: defaultAgentResult('s-diagnostics'), recorded,
-  }), 'msg', { observers: [
+test('attempt: with no delta consumer, partial text never appears as assistant_text', async () => {
+  // The stream carries `assistant_delta`; the surface decides whether to render it. What must hold
+  // is that a delta is never promoted to a complete `assistant_text` (the Slack/Feishu guarantee).
+  const scripts = [[
+    { type: 'stream_event', event: { type: 'message_start', message: { id: 'msg_A', type: 'message', role: 'assistant', content: [] } } },
+    { type: 'stream_event', event: { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } } },
+    { type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'par' } } },
+    { type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'tial' } } },
+    textLine('partial'),
+    resultLine({ session_id: 's-nodelta' }),
+  ]];
+  const { run, events } = claudeAttempt({ sessionKey: 'no-delta', channel: 'C1' }, scripts, { background: 'none' });
+  await run.foreground;
+
+  const texts = events.filter((event) => event.type === 'assistant_text').map((event) => event.text);
+  assert.deepEqual(texts, ['partial'], 'exactly one complete message, no partial text');
+});
+
+// ── observer safety ──────────────────────────────────────────────────────
+
+test('run: a throwing observer cannot truncate delivery to a later observer', async () => {
+  const scripts = [[
+    textLine('ok'),
+    resultLine({ session_id: 's-observed' }),
+  ]];
+  const request = runRequestFixture({
+    sessionKey: 'observer-throws',
+    processSpawner: (() => ({ process: scriptedClaudeChild(scripts) })) as never,
+  }, CLAUDE);
+  const seen = collector();
+  const throwing: RunObserver = { onEvent: () => { throw new Error('legacy callback failed'); } };
+  const run = openRun(request, [throwing, seen.observer]);
+
+  await run.settled;
+  assert.ok(seen.events.some((event) => event.type === 'assistant_text' && event.text === 'ok'),
+    'the second observer still received the prose');
+  assert.equal(seen.closes(), 1);
+});
+
+test('run: throwing diagnostics observers are logged without breaking other observers', async () => {
+  const scripts = [[
+    textLine('ok'),
+    resultLine({ session_id: 's-diagnostics' }),
+  ]];
+  const request = runRequestFixture({
+    sessionKey: 'observer-diagnostics',
+    processSpawner: (() => ({ process: scriptedClaudeChild(scripts) })) as never,
+  }, CLAUDE);
+  const seen = collector();
+  const run = openRun(request, [
     { onEvent: () => { throw new Error('diagnostics failed'); } },
-    { onEvent: (event) => seen.push(event.type) },
-  ] }, { model: 'm', backend: 'claude', mode: null }, undefined).promise;
+    seen.observer,
+  ]);
+
+  const result = await run.settled;
   assert.equal(result.sessionId, 's-diagnostics');
-  assert.deepEqual(seen, source.map((event) => event.type));
-  assert.ok(warn.mock.calls.some((call) => call.some((value) => String(value).includes('diagnostics failed'))));
+  assert.equal(run.status, 'completed');
+  assert.deepEqual(seen.events.map((event) => event.type),
+    ['engine_started', 'assistant_text', 'turn_progress', 'cost_record', 'foreground_result', 'phase']);
 });
 
-test.each(['write', 'close'] as const)('runWithAdapter: required sink %s failure kills and rejects the run', async (failure) => {
-  const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
-  const sink = {
-    onEvent: () => { if (failure === 'write') throw new Error('sink write failed'); },
-    onClose: async () => { if (failure === 'close') throw new Error('sink close failed'); },
+test('run: a required observer write failure kills the engine and rejects the run', async () => {
+  const scripts = [[
+    textLine('partial'),
+    resultLine({ session_id: 's-required' }),
+  ]];
+  const children: any[] = [];
+  const request = runRequestFixture({
+    sessionKey: 'required-write',
+    processSpawner: (() => { const child = scriptedClaudeChild(scripts); children.push(child); return { process: child }; }) as never,
+  }, CLAUDE);
+  const sink: RunObserver = {
+    required: true,
+    onEvent: () => { throw new Error('sink write failed'); },
   };
+  const run = openRun(request, [sink]);
+  // `result`/`settled` are marked handled by the run; observe the settlement explicitly.
   let completed = false;
-  const promise = runWithAdapter(makeFakeAdapter('claude', {
-    events: [
-      { type: 'assistant_text', text: 'partial' },
-      { type: 'turn_complete', numTurns: 1, totalCostUsd: null },
-    ],
-    resultOnResolve: defaultAgentResult('s-required'), recorded,
-  }), 'msg', { requiredSinks: [sink] }, { model: 'm', backend: 'claude', mode: null }, undefined)
-    .promise.then((result) => { completed = true; return result; });
-  await assert.rejects(promise, (error: Error & { reason?: string }) =>
-    error.reason === 'trajectory_write_failed' && error.cause instanceof Error);
-  assert.equal(recorded.killed, true);
+  const promise = run.settled.then((result) => { completed = true; return result; });
+
+  await assert.rejects(promise, /sink write failed/);
   assert.equal(completed, false);
+  assert.equal(run.status, 'failed');
+  assert.equal(children[0].killed, true, 'the required-observer failure killed the engine');
 });
 
-test('runWithAdapter: rateLimited AgentResult passes through so runAgent outer fallback can retry', async () => {
-  const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
-  // Exact shape the outer runAgent loop (mode-manager.runAgent) expects; isRetryableResult reads rateLimited.
-  const rateLimitedResult: AgentResult = {
-    sessionId: 's-rate',
-    total_cost_usd: 0,
-    num_turns: 1,
-    rateLimited: true,
-    rateLimitMessage: 'rate limited',
-    planFilePath: null,
-    enteredPlanMode: false,
-    exitedPlanMode: false,
-    finalOutput: null,
+test('run: a required observer close failure cannot resurrect a finished run', async () => {
+  // The observer contract changed here: `onClose` runs after the run is terminal, so a failure in
+  // it is logged, not turned back into a failed run. (The old facade treated a required sink's
+  // close failure as fatal; the run layer intentionally does not.)
+  const scripts = [[textLine('done'), resultLine({ session_id: 's-required-close' })]];
+  const request = runRequestFixture({
+    sessionKey: 'required-close',
+    processSpawner: (() => ({ process: scriptedClaudeChild(scripts) })) as never,
+  }, CLAUDE);
+  const sink: RunObserver = {
+    required: true,
+    onEvent: () => {},
+    onClose: async () => { throw new Error('sink close failed'); },
   };
-  const adapter = makeFakeAdapter('claude', {
-    events: [
-      { type: 'rate_limit', raw: { message: 'rate limited' } },
-      { type: 'turn_complete', numTurns: 1, totalCostUsd: 0 },
-    ],
-    resultOnResolve: rateLimitedResult,
-    recorded,
-  });
+  const run = openRun(request, [sink]);
+  const result = await run.settled;
 
-  const handle = runWithAdapter(
-    adapter,
-    'msg',
-    { channel: 'C1' },
-    { model: 'm', backend: 'claude', mode: null },
-    undefined,
-  );
-  const result = await handle.promise;
+  assert.equal(result.sessionId, 's-required-close');
+  assert.equal(run.status, 'completed');
+});
+
+// ── terminal results ─────────────────────────────────────────────────────
+
+test('attempt: a rateLimited result passes through so the run fallback can retry', async () => {
+  const scripts = [[
+    { type: 'result', subtype: 'error', is_error: true, result: 'rate limit exceeded', num_turns: 1, total_cost_usd: 0, session_id: 's-rate' },
+  ]];
+  const { run } = claudeAttempt({ sessionKey: 'rate-limited' }, scripts, { background: 'none' });
+  const result = await run.foreground;
 
   assert.equal(result.rateLimited, true, 'rateLimited propagates to the resolved result');
-  assert.equal(result.rateLimitMessage, 'rate limited');
-  assert.equal(isRetryableResult(result), true, 'isRetryableResult matches the runAgent outer fallback trigger');
+  assert.equal(result.rateLimitMessage, 'rate limit exceeded');
+  assert.equal(isRetryableResult(result), true, 'isRetryableResult matches the run fallback trigger');
 });
 
-test('runWithAdapter: askUserQuestions on AgentResult survives through handle.promise', async () => {
-  const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
-  const result: AgentResult = {
-    ...defaultAgentResult('s-ask'),
-    askUserQuestions: [
-      { toolUseId: 'q-1', questions: ['Q1', 'Q2'] as any, sessionId: 's-ask' },
-    ],
-  };
-  const adapter = makeFakeAdapter('claude', {
-    events: [
-      { type: 'ask_user_question', toolUseId: 'q-1', questions: [{ question: 'Q1' }, { question: 'Q2' }] },
-      { type: 'turn_complete', numTurns: 1, totalCostUsd: null },
-    ],
-    resultOnResolve: result,
-    recorded,
-  });
+test('attempt: a PI dialog request round-trips through respondToDialog', async () => {
+  // The deleted facade surfaced `askUserQuestions` on the AgentResult; the engine seam carries the
+  // same information as a `dialog_request` RunEvent and answers it through `respondToDialog`.
+  const { makeFakeRuntimeFactory } = await import('./agent-adapter/pi-fake-runtime.js');
+  fixtures.current = makeFakeRuntimeFactory({ sessionId: 's-ask' });
+  const { run, events, runtime } = piAttempt({ promptText: 'msg', sessionKey: 'ask' }, { background: 'none' });
+  const live = await runtime;
+  await live.nextCall('prompt');
+  live.emitAgentStart();
+  live.emit({ type: 'extension_ui_request', id: 'q-1', method: 'select', title: 'Q1', options: ['A', 'B'] });
+  live.emitAgentEnd();
 
-  const handle = runWithAdapter(
-    adapter,
-    'msg',
-    { channel: 'C1' },
-    { model: 'm', backend: 'claude', mode: null },
-    undefined,
+  await run.foreground;
+
+  const dialog = events.find((event) => event.type === 'dialog_request');
+  assert.ok(dialog && dialog.type === 'dialog_request', 'the dialog request reached the run stream');
+  assert.equal(dialog.dialogId, 'q-1');
+  assert.equal(run.engine.respondToDialog('q-1', { value: 'A' }), true, 'the attempt forwards the answer to the engine');
+  assert.deepEqual(live.uiResponses, [{ id: 'q-1', payload: { value: 'A' } }]);
+});
+
+test('attempt: a fatal backend error rejects the attempt', async () => {
+  const scripts = [[
+    textLine('partial'),
+    { type: 'result', subtype: 'error', is_error: true, result: 'fatal boom', session_id: 's-fatal' },
+  ]];
+  const { run, children } = claudeAttempt({ sessionKey: 'fatal' }, scripts, { background: 'none' });
+
+  await assert.rejects(run.foreground, /fatal boom/);
+  assert.equal(children[0].killed, false, 'a backend error does not itself kill the pooled session');
+});
+
+test('attempt: kill() forwards to the engine session', async () => {
+  const scripts: unknown[][] = []; // no script: the turn stays open
+  const { run, children } = claudeAttempt({ sessionKey: 'kill' }, scripts, { background: 'hold' });
+  await waitFor(() => children.length === 1);
+
+  const killed = run.kill();
+  assert.equal(killed, true, 'kill() returns the engine kill result');
+  assert.equal(children[0].killed, true, 'the engine killed the Claude child');
+});
+
+// ── background phase: hold / inline / none ───────────────────────────────
+
+test('attempt: an inline continuation merges cost, output and turns into settled', async () => {
+  const { run, events, children } = claudeAttempt(
+    { sessionKey: 'bg-inline' }, [FOREGROUND_BG], { background: 'inline' },
   );
-  const final = await handle.promise;
+  await waitFor(() => children.length === 1);
+  await waitFor(() => events.some((event) => event.type === 'foreground_result'));
+  children[0].emitLines(CONTINUATION);
 
-  assert.ok(Array.isArray(final.askUserQuestions), 'askUserQuestions array present on final result');
-  assert.equal(final.askUserQuestions!.length, 1);
-  assert.equal(final.askUserQuestions![0].toolUseId, 'q-1');
+  const settled = await run.settled;
+  assert.equal(settled.num_turns, 2, 'the whole run is reported, not one turn');
+  assert.equal(settled.finalOutput, 'task finished: DONE');
+  assert.equal((settled.total_cost_usd ?? 0), 0.25, 'the continuation cost is merged in');
+  const backgroundResult = events.find((event) => event.type === 'background_result');
+  assert.ok(backgroundResult && backgroundResult.type === 'background_result');
 });
 
-test('runWithAdapter: context_compacted notifies via onAssistantMessage only when CORTEX_NOTIFY_COMPACTION=1', async (t) => {
+test('attempt: a held background phase stays open until the continuation lands', async () => {
+  const { run, events, children } = claudeAttempt(
+    { sessionKey: 'bg-hold' },
+    [FOREGROUND_BG], { background: 'hold' },
+  );
+  await waitFor(() => children.length === 1);
+  await waitFor(() => events.some((event) => event.type === 'foreground_result'));
+
+  let settled = false;
+  void run.settled.then(() => { settled = true; }, () => { settled = true; });
+  for (let i = 0; i < 10; i += 1) await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(settled, false, 'the run holds while the background task runs');
+
+  children[0].emitLines(CONTINUATION);
+  const final = await run.settled;
+  const foreground = await run.foreground;
+
+  assert.equal(final.finalOutput, 'task finished: DONE');
+  // `settled` is the whole attempt; `foreground` is the turn the caller was waiting on.
+  assert.equal(foreground.finalOutput, 'started it', 'foreground carries only the waited-on turn');
+  assert.equal(foreground.total_cost_usd, 0.25, 'the continuation cost is not in the foreground result');
+  assert.deepEqual(
+    events.filter((event) => event.type === 'phase').map((event) => (event as Extract<RunEvent, { type: 'phase' }>).phase),
+    ['background', 'background', 'done'],
+  );
+  assert.deepEqual(events.at(-1), { type: 'phase', phase: 'done', pendingBackground: 0, undeliveredBackground: 0 });
+});
+
+test('attempt: the background phase emits its continuation cost_record before background_result', async () => {
+  const { run, events, children } = claudeAttempt(
+    { sessionKey: 'bg-accounting', project: 'bg-accounting-test', trigger: 'test' },
+    [FOREGROUND_BG], { background: 'inline' },
+  );
+  await waitFor(() => children.length === 1);
+  await waitFor(() => events.some((event) => event.type === 'foreground_result'));
+  children[0].emitLines(CONTINUATION);
+  await run.settled;
+
+  const foregroundCost = events.findIndex((event) => event.type === 'cost_record');
+  const foregroundResult = events.findIndex((event) => event.type === 'foreground_result');
+  const backgroundResult = events.findIndex((event) => event.type === 'background_result');
+  const costs = events
+    .map((event, index) => ({ event, index }))
+    .filter(({ event }) => event.type === 'cost_record')
+    .map(({ index }) => index);
+  assert.ok(foregroundCost < foregroundResult, 'the foreground cost lands before its result');
+  assert.ok(costs.some((index) => index > foregroundResult && index < backgroundResult),
+    'the continuation cost lands before its background_result');
+});
+
+test('attempt: awaitBackground none never waits for a background task', async () => {
+  const { run, events } = claudeAttempt({ sessionKey: 'bg-none' }, [FOREGROUND_BG], { background: 'none' });
+  await run.settled;
+
+  assert.equal(events.some((event) => event.type === 'background_result'), false);
+  assert.equal(
+    events.filter((event) => event.type === 'phase').some(
+      (event) => (event as Extract<RunEvent, { type: 'phase' }>).phase === 'background',
+    ),
+    false,
+    'no background phase is entered',
+  );
+});
+
+test('attempt: a hold publishes the foreground result while the background work continues', async () => {
+  const { run, events, children } = claudeAttempt({ sessionKey: 'bg-interactive', channel: 'slack:D1' }, [FOREGROUND_BG], { background: 'hold' });
+  await waitFor(() => events.some((event) => event.type === 'foreground_result'));
+
+  const foreground = events.find((event) => event.type === 'foreground_result') as Extract<RunEvent, { type: 'foreground_result' }>;
+  assert.equal(foreground.result.pendingBackgroundTasks, 1, 'the foreground result reports the outstanding task');
+
+  children[0].emitLines(CONTINUATION);
+  const settled = await run.settled;
+  assert.equal(settled.finalOutput, 'task finished: DONE');
+});
+
+// ── conditional compaction notice ────────────────────────────────────────
+
+test('run: context_compacted notifies only when CORTEX_NOTIFY_COMPACTION=1', async (t) => {
   const prev = process.env.CORTEX_NOTIFY_COMPACTION;
   t.onTestFinished(() => {
     if (prev === undefined) delete process.env.CORTEX_NOTIFY_COMPACTION;
@@ -558,335 +728,57 @@ test('runWithAdapter: context_compacted notifies via onAssistantMessage only whe
     resetSettingsForTests();
   });
 
-  const makeAdapter = () => makeFakeAdapter('claude', {
-    events: [
-      { type: 'context_compacted', trigger: 'auto', preTokens: 37418 },
-      { type: 'turn_complete', numTurns: 1, totalCostUsd: null },
-    ],
-    resultOnResolve: defaultAgentResult('s-compact'),
-    recorded: { sendCalls: [], killed: false, closed: false },
-  });
+  const script = [[
+    { type: 'system', subtype: 'compact_boundary', compact_metadata: { trigger: 'auto', pre_tokens: 37418 } },
+    resultLine({ session_id: 's-compact' }),
+  ]];
+  const request = () => runRequestFixture({
+    channel: 'C1', sessionKey: `compact-${Math.random().toString(36).slice(2)}`,
+    processSpawner: (() => ({ process: scriptedClaudeChild(script) })) as never,
+  }, CLAUDE);
 
   // OFF (env unset): no notification.
   delete process.env.CORTEX_NOTIFY_COMPACTION;
   resetSettingsForTests();
-  const offMsgs: string[] = [];
-  await runWithAdapter(
-    makeAdapter(), 'msg',
-    { channel: 'C1', onAssistantMessage: (m: string) => offMsgs.push(m) },
-    { model: 'm', backend: 'claude', mode: null }, undefined,
-  ).promise;
-  assert.deepEqual(offMsgs, [], 'no compaction notice when flag is off');
+  const off = collector();
+  await openRun(request(), [off.observer]).settled;
+  assert.deepEqual(notices(off.events), [], 'no compaction notice when the flag is off');
 
   // ON: exactly one concise notification; backend trigger/token details stay internal.
   process.env.CORTEX_NOTIFY_COMPACTION = '1';
   resetSettingsForTests();
-  const onMsgs: string[] = [];
-  await runWithAdapter(
-    makeAdapter(), 'msg',
-    { channel: 'C1', onAssistantMessage: (m: string) => onMsgs.push(m) },
-    { model: 'm', backend: 'claude', mode: null }, undefined,
-  ).promise;
-  assert.deepEqual(onMsgs, ['Context auto-compacted.']);
+  const on = collector();
+  await openRun(request(), [on.observer]).settled;
+  assert.deepEqual(notices(on.events), [{ text: 'Context auto-compacted.', level: 'info' }]);
 });
 
-interface SinkCapableSpec extends FakeProcessSpec {
-  sinks: any[];
-  replayOnRegister?: (sink: any) => void;
-}
+// ── cost persistence (attempt-level) ─────────────────────────────────────
 
-function makeSinkCapableAdapter(backend: Backend, spec: SinkCapableSpec): AgentAdapter {
-  return {
-    backend,
-    capabilities: CAPABILITIES_BY_BACKEND[backend],
-    spawn(_spec: EngineSpec): AgentProcess {
-      const proc = makeFakeProcess(spec) as AgentProcess & { setContinuationSink?: (s: any) => void };
-      proc.setContinuationSink = (sink: any) => {
-        spec.sinks.push(sink);
-        spec.replayOnRegister?.(sink);
-      };
-      return proc;
-    },
-    async close(_key: string): Promise<void> {},
-    kill(_key: string): boolean { return false; },
-    listSessions(): string[] { return []; },
-  };
-}
-
-test('runWithAdapter: thread turn with pending background task waits for the continuation and merges it', async () => {
-  const spec: SinkCapableSpec = {
-    events: [{ type: 'turn_complete', numTurns: 1, totalCostUsd: 0.01 }],
-    resultOnResolve: { ...defaultAgentResult('s-thr-bg'), total_cost_usd: 0.01, pendingBackgroundTasks: 1 },
-    recorded: { sendCalls: [], killed: false, closed: false },
-    sinks: [],
-  };
-  const adapter = makeSinkCapableAdapter('claude', spec);
-  const texts: string[] = [];
-  const observed: NormalizedEvent[] = [];
-
-  const handle = runWithAdapter(
-    adapter, 'msg',
-    {
-      channel: 'thread-x',
-      threadId: 'thr_abc',
-      onAssistantMessage: (t: string) => texts.push(t),
-      observers: [{ onEvent: (event) => observed.push(event) }],
-    },
-    { model: 'm', backend: 'claude', mode: null },
-    undefined,
-  );
-
-  let resolved = false;
-  void handle.promise.then(() => { resolved = true; });
-  // Give the turn plenty of ticks: it must still be waiting on the continuation.
-  for (let i = 0; i < 10; i++) await new Promise((r) => setImmediate(r));
-  assert.equal(resolved, false, 'thread turn held while the background task runs');
-  assert.equal(spec.sinks.length, 1, 'continuation sink registered on the process');
-
-  // Background task completes → spontaneous continuation turn ends.
-  spec.sinks[0].onToolResult('toolu-bg', 'complete background output', false);
-  spec.sinks[0].onAssistantText('bg result: PASS');
-  spec.sinks[0].onContextUsage({ usedTokens: 500, contextWindow: 1_000_000, percent: 0.05, accuracy: 'exact' });
-  spec.sinks[0].onResult({ ...defaultAgentResult('s-thr-bg'), total_cost_usd: 0.02, num_turns: 2, finalOutput: 'bg result: PASS', pendingBackgroundTasks: 0 });
-
-  const final = await handle.promise;
-  assert.ok(Math.abs((final.total_cost_usd ?? 0) - 0.03) < 1e-9, 'continuation cost merged into the step result');
-  assert.equal(final.finalOutput, 'bg result: PASS', 'continuation output becomes the step output');
-  assert.deepEqual(texts, ['bg result: PASS'], 'continuation text forwarded to the step stream');
-  assert.deepEqual(
-    observed.filter((event) => event.type === 'tool_result'),
-    [{ type: 'tool_result', toolUseId: 'toolu-bg', ok: true, content: 'complete background output' }],
-    'continuation tool results reach the run observers',
-  );
-  assert.deepEqual(
-    observed.filter((event) => event.type === 'context_usage').map((event) => (event as { contextWindow: number }).contextWindow),
-    [1_000_000],
-    'continuation context usage reaches the run observers',
-  );
-});
-
-test('runWithAdapter: awaitBackground true waits without a threadId', async () => {
-  const spec: SinkCapableSpec = {
-    events: [{ type: 'turn_complete', numTurns: 1, totalCostUsd: 0.01 }],
-    resultOnResolve: { ...defaultAgentResult('s-explicit-bg'), pendingBackgroundTasks: 1 },
-    recorded: { sendCalls: [], killed: false, closed: false }, sinks: [],
-  };
-  const observed: NormalizedEvent[] = [];
-  let sinkClosed = 0;
-  const handle = runWithAdapter(makeSinkCapableAdapter('claude', spec), 'msg', {
-    awaitBackground: true,
-    requiredSinks: [{
-      onEvent: (event) => observed.push(event),
-      onClose: () => { sinkClosed += 1; },
-    }],
-  }, { model: 'm', backend: 'claude', mode: null }, undefined);
-  let resolved = false;
-  void handle.promise.then(() => { resolved = true; });
-  for (let i = 0; i < 5; i++) await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(resolved, false);
-  assert.equal(sinkClosed, 0, 'required sink stays open while background work is pending');
-  spec.sinks[0].onAssistantText('background text', 'claude-background-model');
-  spec.sinks[0].onResult({ ...defaultAgentResult('s-explicit-bg'), pendingBackgroundTasks: 0 });
-  await handle.promise;
-  assert.deepEqual(observed, [
-    { type: 'turn_complete', numTurns: 1, totalCostUsd: 0.01 },
-    { type: 'assistant_text', text: 'background text', model: 'claude-background-model' },
-    { type: 'turn_complete', numTurns: 1, totalCostUsd: 0 },
-  ]);
-  assert.equal(sinkClosed, 1);
-});
-
-test('runWithAdapter: synchronous continuation replay follows the foreground terminal event', async () => {
-  const observed: NormalizedEvent[] = [];
-  const spec: SinkCapableSpec = {
-    events: [
-      {
-        type: 'cost_record', provider: 'anthropic', model: 'foreground',
-        tokens_in: 8, tokens_out: 3, prompt_tokens: 8, cached_tokens: 0,
-        input_tokens: 8, output_tokens: 3, cache_read_tokens: 0,
-        cache_creation_tokens: 0, provider_requests: 1, cost_usd: 0.2,
-      },
-      { type: 'turn_complete', numTurns: 1, totalCostUsd: 0.2 },
-    ],
-    resultOnResolve: {
-      ...defaultAgentResult('s-ordered-bg'), total_cost_usd: 0.2, pendingBackgroundTasks: 1,
-    },
-    recorded: { sendCalls: [], killed: false, closed: false },
-    sinks: [],
-    replayOnRegister: (sink) => {
-      sink.onAssistantText('buffered continuation', 'continuation');
-      sink.onResult({
-        ...defaultAgentResult('s-ordered-bg'), total_cost_usd: 0.1,
-        reportedAccounting: {
-          usageReported: true, inputTokens: 4, outputTokens: 2,
-          cacheReadTokens: 3, cacheCreationTokens: 0,
-          promptTokens: 7, cachedTokens: 3, model: 'continuation',
-        },
-        pendingBackgroundTasks: 0,
-      });
-    },
-  };
-
-  await runWithAdapter(makeSinkCapableAdapter('claude', spec), 'msg', {
-    awaitBackground: true, project: 'bg-accounting-test', trigger: 'test',
-    requiredSinks: [{ onEvent: (event) => observed.push(event) }],
-  }, { model: 'm', backend: 'claude', mode: null }, undefined).promise;
-
-  assert.deepEqual(observed.map(event => event.type), [
-    'cost_record', 'turn_complete', 'assistant_text', 'cost_record', 'turn_complete',
-  ]);
-  assert.deepEqual(observed.at(-2), {
-    type: 'cost_record', provider: 'anthropic', model: 'continuation',
-    tokens_in: 7, tokens_out: 2, prompt_tokens: 7, cached_tokens: 3,
-    input_tokens: 4, output_tokens: 2, cache_read_tokens: 3,
-    cache_creation_tokens: 0, provider_requests: 1, cost_usd: 0.1,
+test('attempt: the foreground cost_record is persisted under the attempt attribution', async (t) => {
+  const costsFile = pathJoin(tmpdir(), `run-with-adapter-costs-${process.pid}.json`);
+  const original = process.env['CORTEX_COSTS_FILE'];
+  t.onTestFinished(() => {
+    if (original === undefined) delete process.env['CORTEX_COSTS_FILE'];
+    else process.env['CORTEX_COSTS_FILE'] = original;
+    if (existsSync(costsFile)) unlinkSync(costsFile);
+    costRepo._testReset();
   });
+  process.env['CORTEX_COSTS_FILE'] = costsFile;
+  costRepo._testReset();
+
+  const scripts = [[
+    textLine('foreground'),
+    resultLine({ total_cost_usd: 0.2, session_id: 's-ordered-bg' }),
+  ]];
+  const { run } = claudeAttempt(
+    { sessionKey: 'cost-persist', model: 'foreground-model', project: 'bg-accounting-test', trigger: 'test' },
+    scripts, { background: 'none' },
+  );
+  await run.foreground;
   await costRepo.flush();
-  const persisted = (await costRepo.readCosts()).entries
-    .filter(entry => entry.project === 'bg-accounting-test');
-  assert.deepEqual(persisted.map(entry => entry.model), ['foreground', 'continuation']);
-});
 
-test('runWithAdapter: awaitBackground false never waits for a thread turn', async () => {
-  const spec: SinkCapableSpec = {
-    events: [{ type: 'turn_complete', numTurns: 1, totalCostUsd: null }],
-    resultOnResolve: { ...defaultAgentResult('s-no-bg'), pendingBackgroundTasks: 1 },
-    recorded: { sendCalls: [], killed: false, closed: false }, sinks: [],
-  };
-  await runWithAdapter(makeSinkCapableAdapter('claude', spec), 'msg',
-    { threadId: 'thr_no_wait', awaitBackground: false },
-    { model: 'm', backend: 'claude', mode: null }, undefined).promise;
-  assert.equal(spec.sinks.length, 0);
-});
-
-test('runWithAdapter: interactive turn (no threadId) with pending background task resolves immediately', async () => {
-  const spec: SinkCapableSpec = {
-    events: [{ type: 'turn_complete', numTurns: 1, totalCostUsd: 0.01 }],
-    resultOnResolve: { ...defaultAgentResult('s-int-bg'), pendingBackgroundTasks: 1 },
-    recorded: { sendCalls: [], killed: false, closed: false },
-    sinks: [],
-  };
-  const adapter = makeSinkCapableAdapter('claude', spec);
-
-  const final = await runWithAdapter(
-    adapter, 'msg',
-    { channel: 'slack:D1' },
-    { model: 'm', backend: 'claude', mode: null },
-    undefined,
-  ).promise;
-
-  assert.equal(final.pendingBackgroundTasks, 1, 'interactive path returns immediately (lifecycle holds the status instead)');
-  assert.equal(spec.sinks.length, 0, 'no inline sink for interactive turns');
-});
-
-test('runWithAdapter: fatal error from send() rejects handle.promise', async () => {
-  const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
-  const err = new Error('fatal boom');
-  const adapter = makeFakeAdapter('claude', {
-    events: [
-      { type: 'assistant_text', text: 'partial' },
-      { type: 'error', message: 'fatal boom', fatal: true },
-    ],
-    errorOnReject: err,
-    recorded,
-  });
-
-  const handle = runWithAdapter(
-    adapter,
-    'msg',
-    { channel: 'C1' },
-    { model: 'm', backend: 'claude', mode: null },
-    undefined,
-  );
-  await assert.rejects(handle.promise, /fatal boom/);
-  assert.equal(recorded.closed, true, 'proc.close() still runs in the finally block on rejection');
-});
-
-test('runWithAdapter: handle.kill() forwards to adapter process.kill()', async () => {
-  const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
-  const cancelled = Object.assign(new Error('Cancelled by user'), { cancelled: true });
-  const adapter = makeFakeAdapter('claude', {
-    events: [],
-    errorOnReject: cancelled,
-    recorded,
-  });
-
-  const handle = runWithAdapter(
-    adapter,
-    'msg',
-    { channel: 'C1' },
-    { model: 'm', backend: 'claude', mode: null },
-    undefined,
-  );
-  const killed = handle.kill();
-  assert.equal(killed, true, 'kill() returns the adapter.kill() result');
-  assert.equal(recorded.killed, true, 'proc.kill() was invoked on the adapter process');
-  // Do not await handle.promise here — errorOnReject already sealed rejection; the test below
-  // catches it explicitly via assert.rejects.
-  await assert.rejects(handle.promise, /Cancelled by user/);
-});
-
-test('runWithAdapter: assistant_delta events reach observers before the complete assistant_text', async () => {
-  const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
-  const adapter = makeFakeAdapter('claude', {
-    events: [
-      { type: 'assistant_delta', text: 'Tea ', blockId: 'msg_A:1' },
-      { type: 'assistant_delta', text: 'is a leaf.', blockId: 'msg_A:1' },
-      { type: 'assistant_text', text: 'Tea is a leaf.', blockId: 'msg_A:1' },
-      { type: 'turn_complete', numTurns: 1, totalCostUsd: null },
-    ],
-    resultOnResolve: defaultAgentResult('s-delta'),
-    recorded,
-  });
-
-  const order: string[] = [];
-  const deltas: Array<[string, string]> = [];
-  const finals: Array<[string, string | undefined]> = [];
-
-  const handle = runWithAdapter(
-    adapter,
-    'msg',
-    {
-      channel: 'web:abc',
-      onAssistantMessage: (text: string, blockId?: string) => { finals.push([text, blockId]); order.push('final'); },
-      observers: [{ onEvent: (event) => {
-        if (event.type === 'assistant_delta') { deltas.push([event.text, event.blockId]); order.push('delta'); }
-      } }],
-    },
-    { model: 'm', backend: 'claude', mode: null },
-    undefined,
-  );
-  await handle.promise;
-
-  assert.deepEqual(deltas, [['Tea ', 'msg_A:1'], ['is a leaf.', 'msg_A:1']]);
-  assert.deepEqual(finals, [['Tea is a leaf.', 'msg_A:1']], 'the complete message carries the same blockId');
-  assert.deepEqual(order, ['delta', 'delta', 'final'], 'deltas precede the authoritative message');
-});
-
-test('runWithAdapter: with no onAssistantDelta, deltas are dropped and never reach onAssistantMessage', async () => {
-  // This is the Slack / Feishu / Ink-TUI guarantee: those paths pass no delta callback, so no
-  // partial text can ever reach OutputStream through the assistant-message seam.
-  const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
-  const adapter = makeFakeAdapter('claude', {
-    events: [
-      { type: 'assistant_delta', text: 'par', blockId: 'msg_A:0' },
-      { type: 'assistant_delta', text: 'tial', blockId: 'msg_A:0' },
-      { type: 'assistant_text', text: 'partial', blockId: 'msg_A:0' },
-      { type: 'turn_complete', numTurns: 1, totalCostUsd: null },
-    ],
-    resultOnResolve: defaultAgentResult('s-nodelta'),
-    recorded,
-  });
-
-  const msgs: string[] = [];
-  const handle = runWithAdapter(
-    adapter,
-    'msg',
-    { channel: 'C1', onAssistantMessage: (t: string) => msgs.push(t) },
-    { model: 'm', backend: 'claude', mode: null },
-    undefined,
-  );
-  await handle.promise;
-
-  assert.deepEqual(msgs, ['partial'], 'exactly one complete message, no partial text');
+  const rows = readFileSync(costsFile, 'utf8').trim().split('\n').filter(Boolean).map((line) => JSON.parse(line));
+  assert.equal(rows.length, 1, 'the attempt bills only the foreground turn it started');
+  assert.equal(rows[0].project, 'bg-accounting-test');
+  assert.equal(rows[0].model, 'foreground-model');
 });

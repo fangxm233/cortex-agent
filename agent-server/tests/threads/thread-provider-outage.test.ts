@@ -1,4 +1,4 @@
-// input:  thread runner, throttle, resume dispatcher
+// input:  thread runner (startAttempt seam), throttle, resume dispatcher
 // output: outage pause, backoff, cap, rerun, and session-reuse tests
 // pos:    Tests thrown outages rerun the interrupted step
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -8,12 +8,12 @@ import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-const agent = vi.hoisted(() => ({ runAgent: vi.fn() }));
+const attempt = vi.hoisted(() => ({ startAttempt: vi.fn() }));
 
-// startRun reaches the facade directly (runAgent is no longer exported by the agents barrel).
-vi.mock('@domain/agents/facade.js', async (importOriginal) => {
+// The run layer is the spawn seam now: intercept startAttempt, not the retired agent facade.
+vi.mock('@domain/runs/attempt.js', async (importOriginal) => {
   const original = await importOriginal<Record<string, unknown>>();
-  return { ...original, runAgent: agent.runAgent };
+  return { ...original, startAttempt: attempt.startAttempt };
 });
 
 vi.mock('@domain/agents/index.js', async (importOriginal) => {
@@ -90,7 +90,7 @@ beforeAll(() => {
 });
 
 afterEach(async () => {
-  agent.runAgent.mockReset();
+  attempt.startAttempt.mockReset();
   throttle._testReset();
   resumeRegistry._testReset();
   vi.useRealTimers();
@@ -139,13 +139,39 @@ function makeOptions(thread: ThreadRecord): RunThreadOptions {
   };
 }
 
+/** Synthetic `RunAttempt` for the orchestration seam. `startAttempt` now takes a `RunRequest`
+ *  plus attempt config; the old handle's `sessionId` is the attempt's `backendSessionId` (which
+ *  the run records as its resume target) and the request's `session.backendSessionId`. */
+function attemptShell(input: any, backendSessionId: string | null, foreground: Promise<any>) {
+  return {
+    engine: {
+      backend: input?.request?.profile?.backend ?? 'pi',
+      identity: 'test-engine',
+      capabilities: new Set<string>(),
+      backendSessionId,
+      run: () => ({}),
+      steer: () => ({ accepted: false }),
+      ingestExternal: () => false,
+      respondToDialog: () => false,
+      compact: async () => ({}),
+      close: async () => {},
+      kill: () => true,
+    },
+    engineRun: {},
+    spec: input?.request?.spec,
+    backend: input?.request?.profile?.backend ?? 'pi',
+    identity: null,
+    foreground,
+    settled: foreground,
+    backendSessionId,
+    kill: () => true,
+  };
+}
+
 function queueError(failure: string | Error): void {
   const error = typeof failure === 'string' ? new Error(failure) : failure;
-  agent.runAgent.mockImplementationOnce(() => ({
-    promise: Promise.reject(error),
-    kill: () => true,
-    sessionId: null,
-  }));
+  attempt.startAttempt.mockImplementationOnce((input: any) =>
+    attemptShell(input, null, Promise.reject(error)));
 }
 
 function queueSynchronizedErrors(failures: Error[]): Promise<void> {
@@ -153,15 +179,13 @@ function queueSynchronizedErrors(failures: Error[]): Promise<void> {
   let resolveStarted!: () => void;
   const allStarted = new Promise<void>((resolve) => { resolveStarted = resolve; });
   const rejects: Array<(error: Error) => void> = [];
-  agent.runAgent.mockImplementation(() => ({
-    promise: new Promise((_, reject) => {
+  attempt.startAttempt.mockImplementation((input: any) => attemptShell(
+    input, null, new Promise((_, reject) => {
       rejects.push(reject);
       started++;
       if (started === failures.length) resolveStarted();
     }),
-    kill: () => true,
-    sessionId: null,
-  }));
+  ));
   return allStarted.then(() => {
     rejects.forEach((reject, index) => reject(failures[index]));
   });
@@ -175,38 +199,36 @@ function queueControlledErrors(count: number): {
   let resolveStarted!: () => void;
   const started = new Promise<void>((resolve) => { resolveStarted = resolve; });
   const rejects: Array<(error: Error) => void> = [];
-  agent.runAgent.mockImplementation(() => ({
-    promise: new Promise((_, reject) => {
+  attempt.startAttempt.mockImplementation((input: any) => attemptShell(
+    input, null, new Promise((_, reject) => {
       rejects.push(reject);
       startedCount++;
       if (startedCount === count) resolveStarted();
     }),
-    kill: () => true,
-    sessionId: null,
-  }));
+  ));
   return { started, reject: (index, error) => rejects[index](error) };
 }
 
 /** Interrupted attempt that streamed real activity before failing: the backend session id is
- *  known (pre-minted) and the step produced partial work worth resuming. */
+ *  known (pre-minted) and the step produced partial work worth resuming. The old stub called the
+ *  facade's `onAssistantMessage` callback; activity now travels the run's event stream, so the
+ *  stub feeds a foreground `assistant_text` event into the `onEvent` observer before it rejects. */
 function queueActivityError(message: string, sessionId: string): void {
-  agent.runAgent.mockImplementationOnce((_prompt: string, opts: any) => {
-    opts.onAssistantMessage?.('partial work before the outage');
-    return { promise: Promise.reject(new Error(message)), kill: () => true, sessionId };
+  attempt.startAttempt.mockImplementationOnce((input: any) => {
+    input.onEvent({ type: 'assistant_text', text: 'partial work before the outage', phase: 'foreground' });
+    return attemptShell(input, sessionId, Promise.reject(new Error(message)));
   });
 }
 
 function queueSuccess(output = 'done'): void {
-  agent.runAgent.mockImplementationOnce(() => ({
-    promise: Promise.resolve({
+  attempt.startAttempt.mockImplementationOnce((input: any) => attemptShell(
+    input, 'provider-session', Promise.resolve({
       sessionId: 'provider-session',
       finalOutput: output,
       total_cost_usd: 0,
       num_turns: 1,
     }),
-    kill: () => true,
-    sessionId: 'provider-session',
-  }));
+  ));
 }
 
 async function initThrottle(onResume?: (providers: string[]) => void): Promise<void> {
@@ -296,8 +318,11 @@ test('outage expiry drains the resume queue and reruns the interrupted step', as
   assert.equal(completed.steps[0].stepIndex, 0);
   assert.equal(completed.steps[0].output, 'finished after resume');
   assert.equal(resumeRegistry.getResumeCount(), 0);
-  assert.equal(agent.runAgent.mock.calls.length, 2);
-  assert.equal(agent.runAgent.mock.calls[0][0], agent.runAgent.mock.calls[1][0]);
+  assert.equal(attempt.startAttempt.mock.calls.length, 2);
+  assert.equal(
+    attempt.startAttempt.mock.calls[0][0].request.prompt.text,
+    attempt.startAttempt.mock.calls[1][0].request.prompt.text,
+  );
 });
 
 test('outage rerun resumes the interrupted backend session with a continuation reminder', async () => {
@@ -321,11 +346,11 @@ test('outage rerun resumes the interrupted backend session with a continuation r
 
   const completed = threadStore.get(thread.id)!;
   assert.equal(completed.status, 'completed');
-  const [firstCall, secondCall] = agent.runAgent.mock.calls;
-  assert.equal(secondCall[1].sessionId, 'sess-interrupted', 'rerun resumes the interrupted backend session');
-  assert.notEqual(secondCall[0], firstCall[0], 'rerun does not restart from the original step prompt');
-  assert.match(secondCall[0], /interrupted by an API error/, 'rerun sends the continuation reminder');
-  assert.equal(secondCall[1].trackSessionId, firstCall[1].trackSessionId, 'UI transcript continues under the same track id');
+  const [firstCall, secondCall] = attempt.startAttempt.mock.calls;
+  assert.equal(secondCall[0].request.session.backendSessionId, 'sess-interrupted', 'rerun resumes the interrupted backend session');
+  assert.notEqual(secondCall[0].request.prompt.text, firstCall[0].request.prompt.text, 'rerun does not restart from the original step prompt');
+  assert.match(secondCall[0].request.prompt.text, /interrupted by an API error/, 'rerun sends the continuation reminder');
+  assert.equal(secondCall[0].request.session.sessionId, firstCall[0].request.session.sessionId, 'UI transcript continues under the same track id');
   assert.equal(completed.agents['outage-fresh-worker'].interruptedBackendSessionId ?? null, null, 'one-shot: consumed by the rerun');
 });
 
@@ -337,11 +362,8 @@ test('outage rerun without streamed activity restarts the full step prompt fresh
   const { finished: rerunFinished } = await initResumeDrain(opts);
   // Backend session id known but the attempt died before ANY streamed activity: nothing worth
   // resuming (and the backend session file may not even exist) — keep the full-rerun path.
-  agent.runAgent.mockImplementationOnce(() => ({
-    promise: Promise.reject(new Error('HTTP 503 Service Unavailable')),
-    kill: () => true,
-    sessionId: 'sess-dead-on-arrival',
-  }));
+  attempt.startAttempt.mockImplementationOnce((input: any) => attemptShell(
+    input, 'sess-dead-on-arrival', Promise.reject(new Error('HTTP 503 Service Unavailable'))));
   queueSuccess('finished after fresh rerun');
 
   const paused = await runThread(thread.id, opts);
@@ -352,9 +374,9 @@ test('outage rerun without streamed activity restarts the full step prompt fresh
   await rerunFinished;
 
   assert.equal(threadStore.get(thread.id)!.status, 'completed');
-  const [firstCall, secondCall] = agent.runAgent.mock.calls;
-  assert.equal(secondCall[0], firstCall[0], 'rerun repeats the original step prompt');
-  assert.equal(secondCall[1].sessionId, null, 'non-persist slot starts a fresh backend session');
+  const [firstCall, secondCall] = attempt.startAttempt.mock.calls;
+  assert.equal(secondCall[0].request.prompt.text, firstCall[0].request.prompt.text, 'rerun repeats the original step prompt');
+  assert.equal(secondCall[0].request.session.backendSessionId, null, 'non-persist slot starts a fresh backend session');
 });
 
 test('continueThread on an interrupted pause delivers the new user message with the reminder', async () => {
@@ -369,10 +391,10 @@ test('continueThread on an interrupted pause delivers the new user message with 
 
   await continueThread(thread.id, 'also handle the edge case', opts);
 
-  const secondCall = agent.runAgent.mock.calls[1];
-  assert.equal(secondCall[1].sessionId, 'sess-interrupted-2', 'manual continue also resumes the interrupted session');
-  assert.match(secondCall[0], /interrupted by an API error/, 'continuation reminder kept');
-  assert.match(secondCall[0], /also handle the edge case/, 'new user input delivered alongside the reminder');
+  const secondCall = attempt.startAttempt.mock.calls[1];
+  assert.equal(secondCall[0].request.session.backendSessionId, 'sess-interrupted-2', 'manual continue also resumes the interrupted session');
+  assert.match(secondCall[0].request.prompt.text, /interrupted by an API error/, 'continuation reminder kept');
+  assert.match(secondCall[0].request.prompt.text, /also handle the edge case/, 'new user input delivered alongside the reminder');
 });
 
 test('buildStepPrompt interrupted resume sends the reminder plus buffered replies, not the step prompt', async () => {

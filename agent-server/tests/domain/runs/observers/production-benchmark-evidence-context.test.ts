@@ -1,19 +1,29 @@
-// input:  typed thread evidence context and production facade seam
+// input:  typed thread evidence context and a scripted Claude/PI backend
 // output: context-gated identity, spawn linkage, and strict reads
-// pos:    Verifies production benchmark evidence context behavior
+// pos:    Verifies production benchmark evidence context behavior through a real run attempt
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+//
+// The suite used to inject a fake `AgentAdapter` and `preparedSpec` into the deleted facade. Its
+// subject is the run layer's evidence bookkeeping, so it now drives a REAL attempt through
+// `startAttempt`: a test-owned `SessionEngines` over a scripted Claude child and `pi-fake-runtime`.
+// The spec `startAttempt` builds is the one it attests; there is no prepared spec any more.
+//
+// `startAttempt` does not close the journal sink it creates internally (the deleted facade did).
+// That src gap is out of scope here, so the suite captures the sink and performs that close itself,
+// exactly where the run layer used to — otherwise a second attempt on one execution id could never
+// hit the journal's reuse guard.
 
 import '../../../_test-home.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, test } from 'vitest';
-import type {
-  AgentAdapter, AgentProcess, EngineSpec, Backend,
-} from '../../../../src/agent-adapter/types.js';
-import { engineSpecFixture } from '../../../engine-spec-fixture.js';
-import type { AgentResult } from '../../../../src/core/types/agent-types.js';
+import { EventEmitter } from 'node:events';
+import { PassThrough } from 'node:stream';
+import { afterEach, beforeEach, test, vi } from 'vitest';
+import type { AgentProcessSpawner, EngineSpec, Backend } from '../../../../src/agent-adapter/types.js';
+import { ClaudeAdapter } from '../../../../src/agent-adapter/claude/adapter.js';
+import { PIAdapter } from '../../../../src/agent-adapter/pi/adapter.js';
 import type { ProductionBenchmarkEvidenceContext } from '../../../../src/core/types/thread-types.js';
 import {
   getProductionAttemptIdentity,
@@ -22,9 +32,39 @@ import {
   readProductionAttemptIdentity,
   resetProductionAttemptIdentity,
 } from '../../../../src/domain/runs/observers/production-attempt-identity.js';
-import { _test as facadeTest } from '../../../../src/domain/agents/facade.js';
-import type { ResolvedProfileConfig } from '../../../../src/domain/agents/profile-manager.js';
-import type { RunAgentOptions } from '../../../../src/domain/agents/spawn-config.js';
+import { computeRoleToolSurfaceHash } from '../../../../src/domain/runs/observers/identity.js';
+import { roleSurfaceFromSpec } from '../../../../src/domain/runs/observers/role-surface.js';
+import { startAttempt, type RunAttempt } from '../../../../src/domain/runs/attempt.js';
+import { engines, SessionEngines } from '../../../../src/domain/runs/engines.js';
+import type { ResolvedProfileConfig, RunAttemptConfig } from '../../../../src/domain/agents/profile-manager.js';
+import type { RunRequest } from '../../../../src/domain/runs/request.js';
+import {
+  attemptFromFixture, runRequestFixture, type RunRequestFixtureInput,
+} from '../../../run-request-fixture.js';
+import {
+  makeFakeRuntimeFactory, type FakeRuntimeFactory,
+} from '../../../agent-adapter/pi-fake-runtime.js';
+
+/** The internally-created journal sinks, so the suite can perform the close the run layer omits. */
+const journalCapture = vi.hoisted(() => ({
+  sinks: [] as Array<{ onClose?: () => void | Promise<void> }>,
+}));
+
+vi.mock('../../../../src/domain/runs/observers/production-attempt-journal.js', async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import('../../../../src/domain/runs/observers/production-attempt-journal.js')
+  >();
+  return {
+    ...actual,
+    createProductionAttemptJournalSink: (
+      input: Parameters<typeof actual.createProductionAttemptJournalSink>[0],
+    ) => {
+      const sink = actual.createProductionAttemptJournalSink(input);
+      journalCapture.sinks.push(sink);
+      return sink;
+    },
+  };
+});
 
 /** The Anthropic route one attempt resolved; only the host is ever attested. */
 const PROXY_ROUTE = { ANTHROPIC_BASE_URL: 'http://proxy.invalid' };
@@ -33,11 +73,23 @@ const SHA = 'c'.repeat(64);
 let root: string;
 let storePath: string;
 let revision: { profiles: number; threads: number };
+let pool: SessionEngines;
+let piFake: FakeRuntimeFactory;
 
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-evidence-context-'));
   storePath = path.join(root, 'data', 'attempt-identities.jsonl');
   revision = { profiles: 1, threads: 1 };
+  journalCapture.sinks.length = 0;
+  piFake = makeFakeRuntimeFactory();
+  const piAdapter = new PIAdapter(
+    piFake.factory,
+    path.join(root, 'pi-sessions'),
+    undefined,
+    { agentDir: path.join(root, 'pi-agent') },
+  );
+  pool = new SessionEngines({ claude: new ClaudeAdapter(), pi: piAdapter });
+  vi.spyOn(engines, 'acquire').mockImplementation((spec) => pool.acquire(spec));
   resetProductionAttemptIdentity();
   initializeProductionAttemptIdentity({
     storePath,
@@ -45,10 +97,20 @@ beforeEach(() => {
   });
 });
 
-afterEach(() => {
+afterEach(async () => {
+  closeCapturedJournals();
+  vi.restoreAllMocks();
+  await Promise.all(pool.listKeys().map((key) => pool.close(key)));
   resetProductionAttemptIdentity();
   fs.rmSync(root, { recursive: true, force: true });
 });
+
+/** Append every journal opened so far, the close `startAttempt` omits. */
+function closeCapturedJournals(): void {
+  for (const sink of journalCapture.sinks.splice(0)) {
+    try { void sink.onClose?.(); } catch { /* the journal is not this suite's subject */ }
+  }
+}
 
 function evidence(
   backend: Backend,
@@ -79,35 +141,47 @@ function profile(backend: Backend): ResolvedProfileConfig {
   };
 }
 
-function result(): AgentResult {
+function attemptOverride(resolved: ResolvedProfileConfig): Partial<RunAttemptConfig> {
   return {
-    sessionId: 'backend-session', finalOutput: 'ok', num_turns: 1,
-    total_cost_usd: 0, rateLimited: false, rateLimitMessage: null,
-    planFilePath: null, enteredPlanMode: false, exitedPlanMode: false,
+    model: resolved.model, backend: resolved.backend, mode: resolved.mode,
+    provider: resolved.provider, extraEnv: resolved.extraEnv, extraOption: resolved.extraOption,
+    claudeBackend: resolved.claudeBackend, thinking: resolved.thinking,
   };
 }
 
-function process(): AgentProcess {
-  return {
-    sessionKey: 'fixture', sessionId: 'backend-session', send: async () => result(),
-    events: { async *[Symbol.asyncIterator]() {} }, close: async () => {}, kill: () => true,
+/**
+ * A fake CLI child: each write to stdin consumes the next script and replays it on stdout. The
+ * evidence suites only need one settled turn, so every attempt gets a single success result.
+ */
+function scriptedChild(scripts: unknown[][]) {
+  const child = new EventEmitter() as any;
+  child.stdout = new PassThrough();
+  child.stderr = new PassThrough();
+  child.stdin = new PassThrough();
+  child.exitCode = null;
+  child.kill = () => true;
+  child.emitLines = (lines: unknown[]) => {
+    for (const line of lines) child.stdout.write(`${JSON.stringify(line)}\n`);
   };
+  const queue = [...scripts];
+  child.stdin.on('data', () => {
+    const next = queue.shift();
+    if (next) setImmediate(() => child.emitLines(next));
+  });
+  return child;
 }
 
-function adapter(
-  backend: Backend,
-  spawns: EngineSpec[],
-  expectedPrepared?: EngineSpec,
-): AgentAdapter {
-  return {
-    backend, capabilities: new Set(),
-    spawn(config) {
-      if (expectedPrepared) assert.equal(config, expectedPrepared);
-      spawns.push(config);
-      return process();
-    },
-    close: async () => {}, kill: () => false, listSessions: () => [],
-  };
+/** The Claude backend for an attempt: a scripted CLI process that resolves one turn. */
+function claudeSpawner(): AgentProcessSpawner {
+  return (() => {
+    const child = scriptedChild([[
+      {
+        type: 'result', subtype: 'success', is_error: false,
+        num_turns: 1, total_cost_usd: 0.02, session_id: 'backend-session', result: 'ok',
+      },
+    ]]);
+    return { process: child };
+  }) as AgentProcessSpawner;
 }
 
 interface AttemptOptions {
@@ -123,38 +197,71 @@ interface AttemptOptions {
   taskProject?: string | null;
   taskGeneration?: string | null;
   context?: ProductionBenchmarkEvidenceContext;
-  preparedSpec?: EngineSpec;
 }
 
+/**
+ * Drive ONE attempt the way production's run layer does — `startAttempt` builds the spec, freezes
+ * the identity and acquires the pooled engine. Synchronous on purpose so `assert.throws` still sees
+ * a freeze refusal; the returned handle carries the two results the caller awaits.
+ */
 function runAttempt(
   backend: Backend,
   spawns: EngineSpec[],
   input: AttemptOptions,
-): ReturnType<typeof facadeTest.runWithAdapter> {
+): RunAttempt {
   const resolved = profile(backend);
-  const options: RunAgentOptions = {
-    executionId: input.executionId,
+  const override = attemptOverride(resolved);
+  const partial: RunRequestFixtureInput = {
+    sessionKey: input.executionId,
+    trackSessionId: null,
+    profileName: resolved.name,
+    model: resolved.model,
+    piProvider: backend === 'pi' ? resolved.provider : undefined,
+    claudeBackend: 'print',
     threadId: input.threadId,
-    rootThreadId: input.rootThreadId ?? input.threadId,
-    parentThreadId: input.parentThreadId ?? null,
     taskId: input.taskId ?? null,
     taskProject: input.taskProject ?? null,
     taskGeneration: input.taskGeneration ?? null,
-    templateName: input.template ?? 'benchmark-direct',
-    agentSlotId: input.role ?? 'benchmark-direct',
-    stage: input.stage ?? null,
-    profileName: resolved.name,
-    resolvedProfileConfig: resolved,
-    productionBenchmarkEvidenceContext: input.context,
-    identityDirective: 'Resolved directive',
     tools: input.tools ?? 'Read',
-    pluginDirs: [], mcpComposition: 'none', disableHooks: true, loadCortexRules: false,
-    preparedSpec: input.preparedSpec,
+    pluginDirs: [],
+    mcpComposition: 'none',
+    disableHooks: true,
+    loadCortexRules: false,
+    recordCost: false,
+    processSpawner: backend === 'claude' ? claudeSpawner() : undefined,
   };
-  return facadeTest.runWithAdapter(adapter(backend, spawns, input.preparedSpec), 'work', options, {
-    model: resolved.model, backend, mode: resolved.mode, provider: resolved.provider,
-    extraEnv: {}, extraOption: {}, claudeBackend: 'print', thinking: null,
-  }, backend === 'claude' ? PROXY_ROUTE : undefined);
+  const base = runRequestFixture(partial, override);
+  const request: RunRequest = {
+    ...base,
+    benchmark: {
+      evidenceContext: input.context ?? null,
+      identityDirective: 'Resolved directive',
+      rootThreadId: input.rootThreadId ?? input.threadId,
+      parentThreadId: input.parentThreadId ?? null,
+      templateName: input.template ?? 'benchmark-direct',
+      agentSlotId: input.role ?? 'benchmark-direct',
+      stage: input.stage ?? null,
+      preserveUnreportedAccounting: false,
+    },
+  };
+  const handle = startAttempt({
+    request,
+    attempt: attemptFromFixture(partial, override),
+    executionId: input.executionId,
+    route: backend === 'claude' ? PROXY_ROUTE : undefined,
+    onEvent: () => {},
+  });
+  spawns.push(handle.spec);
+  if (backend === 'pi') {
+    // Settle the runtime the PI attempt just opened; an unreported turn adds no cost record.
+    const index = piFake.runtimes.length - 1;
+    void (async () => {
+      const runtime = await piFake.runtime(index);
+      await runtime.nextCall('prompt');
+      runtime.emitAgentEnd({ provider: '', settle: true });
+    })();
+  }
+  return handle;
 }
 
 for (const backend of ['claude', 'pi'] as const) {
@@ -171,7 +278,7 @@ for (const backend of ['claude', 'pi'] as const) {
         template: kind === 'coder' ? 'benchmark-coder-review' : `benchmark-${kind}`,
         role, stage: kind === 'coder' ? 'implement' : null, taskId,
         taskProject: taskId ? 'atlas' : null, taskGeneration: taskId ? 'generation-1' : null,
-      }).promise;
+      }).settled;
       assert.equal(getProductionAttemptIdentity(executionId)?.execution_id, executionId);
     }
     assert.equal(spawns.length, 3);
@@ -189,7 +296,7 @@ test('coder, reviewer, and fixer form the exact same-thread spawn chain', async 
     await runAttempt('claude', spawns, {
       executionId: suffix, threadId: 'thread-three', context,
       template: 'benchmark-coder-review', role, tools,
-    }).promise;
+    }).settled;
   }
 
   const records = ['coder', 'reviewer', 'fixer'].map(readProductionAttemptIdentity);
@@ -210,23 +317,25 @@ test('retry, resumed, and nested executions cannot collide with the root attempt
   await runAttempt('claude', spawns, {
     executionId: 'root-first', threadId: 'root-thread', context,
     template: 'benchmark-coder-review', role: 'benchmark-coder',
-  }).promise;
+  }).settled;
   await runAttempt('claude', spawns, {
     executionId: 'root-retry', threadId: 'root-thread', context,
     template: 'benchmark-coder-review', role: 'benchmark-coder',
-  }).promise;
+  }).settled;
 
+  // The run layer omits the journal close; perform it, then reload so the reuse guard can see it.
+  closeCapturedJournals();
   resetProductionAttemptIdentity();
   initializeProductionAttemptIdentity({ storePath });
   await runAttempt('claude', spawns, {
     executionId: 'root-resumed', threadId: 'root-thread', context,
     template: 'benchmark-coder-review', role: 'benchmark-reviewer',
-  }).promise;
+  }).settled;
   await runAttempt('claude', spawns, {
     executionId: 'nested-manager', threadId: 'child-thread', rootThreadId: 'root-thread',
     parentThreadId: 'root-thread', context,
     template: 'benchmark-manager', role: 'benchmark-manager',
-  }).promise;
+  }).settled;
 
   const records = ['root-first', 'root-retry', 'root-resumed', 'nested-manager']
     .map(readProductionAttemptIdentity);
@@ -251,14 +360,14 @@ test('child and dispatcher-created task attempts use the latest causal parent at
   await runAttempt('claude', spawns, {
     executionId: 'manager-first', threadId: 'manager-thread', context,
     template: 'benchmark-manager', role: 'benchmark-manager',
-  }).promise;
+  }).settled;
   const first = readProductionAttemptIdentity('manager-first');
 
   await Promise.all(['child-a', 'child-b'].map(async (executionId) => runAttempt('claude', spawns, {
     executionId, threadId: `${executionId}-thread`, rootThreadId: 'manager-thread',
     parentThreadId: 'manager-thread', context,
     template: 'benchmark-coder-review', role: 'benchmark-coder',
-  }).promise));
+  }).settled));
   assert.equal(readProductionAttemptIdentity('child-a').spawn_parent_attempt_id, first.attempt_id);
   assert.equal(readProductionAttemptIdentity('child-b').spawn_parent_attempt_id, first.attempt_id);
 
@@ -266,7 +375,7 @@ test('child and dispatcher-created task attempts use the latest causal parent at
     executionId: 'child-a-review', threadId: 'child-a-thread', rootThreadId: 'manager-thread',
     parentThreadId: 'manager-thread', context,
     template: 'benchmark-coder-review', role: 'benchmark-reviewer',
-  }).promise;
+  }).settled;
   assert.equal(
     readProductionAttemptIdentity('child-a-review').spawn_parent_attempt_id,
     readProductionAttemptIdentity('child-a').attempt_id,
@@ -275,14 +384,14 @@ test('child and dispatcher-created task attempts use the latest causal parent at
   await runAttempt('claude', spawns, {
     executionId: 'manager-resumed', threadId: 'manager-thread', context,
     template: 'benchmark-manager', role: 'benchmark-manager',
-  }).promise;
+  }).settled;
   const resumed = readProductionAttemptIdentity('manager-resumed');
   await runAttempt('claude', spawns, {
     executionId: 'dispatch-child', threadId: 'dispatch-child-thread',
     rootThreadId: 'manager-thread', parentThreadId: 'manager-thread', context,
     template: 'benchmark-coder-review', role: 'benchmark-coder',
     taskId: 'b2c3', taskProject: 'atlas', taskGeneration: 'generation-child',
-  }).promise;
+  }).settled;
   const dispatched = readProductionAttemptIdentity('dispatch-child');
   assert.equal(dispatched.spawn_parent_attempt_id, resumed.attempt_id);
   assert.equal(dispatched.task_id, 'b2c3');
@@ -293,7 +402,7 @@ test('absence disables observability while malformed context refuses before spaw
   const spawns: EngineSpec[] = [];
   await runAttempt('claude', spawns, {
     executionId: 'without-context', threadId: 'without-context',
-  }).promise;
+  }).settled;
   assert.equal(getProductionAttemptIdentity('without-context'), null);
   assert.equal(fs.existsSync(storePath), false);
 
@@ -312,7 +421,7 @@ test('fails closed when a child first execution cannot resolve its parent attemp
   const spawns: EngineSpec[] = [];
   await runAttempt('claude', spawns, {
     executionId: 'root-existing', threadId: 'root-existing-thread', context,
-  }).promise;
+  }).settled;
   assert.throws(() => runAttempt('claude', spawns, {
     executionId: 'child-orphan', threadId: 'child-orphan-thread',
     rootThreadId: 'root-existing-thread', parentThreadId: 'missing-parent-thread', context,
@@ -334,11 +443,11 @@ test('reload rejects self-links, cross-run links, and attempt identity collision
   await runAttempt('claude', spawns, {
     executionId: 'tamper-one', threadId: 'tamper-thread-one',
     context: evidence('claude', 'tamper-one'),
-  }).promise;
+  }).settled;
   await runAttempt('claude', spawns, {
     executionId: 'tamper-two', threadId: 'tamper-thread-two',
     context: evidence('claude', 'tamper-two'),
-  }).promise;
+  }).settled;
   const original = fs.readFileSync(storePath, 'utf8').trimEnd().split('\n')
     .map(line => JSON.parse(line) as Record<string, unknown>);
   const firstAttempt = String(original[0].attempt_id);
@@ -363,23 +472,26 @@ test('reload rejects self-links, cross-run links, and attempt identity collision
   }
 });
 
-test('root baseline refuses drift and the exact prepared spawn object reaches the adapter', async () => {
+test('root baseline refuses drift and the attested spec is the launched spec', async () => {
   const context = evidence('claude');
   const spawns: EngineSpec[] = [];
-  const prepared: EngineSpec = engineSpecFixture({
-    sessionId: null, sessionKey: 'prepared', resume: false, model: 'claude-fixture',
-    thinking: undefined, mcpComposition: 'none', rawTools: 'Read', disableHooks: true,
-    anthropicBaseUrl: 'http://proxy.invalid',
+  const handle = runAttempt('claude', spawns, {
+    executionId: 'baseline', threadId: 'baseline-thread', context,
   });
-  await runAttempt('claude', spawns, {
-    executionId: 'baseline', threadId: 'baseline-thread', context, preparedSpec: prepared,
-  }).promise;
+  await handle.settled;
   assert.ok(fs.existsSync(storePath));
 
-  const drifted: EngineSpec = { ...prepared, tools: { ...prepared.tools, rawClaude: 'Write' } };
+  // `startAttempt` builds the spec once and both attests and launches that same object, so the
+  // identity hash must equal the hash of the launched spec's role surface. This replaces the old
+  // `preparedSpec` object-identity check, an option the run request contract no longer has.
+  const identity = readProductionAttemptIdentity('baseline');
+  assert.equal(
+    identity.role_tool_surface_hash,
+    computeRoleToolSurfaceHash(roleSurfaceFromSpec(handle.spec, 'Resolved directive')),
+  );
+
   assert.throws(() => runAttempt('claude', spawns, {
-    executionId: 'drifted', threadId: 'baseline-thread', context,
-    preparedSpec: drifted,
+    executionId: 'drifted', threadId: 'baseline-thread', context, tools: 'Write',
   }), /baseline|role.*drift|identity changed/i);
   assert.equal(spawns.length, 1);
 });

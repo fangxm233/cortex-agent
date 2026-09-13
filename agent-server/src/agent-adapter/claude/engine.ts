@@ -165,6 +165,9 @@ export class ClaudeEngineSession implements EngineSession {
       if (event.type !== 'turn_complete') queue.push(toRunEvent(event, 'foreground'));
     };
     void this.driveRun(prompt, push, queue, phase, deferred);
+    // A failed foreground turn fails the WHOLE run: `settled` has to carry the same rejection, or a
+    // terminal tally awaiting it hangs instead of reporting the failure.
+    deferred.promise.catch((error) => settled.reject(error));
     // The caller observes rejection through `EngineRun.result`; this only prevents an unhandled
     // rejection when a consumer reads `events` without awaiting `result`.
     deferred.promise.catch(() => undefined);

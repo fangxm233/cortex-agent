@@ -73,6 +73,9 @@ function makeConfig(mode = 'api') {
     host: '127.0.0.1',
     port: 0,  // OS-assigned
     status_check: false,
+    // The vendored gateway refuses WebSocket upgrades unless this is set; the tests drive the
+    // plain-HTTP proxy paths, so the shipped default (true) is what they should be exercising.
+    websocket: true,
     mode,
     endpoints: endpointModes[mode],  // active mode's endpoints
     endpoint_modes: endpointModes,

@@ -19,106 +19,108 @@ import {
 } from '../../src/orchestration/mid-turn-inject.js';
 import { SYNTHETIC_CALLBACK_SENDER } from '../../src/platform/types.js';
 import { WORKSPACE_DIR } from '../../src/core/paths.js';
+import { runRegistry } from '../../src/core/run-registry.js';
+
+const CHANNEL = 'web:sess-1';
+const SESSION = 'track-sess-1';
+/** Primary key the fixture run is registered under, so `getByChannel` selects it like production. */
+const REGISTRY_KEY = 'mid-turn-inject-fixture';
 
 // Injection state is per-channel and module-scoped (it outlives a single turn by design), so each
 // test starts from a clean registry rather than inheriting the previous test's pending messages.
 beforeEach(() => {
   injectTest.reset();
   liveSettings.injectWaitMaxS = 600;
+  runRegistry.remove(REGISTRY_KEY);
 });
 
-const CHANNEL = 'web:sess-1';
-const SESSION = 'track-sess-1';
-
-/** A pooled AgentProcess that accepts injection, capturing the sinks orchestration registers. */
-function fakeProcess(opts: { accepts?: boolean; hasMethod?: boolean } = {}) {
-  const injectedTexts: string[] = [];
-  const injectedMessages: any[] = [];
-  const p: any = {
-    injectedTexts,
-    injectedMessages,
-    ackSink: null as any,
-    continuationSink: null as any,
-    setInjectionAckSink(sink: any) { p.ackSink = sink; },
-    setContinuationSink(sink: any) { p.continuationSink = sink; },
-  };
-  if (opts.hasMethod !== false) {
-    p.injectUserMessage = (m: any) => {
-      injectedTexts.push(m.text);
-      injectedMessages.push(m);
-      return opts.accepts !== false;
-    };
-  }
-  return p;
+/**
+ * A live `AgentRun` stand-in — the handle `tryInjectIntoLiveTurn` selects and steers. The run owns
+ * the backend injection-ack translation and its own background continuation events; the ledger
+ * subscribes to it and drives phase two from those `RunEvent`s. The `emit` methods below are the
+ * run's own event stream, so the assertions keep observing the same acks and continuations.
+ */
+interface FakeRun {
+  backend: string;
+  injectedTexts: string[];
+  injectedMessages: any[];
+  capabilities: Set<string>;
+  backgroundTranscriptOwned: boolean;
+  steer(msg: any, injectionId?: string): Promise<'folded' | 'queued' | 'refused'>;
+  subscribe(observer: { onEvent(event: any): void | Promise<void> }): () => void;
+  deliver(text: string, foldedIntoTurn: boolean): Promise<void>;
+  undeliver(text: string): Promise<void>;
+  backgroundAssistantText(text: string, model?: unknown, subagent?: unknown): Promise<void>;
+  backgroundToolUse(name: string, input: unknown, toolUseId?: string, subagent?: unknown): Promise<void>;
+  backgroundToolResult(toolUseId: string, content: string, isError: boolean, subagent?: unknown): Promise<void>;
+  backgroundContextUsage(usage: any): Promise<void>;
+  backgroundResult(result: unknown): Promise<void>;
 }
 
-/**
- * P1.8: `tryInjectIntoLiveTurn` now steers the live `AgentRun`, which owns both the backend
- * injection-ack sink and the process's single continuation sink. This fake run mirrors that
- * translation so the existing ledger assertions can keep driving the same acks/continuations.
- */
-function attachRun(exec: any): void {
-  if (!exec || exec.run) return;
-  const proc = exec.agentProcess;
-  const observers = new Set<any>();
+/** A run whose `steer()` records the message and whose event stream the test drives directly. */
+function fakeRun(opts: { accepts?: boolean; hasMethod?: boolean; backend?: string } = {}): FakeRun {
+  const backend = opts.backend ?? 'claude';
+  const injectedTexts: string[] = [];
+  const injectedMessages: any[] = [];
+  const observers = new Set<{ onEvent(event: any): void | Promise<void> }>();
   const pending: Array<{ id: string; text: string }> = [];
-  const supported = exec.backend === 'claude' || exec.backend === 'pi';
+  const supported = backend === 'claude' || backend === 'pi';
   const emit = async (event: any): Promise<void> => {
     for (const observer of [...observers]) await observer.onEvent(event);
   };
-  if (proc?.setInjectionAckSink) {
-    proc.setInjectionAckSink({
-      onDelivered: ({ text, foldedIntoTurn }: any) => {
-        const index = pending.findIndex((entry) => entry.text === text);
-        if (index === -1) return Promise.resolve();
-        const [entry] = pending.splice(index, 1);
-        return emit({ type: 'injection_delivered', injectionId: entry.id, foldedIntoTurn });
-      },
-      onUndelivered: ({ text }: any) => {
-        const index = pending.findIndex((entry) => entry.text === text);
-        if (index === -1) return Promise.resolve();
-        const [entry] = pending.splice(index, 1);
-        return emit({ type: 'injection_rejected', injectionId: entry.id, reason: 'undelivered' });
-      },
-    });
-  }
-  if (proc?.setContinuationSink) {
-    proc.setContinuationSink({
-      onAssistantText: (text: string, model: any, subagent: any) => emit({
-        type: 'assistant_text', text, phase: 'background',
-        ...(model ? { model } : {}), ...(subagent ? { subagent } : {}),
-      }),
-      onToolUse: (name: string, input: any, toolUseId: string, subagent: any) => emit({
-        type: 'tool_use', name, input, toolUseId: toolUseId ?? '', phase: 'background',
-        ...(subagent ? { subagent } : {}),
-      }),
-      onToolResult: (toolUseId: string, content: string, isError: boolean, subagent: any) => emit({
-        type: 'tool_result', toolUseId, ok: !isError, content, phase: 'background',
-        ...(subagent ? { subagent } : {}),
-      }),
-      onContextUsage: (usage: any) => emit({ type: 'context_usage', ...usage, phase: 'background' }),
-      onResult: (result: any) => emit({ type: 'background_result', result }),
-    });
-  }
-  exec.run = {
+  const takePending = (text: string): { id: string; text: string } | undefined => {
+    const index = pending.findIndex((entry) => entry.text === text);
+    if (index === -1) return undefined;
+    return pending.splice(index, 1)[0];
+  };
+  return {
+    backend,
+    injectedTexts,
+    injectedMessages,
     capabilities: new Set(supported ? ['mid-turn-inject'] : []),
-    steer: async (msg: any, injectionId?: string) => {
+    backgroundTranscriptOwned: false,
+    steer: async (msg, injectionId) => {
       if (!supported) return 'refused';
-      if (typeof proc?.injectUserMessage !== 'function') return 'refused';
+      if (opts.hasMethod === false) return 'refused';
       const id = injectionId ?? 'unknown';
       pending.push({ id, text: msg.text });
-      const accepted = proc.injectUserMessage(msg);
-      if (!accepted) {
+      injectedTexts.push(msg.text);
+      injectedMessages.push(msg);
+      if (opts.accepts === false) {
         const index = pending.findIndex((entry) => entry.id === id);
         if (index !== -1) pending.splice(index, 1);
         return 'refused';
       }
       return 'folded';
     },
-    subscribe: (observer: any) => {
+    subscribe: (observer) => {
       observers.add(observer);
       return () => { observers.delete(observer); };
     },
+    deliver: async (text, foldedIntoTurn) => {
+      const entry = takePending(text);
+      if (!entry) return;
+      await emit({ type: 'injection_delivered', injectionId: entry.id, foldedIntoTurn });
+    },
+    undeliver: async (text) => {
+      const entry = takePending(text);
+      if (!entry) return;
+      await emit({ type: 'injection_rejected', injectionId: entry.id, reason: 'undelivered' });
+    },
+    backgroundAssistantText: (text, model, subagent) => emit({
+      type: 'assistant_text', text, phase: 'background',
+      ...(model ? { model } : {}), ...(subagent ? { subagent } : {}),
+    }),
+    backgroundToolUse: (name, input, toolUseId, subagent) => emit({
+      type: 'tool_use', name, input, toolUseId: toolUseId ?? '', phase: 'background',
+      ...(subagent ? { subagent } : {}),
+    }),
+    backgroundToolResult: (toolUseId, content, isError, subagent) => emit({
+      type: 'tool_result', toolUseId, ok: !isError, content, phase: 'background',
+      ...(subagent ? { subagent } : {}),
+    }),
+    backgroundContextUsage: (usage) => emit({ type: 'context_usage', ...usage, phase: 'background' }),
+    backgroundResult: (result) => emit({ type: 'background_result', result }),
   };
 }
 
@@ -137,8 +139,22 @@ interface Recorder {
   contexts: any[];
 }
 
-function recorder(overrides: Partial<MidTurnInjectDeps> = {}, exec?: any): Recorder {
-  attachRun(exec);
+function recorder(overrides: Partial<MidTurnInjectDeps> = {}, run?: FakeRun): Recorder {
+  // Register the live run the way `startRun` does, so the router selects it through the same
+  // channel-keyed registry production uses (an absent run means "no live execution on the channel").
+  if (run) {
+    runRegistry.register({
+      threadId: null,
+      channel: CHANNEL,
+      agentSlotId: null,
+      executionId: null,
+      registryKey: REGISTRY_KEY,
+      kind: 'local',
+      kill: () => true,
+      backend: run.backend,
+      run: run as any,
+    });
+  }
   const history: any[] = [];
   const published: any[] = [];
   const delivered: any[] = [];
@@ -154,7 +170,10 @@ function recorder(overrides: Partial<MidTurnInjectDeps> = {}, exec?: any): Recor
   let pendingId = 0;
   const now = () => `2026-07-25T00:00:0${clock++}.000Z`;
   const deps: MidTurnInjectDeps = {
-    getLiveExecutions: () => (exec === undefined ? [] : [exec]),
+    getLiveExecutions: (channel) => runRegistry.getByChannel(channel).map((entry) => ({
+      backend: entry.backend,
+      run: entry.run as any,
+    })),
     getStreamingCallback: () => (text: string) => streamed.push(text),
     appendAssistant: (sessionId, o) => history.push({ kind: 'assistant', sessionId, ...o }),
     appendTool: (sessionId, o) => history.push({ kind: 'tool', sessionId, ...o }),
@@ -227,50 +246,50 @@ test('no live execution on the channel → not injected without preparing platfo
 });
 
 test('live execution on a backend without MidTurnInject → not injected', async () => {
-  const proc = fakeProcess();
-  const r = recorder({}, { backend: 'unknown', agentProcess: proc });
+  const run = fakeRun({ backend: 'unknown' });
+  const r = recorder({}, run);
   assert.equal(await tryInjectIntoLiveTurn(r.deps, baseCtx), false);
-  assert.deepEqual(proc.injectedTexts, []);
+  assert.deepEqual(run.injectedTexts, []);
 });
 
-test('live claude execution whose process cannot inject (TUI mode) → not injected', async () => {
-  const proc = fakeProcess({ hasMethod: false });
-  const r = recorder({}, { backend: 'claude', agentProcess: proc });
+test('live claude run that cannot inject (TUI mode) → not injected', async () => {
+  const run = fakeRun({ hasMethod: false });
+  const r = recorder({}, run);
   assert.equal(await tryInjectIntoLiveTurn(r.deps, baseCtx), false);
 });
 
 test('backend refuses the injection (turn already finished) → not injected, no surfacing', async () => {
-  const proc = fakeProcess({ accepts: false });
-  const r = recorder({}, { backend: 'claude', agentProcess: proc });
+  const run = fakeRun({ accepts: false });
+  const r = recorder({}, run);
   assert.equal(await tryInjectIntoLiveTurn(r.deps, baseCtx), false);
-  assert.deepEqual(proc.injectedTexts, ['skip the rest'], 'it was attempted');
+  assert.deepEqual(run.injectedTexts, ['skip the rest'], 'it was attempted');
   assert.deepEqual(r.published, [], 'a refused injection must not leave a phantom message');
   assert.deepEqual(r.history, []);
   assert.deepEqual(r.track, [], 'no busy-gate leak on the refused path');
 });
 
 test('a !command on a busy channel keeps the queue even with an injectable turn live', async () => {
-  const proc = fakeProcess();
-  const r = recorder({}, { backend: 'claude', agentProcess: proc });
+  const run = fakeRun();
+  const r = recorder({}, run);
   assert.equal(await tryInjectIntoLiveTurn(r.deps, { ...baseCtx, text: '!cancel' }), false);
-  assert.deepEqual(proc.injectedTexts, []);
+  assert.deepEqual(run.injectedTexts, []);
 });
 
 test('an unresolved session id → not injected (nothing to surface the message against)', async () => {
-  const proc = fakeProcess();
-  const r = recorder({}, { backend: 'claude', agentProcess: proc });
+  const run = fakeRun();
+  const r = recorder({}, run);
   assert.equal(await tryInjectIntoLiveTurn(r.deps, { ...baseCtx, sessionId: null }), false);
 });
 
 // --- Phase 1 of the commit: surfaced as PENDING, nothing recorded yet ---
 
 test('injects into the live turn and surfaces the message immediately, marked pending', async () => {
-  const proc = fakeProcess();
-  const r = recorder({}, { backend: 'claude', agentProcess: proc });
+  const run = fakeRun();
+  const r = recorder({}, run);
 
   assert.equal(await tryInjectIntoLiveTurn(r.deps, baseCtx), true);
 
-  assert.deepEqual(proc.injectedTexts, ['skip the rest']);
+  assert.deepEqual(run.injectedTexts, ['skip the rest']);
   assert.equal(r.published.length, 1, 'published straight away — not held until a turn starts');
   assert.equal(r.published[0].role, 'user');
   assert.equal(r.published[0].channel, CHANNEL);
@@ -279,8 +298,8 @@ test('injects into the live turn and surfaces the message immediately, marked pe
 });
 
 test('durable pending state adds a platform marker before the message is consumed', async () => {
-  const proc = fakeProcess();
-  const r = recorder({}, { backend: 'claude', agentProcess: proc });
+  const run = fakeRun();
+  const r = recorder({}, run);
 
   await tryInjectIntoLiveTurn(r.deps, baseCtx);
 
@@ -289,21 +308,21 @@ test('durable pending state adds a platform marker before the message is consume
 });
 
 test('platform marker failures never reject an accepted injection or its commit', async () => {
-  const proc = fakeProcess();
+  const run = fakeRun();
   const r = recorder({
     markPending: async () => { throw new Error('mark failed'); },
     unmarkPending: async () => { throw new Error('unmark failed'); },
-  }, { backend: 'claude', agentProcess: proc });
+  }, run);
 
   assert.equal(await tryInjectIntoLiveTurn(r.deps, baseCtx), true);
-  await assert.doesNotReject(proc.ackSink.onDelivered({ text: 'skip the rest', foldedIntoTurn: true }));
+  await assert.doesNotReject(run.deliver('skip the rest', true));
   assert.equal(r.delivered.length, 1, 'durable delivery is independent of cosmetic reactions');
   assert.deepEqual(r.track, [+1, -1]);
 });
 
 test('writing does not record: no history entry and no ledger turn until the model reads it', async () => {
-  const proc = fakeProcess();
-  const r = recorder({}, { backend: 'claude', agentProcess: proc });
+  const run = fakeRun();
+  const r = recorder({}, run);
 
   await tryInjectIntoLiveTurn(r.deps, baseCtx);
 
@@ -314,15 +333,15 @@ test('writing does not record: no history entry and no ledger turn until the mod
 // --- Phase 2: the echo commits it, at the point the model actually read it ---
 
 test('output written before the model read the message is recorded ABOVE it', async () => {
-  const proc = fakeProcess();
-  const r = recorder({}, { backend: 'claude', agentProcess: proc });
+  const run = fakeRun();
+  const r = recorder({}, run);
   await tryInjectIntoLiveTurn(r.deps, baseCtx);
 
   // The turn that was already running keeps writing — it goes through the same history seam. This
   // paragraph was produced without the model ever having seen the injected message.
   r.deps.appendAssistant(SESSION, { text: 'still answering the previous question', ts: r.deps.now() });
 
-  await proc.ackSink.onDelivered({ text: 'skip the rest', foldedIntoTurn: true });
+  await run.deliver('skip the rest', true);
 
   assert.deepEqual(
     r.history.map((h) => h.kind), ['assistant', 'user'],
@@ -332,12 +351,12 @@ test('output written before the model read the message is recorded ABOVE it', as
 });
 
 test('the committed history record is stamped with the consumption time, not the write time', async () => {
-  const proc = fakeProcess();
-  const r = recorder({}, { backend: 'claude', agentProcess: proc });
+  const run = fakeRun();
+  const r = recorder({}, run);
   await tryInjectIntoLiveTurn(r.deps, baseCtx);
   const writeTs = r.published[0].ts;
 
-  await proc.ackSink.onDelivered({ text: 'skip the rest', foldedIntoTurn: true });
+  await run.deliver('skip the rest', true);
 
   assert.equal(r.history.length, 1);
   assert.notEqual(r.history[0].ts, writeTs, 'the write instant is not when it entered the conversation');
@@ -345,12 +364,12 @@ test('the committed history record is stamped with the consumption time, not the
 });
 
 test('the ledger turn opens WITH the history record, so rewind indices stay aligned', async () => {
-  const proc = fakeProcess();
-  const r = recorder({}, { backend: 'claude', agentProcess: proc });
+  const run = fakeRun();
+  const r = recorder({}, run);
   await tryInjectIntoLiveTurn(r.deps, baseCtx);
   assert.deepEqual(r.ledger, [], 'no turn while the message is still queued inside the backend');
 
-  await proc.ackSink.onDelivered({ text: 'skip the rest', foldedIntoTurn: true });
+  await run.deliver('skip the rest', true);
 
   assert.equal(r.ledger.length, 1, 'rewind indexes turns positionally — a user record without its turn misaligns every later edit');
   assert.equal(r.ledger[0].text, 'skip the rest');
@@ -359,24 +378,24 @@ test('the ledger turn opens WITH the history record, so rewind indices stay alig
 });
 
 test('attachments ride along to the backend, the pending row, and the committed record', async () => {
-  const proc = fakeProcess();
-  const r = recorder({}, { backend: 'claude', agentProcess: proc });
+  const run = fakeRun();
+  const r = recorder({}, run);
   const attachments = [{ name: 'a.png', path: 'workspace/attachments/a.png', size: 3, mimeType: 'image/png', type: 'image' as const }];
 
   assert.equal(await tryInjectIntoLiveTurn(r.deps, { ...baseCtx, attachments }), true);
-  assert.deepEqual(proc.injectedMessages[0].attachments, [{
+  assert.deepEqual(run.injectedMessages[0].attachments, [{
     mimeType: 'image/png',
     path: path.join(WORKSPACE_DIR, 'attachments', 'a.png'),
   }]);
   assert.deepEqual(r.published[0].attachments, attachments);
 
-  await proc.ackSink.onDelivered({ text: 'skip the rest', foldedIntoTurn: true });
+  await run.deliver('skip the rest', true);
   assert.deepEqual(r.history[0].attachments, attachments);
 });
 
 test('mid-turn DEBUG prompt includes the image path sent through the adapter', async () => {
-  const proc = fakeProcess();
-  const r = recorder({ captureDebug: true }, { backend: 'claude', agentProcess: proc });
+  const run = fakeRun();
+  const r = recorder({ captureDebug: true }, run);
   const attachments = [{ name: 'a.png', path: 'workspace/attachments/a.png', size: 3, mimeType: 'image/png', type: 'image' as const }];
 
   assert.equal(await tryInjectIntoLiveTurn(r.deps, { ...baseCtx, attachments }), true);
@@ -387,8 +406,8 @@ test('mid-turn DEBUG prompt includes the image path sent through the adapter', a
 });
 
 test('lazy platform files join Web attachments for backend injection without changing transcript metadata', async () => {
-  const proc = fakeProcess();
-  const r = recorder({ captureDebug: true }, { backend: 'claude', agentProcess: proc });
+  const run = fakeRun();
+  const r = recorder({ captureDebug: true }, run);
   const webAttachments = [{ name: 'a.png', path: 'workspace/attachments/a.png', size: 3, mimeType: 'image/png', type: 'image' as const }];
   const platformPath = '/tmp/slack-report.txt';
   let preparations = 0;
@@ -403,7 +422,7 @@ test('lazy platform files join Web attachments for backend injection without cha
   }), true);
 
   assert.equal(preparations, 1);
-  assert.deepEqual(proc.injectedMessages[0].attachments, [
+  assert.deepEqual(run.injectedMessages[0].attachments, [
     { mimeType: 'text/plain', path: platformPath },
     { mimeType: 'image/png', path: path.join(WORKSPACE_DIR, 'attachments', 'a.png') },
   ]);
@@ -414,12 +433,12 @@ test('lazy platform files join Web attachments for backend injection without cha
 // --- Fold-in, seen from orchestration ---
 
 test('fold-in ack: commits the message and releases the busy gate', async () => {
-  const proc = fakeProcess();
-  const r = recorder({}, { backend: 'claude', agentProcess: proc });
+  const run = fakeRun();
+  const r = recorder({}, run);
   await tryInjectIntoLiveTurn(r.deps, baseCtx);
   const pendingTs = r.published[0].ts;
 
-  await proc.ackSink.onDelivered({ text: 'skip the rest', foldedIntoTurn: true });
+  await run.deliver('skip the rest', true);
 
   assert.equal(r.delivered.length, 1, 'the replay echo commits the pending message');
   assert.equal(r.delivered[0].messageTs, pendingTs, 'carries the pending row key it replaces');
@@ -430,7 +449,7 @@ test('fold-in ack: commits the message and releases the busy gate', async () => 
 });
 
 test('the commit lands before the delivered ack — a refetch triggered by it must find the record', async () => {
-  const proc = fakeProcess();
+  const run = fakeRun();
   const order: string[] = [];
   const r = recorder({
     commitPending: async () => {
@@ -439,10 +458,10 @@ test('the commit lands before the delivered ack — a refetch triggered by it mu
       return { committedTs: 'T-commit' };
     },
     publishDelivered: () => order.push('delivered'),
-  }, { backend: 'claude', agentProcess: proc });
+  }, run);
   await tryInjectIntoLiveTurn(r.deps, baseCtx);
 
-  await proc.ackSink.onDelivered({ text: 'skip the rest', foldedIntoTurn: true });
+  await run.deliver('skip the rest', true);
 
   assert.deepEqual(order, ['ledger', 'history', 'delivered']);
 });
@@ -450,16 +469,16 @@ test('the commit lands before the delivered ack — a refetch triggered by it mu
 // --- Post-result, seen from orchestration ---
 
 test('post-result ack holds the gate; the spontaneous turn is streamed and then seals it', async () => {
-  const proc = fakeProcess();
-  const r = recorder({}, { backend: 'claude', agentProcess: proc });
+  const run = fakeRun();
+  const r = recorder({}, run);
   await tryInjectIntoLiveTurn(r.deps, baseCtx);
 
-  await proc.ackSink.onDelivered({ text: 'skip the rest', foldedIntoTurn: false });
+  await run.deliver('skip the rest', false);
   assert.equal(r.delivered.length, 1, 'still committed at the echo');
   assert.deepEqual(r.track, [+1], 'gate HELD — the reply has not arrived yet');
 
-  // The CLI's own turn now speaks; the sink registered at inject time captures it.
-  proc.continuationSink.onAssistantText('EARLY-STOP');
+  // The CLI's own turn now speaks; the ledger observer registered at inject time captures it.
+  await run.backgroundAssistantText('EARLY-STOP');
   assert.deepEqual(r.streamed, ['EARLY-STOP'], 'reply reached the channel output stream');
   const assistantRows = r.history.filter((h) => h.kind === 'assistant');
   assert.equal(assistantRows.length, 1, 'reply persisted to the transcript');
@@ -473,18 +492,18 @@ test('post-result ack holds the gate; the spontaneous turn is streamed and then 
     'the session is re-marked running — a spontaneous turn is real work',
   );
 
-  await proc.continuationSink.onResult({ pendingBackgroundTasks: 0 });
+  await run.backgroundResult({ pendingBackgroundTasks: 0 });
   assert.ok(r.status.some((s) => s.running === false), 'sealed idle when the spontaneous turn ends');
   assert.deepEqual(r.track, [+1, -1], 'busy gate released exactly once');
 });
 
 test('post-result continuation forwards context usage to the session persistence seam', async () => {
-  const proc = fakeProcess();
-  const r = recorder({}, { backend: 'claude', agentProcess: proc });
+  const run = fakeRun();
+  const r = recorder({}, run);
   await tryInjectIntoLiveTurn(r.deps, baseCtx);
-  await proc.ackSink.onDelivered({ text: 'skip the rest', foldedIntoTurn: false });
+  await run.deliver('skip the rest', false);
 
-  proc.continuationSink.onContextUsage({
+  await run.backgroundContextUsage({
     usedTokens: 500, contextWindow: 1_000_000, percent: 0.05, accuracy: 'exact',
   });
 
@@ -496,12 +515,12 @@ test('post-result continuation forwards context usage to the session persistence
 });
 
 test('post-result continuation routes tool calls to the transcript too', async () => {
-  const proc = fakeProcess();
-  const r = recorder({}, { backend: 'claude', agentProcess: proc });
+  const run = fakeRun();
+  const r = recorder({}, run);
   await tryInjectIntoLiveTurn(r.deps, baseCtx);
-  await proc.ackSink.onDelivered({ text: 'skip the rest', foldedIntoTurn: false });
+  await run.deliver('skip the rest', false);
 
-  proc.continuationSink.onToolUse('remote_bash', { device: 'lab2', command: 'echo hi' });
+  await run.backgroundToolUse('remote_bash', { device: 'lab2', command: 'echo hi' });
 
   const toolRows = r.history.filter((h) => h.kind === 'tool');
   assert.equal(toolRows.length, 1);
@@ -512,32 +531,32 @@ test('post-result continuation routes tool calls to the transcript too', async (
 });
 
 test('busy gate is released exactly once even if ack and continuation result both fire', async () => {
-  const proc = fakeProcess();
-  const r = recorder({}, { backend: 'claude', agentProcess: proc });
+  const run = fakeRun();
+  const r = recorder({}, run);
   await tryInjectIntoLiveTurn(r.deps, baseCtx);
 
-  await proc.ackSink.onDelivered({ text: 'skip the rest', foldedIntoTurn: true });
-  await proc.continuationSink.onResult({ pendingBackgroundTasks: 0 });
-  await proc.continuationSink.onResult({ pendingBackgroundTasks: 0 });
+  await run.deliver('skip the rest', true);
+  await run.backgroundResult({ pendingBackgroundTasks: 0 });
+  await run.backgroundResult({ pendingBackgroundTasks: 0 });
 
   assert.deepEqual(r.track, [+1, -1], 'single-fire release — no double decrement');
 });
 
 test('a second injection into the same live turn is surfaced and committed independently', async () => {
-  const proc = fakeProcess();
-  const r = recorder({}, { backend: 'claude', agentProcess: proc });
+  const run = fakeRun();
+  const r = recorder({}, run);
 
   assert.equal(await tryInjectIntoLiveTurn(r.deps, baseCtx), true);
   assert.equal(await tryInjectIntoLiveTurn(r.deps, { ...baseCtx, text: 'and one more', messageId: 'web_2' }), true);
 
-  assert.deepEqual(proc.injectedTexts, ['skip the rest', 'and one more']);
+  assert.deepEqual(run.injectedTexts, ['skip the rest', 'and one more']);
   const pendingRows = r.published.filter((p) => p.role === 'user');
   assert.equal(pendingRows.length, 2);
   assert.ok(pendingRows.every((p) => p.pending === true), 'both are pending while the model has read neither');
   assert.deepEqual(r.track, [+1, +1]);
 
-  await proc.ackSink.onDelivered({ text: 'skip the rest', foldedIntoTurn: true });
-  await proc.ackSink.onDelivered({ text: 'and one more', foldedIntoTurn: true });
+  await run.deliver('skip the rest', true);
+  await run.deliver('and one more', true);
   assert.equal(r.delivered.length, 2, 'each injected message gets its own commit');
   assert.deepEqual(
     r.history.map((h) => h.text), ['skip the rest', 'and one more'],
@@ -552,8 +571,8 @@ test('a second injection into the same live turn is surfaced and committed indep
 test('new injections use the wait cap from the current runtime settings', async () => {
   vi.useFakeTimers();
   try {
-    const proc = fakeProcess();
-    const r = recorder({}, { backend: 'claude', agentProcess: proc });
+    const run = fakeRun();
+    const r = recorder({}, run);
 
     liveSettings.injectWaitMaxS = 1;
     await tryInjectIntoLiveTurn(r.deps, baseCtx);
@@ -575,8 +594,8 @@ test('new injections use the wait cap from the current runtime settings', async 
 test('a message the backend never consumed is committed when the injection window closes', async () => {
   vi.useFakeTimers();
   try {
-    const proc = fakeProcess();
-    const r = recorder({ maxWaitMs: 5000 }, { backend: 'claude', agentProcess: proc });
+    const run = fakeRun();
+    const r = recorder({ maxWaitMs: 5000 }, run);
     await tryInjectIntoLiveTurn(r.deps, baseCtx);
     const pendingTs = r.published[0].ts;
     assert.deepEqual(r.history, []);
@@ -597,12 +616,12 @@ test('a message the backend never consumed is committed when the injection windo
 });
 
 test('an adapter undelivered ack commits and releases exactly once', async () => {
-  const proc = fakeProcess();
-  const r = recorder({}, { backend: 'pi', agentProcess: proc });
+  const run = fakeRun({ backend: 'pi' });
+  const r = recorder({}, run);
   await tryInjectIntoLiveTurn(r.deps, baseCtx);
 
-  await proc.ackSink.onUndelivered({ text: 'skip the rest' });
-  await proc.ackSink.onUndelivered({ text: 'skip the rest' });
+  await run.undeliver('skip the rest');
+  await run.undeliver('skip the rest');
 
   assert.deepEqual(r.history.map((h) => h.text), ['skip the rest']);
   assert.equal(r.ledger.length, 1, 'the sealed message takes one ledger turn');
@@ -612,15 +631,15 @@ test('an adapter undelivered ack commits and releases exactly once', async () =>
 });
 
 test('a spontaneous turn ending with an injection still outstanding commits it too', async () => {
-  const proc = fakeProcess();
-  const r = recorder({}, { backend: 'claude', agentProcess: proc });
+  const run = fakeRun();
+  const r = recorder({}, run);
   await tryInjectIntoLiveTurn(r.deps, baseCtx);
   await tryInjectIntoLiveTurn(r.deps, { ...baseCtx, text: 'and one more', messageId: 'web_2' });
-  await proc.ackSink.onDelivered({ text: 'skip the rest', foldedIntoTurn: false });
+  await run.deliver('skip the rest', false);
   assert.equal(r.history.length, 1, 'only the consumed one is committed so far');
 
   // The turn results with the second message never echoed (process death delivers the same edge).
-  await proc.continuationSink.onResult({ pendingBackgroundTasks: 0 });
+  await run.backgroundResult({ pendingBackgroundTasks: 0 });
 
   assert.deepEqual(r.history.map((h) => h.text), ['skip the rest', 'and one more']);
   assert.equal(r.ledger.length, 2, 'ledger turns keep pace with the user records');
@@ -628,14 +647,14 @@ test('a spontaneous turn ending with an injection still outstanding commits it t
 });
 
 test('a committed message is never committed twice, whatever fires afterwards', async () => {
-  const proc = fakeProcess();
-  const r = recorder({}, { backend: 'claude', agentProcess: proc });
+  const run = fakeRun();
+  const r = recorder({}, run);
   await tryInjectIntoLiveTurn(r.deps, baseCtx);
 
-  await proc.ackSink.onDelivered({ text: 'skip the rest', foldedIntoTurn: false });
-  await proc.ackSink.onDelivered({ text: 'skip the rest', foldedIntoTurn: false });
-  await proc.continuationSink.onResult({ pendingBackgroundTasks: 0 });
-  await proc.continuationSink.onResult({ pendingBackgroundTasks: 0 });
+  await run.deliver('skip the rest', false);
+  await run.deliver('skip the rest', false);
+  await run.backgroundResult({ pendingBackgroundTasks: 0 });
+  await run.backgroundResult({ pendingBackgroundTasks: 0 });
 
   assert.equal(r.history.filter((h) => h.kind === 'user').length, 1, 'one send, one record');
   assert.equal(r.ledger.length, 1);

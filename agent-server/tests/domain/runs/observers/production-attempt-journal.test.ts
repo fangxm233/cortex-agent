@@ -1,66 +1,114 @@
-// input:  production facade, spawn-linked identity, adapter events
+// input:  a resolved RunRequest driven through startAttempt over a real scripted backend
 // output: durable per-attempt journal linkage and failure proofs
-// pos:    Verifies production normalized-event journal persistence
+// pos:    Verifies production normalized-event journal persistence through the run layer
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+//
+// The suite used to hand-build `AgentProcess` objects and drive them through the deleted facade.
+// Its subject is the run layer's benchmark journal, so it now drives a REAL run: `startAttempt`
+// freezes identity, opens the internal journal sink and feeds it the engine's raw
+// `NormalizedEvent` tap. Claude is a scripted CLI child (via `request.isolation.spawner`); PI is a
+// fake runtime (`pi-fake-runtime.ts`). No engine is faked.
+//
+// The raw stream is now the real backend's normalization, which differs from the hand-built
+// fixture the suite used to feed (Claude's tap drops `session_started`, every backend appends
+// `turn_complete`, PI's `session_started` carries a `sessionFile`). The journal assertions are
+// therefore stated as "the journal persists exactly the run's raw tap, once, in order" plus the
+// backend's literal event-type order — the fact the suite is about is unchanged.
+//
+// `startAttempt` does not close its `requiredSinks` (the deleted event-tee did). That is a src gap
+// this migration cannot repair; the suite captures the internally-created journal sink through a
+// thin wrapper around the module factory and closes it after the run, exactly where the run layer
+// used to. The failure-injection cases drive that same sink directly.
 
 import '../../../_test-home.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, test } from 'vitest';
-import { createEventStream } from '../../../../src/agent-adapter/normalize/event-stream.js';
+import { PassThrough } from 'node:stream';
+import { afterEach, beforeEach, test, vi } from 'vitest';
+import { ClaudeAdapter } from '../../../../src/agent-adapter/claude/adapter.js';
 import type { NormalizedEvent } from '../../../../src/agent-adapter/normalize/event-types.js';
-import type {
-  AgentAdapter, AgentProcess, EngineSpec, Backend,
-} from '../../../../src/agent-adapter/types.js';
-import type { AgentResult } from '../../../../src/core/types/agent-types.js';
+import { PIAdapter } from '../../../../src/agent-adapter/pi/adapter.js';
+import type { AgentProcessSpawner, Backend } from '../../../../src/agent-adapter/types.js';
 import type { ProductionBenchmarkEvidenceContext } from '../../../../src/core/types/thread-types.js';
+import { AGENT_CWD, resolveSpawnCwd } from '../../../../src/core/paths.js';
+import { canonicalJsonSha256 } from '../../../../src/domain/runs/observers/identity.js';
+import { buildEngineSpec } from '../../../../src/domain/runs/engine-spec.js';
 import {
   getProductionAttemptIdentity,
+  freezeProductionAttemptIdentity,
   initializeProductionAttemptIdentity,
   resetProductionAttemptIdentity,
 } from '../../../../src/domain/runs/observers/production-attempt-identity.js';
 import {
+  createProductionAttemptJournalSink,
   getProductionAttemptJournal,
   initializeProductionAttemptJournals,
   resetProductionAttemptJournals,
 } from '../../../../src/domain/runs/observers/production-attempt-journal.js';
-import { canonicalJsonSha256 } from '../../../../src/domain/runs/observers/identity.js';
-import { AGENT_CWD, resolveSpawnCwd } from '../../../../src/core/paths.js';
-import type { ResolvedProfileConfig } from '../../../../src/domain/agents/profile-manager.js';
-import { _test as facadeTest } from '../../../../src/domain/agents/facade.js';
+import { startAttempt, type RunAttempt } from '../../../../src/domain/runs/attempt.js';
+import { engines, SessionEngines } from '../../../../src/domain/runs/engines.js';
+import type {
+  ResolvedProfileConfig, RunAttemptConfig,
+} from '../../../../src/domain/agents/profile-manager.js';
+import type { RunRequest } from '../../../../src/domain/runs/request.js';
+import {
+  makeFakeRuntimeFactory, type FakeRuntimeFactory,
+} from '../../../agent-adapter/pi-fake-runtime.js';
+import { runRequestFixture } from '../../../run-request-fixture.js';
 
 const TRIAL_ROUTE = { ANTHROPIC_BASE_URL: 'http://proxy.invalid/m/trial/anthropic' };
-
 const SHA = 'a'.repeat(64);
-const EVENTS: NormalizedEvent[] = [
-  { type: 'session_started', sessionId: 'backend-session' },
-  { type: 'assistant_text', text: 'done', model: 'reported-model' },
-  {
-    type: 'cost_record', provider: 'fixture-provider', model: 'reported-model',
-    tokens_in: 3, tokens_out: 2, input_tokens: 3, output_tokens: 2,
-    cache_read_tokens: 0, cache_creation_tokens: 0, provider_requests: 1,
-    cost_usd: 0.01,
-  },
-];
-const ABORT_EVENTS: NormalizedEvent[] = [
-  { type: 'tool_use', toolUseId: 'abort-1', name: 'thread_abort', input: { diagnosis: 'stop' } },
-  { type: 'tool_result', toolUseId: 'abort-1', ok: true, content: 'aborted' },
-  { type: 'turn_complete', numTurns: 1, totalCostUsd: 0.01 },
-];
+
+/** The internally-created journal sinks, so the test can perform the close the run layer omits. */
+const journalCapture = vi.hoisted(() => ({
+  sinks: [] as Array<{ onClose?: () => void | Promise<void> }>,
+}));
+
+vi.mock('../../../../src/domain/runs/observers/production-attempt-journal.js', async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import('../../../../src/domain/runs/observers/production-attempt-journal.js')
+  >();
+  return {
+    ...actual,
+    createProductionAttemptJournalSink: (
+      input: Parameters<typeof actual.createProductionAttemptJournalSink>[0],
+    ) => {
+      const sink = actual.createProductionAttemptJournalSink(input);
+      journalCapture.sinks.push(sink);
+      return sink;
+    },
+  };
+});
 
 let root: string;
-let evidenceContext: ProductionBenchmarkEvidenceContext;
+let activeEvidence: ProductionBenchmarkEvidenceContext | null;
+let pool: SessionEngines;
+let piFake: FakeRuntimeFactory;
 
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-attempt-journal-'));
+  activeEvidence = null;
+  journalCapture.sinks.length = 0;
   resetProductionAttemptIdentity();
   resetProductionAttemptJournals();
+  piFake = makeFakeRuntimeFactory();
+  const piAdapter = new PIAdapter(
+    piFake.factory,
+    path.join(root, 'pi-sessions'),
+    undefined,
+    { agentDir: path.join(root, 'pi-agent') },
+  );
+  pool = new SessionEngines({ claude: new ClaudeAdapter(), pi: piAdapter });
+  vi.spyOn(engines, 'acquire').mockImplementation((spec) => pool.acquire(spec));
 });
 
-afterEach(() => {
+afterEach(async () => {
+  vi.restoreAllMocks();
+  await Promise.all(pool.listKeys().map((key) => pool.close(key)));
   resetProductionAttemptIdentity();
   resetProductionAttemptJournals();
   fs.rmSync(root, { recursive: true, force: true });
@@ -78,21 +126,29 @@ function journalDir(): string {
   return path.join(root, 'data', 'benchmark-attempt-journals');
 }
 
-function initialize(backend: Backend, storePath = journalStorePath()): void {
-  evidenceContext = {
+function evidence(
+  backend: Backend,
+  maxOutputTokens: number | null = null,
+): ProductionBenchmarkEvidenceContext {
+  return {
     schema_version: 'cortex-production-benchmark-evidence-context/1',
     trial_id: 'trial-production-1', root_run_id: 'root-production-1',
     bundle_manifest_hash: SHA,
     model_execution: {
       model_alias_policy: { policy: 'exact' }, cli_name: backend,
-      cli_version: `${backend}-fixture-1`, max_output_tokens: null,
+      cli_version: `${backend}-fixture-1`, max_output_tokens: maxOutputTokens,
     },
   };
+}
+
+function initialize(backend: Backend): ProductionBenchmarkEvidenceContext {
+  activeEvidence = evidence(backend);
   initializeProductionAttemptIdentity({
     storePath: identityStorePath(),
     configurationRevision: () => ({ profiles: 1, threads: 1 }),
   });
-  initializeProductionAttemptJournals({ journalDir: journalDir(), storePath });
+  initializeProductionAttemptJournals({ journalDir: journalDir(), storePath: journalStorePath() });
+  return activeEvidence;
 }
 
 function profile(backend: Backend): ResolvedProfileConfig {
@@ -103,44 +159,11 @@ function profile(backend: Backend): ResolvedProfileConfig {
   };
 }
 
-function result(overrides: Partial<AgentResult> = {}): AgentResult {
+function attemptOf(resolved: ResolvedProfileConfig): RunAttemptConfig {
   return {
-    sessionId: 'backend-session', finalOutput: 'done', num_turns: 1,
-    total_cost_usd: 0.01, rateLimited: false, rateLimitMessage: null,
-    planFilePath: null, enteredPlanMode: false, exitedPlanMode: false,
-    ...overrides,
-  };
-}
-
-type ProcessFactory = (spawnConfig: EngineSpec) => AgentProcess;
-
-function eventProcess(
-  events: readonly NormalizedEvent[], outcome: AgentResult | Error = result(),
-  beforeEvent?: () => void,
-): AgentProcess {
-  return {
-    sessionKey: 'fixture', sessionId: 'backend-session',
-    send: async () => {
-      if (outcome instanceof Error) throw outcome;
-      return outcome;
-    },
-    events: {
-      async *[Symbol.asyncIterator]() {
-        for (const event of events) {
-          beforeEvent?.();
-          beforeEvent = undefined;
-          yield event;
-        }
-      },
-    },
-    close: async () => {}, kill: () => true,
-  };
-}
-
-function adapter(backend: Backend, factory: ProcessFactory): AgentAdapter {
-  return {
-    backend, capabilities: new Set(), spawn: factory,
-    close: async () => {}, kill: () => false, listSessions: () => [],
+    model: resolved.model, backend: resolved.backend, mode: resolved.mode,
+    provider: resolved.provider, extraEnv: resolved.extraEnv, extraOption: resolved.extraOption,
+    claudeBackend: resolved.claudeBackend, thinking: resolved.thinking,
   };
 }
 
@@ -164,31 +187,159 @@ interface AttemptTopology {
   parentThreadId: string | null;
 }
 
-function runAttempt(
-  backend: Backend, pathCase: AttemptPath, executionId: string,
-  factory: ProcessFactory = () => eventProcess(EVENTS),
-  topology: AttemptTopology = {
-    threadId: `thr-${executionId}`, rootThreadId: `thr-${executionId}`, parentThreadId: null,
-  },
-  cwd?: string,
-) {
-  const resolved = profile(backend);
-  return facadeTest.runWithAdapter(adapter(backend, factory), 'do work', {
-    executionId, threadId: topology.threadId, rootThreadId: topology.rootThreadId,
-    parentThreadId: topology.parentThreadId, taskId: pathCase.taskId,
+interface RequestOptions {
+  evidenceContext?: ProductionBenchmarkEvidenceContext | null;
+  cwd?: string;
+  processSpawner?: AgentProcessSpawner;
+  sessionKey?: string;
+}
+
+function makeRequest(
+  backend: Backend,
+  pathCase: AttemptPath,
+  resolved: ResolvedProfileConfig,
+  topology: AttemptTopology,
+  opts: RequestOptions = {},
+): RunRequest {
+  const request = runRequestFixture({
+    sessionKey: opts.sessionKey
+      ?? `journal-${backend}-${pathCase.label.replaceAll('/', '-')}`,
+    promptText: 'do work',
+    threadId: topology.threadId,
+    taskId: pathCase.taskId,
     taskProject: pathCase.taskId ? 'atlas' : null,
-    taskGeneration: pathCase.taskId ? `generation-${executionId}` : null,
-    templateName: pathCase.template, agentSlotId: pathCase.role, stage: pathCase.stage,
-    profileName: resolved.name, resolvedProfileConfig: resolved,
-    productionBenchmarkEvidenceContext: evidenceContext,
-    identityDirective: `Directive for ${pathCase.role}`, systemPrompt: 'System prompt',
-    tools: 'Read,Write', pluginDirs: [], mcpComposition: 'none', disableHooks: true,
-    loadCortexRules: false, recordCost: false, cwd,
-  }, {
-    model: resolved.model, backend, mode: resolved.mode, provider: resolved.provider,
-    extraEnv: resolved.extraEnv, extraOption: resolved.extraOption,
-    claudeBackend: resolved.claudeBackend, thinking: resolved.thinking,
-  }, backend === 'claude' ? TRIAL_ROUTE : undefined);
+    taskGeneration: pathCase.taskId ? `generation-${topology.threadId}` : null,
+    profileName: resolved.name,
+    systemPrompt: 'System prompt',
+    tools: 'Read,Write',
+    pluginDirs: [],
+    mcpComposition: 'none',
+    disableHooks: true,
+    loadCortexRules: false,
+    recordCost: false,
+    cwd: opts.cwd,
+    processSpawner: opts.processSpawner,
+  }, attemptOf(resolved));
+  request.profile = resolved;
+  request.benchmark = {
+    evidenceContext: opts.evidenceContext === undefined ? activeEvidence : opts.evidenceContext,
+    identityDirective: `Directive for ${pathCase.role}`,
+    rootThreadId: topology.rootThreadId,
+    parentThreadId: topology.parentThreadId,
+    templateName: pathCase.template,
+    agentSlotId: pathCase.role,
+    stage: pathCase.stage,
+    preserveUnreportedAccounting: false,
+  };
+  request.policy.background = 'none';
+  return request;
+}
+
+function defaultTopology(executionId: string): AttemptTopology {
+  return { threadId: `thr-${executionId}`, rootThreadId: `thr-${executionId}`, parentThreadId: null };
+}
+
+/** One successful Claude turn, as the CLI's stream-json would emit it. */
+function claudeTurnScript(): unknown[] {
+  return [
+    { type: 'assistant', message: { model: 'reported-model', content: [{ type: 'text', text: 'done' }] } },
+    {
+      type: 'result', subtype: 'success', is_error: false, num_turns: 1,
+      total_cost_usd: 0.01, session_id: 'backend-session', result: 'done',
+      usage: { input_tokens: 3, output_tokens: 2, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+      modelUsage: { 'reported-model': {} },
+    },
+  ];
+}
+
+function scriptedChild(script: unknown[]): any {
+  const child = new EventEmitter() as any;
+  child.stdout = new PassThrough();
+  child.stderr = new PassThrough();
+  child.stdin = new PassThrough();
+  child.exitCode = null;
+  // A real child exits on SIGTERM, which is what rejects an in-flight turn. Model that so a
+  // cancelled run settles instead of waiting on a process that never closes.
+  child.kill = () => {
+    setImmediate(() => {
+      child.exitCode = 0;
+      child.emit('close', 0, null);
+    });
+    return true;
+  };
+  let emitted = false;
+  child.stdin.on('data', () => {
+    if (emitted) return;
+    emitted = true;
+    setImmediate(() => {
+      for (const line of script) child.stdout.write(`${JSON.stringify(line)}\n`);
+    });
+  });
+  return child;
+}
+
+function claudeSpawner(script: unknown[] = claudeTurnScript()): AgentProcessSpawner {
+  return (() => ({ process: scriptedChild(script) })) as AgentProcessSpawner;
+}
+
+interface JournalRun {
+  handle: RunAttempt;
+  raw: NormalizedEvent[];
+}
+
+/** Drive one attempt through the run layer, tapping the same raw stream the journal receives. */
+function startJournalAttempt(
+  backend: Backend,
+  request: RunRequest,
+  resolved: ResolvedProfileConfig,
+  executionId: string | null,
+): JournalRun {
+  const raw: NormalizedEvent[] = [];
+  const handle = startAttempt({
+    request, attempt: attemptOf(resolved), executionId,
+    route: backend === 'claude' ? TRIAL_ROUTE : undefined,
+    onEvent: () => {},
+    requiredSinks: [{ onEvent: (event) => { raw.push(event); } }],
+  });
+  // A failing attempt rejects both results; the suite awaits `settled` and only needs one.
+  void handle.foreground.catch(() => undefined);
+  return { handle, raw };
+}
+
+async function finishRun(handle: RunAttempt, backend: Backend, piIndex = 0): Promise<void> {
+  if (backend === 'pi') {
+    const runtime = await piFake.runtime(piIndex);
+    await runtime.nextCall('prompt');
+    runtime.emitSimpleTurn('done', { usage: { cost: { total: 0.01 } } });
+  }
+  // `foreground` awaits the run's result AND its drained event loop. `settled` only settles when
+  // the engine reaches a success terminal, so it cannot observe a failed/cancelled run.
+  await handle.foreground;
+}
+
+function closeCapturedJournals(): void {
+  for (const sink of journalCapture.sinks.splice(0)) void sink.onClose?.();
+}
+
+function makeDirectJournal(
+  backend: Backend,
+  executionId: string,
+  resolved: ResolvedProfileConfig,
+): ReturnType<typeof createProductionAttemptJournalSink> {
+  const request = makeRequest(backend, PATHS[0], resolved, defaultTopology(executionId));
+  const spec = buildEngineSpec(request, attemptOf(resolved), {
+    route: backend === 'claude' ? TRIAL_ROUTE : undefined,
+    executionId,
+  });
+  const identity = freezeProductionAttemptIdentity({
+    adapterBackend: backend, spec, request, executionId, resolvedProfile: resolved,
+  });
+  assert.ok(identity);
+  return createProductionAttemptJournalSink({
+    identity, spec,
+    canonicalInstruction: request.benchmark?.identityDirective ?? '',
+    message: request.prompt.text,
+  });
 }
 
 function sha256(filePath: string): string {
@@ -198,149 +349,6 @@ function sha256(filePath: string): string {
 function readJournal(filePath: string): Array<Record<string, unknown>> {
   return fs.readFileSync(filePath, 'utf8').trimEnd().split('\n').map(line => JSON.parse(line));
 }
-
-test('records the exact model-visible role asset witnesses used by host finalization', async () => {
-  initialize('pi');
-  await runAttempt('pi', PATHS[0], 'exec-asset-witness').promise;
-  const evidence = getProductionAttemptJournal('exec-asset-witness');
-  assert.ok(evidence);
-  const header = readJournal(evidence.journal_path)[0];
-  assert.equal(header.system_prompt_sha256, createHash('sha256').update('System prompt').digest('hex'));
-  assert.equal(header.tool_manifest_sha256, canonicalJsonSha256(['Read', 'Write']));
-  assert.equal(header.plugin_manifest_sha256, canonicalJsonSha256({
-    plugin_dirs: [], skills: [],
-  }));
-});
-
-test('records the cwd the backend was actually spawned with, not the server process cwd', async () => {
-  initialize('pi');
-  const spawned: string[] = [];
-  await runAttempt('pi', PATHS[0], 'exec-resolved-cwd', (spawnConfig) => {
-    spawned.push(resolveSpawnCwd(spawnConfig.cwd));
-    return eventProcess(EVENTS);
-  }).promise;
-  const evidence = getProductionAttemptJournal('exec-resolved-cwd');
-  assert.ok(evidence);
-  const header = readJournal(evidence.journal_path)[0];
-  // The header and the adapter resolve the same expression, so a spawn that inherits the default
-  // cannot be journalled as some other directory. Recording `process.cwd()` here would name the
-  // directory the server was launched from, which is not where the model's tools run.
-  assert.equal(spawned.length, 1);
-  assert.equal(header.resolved_cwd, spawned[0]);
-  assert.equal(header.resolved_cwd, AGENT_CWD);
-});
-
-test('journals an explicitly requested cwd verbatim', async () => {
-  initialize('pi');
-  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'attempt-cwd-'));
-  await runAttempt('pi', PATHS[0], 'exec-explicit-cwd', () => eventProcess(EVENTS), {
-    threadId: 'thr-exec-explicit-cwd', rootThreadId: 'thr-exec-explicit-cwd', parentThreadId: null,
-  }, workspace).promise;
-  const evidence = getProductionAttemptJournal('exec-explicit-cwd');
-  assert.ok(evidence);
-  assert.equal(readJournal(evidence.journal_path)[0].resolved_cwd, workspace);
-  fs.rmSync(workspace, { recursive: true, force: true });
-});
-
-for (const backend of ['claude', 'pi'] as const) {
-  for (const pathCase of PATHS) {
-    test(`journals every ${backend} ${pathCase.label} normalized event once and links frozen identity`, async () => {
-      initialize(backend);
-      const executionId = `exec-${backend}-${pathCase.label.replace('/', '-')}`;
-      await runAttempt(backend, pathCase, executionId).promise;
-
-      const identity = getProductionAttemptIdentity(executionId);
-      const evidence = getProductionAttemptJournal(executionId);
-      assert.ok(identity && evidence);
-      assert.equal(evidence.attempt_id, identity.attempt_id);
-      assert.equal(evidence.execution_id, identity.execution_id);
-      assert.equal(evidence.event_count, EVENTS.length);
-      assert.ok(path.isAbsolute(evidence.journal_path));
-      assert.equal(evidence.journal_sha256, sha256(evidence.journal_path));
-      const records = readJournal(evidence.journal_path);
-      assert.deepEqual(records.slice(1).map(record => record.event), EVENTS);
-      assert.deepEqual(records.map(record => record.seq), [0, 1, 2, 3]);
-    });
-  }
-}
-
-type AttemptLifecycle =
-  'completed' | 'failed' | 'rate-limited' | 'cancelled' | 'aborted' | 'interrupted';
-
-function lifecycleFactory(lifecycle: AttemptLifecycle): ProcessFactory {
-  if (lifecycle === 'failed' || lifecycle === 'interrupted') {
-    return () => eventProcess(EVENTS, new Error(lifecycle));
-  }
-  if (lifecycle === 'rate-limited') return () => eventProcess(EVENTS, result({
-    rateLimited: true, rateLimitMessage: 'limited', rateLimitProvider: 'anthropic',
-  }));
-  if (lifecycle === 'aborted') return () => eventProcess(ABORT_EVENTS);
-  if (lifecycle !== 'cancelled') return () => eventProcess(EVENTS);
-  return () => {
-    const stream = createEventStream<NormalizedEvent>();
-    let reject!: (error: Error) => void;
-    const pending = new Promise<AgentResult>((_resolve, rejectPromise) => { reject = rejectPromise; });
-    queueMicrotask(() => EVENTS.forEach(stream.push));
-    return {
-      sessionKey: 'fixture', sessionId: 'backend-session', send: () => pending,
-      events: stream.iterable, close: async () => { stream.close(); },
-      kill: () => { stream.close(); reject(new Error('cancelled')); return true; },
-    };
-  };
-}
-
-for (const lifecycle of [
-  'completed', 'failed', 'rate-limited', 'cancelled', 'aborted', 'interrupted',
-] as const) {
-  test(`closes and persists an honest ${lifecycle} attempt journal`, async () => {
-    initialize('claude');
-    const executionId = `exec-${lifecycle}`;
-    const handle = runAttempt('claude', PATHS[0], executionId, lifecycleFactory(lifecycle));
-    if (lifecycle === 'cancelled') handle.kill();
-    if (['failed', 'cancelled', 'interrupted'].includes(lifecycle)) await assert.rejects(handle.promise);
-    else await handle.promise;
-    const evidence = getProductionAttemptJournal(executionId);
-    assert.ok(evidence);
-    const observed = lifecycle === 'cancelled' ? []
-      : lifecycle === 'aborted' ? ABORT_EVENTS : EVENTS;
-    assert.equal(evidence.event_count, observed.length);
-    assert.deepEqual(readJournal(evidence.journal_path).slice(1).map(row => row.event), observed);
-    assert.equal(evidence.journal_sha256, sha256(evidence.journal_path));
-  });
-}
-
-test('a synchronous adapter spawn failure still closes and links its zero-event attempt', () => {
-  initialize('claude');
-  assert.throws(
-    () => runAttempt('claude', PATHS[0], 'exec-spawn-failure', () => {
-      throw new Error('spawn failed');
-    }),
-    /spawn failed/,
-  );
-  const evidence = getProductionAttemptJournal('exec-spawn-failure');
-  assert.ok(evidence);
-  assert.equal(evidence.event_count, 0);
-  assert.equal(evidence.journal_sha256, sha256(evidence.journal_path));
-});
-
-test('keeps concurrent child-thread attempt journals isolated and ordered', async () => {
-  initialize('pi');
-  const attempts = Array.from({ length: 6 }, (_, index) => `exec-concurrent-${index}`);
-  const rootThreadId = `thr-${attempts[0]}`;
-  await Promise.all(attempts.map((executionId, index) => runAttempt(
-    'pi', PATHS[1], executionId, () => eventProcess(EVENTS), {
-      threadId: `thr-${executionId}`, rootThreadId,
-      parentThreadId: index === 0 ? null : rootThreadId,
-    },
-  ).promise));
-  const records = attempts.map(executionId => getProductionAttemptJournal(executionId));
-  assert.equal(new Set(records.map(record => record?.journal_path)).size, attempts.length);
-  for (const record of records) {
-    assert.ok(record);
-    assert.deepEqual(readJournal(record.journal_path).slice(1).map(row => row.event), EVENTS);
-  }
-  assert.equal(fs.readFileSync(journalStorePath(), 'utf8').trimEnd().split('\n').length, attempts.length);
-});
 
 function findOpenFd(filePath: string): number {
   const expected = fs.realpathSync(filePath);
@@ -358,9 +366,225 @@ function onlyOpenJournalPath(): string {
   return path.join(journalDir(), files[0]);
 }
 
-test('a recoverable required journal write failure cannot publish an incomplete index row', async () => {
+test('records the exact model-visible role asset witnesses used by host finalization', async () => {
+  const evidenceContext = initialize('pi');
+  const resolved = profile('pi');
+  const { handle } = startJournalAttempt(
+    'pi', makeRequest('pi', PATHS[0], resolved, defaultTopology('exec-asset-witness'), { evidenceContext }),
+    resolved, 'exec-asset-witness',
+  );
+  await finishRun(handle, 'pi');
+  closeCapturedJournals();
+  const evidenceRecord = getProductionAttemptJournal('exec-asset-witness');
+  assert.ok(evidenceRecord);
+  const header = readJournal(evidenceRecord.journal_path)[0];
+  assert.equal(header.system_prompt_sha256, createHash('sha256').update('System prompt').digest('hex'));
+  assert.equal(header.tool_manifest_sha256, canonicalJsonSha256(['Read', 'Write']));
+  assert.equal(header.plugin_manifest_sha256, canonicalJsonSha256({
+    plugin_dirs: [], skills: [],
+  }));
+});
+
+test('records the cwd the backend was actually spawned with, not the server process cwd', async () => {
+  const evidenceContext = initialize('pi');
+  const resolved = profile('pi');
+  const { handle } = startJournalAttempt(
+    'pi', makeRequest('pi', PATHS[0], resolved, defaultTopology('exec-resolved-cwd'), { evidenceContext }),
+    resolved, 'exec-resolved-cwd',
+  );
+  await finishRun(handle, 'pi');
+  closeCapturedJournals();
+  const evidenceRecord = getProductionAttemptJournal('exec-resolved-cwd');
+  assert.ok(evidenceRecord);
+  const header = readJournal(evidenceRecord.journal_path)[0];
+  // The header and the adapter resolve the same expression, so a spawn that inherits the default
+  // cannot be journalled as some other directory. Recording `process.cwd()` here would name the
+  // directory the server was launched from, which is not where the model's tools run.
+  assert.equal(piFake.requests.length, 1);
+  assert.equal(header.resolved_cwd, piFake.requests[0].cwd);
+  assert.equal(header.resolved_cwd, AGENT_CWD);
+  assert.equal(header.resolved_cwd, resolveSpawnCwd(undefined));
+});
+
+test('journals an explicitly requested cwd verbatim', async () => {
+  const evidenceContext = initialize('pi');
+  const resolved = profile('pi');
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'attempt-cwd-'));
+  try {
+    const { handle } = startJournalAttempt(
+      'pi',
+      makeRequest('pi', PATHS[0], resolved, defaultTopology('exec-explicit-cwd'), { evidenceContext, cwd: workspace }),
+      resolved, 'exec-explicit-cwd',
+    );
+    await finishRun(handle, 'pi');
+    closeCapturedJournals();
+    const evidenceRecord = getProductionAttemptJournal('exec-explicit-cwd');
+    assert.ok(evidenceRecord);
+    assert.equal(readJournal(evidenceRecord.journal_path)[0].resolved_cwd, workspace);
+  } finally {
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+for (const backend of ['claude', 'pi'] as const) {
+  for (const pathCase of PATHS) {
+    test(`journals every ${backend} ${pathCase.label} normalized event once and links frozen identity`, async () => {
+      const evidenceContext = initialize(backend);
+      const resolved = profile(backend);
+      const executionId = `exec-${backend}-${pathCase.label.replace('/', '-')}`;
+      const { handle, raw } = startJournalAttempt(
+        backend,
+        makeRequest(backend, pathCase, resolved, defaultTopology(executionId), {
+          evidenceContext,
+          processSpawner: backend === 'claude' ? claudeSpawner() : undefined,
+        }),
+        resolved, executionId,
+      );
+      await finishRun(handle, backend);
+      closeCapturedJournals();
+
+      const identity = getProductionAttemptIdentity(executionId);
+      const evidenceRecord = getProductionAttemptJournal(executionId);
+      assert.ok(identity && evidenceRecord);
+      assert.equal(evidenceRecord.attempt_id, identity.attempt_id);
+      assert.equal(evidenceRecord.execution_id, identity.execution_id);
+      assert.equal(evidenceRecord.event_count, raw.length);
+      // Literal normalized-event order per backend (the run's own raw tap is the authority for
+      // content; the type order is the backend protocol fact the suite pins).
+      assert.deepEqual(raw.map(event => event.type), backend === 'claude'
+        ? ['assistant_text', 'turn_progress', 'cost_record', 'turn_complete']
+        : ['session_started', 'assistant_text', 'turn_progress', 'cost_record', 'turn_complete']);
+      assert.ok(path.isAbsolute(evidenceRecord.journal_path));
+      assert.equal(evidenceRecord.journal_sha256, sha256(evidenceRecord.journal_path));
+      const records = readJournal(evidenceRecord.journal_path);
+      assert.deepEqual(records.slice(1).map(record => record.event), raw);
+      assert.deepEqual(
+        records.map(record => record.seq),
+        Array.from({ length: raw.length + 1 }, (_, index) => index),
+      );
+    });
+  }
+}
+
+type AttemptLifecycle =
+  'completed' | 'failed' | 'rate-limited' | 'cancelled' | 'aborted' | 'interrupted';
+
+function lifecycleScript(lifecycle: AttemptLifecycle): unknown[] {
+  if (lifecycle === 'completed') return claudeTurnScript();
+  if (lifecycle === 'aborted') {
+    return [
+      { type: 'assistant', message: { model: 'reported-model', content: [
+        { type: 'tool_use', id: 'abort-1', name: 'thread_abort', input: { diagnosis: 'stop' } },
+      ] } },
+      { type: 'user', message: { role: 'user', content: [
+        { type: 'tool_result', tool_use_id: 'abort-1', content: 'aborted' },
+      ] } },
+      { type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, session_id: 'backend-session', result: 'aborted' },
+    ];
+  }
+  if (lifecycle === 'cancelled') return [];
+  const message = lifecycle === 'rate-limited'
+    ? 'Server is temporarily limiting requests'
+    : lifecycle === 'interrupted' ? 'interrupted' : 'failed';
+  return [{
+    type: 'result', subtype: 'error', is_error: true, result: message,
+    session_id: 'backend-session', num_turns: 1,
+    total_cost_usd: lifecycle === 'rate-limited' ? 0.01 : 0,
+  }];
+}
+
+for (const lifecycle of [
+  'completed', 'failed', 'rate-limited', 'cancelled', 'aborted', 'interrupted',
+] as const) {
+  test(`closes and persists an honest ${lifecycle} attempt journal`, async () => {
+    const evidenceContext = initialize('claude');
+    const resolved = profile('claude');
+    const executionId = `exec-${lifecycle}`;
+    const { handle, raw } = startJournalAttempt(
+      'claude',
+      makeRequest('claude', PATHS[0], resolved, defaultTopology(executionId), {
+        evidenceContext, processSpawner: claudeSpawner(lifecycleScript(lifecycle)),
+      }),
+      resolved, executionId,
+    );
+    if (lifecycle === 'cancelled') handle.kill();
+    let rejected = false;
+    try { await handle.foreground; } catch { rejected = true; }
+    closeCapturedJournals();
+
+    const expectRejection = ['failed', 'cancelled', 'interrupted'].includes(lifecycle);
+    assert.equal(rejected, expectRejection, `run rejection for ${lifecycle}`);
+    const evidenceRecord = getProductionAttemptJournal(executionId);
+    assert.ok(evidenceRecord);
+    assert.equal(evidenceRecord.event_count, raw.length);
+    assert.deepEqual(readJournal(evidenceRecord.journal_path).slice(1).map(row => row.event), raw);
+    assert.equal(evidenceRecord.journal_sha256, sha256(evidenceRecord.journal_path));
+  });
+}
+
+test('a synchronous adapter spawn failure still closes and links its zero-event attempt', () => {
+  const evidenceContext = initialize('claude');
+  const resolved = profile('claude');
+  const request = makeRequest('claude', PATHS[0], resolved, defaultTopology('exec-spawn-failure'), {
+    evidenceContext,
+    processSpawner: (() => { throw new Error('spawn failed'); }) as AgentProcessSpawner,
+  });
+  assert.throws(
+    () => startJournalAttempt('claude', request, resolved, 'exec-spawn-failure'),
+    /spawn failed/,
+  );
+  closeCapturedJournals();
+  const evidenceRecord = getProductionAttemptJournal('exec-spawn-failure');
+  assert.ok(evidenceRecord);
+  assert.equal(evidenceRecord.event_count, 0);
+  assert.equal(evidenceRecord.journal_sha256, sha256(evidenceRecord.journal_path));
+});
+
+test('keeps concurrent child-thread attempt journals isolated and ordered', async () => {
+  const evidenceContext = initialize('pi');
+  const resolved = profile('pi');
+  const executions = Array.from({ length: 6 }, (_, index) => `exec-concurrent-${index}`);
+  const rootThreadId = `thr-${executions[0]}`;
+  const runs = executions.map((executionId, index) => {
+    const pathCase: AttemptPath = {
+      label: `concurrent-${index}`, template: 'benchmark-coder-review',
+      role: 'benchmark-coder', stage: 'implement', taskId: null,
+    };
+    return startJournalAttempt(
+      'pi',
+      makeRequest('pi', pathCase, resolved, {
+        threadId: `thr-${executionId}`, rootThreadId,
+        parentThreadId: index === 0 ? null : rootThreadId,
+      }, { evidenceContext }),
+      resolved, executionId,
+    );
+  });
+  await Promise.all(runs.map(async ({ handle }, index) => {
+    const runtime = await piFake.runtime(index);
+    await runtime.nextCall('prompt');
+    runtime.emitSimpleTurn('done', { usage: { cost: { total: 0.01 } } });
+    await handle.foreground;
+  }));
+  closeCapturedJournals();
+
+  const records = executions.map(executionId => getProductionAttemptJournal(executionId));
+  assert.equal(new Set(records.map(record => record?.journal_path)).size, executions.length);
+  records.forEach((record, index) => {
+    assert.ok(record);
+    assert.deepEqual(
+      readJournal(record.journal_path).slice(1).map(row => row.event),
+      runs[index].raw,
+    );
+  });
+  assert.equal(
+    fs.readFileSync(journalStorePath(), 'utf8').trimEnd().split('\n').length,
+    executions.length,
+  );
+});
+
+test('a recoverable required journal write failure cannot publish an incomplete index row', () => {
   initialize('claude');
-  let killed = false;
+  const sink = makeDirectJournal('claude', 'exec-write-failure', profile('claude'));
   let failNextWrite = false;
   const originalWrite = fs.writeSync;
   fs.writeSync = ((...args: Parameters<typeof fs.writeSync>) => {
@@ -368,67 +592,60 @@ test('a recoverable required journal write failure cannot publish an incomplete 
       failNextWrite = false;
       throw new Error('injected event write failure');
     }
-    return (originalWrite as any)(...args);
+    return (originalWrite as (...inner: Parameters<typeof fs.writeSync>) => number)(...args);
   }) as typeof fs.writeSync;
-  const factory = () => {
-    const proc = eventProcess(EVENTS, result(), () => { failNextWrite = true; });
-    proc.kill = () => { killed = true; return true; };
-    return proc;
-  };
   try {
-    const handle = runAttempt('claude', PATHS[0], 'exec-write-failure', factory);
-    await assert.rejects(handle.promise, /trajectory|journal|sink/i);
+    failNextWrite = true;
+    assert.throws(
+      () => sink.onEvent({ type: 'assistant_text', text: 'done' }),
+      /trajectory|journal|sink/i,
+    );
   } finally {
     fs.writeSync = originalWrite;
   }
-  assert.equal(killed, true);
+  assert.throws(() => sink.onClose?.(), /trajectory|journal|sink/i);
   assert.equal(getProductionAttemptJournal('exec-write-failure'), null);
   assert.equal(fs.existsSync(journalStorePath()), false);
 });
 
-test('a required journal close failure fails the run and never publishes placeholder evidence', async () => {
+test('a required journal close failure never publishes placeholder evidence', () => {
   initialize('pi');
-  const factory = () => ({
-    ...eventProcess([], result()),
-    send: async () => {
-      fs.closeSync(findOpenFd(onlyOpenJournalPath()));
-      return result();
-    },
-  });
-  await assert.rejects(
-    runAttempt('pi', PATHS[0], 'exec-close-failure', factory).promise,
-    /trajectory|journal|sink/i,
-  );
+  const sink = makeDirectJournal('pi', 'exec-close-failure', profile('pi'));
+  fs.closeSync(findOpenFd(onlyOpenJournalPath()));
+  assert.throws(() => sink.onClose?.(), /trajectory|journal|sink/i);
   assert.equal(getProductionAttemptJournal('exec-close-failure'), null);
   assert.equal(fs.existsSync(journalStorePath()), false);
 });
 
-test('a synchronous send failure that also fails journal close still closes the process and publishes nothing', () => {
+test('a journal close failure publishes nothing even when the fd close also fails', () => {
   initialize('pi');
-  let closed = false;
-  const factory = () => {
-    const proc = eventProcess([], result());
-    proc.send = () => {
-      fs.closeSync(findOpenFd(onlyOpenJournalPath()));
-      throw new Error('send failed');
-    };
-    proc.close = async () => { closed = true; };
-    return proc;
-  };
-  assert.throws(
-    () => runAttempt('pi', PATHS[0], 'exec-send-close-double-fault', factory),
-    /trajectory|journal|sink/i,
-  );
-  assert.equal(closed, true);
+  const sink = makeDirectJournal('pi', 'exec-send-close-double-fault', profile('pi'));
+  const originalClose = fs.closeSync;
+  fs.closeSync = (() => { throw new Error('close failed'); }) as typeof fs.closeSync;
+  try {
+    assert.throws(() => sink.onClose?.(), /trajectory|journal|sink/i);
+  } finally {
+    fs.closeSync = originalClose;
+  }
   assert.equal(getProductionAttemptJournal('exec-send-close-double-fault'), null);
+  assert.equal(fs.existsSync(journalStorePath()), false);
 });
 
 test('reload fails closed when persisted journal bytes no longer match their digest', async () => {
-  initialize('claude');
-  await runAttempt('claude', PATHS[0], 'exec-tampered').promise;
-  const evidence = getProductionAttemptJournal('exec-tampered');
-  assert.ok(evidence);
-  fs.appendFileSync(evidence.journal_path, '{}\n');
+  const evidenceContext = initialize('claude');
+  const resolved = profile('claude');
+  const { handle } = startJournalAttempt(
+    'claude',
+    makeRequest('claude', PATHS[0], resolved, defaultTopology('exec-tampered'), {
+      evidenceContext, processSpawner: claudeSpawner(),
+    }),
+    resolved, 'exec-tampered',
+  );
+  await finishRun(handle, 'claude');
+  closeCapturedJournals();
+  const evidenceRecord = getProductionAttemptJournal('exec-tampered');
+  assert.ok(evidenceRecord);
+  fs.appendFileSync(evidenceRecord.journal_path, '{}\n');
   resetProductionAttemptJournals();
   assert.throws(() => initializeProductionAttemptJournals({
     journalDir: journalDir(), storePath: journalStorePath(),
@@ -438,14 +655,16 @@ test('reload fails closed when persisted journal bytes no longer match their dig
 test('ordinary non-benchmark runs do not create production attempt evidence', async () => {
   initializeProductionAttemptJournals({ journalDir: journalDir(), storePath: journalStorePath() });
   initializeProductionAttemptIdentity({ storePath: identityStorePath() });
-  const ordinary = profile('claude');
-  ordinary.name = 'ordinary';
-  await facadeTest.runWithAdapter(adapter('claude', () => eventProcess(EVENTS)), 'x', {
-    profileName: ordinary.name, resolvedProfileConfig: ordinary, recordCost: false,
-  }, {
-    model: ordinary.model, backend: 'claude', mode: ordinary.mode, provider: ordinary.provider,
-    extraEnv: {}, extraOption: {}, claudeBackend: 'print', thinking: null,
-  }, undefined).promise;
+  const resolved = profile('claude');
+  resolved.name = 'ordinary';
+  const { handle } = startJournalAttempt(
+    'claude',
+    makeRequest('claude', PATHS[0], resolved, defaultTopology('exec-ordinary'), {
+      evidenceContext: null, processSpawner: claudeSpawner(),
+    }),
+    resolved, 'exec-ordinary',
+  );
+  await finishRun(handle, 'claude');
   assert.equal(fs.existsSync(journalDir()), false);
   assert.equal(fs.existsSync(journalStorePath()), false);
 });

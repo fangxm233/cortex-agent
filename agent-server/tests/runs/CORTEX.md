@@ -6,6 +6,7 @@ policies (what a run tries and what it says about it) and the run observers' pol
 
 | filename | role | function |
 |---|---|---|
+| compact.test.ts | test | compactAgentContext support gating, same-session resume, no-turn compact and the recorded cost row (real PI engine, fake runtime) |
 | config-resolver.test.ts | test | resolveRunConfig/resolveProfileName/resolveRunBackend across D5's five priority layers |
 | fallback.test.ts | test | planAttempts chain order, and allConfigsRateLimited's all-blocked gate (fails open on an unknown profile) |
 | notices.test.ts | test | the held rate-limit card (auto-resume vs failure), fallback warnings and per-attempt dedupe, subagent attribution, and the web-only synthesis gate |

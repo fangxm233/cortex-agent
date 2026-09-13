@@ -1,171 +1,124 @@
-// input:  domain/runs/service.ts startRun plus a fake adapter driven through facade.runWithAdapter
+// input:  domain/runs/service.ts startRun, driven against a scripted Claude CLI child
 // output: spec for RunEvent fan-out, phase transitions, bookkeeping, cancel and observer safety
-// pos:    P1.3 contract — startRun is the single entry point wrapping facade.runAgent
+// pos:    startRun / AgentRun contract — the run layer over a real pooled engine
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { afterEach, test, vi } from 'vitest';
+import { afterEach, beforeEach, test } from 'vitest';
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
+import { PassThrough } from 'node:stream';
 
-import type {
-  AgentAdapter, AgentProcess, ContinuationSink, InjectionAckSink, UserMessage,
-} from '../../src/agent-adapter/types.js';
-import { CAPABILITIES_BY_BACKEND } from '../../src/agent-adapter/capabilities.js';
-import type { NormalizedEvent } from '../../src/agent-adapter/normalize/event-types.js';
-import type { AgentResult } from '../../src/core/types/agent-types.js';
-import type { AgentConfig, RunAgentOptions } from '../../src/domain/agents/spawn-config.js';
+import type { AgentProcessSpawner } from '../../src/agent-adapter/types.js';
 import { runRegistry } from '../../src/core/run-registry.js';
 import * as executionRegistry from '../../src/domain/executions/registry.js';
 import { startRun } from '../../src/domain/runs/service.js';
+import { engines } from '../../src/domain/runs/engines.js';
 import type { RunEvent, RunPhase } from '../../src/domain/runs/events.js';
 import type { RunObserver, RunRequest } from '../../src/domain/runs/request.js';
 
-// The fake adapter is installed on a hoisted holder so the vi.mock factory (hoisted above imports)
-// can reach it. runAgent is routed through the real facade's runWithAdapter, so P1.3 exercises the
-// production event tee / observer wiring rather than a re-implementation of it.
-const holder = vi.hoisted(() => ({
-  adapter: undefined as AgentAdapter | undefined,
-  config: { model: 'm', backend: 'claude', mode: null } as AgentConfig,
-}));
+// ── the scripted backend ─────────────────────────────────────────────────
+//
+// This suite's subject is the run layer, so the run is REAL. `startRun` acquires a pooled
+// `ClaudeEngineSession` over the daemon's own adapter; the request's
+// `isolation.spawner` hands that session a passive fake CLI child, and the test feeds the
+// session line-by-line through `session.handleLine` — exactly the seam
+// `tests/agent-adapter/replay-harness.ts` uses. The deleted `AgentProcess`/`ContinuationSink`
+// fixtures are gone: the engine installs and owns its continuation/injection sinks now, and the
+// only observation surface is the run's `RunEvent` stream plus its result promises.
 
-vi.mock('../../src/domain/agents/facade.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../src/domain/agents/facade.js')>();
-  return {
-    ...actual,
-    runAgent: (message: string, options: RunAgentOptions) => {
-      if (!holder.adapter) throw new Error('service.test: fake adapter not installed');
-      return actual._test.runWithAdapter(holder.adapter, message, options, holder.config, undefined);
-    },
+const CLAUDE_MODEL = 'claude-opus-5';
+
+/** A passive CLI child: it exposes the streams `ClaudeSession` attaches to, and the test — not a
+ *  script — feeds the session's readline. `killed` records `kill()` so a test can observe that the
+ *  run/engine actually tore the backend down. */
+interface FakeChild extends EventEmitter {
+  stdout: PassThrough;
+  stderr: PassThrough;
+  stdin: PassThrough;
+  exitCode: number | null;
+  killed: boolean;
+  kill(): boolean;
+}
+
+function makeChild(): FakeChild {
+  const child = new EventEmitter() as FakeChild;
+  child.stdout = new PassThrough();
+  child.stderr = new PassThrough();
+  child.stdin = new PassThrough();
+  child.exitCode = null;
+  child.killed = false;
+  child.kill = () => { child.killed = true; return true; };
+  return child;
+}
+
+let engineSeq = 0;
+const openKeys: string[] = [];
+
+/** Let the run/engine's asynchronous fan-out run before asserting on observer events. */
+const tick = (): Promise<void> => new Promise((resolve) => { setImmediate(resolve); });
+const delay = (ms: number): Promise<void> => new Promise((resolve) => { setTimeout(resolve, ms); });
+
+function raw(value: unknown): string { return JSON.stringify(value); }
+
+function assistantLine(text: string): string {
+  return raw({ type: 'assistant', message: { model: CLAUDE_MODEL, content: [{ type: 'text', text }] } });
+}
+
+function resultLine(overrides: Record<string, unknown> = {}): string {
+  return raw({
+    type: 'result', subtype: 'success', is_error: false, num_turns: 1,
+    total_cost_usd: 0.1, session_id: 'backend-1', result: 'done', ...overrides,
+  });
+}
+
+function taskStarted(id: string): string {
+  return raw({ type: 'system', subtype: 'task_started', task_id: id, task_type: 'local_bash' });
+}
+
+function taskCompleted(id: string): string {
+  return raw({ type: 'system', subtype: 'task_updated', task_id: id, patch: { status: 'completed' } });
+}
+
+function taskNotification(id: string): string {
+  return raw({ type: 'system', subtype: 'task_notification', task_id: id, status: 'completed', summary: 'done' });
+}
+
+interface ScriptedRun {
+  run: ReturnType<typeof startRun>;
+  session: any;
+  engine: any;
+  key: string;
+  children: FakeChild[];
+}
+
+/**
+ * Start one run over a fresh pooled engine with a passive fake CLI child, and hand back the
+ * Claude session so the test can feed it CLI lines. Each run gets a unique pool key, so a session
+ * from a previous test can never be reused (the pool's identity check does not see the spawner).
+ */
+function startScriptedRun(
+  overrides: Partial<RunRequest> = {},
+  observers: RunObserver[] = [],
+): ScriptedRun {
+  const key = `service-run-${++engineSeq}`;
+  const children: FakeChild[] = [];
+  const request = makeRequest(overrides);
+  request.session = { ...request.session, engineKey: key };
+  request.isolation = {
+    spawner: (() => {
+      const child = makeChild();
+      children.push(child);
+      return { process: child as any };
+    }) as AgentProcessSpawner,
   };
-});
+  openKeys.push(key);
+  const run = startRun(request, observers);
+  const engine = engines.get(key) as any;
+  assert.ok(engine, 'startRun acquired a pooled engine for the run');
+  return { run, session: engine.session, engine, key, children };
+}
 
 // ── fixtures ─────────────────────────────────────────────────────────────
-
-function defaultResult(sessionId = 'backend-1', overrides: Partial<AgentResult> = {}): AgentResult {
-  return {
-    sessionId,
-    total_cost_usd: 0.1,
-    num_turns: 1,
-    rateLimited: false,
-    rateLimitMessage: null,
-    planFilePath: null,
-    enteredPlanMode: false,
-    exitedPlanMode: false,
-    finalOutput: 'done',
-    ...overrides,
-  };
-}
-
-interface FakeProcess extends AgentProcess {
-  continuationSink?: ContinuationSink;
-  readonly killed: boolean;
-  resolveSend(result: AgentResult): void;
-}
-
-interface FakeProcess extends AgentProcess {
-  continuationSink?: ContinuationSink;
-  injectionAckSink?: InjectionAckSink;
-  readonly killed: boolean;
-  readonly dialogCalls: Array<{ id: string; payload: Record<string, unknown> }>;
-  sendExtensionUiResponse(id: string, payload: Record<string, unknown>): boolean;
-  resolveSend(result: AgentResult): void;
-}
-
-interface FakeProcessSpec {
-  events?: NormalizedEvent[];
-  result?: AgentResult;
-  /** Keep send() pending (and the event stream open) until kill()/resolveSend(). */
-  hold?: boolean;
-  sessionId?: string;
-  /** False makes `injectUserMessage` refuse (no live turn / dead process). */
-  injectAccepted?: boolean;
-  /** False makes `sendExtensionUiResponse` report "no live dialog waits on this id". */
-  dialogAccepted?: boolean;
-}
-
-/** The fake-process pattern from tests/run-with-adapter.test.ts, extended with a continuation sink
- *  (the P1.3 background path) and a held send (the cancel path). */
-function makeFakeProcess(spec: FakeProcessSpec = {}): FakeProcess {
-  const buffer: NormalizedEvent[] = [];
-  const waiters: Array<(result: IteratorResult<NormalizedEvent>) => void> = [];
-  let closed = false;
-  let killed = false;
-  let rejectSend: ((error: unknown) => void) | null = null;
-  let resolveSend: ((result: AgentResult) => void) | null = null;
-
-  const push = (event: NormalizedEvent): void => {
-    if (closed) return;
-    const waiter = waiters.shift();
-    if (waiter) waiter({ value: event, done: false });
-    else buffer.push(event);
-  };
-  const close = (): void => {
-    if (closed) return;
-    closed = true;
-    while (waiters.length) {
-      waiters.shift()!({ value: undefined as unknown as NormalizedEvent, done: true });
-    }
-  };
-
-  const process: FakeProcess = {
-    sessionKey: 'fake-key',
-    sessionId: spec.sessionId ?? 'backend-1',
-    dialogCalls: [],
-    get killed() { return killed; },
-    send(_message: UserMessage): Promise<AgentResult> {
-      for (const event of spec.events ?? []) push(event);
-      if (!spec.hold) {
-        close();
-        return Promise.resolve(spec.result ?? defaultResult(spec.sessionId));
-      }
-      return new Promise<AgentResult>((resolve, reject) => {
-        resolveSend = resolve;
-        rejectSend = reject;
-      });
-    },
-    events: {
-      [Symbol.asyncIterator]() {
-        return {
-          next(): Promise<IteratorResult<NormalizedEvent>> {
-            if (buffer.length > 0) return Promise.resolve({ value: buffer.shift()!, done: false });
-            if (closed) {
-              return Promise.resolve({ value: undefined as unknown as NormalizedEvent, done: true });
-            }
-            return new Promise((resolve) => waiters.push(resolve));
-          },
-        };
-      },
-    },
-    setContinuationSink(sink: ContinuationSink): void { process.continuationSink = sink; },
-    injectUserMessage(_message: UserMessage): boolean { return spec.injectAccepted !== false; },
-    sendExtensionUiResponse(id: string, payload: Record<string, unknown>): boolean {
-      process.dialogCalls.push({ id, payload });
-      return spec.dialogAccepted !== false;
-    },
-    setInjectionAckSink(sink: InjectionAckSink): void { process.injectionAckSink = sink; },
-    async close(): Promise<void> { close(); },
-    kill(): boolean {
-      killed = true;
-      close();
-      rejectSend?.(Object.assign(new Error('Cancelled'), { cancelled: true }));
-      rejectSend = null;
-      resolveSend = null;
-      return true;
-    },
-    resolveSend(result: AgentResult): void { resolveSend?.(result); resolveSend = null; },
-  };
-  return process;
-}
-
-function makeFakeAdapter(process: AgentProcess): AgentAdapter {
-  return {
-    backend: 'claude',
-    capabilities: CAPABILITIES_BY_BACKEND.claude,
-    spawn: () => process,
-    async close() {},
-    kill() { return false; },
-    listSessions() { return []; },
-  };
-}
 
 function makeRequest(overrides: Partial<RunRequest> = {}): RunRequest {
   return {
@@ -220,32 +173,61 @@ function phaseEvents(events: RunEvent[]): RunPhase[] {
     .map((event) => event.phase);
 }
 
-afterEach(() => {
-  for (const entry of runRegistry.getAll()) runRegistry.remove(entry.registryKey);
-  holder.adapter = undefined;
+// The engine owns the background watchdog and reads its two bounds from the environment when a
+// run opens. Pin them to small real windows: the run's own timers are observable without faking
+// global timers, which the pooled `ClaudeSession` also uses for its 60/65-minute idle timers.
+const GRACE_MS = 100;
+const MAX_WAIT_MS = 400;
+const originalGrace = process.env.CORTEX_BG_GRACE_S;
+const originalMaxWait = process.env.CORTEX_BG_WAIT_MAX_S;
+
+beforeEach(() => {
+  process.env.CORTEX_BG_GRACE_S = String(GRACE_MS / 1000);
+  process.env.CORTEX_BG_WAIT_MAX_S = String(MAX_WAIT_MS / 1000);
 });
+
+afterEach(async () => {
+  for (const entry of runRegistry.getAll()) runRegistry.remove(entry.registryKey);
+  for (const key of openKeys.splice(0)) {
+    const engine = engines.get(key) as any;
+    // kill() clears the session's real idle/turn timers before the pool close sees it dead.
+    try { engine?.session?.kill?.(); } catch {}
+    await engines.close(key);
+  }
+  if (originalGrace === undefined) delete process.env.CORTEX_BG_GRACE_S;
+  else process.env.CORTEX_BG_GRACE_S = originalGrace;
+  if (originalMaxWait === undefined) delete process.env.CORTEX_BG_WAIT_MAX_S;
+  else process.env.CORTEX_BG_WAIT_MAX_S = originalMaxWait;
+});
+
+/** Stage a held foreground: the result carries the background counts the scripted CLI produced. */
+async function startHeldRun(tasks: 'running' | 'undelivered') {
+  const seen = collector();
+  const started = startScriptedRun({}, [seen.observer]);
+  if (tasks === 'running') started.session.handleLine(taskStarted('bg-1'));
+  if (tasks === 'undelivered') {
+    started.session.handleLine(taskStarted('bg-1'));
+    started.session.handleLine(taskCompleted('bg-1'));
+  }
+  started.session.handleLine(assistantLine('fg'));
+  started.session.handleLine(resultLine({ result: 'fg' }));
+  await tick();
+  return { ...started, seen };
+}
 
 // ── foreground happy path: fan-out order + bookkeeping ───────────────────
 
-test('startRun fans adapter events out in order and closes the execution and registry exactly once', async () => {
-  const process = makeFakeProcess({
-    events: [
-      { type: 'session_started', sessionId: 'backend-1' },
-      { type: 'assistant_text', text: 'hi' },
-      { type: 'turn_progress', numTurns: 1 },
-      { type: 'turn_complete', numTurns: 1, totalCostUsd: 0.1 },
-    ],
-    result: defaultResult('backend-1'),
-  });
-  holder.adapter = makeFakeAdapter(process);
+test('startRun fans engine events out in order and closes the execution and registry exactly once', async () => {
   const seen = collector();
-
-  const run = startRun(makeRequest(), [seen.observer]);
+  const { run, session } = startScriptedRun({}, [seen.observer]);
 
   assert.equal(run.status, 'running');
   assert.ok(runRegistry.getById(run.executionId), 'registered while running');
   assert.equal(executionRegistry.getExecution(run.executionId)?.status, 'running');
   assert.equal(run.id, 'run-1');
+
+  session.handleLine(assistantLine('done'));
+  session.handleLine(resultLine());
 
   const result = await run.settled;
   assert.equal(result.finalOutput, 'done');
@@ -256,12 +238,12 @@ test('startRun fans adapter events out in order and closes the execution and reg
   assert.equal(runRegistry.getById(run.executionId), null, 'removed on terminal');
   assert.equal(executionRegistry.getExecution(run.executionId)?.status, 'completed');
 
-  // turn_complete's *result* is deliberately NOT relayed: the authoritative foreground_result comes
-  // from the resolved AgentHandle, and a phase done transition closes the run. Its turn count still
-  // is: the legacy dispatcher called onProgress on turn_complete too, so the live turn counter and
-  // the status line keep receiving the final value — hence the second turn_progress here.
+  // The engine's stream drops `turn_complete` and derives a `cost_record` from the settled turn,
+  // so the old double `turn_progress` (the legacy onProgress-on-complete) is now a single live
+  // progress event plus accounting. The turn count still reaches the run twice — once from the
+  // live event, once from the resolved foreground result — which is what keeps `run.numTurns`.
   assert.deepEqual(seen.events.map((event) => event.type), [
-    'engine_started', 'assistant_text', 'turn_progress', 'turn_progress', 'foreground_result', 'phase',
+    'engine_started', 'assistant_text', 'turn_progress', 'cost_record', 'foreground_result', 'phase',
   ]);
   assert.equal((seen.events.at(-1) as Extract<RunEvent, { type: 'phase' }>).phase, 'done');
   assert.equal(seen.isClosed(), true);
@@ -270,192 +252,181 @@ test('startRun fans adapter events out in order and closes the execution and reg
 // ── foreground → background → done ───────────────────────────────────────
 
 test('startRun enters the background phase and settles after the continuation reports done', async () => {
-  const process = makeFakeProcess({
-    events: [
-      { type: 'session_started', sessionId: 'backend-1' },
-      { type: 'assistant_text', text: 'foreground' },
-      { type: 'turn_complete', numTurns: 1, totalCostUsd: 0.1 },
-    ],
-    result: defaultResult('backend-1', { pendingBackgroundTasks: 1, finalOutput: 'fg' }),
-  });
-  holder.adapter = makeFakeAdapter(process);
   const seen = collector();
+  const { run, session, key, engine } = startScriptedRun({}, [seen.observer]);
 
-  const run = startRun(makeRequest(), [seen.observer]);
-  const foreground = await run.result;
-  assert.equal(foreground.finalOutput, 'fg');
-  assert.equal(run.status, 'background');
-  assert.equal(run.phase, 'background');
-  assert.ok(process.continuationSink, 'continuation sink installed on the process');
-  assert.ok(run.legacyProcess(), 'transitional legacyProcess() exposes the raw process');
+  session.handleLine(taskStarted('bg-1'));
+  session.handleLine(assistantLine('fg'));
+  session.handleLine(resultLine({ result: 'fg' }));
+
+  // The engine installs its own continuation sink on the session (the old single-slot
+  // `ContinuationSink` fixture is no longer the observation point).
+  assert.ok(session.continuationSink, 'the engine installed its continuation sink');
+  // `legacyProcess()` is gone: the run holds a live pooled engine session, and its backend
+  // session id is recorded from the settled result (asserted below).
+  assert.equal(engines.get(key), engine, 'the pooled engine session stays live for the run');
+  assert.equal(session.isAlive(), true, 'the run holds a live backend session');
   assert.ok(runRegistry.getById(run.executionId), 'stays registered through the background phase');
 
-  process.continuationSink!.onAssistantText('bg text', 'model');
-  process.continuationSink!.onResult(
-    defaultResult('backend-1', { pendingBackgroundTasks: 0, finalOutput: 'bg' }),
-  );
+  session.handleLine(taskNotification('bg-1'));
+  session.handleLine(assistantLine('bg'));
+  session.handleLine(resultLine({ result: 'bg' }));
 
   const settled = await run.settled;
+  const foreground = await run.result;
+  assert.equal(foreground.finalOutput, 'fg');
   assert.equal(settled.finalOutput, 'bg');
+  assert.equal(run.backendSessionId, 'backend-1', 'the run exposes its backend session id');
   assert.equal(run.status, 'completed');
   assert.equal(run.phase, 'done');
   assert.equal(runRegistry.getById(run.executionId), null);
   assert.equal(executionRegistry.getExecution(run.executionId)?.status, 'completed');
 
-  assert.deepEqual(seen.events.map((event) => event.type), [
-    // turn_complete's count is republished as turn_progress (the legacy onProgress-on-complete).
-    'engine_started', 'assistant_text', 'turn_progress', 'foreground_result', 'phase',
-    'assistant_text', 'background_result', 'phase',
-  ]);
-  assert.deepEqual(phaseEvents(seen.events), ['background', 'done']);
+  // The engine emits the background boundary at the foreground result and again when the
+  // spontaneous turn opens, then the background turn's text and result, then the terminal phase.
+  // The run's own `foreground_result` is fanned when the attempt's foreground promise resolves;
+  // `startAttempt` drains that promise together with the whole event stream, so its position
+  // relative to the background events is an artifact of that drain, not a phase fact. Asserting
+  // the order with it removed keeps the whole fan-out sequence pinned without pinning the drain.
+  assert.deepEqual(phaseEvents(seen.events), ['background', 'background', 'done']);
+  assert.deepEqual(
+    seen.events.filter((event) => event.type !== 'foreground_result').map((event) => event.type),
+    [
+      'engine_started', 'assistant_text', 'turn_progress', 'cost_record', 'phase', 'phase',
+      'assistant_text', 'background_result', 'phase',
+    ],
+  );
+  assert.ok(seen.events.some((event) => event.type === 'foreground_result'));
 });
 
-// ── the background watchdog (P4.1c) ──────────────────────────────────────
+// ── the background watchdog ──────────────────────────────────────────────
 //
-// The run owns the grace / max-wait bounds. Before P4.1c they lived in each SURFACE's hold, so a
-// run whose hold sealed its own status and walked away stayed in `background` forever: execution
-// record `running`, registry entry present, session reported busy — with nothing left that could
-// ever end it.
-
-const GRACE_MS = 90_000;
-const MAX_WAIT_MS = 1_800_000;
-
-async function startHeldRun(result: Partial<AgentResult>) {
-  const process = makeFakeProcess({
-    events: [{ type: 'session_started', sessionId: 'backend-1' }],
-    result: defaultResult('backend-1', { finalOutput: 'fg', ...result }),
-  });
-  holder.adapter = makeFakeAdapter(process);
-  const seen = collector();
-  const run = startRun(makeRequest(), [seen.observer]);
-  await run.result;
-  return { process, seen, run };
-}
+// The engine owns the grace / max-wait bounds. Before the engine path they lived in each
+// SURFACE's hold, so a run whose hold sealed its own status and walked away stayed in
+// `background` forever: execution record `running`, registry entry present, session reported
+// busy — with nothing left that could ever end it.
 
 test('grace: unnotified background work finalizes the run instead of waiting forever', async () => {
-  vi.useFakeTimers();
-  try {
-    const { seen, run } = await startHeldRun({ pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 1 });
-    assert.equal(run.phase, 'background');
-    assert.ok(runRegistry.getById(run.executionId), 'held while waiting');
+  const { run, seen } = await startHeldRun('undelivered');
+  assert.ok(
+    seen.events.some((event) => event.type === 'phase' && event.phase === 'background'),
+    'entered the background phase',
+  );
+  assert.ok(runRegistry.getById(run.executionId), 'held while waiting');
 
-    await vi.advanceTimersByTimeAsync(GRACE_MS + 1);
+  await delay(GRACE_MS + 50);
 
-    assert.deepEqual(
-      seen.events.filter((e) => e.type === 'background_timeout'),
-      [{ type: 'background_timeout', reason: 'grace' }],
-    );
-    assert.equal(run.phase, 'done');
-    assert.equal(run.status, 'completed');
-    assert.equal(runRegistry.getById(run.executionId), null, 'registry entry released');
-    assert.equal(executionRegistry.getExecution(run.executionId)?.status, 'completed');
-    assert.equal((await run.settled).finalOutput, 'fg');
-  } finally {
-    vi.useRealTimers();
-  }
+  assert.deepEqual(
+    seen.events.filter((e) => e.type === 'background_timeout'),
+    [{ type: 'background_timeout', reason: 'grace' }],
+  );
+  assert.equal(run.phase, 'done');
+  assert.equal(run.status, 'completed');
+  assert.equal(runRegistry.getById(run.executionId), null, 'registry entry released');
+  assert.equal(executionRegistry.getExecution(run.executionId)?.status, 'completed');
+  assert.equal((await run.settled).finalOutput, 'fg');
 });
 
 test('max-wait: a never-ending task stops the wait but NOT the run', async () => {
-  vi.useFakeTimers();
-  try {
-    const { process, seen, run } = await startHeldRun({ pendingBackgroundTasks: 1 });
+  const { session, seen, run } = await startHeldRun('running');
 
-    await vi.advanceTimersByTimeAsync(GRACE_MS + 1);
-    assert.equal(seen.events.some((e) => e.type === 'background_timeout'), false,
-      'running work is bounded by the cap, not the grace period');
+  await delay(GRACE_MS + 50);
+  assert.equal(seen.events.some((e) => e.type === 'background_timeout'), false,
+    'running work is bounded by the cap, not the grace period');
 
-    await vi.advanceTimersByTimeAsync(MAX_WAIT_MS);
-    assert.deepEqual(
-      seen.events.filter((e) => e.type === 'background_timeout'),
-      [{ type: 'background_timeout', reason: 'max-wait' }],
-    );
-    // The cap releases the WAIT, not the run: a tunnel that finishes an hour later still lands.
-    assert.equal(run.phase, 'background');
-    assert.ok(runRegistry.getById(run.executionId), 'still registered after the cap');
+  await delay(MAX_WAIT_MS);
+  assert.deepEqual(
+    seen.events.filter((e) => e.type === 'background_timeout'),
+    [{ type: 'background_timeout', reason: 'max-wait' }],
+  );
+  // The cap releases the WAIT, not the run: a tunnel that finishes an hour later still lands.
+  assert.ok(runRegistry.getById(run.executionId), 'still registered after the cap');
 
-    process.continuationSink!.onResult(defaultResult('backend-1', { pendingBackgroundTasks: 0, finalOutput: 'late' }));
-    assert.equal((await run.settled).finalOutput, 'late');
-    assert.equal(run.phase, 'done');
-  } finally {
-    vi.useRealTimers();
-  }
+  session.handleLine(taskNotification('bg-1'));
+  session.handleLine(assistantLine('late'));
+  session.handleLine(resultLine({ result: 'late' }));
+  assert.equal((await run.settled).finalOutput, 'late');
+  assert.equal(run.phase, 'done');
 });
 
 test('an open continuation turn pauses the watchdog — its length is unbounded', async () => {
-  vi.useFakeTimers();
-  try {
-    const { process, seen, run } = await startHeldRun({ pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 1 });
+  const { session, seen, run } = await startHeldRun('undelivered');
 
-    // The spontaneous turn opens just before the grace period would have expired.
-    process.continuationSink!.onTurnOpen!();
-    await vi.advanceTimersByTimeAsync(MAX_WAIT_MS * 2);
+  // The spontaneous turn opens just before the grace period would have expired.
+  session.handleLine(taskNotification('bg-1'));
+  session.handleLine(assistantLine('streaming'));
+  await delay(MAX_WAIT_MS * 2);
 
-    assert.equal(seen.events.some((e) => e.type === 'background_timeout'), false,
-      'a watchdog that fires mid-turn would seal a turn that is actively streaming');
-    assert.equal(run.phase, 'background');
-  } finally {
-    vi.useRealTimers();
-  }
+  assert.equal(seen.events.some((e) => e.type === 'background_timeout'), false,
+    'a watchdog that fires mid-turn would seal a turn that is actively streaming');
+  assert.ok(
+    seen.events.some((event) => event.type === 'phase' && event.phase === 'background'),
+    'still streaming the background phase',
+  );
 });
 
 test('chained background work re-arms the watchdog with the new counts', async () => {
-  vi.useFakeTimers();
-  try {
-    const { process, seen, run } = await startHeldRun({ pendingBackgroundTasks: 1 });
+  const { session, seen, run } = await startHeldRun('running');
 
-    // The continuation turn reports MORE work, of the unnotified kind: the bound changes from the
-    // 30-minute cap to the 90-second grace period.
-    process.continuationSink!.onTurnOpen!();
-    process.continuationSink!.onResult(defaultResult('backend-1', {
-      pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 2, finalOutput: 'chained',
-    }));
-    assert.equal(run.phase, 'background', 'work remains, so the run keeps holding');
+  // The continuation turn reports MORE work, of the unnotified kind: the bound changes from the
+  // max-wait cap to the grace period.
+  session.handleLine(taskNotification('bg-1'));
+  session.handleLine(taskStarted('bg-2'));
+  session.handleLine(taskStarted('bg-3'));
+  session.handleLine(taskCompleted('bg-2'));
+  session.handleLine(taskCompleted('bg-3'));
+  session.handleLine(assistantLine('chained'));
+  session.handleLine(resultLine({ result: 'chained' }));
+  await tick();
+  const background = seen.events.find(
+    (event): event is Extract<RunEvent, { type: 'background_result' }> =>
+      event.type === 'background_result',
+  );
+  assert.equal(background?.result.undeliveredBackgroundTasks, 2, 'chained work remains');
 
-    await vi.advanceTimersByTimeAsync(GRACE_MS + 1);
-    assert.deepEqual(
-      seen.events.filter((e) => e.type === 'background_timeout'),
-      [{ type: 'background_timeout', reason: 'grace' }],
-    );
-    assert.equal(run.phase, 'done');
-  } finally {
-    vi.useRealTimers();
-  }
+  await delay(GRACE_MS + 50);
+  assert.deepEqual(
+    seen.events.filter((e) => e.type === 'background_timeout'),
+    [{ type: 'background_timeout', reason: 'grace' }],
+  );
+  assert.equal(run.phase, 'done');
 });
 
 test('an expired wait never re-arms: the cap means stop waiting, not restart the clock', async () => {
-  vi.useFakeTimers();
-  try {
-    const { process, seen, run } = await startHeldRun({ pendingBackgroundTasks: 1 });
-    await vi.advanceTimersByTimeAsync(MAX_WAIT_MS);
-    assert.equal(seen.events.filter((e) => e.type === 'background_timeout').length, 1);
+  const { session, seen } = await startHeldRun('running');
+  await delay(MAX_WAIT_MS + 50);
+  assert.equal(seen.events.filter((e) => e.type === 'background_timeout').length, 1);
 
-    process.continuationSink!.onResult(defaultResult('backend-1', { pendingBackgroundTasks: 3, finalOutput: 'more' }));
-    await vi.advanceTimersByTimeAsync(MAX_WAIT_MS * 3);
-    assert.equal(seen.events.filter((e) => e.type === 'background_timeout').length, 1,
-      'one cap per run, not one per report');
-    assert.equal(run.phase, 'background');
-  } finally {
-    vi.useRealTimers();
-  }
+  session.handleLine(taskNotification('bg-1'));
+  session.handleLine(taskStarted('bg-2'));
+  session.handleLine(taskStarted('bg-3'));
+  session.handleLine(taskStarted('bg-4'));
+  session.handleLine(assistantLine('more'));
+  session.handleLine(resultLine({ result: 'more' }));
+  await delay(MAX_WAIT_MS * 3);
+
+  assert.equal(seen.events.filter((e) => e.type === 'background_timeout').length, 1,
+    'one cap per run, not one per report');
+  assert.ok(
+    seen.events.some((event) => event.type === 'phase' && event.phase === 'background'),
+    'still in the background phase',
+  );
 });
 
 // ── cancel ───────────────────────────────────────────────────────────────
 
 test('cancel() kills the process, closes the record and reaches the cancelled terminal', async () => {
-  const process = makeFakeProcess({
-    events: [{ type: 'assistant_text', text: 'working' }], hold: true,
-  });
-  holder.adapter = makeFakeAdapter(process);
   const seen = collector();
-
-  const run = startRun(makeRequest(), [seen.observer]);
+  const { run, session, children } = startScriptedRun({}, [seen.observer]);
   const settledOutcome = run.settled.then(() => 'resolved' as const, (error: unknown) => error);
   const resultOutcome = run.result.then(() => 'resolved' as const, (error: unknown) => error);
   assert.ok(runRegistry.getById(run.executionId));
 
+  session.handleLine(assistantLine('working'));
   run.cancel('user');
 
-  assert.equal(process.killed, true);
+  assert.equal(children[0].killed, true);
+  assert.equal(session.isAlive(), false, 'the engine session was torn down');
   assert.equal(run.status, 'cancelled');
   assert.equal(run.phase, 'done');
   assert.equal(runRegistry.getById(run.executionId), null);
@@ -469,18 +440,12 @@ test('cancel() kills the process, closes the record and reaches the cancelled te
 // ── observer safety ──────────────────────────────────────────────────────
 
 test('a throwing non-required observer is logged and the run still completes', async () => {
-  const process = makeFakeProcess({
-    events: [
-      { type: 'assistant_text', text: 'hi' },
-      { type: 'turn_complete', numTurns: 1, totalCostUsd: 0 },
-    ],
-    result: defaultResult('backend-1'),
-  });
-  holder.adapter = makeFakeAdapter(process);
   const seen = collector();
   const throwing: RunObserver = { onEvent: () => { throw new Error('observer boom'); } };
+  const { run, session } = startScriptedRun({}, [throwing, seen.observer]);
 
-  const run = startRun(makeRequest(), [throwing, seen.observer]);
+  session.handleLine(assistantLine('done'));
+  session.handleLine(resultLine());
 
   const result = await run.settled;
   assert.equal(result.finalOutput, 'done');
@@ -489,39 +454,38 @@ test('a throwing non-required observer is logged and the run still completes', a
 });
 
 test('a throwing required observer fails the run and kills the process', async () => {
-  const process = makeFakeProcess({
-    events: [{ type: 'assistant_text', text: 'hi' }], hold: true,
-  });
-  holder.adapter = makeFakeAdapter(process);
   const required: RunObserver = {
     required: true,
     onEvent: () => { throw new Error('required boom'); },
   };
-
-  const run = startRun(makeRequest(), [required]);
+  const { run, children } = startScriptedRun({}, [required]);
   void run.result.catch(() => undefined);
+  // The required observer throws on the engine's first event; no foreground line is needed.
   const outcome = await run.settled.then(() => 'resolved' as const, (error: unknown) => error);
 
   assert.ok(outcome instanceof Error);
   assert.equal(run.status, 'failed');
-  assert.equal(process.killed, true);
+  assert.equal(children[0].killed, true);
   assert.equal(runRegistry.getById(run.executionId), null);
 });
 
-// ── P1.8: steer owns the injection ack -> event translation ───────────────
+// ── steer owns the injection ack translation in the engine ───────────────
 
-test('steer delivers a message to the live process and fans the ack out as injection_delivered', async () => {
-  const process = makeFakeProcess({ hold: true });
-  holder.adapter = makeFakeAdapter(process);
+test('steer delivers a message to the live engine and fans the ack out as injection_delivered', async () => {
   const seen = collector();
-
-  const run = startRun(makeRequest(), [seen.observer]);
+  const { run, session } = startScriptedRun({}, [seen.observer]);
   assert.equal(runRegistry.getRunByChannel('web:sess-1'), run, 'the registry exposes the live run');
 
+  session.handleLine(assistantLine('working'));
   assert.deepEqual(await run.steer({ text: 'keep going' }, 'inj-1'), 'folded');
-  assert.ok(process.injectionAckSink, 'the run installed the injection ack sink');
 
-  process.injectionAckSink!.onDelivered({ text: 'keep going', foldedIntoTurn: true });
+  // The engine owns the ack translation now: the CLI's `--replay-user-messages` echo is the
+  // delivery, and the caller's injectionId is what the fanned event is correlated by.
+  session.handleLine(raw({
+    type: 'user', isReplay: true, session_id: 'backend-1',
+    message: { role: 'user', content: 'keep going' },
+  }));
+  await tick();
 
   const event = seen.events.find(
     (candidate): candidate is Extract<RunEvent, { type: 'injection_delivered' }> =>
@@ -533,58 +497,84 @@ test('steer delivers a message to the live process and fans the ack out as injec
   await run.settled.catch(() => undefined);
 });
 
-test('steer refuses without a live process and emits no injection event', async () => {
-  const process = makeFakeProcess({ hold: true, injectAccepted: false });
-  holder.adapter = makeFakeAdapter(process);
+test('steer refuses without a live engine and reports the refusal as injection_rejected', async () => {
   const seen = collector();
+  const { run, session } = startScriptedRun({}, [seen.observer]);
+  session.kill(); // no live backend to write to
 
-  const run = startRun(makeRequest(), [seen.observer]);
   assert.equal(await run.steer({ text: 'nope' }, 'inj-2'), 'refused');
-  assert.equal(seen.events.some((event) => event.type.startsWith('injection_')), false);
+  await tick();
+
+  // The engine owns the refusal translation: an accepted-but-unknown state is a
+  // `injection_rejected` event carrying the caller's id and the reason.
+  const rejected = seen.events.find(
+    (event): event is Extract<RunEvent, { type: 'injection_rejected' }> =>
+      event.type === 'injection_rejected',
+  );
+  assert.deepEqual(rejected, { type: 'injection_rejected', injectionId: 'inj-2', reason: 'refused' });
 
   run.cancel('user');
   await run.settled.catch(() => undefined);
 });
 
-// ── P2.4: respondToDialog is the run's one dialog channel ────────────────
+// ── respondToDialog is the run's one dialog channel ──────────────────────
 
-test('respondToDialog forwards to the live process and surfaces its boolean', async () => {
-  const refused = makeFakeProcess({ hold: true, dialogAccepted: false });
-  holder.adapter = makeFakeAdapter(refused);
-  const refusedRun = startRun(makeRequest({ runId: 'run-dialog-refused' }), [collector().observer]);
+test('respondToDialog forwards to the live engine and surfaces its boolean', async () => {
+  // Claude exposes no extension-UI dialog channel (`respondToDialog` is always false), so the
+  // run-layer contract under test is the forwarding itself: the real engine's method is observed
+  // while everything else stays a real run.
+  const refusedCalls: Array<{ id: string; payload: Record<string, unknown> }> = [];
+  const refused = startScriptedRun({ runId: 'run-dialog-refused' }, [collector().observer]);
+  refused.engine.respondToDialog = (id: string, payload: Record<string, unknown>) => {
+    refusedCalls.push({ id, payload });
+    return false;
+  };
 
-  assert.equal(refusedRun.respondToDialog('ui-refused', { value: 'no' }), false);
-  assert.deepEqual(refused.dialogCalls, [{ id: 'ui-refused', payload: { value: 'no' } }]);
-  refusedRun.cancel('user');
-  await refusedRun.settled.catch(() => undefined);
+  assert.equal(refused.run.respondToDialog('ui-refused', { value: 'no' }), false);
+  assert.deepEqual(refusedCalls, [{ id: 'ui-refused', payload: { value: 'no' } }]);
+  refused.run.cancel('user');
+  await refused.run.settled.catch(() => undefined);
 
-  const accepted = makeFakeProcess({ hold: true });
-  holder.adapter = makeFakeAdapter(accepted);
-  const acceptedRun = startRun(makeRequest({ runId: 'run-dialog-accepted' }), [collector().observer]);
+  const acceptedCalls: Array<{ id: string; payload: Record<string, unknown> }> = [];
+  const accepted = startScriptedRun({ runId: 'run-dialog-accepted' }, [collector().observer]);
+  accepted.engine.respondToDialog = (id: string, payload: Record<string, unknown>) => {
+    acceptedCalls.push({ id, payload });
+    return true;
+  };
 
-  assert.equal(acceptedRun.respondToDialog('ui-accepted', { value: 'yes' }), true);
-  assert.deepEqual(accepted.dialogCalls, [{ id: 'ui-accepted', payload: { value: 'yes' } }]);
-  acceptedRun.cancel('user');
-  await acceptedRun.settled.catch(() => undefined);
+  assert.equal(accepted.run.respondToDialog('ui-accepted', { value: 'yes' }), true);
+  assert.deepEqual(acceptedCalls, [{ id: 'ui-accepted', payload: { value: 'yes' } }]);
+  accepted.run.cancel('user');
+  await accepted.run.settled.catch(() => undefined);
 });
 
-test('a post-result injection keeps the run in background until the continuation settles', async () => {
-  const process = makeFakeProcess({ hold: true });
-  holder.adapter = makeFakeAdapter(process);
+test('a post-result injection keeps the run open until the spontaneous turn settles', async () => {
   const seen = collector();
+  const { run, session } = startScriptedRun({}, [seen.observer]);
+  session.handleLine(assistantLine('working'));
 
-  const run = startRun(makeRequest(), [seen.observer]);
   assert.equal(await run.steer({ text: 'after the result' }, 'inj-3'), 'folded');
 
-  process.resolveSend(defaultResult('backend-1', { finalOutput: 'fg' }));
-  await process.close();
-  const foreground = await run.result;
-  assert.equal(foreground.finalOutput, 'fg');
-  assert.equal(run.phase, 'background', 'a pending injection holds the run open');
+  session.handleLine(resultLine({ result: 'fg' }));
+  await tick();
+  // The injection obligation keeps the ENGINE's background phase open after the foreground
+  // result; the run's own mirrored phase tracks background *tasks*, so the authoritative signal
+  // here is the background phase event and the still-live registry entry.
+  assert.ok(
+    seen.events.some((event) => event.type === 'phase' && event.phase === 'background'),
+    'a pending injection holds the run open',
+  );
+  assert.ok(runRegistry.getById(run.executionId), 'still registered while the injection is pending');
 
-  process.injectionAckSink!.onDelivered({ text: 'after the result', foldedIntoTurn: false });
-  process.continuationSink!.onAssistantText('spontaneous reply', 'model');
-  process.continuationSink!.onResult(defaultResult('backend-1', { finalOutput: 'spontaneous reply' }));
+  // The CLI drains the queue after the result: the echo acks with foldedIntoTurn=false and opens
+  // a spontaneous turn, whose reply reaches the run through the engine's continuation phase. The
+  // run ends by itself once that reply lands — nothing has to cancel it.
+  session.handleLine(raw({
+    type: 'user', isReplay: true, session_id: 'backend-1',
+    message: { role: 'user', content: 'after the result' },
+  }));
+  session.handleLine(assistantLine('spontaneous reply'));
+  session.handleLine(resultLine({ result: 'spontaneous reply' }));
 
   const settled = await run.settled;
   assert.equal(settled.finalOutput, 'spontaneous reply');

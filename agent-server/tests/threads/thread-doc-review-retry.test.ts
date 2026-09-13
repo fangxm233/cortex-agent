@@ -1,4 +1,4 @@
-// input:  Vitest, thread runner, shipped doc-review shell
+// input:  Vitest, thread runner (startAttempt seam), shipped doc-review shell
 // output: Doc-review retry lifecycle and terminal-order regressions
 // pos:    Verifies revisions receive a second independent review
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -8,12 +8,12 @@ import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-const agent = vi.hoisted(() => ({ runAgent: vi.fn() }));
+const attempt = vi.hoisted(() => ({ startAttempt: vi.fn() }));
 
-// startRun reaches the facade directly (runAgent is no longer exported by the agents barrel).
-vi.mock('@domain/agents/facade.js', async (importOriginal) => {
+// The run layer is the spawn seam now: intercept startAttempt, not the retired agent facade.
+vi.mock('@domain/runs/attempt.js', async (importOriginal) => {
   const original = await importOriginal<Record<string, unknown>>();
-  return { ...original, runAgent: agent.runAgent };
+  return { ...original, startAttempt: attempt.startAttempt };
 });
 
 vi.mock('@domain/agents/index.js', async (importOriginal) => {
@@ -87,14 +87,39 @@ function result(sessionId: string, output: string) {
   return { sessionId, finalOutput: output, total_cost_usd: 0, num_turns: 1 };
 }
 
-function queueStep(artifactPath: string, addition: string, sessionId: string): void {
-  agent.runAgent.mockImplementationOnce(() => {
-    fs.appendFileSync(artifactPath, addition);
-    return {
-      promise: Promise.resolve(result(sessionId, addition)),
+/** Synthetic `RunAttempt` for the orchestration seam. `startAttempt` now takes a `RunRequest`
+ *  plus attempt config; the old handle's `sessionId` is the attempt's `backendSessionId` and the
+ *  request's `session.backendSessionId`. */
+function attemptShell(input: any, backendSessionId: string | null, foreground: Promise<any>) {
+  return {
+    engine: {
+      backend: input?.request?.profile?.backend ?? 'claude',
+      identity: 'test-engine',
+      capabilities: new Set<string>(),
+      backendSessionId,
+      run: () => ({}),
+      steer: () => ({ accepted: false }),
+      ingestExternal: () => false,
+      respondToDialog: () => false,
+      compact: async () => ({}),
+      close: async () => {},
       kill: () => true,
-      sessionId,
-    };
+    },
+    engineRun: {},
+    spec: input?.request?.spec,
+    backend: input?.request?.profile?.backend ?? 'claude',
+    identity: null,
+    foreground,
+    settled: foreground,
+    backendSessionId,
+    kill: () => true,
+  };
+}
+
+function queueStep(artifactPath: string, addition: string, sessionId: string): void {
+  attempt.startAttempt.mockImplementationOnce((input: any) => {
+    fs.appendFileSync(artifactPath, addition);
+    return attemptShell(input, sessionId, Promise.resolve(result(sessionId, addition)));
   });
 }
 
@@ -111,7 +136,7 @@ function makeOptions(record: ThreadRecord): RunThreadOptions {
 }
 
 function createDocReviewThread(): ThreadRecord {
-  agent.runAgent.mockReset();
+  attempt.startAttempt.mockReset();
   return createThread('C-doc-review-retry', {
     templateName: 'doc-review',
     userMessage: 'revise the document after review',
@@ -136,17 +161,17 @@ function queueControlledSecondReview(record: ThreadRecord) {
   let release!: () => void;
   const started = new Promise<void>((resolve) => { signalStarted = resolve; });
   const released = new Promise<void>((resolve) => { release = resolve; });
-  agent.runAgent.mockImplementationOnce(() => ({
-    promise: (async () => {
+  const verdict = '## Review (iteration 2)\n[APPROVED]\n';
+  attempt.startAttempt.mockImplementationOnce((input: any) => attemptShell(
+    input,
+    'reviewer-2',
+    (async () => {
       signalStarted();
       await released;
-      const verdict = '## Review (iteration 2)\n[APPROVED]\n';
       fs.appendFileSync(record.artifactPath, verdict);
       return result('reviewer-2', verdict);
     })(),
-    kill: () => true,
-    sessionId: 'reviewer-2',
-  }));
+  ));
   return { started, release };
 }
 
@@ -166,7 +191,7 @@ function assertCompletedReviewCycle(completed: ThreadRunResult, artifactPath: st
     completed.thread.steps.map((step) => [step.agentSlotId, step.stage]),
     [...FIRST_THREE_STEPS, ['doc-reviewer', null]],
   );
-  assert.equal(agent.runAgent.mock.calls.length, 4);
+  assert.equal(attempt.startAttempt.mock.calls.length, 4);
   assert.match(fs.readFileSync(artifactPath, 'utf8'), /Review \(iteration 2\)\n\[APPROVED\]/);
 }
 

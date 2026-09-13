@@ -1,35 +1,62 @@
-// input:  PIAdapter over a fake PI runtime + runWithAdapter + cost-tracker
-// output: Per-run PI cost recording with settled completion
-// pos:    PI cost record end-to-end integration path
+// input:  PIAdapter over a fake PI runtime, driven through startAttempt + cost-tracker
+// output: Per-attempt PI cost recording (columns AND values) once the foreground result settles
+// pos:    PI cost record end-to-end integration path through the attempt seam
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+//
+// The old file drove the deleted `facade._test.runWithAdapter` with an `AgentAdapter` built on the
+// PI pool. The attempt seam is now `startAttempt`: it acquires the pooled engine itself, opens one
+// run, and records the cost of every `cost_record` the foreground turn produces. The engine is the
+// fake PI runtime (no process is ever spawned); the pool is the daemon singleton, localised here by
+// replacing `domain/runs/engines.ts`'s `engines` with a `SessionEngines` over the fake adapter —
+// `startAttempt` reaches that singleton, so it is the only place the backend can be scripted.
 
-import { test, afterAll } from 'vitest';
+import { afterAll, afterEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { join as pathJoin } from 'node:path';
-import { mkdirSync, existsSync, readFileSync, unlinkSync } from 'node:fs';
+import { existsSync, readFileSync, unlinkSync } from 'node:fs';
 
-import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
-import { piPool } from './agent-adapter/pi-pool-fixture.js';
-import { makeFakeRuntimeFactory } from './agent-adapter/pi-fake-runtime.js';
-import { _test as modeManagerTest } from '../src/domain/agents/facade.js';
-import type { AgentAdapter } from '../src/agent-adapter/index.js';
-import { CAPABILITIES_BY_BACKEND } from '../src/agent-adapter/index.js';
-import type { EngineSpec } from '../src/agent-adapter/types.js';
+import type { makeFakeRuntimeFactory } from './agent-adapter/pi-fake-runtime.js';
+import { runRequestFixture, attemptFromFixture } from './run-request-fixture.js';
+import { startAttempt } from '../src/domain/runs/attempt.js';
+import type { SessionEngines } from '../src/domain/runs/engines.js';
 import type { CostEntry } from '../src/domain/costs/cost-tracker.js';
 import { costRepo } from '../src/store/cost-repo.js';
 
-const { runWithAdapter } = modeManagerTest;
+type FakeRuntimeFactory = ReturnType<typeof makeFakeRuntimeFactory>;
 
-// Temp session dir (isolated per test run)
-const SESSION_DIR = pathJoin(tmpdir(), `pi-cost-record-test-${process.pid}`);
-mkdirSync(SESSION_DIR, { recursive: true });
+// `startAttempt` imports the module singleton, so the fake PI adapter has to be installed before
+// that import resolves. The factory runs at module-evaluation time, which is exactly when the
+// singleton is built.
+const fixtures = vi.hoisted(() => ({
+  fake: null as unknown as FakeRuntimeFactory,
+  engines: null as unknown as SessionEngines,
+}));
+
+vi.mock('../src/domain/runs/engines.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/domain/runs/engines.js')>();
+  const { tmpdir: dir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { mkdirSync: mkdir } = await import('node:fs');
+  const { PIAdapter } = await import('../src/agent-adapter/pi/adapter.js');
+  const { ClaudeAdapter } = await import('../src/agent-adapter/claude/adapter.js');
+  const { makeFakeRuntimeFactory: makeFake } = await import('./agent-adapter/pi-fake-runtime.js');
+  const sessionDir = join(dir(), `pi-cost-record-sessions-${process.pid}`);
+  mkdir(sessionDir, { recursive: true });
+  const fake = makeFake({ sessionId: 'pi-test-001' });
+  fixtures.fake = fake;
+  fixtures.engines = new actual.SessionEngines({
+    pi: new PIAdapter(fake.factory, sessionDir),
+    claude: new ClaudeAdapter(),
+  });
+  return { ...actual, engines: fixtures.engines };
+});
 
 // Temp costs file (isolated from production costs.json)
 const COSTS_FILE = pathJoin(tmpdir(), `pi-cost-record-costs-${process.pid}.json`);
 const ORIGINAL_COSTS_FILE = process.env['CORTEX_COSTS_FILE'];
 
-// --- Cleanup (N2H-3: afterAll() ensures env is restored even on assertion failure) ---
+// --- Cleanup (afterAll() ensures env is restored even on assertion failure) ---
 
 afterAll(() => {
   if (ORIGINAL_COSTS_FILE !== undefined) {
@@ -44,65 +71,54 @@ afterAll(() => {
   costRepo._testReset();
 });
 
+afterEach(async () => {
+  for (const key of fixtures.engines.listKeys()) await fixtures.engines.close(key);
+});
+
 // ---------------------------------------------------------------------------
-// Integration test: direct-pi run → cost entry with provider/model/tokens
+// Integration test: one PI attempt → one cost entry with provider/model/tokens
 // ---------------------------------------------------------------------------
 
-test('pi-cost-record: agent_end records cost before agent_settled completes', async () => {
+test('pi-cost-record: agent_end records cost before the foreground result settles', async () => {
   // Redirect cost tracking to isolated temp file
   process.env['CORTEX_COSTS_FILE'] = COSTS_FILE;
   costRepo._testReset();
 
-  const fake = makeFakeRuntimeFactory({ sessionId: 'pi-test-001' });
-  const piAdapter = new PIAdapter(fake.factory, SESSION_DIR);
+  const fake = fixtures.fake;
+  const runtimeIndex = fake.runtimes.length;
+  const sessionKey = `pi-cost-${runtimeIndex}`;
+  const partial = { piProvider: 'anthropic', promptText: 'hello', sessionKey };
+  const attemptOverride = { backend: 'pi' as const, mode: 'api' };
 
-  // The pool now lives in SessionEngines; wrap it as the AgentAdapter runWithAdapter calls.
-  const pool = piPool(piAdapter);
-  const adapter: AgentAdapter = {
-    backend: 'pi',
-    capabilities: CAPABILITIES_BY_BACKEND['pi'],
-    spawn: (spec: EngineSpec) => pool.spawn(spec),
-    close: async (key: string) => { pool.close(key); },
-    kill: (key: string) => pool.kill(key),
-    listSessions: () => pool.listSessions(),
-  };
-
-  // runWithAdapter calls adapter.spawn() synchronously inside, which creates the PI session.
-  const handle = runWithAdapter(
-    adapter,
-    'hello',
-    { project: 'pi-cost-test', trigger: 'test' },
-    { model: '', backend: 'pi', mode: 'api' },
-    undefined,
-  );
+  // startAttempt acquires the pooled engine synchronously and opens the run; the PI runtime
+  // resolves a moment later, exactly as the old `adapter.spawn()` did.
+  const run = startAttempt({
+    request: runRequestFixture(
+      { ...partial, project: 'pi-cost-test', trigger: 'test' },
+      attemptOverride,
+    ),
+    attempt: attemptFromFixture(partial, attemptOverride),
+    executionId: null,
+    onEvent: () => {},
+  });
 
   // The session announces itself once its runtime resolved and hands PI the opening prompt.
-  const runtime = await fake.runtime();
+  const runtime = await fake.runtime(runtimeIndex);
   await runtime.nextCall('prompt');
 
   // agent_end records low-level usage; agent_settled terminates the Cortex turn.
   runtime.emitAgentStart();
-  runtime.emit({
-    type: 'agent_end',
-    messages: [
-      {
-        role: 'assistant',
-        provider: 'anthropic',
-        model: 'claude-opus-4',
-        usage: {
-          input: 200, output: 100, cacheRead: 20, cacheWrite: 10,
-          cost: { total: 0.005 },
-        },
-      },
-    ],
+  runtime.emitAgentEnd({
+    provider: 'anthropic',
+    model: 'claude-opus-4',
+    usage: { input: 200, output: 100, cacheRead: 20, cacheWrite: 10, cost: { total: 0.005 } },
   });
-  runtime.emit({ type: 'agent_settled' });
 
-  // Wait for runWithAdapter to finish processing.
-  await handle.promise;
-  for (const key of pool.listSessions()) pool.close(key);
-  // Drain any pending async cost writes (recordCost is fire-and-forget in mode-manager event loop).
+  // Wait for the attempt to finish processing.
+  await run.foreground;
+  // Drain any pending async cost writes (`recordCost` is fire-and-forget in the attempt event loop).
   await costRepo.flush();
+  run.kill();
 
   // --- Assertions ---
 
@@ -127,6 +143,8 @@ test('pi-cost-record: agent_end records cost before agent_settled completes', as
     Math.abs((entry.cost_usd ?? 0) - 0.005) < 0.0001,
     `cost_usd should be ~0.005, got ${entry.cost_usd}`,
   );
-  assert.equal(entry.project, 'pi-cost-test', 'project should match runWithAdapter options');
-  assert.equal(entry.trigger, 'test', 'trigger should match runWithAdapter options');
+  assert.equal(entry.project, 'pi-cost-test', 'project should match the request context');
+  assert.equal(entry.trigger, 'test', 'trigger should match the request context');
+  assert.equal(entry.mode, 'api', 'mode should come from the attempt config');
+  assert.equal(entry.source, 'estimate', 'the attempt records an estimated cost source');
 });

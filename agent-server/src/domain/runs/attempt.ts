@@ -127,6 +127,20 @@ function normalizedTap(
 }
 
 /**
+ * Close every wire-level sink once the attempt's stream has ended. This is where the benchmark
+ * journal writes its index row (the journal is a per-attempt artifact; `onEvent` writes the body),
+ * so skipping it leaves the evidence written but unindexed — which is how it was after the
+ * process-seam removal dropped the event tee's close. A failing sink is logged, never allowed to
+ * turn a finished run into a failed one.
+ */
+async function closeSinks(sinks: EventObserver[]): Promise<void> {
+  for (const sink of sinks) {
+    try { await sink.onClose?.(); }
+    catch (error) { log.warn('required sink close failed:', (error as Error)?.message ?? error); }
+  }
+}
+
+/**
  * Await a result and the event loop together: a rejection from either must still let the stream
  * drain (a surface may be mid-render), and a failing observer must not swallow the real error.
  */
@@ -161,7 +175,8 @@ export function startAttempt(input: StartAttemptInput): RunAttempt {
     })
     : null;
   const attribution = costAttribution(request, executionId, identity);
-  const tap = normalizedTap([...(journal ? [journal] : []), ...(input.requiredSinks ?? [])]);
+  const sinks: EventObserver[] = [...(journal ? [journal] : []), ...(input.requiredSinks ?? [])];
+  const tap = normalizedTap(sinks);
 
   const engine = engines.acquire(spec);
   const engineRun = engine.run(
@@ -172,13 +187,17 @@ export function startAttempt(input: StartAttemptInput): RunAttempt {
   // The foreground turn is over when the engine says so; an attempt bills only what it started.
   let foregroundOver = false;
   const eventLoop = (async (): Promise<void> => {
-    for await (const event of engineRun.events) {
-      if (event.type === 'cost_record') {
-        if (!foregroundOver) recordAttemptCost(event, input, attribution);
-      } else if (event.type === 'foreground_result') {
-        foregroundOver = true;
+    try {
+      for await (const event of engineRun.events) {
+        if (event.type === 'cost_record') {
+          if (!foregroundOver) recordAttemptCost(event, input, attribution);
+        } else if (event.type === 'foreground_result') {
+          foregroundOver = true;
+        }
+        input.onEvent(event);
       }
-      input.onEvent(event);
+    } finally {
+      await closeSinks(sinks);
     }
   })();
 

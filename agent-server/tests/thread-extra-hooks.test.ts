@@ -1,4 +1,4 @@
-// input:  thread runner, template isolation, HookBus entries
+// input:  thread runner (startAttempt seam), template isolation, HookBus entries
 // output: lifecycle payload, isolation, and scoped-hook regressions
 // pos:    Verifies thread lifecycle hook routing and suppression
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -10,12 +10,12 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-const agent = vi.hoisted(() => ({ runAgent: vi.fn() }));
+const attempt = vi.hoisted(() => ({ startAttempt: vi.fn() }));
 
-// startRun reaches the facade directly (runAgent is no longer exported by the agents barrel).
-vi.mock('@domain/agents/facade.js', async (importOriginal) => {
+// The run layer is the spawn seam now: intercept startAttempt, not the retired agent facade.
+vi.mock('@domain/runs/attempt.js', async (importOriginal) => {
   const original = await importOriginal<Record<string, unknown>>();
-  return { ...original, runAgent: agent.runAgent };
+  return { ...original, startAttempt: attempt.startAttempt };
 });
 
 vi.mock('@domain/agents/index.js', async (importOriginal) => {
@@ -118,7 +118,7 @@ afterAll(() => {
 });
 
 beforeEach(() => {
-  agent.runAgent.mockReset();
+  attempt.startAttempt.mockReset();
   initHookBus({ entries: [], hooksDir: tmpRoot });
   throttle._testReset();
   resumeRegistry._testReset();
@@ -182,20 +182,53 @@ function result(sessionId: string, output = 'done') {
   };
 }
 
-function handle(value: Record<string, unknown>, beforeResolve?: () => Promise<void>) {
-  return {
-    promise: (async () => {
-      await beforeResolve?.();
+/** Synthetic `RunAttempt` for the orchestration seam. `startAttempt` now takes a `RunRequest`
+ *  plus attempt config; the old handle's `sessionId` is the attempt's `backendSessionId` (which
+ *  the run records as its resume target) and the request's `session.backendSessionId`.
+ *  The retired handle's `agentProcess` field has no counterpart in the run contract. */
+function attemptHandle(
+  value: Record<string, unknown>,
+  beforeResolve?: (input: any) => Promise<void>,
+) {
+  return (input: any) => {
+    const foreground = (async () => {
+      await beforeResolve?.(input);
       return value;
-    })(),
-    kill: () => true,
-    sessionId: typeof value.sessionId === 'string' ? value.sessionId : null,
-    agentProcess: undefined,
+    })();
+    const backendSessionId = typeof value.sessionId === 'string' ? value.sessionId : null;
+    return attemptShell(input, backendSessionId, foreground);
   };
 }
 
-function queueAgentResult(value: Record<string, unknown>, beforeResolve?: () => Promise<void>): void {
-  agent.runAgent.mockImplementationOnce(() => handle(value, beforeResolve));
+/** The non-promise half of a synthetic attempt, shared by every stub in this file. */
+function attemptShell(input: any, backendSessionId: string | null, foreground: Promise<any>) {
+  return {
+    engine: {
+      backend: input?.request?.profile?.backend ?? 'claude',
+      identity: 'test-engine',
+      capabilities: new Set<string>(),
+      backendSessionId,
+      run: () => ({}),
+      steer: () => ({ accepted: false }),
+      ingestExternal: () => false,
+      respondToDialog: () => false,
+      compact: async () => ({}),
+      close: async () => {},
+      kill: () => true,
+    },
+    engineRun: {},
+    spec: input?.request?.spec,
+    backend: input?.request?.profile?.backend ?? 'claude',
+    identity: null,
+    foreground,
+    settled: foreground,
+    backendSessionId,
+    kill: () => true,
+  };
+}
+
+function queueAgentResult(value: Record<string, unknown>, beforeResolve?: (input: any) => Promise<void>): void {
+  attempt.startAttempt.mockImplementationOnce(attemptHandle(value, beforeResolve));
 }
 
 function writeCaptureScript(filename: string, capturePath: string, hookResult: HookResult = { insertAgent: false }): string {
@@ -317,11 +350,12 @@ test('hook-free template suppresses registry lifecycle hooks and isolates every 
   await runThread(thread.id, makeOptions(thread.channel));
 
   assert.deepEqual(captures(capturePath), []);
-  assert.equal(agent.runAgent.mock.calls.length, 2);
-  for (const call of agent.runAgent.mock.calls) {
-    assert.equal(call[1].mcpComposition, 'none');
-    assert.equal(call[1].disableHooks, true);
-    assert.equal(call[1].useCoreMcp, false);
+  assert.equal(attempt.startAttempt.mock.calls.length, 2);
+  for (const call of attempt.startAttempt.mock.calls) {
+    const request = call[0].request;
+    assert.equal(request.policy.mcpComposition, 'none');
+    assert.equal(request.policy.hooks, false);
+    assert.equal(request.policy.useCoreMcp, false);
   }
 });
 
@@ -428,10 +462,10 @@ test('template-scoped onEnd HookResult inserts a hook agent', async () => {
 
   await runThread(thread.id, makeOptions(thread.channel));
 
-  assert.equal(agent.runAgent.mock.calls.length, 2);
-  assert.equal(agent.runAgent.mock.calls[1][0], 'inserted follow-up');
-  assert.equal(agent.runAgent.mock.calls[1][1].sessionId, null);
-  assert.match(agent.runAgent.mock.calls[1][1].sessionKey, /hook:end$/);
+  assert.equal(attempt.startAttempt.mock.calls.length, 2);
+  assert.equal(attempt.startAttempt.mock.calls[1][0].request.prompt.text, 'inserted follow-up');
+  assert.equal(attempt.startAttempt.mock.calls[1][0].request.session.backendSessionId, null);
+  assert.match(attempt.startAttempt.mock.calls[1][0].request.session.engineKey, /hook:end$/);
   assert.equal(threadStore.get(thread.id)?.steps.at(-1)?.agentSlotId, 'hook:end');
 });
 
@@ -443,10 +477,10 @@ test('template-scoped onEnd HookResult targets the existing agent session', asyn
 
   await runThread(thread.id, makeOptions(thread.channel));
 
-  assert.equal(agent.runAgent.mock.calls.length, 2);
-  assert.equal(agent.runAgent.mock.calls[1][0], 'targeted follow-up');
-  assert.equal(agent.runAgent.mock.calls[1][1].sessionId, 'backend-alpha');
-  assert.match(agent.runAgent.mock.calls[1][1].sessionKey, /:alpha$/);
+  assert.equal(attempt.startAttempt.mock.calls.length, 2);
+  assert.equal(attempt.startAttempt.mock.calls[1][0].request.prompt.text, 'targeted follow-up');
+  assert.equal(attempt.startAttempt.mock.calls[1][0].request.session.backendSessionId, 'backend-alpha');
+  assert.match(attempt.startAttempt.mock.calls[1][0].request.session.engineKey, /:alpha$/);
   assert.equal(threadStore.get(thread.id)?.steps.at(-1)?.agentSlotId, 'alpha');
 });
 
@@ -464,18 +498,19 @@ test('hook agent turn carries the thread Cortex execution context', async () => 
 
   await runThread(thread.id, makeOptions(thread.channel));
 
-  const hookOptions = agent.runAgent.mock.calls[1][1];
-  assert.equal(hookOptions.threadId, thread.id);
-  assert.equal(hookOptions.threadDepth, 2);
-  assert.equal(hookOptions.taskId, 'a7b8');
-  assert.equal(hookOptions.taskProject, 'orchard');
-  assert.equal(hookOptions.taskGeneration, 'gen-7');
-  assert.equal(typeof hookOptions.executionId, 'string');
-  assert.ok(hookOptions.executionId.length > 0);
+  const hookCall = attempt.startAttempt.mock.calls[1][0];
+  const hookRequest = hookCall.request;
+  assert.equal(hookRequest.context.threadId, thread.id);
+  assert.equal(hookRequest.context.threadDepth, 2);
+  assert.equal(hookRequest.context.taskId, 'a7b8');
+  assert.equal(hookRequest.context.taskProject, 'orchard');
+  assert.equal(hookRequest.context.taskGeneration, 'gen-7');
+  assert.equal(typeof hookCall.executionId, 'string');
+  assert.ok(hookCall.executionId.length > 0);
   // The hook resumes alpha's session, so its turn must be tracked under alpha's Cortex track id
-  // (steps[0].sessionId), not the backend `--resume` id it also passes as sessionId.
-  assert.equal(hookOptions.sessionId, 'backend-alpha');
-  assert.equal(hookOptions.trackSessionId, threadStore.get(thread.id)?.steps[0]?.sessionId);
+  // (steps[0].sessionId), not the backend `--resume` id it also passes as backendSessionId.
+  assert.equal(hookRequest.session.backendSessionId, 'backend-alpha');
+  assert.equal(hookRequest.session.sessionId, threadStore.get(thread.id)?.steps[0]?.sessionId);
 });
 
 test('template-scoped onEnd does not leak to another template', async () => {
@@ -485,7 +520,7 @@ test('template-scoped onEnd does not leak to another template', async () => {
 
   await runThread(thread.id, makeOptions(thread.channel));
 
-  assert.equal(agent.runAgent.mock.calls.length, 1);
+  assert.equal(attempt.startAttempt.mock.calls.length, 1);
 });
 
 function writeClaimedTask(project: string, taskId: string): void {

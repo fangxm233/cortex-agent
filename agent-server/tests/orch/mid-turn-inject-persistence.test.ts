@@ -10,8 +10,16 @@ import {
   _test as injectTest,
   type MidTurnInjectDeps,
 } from '../../src/orchestration/mid-turn-inject.js';
+import { runRegistry } from '../../src/core/run-registry.js';
 
-beforeEach(() => injectTest.reset());
+/** Primary key the fixture run is registered under, so `getByChannel` selects it like production. */
+const FIXTURE_KEY = 'mid-turn-inject-persistence-fixture';
+const CHANNEL = 'web:sess-1';
+
+beforeEach(() => {
+  injectTest.reset();
+  runRegistry.remove(FIXTURE_KEY);
+});
 
 function deferred() {
   let resolve!: () => void;
@@ -21,30 +29,18 @@ function deferred() {
 
 function harness(persist: Promise<void>) {
   const order: string[] = [];
-  const proc: any = {
-    ackSink: null,
-    continuationSink: null,
-    injectUserMessage: () => true,
-    setInjectionAckSink(sink: any) { proc.ackSink = sink; },
-    setContinuationSink(sink: any) { proc.continuationSink = sink; },
-  };
-  // P1.8: `tryInjectIntoLiveTurn` steers the live run, which owns the ack sink. This fake run
-  // mirrors the run's ack -> event translation so the ledger (in transcript-sink) drives phase two.
+  // The live `AgentRun` the router selects: it owns the injection-ack translation, so the ledger
+  // only consumes the `injection_delivered` RunEvent this fixture emits (phase two lives in
+  // transcript-sink and is driven by the event, not by a sink orchestration installed).
   const observers = new Set<any>();
   const pending: Array<{ id: string; text: string }> = [];
   const emit = async (event: any): Promise<void> => {
     for (const observer of [...observers]) await observer.onEvent(event);
   };
-  proc.setInjectionAckSink({
-    onDelivered: ({ text, foldedIntoTurn }: any) => {
-      const index = pending.findIndex((entry) => entry.text === text);
-      if (index === -1) return Promise.resolve();
-      const [entry] = pending.splice(index, 1);
-      return emit({ type: 'injection_delivered', injectionId: entry.id, foldedIntoTurn });
-    },
-  });
   const run = {
+    backend: 'claude',
     capabilities: new Set(['mid-turn-inject']),
+    backgroundTranscriptOwned: false,
     steer: async (msg: any, injectionId?: string) => {
       pending.push({ id: injectionId ?? 'unknown', text: msg.text });
       return 'folded' as const;
@@ -53,9 +49,31 @@ function harness(persist: Promise<void>) {
       observers.add(observer);
       return () => { observers.delete(observer); };
     },
+    deliver: async (text: string, foldedIntoTurn: boolean) => {
+      const index = pending.findIndex((entry) => entry.text === text);
+      if (index === -1) return;
+      const [entry] = pending.splice(index, 1);
+      await emit({ type: 'injection_delivered', injectionId: entry.id, foldedIntoTurn });
+    },
+    observerCount: () => observers.size,
   };
+  // Register it the way `startRun` does, so the router selects it through the real channel index.
+  runRegistry.register({
+    threadId: null,
+    channel: CHANNEL,
+    agentSlotId: null,
+    executionId: null,
+    registryKey: FIXTURE_KEY,
+    kind: 'local',
+    kill: () => true,
+    backend: run.backend,
+    run: run as any,
+  });
   const deps: MidTurnInjectDeps = {
-    getLiveExecutions: () => [{ backend: 'claude', run }],
+    getLiveExecutions: (channel) => runRegistry.getByChannel(channel).map((entry) => ({
+      backend: entry.backend,
+      run: entry.run as any,
+    })),
     getStreamingCallback: () => null,
     appendAssistant: () => {},
     appendTool: () => {},
@@ -70,11 +88,11 @@ function harness(persist: Promise<void>) {
     track: (delta) => { order.push(`track:${delta}`); },
     now: () => 'T-write',
   } as unknown as MidTurnInjectDeps;
-  return { deps, proc, order };
+  return { deps, run, order };
 }
 
 const ctx = {
-  channel: 'web:sess-1', sessionId: 'sess-1', sessionName: 'cortex-nimbus',
+  channel: CHANNEL, sessionId: 'sess-1', sessionName: 'cortex-nimbus',
   profileName: 'default', text: 'change direction', senderId: 'U1', messageId: 'web-1',
 };
 
@@ -96,8 +114,8 @@ test('an ack arriving during the durable write is latched until pending has been
   const attempt = tryInjectIntoLiveTurn(h.deps, ctx);
 
   await Promise.resolve();
-  assert.ok(h.proc.ackSink, 'ack sink is registered before awaiting disk so an early echo is not lost');
-  const ack = h.proc.ackSink.onDelivered({ text: 'change direction', foldedIntoTurn: true });
+  assert.ok(h.run.observerCount() > 0, 'the run is subscribed before awaiting disk so an early echo is not lost');
+  const ack = h.run.deliver('change direction', true);
   gate.resolve();
   await attempt;
   await ack;
