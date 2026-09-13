@@ -384,7 +384,7 @@ test('resolves the provider and mode that the dispatch gate looks up', () => {
     resolveQuotaSource({ provider: 'openai-codex', gatewayPath: '/m/sol-overflow/openai-codex' }).mode,
     'sol-overflow',
   );
-  // No mode on the profile → spawn-config omits the gateway path → the gate reads 'api'.
+  // No mode on the profile → the built spec omits the gateway path → the gate reads 'api'.
   assert.equal(resolveQuotaSource({ provider: 'openai-codex' }).mode, 'api');
   // No provider on the profile → resolveRateLimitProvider falls back to the backend name.
   assert.equal(resolveQuotaSource({}).provider, 'pi');

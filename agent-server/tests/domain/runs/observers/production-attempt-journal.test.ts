@@ -15,10 +15,10 @@
 // therefore stated as "the journal persists exactly the run's raw tap, once, in order" plus the
 // backend's literal event-type order — the fact the suite is about is unchanged.
 //
-// `startAttempt` does not close its `requiredSinks` (the deleted event-tee did). That is a src gap
-// this migration cannot repair; the suite captures the internally-created journal sink through a
-// thin wrapper around the module factory and closes it after the run, exactly where the run layer
-// used to. The failure-injection cases drive that same sink directly.
+// `startAttempt` closes its wire-level sinks when the attempt's stream ends, which is where the
+// journal writes its index row; the suite therefore never closes the sink itself — if the run
+// layer stopped doing it, the index-row assertions below would fail. The failure-injection cases
+// drive a directly-constructed sink instead, so they can make `onEvent`/`onClose` throw on demand.
 
 import '../../../_test-home.js';
 import assert from 'node:assert/strict';
@@ -63,27 +63,6 @@ import { runRequestFixture } from '../../../run-request-fixture.js';
 const TRIAL_ROUTE = { ANTHROPIC_BASE_URL: 'http://proxy.invalid/m/trial/anthropic' };
 const SHA = 'a'.repeat(64);
 
-/** The internally-created journal sinks, so the test can perform the close the run layer omits. */
-const journalCapture = vi.hoisted(() => ({
-  sinks: [] as Array<{ onClose?: () => void | Promise<void> }>,
-}));
-
-vi.mock('../../../../src/domain/runs/observers/production-attempt-journal.js', async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import('../../../../src/domain/runs/observers/production-attempt-journal.js')
-  >();
-  return {
-    ...actual,
-    createProductionAttemptJournalSink: (
-      input: Parameters<typeof actual.createProductionAttemptJournalSink>[0],
-    ) => {
-      const sink = actual.createProductionAttemptJournalSink(input);
-      journalCapture.sinks.push(sink);
-      return sink;
-    },
-  };
-});
-
 let root: string;
 let activeEvidence: ProductionBenchmarkEvidenceContext | null;
 let pool: SessionEngines;
@@ -92,7 +71,6 @@ let piFake: FakeRuntimeFactory;
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'production-attempt-journal-'));
   activeEvidence = null;
-  journalCapture.sinks.length = 0;
   resetProductionAttemptIdentity();
   resetProductionAttemptJournals();
   piFake = makeFakeRuntimeFactory();
@@ -317,10 +295,6 @@ async function finishRun(handle: RunAttempt, backend: Backend, piIndex = 0): Pro
   await handle.foreground;
 }
 
-function closeCapturedJournals(): void {
-  for (const sink of journalCapture.sinks.splice(0)) void sink.onClose?.();
-}
-
 function makeDirectJournal(
   backend: Backend,
   executionId: string,
@@ -374,7 +348,6 @@ test('records the exact model-visible role asset witnesses used by host finaliza
     resolved, 'exec-asset-witness',
   );
   await finishRun(handle, 'pi');
-  closeCapturedJournals();
   const evidenceRecord = getProductionAttemptJournal('exec-asset-witness');
   assert.ok(evidenceRecord);
   const header = readJournal(evidenceRecord.journal_path)[0];
@@ -393,7 +366,6 @@ test('records the cwd the backend was actually spawned with, not the server proc
     resolved, 'exec-resolved-cwd',
   );
   await finishRun(handle, 'pi');
-  closeCapturedJournals();
   const evidenceRecord = getProductionAttemptJournal('exec-resolved-cwd');
   assert.ok(evidenceRecord);
   const header = readJournal(evidenceRecord.journal_path)[0];
@@ -417,8 +389,7 @@ test('journals an explicitly requested cwd verbatim', async () => {
       resolved, 'exec-explicit-cwd',
     );
     await finishRun(handle, 'pi');
-    closeCapturedJournals();
-    const evidenceRecord = getProductionAttemptJournal('exec-explicit-cwd');
+      const evidenceRecord = getProductionAttemptJournal('exec-explicit-cwd');
     assert.ok(evidenceRecord);
     assert.equal(readJournal(evidenceRecord.journal_path)[0].resolved_cwd, workspace);
   } finally {
@@ -441,8 +412,7 @@ for (const backend of ['claude', 'pi'] as const) {
         resolved, executionId,
       );
       await finishRun(handle, backend);
-      closeCapturedJournals();
-
+    
       const identity = getProductionAttemptIdentity(executionId);
       const evidenceRecord = getProductionAttemptJournal(executionId);
       assert.ok(identity && evidenceRecord);
@@ -510,8 +480,7 @@ for (const lifecycle of [
     if (lifecycle === 'cancelled') handle.kill();
     let rejected = false;
     try { await handle.foreground; } catch { rejected = true; }
-    closeCapturedJournals();
-
+  
     const expectRejection = ['failed', 'cancelled', 'interrupted'].includes(lifecycle);
     assert.equal(rejected, expectRejection, `run rejection for ${lifecycle}`);
     const evidenceRecord = getProductionAttemptJournal(executionId);
@@ -533,7 +502,6 @@ test('a synchronous adapter spawn failure still closes and links its zero-event 
     () => startJournalAttempt('claude', request, resolved, 'exec-spawn-failure'),
     /spawn failed/,
   );
-  closeCapturedJournals();
   const evidenceRecord = getProductionAttemptJournal('exec-spawn-failure');
   assert.ok(evidenceRecord);
   assert.equal(evidenceRecord.event_count, 0);
@@ -565,7 +533,6 @@ test('keeps concurrent child-thread attempt journals isolated and ordered', asyn
     runtime.emitSimpleTurn('done', { usage: { cost: { total: 0.01 } } });
     await handle.foreground;
   }));
-  closeCapturedJournals();
 
   const records = executions.map(executionId => getProductionAttemptJournal(executionId));
   assert.equal(new Set(records.map(record => record?.journal_path)).size, executions.length);
@@ -642,7 +609,6 @@ test('reload fails closed when persisted journal bytes no longer match their dig
     resolved, 'exec-tampered',
   );
   await finishRun(handle, 'claude');
-  closeCapturedJournals();
   const evidenceRecord = getProductionAttemptJournal('exec-tampered');
   assert.ok(evidenceRecord);
   fs.appendFileSync(evidenceRecord.journal_path, '{}\n');
