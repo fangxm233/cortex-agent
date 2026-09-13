@@ -5,7 +5,7 @@
 //
 // Interactive turns hold their Slack status asynchronously (orchestration/lifecycle +
 // the run's own watchdog). Thread/dispatch turns have no status message to hold — the step's
-// RESULT is the deliverable — so they wait INLINE: the facade keeps the turn promise
+// RESULT is the deliverable — so they wait INLINE: the run keeps the turn promise
 // open until the spontaneous continuation completes, then resolves with the merged
 // result. The thread's own busy bracket covers the wait (no extra track here). Ordinary
 // callers use grace/cap bounds; supervised one-shot runs use completion-only mode and their

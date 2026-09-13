@@ -54,7 +54,7 @@ export async function resumeAskUserQuestionGroup({ adapter, group, responseText 
       session: {
         sessionId: group.sessionId,
         backendSessionId: askBackendSessionId,
-        // Legacy `runAgent` set no sessionKey, so spawn-config fell back to the channel.
+        // The legacy run set no session key, so the spec builder fell back to the channel.
         engineKey: group.channel,
         sessionName: askSessionName,
       },

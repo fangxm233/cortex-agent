@@ -9,7 +9,7 @@ import { STORE_DIR } from '../../../core/paths.js';
 import type { Backend, EngineSpec } from '../../../agent-adapter/types.js';
 import type { ProductionBenchmarkEvidenceContext } from '../../../core/types/thread-types.js';
 import { parseProductionBenchmarkEvidenceContext } from '../../../core/production-benchmark-evidence.js';
-import type { RunAgentOptions } from '../../agents/spawn-config.js';
+import type { RunRequest } from '../request.js';
 import type { ResolvedProfileConfig } from '../../agents/profile-manager.js';
 import {
   computeModelExecutionIdentityHash, computeRoleToolSurfaceHash,
@@ -77,7 +77,9 @@ interface ActiveIdentityState {
 interface FreezeAttemptInput {
   adapterBackend: Backend;
   spec: EngineSpec;
-  options: RunAgentOptions;
+  request: RunRequest;
+  /** The execution record this attempt belongs to — the attested attempt id is derived from it. */
+  executionId: string | null;
   resolvedProfile: ResolvedProfileConfig | undefined;
 }
 
@@ -447,32 +449,33 @@ type AttemptModel = Pick<ProductionAttemptIdentityRecord,
   'model_execution_identity_hash' | 'role_tool_surface_hash'>;
 
 function attemptTask(
-  options: RunAgentOptions,
+  request: RunRequest,
   context: ProductionBenchmarkEvidenceContext,
 ): AttemptTask {
-  if (!options.taskId) {
+  if (!request.context.taskId) {
     return { task_id: context.trial_id, task_project: null, dispatch_generation: null };
   }
   return {
-    task_id: options.taskId,
-    task_project: requiredOption(options.taskProject, 'task project'),
-    dispatch_generation: requiredOption(options.taskGeneration, 'dispatch generation'),
+    task_id: request.context.taskId,
+    task_project: requiredOption(request.context.taskProject, 'task project'),
+    dispatch_generation: requiredOption(request.context.taskGeneration, 'dispatch generation'),
   };
 }
 
 function attemptLinkage(
   state: ActiveIdentityState,
-  options: RunAgentOptions,
+  request: RunRequest,
+  executionIdInput: string | null,
   context: ProductionBenchmarkEvidenceContext,
   existing: ProductionAttemptIdentityRecord | null,
 ): AttemptLinkage {
-  const executionId = requiredOption(options.executionId, 'execution identity');
+  const executionId = requiredOption(executionIdInput, 'execution identity');
   const attemptId = `execution-${executionId}`;
   const scope: AttemptScope = {
     trial_id: context.trial_id, root_run_id: context.root_run_id,
-    thread_id: requiredOption(options.threadId, 'thread identity'),
-    parent_thread_id: nullableText(options.parentThreadId ?? null, 'parent thread identity'),
-    root_thread_id: requiredOption(options.rootThreadId, 'root thread identity'),
+    thread_id: requiredOption(request.context.threadId, 'thread identity'),
+    parent_thread_id: nullableText(request.benchmark?.parentThreadId ?? null, 'parent thread identity'),
+    root_thread_id: requiredOption(request.benchmark?.rootThreadId, 'root thread identity'),
   };
   return {
     attempt_id: attemptId,
@@ -482,15 +485,15 @@ function attemptLinkage(
       ?? state.repo.resolveSpawnParentAttemptId(scope),
     execution_id: executionId, thread_id: scope.thread_id,
     parent_thread_id: scope.parent_thread_id, root_thread_id: scope.root_thread_id,
-    ...attemptTask(options, context),
+    ...attemptTask(request, context),
   };
 }
 
-function attemptShape(options: RunAgentOptions): AttemptShape {
+function attemptShape(request: RunRequest): AttemptShape {
   return {
-    template: requiredOption(options.templateName, 'template identity'),
-    role: requiredOption(options.agentSlotId, 'role identity'),
-    stage: nullableText(options.stage ?? null, 'stage identity'),
+    template: requiredOption(request.benchmark?.templateName, 'template identity'),
+    role: requiredOption(request.benchmark?.agentSlotId, 'role identity'),
+    stage: nullableText(request.benchmark?.stage ?? null, 'stage identity'),
   };
 }
 
@@ -520,8 +523,8 @@ function attemptModel(
   input: FreezeAttemptInput,
 ): AttemptModel {
   const profile = assertProfile(input, context);
-  const directive = typeof input.options.identityDirective === 'string'
-    ? input.options.identityDirective : '';
+  const directive = typeof input.request.benchmark?.identityDirective === 'string'
+    ? input.request.benchmark.identityDirective : '';
   const roleSurface = roleSurfaceFromSpec(input.spec, directive);
   return {
     profile_name: profile.name,
@@ -543,8 +546,8 @@ function buildRecord(
     schema_version: RECORD_SCHEMA,
     trial_id: context.trial_id,
     root_run_id: context.root_run_id,
-    ...attemptLinkage(state, input.options, context, existing),
-    ...attemptShape(input.options),
+    ...attemptLinkage(state, input.request, input.executionId, context, existing),
+    ...attemptShape(input.request),
     ...attemptModel(context, input),
     bundle_manifest_hash: context.bundle_manifest_hash,
     frozen_at: new Date().toISOString(),
@@ -573,14 +576,14 @@ function assertRootBaseline(
 export function freezeProductionAttemptIdentity(
   input: FreezeAttemptInput,
 ): ProductionAttemptIdentityRecord | null {
-  const supplied = input.options.productionBenchmarkEvidenceContext;
+  const supplied = input.request.benchmark?.evidenceContext ?? null;
   if (supplied === undefined || supplied === null) return null;
   if (!initialized || !activeState) {
     throw new Error('Production benchmark identity store is not initialized');
   }
   assertStableState(activeState);
   const context = parseProductionBenchmarkEvidenceContext(supplied);
-  const executionId = requiredOption(input.options.executionId, 'execution identity');
+  const executionId = requiredOption(input.executionId, 'execution identity');
   const existing = activeState.repo.get(executionId);
   const record = buildRecord(activeState, input, context, existing);
   const candidate = existing ? { ...record, frozen_at: existing.frozen_at } : record;
@@ -588,9 +591,9 @@ export function freezeProductionAttemptIdentity(
   return activeState.repo.append(candidate);
 }
 
-export function productionAttemptEvidenceEnabled(options: RunAgentOptions): boolean {
+export function productionAttemptEvidenceEnabled(request: RunRequest): boolean {
   return initialized && activeState !== null
-    && options.productionBenchmarkEvidenceContext != null;
+    && request.benchmark?.evidenceContext != null;
 }
 
 export function getProductionAttemptIdentity(

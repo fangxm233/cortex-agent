@@ -107,7 +107,8 @@ import { createDirectSession, adoptScheduledSession } from '@domain/sessions/ses
 import { runSessionRetentionSweep, type RetentionLivenessSnapshot } from '@domain/sessions/session-retention.js';
 import { syncClaudeUserCleanupPeriodDays } from '@domain/auth/claude-user-settings.js';
 import { setSessionAsync } from '@domain/sessions/session.js';
-import { isSessionCompactionSupported, resolveBackendForChannel, switchChannelProfile } from '@domain/agents/index.js';
+import { resolveBackendForChannel, switchChannelProfile } from '@domain/agents/index.js';
+import { isSessionCompactionSupported } from '@domain/runs/compact.js';
 import { initDiskMonitor, stopDiskMonitor } from '@domain/monitor/disk-monitor.js';
 import { startEventLoopMonitor, stopEventLoopMonitor } from '@domain/monitor/event-loop-monitor.js';
 import { loadMachinesFromFile, startMachineRegistryWatcher, stopMachineRegistryWatcher, setAdminNotifier as setMachineNotifier, getMachineRegistry } from '@domain/tasks/dispatch-utils.js';

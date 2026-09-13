@@ -75,11 +75,23 @@ export interface RunRequest {
     templateName: string | null;
     agentSlotId: string | null;
     stage: string | null;
-    pinnedEnv?: NodeJS.ProcessEnv;
-    cliPath?: string;
-    spawner?: AgentProcessSpawner;
-    mcpConfigPaths?: string[];
     preserveUnreportedAccounting: boolean;
+  };
+  /**
+   * How this run reaches its backend, when that is not simply "the installed CLI, this env".
+   * A harness sets it to point the run at a scripted binary or a frozen environment; production
+   * leaves it undefined. It lives here rather than under `benchmark` because it is the seam a
+   * TEST drives a real run through — the benchmark journal never reads it.
+   */
+  isolation?: {
+    /** Replaces `child_process.spawn` for the backend CLI. */
+    spawner?: AgentProcessSpawner;
+    /** An explicit CLI binary instead of the discovered one. */
+    cliPath?: string;
+    /** A frozen environment for the child, instead of inheriting the daemon's. */
+    pinnedEnv?: NodeJS.ProcessEnv;
+    /** Pre-written MCP config files instead of the generated ones. */
+    mcpConfigPaths?: string[];
   };
 }
 

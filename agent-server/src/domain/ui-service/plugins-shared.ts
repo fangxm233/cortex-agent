@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import { getSettings } from '@core/settings.js';
 import path from 'node:path';
 import { DATA_DIR, DEFAULTS_DIR, PLUGINS_DIR } from '@core/paths.js';
-import { CHANNEL_SCOPED_PLUGINS, COMMISSION_SCOPED_PLUGINS } from '@domain/agents/spawn-config.js';
+import { CHANNEL_SCOPED_PLUGINS, COMMISSION_SCOPED_PLUGINS } from '@domain/runs/engine-spec.js';
 import { loadPluginCatalog } from '@domain/plugins/catalog.js';
 import type { PluginCatalogEntry } from '@domain/plugins/catalog-types.js';
 import type { UiPluginCatalogEntry } from './types.js';

@@ -15,7 +15,7 @@ import {
   compactAgentContext,
   isSessionCompactionSupported,
   type CompactAgentRequest,
-} from '@domain/agents/facade.js';
+} from '@domain/runs/compact.js';
 import { resolveBackendForChannel } from '@domain/agents/config.js';
 import type { AgentCompactResult } from '../agent-adapter/types.js';
 import { conduitQueues, enqueueAndWait } from './conduit-queue.js';

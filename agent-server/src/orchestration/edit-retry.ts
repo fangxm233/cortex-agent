@@ -106,7 +106,7 @@ export async function runRetryAgent({ channel, text, adapter, statusMsg, startTi
       session: {
         sessionId,
         backendSessionId,
-        // Legacy `runAgent` set no sessionKey, so spawn-config fell back to the channel.
+        // The legacy run set no session key, so the spec builder fell back to the channel.
         engineKey: channel,
         sessionName,
       },

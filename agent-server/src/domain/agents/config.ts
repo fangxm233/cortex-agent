@@ -420,7 +420,7 @@ function directModeEnv(mode: string): ModeEnv {
 
 /**
  * The mode decision as a value: reads the saved credentials, writes no env. It is applied to one
- * spawn's environment only (facade.configureRunRoute → spawn-config.routeEnvFields); nothing
+ * spawn's environment only (the run's per-attempt route → engine-spec's routeEnvFields); nothing
  * projects it onto the daemon's own env, which carries saved credentials alone (applyAuthEnv).
  */
 export function resolveModeEnv(mode: string, metadata?: Record<string, string>): ModeEnv {

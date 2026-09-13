@@ -5,7 +5,7 @@
 
 import { runRegistry } from '@core/run-registry.js';
 import * as executionRegistry from '../executions/registry.js';
-import { AgentRunImpl, agentConfigFromProfile, type AgentRun } from './run.js';
+import { AgentRunImpl, type AgentRun } from './run.js';
 import type { RunObserver, RunRequest } from './request.js';
 
 /**
@@ -13,13 +13,12 @@ import type { RunObserver, RunRequest } from './request.js';
  * `AgentRun` that owns the rest of the lifecycle. This is the single entry point every surface is
  * meant to call.
  *
- * This wraps `facade.runAgent`; the run object installs the continuation sink and feeds every
- * adapter/continuation signal through one `RunEvent` stream. `teardownExecution` and the registry
- * removal happen exactly once, from the run's terminal handler.
+ * The run walks its own attempt chain over pooled engine sessions and feeds every signal through
+ * one `RunEvent` stream. `teardownExecution` and the registry removal happen exactly once, from
+ * the run's terminal handler.
  */
 export function startRun(request: RunRequest, observers: RunObserver[]): AgentRun {
   const startedAt = Date.now();
-  const attemptConfig = agentConfigFromProfile(request.profile);
   const execution = executionRegistry.startLocalExecution({
     kind: request.context.executionKind,
     channel: request.context.channel,
@@ -38,7 +37,6 @@ export function startRun(request: RunRequest, observers: RunObserver[]): AgentRu
     request,
     observers,
     executionId: execution.id,
-    attemptConfig,
     registry: runRegistry,
     startedAt,
     onTerminal: ({ status, result, error, durationS }) => {

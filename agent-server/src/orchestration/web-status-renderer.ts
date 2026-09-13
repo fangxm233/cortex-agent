@@ -99,7 +99,7 @@ export function holdWebSessionForBackground(deps: WebBackgroundStatusDeps): bool
   // Rate-limit API errors are HELD, not streamed. The backend surfaces a 429 as ordinary assistant
   // prose BEFORE the continuation settles, and only the result says whether it was a failure (show
   // the card) or a pause the resume registry already owns (show the auto-resume warning instead).
-  // Same contract as AttemptNoticeTracker in domain/agents/facade.ts — which is bound to the
+  // Same contract as AttemptNoticeTracker in domain/runs/notices.ts — which is bound to the
   // foreground turn and has therefore already retired by the time a continuation runs.
   let heldApiError: string | null = null;
   const flushHeldApiError = (): void => {

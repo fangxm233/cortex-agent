@@ -1,4 +1,4 @@
-// input:  run options, agent config, mode route, settings
+// input:  a resolved RunRequest, the attempt's engine selection, the mode route, settings
 // output: EngineSpec and engine identity
 // pos:    Run-layer engine spec builder
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -13,7 +13,8 @@ import { GATEWAY_URL } from '../costs/gateway-manager.js';
 import { composeSystemPrompt, globalRuleBodies } from './prompt.js';
 import { resolvePluginRuntime } from '../plugins/runtime.js';
 import type { ModeEnv } from '../agents/config.js';
-import type { AgentConfig, RunAgentOptions } from '../agents/spawn-config.js';
+import type { RunAttemptConfig } from '../agents/profile-manager.js';
+import type { RunRequest } from './request.js';
 
 // --- Types ---
 
@@ -87,19 +88,19 @@ export function buildPiGatewaySubPath(mode: string | null, provider: string): st
 
 // --- Spec helpers ---
 
-function spawnContext(options: RunAgentOptions): CortexContextEnv {
+function spawnContext(request: RunRequest, executionId: string | null): CortexContextEnv {
   return {
-    threadId: options.threadId ?? null,
-    profile: options.profileName ?? null,
-    project: options.project ?? null,
-    sessionName: options.sessionName ?? null,
-    trackSessionId: options.trackSessionId ?? options.sessionId ?? null,
-    executionId: options.executionId ?? null,
-    useCoreMcp: options.useCoreMcp ?? undefined,
-    threadDepth: options.threadDepth ?? null,
-    taskId: options.taskId ?? null,
-    taskProject: options.taskProject ?? null,
-    taskGeneration: options.taskGeneration ?? null,
+    threadId: request.context.threadId ?? null,
+    profile: request.profile.name ?? null,
+    project: request.context.project ?? null,
+    sessionName: request.session.sessionName ?? null,
+    trackSessionId: request.session.sessionId ?? request.session.backendSessionId ?? null,
+    executionId: executionId ?? null,
+    useCoreMcp: request.policy.useCoreMcp ?? undefined,
+    threadDepth: request.context.threadDepth ?? null,
+    taskId: request.context.taskId ?? null,
+    taskProject: request.context.taskProject ?? null,
+    taskGeneration: request.context.taskGeneration ?? null,
   };
 }
 
@@ -109,51 +110,55 @@ function hasSpawnContext(context: CortexContextEnv): boolean {
   });
 }
 
-function canonicalToolList(options: RunAgentOptions): string[] | undefined {
-  return Array.isArray(options.tools) ? options.tools : undefined;
+/** A spec's tool surface is either a canonical list or Claude's raw `--tools` string. */
+function canonicalToolList(request: RunRequest): string[] | undefined {
+  return Array.isArray(request.spec.tools) ? request.spec.tools : undefined;
 }
 
-function rawClaudeTools(options: RunAgentOptions): string | undefined {
-  return typeof options.tools === 'string' ? options.tools : undefined;
+function rawClaudeTools(request: RunRequest): string | undefined {
+  return typeof request.spec.tools === 'string' ? request.spec.tools : undefined;
 }
 
-function spawnPolicy(options: RunAgentOptions): Pick<EngineSpec, 'flags' | 'process' | 'mcp'> {
+function spawnPolicy(request: RunRequest): Pick<EngineSpec, 'flags' | 'process' | 'mcp'> {
   return {
     mcp: {
       composition: undefined,
       servers: undefined,
-      allowlist: options.mcpToolAllowlist === undefined
-        ? undefined : canonicalizeMcpToolAllowlist(options.mcpToolAllowlist),
-      configPaths: options.mcpConfigPaths,
-      commissionTools: options.commissionTools,
-      browserCdpEndpoint: options.browserCdpEndpoint ?? undefined,
+      allowlist: request.policy.mcpToolAllowlist === undefined
+        ? undefined : canonicalizeMcpToolAllowlist(request.policy.mcpToolAllowlist),
+      configPaths: request.isolation?.mcpConfigPaths,
+      commissionTools: request.context.commissionTools,
+      browserCdpEndpoint: request.policy.browserCdpEndpoint ?? undefined,
     },
     flags: {
-      disableHooks: options.disableHooks,
-      streamDeltas: options.streamDeltas,
-      captureTranscripts: options.captureTranscriptLogs,
-      preserveUnreportedAccounting: options.preserveUnreportedAccounting,
-      isUserInitiated: !!options.isUserInitiated,
+      // The request states what the run WANTS; the spec states what the engine is TOLD. `hooks`
+      // and `disableHooks` are the same fact with opposite polarity, and `undefined` must survive
+      // as `undefined` so an unset policy keeps the adapter's own default.
+      disableHooks: request.policy.hooks === undefined ? undefined : !request.policy.hooks,
+      streamDeltas: request.policy.streamDeltas,
+      captureTranscripts: request.policy.captureTranscripts,
+      preserveUnreportedAccounting: request.benchmark?.preserveUnreportedAccounting,
+      isUserInitiated: !!request.context.isUserInitiated,
     },
     process: {
-      spawner: options.processSpawner,
-      cliPath: typeof options.cliPath === 'string' ? options.cliPath : undefined,
+      spawner: request.isolation?.spawner,
+      cliPath: typeof request.isolation?.cliPath === 'string' ? request.isolation.cliPath : undefined,
     },
   };
 }
 
 function pluginFields(
-  options: RunAgentOptions,
-  config: AgentConfig,
+  request: RunRequest,
+  attempt: RunAttemptConfig,
   mcpComposition: McpComposition,
 ): Pick<EngineSpec['plugins'], 'dirs' | 'skillDirs' | 'fingerprint'> & Pick<EngineSpec['mcp'], 'servers'> {
-  const selectedPluginDirs = filterScopedPlugins(options.pluginDirs, {
-    channel: options.channel,
-    commissionMode: options.commissionMode,
+  const selectedPluginDirs = filterScopedPlugins(request.spec.pluginDirs, {
+    channel: request.context.channel,
+    commissionMode: request.context.commissionMode,
     feishuSkillsInWeb: getSettings().feishuSkillsInWeb,
   });
   const runtime = resolvePluginRuntime({
-    backend: config.backend, selectedPluginDirs, mcpComposition,
+    backend: attempt.backend, selectedPluginDirs, mcpComposition,
   });
   return {
     dirs: runtime.pluginDirs,
@@ -201,15 +206,16 @@ function routeEnvFields(
 }
 
 function backendField(
-  options: RunAgentOptions,
-  config: AgentConfig,
+  request: RunRequest,
+  attempt: RunAttemptConfig,
 ): EngineSpec['backend'] {
   const claudeFields = {
-    claudeAgent: options.claudeAgent ?? undefined,
-    outputStyle: typeof options.outputStyle === 'string' ? options.outputStyle : undefined,
-    claudeBackend: config.claudeBackend,
+    claudeAgent: request.spec.backendOptions.claudeAgent ?? undefined,
+    outputStyle: typeof request.spec.backendOptions.outputStyle === 'string'
+      ? request.spec.backendOptions.outputStyle : undefined,
+    claudeBackend: attempt.claudeBackend,
   };
-  return config.backend === 'claude'
+  return attempt.backend === 'claude'
     ? { kind: 'claude', ...claudeFields }
     : { kind: 'pi' };
 }
@@ -221,39 +227,40 @@ function backendField(
  * Pure re-grouping: every value, condition and defaulting rule is the original flat builder's.
  */
 export function buildEngineSpec(
-  options: RunAgentOptions,
-  config: AgentConfig,
-  route: ModeEnv | undefined,
+  request: RunRequest,
+  attempt: RunAttemptConfig,
+  opts: { route?: ModeEnv; executionId?: string | null } = {},
 ): EngineSpec {
-  const mcpComposition = resolveMcpComposition(options.mcpComposition, options.useCoreMcp);
-  const context = spawnContext(options);
-  const appendSystemPrompt = composeSystemPrompt(options, {
-    rules: globalRuleBodies(options.loadCortexRules !== false),
+  const { route, executionId = null } = opts;
+  const mcpComposition = resolveMcpComposition(request.policy.mcpComposition, request.policy.useCoreMcp);
+  const context = spawnContext(request, executionId);
+  const appendSystemPrompt = composeSystemPrompt(request.spec, {
+    rules: globalRuleBodies(request.policy.loadRules !== false),
   });
-  const plugins = pluginFields(options, config, mcpComposition);
-  const policy = spawnPolicy(options);
-  const routeEnv = routeEnvFields(route, config.extraEnv);
-  const provider = config.backend === 'pi' ? config.provider || undefined : undefined;
+  const plugins = pluginFields(request, attempt, mcpComposition);
+  const policy = spawnPolicy(request);
+  const routeEnv = routeEnvFields(route, attempt.extraEnv);
+  const provider = attempt.backend === 'pi' ? attempt.provider || undefined : undefined;
   return {
-    engineKey: options.sessionKey || options.channel || 'default',
-    cwd: options.cwd,
+    engineKey: request.session.engineKey || request.context.channel || 'default',
+    cwd: request.cwd ?? undefined,
     resume: {
-      backendSessionId: options.sessionId ?? null,
-      resume: !!options.sessionId,
+      backendSessionId: request.session.backendSessionId ?? null,
+      resume: !!request.session.backendSessionId,
     },
     model: {
-      id: config.model,
+      id: attempt.model,
       provider,
-      thinking: config.thinking || undefined,
-      maxOutputTokens: config.backend === 'pi' ? config.maxOutputTokens ?? undefined : undefined,
+      thinking: attempt.thinking || undefined,
+      maxOutputTokens: attempt.backend === 'pi' ? attempt.maxOutputTokens ?? undefined : undefined,
     },
     prompt: {
-      system: typeof options.systemPrompt === 'string' ? options.systemPrompt : undefined,
+      system: typeof request.spec.systemPrompt === 'string' ? request.spec.systemPrompt : undefined,
       append: appendSystemPrompt,
     },
     tools: {
-      canonical: canonicalToolList(options),
-      rawClaude: rawClaudeTools(options),
+      canonical: canonicalToolList(request),
+      rawClaude: rawClaudeTools(request),
     },
     plugins: {
       dirs: plugins.dirs,
@@ -268,23 +275,23 @@ export function buildEngineSpec(
     env: {
       sets: routeEnv.sets,
       unsets: routeEnv.unsets,
-      pinned: options.pinnedEnv,
+      pinned: request.isolation?.pinnedEnv,
       context: hasSpawnContext(context) ? context : undefined,
     },
     route: {
       anthropicBaseUrl: route?.ANTHROPIC_BASE_URL,
-      gatewayBaseUrl: config.backend === 'pi' ? GATEWAY_URL : undefined,
-      gatewayPath: provider ? buildPiGatewaySubPath(config.mode, provider) : undefined,
+      gatewayBaseUrl: attempt.backend === 'pi' ? GATEWAY_URL : undefined,
+      gatewayPath: provider ? buildPiGatewaySubPath(attempt.mode, provider) : undefined,
     },
     flags: policy.flags,
     context: {
-      channel: options.channel,
-      callbackSource: options.callbackSource ?? undefined,
-      scheduleTaskId: options.scheduleTaskId ?? undefined,
+      channel: request.context.channel,
+      callbackSource: request.context.callbackSource ?? undefined,
+      scheduleTaskId: request.context.scheduleTaskId ?? undefined,
     },
-    extraOption: config.extraOption && Object.keys(config.extraOption).length > 0
-      ? config.extraOption : undefined,
-    backend: backendField(options, config),
+    extraOption: attempt.extraOption && Object.keys(attempt.extraOption).length > 0
+      ? attempt.extraOption : undefined,
+    backend: backendField(request, attempt),
     process: policy.process,
   };
 }

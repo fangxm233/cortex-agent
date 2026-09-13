@@ -1,24 +1,18 @@
-// input:  the agents domain modules (config, profile-switch, facade)
-// output: the public agents-domain API, minus the run entry points and facade/adapter internals
+// input:  the agents domain modules (config, profile-switch, profile-manager)
+// output: the public agents-domain API: profiles, modes, credentials and channel selection
 // pos:    domain/agents barrel — [S11] split from mode-manager.ts
 // Usage: import { getActiveBackend, getActiveProfile, ... } from './domain/agents/index.js';
 //
-// Profiles / roles / credentials only. `runAgent` / `runAgentOnce` are deliberately NOT
-// re-exported: starting a run is now the run layer's job. Import `startRun` from
-// `@domain/runs/service.js` instead. Adapter internals and the facade's test hook are not part of
-// this barrel either — import `domain/agents/facade.js` directly for facade test hooks.
+// Profiles / roles / credentials only. Starting a run, compacting a session and the engine spec
+// all belong to the run layer: import `startRun` from `@domain/runs/service.js`,
+// `compactAgentContext` from `@domain/runs/compact.js`, `buildEngineSpec` from
+// `@domain/runs/engine-spec.js`.
 
 export * from './config.js';
 export * from './profile-switch.js';
+export { resolveRateLimitProvider } from './provider-run-lifecycle.js';
 export {
-  resolveRateLimitProvider,
   buildPiGatewaySubPath,
   CHANNEL_SCOPED_PLUGINS, COMMISSION_SCOPED_PLUGINS,
   filterChannelScopedPlugins, filterScopedPlugins,
-  runWithAdapter,
-  isSessionCompactionSupported,
-  compactAgentContext,
-} from './facade.js';
-export type {
-  AgentConfig, RunAgentOptions, RunObserver, CompactAgentRequest, CompactAgentDeps,
-} from './facade.js';
+} from '../runs/engine-spec.js';

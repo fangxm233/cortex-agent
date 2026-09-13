@@ -29,7 +29,7 @@ export type RunEvent =
   | {
       type: 'assistant_text'; text: string; blockId?: string; model?: string | null;
       subagent?: ToolUseSubagent; phase: RunPhase;
-      // Notices are synthesized by the facade (rate-limit hold, compaction, fallback) and reach the
+      // Notices are synthesized by the run layer (rate-limit hold, compaction, fallback) and reach the
       // transcript through the same `onAssistantMessage` callback as ordinary prose. They are part
       // of the event so the transcript sink can persist/publish them identically; `NormalizedEvent`
       // never sets them.

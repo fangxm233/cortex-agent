@@ -243,7 +243,7 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
     session: {
       sessionId: opts.trackSessionId,
       backendSessionId: opts.backendSessionId,
-      // Hazard (a): the legacy run passed `sessionKey: null`, so spawn-config resolved the pool key
+      // Hazard (a): the legacy run passed `sessionKey: null`, so the spec builder resolved the pool key
       // from the channel. `engineKey` maps onto that same `sessionKey`, so use the channel here to
       // keep the pool key byte-identical — changing it would silently re-pool every live session.
       engineKey: opts.channel,

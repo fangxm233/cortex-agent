@@ -15,7 +15,8 @@ import { getEngineAdapter } from '../../runs/adapters.js';
 import { resolveRunConfig } from '../../runs/config-resolver.js';
 import { GATEWAY_URL } from '../../costs/gateway-manager.js';
 import { type AgentRole } from '@core/agents/roles.js';
-import { buildPiGatewaySubPath, type AgentConfig } from '../spawn-config.js';
+import { buildPiGatewaySubPath } from '../../runs/engine-spec.js';
+import type { RunAttemptConfig } from '../profile-manager.js';
 import type { ResolvedProfileConfig } from '../profile-manager.js';
 import { startRun } from '../../runs/service.js';
 import { fromRole } from '../../runs/spec-loader.js';
@@ -206,21 +207,25 @@ function piForwarder(request: SubagentRunRequest): ChildEventForwarder | undefin
  * parent's channel resolves to — the same answer whenever that global was ever correct.
  * The gateway `mode` follows the same rule, so a child bills through the parent's route.
  */
-function claudeChildConfig(request: SubagentRunRequest, spec: ModelSpec): AgentConfig {
+function claudeChildConfig(request: SubagentRunRequest, spec: ModelSpec): RunAttemptConfig {
   const sameBackend = request.parent.backend === 'claude';
   const channelDefault = resolveRunConfig({ channel: request.parent.channel }).profile;
   return {
     model: spec.model ?? (sameBackend ? request.parent.model : null) ?? channelDefault.model,
     backend: 'claude',
     mode: (sameBackend ? request.parent.mode : null) ?? channelDefault.mode,
+    provider: null,
+    extraEnv: {},
+    extraOption: {},
+    claudeBackend: 'print',
     thinking: spec.thinking ?? null,
   };
 }
 
-/** Wrap the child's resolved config as the run's profile. The run layer treats a non-empty-model
- *  `resolvedProfileConfig` as authoritative (see facade.runAgent), so the role/task model reaches
- *  the spawn exactly as `runAgentOnce(message, options, config)` used to pass it. */
-function claudeChildProfile(config: AgentConfig): ResolvedProfileConfig {
+/** Wrap the child's resolved config as the run's profile: the run layer plans its attempt chain
+ *  from `request.profile`, so a synthesized single-attempt profile is how a role/task model reaches
+ *  the spawn without any named profile being consulted. */
+function claudeChildProfile(config: RunAttemptConfig): ResolvedProfileConfig {
   return {
     name: 'subagent',
     model: config.model,
@@ -238,14 +243,14 @@ function claudeChildProfile(config: AgentConfig): ResolvedProfileConfig {
 
 /** The RunRequest equivalent of the legacy `claudeChildOptions`. A frozen one-shot role: no
  *  session to resume, no hooks, no ambient rules, no transcript log, and a leaf tool surface. */
-function claudeChildRequest(request: SubagentRunRequest, config: AgentConfig): RunRequest {
+function claudeChildRequest(request: SubagentRunRequest, config: RunAttemptConfig): RunRequest {
   const mcpToolAllowlist = withoutSubagentTools(undefined, CHILD_MCP_BUNDLES);
   return {
     runId: randomUUID(),
     session: {
       sessionId: null,
       backendSessionId: null,
-      // Legacy `runAgentOnce` set no sessionKey, so spawn-config resolved
+      // The legacy one-shot run set no session key, so the spec builder resolved
       // `options.channel || 'default'`.
       engineKey: request.parent.channel || 'default',
       sessionName: null,
