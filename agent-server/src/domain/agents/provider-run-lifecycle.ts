@@ -31,8 +31,11 @@ export function resolveRateLimitProvider(
   return config.provider || DEFAULT_PROVIDER_BY_BACKEND[config.backend] || config.backend;
 }
 
-export function withRateLimitProvider(handle: AgentHandle, provider: string): AgentHandle {
+/** Generic over the handle shape so a caller's own fields (the engine session an attempt owns)
+ *  survive the wrapper: these helpers decorate a run, they do not redefine it. */
+export function withRateLimitProvider<T extends AgentHandle>(handle: T, provider: string): T {
   return {
+    ...handle,
     promise: handle.promise.then(
       (result) => ({ ...result, rateLimitProvider: result.rateLimitProvider || provider }),
       (error) => {
@@ -42,19 +45,17 @@ export function withRateLimitProvider(handle: AgentHandle, provider: string): Ag
         throw error;
       },
     ),
-    kill: () => handle.kill(),
-    get sessionId(): string | null { return handle.sessionId ?? null; },
-    get agentProcess() { return handle.agentProcess; },
-  };
+  } as T;
 }
 
-export function withAuthLifecycle(
-  handle: AgentHandle,
+export function withAuthLifecycle<T extends AgentHandle>(
+  handle: T,
   options: AuthRunOptions,
   config: ProviderConfig,
-): AgentHandle {
+): T {
   const identity = { backend: config.backend, provider: resolveRateLimitProvider(config) };
   return {
+    ...handle,
     promise: handle.promise.then(
       (result) => {
         if (!result.rateLimited) publishAuthRecovered(identity);
@@ -73,10 +74,7 @@ export function withAuthLifecycle(
         throw error;
       },
     ),
-    kill: () => handle.kill(),
-    get sessionId(): string | null { return handle.sessionId ?? null; },
-    get agentProcess() { return handle.agentProcess; },
-  };
+  } as T;
 }
 
 export function configIsRateLimited(config: ProviderConfig): boolean {

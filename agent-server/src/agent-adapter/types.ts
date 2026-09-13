@@ -7,6 +7,7 @@ import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from 'n
 import type { ProviderUsage } from '../domain/costs/usage-store.js';
 import type { Capability } from './capabilities.js';
 import type { NormalizedEvent, ToolUseSubagent } from './normalize/event-types.js';
+import type { AwaitBackground } from './continuation-phase.js';
 import type { RunEvent } from './run-events.js';
 import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
 
@@ -276,9 +277,32 @@ export interface EngineRun {
   /** The run's events. Does NOT close at the foreground result: a session that owes background
    *  work keeps emitting with `phase: 'background'` until it emits `phase: 'done'` (D1). */
   events: AsyncIterable<RunEvent>;
-  /** The foreground turn's result. Background phases continue through `events`. */
+  /**
+   * The run's result. What it means depends on the `awaitBackground` policy the run was opened
+   * with: `none`/`hold` resolve at the foreground turn, `inline`/`completion-only` resolve with the
+   * merged result once the background phase ends.
+   */
   result: Promise<AgentResult>;
+  /**
+   * The accumulated result of the WHOLE run — every chained continuation merged in — resolved when
+   * the run ends, whatever the `awaitBackground` policy. `result` is what the caller's foreground
+   * await gets (the same value for `none`/`hold`, the merged one for `inline`); this one is what a
+   * terminal tally (execution metrics, cost) must read.
+   */
+  settled: Promise<AgentResult>;
   cancel(): void;
+}
+
+/** Options for one `EngineSession.run()`. */
+export interface EngineRunOptions {
+  awaitBackground: AwaitBackground;
+  /**
+   * Tap for the backend's raw `NormalizedEvent`s, in the order the backend produced them — the
+   * wire-level record a benchmark journal needs and the run's `RunEvent` stream cannot reconstruct.
+   * Deliberately a host PORT (the adapter may not import the domain): the engine owns the point
+   * where raw events exist, and whoever needs raw evidence registers here.
+   */
+  onNormalizedEvent?: (event: NormalizedEvent) => void;
 }
 
 /**
@@ -297,9 +321,24 @@ export interface EngineSession {
    *  consults this set rather than the backend capability matrix. */
   readonly capabilities: ReadonlySet<Capability>;
   readonly backendSessionId: string | null;
-  run(prompt: UserMessage, opts: { awaitBackground: 'none' | 'inline' | 'hold' }): EngineRun;
-  /** Mid-turn injection. `accepted:false` means the backend cannot take it right now. */
-  steer(msg: UserMessage): { accepted: boolean; injectionId?: string };
+  run(prompt: UserMessage, opts: EngineRunOptions): EngineRun;
+  /**
+   * Mid-turn injection. `accepted:false` means the backend cannot take it right now.
+   *
+   * `injectionId` is the CALLER's correlation id (the pending-injection ledger's record id) and is
+   * carried on the eventual `injection_delivered` / `injection_rejected` event. Omitted, the engine
+   * mints one.
+   */
+  steer(msg: UserMessage, injectionId?: string): { accepted: boolean; injectionId?: string };
+  /**
+   * Push an out-of-band event into the live run's stream: a hosted child (a Claude native subagent)
+   * keeps producing rows after its parent turn closed, and they belong to the parent's transcript.
+   * Returns false when no run of this session is consuming events.
+   *
+   * This is a producer INTO the one stream, not a bypass of it — which is why it lives on the
+   * session that owns the stream rather than on a process handle.
+   */
+  ingestExternal(event: RunEvent): boolean;
   /** Answer an in-flight dialog (ask_user / plan approval / …). Replaces PI's
    *  `sendExtensionUiResponse`. Returns false when no such dialog is open. */
   respondToDialog(dialogId: string, payload: Record<string, unknown>): boolean;

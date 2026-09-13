@@ -52,9 +52,14 @@ const realTimers: RunTimers = {
 export interface ContinuationPhasePort {
   /** Fan one event out to the run's observers. */
   push(event: RunEvent): void;
-  /** Resolve the engine run's `result`. Called at most once, with the accumulated result. */
-  settle(result: AgentResult): void;
-  /** Reject the engine run's `result` (the backend died mid-continuation). Called at most once. */
+  /** Resolve the engine run's `result`: the value the caller's foreground await gets. Called at
+   *  most once, and only for the policies whose foreground turn settles on its own. */
+  settleForeground(result: AgentResult): void;
+  /** Resolve the engine run's `settled`: the accumulated result of the whole run. Idempotent, and
+   *  it also releases `result` (a run that only ever settles here — `inline` — still has a
+   *  foreground await to satisfy). */
+  settleRun(result: AgentResult): void;
+  /** Reject both promises (the backend died mid-continuation). Called at most once. */
   reject(error: Error): void;
   /** Force-close the event stream (the run is over). */
   close(): void;
@@ -123,12 +128,18 @@ export class ContinuationPhase {
 
   /** The merged result so far; null until the foreground turn has settled. */
   private acc: AgentResult | null = null;
+  /** Mid-turn injections written into the live turn whose delivery ack has not arrived. Their
+   *  reply is a continuation turn of this same run, so the phase must not end before it lands. */
+  private outstandingInjections = 0;
   /** Continuation results that arrived before `start()` (a task that finished inside the
    *  foreground turn); replayed in order once the base is known. */
   private readonly queued: AgentResult[] = [];
   private started = false;
   private settled = false;
   private closed = false;
+  /** A continuation turn is in flight. Its events are streaming; nothing may end the run before
+   *  its result does. */
+  private backgroundTurnOpen = false;
   private handle: unknown = null;
   /** A fired watchdog never re-arms: the cap means "stop holding anything open for this", not
    *  "restart the clock on the next report". */
@@ -147,7 +158,7 @@ export class ContinuationPhase {
    *  translation is `sinkToRunEvents`; the control flow (`onTurnOpen` / `onResult`) is this
    *  phase's, which is why the two are composed here rather than in the engine. */
   sink(): ContinuationSink {
-    const emit = sinkToRunEvents((event) => this.onEvent(event));
+    const emit = sinkToRunEvents((event) => this.ingest(event));
     return {
       ...emit,
       onTurnOpen: () => this.onTurnOpen(),
@@ -164,12 +175,12 @@ export class ContinuationPhase {
     this.started = true;
     this.acc = base;
     const queued = this.queued.splice(0);
-    if (this.mode === 'none' || remainingBg(base) === 0) {
+    if (this.mode === 'none' || !this.owesWork(base)) {
       this.finish();
       for (const result of queued) this.onResult(result);
       return;
     }
-    if (this.mode !== 'inline' && this.mode !== 'completion-only') this.port.settle(this.acc);
+    if (this.mode !== 'inline' && this.mode !== 'completion-only') this.port.settleForeground(this.acc);
     if (this.mode === 'completion-only') {
       if (!this.port.stopPromise) {
         // No stop boundary: nothing could ever end the wait, so wait for the backend instead of
@@ -183,14 +194,34 @@ export class ContinuationPhase {
       }
     }
     this.enterBackground();
-    this.arm(base.pendingBackgroundTasks ?? 0, base.undeliveredBackgroundTasks ?? 0);
+    this.arm(
+      Math.max(base.pendingBackgroundTasks ?? 0, this.outstandingInjections),
+      base.undeliveredBackgroundTasks ?? 0,
+    );
     for (const result of queued) this.onResult(result);
+  }
+
+  /** True while this run still owes the caller something: unstamped background work, or a reply to
+   *  an injected message that has not been delivered yet. */
+  private owesWork(base: AgentResult): boolean {
+    return remainingBg(base) > 0 || this.outstandingInjections > 0;
+  }
+
+  /**
+   * An injection Cortex accepted into the live turn. Its ack arrives as an event on this stream
+   * (`injection_delivered` / `injection_rejected`) and is what releases the obligation: a message
+   * folded into the running turn is already carried by that turn's result, whereas one consumed
+   * after the result opens a spontaneous turn whose reply lands here.
+   */
+  noteInjectionAccepted(): void {
+    this.outstandingInjections += 1;
   }
 
   /** A synthetic continuation turn opened. Its length is unbounded, so the ambient timers stop;
    *  the turn's own result re-arms them or ends the run. */
   onTurnOpen(): void {
     if (this.settled || !this.started) return;
+    this.backgroundTurnOpen = true;
     this.pause();
     this.enterBackground();
   }
@@ -204,8 +235,23 @@ export class ContinuationPhase {
     });
   }
 
-  private onEvent(event: RunEvent): void {
+  /** Everything that reaches this run's stream passes through here, so the phase can react to the
+   *  couple of events that change what the run still owes (injection acks, a turn opening). */
+  ingest(event: RunEvent): void {
     if (this.settled) return;
+    if (event.type === 'injection_rejected'
+        || (event.type === 'injection_delivered' && event.foldedIntoTurn)) {
+      // Either the message never reached the backend, or it folded into the turn whose result is
+      // already accounted for here. Both mean nothing more is owed on its behalf.
+      if (this.outstandingInjections > 0) this.outstandingInjections -= 1;
+      this.port.push(event);
+      if (this.started && this.outstandingInjections === 0
+          && remainingBg(this.acc) === 0 && this.backgroundTurnOpen === false) {
+        this.finish();
+      }
+      return;
+    }
+    if (event.type === 'phase' && event.phase === 'background') this.backgroundTurnOpen = true;
     this.port.push(event);
   }
 
@@ -229,11 +275,15 @@ export class ContinuationPhase {
     if (costRecord) this.port.push(costRecord);
     this.port.push({ type: 'background_result', result });
     this.acc = mergeContinuation(this.acc as AgentResult, result);
+    this.backgroundTurnOpen = false;
     if (this.acc.rateLimited) { this.finish(); return; }
     const running = result.pendingBackgroundTasks ?? 0;
     const undelivered = result.undeliveredBackgroundTasks ?? 0;
-    if (running + undelivered > 0) this.arm(running, undelivered);
-    else this.finish();
+    if (running + undelivered > 0 || this.outstandingInjections > 0) {
+      this.arm(Math.max(running, this.outstandingInjections), undelivered);
+    } else {
+      this.finish();
+    }
   }
 
   // ── watchdog ───────────────────────────────────────────────────────────
@@ -286,7 +336,7 @@ export class ContinuationPhase {
     if (this.settled) return;
     this.settled = true;
     this.clearTimer();
-    if (this.acc) this.port.settle(this.acc);
+    if (this.acc) this.port.settleRun(this.acc);
     this.close();
   }
 

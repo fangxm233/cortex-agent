@@ -4,10 +4,11 @@
 // >>> Once updated, update this header and parent CORTEX.md <<<
 
 import type {
-  AgentProcessSpawner, Backend, EngineSpec, McpComposition,
+  AgentProcessSpawner, Backend, EngineRun, EngineSession, EngineSpec, McpComposition,
 } from '../../agent-adapter/types.js';
-import type { NormalizedEvent, ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
-import type { AgentResult, ChatNoticeLevel, NoticeAction } from '@core/types/agent-types.js';
+import type { RunEvent } from '../../agent-adapter/run-events.js';
+import type { EventObserver, ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
+import type { AgentHandle, AgentResult, ChatNoticeLevel, NoticeAction } from '@core/types/agent-types.js';
 import type { ProductionBenchmarkEvidenceContext } from '@core/types/thread-types.js';
 import type { ResolvedProfileConfig } from './profile-manager.js';
 
@@ -38,9 +39,31 @@ export interface AgentConfig {
   maxOutputTokens?: number | null;
 }
 
+/** A consumer of the run's derived event stream. See `EventObserver` in
+ *  `agent-adapter/normalize/event-types.ts` for the raw wire-level alternative: only evidence
+ *  artifacts need those. */
 export interface RunObserver {
-  onEvent(event: NormalizedEvent): void;
+  onEvent(event: RunEvent): void;
   onClose?(): void | Promise<void>;
+}
+
+/**
+ * What one attempt hands back to the run layer: the engine session and run the attempt owns, plus
+ * the promise its callers await. Replaces the process handle — nothing outside this layer has any
+ * business reaching into a backend process.
+ *
+ * `engine`/`engineRun` are absent on a handle that never reached a backend (the rate-limited
+ * pre-flight path), which is what lets the run answer `steer`/`respondToDialog` without a session.
+ */
+export interface EngineAttemptHandle extends AgentHandle {
+  readonly engine?: EngineSession;
+  readonly engineRun?: EngineRun;
+  /**
+   * The whole run's accumulated result, background phase included (the engine's `settled`). The
+   * inherited `promise` is the foreground await, which for an `inline` policy is the same value and
+   * for a `hold` policy is the foreground turn alone — a terminal tally must use this one.
+   */
+  readonly settled: Promise<AgentResult>;
 }
 
 export interface RunAgentOptions {
@@ -60,7 +83,9 @@ export interface RunAgentOptions {
   /** Best-effort synchronous event observers; failures are logged and ignored. */
   observers?: RunObserver[];
   /** Synchronous event sinks whose write or close failure aborts the run. */
-  requiredSinks?: RunObserver[];
+  /** Wire-level consumers that must observe every raw event (evidence artifacts). They see
+   *  `NormalizedEvent`s, not the derived run stream, so they are fed from the engine's own tap. */
+  requiredSinks?: EventObserver[];
   /** Explicit background policy. Undefined preserves the legacy thread-keyed decision. */
   awaitBackground?: boolean;
   /** Completion-only disables ambient caps and waits until continuation or process termination. */

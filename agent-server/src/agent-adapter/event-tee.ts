@@ -6,13 +6,10 @@
 import { createLogger } from '@core/log.js';
 import type { AgentProcess } from './types.js';
 import type { NormalizedEvent } from './normalize/event-types.js';
+import type { EventObserver } from './normalize/event-types.js';
 
 const log = createLogger('event-tee');
 
-export interface EventObserver {
-  onEvent(event: NormalizedEvent): void;
-  onClose?(): void | Promise<void>;
-}
 
 class TrajectoryWriteFailedError extends Error {
   readonly reason = 'trajectory_write_failed' as const;

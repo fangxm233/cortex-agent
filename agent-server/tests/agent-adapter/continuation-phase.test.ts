@@ -52,11 +52,13 @@ function harness(mode: 'none' | 'hold' | 'inline' | 'completion-only', base: Age
   const events: RunEvent[] = [];
   const clock = fakeTimers();
   const settled: { value?: AgentResult } = {};
+  const foreground: { value?: AgentResult } = {};
   const rejected: { error?: Error } = {};
   let closed = 0;
   const phase = new ContinuationPhase(mode, {
     push: (event) => events.push(event),
-    settle: (value) => { settled.value = value; },
+    settleForeground: (value) => { foreground.value = value; },
+    settleRun: (value) => { settled.value = value; foreground.value ??= value; },
     reject: (error) => { rejected.error = error; },
     close: () => { closed += 1; },
     timers: clock.timers,
@@ -64,7 +66,7 @@ function harness(mode: 'none' | 'hold' | 'inline' | 'completion-only', base: Age
     maxWaitMs: 10_000,
     stopPromise,
   });
-  return { phase, events, clock, settled, rejected, closedCount: () => closed };
+  return { phase, events, clock, settled, foreground, rejected, closedCount: () => closed };
 }
 
 test('none: settles at the foreground result and closes, whatever the counts say', () => {
@@ -86,8 +88,10 @@ test('hold: settles at the foreground result but keeps streaming until the work 
   const h = harness('hold', base);
   h.phase.start(base);
 
-  // The caller's foreground await is released immediately; the stream stays open.
-  assert.equal(h.settled.value, base);
+  // The caller's foreground await is released immediately; the stream stays open, and the run's
+  // own `settled` (the accumulated one) is only resolved at the end.
+  assert.equal(h.foreground.value, base);
+  assert.equal(h.settled.value, undefined);
   assert.equal(h.closedCount(), 0, 'the stream must stay open while a task runs');
   assert.deepEqual(h.events[0], {
     type: 'phase', phase: 'background', pendingBackground: 1, undeliveredBackground: 0,
@@ -121,7 +125,7 @@ test('inline: the settle waits for the continuation and carries the merged resul
   const h = harness('inline', base);
   h.phase.start(base);
 
-  assert.equal(h.settled.value, undefined, 'an inline caller awaits the whole phase');
+  assert.equal(h.foreground.value, undefined, 'an inline caller awaits the whole phase');
   assert.equal(h.closedCount(), 0);
 
   const sink = h.phase.sink();

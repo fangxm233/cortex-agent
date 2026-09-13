@@ -7,6 +7,7 @@ import type { AgentResult } from '@core/types/agent-types.js';
 import { CAPABILITIES_BY_BACKEND, type Capability } from '../capabilities.js';
 import { ContinuationPhase, type AwaitBackground } from '../continuation-phase.js';
 import { RunEventQueue, toRunEvent, type RunEvent } from '../run-events.js';
+import type { EngineRunOptions } from '../types.js';
 import { createEventStream } from '../normalize/event-stream.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
 import type {
@@ -82,7 +83,7 @@ export class ClaudeEngineSession implements EngineSession {
   private readonly spec: EngineSpec;
   /** The run currently owning the session's single injection-ack slot (Claude serves one turn at a
    *  time). `steer()` targets it for id correlation and immediate refusals. */
-  private active: { queue: RunEventQueue; pending: PendingInjection[] } | null = null;
+  private active: { queue: RunEventQueue; pending: PendingInjection[]; phase: ContinuationPhase | null } | null = null;
   private injectionSeq = 0;
   /** Only the first run of a session emits `session_started`, matching `spawn()`'s `started` flag. */
   private started = false;
@@ -107,28 +108,31 @@ export class ClaudeEngineSession implements EngineSession {
     return this.session.sessionId;
   }
 
-  run(prompt: UserMessage, opts: { awaitBackground: AwaitBackground }): EngineRun {
+  run(prompt: UserMessage, opts: EngineRunOptions): EngineRun {
     const queue = new RunEventQueue();
     const pending: PendingInjection[] = [];
-    this.active = { queue, pending };
+    const active = { queue, pending, phase: null as ContinuationPhase | null };
+    this.active = active;
     // The ack sink is a single session-level slot. The engine is pooled, but the underlying
     // ClaudeSession still serves one run at a time, so the run that installs the sink owns it.
+    // Acks travel through the phase rather than straight to the queue: they release the obligation
+    // an accepted injection creates (see ContinuationPhase.noteInjectionAccepted).
     this.session.setInjectionAckSink({
       onDelivered: ({ text, foldedIntoTurn }) => {
         const entry = takePending(pending, text);
-        queue.push({
-          type: 'injection_delivered',
-          injectionId: entry?.id ?? this.nextInjectionId(),
-          foldedIntoTurn,
-        });
+        const event = {
+          type: 'injection_delivered', injectionId: entry?.id ?? this.nextInjectionId(), foldedIntoTurn,
+        } as const;
+        if (active.phase) active.phase.ingest(event);
+        else queue.push(event);
       },
       onUndelivered: ({ text }) => {
         const entry = takePending(pending, text);
-        queue.push({
-          type: 'injection_rejected',
-          injectionId: entry?.id ?? this.nextInjectionId(),
-          reason: 'undelivered',
-        });
+        const event = {
+          type: 'injection_rejected', injectionId: entry?.id ?? this.nextInjectionId(), reason: 'undelivered',
+        } as const;
+        if (active.phase) active.phase.ingest(event);
+        else queue.push(event);
       },
     });
     this.lastAwaitBackground = opts.awaitBackground;
@@ -139,21 +143,25 @@ export class ClaudeEngineSession implements EngineSession {
     }
 
     const deferred = deferredResult();
+    const settled = deferredResult();
     // The run's background phase. The sink goes in BEFORE the foreground result can land: Claude
     // fires a background task's continuation the moment that result does, and a sink installed any
     // later would drop it. The phase also decides when the run is over — see continuation-phase.ts.
     const phase = new ContinuationPhase(opts.awaitBackground, {
       push: (event) => queue.push(event),
-      settle: (result) => deferred.resolve(result),
-      reject: (error) => deferred.reject(error),
+      settleForeground: (result) => deferred.resolve(result),
+      settleRun: (result) => { settled.resolve(result); deferred.resolve(result); },
+      reject: (error) => { deferred.reject(error); settled.reject(error); },
       close: () => queue.close(),
     });
+    active.phase = phase;
     this.session.setContinuationSink(phase.sink());
 
     // `turn_complete` is the callback stream's terminal marker, not a result: the engine pushes the
     // authoritative `foreground_result` itself once the turn resolves, and translating the marker
     // too would emit a second, lossy result event for the same turn.
     const push = (event: NormalizedEvent) => {
+      opts.onNormalizedEvent?.(event);
       if (event.type !== 'turn_complete') queue.push(toRunEvent(event, 'foreground'));
     };
     void this.driveRun(prompt, push, queue, phase, deferred);
@@ -166,6 +174,7 @@ export class ClaudeEngineSession implements EngineSession {
         [Symbol.asyncIterator]: (): AsyncIterator<RunEvent> => ({ next: () => queue.next() }),
       },
       result: deferred.promise,
+      settled: settled.promise,
       // Ends this run, not the session: `spawn()`'s `AgentProcess.close()` does `stream.close()`
       // and deliberately not `session.close()`, so the pooled session serves the next run. Session
       // teardown goes through SessionEngines.close(key) / kill(key).
@@ -206,9 +215,10 @@ export class ClaudeEngineSession implements EngineSession {
     phase.start(base);
   }
 
-  steer(msg: UserMessage): { accepted: boolean; injectionId?: string } {
-    const injectionId = this.nextInjectionId();
+  steer(msg: UserMessage, callerInjectionId?: string): { accepted: boolean; injectionId?: string } {
+    const injectionId = callerInjectionId ?? this.nextInjectionId();
     const accepted = this.session.injectUserMessage(msg);
+    if (accepted) this.active?.phase?.noteInjectionAccepted();
     if (!accepted) {
       // A refused injection never reaches Claude's ack queue, so surface the rejection from here.
       this.active?.queue.push({ type: 'injection_rejected', injectionId, reason: 'refused' });
@@ -216,6 +226,15 @@ export class ClaudeEngineSession implements EngineSession {
     }
     this.active?.pending.push({ id: injectionId, text: msg.text });
     return { accepted: true, injectionId };
+  }
+
+  /** Push an out-of-band event into the live run's stream (a native subagent's rows, which keep
+   *  arriving after the parent turn closed). False when no run is consuming events. */
+  ingestExternal(event: RunEvent): boolean {
+    const queue = this.active?.queue;
+    if (!queue) return false;
+    queue.push(event);
+    return true;
   }
 
   /** Claude exposes no extension-UI response channel (`AgentRun.respondToDialog` returns false for

@@ -171,3 +171,13 @@ export type NormalizedEvent =
       status: 'completed' | 'failed' | 'killed';
     }
   | { type: 'error'; message: string; fatal: boolean };
+
+/**
+ * A consumer of one backend's raw events. The engine forwards the wire-level stream to whoever
+ * needs evidence of it (the benchmark attempt journal, a required sink); everything else consumes
+ * the derived `RunEvent` stream instead.
+ */
+export interface EventObserver {
+  onEvent(event: NormalizedEvent): void | Promise<void>;
+  onClose?(): void | Promise<void>;
+}

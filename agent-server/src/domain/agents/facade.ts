@@ -3,21 +3,21 @@
 // pos:    Backend-neutral agent run facade
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { getRunAdapter } from '../runs/engines.js';
+import { engines, getRunAdapter } from '../runs/engines.js';
 import type {
-  AgentAdapter, AgentCompactResult, AgentProcess, Backend, EngineSpec,
-  NormalizedEvent,
+  AgentAdapter, AgentCompactResult, Backend, EngineSpec, NormalizedEvent,
 } from '../../agent-adapter/index.js';
 import type { ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
-import {
-  canAwaitBgContinuation, shouldAwaitBgInline, waitForBgContinuation,
-} from '../../agent-adapter/bg-wait.js';
-import {
-  consumeEventStream, createProcessCloser, createRunEventTee, settleEventfulRun,
-} from '../../agent-adapter/event-tee.js';
+import type { AwaitBackground } from '../../agent-adapter/continuation-phase.js';
+import type { RunEvent } from '../../agent-adapter/run-events.js';
+import type { UserMessage } from '../../agent-adapter/types.js';
+import type { EngineSession, EngineRun } from '../../agent-adapter/types.js';
+import type { EventObserver } from '../../agent-adapter/normalize/event-types.js';
 import { filterChannelScopedPlugins, filterScopedPlugins } from './spawn-config.js';
 import { buildEngineSpec } from '../runs/engine-spec.js';
-import type { AgentConfig, RunAgentOptions, RunObserver } from './spawn-config.js';
+import type {
+  AgentConfig, EngineAttemptHandle, RunAgentOptions, RunObserver,
+} from './spawn-config.js';
 import {
   freezeProductionAttemptIdentity, type ProductionAttemptIdentityRecord,
 } from '../runs/observers/production-attempt-identity.js';
@@ -168,9 +168,10 @@ class AttemptNoticeTracker {
   }
 }
 
-function withTerminalNotices(handle: AgentHandle, notices: AttemptNoticeTracker): AgentHandle {
+function withTerminalNotices<T extends AgentHandle>(handle: T, notices: AttemptNoticeTracker): T {
   let killed = false;
   return {
+    ...handle,
     promise: handle.promise.then(
       (result) => {
         if (result.rateLimited) notices.emitTerminalRateLimit(result);
@@ -186,9 +187,7 @@ function withTerminalNotices(handle: AgentHandle, notices: AttemptNoticeTracker)
       killed = true;
       return handle.kill();
     },
-    get sessionId(): string | null { return handle.sessionId; },
-    get agentProcess() { return handle.agentProcess; },
-  };
+  } as T;
 }
 
 // --- Types ---
@@ -225,10 +224,13 @@ function costAttribution(
 }
 
 /**
- * The facade-authored signals the run still needs. These exist nowhere in the raw `NormalizedEvent`
- * stream: the assistant-prose classification (`assistantNoticeLevel`) plus the synthesized notices
- * (backend-session reset, compaction, model fallback) and cost accounting. Every other event reaches
- * the run through its own raw-event observers (plan §3.3).
+ * The facade-authored signals a run still needs from its stream. These exist nowhere else: the
+ * assistant-prose classification (`assistantNoticeLevel`) plus the synthesized notices
+ * (backend-session reset, compaction, model fallback) and cost accounting.
+ *
+ * Run events, not raw normalized ones: the stream the engine emits is the only one a run has, and
+ * the fields this needs survive the translation unchanged. The benchmark journal, which really does
+ * need the wire-level record, is fed from the engine's `onNormalizedEvent` tap instead.
  */
 function createFacadeDispatcher(
   adapter: AgentAdapter,
@@ -236,23 +238,23 @@ function createFacadeDispatcher(
   config: AgentConfig,
   spec: EngineSpec,
   attribution: Readonly<CostAttribution>,
-): (event: NormalizedEvent) => void {
-  // Mirror the legacy post-turn gate: the adapter may keep emitting after `turn_complete`, but the
-  // facade must not re-announce them (background turns arrive through the continuation sink).
+): (event: RunEvent) => void {
+  // The foreground turn is over: the adapter may keep emitting (background turns), but the facade
+  // must not re-announce them.
   let active = true;
-  return (event: NormalizedEvent): void => {
+  return (event: RunEvent): void => {
     if (!active) return;
     switch (event.type) {
-      case 'turn_complete':
+      case 'foreground_result':
         active = false;
         return;
       case 'cost_record':
         recordRunAccounting(event, adapter, options, config, attribution);
         return;
-      case 'session_started':
+      case 'engine_started':
         if (!options.channel?.startsWith('web:')) return;
         if (!spec.resume.resume || !spec.resume.backendSessionId) return;
-        if (event.sessionId === spec.resume.backendSessionId) return;
+        if (event.backendSessionId === spec.resume.backendSessionId) return;
         options.onAssistantMessage?.(t('notify.backendSessionReset'), undefined, 'warning');
         return;
       case 'assistant_text':
@@ -277,10 +279,10 @@ function createFacadeDispatcher(
   };
 }
 
-/** Record one backend cost event: the foreground loop gates on the turn being active, the
- *  continuation path records unconditionally. */
+/** Record one backend cost event. The foreground loop gates on the turn being active; the
+ *  continuation path records unconditionally (its events carry `phase: 'background'`). */
 function recordRunAccounting(
-  event: Extract<NormalizedEvent, { type: 'cost_record' }>,
+  event: Extract<RunEvent, { type: 'cost_record' }>,
   adapter: AgentAdapter,
   options: RunAgentOptions,
   config: AgentConfig,
@@ -300,44 +302,6 @@ function recordRunAccounting(
     provider_requests: event.provider_requests,
     provider: event.provider || undefined, model: event.model || undefined,
   }).catch(err => log.warn('recordCost failed:', (err as Error)?.message ?? err));
-}
-function shouldAwaitRunBackground(
-  adapter: AgentAdapter,
-  options: RunAgentOptions,
-  result: AgentResult,
-  proc: AgentProcess,
-): boolean {
-  const canRegisterSink = typeof proc.setContinuationSink === 'function';
-  if (options.awaitBackground === false) return false;
-  if (options.awaitBackground === true) {
-    return canAwaitBgContinuation(adapter.backend, result, canRegisterSink);
-  }
-  return shouldAwaitBgInline(adapter.backend, options.threadId, result, canRegisterSink);
-}
-
-async function resolveRunResult(
-  turnPromise: Promise<AgentResult>,
-  foregroundEventsDrained: Promise<void>,
-  adapter: AgentAdapter,
-  options: RunAgentOptions,
-  proc: AgentProcess,
-  onContinuationEvent: (event: NormalizedEvent) => void,
-): Promise<AgentResult> {
-  const result = await turnPromise;
-  if (!shouldAwaitRunBackground(adapter, options, result, proc)) return result;
-  await foregroundEventsDrained;
-  log.info(`agent turn ${options.threadId ?? proc.sessionId ?? 'direct'} has background work remaining — waiting inline`);
-  const completionOnly = options.backgroundWaitPolicy === 'completion-only';
-  return waitForBgContinuation({
-    proc,
-    baseResult: result,
-    onAssistantText: options.onAssistantMessage
-      ? (text, subagent) => options.onAssistantMessage!(text, undefined, undefined, undefined, subagent)
-      : null,
-    onEvent: onContinuationEvent,
-    completionOnly,
-    stopPromise: completionOnly ? proc.supervision?.closed : undefined,
-  });
 }
 
 type AttemptJournalSink = ReturnType<typeof createProductionAttemptJournalSink>;
@@ -371,64 +335,107 @@ function prepareAttemptEvidence(
   };
 }
 
-function spawnAdapterAttempt(
-  adapter: AgentAdapter, spec: EngineSpec, message: string,
-  options: RunAgentOptions, attemptJournal: AttemptJournalSink | null,
-) {
-  let proc: AgentProcess;
-  try { proc = adapter.spawn(spec); }
-  catch (error) {
-    attemptJournal?.onClose();
-    throw error;
-  }
-  const required = attemptJournal
-    ? [attemptJournal, ...(options.requiredSinks ?? [])]
-    : (options.requiredSinks ?? []);
-  const tee = createRunEventTee(proc, options.observers ?? [], required);
-  const attachments = (options.files || []).map((file: any) => ({
-    mimeType: file.mimetype ?? file.mimeType, path: file.localPath ?? file.path,
-  }));
-  try { return { proc, tee, turnPromise: proc.send({ text: message, attachments }) }; }
-  catch (error) {
-    let evidenceError: unknown;
-    try { attemptJournal?.onClose(); } catch (closeError) { evidenceError = closeError; }
-    void proc.close().catch(() => {});
-    // An evidence close failure outranks the send failure: the run fails either
-    // way, and the evidence error is the one the verifier must not miss.
-    throw evidenceError ?? error;
-  }
+/** How long the engine should keep a run open for its background work. */
+function awaitBackgroundFor(options: RunAgentOptions): AwaitBackground {
+  if (options.awaitBackground !== true) return 'hold';
+  return options.backgroundWaitPolicy === 'completion-only' ? 'completion-only' : 'inline';
 }
 
-function runHandle(proc: AgentProcess, promise: Promise<AgentResult>): AgentHandle {
-  return {
-    promise,
-    kill: (): boolean => proc.kill(),
-    get sessionId(): string | null { return proc.sessionId; },
-    agentProcess: proc,
+function attachmentsOf(options: RunAgentOptions): UserMessage['attachments'] {
+  return (options.files || []).map((file: any) => ({
+    mimeType: file.mimetype ?? file.mimeType, path: file.localPath ?? file.path,
+  }));
+}
+
+/**
+ * The wire-level tap for this attempt: the production attempt journal plus any caller-supplied
+ * required sinks. They observe `NormalizedEvent`s, which only exist where the backend produces
+ * them, so the engine forwards them here rather than the run trying to reconstruct them.
+ */
+function normalizedTaps(
+  options: RunAgentOptions, journal: AttemptJournalSink | null,
+): ((event: NormalizedEvent) => void) | undefined {
+  const sinks: EventObserver[] = [...(journal ? [journal] : []), ...(options.requiredSinks ?? [])];
+  if (sinks.length === 0) return undefined;
+  return (event: NormalizedEvent): void => {
+    for (const sink of sinks) {
+      try { void sink.onEvent(event); }
+      catch (error) { log.warn('required sink failed:', (error as Error)?.message ?? error); }
+    }
   };
 }
 
+/**
+ * One attempt through its engine session: acquire the pooled session for the spec, open a run on
+ * it, and fan the run's events out. The engine owns everything downstream of that — the background
+ * phase, the watchdog, when the run ends — so this function is only wiring: proof of identity for
+ * the benchmark journal, cost attribution, and the observers a surface registered.
+ */
 export function runWithAdapter(
   adapter: AgentAdapter, message: string, options: RunAgentOptions,
   config: AgentConfig, route: ModeEnv | undefined,
-): AgentHandle {
+): EngineAttemptHandle {
   const { spec, attemptIdentity, attemptJournal } = prepareAttemptEvidence(
     adapter, message, options, config, route,
   );
   const attribution = costAttribution(options, attemptIdentity);
-  const { proc, tee, turnPromise } = spawnAdapterAttempt(
-    adapter, spec, message, options, attemptJournal,
+  const taps = normalizedTaps(options, attemptJournal);
+  const engine = engines.acquire(spec);
+  const engineRun = engine.run(
+    { text: message, attachments: attachmentsOf(options) },
+    { awaitBackground: awaitBackgroundFor(options), ...(taps ? { onNormalizedEvent: taps } : {}) },
   );
-  const closeProcess = createProcessCloser(proc);
   const dispatch = createFacadeDispatcher(adapter, options, config, spec, attribution);
-  const eventLoop = consumeEventStream({ proc, tee, onEvent: dispatch });
-  const resultPromise = resolveRunResult(turnPromise, eventLoop, adapter, options, proc, (event) => {
-    if (event.type === 'cost_record') recordRunAccounting(event, adapter, options, config, attribution);
-    tee.dispatch(event);
-  });
-  return runHandle(
-    proc, settleEventfulRun(resultPromise, eventLoop, () => tee.close(), closeProcess),
-  );
+  const observers = options.observers ?? [];
+  const eventLoop = (async (): Promise<void> => {
+    try {
+      for await (const event of engineRun.events) {
+        dispatch(event);
+        for (const observer of observers) {
+          try { void observer.onEvent(event); }
+          catch (error) { log.warn('run observer failed:', (error as Error)?.message ?? error); }
+        }
+      }
+    } finally {
+      await closeObservers(observers);
+    }
+  })();
+  return {
+    promise: settleEventfulRun(engineRun, eventLoop, 'result'),
+    settled: settleEventfulRun(engineRun, eventLoop, 'settled'),
+    kill: () => engine.kill(),
+    get sessionId(): string | null { return engine.backendSessionId; },
+    engine,
+    engineRun,
+  };
+}
+
+/** Close every observer exactly once, after the run's stream has ended. A failing observer is
+ *  logged, never allowed to turn a finished run into a failed one. */
+async function closeObservers(observers: RunObserver[]): Promise<void> {
+  for (const observer of observers) {
+    try { await observer.onClose?.(); }
+    catch (error) { log.warn('run observer close failed:', (error as Error)?.message ?? error); }
+  }
+}
+
+/**
+ * Await the run and its event stream together: a rejection from either must still let the stream
+ * drain (a surface may be mid-render), and a failing observer must not swallow the real error.
+ */
+async function settleEventfulRun(
+  engineRun: EngineRun, eventLoop: Promise<void>, which: 'result' | 'settled',
+): Promise<AgentResult> {
+  let result: AgentResult | null = null;
+  let failure: unknown;
+  try {
+    [result] = await Promise.all([engineRun[which], eventLoop]);
+  } catch (error) {
+    failure = error;
+    try { await eventLoop; } catch (eventError) { failure = eventError; }
+  }
+  if (failure !== undefined) throw failure;
+  return result as AgentResult;
 }
 
 export interface CompactAgentRequest {
@@ -456,14 +463,16 @@ interface CompactCostEntry {
 
 export interface CompactAgentDeps {
   resolveProfile: (profileName: string | null) => ResolvedProfileConfig;
-  getAdapter: (backend: Backend) => AgentAdapter;
+  /** The pooled session for the spec. Compaction runs on it and leaves it pooled — it is the same
+   *  session the channel's next turn will resume into, not a throwaway process. */
+  acquireEngine: (spec: EngineSpec) => EngineSession;
   configureMode: (mode: string, metadata?: Record<string, string>) => ModeEnv;
   recordCost: (entry: CompactCostEntry) => Promise<void>;
 }
 
 const compactAgentDeps: CompactAgentDeps = {
   resolveProfile: resolveProfileConfig,
-  getAdapter: getRunAdapter,
+  acquireEngine: (spec) => engines.acquire(spec),
   configureMode: resolveModeEnv,
   recordCost,
 };
@@ -531,7 +540,7 @@ export async function compactAgentContext(
     project: request.projectId,
     trigger: 'manual-compact',
   });
-  const proc = deps.getAdapter(request.backend).spawn(buildEngineSpec({
+  const engine = deps.acquireEngine(buildEngineSpec({
     sessionId: request.backendSessionId,
     trackSessionId: request.sessionId,
     sessionKey: request.channel,
@@ -542,15 +551,10 @@ export async function compactAgentContext(
     sessionName: request.sessionName,
     isUserInitiated: true,
   }, config, route));
-  try {
-    if (!proc.compact) throw new Error(`${request.backend} process does not support manual context compaction`);
-    const result = await proc.compact();
-    const cost = compactCostEntry(request, profile, result);
-    if (cost) await deps.recordCost(cost);
-    return result;
-  } finally {
-    await proc.close().catch(() => {});
-  }
+  const result = await engine.compact();
+  const cost = compactCostEntry(request, profile, result);
+  if (cost) await deps.recordCost(cost);
+  return result;
 }
 
 /** Resolves the Anthropic route one connection must use. The returned value is the only thing
@@ -565,7 +569,7 @@ function configureRunRoute(options: RunAgentOptions, config: AgentConfig): ModeE
   );
 }
 
-export function runAgentOnce(message: string, options: RunAgentOptions, config: AgentConfig): AgentHandle {
+export function runAgentOnce(message: string, options: RunAgentOptions, config: AgentConfig): EngineAttemptHandle {
   const route = configureRunRoute(options, config);
   const adapter = getRunAdapter(config.backend as Backend);
   const handle = runWithAdapter(adapter, message, options, config, route);
@@ -573,7 +577,7 @@ export function runAgentOnce(message: string, options: RunAgentOptions, config: 
   return withAuthLifecycle(attributed, options, config);
 }
 
-export function runAgent(message: string, options: RunAgentOptions = {}): AgentHandle {
+export function runAgent(message: string, options: RunAgentOptions = {}): EngineAttemptHandle {
   // A `resolvedProfileConfig` carrying a real model is authoritative: the run layer passes the
   // fully-resolved request profile, and a subagent child passes a synthesized profile for its
   // role/task model. A synthetic "unknown name" profile (empty model) still falls through to the
@@ -599,6 +603,7 @@ export function runAgent(message: string, options: RunAgentOptions = {}): AgentH
       notices.emitTerminalRateLimit(result);
       return {
         promise: Promise.resolve(result),
+        settled: Promise.resolve(result),
         kill: () => false,
         sessionId: null,
       };
@@ -607,7 +612,7 @@ export function runAgent(message: string, options: RunAgentOptions = {}): AgentH
   }
 
   // Multiple configs — wrap with fallback chain
-  let currentHandle: AgentHandle | null = null;
+  let currentHandle: EngineAttemptHandle | null = null;
   let killed = false;
 
   const promise: Promise<AgentResult> = (async () => {
@@ -667,7 +672,9 @@ export function runAgent(message: string, options: RunAgentOptions = {}): AgentH
       return currentHandle?.kill() ?? false;
     },
     get sessionId(): string | null { return currentHandle?.sessionId ?? null; },
-    get agentProcess() { return currentHandle?.agentProcess; },
+    get engine() { return currentHandle?.engine; },
+    get engineRun() { return currentHandle?.engineRun; },
+    settled: promise,
   };
 }
 

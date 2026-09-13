@@ -6,23 +6,15 @@
 import { randomUUID } from 'node:crypto';
 import { createLogger } from '@core/log.js';
 import type { RunRegistry } from '@core/run-registry.js';
-import type { AgentHandle } from '@core/types/agent-types.js';
 import { remainingBg } from '../../agent-adapter/bg-wait.js';
 import { CAPABILITIES_BY_BACKEND, Capability } from '../../agent-adapter/capabilities.js';
-import type {
-  AgentProcess, ContinuationSink, InjectionAckSink, UserMessage,
-} from '../../agent-adapter/types.js';
-import type { NormalizedEvent } from '../../agent-adapter/normalize/event-types.js';
-import type { AgentConfig, RunAgentOptions } from '../agents/spawn-config.js';
+import type { UserMessage } from '../../agent-adapter/types.js';
+import type { RunEvent, RunPhase } from '../../agent-adapter/run-events.js';
+import type { AgentConfig, EngineAttemptHandle, RunAgentOptions } from '../agents/spawn-config.js';
 // Imported from the facade directly: `runAgent` is no longer part of the `domain/agents` barrel
-// (only the run layer may start a run). Tests that need to intercept the spawn mock this module.
+// (only the run layer may start a run). Tests that need to intercept the attempt mock this module.
 import { runAgent } from '../agents/facade.js';
-import {
-  continuationSinkToEvents, toRunEvent,
-  type RunEvent, type RunPhase,
-} from './events.js';
 import type { RunObserver, RunRequest, RunResult } from './request.js';
-import { getBgGraceMs, getBgMaxWaitMs } from '../../agent-adapter/bg-wait.js';
 
 const log = createLogger('run');
 
@@ -63,11 +55,6 @@ export interface AgentRun {
   cancel(reason: 'user' | 'supersede' | 'shutdown'): void;
   subscribe(observer: RunObserver): () => void;
   /**
-   * @deprecated Accessor for call sites that still hand the raw process to the
-   * old background-hold machinery.
-   */
-  legacyProcess(): AgentProcess | undefined;
-  /**
    * True once a background surface (`status-renderer` / `web-status-renderer`) has claimed the
    * background turn's rows. `AgentProcess.setContinuationSink` used to be a single slot, so exactly
    * one consumer ever wrote those rows; this flag keeps that guarantee now that several observers
@@ -77,10 +64,10 @@ export interface AgentRun {
   /** Claim the background transcript for a hold. Idempotent. */
   claimBackgroundTranscript(): void;
   /**
-   * The `ContinuationSink` view of this run, so hold adapters can register the run as a sink
-   * without reaching into the process.
+   * Push an event produced outside this run's own turn into its stream (see
+   * `EngineSession.ingestExternal`). False once the run is over.
    */
-  continuationSink(): ContinuationSink;
+  ingestExternal(event: RunEvent): boolean;
 }
 
 /** What the run reports back to `startRun` when it reaches a terminal state. */
@@ -91,24 +78,9 @@ export interface RunTerminalInfo {
   durationS: number;
 }
 
-/** The slice of facade.runAgent the run depends on. Injectable for tests and P2. */
-export type RunAgentFn = (message: string, options: RunAgentOptions) => AgentHandle;
-
-/** Timer seam for the background watchdog. Production timers are unref'd so a waiting run can
- *  never be the reason the process stays alive. */
-export interface RunTimers {
-  set: (fn: () => void, ms: number) => unknown;
-  clear: (handle: unknown) => void;
-}
-
-const realTimers: RunTimers = {
-  set: (fn, ms) => {
-    const handle = setTimeout(fn, ms);
-    (handle as { unref?: () => void }).unref?.();
-    return handle;
-  },
-  clear: (handle) => clearTimeout(handle as NodeJS.Timeout),
-};
+/** The slice of the attempt layer the run depends on: it opens one engine session for the request
+ *  and hands back the attempt handle. Injectable for tests. */
+export type RunAgentFn = (message: string, options: RunAgentOptions) => EngineAttemptHandle;
 
 export interface CreateAgentRunArgs {
   request: RunRequest;
@@ -121,10 +93,6 @@ export interface CreateAgentRunArgs {
   startedAt: number;
   /** Override for tests; defaults to facade.runAgent. */
   runAgentFn?: RunAgentFn;
-  /** Background-watchdog seams. Tests drive grace / max-wait deterministically. */
-  timers?: RunTimers;
-  graceMs?: number;
-  maxWaitMs?: number;
 }
 
 function asError(error: unknown): Error {
@@ -185,7 +153,7 @@ export interface RunAgentHooks {
 export function buildRunAgentOptions(
   request: RunRequest,
   executionId: string,
-  onAdapterEvent: (event: NormalizedEvent) => void,
+  onRunEvent: (event: RunEvent) => void,
   hooks: RunAgentHooks,
 ): RunAgentOptions {
   const files = (request.prompt.attachments ?? []).map((attachment) => ({
@@ -249,7 +217,7 @@ export function buildRunAgentOptions(
     onAssistantMessage: hooks.onAssistantMessage,
     onFallback: hooks.onFallback,
     // The run observes the raw adapter stream for everything the two hooks above do not carry.
-    observers: [{ onEvent: onAdapterEvent }],
+    observers: [{ onEvent: onRunEvent }],
   };
 }
 
@@ -263,7 +231,7 @@ export class AgentRunImpl implements AgentRun {
   readonly settled: Promise<RunResult>;
 
   private attemptValue: { index: number; config: AgentConfig };
-  /** Reporting model of the latest raw assistant event, restamped onto the hook's message. */
+  /** Reporting model of the latest assistant event, restamped onto the synthesized notices. */
   private lastAssistantModel: string | null = null;
   private backgroundTranscriptOwnedValue = false;
   private statusValue: RunStatus = 'starting';
@@ -271,35 +239,23 @@ export class AgentRunImpl implements AgentRun {
   private numTurnsValue: number | null = null;
   private backendSessionIdValue: string | null;
   private foregroundResult: RunResult | null = null;
-  private backgroundResult: RunResult | null = null;
+  /** Fanned out only so a surface can tell "the engine is still streaming" from "nothing happened
+   *  yet"; the authoritative numbers come from the attempt handle's `settled`. */
+  private lastBackgroundResult: RunResult | null = null;
 
   private readonly observers: RunObserver[];
   private readonly registry: RunRegistry;
   private readonly onTerminal: (info: RunTerminalInfo) => void;
   private readonly startedAt: number;
   private readonly runAgentFn: RunAgentFn;
-  private readonly timers: RunTimers;
-  private readonly graceMs: number;
-  private readonly maxWaitMs: number;
   private readonly settleDeferred = deferred<RunResult>();
   private readonly resultDeferred = deferred<RunResult>();
 
-  private handle: AgentHandle | null = null;
-  private continuationSinkValue: ContinuationSink | null = null;
-  private continuationSinkInstalled = false;
-  private injectionAckInstalled = false;
-  /** Injections accepted by the backend whose ack has not arrived. Keeps the run in `background`
-   *  after its foreground result so a post-result injection's spontaneous turn is not dropped. */
-  private pendingInjections: PendingInjectionAck[] = [];
+  private handle: EngineAttemptHandle | null = null;
   private started = false;
   private terminal = false;
   private observersClosed = false;
   private cancelRequested = false;
-  /** Live background-watchdog timer, or null when nothing is being waited on. */
-  private bgTimer: unknown = null;
-  /** True once a watchdog fired. A run whose wait has expired never re-arms: the max-wait cap
-   *  means "stop holding anything open for this", not "restart the clock on the next report". */
-  private bgWaitExpired = false;
 
   constructor(args: CreateAgentRunArgs) {
     this.request = args.request;
@@ -313,9 +269,6 @@ export class AgentRunImpl implements AgentRun {
     this.onTerminal = args.onTerminal;
     this.startedAt = args.startedAt;
     this.runAgentFn = args.runAgentFn ?? runAgent;
-    this.timers = args.timers ?? realTimers;
-    this.graceMs = args.graceMs ?? getBgGraceMs();
-    this.maxWaitMs = args.maxWaitMs ?? getBgMaxWaitMs();
     this.result = this.resultDeferred.promise;
     this.settled = this.settleDeferred.promise;
     // Both promises reject on a failed/cancelled run, and not every caller awaits both (a surface
@@ -331,16 +284,19 @@ export class AgentRunImpl implements AgentRun {
   get phase(): RunPhase { return this.phaseValue; }
   get numTurns(): number | null { return this.numTurnsValue; }
   get backendSessionId(): string | null { return this.backendSessionIdValue; }
+  get backgroundTranscriptOwned(): boolean { return this.backgroundTranscriptOwnedValue; }
+
+  claimBackgroundTranscript(): void { this.backgroundTranscriptOwnedValue = true; }
 
   /** Begin the run. Called exactly once by `startRun`, synchronously. */
   start(): void {
     if (this.started) return;
     this.started = true;
-    let handle: AgentHandle;
+    let handle: EngineAttemptHandle;
     try {
       handle = this.runAgentFn(
         this.request.prompt.text,
-        buildRunAgentOptions(this.request, this.executionId, (event) => this.onAdapterEvent(event), {
+        buildRunAgentOptions(this.request, this.executionId, (event) => this.onRunEvent(event), {
           onAssistantMessage: (text, blockId, noticeLevel, noticeAction, subagent) => {
             this.absorb({
               type: 'assistant_text', text, phase: this.phaseValue,
@@ -361,72 +317,46 @@ export class AgentRunImpl implements AgentRun {
     this.handle = handle;
     this.statusValue = 'running';
     this.registerHandle(handle);
-    this.installContinuationSink(handle);
     void handle.promise.then(
       (result) => this.onForegroundResult(result),
       (error) => this.onForegroundError(error),
     );
   }
 
+  /**
+   * Deliver `msg` into the live turn without opening a new Cortex run. The engine session owns the
+   * backend conversation and answers whether it can take the message; the run only decides what
+   * that means for its own lifecycle.
+   */
   steer(msg: UserMessage, injectionId?: string): Promise<'folded' | 'queued' | 'refused'> {
     if (this.terminal) return Promise.resolve('refused');
     if (!this.capabilities.has(Capability.MidTurnInject)) return Promise.resolve('refused');
-    const proc = this.handle?.agentProcess as AgentProcess | undefined;
-    if (!proc || typeof proc.injectUserMessage !== 'function') return Promise.resolve('refused');
-    this.installInjectionAckSink(proc);
-    const entry: PendingInjectionAck = { id: injectionId ?? randomUUID(), text: msg.text };
-    this.pendingInjections.push(entry);
+    const engine = this.handle?.engine;
+    if (!engine) return Promise.resolve('refused');
     let accepted = false;
     try {
-      accepted = proc.injectUserMessage(msg);
+      accepted = engine.steer(msg, injectionId).accepted;
     } catch (error) {
-      log.warn('run inject failed:', asError(error).message);
+      log.warn('run steer failed:', asError(error).message);
     }
-    if (!accepted) {
-      this.removePendingInjection(entry.id);
-      return Promise.resolve('refused');
-    }
-    // The write was accepted. The authoritative folded/queued outcome is delivered later as an
-    // `injection_delivered` event; the synchronous return only tells the caller not to queue it.
+    if (!accepted) return Promise.resolve('refused');
+    // The authoritative folded/queued outcome arrives later as an `injection_delivered` event; the
+    // synchronous return only tells the caller not to queue it.
     return Promise.resolve(this.phaseValue === 'background' ? 'queued' : 'folded');
   }
 
-  /** Install the backend-neutral injection ack sink once. Every ack becomes a run event. */
-  private installInjectionAckSink(proc: AgentProcess): void {
-    if (this.injectionAckInstalled) return;
-    if (typeof proc.setInjectionAckSink !== 'function') return;
-    this.injectionAckInstalled = true;
-    const sink: InjectionAckSink = {
-      onDelivered: ({ text, foldedIntoTurn }) => {
-        const entry = this.takePendingInjection(text);
-        if (!entry) return;
-        this.absorb({ type: 'injection_delivered', injectionId: entry.id, foldedIntoTurn });
-      },
-      onUndelivered: ({ text }) => {
-        const entry = this.takePendingInjection(text);
-        if (!entry) return;
-        this.absorb({ type: 'injection_rejected', injectionId: entry.id, reason: 'undelivered' });
-      },
-    };
-    proc.setInjectionAckSink(sink);
-  }
-
-  /** Remove and return the oldest pending injection written with `text` (acks are FIFO per text). */
-  private takePendingInjection(text: string): PendingInjectionAck | null {
-    const index = this.pendingInjections.findIndex((entry) => entry.text === text);
-    if (index === -1) return null;
-    return this.pendingInjections.splice(index, 1)[0];
-  }
-
-  private removePendingInjection(id: string): void {
-    this.pendingInjections = this.pendingInjections.filter((entry) => entry.id !== id);
-  }
-
+  /** Answer an in-flight backend dialog (PI `ask_user` / plan approval) through the live engine. */
   respondToDialog(id: string, payload: Record<string, unknown>): boolean {
-    const proc = this.handle?.agentProcess as
-      { sendExtensionUiResponse?: (id: string, payload: Record<string, unknown>) => boolean } | undefined;
-    if (typeof proc?.sendExtensionUiResponse !== 'function') return false;
-    return proc.sendExtensionUiResponse(id, payload);
+    return this.handle?.engine?.respondToDialog(id, payload) ?? false;
+  }
+
+  /**
+   * Push an event produced outside the run's own turn into its stream: a hosted child that keeps
+   * producing rows after its parent turn closed. It lands on the same stream as everything else.
+   */
+  ingestExternal(event: RunEvent): boolean {
+    if (this.terminal) return false;
+    return this.handle?.engine?.ingestExternal(event) ?? false;
   }
 
   cancel(reason: 'user' | 'supersede' | 'shutdown'): void {
@@ -444,24 +374,9 @@ export class AgentRunImpl implements AgentRun {
     };
   }
 
-  get backgroundTranscriptOwned(): boolean { return this.backgroundTranscriptOwnedValue; }
-
-  claimBackgroundTranscript(): void { this.backgroundTranscriptOwnedValue = true; }
-
-  legacyProcess(): AgentProcess | undefined {
-    return (this.handle?.agentProcess as AgentProcess | undefined) ?? undefined;
-  }
-
-  continuationSink(): ContinuationSink {
-    if (!this.continuationSinkValue) {
-      this.continuationSinkValue = continuationSinkToEvents((event) => this.absorb(event));
-    }
-    return this.continuationSinkValue;
-  }
-
   // ── wiring ─────────────────────────────────────────────────────────────
 
-  private registerHandle(handle: AgentHandle): void {
+  private registerHandle(handle: EngineAttemptHandle): void {
     this.registry.register({
       threadId: this.request.context.threadId ?? null,
       channel: this.request.context.channel,
@@ -470,53 +385,59 @@ export class AgentRunImpl implements AgentRun {
       kind: this.request.context.executionKind,
       kill: () => handle.kill(),
       backend: this.request.profile.backend,
-      agentProcess: handle.agentProcess,
       run: this,
       trackSessionId: this.request.session.sessionId,
       backendSessionId: handle.sessionId ?? this.request.session.backendSessionId,
       sessionId: handle.sessionId,
     });
-    // The handle's spawn-time backend id is authoritative even when the adapter never emits a
-    // session_started event (an interrupted first turn). Surfaces that persist the resume target on
-    // settle read `run.backendSessionId`, so record it here rather than only on engine_started.
+    // The engine's spawn-time backend id is authoritative even when it never emits a
+    // `session_started` event (an interrupted first turn). Surfaces that persist the resume target
+    // on settle read `run.backendSessionId`, so record it here.
     if (handle.sessionId) this.backendSessionIdValue = handle.sessionId;
-  }
-
-  private installContinuationSink(handle: AgentHandle): void {
-    const proc = handle.agentProcess as AgentProcess | undefined;
-    if (proc && typeof proc.setContinuationSink === 'function') {
-      this.continuationSinkInstalled = true;
-      proc.setContinuationSink(this.continuationSink());
-    }
   }
 
   // ── event flow ─────────────────────────────────────────────────────────
 
-  private onAdapterEvent(event: NormalizedEvent): void {
+  /**
+   * One event of the run's stream. The engine already decided what it means for the run's lifetime
+   * (background phase, watchdog, the terminal `phase`), so this only keeps the run's own bookkeeping
+   * and fans the event out.
+   */
+  private onRunEvent(event: RunEvent): void {
     if (this.terminal) return;
-    // The authoritative result comes from the resolved AgentHandle, never from turn_complete's
-    // synthesized result — relaying it here would double-emit foreground_result.
-    if (event.type === 'turn_complete') {
-      // The legacy dispatcher called onProgress here with the final count; republish it as
-      // turn_progress so the live turn counter and the status line still get the last value.
-      if (typeof event.numTurns === 'number') this.absorb({ type: 'turn_progress', numTurns: event.numTurns });
-      return;
-    }
-    // Assistant prose arrives through the `onAssistantMessage` hook instead: that path carries the
-    // facade's `assistantNoticeLevel(text)` classification and interleaves the synthesized notices
-    // in the order they were produced. Relaying the raw event too would double every message.
-    // The raw event is still the only carrier of the reporting model, and the tee runs before the
-    // legacy dispatcher, so remembering it here stamps the very message it belongs to.
+    // Assistant prose reaches the run through the `onAssistantMessage` hook instead: that path
+    // carries the facade's notice classification and interleaves the synthesized notices in the
+    // order they were produced. Relaying the raw event too would double every message.
     if (event.type === 'assistant_text') {
       if (event.model) this.lastAssistantModel = event.model;
       return;
     }
-    this.absorb(toRunEvent(event, this.phaseValue));
+    // The run emits its own `foreground_result` from the attempt handle's resolved result, which
+    // carries the full AgentResult; the stream's copy is the engine's own marker.
+    if (event.type === 'foreground_result') return;
+    if (event.type === 'phase' && event.phase === 'done') {
+      this.onEngineDone();
+      return;
+    }
+    this.absorb(event);
   }
 
   /**
-   * The profile's fallback chain switched attempt (facade `onFallback`). Advance the attempt and
-   * report it on the stream; the surface renders the notice (D7).
+   * The engine's stream ended: the run is over. The accumulated result comes from the attempt
+   * handle's `settled`, not from the last event — a multi-continuation run reports the whole run.
+   */
+  private onEngineDone(): void {
+    if (this.terminal) return;
+    if (!this.handle) { this.finishTerminal('completed', this.foregroundResult); return; }
+    void this.handle.settled.then(
+      (result) => this.finishTerminal(result.rateLimited ? 'rate-limited' : 'completed', result),
+      (error) => this.finishForegroundError(asError(error)),
+    );
+  }
+
+  /**
+   * The profile's fallback chain switched attempt. Advance the attempt and report it on the stream;
+   * the surface renders the notice.
    */
   private onChainFallback(current: AgentConfig, next: AgentConfig): void {
     this.attemptValue = { index: this.attemptValue.index + 1, config: next };
@@ -537,58 +458,14 @@ export class AgentRunImpl implements AgentRun {
       case 'turn_progress':
         this.setNumTurns(event.numTurns);
         break;
-      case 'injection_delivered':
-      case 'injection_rejected':
-        this.removePendingInjection(event.injectionId);
-        break;
       case 'background_result':
-        this.backgroundResult = event.result;
+        this.lastBackgroundResult = event.result;
         this.absorbResultCounts(event.result);
-        break;
-      case 'phase':
-        // The ONLY `phase: background` reaching absorb() is the adapter's `onTurnOpen` — the run's
-        // own entry marker is fanned out directly from onForegroundResult. A continuation turn has
-        // opened, and its length is unbounded (a 93-minute one was observed 2026-09-06), so the
-        // watchdogs must not fire mid-turn. The turn's own result re-arms or settles.
-        if (event.phase === 'background') this.clearBackgroundWait();
         break;
       default:
         break;
     }
     this.fanOut(event);
-    if (event.type === 'background_result') {
-      if (event.result.backgroundInterrupted || remainingBg(event.result) === 0) {
-        this.finishTerminal(event.result.rateLimited ? 'rate-limited' : 'completed', event.result);
-      } else {
-        // Chained background work: the continuation reported more to wait for.
-        this.armBackgroundWait(
-          event.result.pendingBackgroundTasks ?? 0,
-          event.result.undeliveredBackgroundTasks ?? 0,
-        );
-      }
-    }
-    // A post-result injection keeps the run in `background` until its spontaneous turn results.
-    // A rejected injection (or one that folded) leaves nothing to wait for, so seal here — the
-    // foreground result already settled and carried no background work of its own.
-    if (
-      (event.type === 'injection_rejected'
-        || (event.type === 'injection_delivered' && event.foldedIntoTurn))
-      && this.phaseValue === 'background'
-      && this.pendingInjections.length === 0
-      && this.foregroundResult !== null
-      && remainingBg(this.foregroundResult) === 0
-    ) {
-      this.finishTerminal(
-        this.foregroundResult.rateLimited ? 'rate-limited' : 'completed',
-        this.foregroundResult,
-      );
-    }
-  }
-
-  /** True when the facade owns the background wait for this policy (`awaitBackground: true`). */
-  private awaitsBackgroundInline(): boolean {
-    const background = this.request.policy.background;
-    return background === 'inline' || background === 'completion-only';
   }
 
   private setNumTurns(numTurns: number): void {
@@ -601,51 +478,6 @@ export class AgentRunImpl implements AgentRun {
     if (result.sessionId) this.backendSessionIdValue = result.sessionId;
   }
 
-  // ── background watchdog ────────────────────────────────────────────────
-  //
-  // The run owns this because the run is the only thing that knows when the background phase
-  // begins and ends. It used to live in each SURFACE's hold (bg-wait-guard, armed once by the
-  // Slack status hold and once by the web one), which meant a run with no hold — or a hold that
-  // sealed its own status and walked away — waited forever: phase stuck on `background`, execution
-  // record stuck on `running`, registry entry never removed.
-  //
-  // Two bounds, and they are not interchangeable:
-  //   grace     finished-but-unnotified work. The backend does not always deliver the
-  //             notification (same-turn completions on old CLIs never do; killed tasks never do).
-  //             The model already saw the outcome inside the turn, so nothing more will stream —
-  //             give up after a short wait and finalize as a normal completion.
-  //   max-wait  still-running work. A tunnel or a monitor legitimately never ends, so the cap
-  //             stops the run holding anything open on its behalf — but it does NOT finalize:
-  //             the run stays in the background phase and a very late continuation still arrives.
-
-  private armBackgroundWait(running: number, undelivered: number): void {
-    this.clearBackgroundWait();
-    if (this.terminal || this.bgWaitExpired) return;
-    if (running > 0) {
-      this.bgTimer = this.timers.set(() => this.onBackgroundTimeout('max-wait'), this.maxWaitMs);
-    } else if (undelivered > 0) {
-      this.bgTimer = this.timers.set(() => this.onBackgroundTimeout('grace'), this.graceMs);
-    }
-  }
-
-  private clearBackgroundWait(): void {
-    if (this.bgTimer === null) return;
-    this.timers.clear(this.bgTimer);
-    this.bgTimer = null;
-  }
-
-  private onBackgroundTimeout(reason: 'grace' | 'max-wait'): void {
-    if (this.terminal) return;
-    this.bgTimer = null;
-    this.bgWaitExpired = true;
-    this.fanOut({ type: 'background_timeout', reason });
-    if (this.terminal) return;
-    if (reason === 'grace') {
-      const result = this.backgroundResult ?? this.foregroundResult;
-      this.finishTerminal(result?.rateLimited ? 'rate-limited' : 'completed', result);
-    }
-  }
-
   // ── terminal transitions ───────────────────────────────────────────────
 
   private onForegroundResult(result: RunResult): void {
@@ -656,26 +488,13 @@ export class AgentRunImpl implements AgentRun {
     this.fanOut({ type: 'foreground_result', result });
     // A required observer may have sealed the run while the result was being fanned out.
     if (this.terminal) return;
-
-    const pendingBackground = result.pendingBackgroundTasks ?? 0;
-    const undeliveredBackground = result.undeliveredBackgroundTasks ?? 0;
-    // An inline policy means the facade already waited for the background work itself, and its
-    // wait replaced the process's single continuation sink to do so. Whatever it did not drain
-    // (grace/max-wait expiry with tasks still pending) can no longer reach this run, so entering
-    // the background phase here would wait for a result that can never arrive — the execution
-    // record would stay open and the session would read as running forever.
-    if (this.awaitsBackgroundInline()) {
-      this.finishTerminal(result.rateLimited ? 'rate-limited' : 'completed', result);
-      return;
-    }
-    if (this.continuationSinkInstalled && (remainingBg(result) > 0 || this.pendingInjections.length > 0)) {
+    // The engine keeps its stream open exactly while the run still owes background work, and it is
+    // the engine that ends the run (see ContinuationPhase). The run mirrors the phase onto its own
+    // status so surfaces can tell a held session from a finished one.
+    if (remainingBg(result) > 0) {
       this.phaseValue = 'background';
       this.statusValue = 'background';
-      this.fanOut({ type: 'phase', phase: 'background', pendingBackground, undeliveredBackground });
-      this.armBackgroundWait(pendingBackground, undeliveredBackground);
-      return;
     }
-    this.finishTerminal(result.rateLimited ? 'rate-limited' : 'completed', result);
   }
 
   private onForegroundError(error: unknown): void {
@@ -693,7 +512,7 @@ export class AgentRunImpl implements AgentRun {
   private finishForegroundError(failure: Error): void {
     if (this.terminal) return;
     // `cancelRequested` only covers a cancel that came through this object. Stop/!cancel/thread
-    // abort still kill the process directly, and the adapter rejects with a `cancelled` error; the
+    // abort still kill the process directly, and the engine rejects with a `cancelled` error; the
     // old facade suppressed the terminal notice for exactly that flag, so honour it here too —
     // otherwise a user pressing Stop gets an error card and a 'failed' execution.
     if (this.cancelRequested || (failure as { cancelled?: boolean }).cancelled === true) {
@@ -707,12 +526,11 @@ export class AgentRunImpl implements AgentRun {
   private finishTerminal(status: RunStatus, result: RunResult | null, error?: Error): void {
     if (this.terminal) return;
     this.terminal = true;
-    this.clearBackgroundWait();
     this.statusValue = status;
     this.phaseValue = 'done';
     this.fanOut({ type: 'phase', phase: 'done', pendingBackground: 0, undeliveredBackground: 0 });
     const durationS = (Date.now() - this.startedAt) / 1000;
-    const terminalResult = result ?? this.backgroundResult ?? this.foregroundResult;
+    const terminalResult = result ?? this.lastBackgroundResult ?? this.foregroundResult;
     try {
       this.onTerminal({ status, result: terminalResult, error, durationS });
     } catch (terminalError) {

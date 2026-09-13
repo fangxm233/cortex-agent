@@ -553,8 +553,7 @@ export class AgentRunner {
       // the streaming callback alive so the spontaneous continuation turn merges into the same
       // reply (handleAgentSuccess holds the status and subscribes to the run's background phase).
       // Otherwise clear the callback as usual.
-      const proc = convResult.agentProcess as { setContinuationSink?: (s: ContinuationSink) => void } | undefined;
-      const canSink = typeof proc?.setContinuationSink === 'function';
+      const canSink = convResult.canAwaitBackground;
       // The run owns the process's single continuation-sink slot: the Slack/Feishu status surface
       // subscribes to the RUN (status-renderer) rather than calling proc.setContinuationSink, which
       // would clobber the run's own sink and drop the fan-out to every other observer.

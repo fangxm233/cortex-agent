@@ -75,14 +75,25 @@ export interface RunConversationOptions {
   onPromptBuilt?: ((prompt: string) => void) | null;
 }
 
+/**
+ * Whether this run's backend can open a continuation turn of its own (Claude does; PI's runs are
+ * foreground-only). The hold decision uses it as the "there is something to hold for" gate that
+ * used to be `typeof proc.setContinuationSink === 'function'`.
+ */
+export function supportsBackgroundContinuation(run: AgentRun): boolean {
+  return run.request.profile.backend === 'claude';
+}
+
 export interface ConversationResult {
   result: AgentResult;
   executionId: string;
-  /** The live run, so the caller can subscribe a background continuation sink. */
+  /** The live run, so the caller can subscribe to its background phase. */
   run: AgentRun;
-  /** Underlying agent process for the turn, exposed for the legacy hold path. Opaque to other
-   *  consumers. */
-  agentProcess?: unknown;
+  /**
+   * Whether this run's backend can produce a background continuation at all — the capability the
+   * hold decision needs. It used to be probed off the process handle; the run answers it now.
+   */
+  canAwaitBackground: boolean;
 }
 
 export function registerConversationHandle(
@@ -290,10 +301,9 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
     // the id here lets the next turn `--resume` it (and the adapter's resolveResumeForPrint
     // self-heals to a create when no transcript was written). Best-effort; success-path
     // handleAgentSuccess still overwrites with the result's authoritative id.
-    // Prefer the process's live id (PI assigns it asynchronously after spawn); fall back to the
-    // run's recorded id, which is seeded from the handle at registration for adapters that never
-    // emitted session_started before an interrupt.
-    const backendSessionId = run.legacyProcess()?.sessionId ?? run.backendSessionId;
+    // The run's recorded id: seeded from the engine at registration, so it is present even for an
+    // interrupt that happened before the backend ever emitted `session_started`.
+    const backendSessionId = run.backendSessionId;
     if (isFreshSession && backendSessionId) {
       await sessionStore.updateSession(opts.sessionName, {
         backendSessionId,
@@ -302,5 +312,5 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
     }
   }
 
-  return { result, executionId: run.executionId, run, agentProcess: run.legacyProcess() };
+  return { result, executionId: run.executionId, run, canAwaitBackground: supportsBackgroundContinuation(run) };
 }

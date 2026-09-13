@@ -5,7 +5,7 @@
 
 import { createLogger } from '@core/log.js';
 import { runRegistry, type RunningExecution } from '@core/run-registry.js';
-import type { AgentProcess } from '../agent-adapter/types.js';
+import { toRunEvent, type RunEvent, type RunPhase } from '../agent-adapter/run-events.js';
 import type { SubagentNotice } from '../agent-adapter/pi/event-parser.js';
 import { subagentNoticeEvents } from '@core/agents/subagent/attribution.js';
 
@@ -31,10 +31,22 @@ function liveParent(sessionId: string | null, channel: string | undefined): Runn
   return onChannel.length === 1 ? onChannel[0] : null;
 }
 
-/** The push seam of one registered execution, or null when it is gone or cannot take events. */
-function pushableProcess(exec: RunningExecution | null): AgentProcess | null {
-  const proc = exec?.agentProcess as AgentProcess | undefined;
-  return typeof proc?.pushTurnEvent === 'function' ? proc : null;
+/**
+ * The ingest seam of one registered execution's run, or null when it is gone or already over. The
+ * seam lives on the run — the owner of the event stream — not on a process handle: a child's rows
+ * are a producer into that one stream, tagged with whatever phase the parent is in when they land.
+ *
+ * Declared structurally because `RunningExecution.run` is a core-level port that deliberately does
+ * not know the run layer's types.
+ */
+interface IngestRun {
+  readonly phase: RunPhase;
+  ingestExternal(event: RunEvent): boolean;
+}
+
+function ingestTarget(exec: RunningExecution | null): IngestRun | null {
+  const run = exec?.run as unknown as IngestRun | undefined;
+  return run && typeof run.ingestExternal === 'function' ? run : null;
 }
 
 /**
@@ -60,12 +72,14 @@ export function parentNoticeSink(
   sessionId: string | null, channel: string | undefined,
 ): ((notice: SubagentNotice) => void) | undefined {
   const parentKey = liveParent(sessionId, channel)?.registryKey;
-  if (!parentKey || !pushableProcess(runRegistry.getById(parentKey))) return undefined;
+  if (!parentKey || !ingestTarget(runRegistry.getById(parentKey))) return undefined;
   return (notice: SubagentNotice): void => {
-    const proc = pushableProcess(runRegistry.getById(parentKey));
-    if (!proc) return;
+    const run = ingestTarget(runRegistry.getById(parentKey));
+    if (!run) return;
     try {
-      for (const event of subagentNoticeEvents(notice)) proc.pushTurnEvent!(event);
+      for (const event of subagentNoticeEvents(notice)) {
+        if (!run.ingestExternal(toRunEvent(event, run.phase))) return;
+      }
     } catch (error) {
       // Attribution is decoration: a broken transcript must never fail the delegated work.
       log.warn(`Dropping subagent notice for ${sessionId ?? channel}: ${(error as Error).message}`);

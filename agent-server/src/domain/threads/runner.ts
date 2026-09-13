@@ -611,10 +611,10 @@ async function executeAndAwaitAgent(
     if (error && typeof error === 'object') {
       error.interruptedStep = {
         agentSlotId: stepCtx.agentSlotId,
-        // `legacyProcess().sessionId` mirrors the old `handle.sessionId`; the run's recorded id
+        // Mirrors the old `handle.sessionId`: the run's recorded id
         // covers test doubles that expose no process reference (and adapters that never emitted
         // session_started before the interruption).
-        backendSessionId: run.legacyProcess()?.sessionId ?? run.backendSessionId ?? null,
+        backendSessionId: run.backendSessionId ?? null,
         sawActivity: stepCtx.sawActivity,
       };
     }

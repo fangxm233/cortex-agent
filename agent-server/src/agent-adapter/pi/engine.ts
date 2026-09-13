@@ -6,6 +6,7 @@
 import type { AgentResult } from '@core/types/agent-types.js';
 import { CAPABILITIES_BY_BACKEND, type Capability } from '../capabilities.js';
 import { ContinuationPhase, type AwaitBackground } from '../continuation-phase.js';
+import type { EngineRunOptions } from '../types.js';
 import { RunEventQueue, toRunEvent, type RunEvent } from '../run-events.js';
 import type {
   AgentCompactResult, Backend, EngineRun, EngineSession, UserMessage,
@@ -60,7 +61,7 @@ export class PIEngineSession implements EngineSession {
   private readonly resolveSessionPath: ((sessionId: string) => string | null) | undefined;
   /** The run currently owning the session's single injection-ack slot (PI serves one turn at a
    *  time). `steer()` targets it for id correlation and immediate refusals. */
-  private active: { queue: RunEventQueue; pending: PendingInjection[] } | null = null;
+  private active: { queue: RunEventQueue; pending: PendingInjection[]; phase: ContinuationPhase | null } | null = null;
   private injectionSeq = 0;
   /** Recorded for diagnostics. PI has no spontaneous continuation turns, so every run takes the
    *  `none` path through `ContinuationPhase` and ends at its own foreground result. */
@@ -85,28 +86,29 @@ export class PIEngineSession implements EngineSession {
     return this.session.sessionId;
   }
 
-  run(prompt: UserMessage, opts: { awaitBackground: AwaitBackground }): EngineRun {
+  run(prompt: UserMessage, opts: EngineRunOptions): EngineRun {
     const stream = this.session.openTurnStream();
     const queue = new RunEventQueue();
     const pending: PendingInjection[] = [];
-    this.active = { queue, pending };
+    const active = { queue, pending, phase: null as ContinuationPhase | null };
+    this.active = active;
     // The ack sink is session-scoped; PI serves one turn at a time, so the live run owns it.
     this.session.setInjectionAckSink({
       onDelivered: ({ text, foldedIntoTurn }) => {
         const entry = takePending(pending, text);
-        queue.push({
-          type: 'injection_delivered',
-          injectionId: entry?.id ?? this.nextInjectionId(),
-          foldedIntoTurn,
-        });
+        const event = {
+          type: 'injection_delivered', injectionId: entry?.id ?? this.nextInjectionId(), foldedIntoTurn,
+        } as const;
+        if (active.phase) active.phase.ingest(event);
+        else queue.push(event);
       },
       onUndelivered: ({ text }) => {
         const entry = takePending(pending, text);
-        queue.push({
-          type: 'injection_rejected',
-          injectionId: entry?.id ?? this.nextInjectionId(),
-          reason: 'undelivered',
-        });
+        const event = {
+          type: 'injection_rejected', injectionId: entry?.id ?? this.nextInjectionId(), reason: 'undelivered',
+        } as const;
+        if (active.phase) active.phase.ingest(event);
+        else queue.push(event);
       },
     });
     // Accepted and recorded, but changes nothing: PI has no spontaneous continuation turns, so
@@ -119,15 +121,18 @@ export class PIEngineSession implements EngineSession {
     result.catch(() => undefined);
 
     const deferred = deferredResult();
+    const settled = deferredResult();
     // PI has no spontaneous continuation turn, so the run's background phase is a formality: the
     // phase settles with the foreground result and closes the stream. It is still the phase that
     // decides, so both engines have ONE definition of when a run ends.
     const phase = new ContinuationPhase(opts.awaitBackground, {
       push: (event) => queue.push(event),
-      settle: (result_) => deferred.resolve(result_),
-      reject: (error) => deferred.reject(error),
+      settleForeground: (result_) => deferred.resolve(result_),
+      settleRun: (result_) => { settled.resolve(result_); deferred.resolve(result_); },
+      reject: (error) => { deferred.reject(error); settled.reject(error); },
       close: () => queue.close(),
     });
+    active.phase = phase;
     // PI's turn events arrive on a stream of their own while the turn promise settles beside it,
     // so the two ends can land in either order. The run's stream may only be closed once the
     // turn's events have all been forwarded — otherwise a phase that seals early would drop the
@@ -159,6 +164,7 @@ export class PIEngineSession implements EngineSession {
       for await (const event of turnStreamIterable(stream)) {
         // `turn_complete` is the stream's terminal MARKER, not a result: `toRunEvent` would turn it
         // into a second, lossy `foreground_result` beside the authoritative one pushed below.
+        opts.onNormalizedEvent?.(event);
         if (event.type === 'turn_complete') continue;
         queue.push(toRunEvent(event, 'foreground'));
       }
@@ -179,6 +185,7 @@ export class PIEngineSession implements EngineSession {
         [Symbol.asyncIterator]: (): AsyncIterator<RunEvent> => ({ next: () => queue.next() }),
       },
       result: deferred.promise,
+      settled: settled.promise,
       // Ends this run, not the session: the session stays pooled and serves the next run.
       cancel: () => { this.session.closeTurnStreamFor(stream); },
     };
@@ -194,9 +201,10 @@ export class PIEngineSession implements EngineSession {
     });
   }
 
-  steer(msg: UserMessage): { accepted: boolean; injectionId?: string } {
-    const injectionId = this.nextInjectionId();
+  steer(msg: UserMessage, callerInjectionId?: string): { accepted: boolean; injectionId?: string } {
+    const injectionId = callerInjectionId ?? this.nextInjectionId();
     const accepted = this.session.injectUserMessage(msg);
+    if (accepted) this.active?.phase?.noteInjectionAccepted();
     if (!accepted) {
       // A refused injection never reaches PI's ack queue, so surface the rejection from here.
       this.active?.queue.push({ type: 'injection_rejected', injectionId, reason: 'refused' });
@@ -208,6 +216,16 @@ export class PIEngineSession implements EngineSession {
 
   respondToDialog(dialogId: string, payload: Record<string, unknown>): boolean {
     return this.session.sendExtensionUiResponse(dialogId, payload);
+  }
+
+  /** Push an out-of-band event into the live run's stream. PI hosts its subagents in-process and
+   *  never delivers rows for a turn that has already closed, so this is a formality for the
+   *  contract's sake — it still must not pretend to have a consumer it does not have. */
+  ingestExternal(event: RunEvent): boolean {
+    const queue = this.active?.queue;
+    if (!queue) return false;
+    queue.push(event);
+    return true;
   }
 
   compact(): Promise<AgentCompactResult> {

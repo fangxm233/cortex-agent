@@ -9,7 +9,7 @@ import path from 'node:path';
 import { STORE_DIR, resolveSpawnCwd } from '../../../core/paths.js';
 import type { EngineSpec } from '../../../agent-adapter/types.js';
 import type { NormalizedEvent } from '../../../agent-adapter/normalize/event-types.js';
-import type { EventObserver } from '../../../agent-adapter/event-tee.js';
+import type { EventObserver } from '../../../agent-adapter/normalize/event-types.js';
 import { canonicalJsonSha256, computeRoleToolSurfaceHash } from './identity.js';
 import { openJournal, type Journal } from './journal.js';
 import type { ProductionAttemptIdentityRecord } from './production-attempt-identity.js';
