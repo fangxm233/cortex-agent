@@ -1,18 +1,29 @@
 // input:  the same flat, spawn-shaped partial the EngineSpec fixture takes
-// output: a RunRequest that buildEngineSpec turns into the equivalent EngineSpec
+// output: a RunRequest + RunAttemptConfig pair, and the EngineSpec they build
 // pos:    Test-side adapter from the terse flat fixtures to the run layer's request contract
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
-// `buildEngineSpec` takes a resolved `RunRequest` — there is no flat options bag in production any
-// more. The spawn-seam and profile suites still want to state a spawn in one terse literal, so this
-// maps that literal onto the request. Keep it a pure regrouping: a default added here that
-// production does not set would make the goldens lie.
+// `buildEngineSpec` takes a resolved `RunRequest` plus the attempt's engine selection — there is no
+// flat options bag in production any more. The spawn-seam and profile suites still want to state a
+// spawn in one terse literal, so this maps that literal onto the pair. Keep it a pure regrouping:
+// a default added here that production does not set would make the goldens lie. Where the old flat
+// bag had an implicit default (`loadCortexRules` undefined meant "load"), that default is restated
+// here rather than replaced by the request contract's own.
 
-import type { EngineSpecFixtureInput } from './engine-spec-fixture.js';
-import type { RunRequest } from '../src/domain/runs/request.js';
+import type { EngineSpec } from '../src/agent-adapter/types.js';
+import type { ModeEnv } from '../src/domain/agents/config.js';
 import type { ResolvedProfileConfig, RunAttemptConfig } from '../src/domain/agents/profile-manager.js';
+import { buildEngineSpec } from '../src/domain/runs/engine-spec.js';
+import type { RunRequest } from '../src/domain/runs/request.js';
+import type { EngineSpecFixtureInput } from './engine-spec-fixture.js';
 
-export interface RunRequestFixtureInput extends EngineSpecFixtureInput {
+/** The flat literal. `tools` widens to the request's tool surface: a canonical list OR Claude's
+ *  raw comma string, which the old flat bag also carried on one key. */
+export interface RunRequestFixtureInput extends Omit<EngineSpecFixtureInput, 'tools'> {
+  tools?: string[] | string;
+  /** The user message the run carries. Only the spawn seam ignores it; anything that reaches a
+   *  backend needs the text a caller would have sent. */
+  promptText?: string;
   trackSessionId?: string | null;
   profileName?: string | null;
   project?: string;
@@ -25,8 +36,16 @@ export interface RunRequestFixtureInput extends EngineSpecFixtureInput {
   executionId?: string | null;
   useCoreMcp?: boolean;
   loadCortexRules?: boolean;
+  recordCost?: boolean;
   commissionMode?: boolean;
   sessionName?: string | null;
+}
+
+/** Drop explicitly-undefined keys so an override never clobbers a value the flat literal set. */
+function defined<T extends object>(value: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, entry]) => entry !== undefined),
+  ) as Partial<T>;
 }
 
 /** The attempt config a fixture implies, so a suite can pass the same literal to both. */
@@ -44,18 +63,34 @@ export function attemptFixture(partial: Partial<RunAttemptConfig> = {}): RunAtte
   };
 }
 
-/** A single-attempt profile around one attempt config. */
-export function profileFixture(attempt: RunAttemptConfig, name = 'fixture-profile'): ResolvedProfileConfig {
+/** The engine selection a flat literal implies, with an explicit attempt layered on top. */
+export function attemptFromFixture(
+  partial: RunRequestFixtureInput = {},
+  override: Partial<RunAttemptConfig> = {},
+): RunAttemptConfig {
+  return attemptFixture({
+    model: partial.model,
+    provider: partial.piProvider,
+    thinking: partial.thinking,
+    extraEnv: partial.env,
+    extraOption: partial.extraOption,
+    claudeBackend: partial.claudeBackend,
+    maxOutputTokens: partial.piModelMaxTokens,
+    ...defined(override),
+  });
+}
+
+/** A single-attempt profile around one attempt config. An empty name is how a fixture says "this
+ *  run was never looked up by profile name" — the same thing production says for a subagent. */
+export function profileFixture(attempt: RunAttemptConfig, name = ''): ResolvedProfileConfig {
   return { name, ...attempt, fallback: [] };
 }
 
-export function runRequestFixture(partial: RunRequestFixtureInput = {}): RunRequest {
-  const attempt = attemptFixture({
-    model: partial.model,
-    thinking: partial.thinking,
-    extraOption: partial.extraOption,
-    maxOutputTokens: partial.piModelMaxTokens,
-  });
+export function runRequestFixture(
+  partial: RunRequestFixtureInput = {},
+  attemptOverride: Partial<RunAttemptConfig> = {},
+): RunRequest {
+  const attempt = attemptFromFixture(partial, attemptOverride);
   return {
     runId: 'fixture-run',
     session: {
@@ -64,7 +99,7 @@ export function runRequestFixture(partial: RunRequestFixtureInput = {}): RunRequ
       engineKey: partial.sessionKey ?? partial.channel ?? '',
       sessionName: partial.sessionName ?? null,
     },
-    profile: profileFixture(attempt, partial.profileName ?? 'fixture-profile'),
+    profile: profileFixture(attempt, partial.profileName ?? ''),
     spec: {
       systemPrompt: partial.systemPrompt ?? null,
       appendSystemPrompt: partial.appendSystemPrompt ?? null,
@@ -79,7 +114,7 @@ export function runRequestFixture(partial: RunRequestFixtureInput = {}): RunRequ
       },
     },
     cwd: partial.cwd ?? null,
-    prompt: { text: '' },
+    prompt: { text: partial.promptText ?? '' },
     context: {
       channel: partial.channel ?? '',
       project: partial.project ?? '',
@@ -89,6 +124,8 @@ export function runRequestFixture(partial: RunRequestFixtureInput = {}): RunRequ
       taskId: partial.taskId ?? null,
       taskProject: partial.taskProject ?? null,
       taskGeneration: partial.taskGeneration ?? null,
+      scheduleTaskId: partial.scheduleTaskId ?? null,
+      callbackSource: partial.callbackSource ?? null,
       executionKind: 'local',
       isUserInitiated: partial.isUserInitiated ?? false,
       commissionMode: partial.commissionMode ?? false,
@@ -96,10 +133,13 @@ export function runRequestFixture(partial: RunRequestFixtureInput = {}): RunRequ
     },
     policy: {
       background: 'hold',
-      recordCost: true,
-      hooks: partial.disableHooks === undefined ? undefined as unknown as boolean : !partial.disableHooks,
+      recordCost: partial.recordCost ?? true,
+      // `hooks` and `disableHooks` are the same fact with opposite polarity, and an unset flat
+      // `disableHooks` has to survive as an unset policy so the adapter keeps its own default.
+      hooks: partial.disableHooks === undefined ? (undefined as unknown as boolean) : !partial.disableHooks,
       streamDeltas: partial.streamDeltas,
-      loadRules: partial.loadCortexRules ?? false,
+      // The flat bag's default: undefined meant "load the ambient rules".
+      loadRules: partial.loadCortexRules ?? true,
       mcpComposition: partial.mcpComposition as RunRequest['policy']['mcpComposition'],
       useCoreMcp: partial.useCoreMcp,
       mcpToolAllowlist: partial.mcpToolAllowlist,
@@ -122,4 +162,21 @@ export function runRequestFixture(partial: RunRequestFixtureInput = {}): RunRequ
       mcpConfigPaths: partial.mcpConfigPaths,
     },
   };
+}
+
+/**
+ * Build the spec the way production does — request, attempt, route — from one flat literal.
+ * The `executionId` rides on the literal because it used to be an option; production passes it
+ * separately because it is minted by the run, not by the request.
+ */
+export function specFromFixture(
+  partial: RunRequestFixtureInput = {},
+  attemptOverride: Partial<RunAttemptConfig> = {},
+  route?: ModeEnv,
+): EngineSpec {
+  return buildEngineSpec(
+    runRequestFixture(partial, attemptOverride),
+    attemptFromFixture(partial, attemptOverride),
+    { route, executionId: partial.executionId ?? null },
+  );
 }

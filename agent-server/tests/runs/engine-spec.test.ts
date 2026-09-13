@@ -7,8 +7,9 @@ import { beforeAll, test } from 'vitest';
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import * as path from 'node:path';
-import { buildEngineSpec, engineIdentity } from '../../src/domain/runs/engine-spec.js';
-import type { RunAgentOptions, AgentConfig } from '../../src/domain/agents/spawn-config.js';
+import { engineIdentity } from '../../src/domain/runs/engine-spec.js';
+import { specFromFixture, type RunRequestFixtureInput } from '../run-request-fixture.js';
+import type { RunAttemptConfig } from '../../src/domain/agents/profile-manager.js';
 import type { ModeEnv } from '../../src/domain/agents/config.js';
 import type { EngineSpec } from '../../src/agent-adapter/types.js';
 import { DATA_DIR, CONFIG_DIR } from '../../src/core/paths.js';
@@ -18,17 +19,26 @@ import { resetSettingsForTests } from '../../src/core/settings.js';
 // path on the `refactor/runs` base, in this exact test home (no rules dir, default settings), and
 // converted one-for-one into the EngineSpec shape. `assert.deepStrictEqual` distinguishes a
 // present-but-`undefined` key from an absent one, so the literals list every key the builder emits.
-const FIXTURE_CONFIG: AgentConfig = { model: 'claude-fixture', backend: 'claude', mode: null };
+//
+// AMENDED at the run-model cutover, in two keys only, because a RESOLVED request carries fewer
+// undefineds than the old options bag did:
+//   - `backend.claudeBackend`: was `undefined` when a config omitted it; a ResolvedProfileConfig
+//     always resolves it, so it is now `'print'`. Read only as `=== 'tui'`, so argv is unchanged
+//     (the spawn-seam byte goldens still pass untouched).
+//   - `mcp.commissionTools`: was `undefined`; the request states it as a boolean. Read only as
+//     `=== true` / `!!`, so both backends behave identically.
+// Nothing else moved. Any further drift here is a regression, not a restatement.
+const FIXTURE_CONFIG: Partial<RunAttemptConfig> = { model: 'claude-fixture', backend: 'claude', mode: null };
 
 interface Case {
   name: string;
-  options: RunAgentOptions;
-  config: AgentConfig;
+  options: RunRequestFixtureInput;
+  config: Partial<RunAttemptConfig>;
   route: ModeEnv | undefined;
   expected: EngineSpec;
 }
 
-const DIRECT_OPTIONS: RunAgentOptions = {
+const DIRECT_OPTIONS: RunRequestFixtureInput = {
   channel: 'general',
   sessionKey: 'direct-fixture',
   sessionId: '11111111-1111-4111-8111-111111111111',
@@ -53,7 +63,7 @@ const cases: Case[] = [
       plugins: { dirs: undefined, skillDirs: undefined, fingerprint: undefined },
       mcp: {
         composition: 'direct', servers: undefined, allowlist: undefined, configPaths: undefined,
-        commissionTools: undefined, browserCdpEndpoint: undefined,
+        commissionTools: false, browserCdpEndpoint: undefined,
       },
       env: {
         sets: undefined, unsets: undefined, pinned: undefined,
@@ -78,7 +88,7 @@ const cases: Case[] = [
       },
       context: { channel: 'general', callbackSource: undefined, scheduleTaskId: undefined },
       extraOption: undefined,
-      backend: { kind: 'claude', claudeAgent: undefined, outputStyle: undefined, claudeBackend: undefined },
+      backend: { kind: 'claude', claudeAgent: undefined, outputStyle: undefined, claudeBackend: 'print' },
       process: { spawner: undefined, cliPath: undefined },
     },
   },
@@ -111,7 +121,7 @@ const cases: Case[] = [
       plugins: { dirs: undefined, skillDirs: undefined, fingerprint: undefined },
       mcp: {
         composition: 'thread-control', servers: undefined, allowlist: undefined,
-        configPaths: undefined, commissionTools: undefined, browserCdpEndpoint: undefined,
+        configPaths: undefined, commissionTools: false, browserCdpEndpoint: undefined,
       },
       env: {
         sets: undefined, unsets: undefined, pinned: undefined,
@@ -136,7 +146,7 @@ const cases: Case[] = [
       },
       context: { channel: 'thread-fixture', callbackSource: undefined, scheduleTaskId: undefined },
       extraOption: undefined,
-      backend: { kind: 'claude', claudeAgent: undefined, outputStyle: undefined, claudeBackend: undefined },
+      backend: { kind: 'claude', claudeAgent: undefined, outputStyle: undefined, claudeBackend: 'print' },
       process: { spawner: undefined, cliPath: undefined },
     },
   },
@@ -165,7 +175,7 @@ const cases: Case[] = [
       plugins: { dirs: undefined, skillDirs: undefined, fingerprint: undefined },
       mcp: {
         composition: 'direct', servers: undefined, allowlist: undefined, configPaths: undefined,
-        commissionTools: undefined, browserCdpEndpoint: undefined,
+        commissionTools: false, browserCdpEndpoint: undefined,
       },
       env: {
         sets: undefined, unsets: undefined, pinned: undefined,
@@ -225,7 +235,7 @@ const cases: Case[] = [
       plugins: { dirs: undefined, skillDirs: undefined, fingerprint: undefined },
       mcp: {
         composition: 'direct', servers: undefined, allowlist: undefined,
-        configPaths: ['/fixture/mcp-empty.json'], commissionTools: undefined,
+        configPaths: ['/fixture/mcp-empty.json'], commissionTools: false,
         browserCdpEndpoint: undefined,
       },
       env: {
@@ -252,7 +262,7 @@ const cases: Case[] = [
       },
       context: { channel: 'subagent-channel', callbackSource: undefined, scheduleTaskId: undefined },
       extraOption: undefined,
-      backend: { kind: 'claude', claudeAgent: undefined, outputStyle: undefined, claudeBackend: undefined },
+      backend: { kind: 'claude', claudeAgent: undefined, outputStyle: undefined, claudeBackend: 'print' },
       process: { spawner: undefined, cliPath: '/fixture/bin/claude' },
     },
   },
@@ -338,19 +348,17 @@ beforeAll(() => {
 
 for (const c of cases) {
   test(`buildEngineSpec emits the captured spec: ${c.name}`, () => {
-    assert.deepStrictEqual(buildEngineSpec(c.options, c.config, c.route), c.expected);
+    assert.deepStrictEqual(specFromFixture(c.options, c.config, c.route), c.expected);
   });
 }
 
 test('buildEngineSpec keeps a raw tools string on rawClaude and canonical tools on canonical', () => {
-  const raw = buildEngineSpec(
-    { ...DIRECT_OPTIONS, tools: 'Read,Bash' }, FIXTURE_CONFIG, undefined,
-  );
+  const raw = specFromFixture({ ...DIRECT_OPTIONS, tools: 'Read,Bash' }, FIXTURE_CONFIG);
   assert.equal(raw.tools.rawClaude, 'Read,Bash');
   assert.equal(raw.tools.canonical, undefined);
 
   const canonicalOptions = { ...DIRECT_OPTIONS, tools: ['Read', 'Bash'] };
-  const canonical = buildEngineSpec(canonicalOptions, FIXTURE_CONFIG, undefined);
+  const canonical = specFromFixture(canonicalOptions, FIXTURE_CONFIG);
   assert.equal(canonical.tools.rawClaude, undefined);
   assert.deepEqual(canonical.tools.canonical, ['Read', 'Bash']);
 });
@@ -358,7 +366,7 @@ test('buildEngineSpec keeps a raw tools string on rawClaude and canonical tools 
 // --- engineIdentity ---
 
 function baseSpec(): EngineSpec {
-  return buildEngineSpec(DIRECT_OPTIONS, FIXTURE_CONFIG, undefined);
+  return specFromFixture(DIRECT_OPTIONS, FIXTURE_CONFIG);
 }
 
 test('engineIdentity is independent of object key order', () => {

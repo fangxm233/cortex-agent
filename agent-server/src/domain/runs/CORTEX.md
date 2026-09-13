@@ -9,7 +9,7 @@ edit-retry, ask-user-resume, scheduled auto-compound and Claude-subagent paths a
 
 | filename | role | function |
 |---|---|---|
-| config-resolver.ts | core | resolveRunConfig — D5's five-layer profile priority plus the channel model override |
+| config-resolver.ts | core | resolveRunConfig / resolveRunRoute — D5's five-layer profile priority, the channel model override, and the per-attempt mode route |
 | attempt.ts | core | startAttempt — one link of the chain: acquire the pooled engine, open a run on it, freeze the identity, attribute the cost. Two results: `foreground` and `settled` |
 | compact.ts | core | compactAgentContext / isSessionCompactionSupported — compaction is a command on a session's pooled engine, not a run |
 | fallback.ts | core | planAttempts / attemptLabel / allConfigsRateLimited — the ordered attempt chain a run walks and the gate that skips a blocked attempt |

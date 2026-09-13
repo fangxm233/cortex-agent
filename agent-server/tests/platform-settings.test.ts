@@ -11,7 +11,7 @@ import { parse } from 'dotenv';
 import { readPlatformSettings, writePlatformSettings } from '../src/domain/ui-service/platform-settings.js';
 import { platformSettingsInput } from '../src/core/platform-settings-spec.js';
 import { upsertEnvVar } from '../src/entry/feishu-login.js';
-import { filterScopedPlugins } from '../src/domain/agents/spawn-config.js';
+import { filterScopedPlugins } from '../src/domain/runs/engine-spec.js';
 import { redactMutationAuditArgs } from '../src/domain/ui-service/ui-service.js';
 
 async function fixture(run: (file: string) => Promise<void>) {

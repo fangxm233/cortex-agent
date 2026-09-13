@@ -26,8 +26,10 @@ import {
   type EngineSpec,
   type McpComposition,
 } from '../src/agent-adapter/types.js';
-import { buildEngineSpec } from '../src/domain/runs/engine-spec.js';
 import { engineSpecFixture, type EngineSpecFixtureInput } from './engine-spec-fixture.js';
+import {
+  attemptFromFixture, runRequestFixture, specFromFixture, type RunRequestFixtureInput,
+} from './run-request-fixture.js';
 import { ClaudeAdapter, _test as claudeTest } from '../src/agent-adapter/claude/adapter.js';
 import { claudePool } from './agent-adapter/claude-pool-fixture.js';
 import {
@@ -50,8 +52,10 @@ import { encodeMcpBundles, MCP_BUNDLES_ENV } from '../src/core/mcp-bundles.js';
 import { CONFIG_DIR, DATA_DIR } from '../src/core/paths.js';
 import { resetSettingsForTests } from '../src/core/settings.js';
 import { getSavedApiEnv, type ModeEnv } from '../src/domain/agents/config.js';
-import { _test as facadeTest } from '../src/domain/agents/facade.js';
-import type { AgentConfig } from '../src/domain/agents/spawn-config.js';
+import type { RunAttemptConfig } from '../src/domain/agents/profile-manager.js';
+import { startAttempt } from '../src/domain/runs/attempt.js';
+import { resolveRunRoute } from '../src/domain/runs/config-resolver.js';
+import { engines } from '../src/domain/runs/engines.js';
 import { GATEWAY_URL, _testSetHealthy } from '../src/domain/costs/gateway-manager.js';
 import { generateConfigs, getResolvedPaths, type InitAnswers } from '../src/entry/init.js';
 
@@ -64,7 +68,7 @@ const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
 // goldens is still the untouched base capture.
 const DIRECT_GOLDEN = path.join(TEST_DIR, 'spawn-seam-direct.golden.json');
 const THREAD_GOLDEN = path.join(TEST_DIR, 'spawn-seam-thread.golden.json');
-const FIXTURE_CONFIG = { model: 'claude-fixture', backend: 'claude' as const, mode: null };
+const FIXTURE_CONFIG: Partial<RunAttemptConfig> = { model: 'claude-fixture', backend: 'claude', mode: null };
 const originalEnv = { ...process.env };
 
 beforeAll(() => {
@@ -140,20 +144,20 @@ function resolvedGolden(spec: EngineSpec): string {
 }
 
 function directSpawnConfig(): EngineSpec {
-  const spec = buildEngineSpec({
+  const spec = specFromFixture({
     channel: 'general',
     sessionId: '11111111-1111-4111-8111-111111111111',
     sessionKey: 'direct-fixture',
     profileName: 'fixture-profile',
     trackSessionId: 'tracked-direct',
     executionId: 'exec-direct',
-  }, FIXTURE_CONFIG, undefined);
+  }, FIXTURE_CONFIG);
   spec.resume.resume = false;
   return spec;
 }
 
 function threadSpawnConfig(): EngineSpec {
-  const spec = buildEngineSpec({
+  const spec = specFromFixture({
     channel: 'thread-fixture',
     sessionId: '22222222-2222-4222-8222-222222222222',
     sessionKey: 'thread-fixture:1',
@@ -166,9 +170,27 @@ function threadSpawnConfig(): EngineSpec {
     threadDepth: 1,
     taskId: 'abcd',
     taskProject: 'atlas',
-  }, FIXTURE_CONFIG, undefined);
+  }, FIXTURE_CONFIG);
   spec.resume.resume = false;
   return spec;
+}
+
+/**
+ * Drive ONE attempt the way production does — the step inside `startRun` — with a flat literal.
+ * This is the seam the spawn-seam suite uses wherever it used to call `facade._test.runWithAdapter`:
+ * the pool is the daemon's own (`engines`), so cleanup is `engines.close(sessionKey)`.
+ */
+function runAttemptFixture(
+  partial: RunRequestFixtureInput,
+  route?: ModeEnv,
+): ReturnType<typeof startAttempt> {
+  return startAttempt({
+    request: runRequestFixture(partial, FIXTURE_CONFIG),
+    attempt: attemptFromFixture(partial, FIXTURE_CONFIG),
+    executionId: partial.executionId ?? null,
+    route,
+    onEvent: () => {},
+  });
 }
 
 function mcpConfigPaths(argv: string[]): string[] {
@@ -213,7 +235,7 @@ test('resolveMcpComposition gives explicit values precedence over the legacy boo
 });
 
 test('buildEngineSpec carries isolated one-shot values and resolves legacy composition', () => {
-  const explicit = buildEngineSpec({
+  const explicit = specFromFixture({
     cwd: '/fixture/task',
     mcpComposition: 'none',
     useCoreMcp: true,
@@ -223,8 +245,8 @@ test('buildEngineSpec carries isolated one-shot values and resolves legacy compo
     captureTranscriptLogs: false,
     loadCortexRules: false,
     recordCost: false,
-  }, FIXTURE_CONFIG, undefined);
-  const legacy = buildEngineSpec({ useCoreMcp: true }, FIXTURE_CONFIG, undefined);
+  }, FIXTURE_CONFIG);
+  const legacy = specFromFixture({ useCoreMcp: true }, FIXTURE_CONFIG);
 
   assert.equal(explicit.cwd, '/fixture/task');
   assert.equal(explicit.mcp.composition, 'none');
@@ -238,14 +260,14 @@ test('buildEngineSpec carries isolated one-shot values and resolves legacy compo
 });
 
 test('buildEngineSpec canonicalizes a declared MCP tool allowlist', () => {
-  const spec = buildEngineSpec({
+  const spec = specFromFixture({
     mcpToolAllowlist: ['thread_wait', 'ask_manager', 'thread_wait'],
-  }, FIXTURE_CONFIG, undefined);
+  }, FIXTURE_CONFIG);
   assert.deepEqual(spec.mcp.allowlist, ['ask_manager', 'thread_wait']);
 });
 
 test('task dispatch generation reaches both backend environments without inheriting stale state', () => {
-  const spec = buildEngineSpec({
+  const spec = specFromFixture({
     channel: 'thread-fixture',
     sessionId: '33333333-3333-4333-8333-333333333333',
     sessionKey: 'thread-fixture:2',
@@ -253,7 +275,7 @@ test('task dispatch generation reaches both backend environments without inherit
     taskId: 'abcd',
     taskProject: 'atlas',
     taskGeneration: 'generation-b',
-  }, FIXTURE_CONFIG, undefined);
+  }, FIXTURE_CONFIG);
   assert.equal(spec.env.context?.taskGeneration, 'generation-b');
 
   const claudeEnv = buildClaudeEnv(
@@ -388,10 +410,10 @@ function assertPortableRuntimePropagation(): void {
   try {
     installPluginRuntimeFixture();
     const options = pluginRuntimeSpawnOptions();
-    const claude = buildEngineSpec(options, FIXTURE_CONFIG, undefined);
-    const pi = buildEngineSpec(options, {
+    const claude = specFromFixture(options, FIXTURE_CONFIG);
+    const pi = specFromFixture(options, {
       model: 'pi-fixture', backend: 'pi', mode: null, provider: 'anthropic',
-    }, undefined);
+    });
     assertClaudePluginRuntime(claude);
     assertPiPluginRuntime(pi);
     assert.notEqual(pi.plugins.fingerprint, claude.plugins.fingerprint);
@@ -415,9 +437,9 @@ function assertChannelPluginFiltering(): void {
       'feishu-skill',
       'feishu fixture skill.',
     );
-    const spec = buildEngineSpec({
+    const spec = specFromFixture({
       channel: 'general', pluginDirs: ['plugins/cortex-feishu'], loadCortexRules: false,
-    }, FIXTURE_CONFIG, undefined);
+    }, FIXTURE_CONFIG);
     assert.equal(spec.plugins.dirs, undefined);
     assert.equal(spec.plugins.fingerprint, undefined);
   } finally {
@@ -428,11 +450,11 @@ function assertChannelPluginFiltering(): void {
 test('channel-scoped plugin filtering happens before runtime projection', assertChannelPluginFiltering);
 
 function assertMalformedPluginDirsIgnored(): void {
-  const spec = buildEngineSpec({
+  const spec = specFromFixture({
     channel: 'general',
     pluginDirs: 'plugins/not-an-array' as never,
     loadCortexRules: false,
-  }, FIXTURE_CONFIG, undefined);
+  }, FIXTURE_CONFIG);
 
   assert.equal(spec.plugins.dirs, undefined);
   assert.equal(spec.plugins.fingerprint, undefined);
@@ -628,17 +650,12 @@ async function probeContextUsage(adapter: ClaudeAdapter, key: string, cwd: strin
 
 async function runCwdProbe(marker: string, sessionKey: string, cwd?: string): Promise<void> {
   process.env.CWD_MARKER = marker;
-  const adapter = new ClaudeAdapter();
   try {
-    await facadeTest.runWithAdapter(
-      claudePool(adapter).asAdapter(),
-      'cwd request',
-      { channel: sessionKey, sessionKey, cwd },
-      FIXTURE_CONFIG,
-      undefined,
-    ).promise;
+    await runAttemptFixture({
+      channel: sessionKey, sessionKey, cwd, promptText: 'cwd request',
+    }).foreground;
   } finally {
-    await claudePool(adapter).close(sessionKey);
+    await engines.close(sessionKey);
   }
 }
 
@@ -654,9 +671,8 @@ test('Claude print uses an injected process spawner without changing argv or cwd
     CWD_MARKER: marker,
   });
   const calls: Array<{ command: string; args: string[]; cwd?: string }> = [];
-  const adapter = new ClaudeAdapter();
   t.onTestFinished(async () => {
-    await claudePool(adapter).close('injected-spawner');
+    await engines.close('injected-spawner');
     restore();
     rmSync(root, { recursive: true, force: true });
   });
@@ -665,9 +681,10 @@ test('Claude print uses an injected process spawner without changing argv or cwd
     calls.push({ command, args, cwd: options.cwd });
     return { process: spawn(command, args, options) };
   }) as any;
-  await facadeTest.runWithAdapter(claudePool(adapter).asAdapter(), 'probe', {
+  await runAttemptFixture({
     channel: 'injected-spawner', sessionKey: 'injected-spawner', cwd, processSpawner,
-  }, FIXTURE_CONFIG, undefined).promise;
+    promptText: 'probe',
+  }).foreground;
 
   assert.equal(calls.length, 1);
   assert.equal(calls[0].command, 'claude');
@@ -888,14 +905,14 @@ function pinRouteEnvironment(): () => void {
 function routeSpawnConfig(
   key: string,
   route: ModeEnv,
-  config: AgentConfig = FIXTURE_CONFIG,
+  config: Partial<RunAttemptConfig> = FIXTURE_CONFIG,
 ): EngineSpec {
-  return buildEngineSpec({
+  return specFromFixture({
     channel: key, sessionKey: key, sessionId: `${key}-session`, loadCortexRules: false,
   }, config, route);
 }
 
-function planConfig(extraEnv?: Record<string, string>): AgentConfig {
+function planConfig(extraEnv?: Record<string, string>): Partial<RunAttemptConfig> {
   return { ...FIXTURE_CONFIG, mode: 'plan', extraEnv };
 }
 
@@ -909,9 +926,9 @@ function repointDaemonGlobals(): void {
 test('interleaved mode configuration cannot cross-contaminate two concurrent spawns', (t) => {
   t.onTestFinished(pinRouteEnvironment());
   _testSetHealthy(true);
-  const plan = facadeTest.configureRunRoute({ project: 'alpha' }, planConfig());
-  const codex = facadeTest.configureRunRoute(
-    { project: 'beta' }, { ...FIXTURE_CONFIG, mode: 'openai-codex' },
+  const plan = resolveRunRoute(planConfig(), { project: 'alpha' });
+  const codex = resolveRunRoute(
+    { ...FIXTURE_CONFIG, mode: 'openai-codex' }, { project: 'beta' },
   );
   // Neither configuration wrote the daemon global — the race has nothing left to lose.
   assert.equal(process.env.ANTHROPIC_BASE_URL, STALE_ROUTE_URL,
@@ -936,7 +953,7 @@ test('a plan route deletes the API key and carries its base URL on exactly one f
   t.onTestFinished(pinRouteEnvironment());
   _testSetHealthy(true);
   const spawn = routeSpawnConfig(
-    'route-plan-gateway', facadeTest.configureRunRoute({}, planConfig()),
+    'route-plan-gateway', resolveRunRoute(planConfig()),
   );
 
   assert.equal(spawn.route.anthropicBaseUrl, `${GATEWAY_URL}/m/plan/anthropic`);
@@ -953,7 +970,7 @@ test('a plan route deletes the API key and carries its base URL on exactly one f
 test('a route without a base URL deletes the one the daemon left behind', (t) => {
   t.onTestFinished(pinRouteEnvironment());
   _testSetHealthy(false);
-  const route = facadeTest.configureRunRoute({}, planConfig());
+  const route = resolveRunRoute(planConfig());
   assert.equal(route.ANTHROPIC_BASE_URL, undefined, 'the direct plan route has no base URL');
 
   const spawn = routeSpawnConfig('route-plan-direct', route);
@@ -970,8 +987,8 @@ test('a route without a base URL deletes the one the daemon left behind', (t) =>
 test('profile extraEnv outranks the credentials a mode route sets', (t) => {
   t.onTestFinished(pinRouteEnvironment());
   _testSetHealthy(true);
-  const codex: AgentConfig = { ...FIXTURE_CONFIG, mode: 'openai-codex' };
-  const route = facadeTest.configureRunRoute({}, codex);
+  const codex: Partial<RunAttemptConfig> = { ...FIXTURE_CONFIG, mode: 'openai-codex' };
+  const route = resolveRunRoute(codex);
   assert.equal(route.ANTHROPIC_API_KEY, ROUTE_FIXTURE_KEY, 'the route sets a key to be overridden');
   const spawn = routeSpawnConfig('route-extra-wins', route, {
     ...codex, extraEnv: { ANTHROPIC_API_KEY: 'profile-key' },
@@ -984,7 +1001,7 @@ test('profile extraEnv outranks the credentials a mode route sets', (t) => {
 test('a key the profile sets explicitly is never deleted by the route', (t) => {
   t.onTestFinished(pinRouteEnvironment());
   _testSetHealthy(false);
-  const route = facadeTest.configureRunRoute({}, planConfig());
+  const route = resolveRunRoute(planConfig());
   const spawn = routeSpawnConfig('route-extra-kept', route, planConfig({
     ANTHROPIC_API_KEY: 'profile-key', ANTHROPIC_BASE_URL: 'https://profile.example',
   }));
@@ -1007,9 +1024,9 @@ const poolSpawner = (() => ({ process: stubBackendChild() })) as any;
 function pooledRouteSpawn(
   key: string,
   route: ModeEnv,
-  config: AgentConfig = FIXTURE_CONFIG,
+  config: Partial<RunAttemptConfig> = FIXTURE_CONFIG,
 ): EngineSpec {
-  return buildEngineSpec({
+  return specFromFixture({
     channel: key, sessionKey: key, sessionId: `${key}-session`, loadCortexRules: false,
     processSpawner: poolSpawner,
   }, config, route);
@@ -1059,11 +1076,11 @@ test('a mode switch on one channel cannot reuse the session started on the old r
   _testSetHealthy(true);
   const adapter = new ClaudeAdapter();
   const key = 'route-pool-switch';
-  const codex: AgentConfig = { ...FIXTURE_CONFIG, mode: 'openai-codex' };
+  const codex: Partial<RunAttemptConfig> = { ...FIXTURE_CONFIG, mode: 'openai-codex' };
 
-  claudePool(adapter).spawn(pooledRouteSpawn(key, facadeTest.configureRunRoute({}, planConfig()), planConfig()));
+  claudePool(adapter).spawn(pooledRouteSpawn(key, resolveRunRoute(planConfig()), planConfig()));
   const first = claudePool(adapter).getPooledSession(key);
-  claudePool(adapter).spawn(pooledRouteSpawn(key, facadeTest.configureRunRoute({}, codex), codex));
+  claudePool(adapter).spawn(pooledRouteSpawn(key, resolveRunRoute(codex), codex));
 
   assert.ok(first);
   assert.notEqual(claudePool(adapter).getPooledSession(key), first,
@@ -1077,9 +1094,9 @@ test('an unchanged mode route still reuses the pooled session', async (t) => {
   const adapter = new ClaudeAdapter();
   const key = 'route-pool-stable';
 
-  claudePool(adapter).spawn(pooledRouteSpawn(key, facadeTest.configureRunRoute({}, planConfig()), planConfig()));
+  claudePool(adapter).spawn(pooledRouteSpawn(key, resolveRunRoute(planConfig()), planConfig()));
   const first = claudePool(adapter).getPooledSession(key);
-  claudePool(adapter).spawn(pooledRouteSpawn(key, facadeTest.configureRunRoute({}, planConfig()), planConfig()));
+  claudePool(adapter).spawn(pooledRouteSpawn(key, resolveRunRoute(planConfig()), planConfig()));
 
   assert.ok(first);
   assert.equal(claudePool(adapter).getPooledSession(key), first,

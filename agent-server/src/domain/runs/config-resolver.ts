@@ -1,11 +1,12 @@
-// input:  a channel, an optional session record, an optional explicit profile name
-// output: the profile a run should use, its name, and the channel's model override
+// input:  a channel, an optional session record, an optional explicit profile name, an attempt
+// output: the profile a run should use, its name, its channel model override, and its mode route
 // pos:    domain/runs — the one place a run's configuration is decided (D5)
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { getActiveProfile, getChannelModelOverride } from '../agents/config.js';
+import { getActiveProfile, getChannelModelOverride, resolveModeEnv, type ModeEnv } from '../agents/config.js';
 import {
-  getDefaultProfileName, resolveProfileConfig, type ResolvedProfileConfig,
+  getDefaultProfileName, resolveProfileConfig,
+  type ResolvedProfileConfig, type RunAttemptConfig,
 } from '../agents/profile-manager.js';
 
 export interface RunConfigQuery {
@@ -110,6 +111,24 @@ export function resolveRunConfig(query: RunConfigQuery = {}): ResolvedRunConfig 
       resolved: false,
     };
   }
+}
+
+/**
+ * The Anthropic route (base URL + credentials) one attempt runs under. Per attempt, because a
+ * fallback may be a different mode entirely, and per run because the project/trigger it carries
+ * select the gateway's account: resolving this never writes a daemon global (K-053), the value
+ * reaches exactly the one child env it was resolved for.
+ */
+export function resolveRunRoute(
+  attempt: { mode?: RunAttemptConfig['mode'] },
+  context: { project?: string | null; trigger?: string | null } = {},
+): ModeEnv {
+  const metadata: Record<string, string> = {};
+  if (context.project) metadata.project = context.project;
+  if (context.trigger) metadata.trigger = context.trigger;
+  return resolveModeEnv(
+    attempt.mode || 'api', Object.keys(metadata).length > 0 ? metadata : undefined,
+  );
 }
 
 /** The backend a channel's next run will use. Replaces `getActiveBackend()` on the run path. */

@@ -227,7 +227,8 @@ function claudeChildConfig(request: SubagentRunRequest, spec: ModelSpec): RunAtt
  *  the spawn without any named profile being consulted. */
 function claudeChildProfile(config: RunAttemptConfig): ResolvedProfileConfig {
   return {
-    name: 'subagent',
+    // Unnamed on purpose: no profile was consulted for the child, so none is attested to it.
+    name: '',
     model: config.model,
     backend: config.backend,
     mode: config.mode,

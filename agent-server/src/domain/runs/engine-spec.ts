@@ -91,7 +91,10 @@ export function buildPiGatewaySubPath(mode: string | null, provider: string): st
 function spawnContext(request: RunRequest, executionId: string | null): CortexContextEnv {
   return {
     threadId: request.context.threadId ?? null,
-    profile: request.profile.name ?? null,
+    // `|| null`, not `?? null`: a synthesized profile (a subagent child, a fixture) carries an
+    // empty name because it was never looked up by name, and the child env must stay as it was
+    // before the run model — CORTEX_PROFILE absent, not set to an invented profile name.
+    profile: request.profile.name || null,
     project: request.context.project ?? null,
     sessionName: request.session.sessionName ?? null,
     trackSessionId: request.session.sessionId ?? request.session.backendSessionId ?? null,

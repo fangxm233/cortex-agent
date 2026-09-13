@@ -13,12 +13,13 @@ import type { RunEvent, RunPhase } from '../../agent-adapter/run-events.js';
 import { getSettings } from '@core/settings.js';
 import { t } from '../../core/i18n.js';
 import type { ModeEnv } from '../agents/config.js';
-import { resolveModeEnv, isRetryableError, isRetryableResult } from '../agents/config.js';
+import { isRetryableError, isRetryableResult } from '../agents/config.js';
 import type { RunAttemptConfig } from '../agents/profile-manager.js';
 import { publishAuthRecovered, publishAuthRequired, classifyAuthError } from '../auth/auth-events.js';
 import {
   attemptProvider, rateLimitedResult, shouldSkipAttempt, planAttempts, attemptLabel,
 } from './fallback.js';
+import { resolveRunRoute } from './config-resolver.js';
 import { AttemptNoticeTracker, assistantNoticeLevel } from './notices.js';
 import { startAttempt, type RunAttempt } from './attempt.js';
 import type { RunObserver, RunRequest, RunResult } from './request.js';
@@ -286,12 +287,10 @@ export class AgentRunImpl implements AgentRun {
   /** The route (base URL + credentials) this attempt runs under. Per-attempt, because a fallback
    *  may be a different mode entirely. */
   private routeFor(attempt: RunAttemptConfig): ModeEnv {
-    const metadata: Record<string, string> = {};
-    if (this.request.context.project) metadata.project = this.request.context.project;
-    if (this.request.context.trigger) metadata.trigger = this.request.context.trigger;
-    return resolveModeEnv(
-      attempt.mode || 'api', Object.keys(metadata).length > 0 ? metadata : undefined,
-    );
+    return resolveRunRoute(attempt, {
+      project: this.request.context.project,
+      trigger: this.request.context.trigger,
+    });
   }
 
   /** The chain moved on. Report it on the stream; the surface renders the notice. */

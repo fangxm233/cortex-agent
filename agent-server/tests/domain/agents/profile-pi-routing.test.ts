@@ -1,4 +1,4 @@
-// input:  Node test runner + domain/agents/profile-manager + domain/agents/facade
+// input:  Node test runner + domain/agents/profile-manager + domain/runs/engine-spec
 // output: Lock down PI routing layering — profile carries logical `mode` + optional `provider`;
 //         the gateway sub-path `/m/<mode>/<provider>` is derived in code, not stored in the profile.
 // pos:    PI per-provider gateway routing — decouple gateway route (mode) from PI protocol (provider)
@@ -8,8 +8,8 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
 import { validateProfilesFile } from '../../../src/domain/agents/profile-manager.js';
-import { buildPiGatewaySubPath } from '../../../src/domain/agents/facade.js';
-import { buildEngineSpec } from '../../../src/domain/runs/engine-spec.js';
+import { buildPiGatewaySubPath } from '../../../src/domain/runs/engine-spec.js';
+import { specFromFixture } from '../../run-request-fixture.js';
 import { GATEWAY_URL } from '../../../src/domain/costs/gateway-manager.js';
 
 // --- provider is REQUIRED for pi backend (explicit, no default, no fallback) ---
@@ -76,7 +76,7 @@ test('buildPiGatewaySubPath: returns undefined when mode is absent (fallback to 
 // --- the PI base URL is the gateway authority, never the Claude route the same run resolved ---
 
 test('buildEngineSpec: a pi spawn keeps the gateway origin when a Claude mode URL is resolved', () => {
-  const spec = buildEngineSpec(
+  const spec = specFromFixture(
     { loadCortexRules: false },
     { model: 'gpt-x', backend: 'pi', mode: 'openai-codex', provider: 'openai-codex' },
     { ANTHROPIC_BASE_URL: `${GATEWAY_URL}/m/openai-codex/project=nimbus,trigger=user/anthropic` },
