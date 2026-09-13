@@ -159,8 +159,8 @@ test('allConfigsRateLimited returns false on unknown profile', async (t) => {
 
 test('evidence-enabled preflight rate limit creates no attempt evidence and keeps the refusal result', async (t) => {
   const rl = await initThrottle(['plan']);
-  const identity = await import('../src/domain/agent-run/production-attempt-identity.js');
-  const journals = await import('../src/domain/agent-run/production-attempt-journal.js');
+  const identity = await import('../src/domain/runs/observers/production-attempt-identity.js');
+  const journals = await import('../src/domain/runs/observers/production-attempt-journal.js');
   const dataDir = path.join(suiteHome, 'data');
   const identityStorePath = path.join(dataDir, 'benchmark-attempt-identities.jsonl');
   const journalStorePath = path.join(dataDir, 'benchmark-attempt-journals.jsonl');

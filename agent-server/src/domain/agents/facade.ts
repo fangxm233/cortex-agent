@@ -20,8 +20,8 @@ import { buildEngineSpec } from '../runs/engine-spec.js';
 import type { AgentConfig, RunAgentOptions, RunObserver } from './spawn-config.js';
 import {
   freezeProductionAttemptIdentity, type ProductionAttemptIdentityRecord,
-} from '../agent-run/production-attempt-identity.js';
-import { createProductionAttemptJournalSink } from '../agent-run/production-attempt-journal.js';
+} from '../runs/observers/production-attempt-identity.js';
+import { createProductionAttemptJournalSink } from '../runs/observers/production-attempt-journal.js';
 import { resolveProfileConfig } from './profile-manager.js';
 import type { ResolvedProfileConfig } from './profile-manager.js';
 import type { AgentHandle, AgentResult, ChatNoticeLevel, NoticeAction } from '@core/types/agent-types.js';

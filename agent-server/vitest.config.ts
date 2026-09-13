@@ -88,7 +88,7 @@ export default defineConfig({
       'tests/**/_combined*',
       'tests/**/_plan*',
       'tests/**/integration-*.test.ts',
-      'tests/domain/agent-run/*-e2e.test.ts',
+      'tests/domain/runs/observers/*-e2e.test.ts',
       'node_modules/**',
       ...(SHARD === 'isolated' ? SHARED_POOL_FILES : []),
     ],

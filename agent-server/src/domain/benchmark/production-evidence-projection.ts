@@ -12,16 +12,16 @@ import { threadStore } from '../../store/thread-repo.js';
 import { costRepo, type CostEntry } from '../costs/cost-tracker.js';
 import {
   buildAtifTree, type AtifNode, type AtifTrajectory,
-} from '../agent-run/atif.js';
+} from '../runs/observers/atif.js';
 import {
   buildTerminalManifest, terminalManifestProblem, type TerminalReason, type TerminalState,
-} from '../agent-run/manifest-contract.js';
+} from '../runs/observers/manifest-contract.js';
 import {
   listProductionAttemptIdentities, type ProductionAttemptIdentityRecord,
-} from '../agent-run/production-attempt-identity.js';
+} from '../runs/observers/production-attempt-identity.js';
 import {
   getProductionAttemptJournal, type ProductionAttemptJournalRecord,
-} from '../agent-run/production-attempt-journal.js';
+} from '../runs/observers/production-attempt-journal.js';
 import {
   buildAccountingRecord, journalCostFromNumber, type JournalTotals, type ProxyExport,
   type Tagged,

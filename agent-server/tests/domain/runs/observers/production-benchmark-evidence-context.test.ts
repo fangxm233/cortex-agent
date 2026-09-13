@@ -3,7 +3,7 @@
 // pos:    Verifies production benchmark evidence context behavior
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import '../../_test-home.js';
+import '../../../_test-home.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -11,20 +11,20 @@ import path from 'node:path';
 import { afterEach, beforeEach, test } from 'vitest';
 import type {
   AgentAdapter, AgentProcess, EngineSpec, Backend,
-} from '../../../src/agent-adapter/types.js';
-import { engineSpecFixture } from '../../engine-spec-fixture.js';
-import type { AgentResult } from '../../../src/core/types/agent-types.js';
-import type { ProductionBenchmarkEvidenceContext } from '../../../src/core/types/thread-types.js';
+} from '../../../../src/agent-adapter/types.js';
+import { engineSpecFixture } from '../../../engine-spec-fixture.js';
+import type { AgentResult } from '../../../../src/core/types/agent-types.js';
+import type { ProductionBenchmarkEvidenceContext } from '../../../../src/core/types/thread-types.js';
 import {
   getProductionAttemptIdentity,
   initializeProductionAttemptIdentity,
   listProductionAttemptIdentities,
   readProductionAttemptIdentity,
   resetProductionAttemptIdentity,
-} from '../../../src/domain/agent-run/production-attempt-identity.js';
-import { _test as facadeTest } from '../../../src/domain/agents/facade.js';
-import type { ResolvedProfileConfig } from '../../../src/domain/agents/profile-manager.js';
-import type { RunAgentOptions } from '../../../src/domain/agents/spawn-config.js';
+} from '../../../../src/domain/runs/observers/production-attempt-identity.js';
+import { _test as facadeTest } from '../../../../src/domain/agents/facade.js';
+import type { ResolvedProfileConfig } from '../../../../src/domain/agents/profile-manager.js';
+import type { RunAgentOptions } from '../../../../src/domain/agents/spawn-config.js';
 
 /** The Anthropic route one attempt resolved; only the host is ever attested. */
 const PROXY_ROUTE = { ANTHROPIC_BASE_URL: 'http://proxy.invalid' };

@@ -1,6 +1,7 @@
 Please update me when files in this folder change
 
-Production benchmark identity and journal regression tests.
+Production benchmark identity and journal regression tests, mirroring
+`src/domain/runs/observers/`.
 
 | filename | role | function |
 |---|---|---|

@@ -9,8 +9,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import type { ProductionAttemptIdentityRecord } from '../../../src/domain/agent-run/production-attempt-identity.js';
-import type { ProductionAttemptJournalRecord } from '../../../src/domain/agent-run/production-attempt-journal.js';
+import type { ProductionAttemptIdentityRecord } from '../../../src/domain/runs/observers/production-attempt-identity.js';
+import type { ProductionAttemptJournalRecord } from '../../../src/domain/runs/observers/production-attempt-journal.js';
 import type { CostEntry } from '../../../src/domain/costs/cost-tracker.js';
 import type { ProductionTopologyFact } from '../../../src/domain/tasks/production-topology-ledger.js';
 import type { ExecutionRecord } from '../../../src/store/execution-repo.js';

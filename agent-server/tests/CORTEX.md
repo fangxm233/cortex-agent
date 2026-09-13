@@ -63,7 +63,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | daemon.test.ts | test | daemon import, rebuild and abort notice behavior |
 | disk-monitor.test.ts | test | disk path, hot toggle and alert decisions |
 | dispatch-utils-watcher.test.ts | test | machine config polling after watcher failure |
-| domain/ | subdir | domain service, agent-run, MCP and UI tests |
+| domain/ | subdir | domain service, run observer, MCP and UI tests |
 | engine-spec-fixture.ts | helper | Groups flat spawn-shaped test fixtures into EngineSpec |
 | entry/ | subdir | Runtime wiring and CLI entry-point tests |
 | events/ | subdir | event bus tests |

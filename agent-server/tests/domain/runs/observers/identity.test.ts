@@ -12,7 +12,7 @@ import {
   computeRoleToolSurfaceHash,
   type ModelExecutionIdentityInput,
   type RoleToolSurfaceInput,
-} from '../../../src/domain/agent-run/identity.js';
+} from '../../../../src/domain/runs/observers/identity.js';
 
 const SHA_A = 'a'.repeat(64);
 const SHA_B = 'b'.repeat(64);

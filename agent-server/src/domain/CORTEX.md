@@ -5,7 +5,6 @@ Consumed by orchestration and platform surfaces.
 
 | filename | role | function |
 |---|---|---|
-| agent-run/ | subdir | Production benchmark identity and journals |
 | agents/ | subdir | Backend, model and profile selection per channel |
 | auth/ | subdir | Tracks provider auth, lifecycle, and notices |
 | benchmark/ | subdir | Production benchmark evidence projection |

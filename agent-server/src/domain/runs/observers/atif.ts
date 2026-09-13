@@ -3,7 +3,7 @@
 // pos:    Journal-to-ATIF conversion boundary
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
-import type { NormalizedEvent } from '../../agent-adapter/normalize/event-types.js';
+import type { NormalizedEvent } from '../../../agent-adapter/normalize/event-types.js';
 
 export interface SourceJournalHeader extends Record<string, unknown> {
   schema_version: string;
