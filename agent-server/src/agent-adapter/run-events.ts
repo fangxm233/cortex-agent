@@ -66,8 +66,13 @@ export type RunEvent =
   | { type: 'injection_rejected'; injectionId: string; reason: string }
   // provider/mode are optional because the legacy NormalizedEvent.rate_limit carries neither; the
   // Phase 2 adapter always sets them.
+  //
+  // Advisory only. The provider's window reaches the throttle through the injected
+  // `RateLimitReporter`, never through this stream: the backend reports it between turns and
+  // during spontaneous continuations, i.e. exactly when no turn is in flight to carry it (see the
+  // reporting comment in `claude/turn-machine.ts`). Quota observations take the same path, which is
+  // why this union has no `quota` kind.
   | { type: 'rate_limit'; provider?: string; mode?: string; raw: unknown }
-  | { type: 'quota'; provider: string; raw: unknown }
   | {
       type: 'cost_record'; provider: string; model: string;
       /** Legacy backend-specific input metric retained for compatibility. */

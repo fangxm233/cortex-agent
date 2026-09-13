@@ -435,6 +435,17 @@ windows are independently configurable. `threshold` is a ratio greater than
 clearable legacy provider fallback. Desktop and mobile Usage edit these rows;
 spend-only providers do not show quota controls.
 
+### Why a rate-limit signal is injected, not streamed
+
+The adapter reports a provider's rate-limit window to the host through an
+injected callback (`RateLimitReporter`), not as a `RunEvent`. The backend emits
+its `rate_limit_event` between turns and during a spontaneous continuation turn,
+i.e. exactly when no turn is in flight — routing it through the per-turn event
+stream would drop the observation that matters most. `RunEvent` therefore carries
+`rate_limit` only as a transcript-level notice (`agent-runner` ignores it), and
+the throttle itself is fed by the injected reporter. Quota observations take the
+same path.
+
 Interrupted direct conversations and threads are stored with the provider
 that limited them. When one provider fully recovers, Cortex resumes only that
 provider's work; entries belonging to other active providers remain queued.

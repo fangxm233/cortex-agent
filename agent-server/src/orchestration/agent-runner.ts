@@ -475,7 +475,6 @@ export class AgentRunner {
           case 'injection_rejected':
           case 'error':
           case 'rate_limit':
-          case 'quota':
           case 'cost_record':
           case 'subagent_activity':
           case 'plan_written':
