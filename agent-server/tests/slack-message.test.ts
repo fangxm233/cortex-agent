@@ -5,7 +5,7 @@
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { claudeTest } from '../src/domain/agents/index.js';
+import { _test as claudeTest } from '../src/agent-adapter/claude/adapter.js';
 const { mergeSubstantialOutput } = claudeTest;
 
 // --- mergeSubstantialOutput ---

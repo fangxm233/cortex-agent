@@ -695,8 +695,3 @@ export const _test = {
   filterChannelScopedPlugins,
   filterScopedPlugins,
 };
-
-// --- Claude bridge helper re-exports ---
-
-export { _test as claudeTest } from '../../agent-adapter/claude/adapter.js';
-export { getCurrentPlanFilePath } from '../../agent-adapter/claude/event-parser.js';

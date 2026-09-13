@@ -6,7 +6,8 @@
 import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 
-import { _test as modeManagerTest, isRetryableResult } from '../src/domain/agents/index.js';
+import { _test as modeManagerTest } from '../src/domain/agents/facade.js';
+import { isRetryableResult } from '../src/domain/agents/index.js';
 import type { AgentAdapter, AgentProcess, EngineSpec, Backend, UserMessage } from '../src/agent-adapter/index.js';
 import { CAPABILITIES_BY_BACKEND } from '../src/agent-adapter/index.js';
 import type { NormalizedEvent } from '../src/agent-adapter/normalize/event-types.js';

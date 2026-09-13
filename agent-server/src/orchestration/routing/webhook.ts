@@ -17,7 +17,7 @@ import { registerAskQuestion, registerPlanApproval } from './hook-bridge.js';
 import { normalizeAskLevel } from '@platform/index.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { validateCommissionFinalize, finalizeCommission } from '@domain/commissions/commission-finalize.js';
-import { getCurrentPlanFilePath } from '@domain/agents/index.js';
+import { getCurrentPlanFilePath } from '../../agent-adapter/claude/event-parser.js';
 import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
 import { createThread, cancelThread, readArtifact, listTemplates, listAgents, checkSpawnGuards, getRootThreadId, registerChildSpawn, buildThreadTree, getTreeThreads, buildContractPrompt, buildMissionChain, isArtifactUnchangedSinceStepStart } from '@domain/threads/index.js';
 import { runThreadDetached } from '../thread-executor.js';

@@ -12,7 +12,7 @@ import { mkdirSync, existsSync, readFileSync, unlinkSync } from 'node:fs';
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
 import { piPool } from './agent-adapter/pi-pool-fixture.js';
 import { makeFakeRuntimeFactory } from './agent-adapter/pi-fake-runtime.js';
-import { _test as modeManagerTest } from '../src/domain/agents/index.js';
+import { _test as modeManagerTest } from '../src/domain/agents/facade.js';
 import type { AgentAdapter } from '../src/agent-adapter/index.js';
 import { CAPABILITIES_BY_BACKEND } from '../src/agent-adapter/index.js';
 import type { EngineSpec } from '../src/agent-adapter/types.js';
