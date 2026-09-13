@@ -11,9 +11,9 @@ import type { RunObserver, RunRequest } from './request.js';
 /**
  * Start one agent run: open its execution record, register it for cancellation, and return the
  * `AgentRun` that owns the rest of the lifecycle. This is the single entry point every surface is
- * meant to call (P1.5–P1.7 migrate the call sites still on `facade.runAgent`).
+ * meant to call.
  *
- * Phase 1 wraps `facade.runAgent`; the run object installs the continuation sink and feeds every
+ * This wraps `facade.runAgent`; the run object installs the continuation sink and feeds every
  * adapter/continuation signal through one `RunEvent` stream. `teardownExecution` and the registry
  * removal happen exactly once, from the run's terminal handler.
  */

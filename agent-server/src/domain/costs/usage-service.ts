@@ -32,7 +32,7 @@ type GatewayPeriod = 'today' | 'month';
 type UsageAdapter = Pick<AgentAdapter, 'capabilities' | 'getUsage'>;
 type AdapterResolver = (backend: Backend) => UsageAdapter;
 
-/** PI is no longer a pooled AgentAdapter (P2.2c); its usage probe lives on the engine adapter. */
+/** PI is not a pooled AgentAdapter; its usage probe lives on the engine adapter. */
 function defaultUsageAdapter(backend: Backend): UsageAdapter {
   return backend === 'pi' ? getEngineAdapter('pi') : getDaemonAdapter(backend);
 }

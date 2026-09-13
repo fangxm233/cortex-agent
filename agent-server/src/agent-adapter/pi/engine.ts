@@ -15,7 +15,7 @@ import { sessionIdentity, type PiSessionRequest } from './session-options.js';
 import type { EventQueue, PIAgentProcess, SwitchResult } from './session-support.js';
 
 /** Hooks the owning pool injects when it opens a session. Optional so a bare `open()` used by
- *  tests and P2.4 consumers can construct an engine without an owner. */
+ *  tests and other callers can construct an engine without an owner. */
 export interface PIEngineOpenHooks {
   /** Forwarded to `PISession.onClose`: the session terminated itself (start failure, idle timeout). */
   onSelfClose?: (sessionKey: string, session: unknown) => void;
@@ -44,7 +44,7 @@ function takePending(pending: PendingInjection[], text: string): PendingInjectio
 
 /**
  * PI's `EngineSession`. `run()` opens a RunEvent stream over the same `PISession`, while
- * `openLegacyProcess()` exposes the byte-identical `AgentProcess` surface the pre-P2.2c pool used
+ * `openLegacyProcess()` exposes the byte-identical `AgentProcess` surface the pool used
  * (`createAgentProcess` / `sendSpawnedTurn` moved here verbatim); `cancel()` ends a run through
  * `closeTurnStreamFor`, never the pooled session.
  */
@@ -52,7 +52,7 @@ export class PIEngineSession implements EngineSession {
   readonly backend: Backend = 'pi';
   /** The pool's reuse key. PI derives it from the fully resolved request (`sessionIdentity`), which
    *  is strictly more precise than `engineIdentity(spec)` because it covers the resolved env, MCP
-   *  servers and gateway routing too. SessionEngines (P2.2c) compares this exact string. */
+   *  servers and gateway routing too. SessionEngines compares this exact string. */
   readonly identity: string;
   readonly capabilities: ReadonlySet<Capability>;
   private readonly session: PISession;
@@ -237,9 +237,8 @@ export class PIEngineSession implements EngineSession {
     return result;
   }
 
-  /** TRANSITIONAL (deleted in P4.1): the legacy AgentProcess surface over this same session,
-   *  byte-identical to what PIAdapter.createAgentProcess built. Lets SessionEngines own the pool
-   *  before the facade's event plumbing moves to RunEvent. */
+  /** The legacy AgentProcess surface over this same session, byte-identical to what
+   *  PIAdapter.createAgentProcess built: the facade's take on the pooled session. */
   openLegacyProcess(engineKey: string): PIAgentProcess {
     return this.createLegacyProcess(engineKey, this.session.openTurnStream());
   }

@@ -1407,7 +1407,7 @@ export function generateConfigs(paths: InitPaths, answers: InitAnswers, force: b
   // MCP configs — always regenerate (machine-specific, in .gitignore)
   writeMcpConfigs(paths.CONFIG_DIR);
 
-  // agent-state.json — skip if it (or the pre-P3.1a mode.json) exists; the user may have
+  // agent-state.json — skip if it (or a legacy mode.json) exists; the user may have
   // customized it, and a fresh write here would shadow a home that has not migrated yet.
   const modeJsonPath = path.join(paths.STORE_DIR, 'agent-state.json');
   if ((!existsSync(modeJsonPath) && !existsSync(path.join(paths.STORE_DIR, 'mode.json'))) || force) {

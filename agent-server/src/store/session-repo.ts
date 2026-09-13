@@ -36,7 +36,7 @@ async function lookupViaProviders(channel: string): Promise<string | undefined> 
   return undefined;
 }
 
-/** Shape of sessions.json: `{"<channel>": sessionId, ...}`. Pre-P3.2 files key on
+/** Shape of sessions.json: `{"<channel>": sessionId, ...}`. Legacy files key on
  *  `"<backend>:<channel>"`; both are read, and `migrateSessionKeys` collapses the old form. */
 export type SessionsData = Record<string, string>;
 
@@ -89,11 +89,10 @@ export class SessionRepo {
   /**
    * The session bound to a channel.
    *
-   * `backend` is accepted and ignored (P3.2): a channel has one session. The parameter stays so
-   * the many call sites that pass one keep compiling while they are cleaned up; it is deprecated
-   * and removed in Phase 4.
+   * `backend` is accepted and ignored: a channel has one session. The parameter stays so the
+   * many call sites that pass one keep compiling while they are cleaned up; it is deprecated.
    *
-   * Legacy `backend:channel` keys are still read, so a file written by a pre-P3.2 build resolves
+   * Legacy `backend:channel` keys are still read, so a file written by an older build resolves
    * correctly before `migrateSessionKeys` has run (and in any process that never runs it).
    */
   async getSessionAsync(channel: string, _backend?: string): Promise<string | undefined> {

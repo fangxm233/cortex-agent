@@ -21,7 +21,7 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** The stateless engine factories SessionEngines drives (P2.3c: Claude joins PI here). Both are
+/** The stateless engine factories SessionEngines drives. Both are
  *  `EngineAdapter`s — `acquire` decides reuse, the adapter only constructs. */
 export interface SessionEnginesAdapters {
   pi?: PIAdapter;
@@ -89,8 +89,8 @@ export class SessionEngines {
   }
 
   /**
-   * Claude's pool read (P2.3c): the old Claude pool predicate moved off `ClaudeSession`.
-   * `specIdentity` replaces `matchesSpawn` — P2.3b proved string equality IS the structural
+   * Claude's pool read: the old Claude pool predicate moved off `ClaudeSession`.
+   * `specIdentity` replaces `matchesSpawn` — string equality IS the structural
    * predicate; the fourth clause has no PI equivalent and compares the spec's resume target
    * against the session's **live** `sessionId`. Claude's retire path logs nothing and does not
    * check `isAlive()` before closing (`close()` itself is a no-op once dead); keep both as they are.
@@ -136,7 +136,7 @@ export class SessionEngines {
 
   /** Graceful close of the pooled session for a key. The pool entry is dropped synchronously, so
    *  the next `acquire` opens a fresh session even while this one winds down. Never rejects — a
-   *  close failure is logged, exactly as the pre-P2.2c wrappers did. Command handlers that must
+   *  close failure is logged, exactly as the legacy wrappers did. Command handlers that must
    *  not block on a subprocess grace period call this fire-and-forget (`void engines.close(...)`). */
   async close(key: string): Promise<void> {
     const engine = this.sessions.get(key);
@@ -196,8 +196,8 @@ export const engines = new SessionEngines({
 });
 
 /**
- * Transitional (deleted with the pool seam in P4.1): the AgentAdapter-shaped view of the PI pool
- * the facade still calls `spawn()` on. `spawn` is exactly `engines.acquire(spec).openLegacyProcess`.
+ * The AgentAdapter-shaped view of the PI pool the facade still calls `spawn()` on. `spawn` is
+ * exactly `engines.acquire(spec).openLegacyProcess`.
  */
 export const piRunAdapter: AgentAdapter = {
   backend: 'pi',
@@ -210,9 +210,8 @@ export const piRunAdapter: AgentAdapter = {
 };
 
 /**
- * Transitional (deleted with the pool seam in P4.1): the AgentAdapter-shaped view of the Claude
- * pool the facade still calls `spawn()` on. `spawn` is exactly
- * `engines.acquire(spec).openLegacyProcess`.
+ * The AgentAdapter-shaped view of the Claude pool the facade still calls `spawn()` on. `spawn` is
+ * exactly `engines.acquire(spec).openLegacyProcess`.
  */
 export const claudeRunAdapter: AgentAdapter = {
   backend: 'claude',

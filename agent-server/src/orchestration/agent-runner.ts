@@ -384,7 +384,7 @@ export class AgentRunner {
     const deltaStream = createSessionDeltaStream({ sessionId, channel });
     const debugEnabled = isDebugMode();
     // The transcript sink owns the history+publish copy and is now driven by the run's observer
-    // fan-out (P1.5) instead of a callback bridge. It is the first `RunObserver` handed to
+    // fan-out instead of a callback bridge. It is the first `RunObserver` handed to
     // `startRun`; the surface bridges for deltas / progress / dialogs ride the same observer.
     const sink = createTranscriptSink({
       sessionId, channel, sessionName, debug: debugEnabled,

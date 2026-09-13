@@ -37,8 +37,8 @@ import type { SwitchResult } from './session-support.js';
 import { DEFAULT_SESSION_DIR, PI_AGENT_DIR, piModelsPath } from './defaults.js';
 export type { PIAgentProcess } from './session-support.js';
 
-/** Transitional (deleted in P4.1): the pool SessionEngines registers on the adapter so
- *  `switchSession` can reach the live engine without the adapter importing domain. */
+/** The pool SessionEngines registers on the adapter so `switchSession` can reach the live
+ *  engine without the adapter importing domain. */
 export interface PIEnginePoolLookup {
   get(key: string): PIEngineSession | undefined;
 }
@@ -321,7 +321,7 @@ export class PIAdapter implements EngineAdapter {
 
   /**
    * Construct a session without pooling: per plan §3.3 `open()` is pure construction and
-   * `SessionEngines` (P2.2c) owns the lifetime/reuse decision. `prepareRequest` and the
+   * `SessionEngines` owns the lifetime/reuse decision. `prepareRequest` and the
    * `PISession` options are exactly what the old pooled `startSession` used; the pool passes the
    * self-close and eviction hooks through `hooks`.
    */
@@ -344,8 +344,7 @@ export class PIAdapter implements EngineAdapter {
     });
   }
 
-  /** Transitional (P2.2c): SessionEngines registers itself so `switchSession` can find the live
-   *  engine. Replaced by direct ownership in P2.4. */
+  /** SessionEngines registers itself so `switchSession` can find the live engine. */
   setEnginePool(pool: PIEnginePoolLookup): void {
     this.poolLookup = pool;
   }
@@ -370,7 +369,7 @@ export class PIAdapter implements EngineAdapter {
 
   /**
    * Switch the pooled session under `onSessionKey` to serve a different PI transcript, via the
-   * pool registered by SessionEngines (P2.2c). Returns {ok:false, cancelled:false} if the session
+   * pool registered by SessionEngines. Returns {ok:false, cancelled:false} if the session
    * key or target session ID is unknown.
    */
   async switchSession(sessionId: string, onSessionKey: string): Promise<SwitchResult> {

@@ -256,7 +256,7 @@ process.env.CORTEX_CLAUDE_MODEL = agentState.claudeModel || DEFAULT_CLAUDE_MODEL
  *
  *  backend / claudeMode / claudeModel are carried through UNCHANGED. Nothing writes them any more
  *  (D5 moved all three onto the profile), so they stay at whatever the migrated mode.json held —
- *  which is exactly what a rollback to the pre-P3.1 build should find, since this build never
+ *  which is exactly what a rollback to an older build should find, since this build never
  *  acted on them either. */
 function persist(): void {
   agentState = { ...agentState, activeProfile, channelProfiles, defaultAgent };
@@ -289,14 +289,15 @@ export function getActiveProfile(channel?: string): string | null {
  *
  * DEVIATION from plan D5, which has this "degenerate into reading the session record". That was
  * the right move while sessions.json keyed on `backend:channel` and the caller had to know the
- * backend to find the session at all — but P3.2 removed the backend from the key, so no session
+ * backend to find the session at all — but the backend is no longer part of the key, so no session
  * lookup needs this any more. What is left are callers asking which backend a channel runs
  * (conversation ledger, rollback, compaction support), and for them the profile is the source of
  * truth, not a record of what some earlier session happened to use. Reading the record would also
  * make this async and ripple through fifteen synchronous call sites for a worse answer.
  *
- * Equivalent to `resolveRunBackend({ channel })` minus the session/override layers; Phase 4 folds
- * the two together, which cannot happen here without a config ↔ config-resolver import cycle.
+ * Equivalent to `resolveRunBackend({ channel })` minus the session/override layers. The two cannot
+ * be folded together here: `config-resolver` imports this module, so doing so would be an import
+ * cycle.
  */
 export function resolveBackendForChannel(channel?: string): Backend {
   const profileName = getActiveProfile(channel);

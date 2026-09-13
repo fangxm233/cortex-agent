@@ -189,7 +189,7 @@ export async function resetChannelSession(channel: string): Promise<void> {
     sessionBackup.cleanupAllBackups(conv.sessionId);
     await conversationLedger.clearConversation(channel);
   }
-  // One channel, one binding (P3.2): `deleteSessionAsync` clears the key and every legacy
+  // One channel, one binding: `deleteSessionAsync` clears the key and every legacy
   // backend-prefixed form of it, so the per-backend fan-out is gone.
   await deleteSessionAsync(channel).catch(() => {});
 }

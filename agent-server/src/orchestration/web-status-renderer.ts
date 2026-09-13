@@ -9,7 +9,7 @@
 // was dropped, AND the agent-runner published running:false immediately, so the Web UI showed the
 // session "done" and stopped tracking it.
 //
-// Why it is a RunObserver (P4.1): this is the same surface as `status-renderer.ts`, rendered through
+// Why it is a RunObserver: this is the same surface as `status-renderer.ts`, rendered through
 // web's event stream instead of a Slack status message. Both used to reach the run through a
 // `ContinuationSink` bridge; both now just subscribe.
 

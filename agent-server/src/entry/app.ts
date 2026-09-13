@@ -668,7 +668,7 @@ process.on('SIGTERM', async () => {
   pendingTaskTracker.init(adapter);
   taskStore.load();
 
-  // P3.2: collapse sessions.json `backend:channel` keys onto `channel`. Idempotent — a migrated
+  // Collapse sessions.json `backend:channel` keys onto `channel`. Idempotent — a migrated
   // file has no legacy keys left, so this is a no-op on every boot after the first.
   try {
     const keys = await sessionRepo.migrateSessionKeys({

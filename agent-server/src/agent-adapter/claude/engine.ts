@@ -22,7 +22,7 @@ import {
 
 /**
  * Hooks the owning pool injects when it opens a session. Optional so a bare `open()` used by
- * tests and P2.4 consumers can construct an engine without an owner.
+ * tests and other callers can construct an engine without an owner.
  */
 export interface ClaudeEngineOpenHooks {
   /** Forwarded to `ClaudeSession`: the session terminated itself (child close, idle timeout).
@@ -58,7 +58,7 @@ interface PendingInjection {
 }
 
 /** The pending injection whose text matches, removed FIFO; undefined for an unmatched ack.
- *  Same pattern as `pi/engine.ts:takePending`; P2.3d/P4.1 may unify the two. */
+ *  Same pattern as `pi/engine.ts:takePending`. */
 function takePending(pending: PendingInjection[], text: string): PendingInjection | undefined {
   const index = pending.findIndex((entry) => entry.text === text);
   if (index === -1) return undefined;
@@ -111,7 +111,7 @@ export class ClaudeEngineSession implements EngineSession {
     const queue = new RunEventQueue();
     const pending: PendingInjection[] = [];
     this.active = { queue, pending };
-    // The ack sink is a single session-level slot. P2.3c pools the engine, but the underlying
+    // The ack sink is a single session-level slot. The engine is pooled, but the underlying
     // ClaudeSession still serves one run at a time, so the run that installs the sink owns it.
     this.session.setInjectionAckSink({
       onDelivered: ({ text, foldedIntoTurn }) => {
@@ -168,7 +168,7 @@ export class ClaudeEngineSession implements EngineSession {
       result: deferred.promise,
       // Ends this run, not the session: `spawn()`'s `AgentProcess.close()` does `stream.close()`
       // and deliberately not `session.close()`, so the pooled session serves the next run. Session
-      // teardown goes through SessionEngines.close(key) / kill(key) (P2.3c).
+      // teardown goes through SessionEngines.close(key) / kill(key).
       cancel: () => queue.close(),
     };
   }
@@ -228,9 +228,8 @@ export class ClaudeEngineSession implements EngineSession {
     return this.session.compact();
   }
 
-  /** TRANSITIONAL (deleted in P4.1): the legacy AgentProcess surface over this same session,
-   *  byte-identical to what ClaudeAdapter.spawn built. Lets SessionEngines own the pool before the
-   *  facade's event plumbing moves to RunEvent. */
+  /** The legacy AgentProcess surface over this same session, byte-identical to what
+   *  ClaudeAdapter.spawn built: the facade's take on the pooled session. */
   openLegacyProcess(engineKey: string): AgentProcess {
     const session = this.session;
     const spec = this.spec;

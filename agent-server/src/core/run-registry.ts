@@ -70,7 +70,7 @@ export interface RunningExecution {
   backend: string;
   /** Agent process reference used to resolve generic PI extension UI dialogs. */
   agentProcess?: unknown;
-  /** The live `AgentRun` that owns this execution — the mid-turn injection target (P1.8). */
+  /** The live `AgentRun` that owns this execution — the mid-turn injection target. */
   run?: SteerableRun;
   /** Stable Cortex track session id used by registry/history/query surfaces. */
   trackSessionId?: string | null;
@@ -561,7 +561,7 @@ export class RunRegistry {
 
   // ══ streaming slot ═════════════════════════════════════════════════════
 
-  /** Register the active onAssistantMessage callback for a channel (P1.9). */
+  /** Register the active onAssistantMessage callback for a channel. */
   setStreaming(channel: string, cb: StreamingCallback): void {
     this.streamingCallbacks.set(channel, cb);
   }

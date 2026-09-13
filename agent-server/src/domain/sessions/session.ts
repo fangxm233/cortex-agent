@@ -5,8 +5,8 @@
 
 import { sessionRepo } from '@store/session-repo.js';
 
-// P3.2: a channel has ONE session; the backend it runs is on the session record. `backend` is
-// accepted and ignored here so call sites migrate one at a time — Phase 4 drops the parameter.
+// A channel has ONE session; the backend it runs is on the session record. `backend` is
+// accepted and ignored here so call sites migrate one at a time.
 
 export async function getSessionAsync(channel: string, backend?: string): Promise<string | undefined> {
   return sessionRepo.getSessionAsync(channel, backend);

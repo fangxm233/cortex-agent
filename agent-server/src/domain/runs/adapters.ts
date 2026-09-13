@@ -66,7 +66,7 @@ export function setPiBackgroundSubagentBridge(bridge: {
 
 const CLAUDE_ADAPTER = new ClaudeAdapter({ onRateLimit: handleRateLimitEvent });
 
-/** The Claude engine adapter. Stateless since P2.3c: `SessionEngines` owns the sessions it opens. */
+/** The Claude engine adapter. Stateless: `SessionEngines` owns the sessions it opens. */
 export function getAdapter(backend: Backend): ClaudeAdapter {
   if (backend === 'claude') return CLAUDE_ADAPTER;
   throw new Error(`Unknown backend: ${backend}`);

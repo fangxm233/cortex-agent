@@ -33,9 +33,8 @@ export interface AgentState {
 
   // ── Legacy globals, still written until their last reader is gone ──────────
   // D5 moves backend/mode/model onto the profile: the run path resolves them per channel, and a
-  // stored global can only disagree with the profile it shadows. P3.1b retires the run-path
-  // readers and P3.1c the command-layer ones; the fields are carried through migration until then
-  // so a rollback to the previous build finds the state it expects.
+  // stored global can only disagree with the profile it shadows. The fields are carried through
+  // migration so a rollback to the previous build finds the state it expects.
   /** @deprecated Read the resolved profile's backend. */
   backend?: Backend;
   /** @deprecated Read the resolved profile's mode. */

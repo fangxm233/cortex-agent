@@ -17,7 +17,7 @@ export type RunPhase = 'foreground' | 'background' | 'done';
 
 /** Opaque label identifying one attempt of the fallback chain, e.g. `model/mode`.
  *  The plan sketches `run_fallback` with this type but does not define it; declared here so the
- *  event union is self-contained until `domain/runs/run.ts` (P1.3) owns the real shape. */
+ *  event union is self-contained until `domain/runs/run.ts` owns the real shape. */
 export type AttemptLabel = string;
 
 /** The one event union every run produces. Passthrough kinds keep the exact field names of the
@@ -105,7 +105,7 @@ function unhandled(event: never): never {
  * and cost; the authoritative `AgentResult` is returned by `AgentProcess.send()` /
  * `ContinuationSink.onResult`. `RunEvent`'s result kinds are typed to carry a full `AgentResult`
  * (plan §3.3), so the fields the marker cannot supply degrade to their absent values. The run layer
- * (P1.3) must prefer the resolved `send()` result when it needs an authoritative one.
+ * must prefer the resolved `send()` result when it needs an authoritative one.
  */
 function resultFromTurnComplete(
   event: Extract<NormalizedEvent, { type: 'turn_complete' }>,
@@ -187,7 +187,7 @@ export function toRunEvent(event: NormalizedEvent, phase: RunPhase): RunEvent {
  *
  * Backends feed this from different sources (PI from its turn stream, Claude from the turn
  * callbacks plus the terminal phase), so queue semantics live here rather than in either engine.
- * Extracted from `pi/engine.ts` in P2.3b; P2.3d/P4.1 may fold it into the run layer.
+ * Extracted from `pi/engine.ts`.
  */
 export class RunEventQueue {
   private readonly pending: RunEvent[] = [];

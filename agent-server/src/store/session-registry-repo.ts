@@ -336,7 +336,7 @@ export class SessionRegistryRepo {
     });
   }
 
-  /** `backend` is accepted and ignored since P3.2 — a channel has one session. */
+  /** `backend` is accepted and ignored — a channel has one session. */
   async getActiveSessionName(channel: string, backend?: string): Promise<string | null> {
     const sessionId = await sessionRepo.getSessionAsync(channel);
     if (!sessionId) return null;

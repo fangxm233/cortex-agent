@@ -1,6 +1,6 @@
 // input:  ResolvedProfileConfig, agent-adapter types, core agent types, AgentSpec, RunEvent
 // output: RunRequest, RunObserver and the RunResult alias
-// pos:    Every resolved input a run needs, with no callbacks — the P1.1 request contract.
+// pos:    Every resolved input a run needs, with no callbacks — the request contract.
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { AgentProcessSpawner, McpComposition, UserMessage } from '../../agent-adapter/types.js';
@@ -11,7 +11,7 @@ import type { RunEvent } from './events.js';
 import type { AgentSpec } from './spec-loader.js';
 
 /** Re-exported so `@domain/runs/request.js` stays the one import for the request contract; the
- *  shape and its loaders live in spec-loader.ts (plan P3.3c). */
+ *  shape and its loaders live in spec-loader.ts. */
 export type { AgentSpec, ToolSurface } from './spec-loader.js';
 
 /** One completed run's outcome. Aliased (not redefined) so the whole stack shares `AgentResult`. */
@@ -60,8 +60,8 @@ export interface RunRequest {
     streamDeltas?: boolean;
     loadRules: boolean;
     mcpComposition: McpComposition;
-    /** Legacy thread-surface selector kept until P2.1 canonicalizes MCP gating; only consulted
-     *  when `mcpComposition` is undefined (the thread path always resolves an explicit value). */
+    /** Legacy thread-surface selector: only consulted when `mcpComposition` is undefined (the
+     *  thread path always resolves an explicit value). */
     useCoreMcp?: boolean;
     mcpToolAllowlist?: string[];
     browserCdpEndpoint?: string | null;

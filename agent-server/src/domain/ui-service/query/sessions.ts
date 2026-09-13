@@ -86,9 +86,9 @@ export async function handleSessionsList(
     // is the queryable snapshot, the `session.status` event stream is the delta.
     const state = deps.runningExecutions.sessionState(s.sessionId);
     // Foreground turn = a live non-thread execution belonging to THIS session (threads run beside
-    // their parent and never make the session itself busy). Pre-P4.2 this keyed off the session's
-    // CHANNEL, so a session switch left the old record looking busy while the NEW session on that
-    // channel ran — resolving by session id fixes that false positive.
+    // their parent and never make the session itself busy). Keyed off the session's id, not its
+    // CHANNEL, so a session switch does not leave the old record looking busy while the NEW session
+    // on that channel runs.
     const inTurn = state.executionId !== null;
     // Web bg-hold snapshot: the foreground execution is gone from the live-run registry, but a
     // background task still holds the session (running stays true per the session.status contract).

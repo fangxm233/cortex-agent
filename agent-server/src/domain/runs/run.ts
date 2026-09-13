@@ -1,6 +1,6 @@
 // input:  RunRequest + RunObserver[] plus today's facade AgentHandle / NormalizedEvent stream
 // output: AgentRun state machine — phases, results, registry hooks, cancel/subscribe, legacy process
-// pos:    The run ownership object. P1.3 wraps facade.runAgent; P2 replaces the engine path under it.
+// pos:    The run ownership object. Wraps `facade.runAgent`, which drives the engine path.
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { randomUUID } from 'node:crypto';
@@ -30,7 +30,7 @@ const log = createLogger('run');
 export type RunStatus =
   | 'starting' | 'running' | 'background' | 'completed' | 'failed' | 'cancelled' | 'rate-limited';
 
-/** The one ownership object for a run (plan §3.3). P1.8 wires `steer`; P2.4 wires `respondToDialog`. */
+/** The one ownership object for a run (plan §3.3). */
 export interface AgentRun {
   readonly id: string;
   readonly request: RunRequest;
@@ -58,15 +58,13 @@ export interface AgentRun {
    * Answer an in-flight backend dialog (PI `ask_user` / plan approval) through this run.
    * Returns false when the backend exposes no dialog channel or no live dialog waits on `id`;
    * callers then fall through to their webhook path instead of dropping the answer.
-   *
-   * Transitional: P4.1 replaces the `agentProcess` hop with the `EngineSession`.
    */
   respondToDialog(id: string, payload: Record<string, unknown>): boolean;
   cancel(reason: 'user' | 'supersede' | 'shutdown'): void;
   subscribe(observer: RunObserver): () => void;
   /**
-   * @deprecated Transitional P1.3 accessor for call sites that still hand the raw process to the
-   * old background-hold machinery. P2.3 deletes it.
+   * @deprecated Accessor for call sites that still hand the raw process to the
+   * old background-hold machinery.
    */
   legacyProcess(): AgentProcess | undefined;
   /**
@@ -79,9 +77,8 @@ export interface AgentRun {
   /** Claim the background transcript for a hold. Idempotent. */
   claimBackgroundTranscript(): void;
   /**
-   * Transitional: the `ContinuationSink` view of this run, so P1.5's hold adapters can register the
-   * run as a sink without reaching into the process. P4.1 folds the hold path into the run and
-   * removes this.
+   * The `ContinuationSink` view of this run, so hold adapters can register the run as a sink
+   * without reaching into the process.
    */
   continuationSink(): ContinuationSink;
 }
@@ -174,8 +171,7 @@ export function attemptLabel(config: AgentConfig): string {
  *    It additionally carries `assistantNoticeLevel(text)` for ordinary prose, which the raw event
  *    does not. The run therefore takes assistant prose from HERE, not from the adapter tee.
  *  - `onFallback` fires when the profile's fallback chain switches attempt; the run turns it into a
- *    `run_fallback` event. P4.1 moves the chain itself into the run and both hooks disappear.
- */
+ *    `run_fallback` event. */
 export interface RunAgentHooks {
   onAssistantMessage: NonNullable<RunAgentOptions['onAssistantMessage']>;
   onFallback: NonNullable<RunAgentOptions['onFallback']>;
@@ -257,7 +253,7 @@ export function buildRunAgentOptions(
   };
 }
 
-/** The Phase 1 `AgentRun`. One per `startRun`; owns all per-run mutable state. */
+/** The `AgentRun`. One per `startRun`; owns all per-run mutable state. */
 export class AgentRunImpl implements AgentRun {
   readonly id: string;
   readonly request: RunRequest;
@@ -520,7 +516,7 @@ export class AgentRunImpl implements AgentRun {
 
   /**
    * The profile's fallback chain switched attempt (facade `onFallback`). Advance the attempt and
-   * report it on the stream; the surface renders the notice (D7). P4.1 moves the chain itself here.
+   * report it on the stream; the surface renders the notice (D7).
    */
   private onChainFallback(current: AgentConfig, next: AgentConfig): void {
     this.attemptValue = { index: this.attemptValue.index + 1, config: next };

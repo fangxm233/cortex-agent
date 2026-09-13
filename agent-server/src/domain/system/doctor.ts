@@ -194,7 +194,7 @@ function pushEnvAndTokenChecks(
     : { id: 'auth-tokens', label: 'Auth tokens', status: 'fail', detail: `missing: ${missing.join(', ')}`, hint: 'run `cortex doctor --fix` to generate', fixable: true });
 }
 
-/** agent-state.json, falling back to mode.json on a home that has not migrated yet (P3.1a). */
+/** agent-state.json, falling back to mode.json on a home that has not migrated yet. */
 function readAgentStateText(deps: DoctorDeps): string | null {
   return deps.readText(path.join(deps.paths.STORE_DIR, 'agent-state.json'))
     ?? deps.readText(path.join(deps.paths.STORE_DIR, 'mode.json'));

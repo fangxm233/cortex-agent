@@ -3,7 +3,7 @@
 //         injection ledger that persists injected messages and commits them from run events
 // pos:    orchestration — the one history+publish observer every run surface shares, replacing
 //         the four hand-wired copies (agent-runner foreground, the two background surfaces,
-//         mid-turn-inject). P1.8 moved the pending-injection two-phase persistence here.
+//         mid-turn-inject). The pending-injection two-phase persistence lives here.
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { createLogger } from '@core/log.js';
@@ -237,7 +237,7 @@ export function createTranscriptSink(opts: TranscriptSinkOptions): RunObserver {
 
 // ══ mid-turn injection ledger ═══════════════════════════════════════════════
 //
-// Moved here by P1.8 from `orchestration/mid-turn-inject.ts`. A backend write only queues an
+// Moved here from `orchestration/mid-turn-inject.ts`. A backend write only queues an
 // injected message; its delivery ack may fold into the current turn or open an otherwise-unobserved
 // spontaneous turn. The ledger owns the durable two-phase persistence (persist pending → publish
 // a provisional row → commit history+ledger exactly once) and consumes the run's

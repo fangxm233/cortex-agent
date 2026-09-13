@@ -78,10 +78,10 @@ export interface RunConversationOptions {
 export interface ConversationResult {
   result: AgentResult;
   executionId: string;
-  /** The live run, so the caller can subscribe a background continuation sink (P1.5). */
+  /** The live run, so the caller can subscribe a background continuation sink. */
   run: AgentRun;
   /** Underlying agent process for the turn, exposed for the legacy hold path. Opaque to other
-   *  consumers; P2.3 removes it together with `AgentRun.legacyProcess()`. */
+   *  consumers. */
   agentProcess?: unknown;
 }
 
@@ -234,8 +234,7 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
       backendSessionId: opts.backendSessionId,
       // Hazard (a): the legacy run passed `sessionKey: null`, so spawn-config resolved the pool key
       // from the channel. `engineKey` maps onto that same `sessionKey`, so use the channel here to
-      // keep the pool key byte-identical. D4's `engineKey = sessionId` lands in Phase 2 with
-      // SessionEngines; changing it now would silently re-pool every live session.
+      // keep the pool key byte-identical — changing it would silently re-pool every live session.
       engineKey: opts.channel,
       sessionName: opts.sessionName,
     },

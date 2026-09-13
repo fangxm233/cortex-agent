@@ -137,7 +137,7 @@ export interface RunAgentOptions {
   taskId?: string | null;
   taskProject?: string | null;
   taskGeneration?: string | null;
-  /** Full system-prompt override (replaces the backend default). P3.3 canonicalizes this. */
+  /** Full system-prompt override (replaces the backend default). */
   systemPrompt?: string | null;
   /** Claude Code output style name (backend='claude'). */
   outputStyle?: string | null;

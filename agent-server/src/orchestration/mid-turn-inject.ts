@@ -4,9 +4,9 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 /**
- * Mid-turn user-message injection router. P1.8 moved the injection itself onto `AgentRun.steer()`
+ * Mid-turn user-message injection router. The injection itself lives on `AgentRun.steer()`
  * (which installs the backend `InjectionAckSink` and fans acks out as `injection_delivered` /
- * `injection_rejected` RunEvents) and the durable two-phase persistence into
+ * `injection_rejected` RunEvents) and the durable two-phase persistence lives in
  * `orchestration/transcript-sink.ts` (the injection ledger, driven by those events).
  *
  * This module only decides *whether* to inject: the cheapest gates first, the run lookup second,

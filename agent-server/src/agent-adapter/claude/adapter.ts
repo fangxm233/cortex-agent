@@ -116,10 +116,10 @@ interface ClaudeSessionOptions {
   /** Cortex execution context surfaced to the MCP server child as CORTEX_THREAD_ID/PROFILE/PROJECT/SESSION_NAME env vars.
    *  Captured at spawn time; later turns on the same session reuse the original snapshot. */
   context?: CortexAgentContext;
-  /** Pool hooks (P2.3c): the owner's eviction callbacks. See `ClaudeEngineOpenHooks`. */
+  /** Pool hooks: the owner's eviction callbacks. See `ClaudeEngineOpenHooks`. */
   onSelfClose?: ClaudeEngineOpenHooks['onSelfClose'];
   onEvict?: ClaudeEngineOpenHooks['onEvict'];
-  /** Host throttle entry point (P2.5b). Absent ⇒ observations are dropped; see `ClaudeAdapterHooks`. */
+  /** Host throttle entry point. Absent ⇒ observations are dropped; see `ClaudeAdapterHooks`. */
   onRateLimit?: RateLimitReporter;
 }
 
@@ -232,7 +232,7 @@ function compatibilityFromOptions(options: ClaudeSessionOptions): ClaudeSpawnCom
 
 /**
  * A string whose equality is exactly {@link sameClaudeSpawnCompatibility}'s predicate — the pool key
- * `EngineSession.identity` needs (P2.3c). Serialized as an explicit, literal field list rather than
+ * `EngineSession.identity` needs. Serialized as an explicit, literal field list rather than
  * `Object.keys`, so the order is stable and a future field cannot silently change the encoding.
  *
  * `null` and `[]` stay distinct for `mcpToolAllowlist` (sameOptionalTextArray is identity-sensitive
@@ -312,12 +312,12 @@ class ClaudeSession implements TurnHost {
   private extraOption!: Record<string, string> | undefined;
   private thinking!: string | null;
   private context!: CortexAgentContext | undefined;
-  /** Pool eviction hooks supplied by the owner (P2.2c/P2.3c): `onSelfClose` preserves the
+  /** Pool eviction hooks supplied by the owner: `onSelfClose` preserves the
    *  "only if this key still points at me" guard at the pool; `onEvict` is unconditional, matching
    *  the fatal stdin-write path it replaced. */
   private readonly onSelfClose: ClaudeEngineOpenHooks['onSelfClose'];
   private readonly onEvict: ClaudeEngineOpenHooks['onEvict'];
-  /** Injected throttle sink (P2.5b/D10). Unset in a trial, wired to `handleRateLimitEvent` by
+  /** Injected throttle sink. Unset in a trial, wired to `handleRateLimitEvent` by
    *  `domain/runs/adapters.ts` in the daemon. */
   private readonly onRateLimit: RateLimitReporter | undefined;
   /** The turn half. Built before the process is spawned, so the first line has a home. */
@@ -621,7 +621,7 @@ class ClaudeSession implements TurnHost {
   }
 
   // --- Turn delegation. Thin by design: `ClaudeAdapter.spawn` and the unit tests still reach the
-  //     turn through the session. P2.3d/e retire every member below. ---
+  //     turn through the session. ---
 
   handleLine(line: string): void { this.turns.handleLine(line); }
 
@@ -891,7 +891,7 @@ export class ClaudeAdapter implements EngineAdapter {
  * `claudeBackend: 'tui'` and no new TUI tmux session can be created. It exists because tmux
  * sessions outlive agent-server's process, so machines upgrading across the D9 boundary still
  * hold `cortex-claude-<sessionId>` sessions from older builds. The in-memory bookkeeping that
- * could re-adopt them (the TUI session map, removed in P2.3c) is gone, so the honest move is to
+ * could re-adopt them (the TUI session map) is gone, so the honest move is to
  * kill the leftovers at startup — otherwise they accumulate forever and a later session reusing
  * the same sessionId would collide with `tmux new-session -s <name>` (which fails on duplicates).
  *
