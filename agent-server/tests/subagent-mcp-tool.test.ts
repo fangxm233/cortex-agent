@@ -16,7 +16,7 @@ import { registerGatedMcpTools } from '../src/core/mcp-tool-gate.js';
 import { CONFIG_DIR } from '../src/core/paths.js';
 import { buildSpawnArgs } from '../src/agent-adapter/claude/spawn-args.js';
 import {
-  DEFAULT_TOOLS, MCP_CONFIG, TUI_TOOLS, subagentBridgeTools,
+  DEFAULT_TOOLS, MCP_CONFIG, subagentBridgeTools,
 } from '../src/agent-adapter/claude/defaults.js';
 import {
   decodeSubagentModels, encodeSubagentModels,
@@ -246,7 +246,7 @@ function toolsOf(args: string[]): string[] {
 }
 
 const spawnBase = {
-  tools: null, needsResume: false, sessionId: 'uuid-1', mode: 'print' as const,
+  tools: null, needsResume: false, sessionId: 'uuid-1',
 };
 
 /** A spawn that declares an allowlist re-materializes the MCP config, so the source must exist. */
@@ -258,14 +258,11 @@ function seedMcpConfig(): void {
 }
 
 test('Claude spawns never list the native Agent tool and always list the MCP pair', () => {
-  for (const mode of ['print', 'tui'] as const) {
-    const tools = toolsOf(buildSpawnArgs({ ...spawnBase, mode }));
-    assert.equal(tools.includes('Agent'), false, `${mode} has no native Agent`);
-    for (const name of subagentBridgeTools()) assert.ok(tools.includes(name), `${mode} lists ${name}`);
-  }
+  const tools = toolsOf(buildSpawnArgs(spawnBase));
+  assert.equal(tools.includes('Agent'), false, 'no native Agent');
+  for (const name of subagentBridgeTools()) assert.ok(tools.includes(name), `lists ${name}`);
   // The constants themselves are already clean, so nothing depends on the strip alone.
   assert.equal(DEFAULT_TOOLS.split(',').includes('Agent'), false);
-  assert.equal(TUI_TOOLS.split(',').includes('Agent'), false);
 });
 
 test('a caller that asks for Agent by name still does not get it', () => {

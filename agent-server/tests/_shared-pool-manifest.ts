@@ -22,7 +22,6 @@
 export const SHARED_POOL_FILES: string[] = [
   'tests/agent-adapter/claude-bg-task-tracker.test.ts',
   'tests/agent-adapter/claude-compact-window.test.ts',
-  'tests/agent-adapter/claude-cost-from-usage.test.ts',
   'tests/agent-adapter/normalize-assistant-delta.test.ts',
   'tests/agent-adapter-pi-agent-dir.test.ts',
   'tests/agent-adapter-pi-mcp-bridge.test.ts',

@@ -10,7 +10,6 @@ Agent adapter tests: Claude and PI streams normalized into shared events, plus s
 | claude-bg-task-tracker.test.ts | test | background task running and delivery tracking |
 | claude-compact-window.test.ts | test | Claude auto-compact window settings lookup |
 | claude-context-usage.test.ts | test | Claude context and four-way result accounting |
-| claude-cost-from-usage.test.ts | test | Claude cost reconstruction from usage |
 | claude-engine.test.ts | test | Claude EngineSession parity with spawn(): events, result, steer acks, run-scoped cancel, pool identity |
 | claude-mid-turn-inject.test.ts | test | Claude mid-turn user message injection |
 | claude-pool-fixture.ts | helper | per-adapter SessionEngines exposing the pre-P2.3c Claude pool ergonomics |

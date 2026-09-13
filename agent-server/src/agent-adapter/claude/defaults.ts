@@ -52,10 +52,10 @@ const MCP_PREFIX = 'mcp__cortex-core__';
 
 /**
  * The cortex-interaction-bridge MCP tools that replace the native EnterPlanMode / ExitPlanMode /
- * AskUserQuestion. Shared by direct Claude TUI, user-initiated Claude print, and user-initiated PI
- * sessions. `commissionTools` appends the two standalone commission-creation tools — they are
- * additive, not a swap: a session drafting a commission keeps the ordinary plan tools too. Every
- * other session simply never lists them, which is what keeps them invisible (DR-0037 v3).
+ * AskUserQuestion. Shared by user-initiated Claude print sessions and user-initiated PI sessions.
+ * `commissionTools` appends the two standalone commission-creation tools — they are additive, not a
+ * swap: a session drafting a commission keeps the ordinary plan tools too. Every other session
+ * simply never lists them, which is what keeps them invisible (DR-0037 v3).
  */
 export function interactionBridgeTools(commissionTools = false): string[] {
   return [
@@ -66,22 +66,13 @@ export function interactionBridgeTools(commissionTools = false): string[] {
   ];
 }
 
-/** Default (non-commission) bridge surface, used as the TUI tool-list baseline. */
+/** Default (non-commission) bridge surface. */
 export const INTERACTION_BRIDGE_TOOLS: readonly string[] = interactionBridgeTools();
 
-/**
- * DR-0012: Tool whitelist for TUI mode. Removes the three interaction tools that conflict with
- * Cortex's MCP-mediated approval flow (AskUserQuestion / EnterPlanMode / ExitPlanMode) and adds
- * their MCP replacements from the bundled Cortex MCP server.
- */
-export const TUI_TOOLS = [
-  'Bash', 'Edit', 'Glob', 'Grep', 'Read', 'Skill', 'TaskStop', 'TodoWrite', 'WebFetch', 'WebSearch', 'Write',
-  ...INTERACTION_BRIDGE_TOOLS,
-].join(',');
-
-/** Native interaction tools that must be stripped in TUI mode (all sessions, including threads).
- *  These tools require stdin/stdout interaction that TUI mode cannot provide. */
-export const TUI_STRIP_TOOLS = new Set(['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode']);
+/** Native interaction tools that must be stripped wherever the interaction bridge replaces them —
+ *  i.e. a direct, user-initiated session, which is the only composition that loads the bridge.
+ *  The native tools drop the prompt into a mode Cortex cannot mediate headlessly. */
+export const INTERACTION_STRIP_TOOLS = new Set(['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode']);
 
 /**
  * Native tools stripped in EVERY mode because Cortex ships its own replacement.

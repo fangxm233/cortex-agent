@@ -40,7 +40,6 @@ import {
   THREAD_MCP_CONFIG,
   INTERACTION_BRIDGE_TOOLS,
   INTERACTION_MCP_CONFIG,
-  TUI_TOOLS,
   WEB_MCP_CONFIG,
 } from '../src/agent-adapter/claude/defaults.js';
 import {
@@ -619,186 +618,8 @@ test('buildSpawnArgs: any other CORTEX_STREAM_DELTAS value keeps streaming on an
   }
 });
 
-test("buildSpawnArgs mode='tui': never passes --include-partial-messages (jsonl tail, not stdout)", () => {
-  const args = buildSpawnArgs({ ...streamingBase, sessionId: 'uuid-stream-4', mode: 'tui' });
-  assert.ok(!args.includes('--include-partial-messages'));
-});
-
-// --- buildSpawnArgs: TUI mode (DR-0012) ---
-
-test("buildSpawnArgs mode='tui' — omits -p / stream-json flags, layers TUI bridge on the full MCP set + TUI_TOOLS", () => {
+test('buildSpawnArgs — the default direct-session argv is unchanged from the legacy baseline', () => {
   const args = buildSpawnArgs({
-    tools: null,
-    systemPrompt: null,
-    appendSystemPrompt: null,
-    model: null,
-    claudeAgent: null,
-    pluginDirs: null,
-    outputStyle: null,
-    needsResume: false,
-    sessionId: 'uuid-tui-1',
-    mode: 'tui',
-  });
-  // Must NOT contain -p / --input-format / --output-format / --verbose
-  assert.ok(!args.includes('-p'), 'tui mode must not pass -p');
-  assert.ok(!args.includes('--input-format'), 'tui mode must not pass --input-format');
-  assert.ok(!args.includes('--output-format'), 'tui mode must not pass --output-format');
-  assert.ok(!args.includes('--verbose'), 'tui mode must not pass --verbose');
-  // Mid-turn injection is a print-mode stdin capability; TUI drives the CLI through tmux keystrokes
-  // and has no stream-json stdin to replay, so the ack flag must not leak into its argv.
-  assert.ok(!args.includes('--replay-user-messages'), 'tui mode must not pass --replay-user-messages');
-  // Must contain permission bypass + TUI defaults + session id
-  assert.ok(args.includes('--dangerously-skip-permissions'));
-  assert.ok(args.includes('--permission-mode'));
-  assert.ok(args.includes('bypassPermissions'));
-  assert.deepEqual(mcpConfigPaths(args), [MCP_CONFIG]);
-  assert.ok(resolveClaudeMcpBundles({
-    tools: null, needsResume: false, sessionId: 'uuid-tui-1', mode: 'tui',
-  }).includes('cortex-interaction-bridge'));
-  assert.deepEqual(
-    args[args.indexOf('--tools') + 1],
-    withAgentTools(TUI_TOOLS),
-    'direct TUI keeps its whitelist and gains the MCP delegation pair',
-  );
-  assert.ok(args.includes('--session-id'));
-  assert.ok(args.includes('uuid-tui-1'));
-});
-
-test("buildSpawnArgs mode='tui' — thread-control composition drops the TUI bridge", () => {
-  const args = buildSpawnArgs({
-    tools: null,
-    systemPrompt: null,
-    appendSystemPrompt: null,
-    model: null,
-    claudeAgent: null,
-    pluginDirs: null,
-    outputStyle: null,
-    needsResume: false,
-    sessionId: 'uuid-tui-thread',
-    mode: 'tui',
-    mcpComposition: 'thread-control',
-  });
-  assert.deepEqual(mcpConfigPaths(args), [THREAD_MCP_CONFIG]);
-  assert.deepEqual(resolveClaudeMcpBundles({
-    tools: null, needsResume: false, sessionId: 'uuid-tui-thread',
-    mode: 'tui', mcpComposition: 'thread-control',
-  }), ['cortex-core', 'cortex-tasks', 'cortex-manager-qa', 'cortex-thread']);
-  // No bridge → fall back to the standard tool whitelist (not TUI_TOOLS, which references bridge tools).
-  assert.ok(!args.includes(TUI_TOOLS), 'thread tui must not whitelist the bridge tools');
-});
-
-test("buildSpawnArgs mode='tui' — explicit tools have interaction tools stripped", () => {
-  const args = buildSpawnArgs({
-    tools: 'Bash,Read,AskUserQuestion,EnterPlanMode,ExitPlanMode,Write',
-    systemPrompt: null,
-    appendSystemPrompt: null,
-    model: null,
-    claudeAgent: null,
-    pluginDirs: null,
-    outputStyle: null,
-    needsResume: false,
-    sessionId: 'u',
-    mode: 'tui',
-  });
-  const toolsArg = args[args.indexOf('--tools') + 1];
-  const tools = toolsArg.split(',');
-  assert.ok(!tools.includes('AskUserQuestion'), 'AskUserQuestion must be stripped in TUI mode');
-  assert.ok(!tools.includes('EnterPlanMode'), 'EnterPlanMode must be stripped in TUI mode');
-  assert.ok(!tools.includes('ExitPlanMode'), 'ExitPlanMode must be stripped in TUI mode');
-  assert.ok(tools.includes('Bash'));
-  assert.ok(tools.includes('Read'));
-  assert.ok(tools.includes('Write'));
-  for (const tool of INTERACTION_BRIDGE_TOOLS) {
-    assert.ok(tools.includes(tool), `direct TUI must include ${tool}`);
-  }
-});
-
-test("buildSpawnArgs mode='tui' — thread/core session also strips interaction tools from explicit list", () => {
-  const args = buildSpawnArgs({
-    tools: DEFAULT_TOOLS,
-    systemPrompt: null,
-    appendSystemPrompt: null,
-    model: null,
-    claudeAgent: null,
-    pluginDirs: null,
-    outputStyle: null,
-    needsResume: false,
-    sessionId: 'u',
-    mode: 'tui',
-    mcpComposition: 'thread-control',
-  });
-  const toolsArg = args[args.indexOf('--tools') + 1];
-  const tools = toolsArg.split(',');
-  assert.ok(!tools.includes('AskUserQuestion'), 'thread tui must also strip AskUserQuestion');
-  assert.ok(!tools.includes('EnterPlanMode'), 'thread tui must also strip EnterPlanMode');
-  assert.ok(!tools.includes('ExitPlanMode'), 'thread tui must also strip ExitPlanMode');
-  assert.ok(tools.includes('Bash'));
-});
-
-test("buildSpawnArgs mode='tui' — needsResume uses --resume instead of --session-id", () => {
-  const args = buildSpawnArgs({
-    tools: null,
-    systemPrompt: null,
-    appendSystemPrompt: null,
-    model: null,
-    claudeAgent: null,
-    pluginDirs: null,
-    outputStyle: null,
-    needsResume: true,
-    sessionId: 'uuid-resume',
-    mode: 'tui',
-  });
-  assert.ok(args.includes('--resume'));
-  assert.ok(!args.includes('--session-id'));
-  // sessionId still appears as the --resume argument value
-  assert.equal(args[args.indexOf('--resume') + 1], 'uuid-resume');
-});
-
-test("buildSpawnArgs mode='tui' — system-prompt / model / agent / plugin-dir pass through identically", () => {
-  const args = buildSpawnArgs({
-    tools: null,
-    systemPrompt: 'SYS',
-    appendSystemPrompt: 'APPEND',
-    model: 'claude-sonnet-4-6',
-    claudeAgent: 'coder',
-    pluginDirs: ['/p1', '/p2'],
-    outputStyle: 'style-a',
-    needsResume: false,
-    sessionId: 'u',
-    mode: 'tui',
-  });
-  assert.ok(args.includes('--system-prompt'));
-  assert.equal(args[args.indexOf('--system-prompt') + 1], 'SYS');
-  assert.ok(args.includes('--append-system-prompt'));
-  assert.equal(args[args.indexOf('--append-system-prompt') + 1], 'APPEND');
-  assert.ok(args.includes('--model'));
-  assert.equal(args[args.indexOf('--model') + 1], 'claude-sonnet-4-6');
-  assert.ok(args.includes('--agent'));
-  assert.equal(args[args.indexOf('--agent') + 1], 'coder');
-  // Both plugin-dirs appear
-  const pluginDirArgs: string[] = [];
-  for (let i = 0; i < args.length - 1; i++) {
-    if (args[i] === '--plugin-dir') pluginDirArgs.push(args[i + 1]);
-  }
-  assert.deepEqual(pluginDirArgs, ['/p1', '/p2']);
-});
-
-test("buildSpawnArgs mode='print' (default) — behavior unchanged from existing baseline", () => {
-  // When mode is omitted entirely, must produce the exact same argv as the legacy lock-down test.
-  // This guards regression for all -p mode callers that don't set mode.
-  const explicitPrint = buildSpawnArgs({
-    tools: null,
-    systemPrompt: null,
-    appendSystemPrompt: null,
-    model: null,
-    claudeAgent: null,
-    pluginDirs: null,
-    outputStyle: null,
-    needsResume: false,
-    sessionId: 'uuid-baseline',
-    mode: 'print',
-  });
-  const implicitDefault = buildSpawnArgs({
     tools: null,
     systemPrompt: null,
     appendSystemPrompt: null,
@@ -809,10 +630,10 @@ test("buildSpawnArgs mode='print' (default) — behavior unchanged from existing
     needsResume: false,
     sessionId: 'uuid-baseline',
   });
-  assert.deepEqual(implicitDefault, explicitPrint);
   // And the legacy expected sequence is preserved
-  assert.ok(explicitPrint[0] === '-p');
-  assert.ok(explicitPrint.includes('--input-format'));
+  assert.ok(args[0] === '-p');
+  assert.ok(args.includes('--input-format'));
+  assert.ok(args.includes('--replay-user-messages'));
 });
 
 // --- buildSpawnArgs: print-mode interaction-bridge tools (user-initiated sessions) ---
@@ -914,36 +735,35 @@ test('buildSpawnArgs print + isUserInitiated with explicit tools — bridge tool
   }
 });
 
-test('INTERACTION_BRIDGE_TOOLS contains the three MCP replacements used by TUI_TOOLS', () => {
+test('buildSpawnArgs print + isUserInitiated with explicit interaction tools — the natives yield to the bridge', () => {
+  const args = buildSpawnArgs({
+    tools: 'Bash,Read,Write,AskUserQuestion,EnterPlanMode,ExitPlanMode',
+    systemPrompt: null,
+    appendSystemPrompt: null,
+    model: null,
+    claudeAgent: null,
+    pluginDirs: null,
+    outputStyle: null,
+    needsResume: false,
+    sessionId: 'uuid-print-user-explicit-natives',
+    isUserInitiated: true,
+  });
+  const tools = args[args.indexOf('--tools') + 1].split(',');
+  for (const native of ['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode']) {
+    assert.equal(tools.includes(native), false, `${native} must be stripped where the bridge replaces it`);
+  }
+  assert.ok(tools.includes('Bash') && tools.includes('Read') && tools.includes('Write'));
+  for (const tool of INTERACTION_BRIDGE_TOOLS) {
+    assert.ok(tools.includes(tool), `bridge tool ${tool} replaces the natives`);
+  }
+});
+
+test('INTERACTION_BRIDGE_TOOLS is exactly the three MCP replacements for the native interaction tools', () => {
   assert.deepEqual([...INTERACTION_BRIDGE_TOOLS].sort(), [
     'mcp__cortex-core__cortex_ask_user',
     'mcp__cortex-core__cortex_plan_enter',
     'mcp__cortex-core__cortex_plan_exit',
   ]);
-  const tuiTools = TUI_TOOLS.split(',');
-  for (const tool of INTERACTION_BRIDGE_TOOLS) {
-    assert.ok(tuiTools.includes(tool), `TUI_TOOLS must still contain ${tool}`);
-  }
-});
-
-// --- selectClaudeMode (DR-0012 routing) ---
-// D9: Claude TUI is deprecated; P2.3c routes tui → print.
-describe.skip('selectClaudeMode (deleted in P2.3c)', () => {
-  // Kept only so the skipped cases below compile; the function itself is gone.
-  const selectClaudeMode = (spec: any): 'print' | 'tui' =>
-    spec?.backend?.kind === 'claude' && spec?.backend?.claudeBackend === 'tui' ? 'tui' : 'print';
-
-  test("selectClaudeMode returns 'print' for an EngineSpec without claudeBackend", () => {
-    assert.equal(selectClaudeMode(engineSpecFixture({ sessionId: null, sessionKey: 'k', resume: false } as any)), 'print');
-  });
-
-  test("selectClaudeMode returns 'tui' when claudeBackend='tui'", () => {
-    assert.equal(selectClaudeMode(engineSpecFixture({ sessionId: null, sessionKey: 'k', resume: false, claudeBackend: 'tui' } as any)), 'tui');
-  });
-
-  test("selectClaudeMode returns 'print' for unknown claudeBackend value (conservative)", () => {
-    assert.equal(selectClaudeMode(engineSpecFixture({ sessionId: null, sessionKey: 'k', resume: false, claudeBackend: 'bogus' } as any)), 'print');
-  });
 });
 
 function stubClaudeChild() {
@@ -1053,58 +873,6 @@ test('Claude print pool distinguishes an undeclared gate from a declared empty g
   });
 });
 
-// D9: Claude TUI is deprecated; P2.3c routes tui → print.
-describe.skip('Claude TUI pool (removed by D9)', () => {
-  test('Claude TUI pool replaces the session when the tool surface changes', async () => {
-    await assertPoolReplacement({
-      key: 'pooled-tui-tools',
-      shared: { claudeBackend: 'tui' },
-      first: { rawTools: 'Bash,Read' },
-      second: { rawTools: 'Bash,Read,Write' },
-    });
-  });
-
-  test('Claude TUI pool replaces the session when mcpConfigPaths change', async () => {
-    await assertPoolReplacement({
-      key: 'pooled-tui-paths',
-      shared: { claudeBackend: 'tui' },
-      first: { mcpConfigPaths: ['/fixture/base-a.json'] },
-      second: { mcpConfigPaths: ['/fixture/base-b.json'] },
-    });
-  });
-
-  test('Claude TUI pool distinguishes an undeclared gate from a declared empty gate', async () => {
-    fs.mkdirSync(path.dirname(EMPTY_MCP_CONFIG), { recursive: true });
-    fs.writeFileSync(EMPTY_MCP_CONFIG, '{"mcpServers":{}}\n');
-    await assertPoolReplacement({
-      key: 'pooled-tui-empty-gate',
-      shared: {
-        claudeBackend: 'tui', mcpComposition: 'none', mcpConfigPaths: [EMPTY_MCP_CONFIG],
-      },
-      first: {},
-      second: { mcpToolAllowlist: [] },
-    });
-  });
-
-  test('Claude TUI pool replaces the session when plugin capability changes', async () => {
-    await assertPoolReplacement({
-      key: 'pooled-tui-capability',
-      shared: { claudeBackend: 'tui' },
-      first: { pluginCapabilityFingerprint: 'fingerprint-a' },
-      second: { pluginCapabilityFingerprint: 'fingerprint-b' },
-    });
-  });
-
-  test('Claude TUI pool replaces the session when supplemental MCP identity changes', async () => {
-    await assertPoolReplacement({
-      key: 'pooled-tui',
-      shared: { claudeBackend: 'tui', mcpConfigPaths: ['/fixture/base.json'] },
-      first: { mcpServers: [pooledMcpServer('portable-a', 'a')] },
-      second: { mcpServers: [pooledMcpServer('portable-b', 'b')] },
-    });
-  });
-});
-
 test('Claude print respawn revalidates supplemental MCP content before spawning again', async () => {
   const counter = { value: 0 };
   const adapter = new ClaudeAdapter();
@@ -1165,22 +933,6 @@ test('recoverTuiOrphans only sweeps sessions matching cortex-claude- prefix', ()
   // Did NOT try to kill the unrelated tmux sessions
   assert.ok(!killTargets.includes('user-shell'));
   assert.ok(!killTargets.includes('other'));
-});
-
-// --- TUI_TOOLS constant shape ---
-
-test('TUI_TOOLS excludes AskUserQuestion / EnterPlanMode / ExitPlanMode and includes 3 MCP replacements', () => {
-  const tools = TUI_TOOLS.split(',');
-  assert.ok(!tools.includes('AskUserQuestion'), 'TUI_TOOLS must exclude AskUserQuestion');
-  assert.ok(!tools.includes('EnterPlanMode'), 'TUI_TOOLS must exclude EnterPlanMode');
-  assert.ok(!tools.includes('ExitPlanMode'), 'TUI_TOOLS must exclude ExitPlanMode');
-  assert.ok(tools.includes('mcp__cortex-core__cortex_plan_enter'));
-  assert.ok(tools.includes('mcp__cortex-core__cortex_plan_exit'));
-  assert.ok(tools.includes('mcp__cortex-core__cortex_ask_user'));
-  // Non-replaced tools still present
-  assert.ok(tools.includes('Bash'));
-  assert.ok(tools.includes('Read'));
-  assert.ok(tools.includes('Write'));
 });
 
 // --- buildHooksSettings ---

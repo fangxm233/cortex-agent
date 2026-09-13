@@ -5,7 +5,6 @@
 
 import { spawn, ChildProcess } from 'child_process';
 import { createInterface, Interface } from 'readline';
-import * as path from 'path';
 import * as crypto from 'crypto';
 import { AGENT_CWD, resolveSpawnCwd } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
@@ -19,14 +18,12 @@ import type {
   SpawnedAgentProcess, UserMessage,
 } from '../types.js';
 import { ClaudeEngineSession, type ClaudeEngineOpenHooks } from './engine.js';
-import type { AgentResult } from '@core/types/agent-types.js';
 import { encodeMcpBundles, MCP_BUNDLES_ENV } from '@core/mcp-bundles.js';
 import {
   CancelledError,
   IDLE_SESSION_TIMEOUT,
   TURN_IDLE_TIMEOUT,
 } from './defaults.js';
-import { buildHooksSettings } from './hooks-builder.js';
 import {
   buildClaudeEnv, buildSpawnArgs, claudeRouteIdentity, resolveClaudeMcpBundles,
   ClaudeSpawnOptions, CortexAgentContext,
@@ -684,20 +681,16 @@ export function resolveResumeForPrint(
   return resolveResumeAgainstTranscript(requestedResume, computeTranscriptPath(cwd, sessionId), exists);
 }
 
-// --- ClaudeAdapter — DR-0008 §3.2 generic AgentAdapter entry point ---
+// --- EngineSpec → ClaudeSession options ---
 //
-// task f7cf scope:
-//   - spawn() returns a real AgentProcess that drives one turn through the pooled ClaudeSession
-//     via event-emitting callbacks (onAssistantMessage / onToolUse), then derives
-//     ask_user_question / plan_written / rate_limit events from the resolved AgentResult
-//     before pushing turn_complete and returning the AgentResult from send().
-//   - EngineSpec carries no hook list; buildHooksSettings uses the native tools string per
-//     DR-0008 §3.5 (Phase 3 work).
+// The helpers below translate one EngineSpec into the fields a ClaudeSession needs:
 //   - EngineSpec.mcp.servers is projected into a private supplemental --mcp-config file;
 //     the base agent-server/mcp-config.json remains first in the composition.
+//   - EngineSpec carries no hook list; the `--settings` hooks are compiled from the resolved
+//     native tools string in spawn-args.ts (buildHooksSettings).
 //   - Claude-private fields (context.channel / backend.claudeAgent / context.callbackSource /
 //     context.scheduleTaskId / flags.isUserInitiated / tools.rawClaude / route.anthropicBaseUrl)
-//     are read directly from EngineSpec; they're Phase-3 cleanup targets (see types.ts).
+//     are read directly off EngineSpec rather than modelled as backend-neutral fields.
 
 function canonicalToolsToNative(tools: string[] | undefined): string | null {
   if (!tools || tools.length === 0) return null;

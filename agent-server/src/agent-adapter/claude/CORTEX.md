@@ -21,5 +21,4 @@ Translates Claude stream and transcript events into the normalized event schema.
 | bg-task-tracker.ts | core | tracks background tasks and routes continuation vs orphan-subagent lines |
 | context-usage.ts | core | tracks context window usage per session |
 | compact-window.ts | config | resolves the configured auto-compact window |
-| cost-from-usage.ts | util | derives call cost from token counts |
 | tool-summarizers.ts | util | renders tool inputs for trace display |

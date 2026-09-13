@@ -12,8 +12,7 @@ import {
   THREAD_MCP_CONFIG,
   interactionBridgeTools,
   subagentBridgeTools,
-  TUI_STRIP_TOOLS,
-  TUI_TOOLS,
+  INTERACTION_STRIP_TOOLS,
 } from './defaults.js';
 import { getSettings } from '@core/settings.js';
 import { materializeMcpToolAllowlistConfigs } from '@core/config-generator.js';
@@ -24,12 +23,6 @@ import type { McpBundleName } from '@core/mcp-bundles.js';
 import type { McpComposition } from '../types.js';
 import { piProviderDiscovery } from '../pi/discovery.js';
 import { buildHooksSettings } from './hooks-builder.js';
-
-/**
- * Adapter mode selector. `print` (default) uses `-p` + stream-json; `tui` uses interactive TUI
- * under tmux with jsonl tail (DR-0012). Both modes share the rest of the CLI surface.
- */
-export type ClaudeSpawnMode = 'print' | 'tui';
 
 export interface ClaudeSpawnOptions {
   tools: string | null;
@@ -70,10 +63,8 @@ export interface ClaudeSpawnOptions {
   thinking?: string | null;
   /** Extra CLI options from profile (e.g. {"--thinking": "xhigh"}). */
   extraOption?: Record<string, string> | null;
-  /** DR-0012: select adapter mode. Default 'print' preserves -p stream-json behavior. */
-  mode?: ClaudeSpawnMode;
-  /** True for user-message-initiated sessions (not thread/scheduled pipeline workers). In print
-   *  mode, such sessions additionally get the cortex-interaction-bridge MCP tools
+  /** True for user-message-initiated sessions (not thread/scheduled pipeline workers). Such
+   *  sessions additionally get the cortex-interaction-bridge MCP tools
    *  (cortex_plan_enter/exit, cortex_ask_user) because the native EnterPlanMode/ExitPlanMode/
    *  AskUserQuestion are filtered out by headless `-p`. Non-direct compositions never get them. */
   isUserInitiated?: boolean;
@@ -117,8 +108,7 @@ function resolveMcpConfigs(
 }
 
 /** Print mode uses NDJSON stdio and replay echoes as queued-message delivery acknowledgements. */
-function printModeArgs(options: ClaudeSpawnOptions, mode: ClaudeSpawnMode): string[] {
-  if (mode !== 'print') return [];
+function printModeArgs(options: ClaudeSpawnOptions): string[] {
   const args = [
     '-p',
     '--input-format', 'stream-json',
@@ -141,8 +131,7 @@ export function resolveClaudeMcpBundles(options: ClaudeSpawnOptions): McpBundleN
   const bundles: McpBundleName[] = [
     'cortex-core', 'cortex-tasks', 'cortex-manager-qa', 'cortex-ext',
   ];
-  const mode = options.mode ?? 'print';
-  if (mode === 'tui' || (mode === 'print' && !!options.isUserInitiated)) {
+  if (options.isUserInitiated) {
     bundles.push('cortex-interaction-bridge');
   }
   if (options.loadSlackMcp) bundles.push('cortex-slack');
@@ -174,22 +163,20 @@ function subagentTools(options: ClaudeSpawnOptions): string[] {
  *
  * `Agent` is dropped unconditionally and replaced by the MCP `agent` tool (see
  * {@link ALWAYS_STRIP_TOOLS}). The three interaction tools are dropped only where Cortex mediates
- * approvals — `commissionTools` null means "strip the natives, add nothing back" (TUI without the
- * bridge), non-null means the bridge tools are appended, with the commission pair purely additive.
+ * approvals through the bridge: `commissionTools` null means "keep the natives, add nothing back"
+ * (a non-user-initiated or non-direct session), non-null means the natives are stripped, the bridge
+ * tools are appended, and the commission pair is purely additive.
  */
 function resolveEffectiveTools(
   options: ClaudeSpawnOptions,
-  mode: ClaudeSpawnMode,
-  isDirect: boolean,
   commissionTools: boolean | null,
 ): string {
-  const toolsDefault = mode === 'tui' && isDirect ? TUI_TOOLS : DEFAULT_TOOLS;
-  const stripInteraction = mode === 'tui' || commissionTools !== null;
-  const kept = (options.tools || toolsDefault).split(',')
+  const stripInteraction = commissionTools !== null;
+  const kept = (options.tools || DEFAULT_TOOLS).split(',')
     .map(tool => tool.trim())
     .filter(tool => tool
       && !ALWAYS_STRIP_TOOLS.has(tool)
-      && !(stripInteraction && TUI_STRIP_TOOLS.has(tool)));
+      && !(stripInteraction && INTERACTION_STRIP_TOOLS.has(tool)));
   const appended = [
     ...(commissionTools !== null ? interactionBridgeTools(commissionTools) : []),
     ...subagentTools(options),
@@ -263,17 +250,15 @@ function appendSessionIdentity(args: string[], options: ClaudeSpawnOptions): voi
 }
 
 export function buildSpawnArgs(options: ClaudeSpawnOptions): string[] {
-  const mode = options.mode ?? 'print';
   const composition = options.mcpComposition ?? 'direct';
   const isDirect = composition === 'direct';
-  const wantsInteractionBridge = isDirect
-    && (mode === 'tui' || (mode === 'print' && !!options.isUserInitiated));
+  const wantsInteractionBridge = isDirect && !!options.isUserInitiated;
   const commissionTools: boolean | null = wantsInteractionBridge
     ? !!options.commissionTools
     : null;
   const configs = resolveMcpConfigs(options, composition);
-  const args = printModeArgs(options, mode);
-  const tools = resolveEffectiveTools(options, mode, isDirect, commissionTools);
+  const args = printModeArgs(options);
+  const tools = resolveEffectiveTools(options, commissionTools);
   appendCoreArgs(args, configs, composition, tools);
   appendPromptOptions(args, options);
   appendRepeatedOption(args, '--plugin-dir', options.pluginDirs);
