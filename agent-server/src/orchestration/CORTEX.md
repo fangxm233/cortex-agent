@@ -17,7 +17,7 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | delta-coalescer.ts | stream | batches assistant text deltas for web sessions |
 | dispatch-reconciler.ts | timer | optionally cleans up stale dispatch executions |
 | durable-helpers.ts | util | builds durable post and update hooks |
-| lifecycle.ts | core | finalizes turns, attributes continuation costs, and resumes edit-retry/ask-user turns through startRun |
+| lifecycle.ts | core | finalizes turns, decides the background hold, and resumes edit-retry/ask-user turns through startRun |
 | manager-qa.ts | channel | durably relays subtask manager questions and answers |
 | mid-turn-inject.ts | core | routes a busy-channel message to the live AgentRun.steer; the ledger it feeds lives in transcript-sink |
 | orchestrator.ts | router | picks the thread or default routing branch |
@@ -34,6 +34,7 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | session-retention-controller.ts | timer | serializes startup and periodic retention sweeps |
 | session-send.ts | chat | forwards admitted Web user turns |
 | status-helpers.ts | helper | builds settings-aware status messages; scheduled auto-compound follow-ups run through startRun |
+| status-renderer.ts | observer | Slack/Feishu status surface for a run's background phase: waiting/done/rate-limited/interrupted/cap, plus the continuation's cost row |
 | superseded-edits.ts | tracker | marks channels superseded by a message edit |
 | thread-callback.ts | callback | Fences child results and resumes current parents |
 | thread-executor.ts | core | routes threads and buffers downloaded user files |

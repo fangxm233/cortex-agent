@@ -45,7 +45,8 @@ import { runRegistry } from '@core/run-registry.js';
 import { recordDirectResume } from '@domain/runs/observers/resume-recorder.js';
 import { getAgent } from '@domain/threads/index.js';
 import { runConversation } from './conversation-runner.js';
-import { runToContinuationSink, type BackgroundWaitCallbacks } from '@domain/runs/continuation-sink.js';
+import { runToContinuationSink } from '@domain/runs/continuation-sink.js';
+import type { HeldRun } from './status-renderer.js';
 import type { AgentRun } from '@domain/runs/run.js';
 import type { RunEvent } from '@domain/runs/events.js';
 import type { RunObserver } from '@domain/runs/request.js';
@@ -556,9 +557,9 @@ export class AgentRunner {
       // Otherwise clear the callback as usual.
       const proc = convResult.agentProcess as { setContinuationSink?: (s: ContinuationSink) => void } | undefined;
       const canSink = typeof proc?.setContinuationSink === 'function';
-      // The run owns the process's single continuation-sink slot. Replay the run's background
-      // events through the hold's sink instead of calling proc.setContinuationSink directly (which
-      // would clobber the run's own sink and drop the fan-out to every other observer).
+      // The run owns the process's single continuation-sink slot: the Slack/Feishu status surface
+      // subscribes to the RUN (status-renderer) rather than calling proc.setContinuationSink, which
+      // would clobber the run's own sink and drop the fan-out to every other observer.
       const run = convResult.run;
       const holdForBg = shouldHoldForBg(convResult.result, channel, canSink);
       if (!holdForBg) clearStreamingCallback(channel);
@@ -569,9 +570,7 @@ export class AgentRunner {
         continuationToolUse: composeToolUse(callbacks.onToolUse, persistToolUse),
         continuationToolResult: persistToolResult,
         continuationContextUsage: persistContinuationContext,
-        registerContinuationSink: holdForBg && run
-          ? (sink: ContinuationSink, waits) => { runToContinuationSink(run, sink, waits); }
-          : null,
+        backgroundRun: holdForBg && run ? run : null,
       });
       // Web background-task hold: the Slack/Feishu status-message hold (above) never fires for a
       // web: channel. Keep the session marked running+backgroundRunning and stream the spontaneous
@@ -700,14 +699,14 @@ export function resolveDefaultAgent(agentMessage: string, channel?: string): Age
   };
 }
 
-async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, sessionName, sessionId, threadAnchorId, messageTs, callbacks, projectId, continuationToolUse, continuationToolResult, continuationContextUsage, registerContinuationSink = null }: {
+async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, sessionName, sessionId, threadAnchorId, messageTs, callbacks, projectId, continuationToolUse, continuationToolResult, continuationContextUsage, backgroundRun = null }: {
   result: AgentResult; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number;
   userMessage: string; executionId: string | null; sessionName: string; sessionId: string | null;
   threadAnchorId: string | null; messageTs: string; callbacks: AgentCallbacks; projectId: string;
   continuationToolUse: ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null;
   continuationToolResult: ((toolUseId: string, content: string, isError: boolean) => void) | null;
   continuationContextUsage: ((usage: ContextUsage) => void) | null;
-  registerContinuationSink?: ((sink: ContinuationSink, waits: BackgroundWaitCallbacks) => void) | null;
+  backgroundRun?: HeldRun | null;
 }): Promise<void> {
   if (result?.rateLimited) {
     // Record the interrupted conversation so it auto-resumes when the rate-limit window
@@ -718,7 +717,7 @@ async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, s
     await sealStatus(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));
     return;
   }
-  await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, trigger: 'user', sessionName, trackSessionId: sessionId, threadAnchorId, userMessageTs: messageTs, projectId, onAssistantMessage: callbacks.onAssistantMsg, onToolUse: continuationToolUse, onToolResult: continuationToolResult, onContextUsage: continuationContextUsage, registerContinuationSink });
+  await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, trigger: 'user', sessionName, trackSessionId: sessionId, threadAnchorId, userMessageTs: messageTs, projectId, onAssistantMessage: callbacks.onAssistantMsg, onToolUse: continuationToolUse, onToolResult: continuationToolResult, onContextUsage: continuationContextUsage, backgroundRun });
 }
 
 /**

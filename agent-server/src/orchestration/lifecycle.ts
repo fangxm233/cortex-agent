@@ -33,10 +33,8 @@ import type { RunEvent } from '@domain/runs/events.js';
 
 import { setStreamingCallback, clearStreamingCallback } from './routing/hook-bridge.js';
 import { maybeNotifyTurnComplete } from './turn-notify.js';
-import { buildContinuationSink } from './bg-continuation.js';
+import { holdBackgroundStatus, type HeldRun } from './status-renderer.js';
 import { recordCost } from '@domain/costs/cost-tracker.js';
-import type { ContinuationSink } from '../agent-adapter/types.js';
-import type { BackgroundWaitCallbacks } from '@domain/runs/continuation-sink.js';
 import { recordDirectResume } from '@domain/runs/observers/resume-recorder.js';
 import { isApiRateLimitError } from '@domain/agents/config.js';
 import { isProviderRateLimited } from '@domain/costs/rate-limit-throttle.js';
@@ -50,7 +48,7 @@ const log = createLogger('lifecycle');
 
 // --- Agent success handler ---
 
-export async function handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, trigger = 'user', sessionName = null, trackSessionId = null, threadAnchorId = null, userMessageTs = null, projectId = 'general', onAssistantMessage = null, onToolUse = null, onToolResult = null, onContextUsage = null, registerContinuationSink = null }: { result: AgentResult; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; userMessage: string; executionId: string | null; trigger?: string; sessionName?: string | null; trackSessionId?: string | null; threadAnchorId?: string | null; userMessageTs?: string | null; projectId?: string; onAssistantMessage?: ((text: string) => void) | null; onToolUse?: ((name: string, input: any, toolUseId: string) => void) | null; onToolResult?: ((toolUseId: string, content: string, isError: boolean) => void) | null; onContextUsage?: ((usage: ContextUsage) => void) | null; registerContinuationSink?: ((sink: ContinuationSink, waits: BackgroundWaitCallbacks) => void) | null }): Promise<void> {
+export async function handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, trigger = 'user', sessionName = null, trackSessionId = null, threadAnchorId = null, userMessageTs = null, projectId = 'general', onAssistantMessage = null, onToolUse = null, onToolResult = null, onContextUsage = null, backgroundRun = null }: { result: AgentResult; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; userMessage: string; executionId: string | null; trigger?: string; sessionName?: string | null; trackSessionId?: string | null; threadAnchorId?: string | null; userMessageTs?: string | null; projectId?: string; onAssistantMessage?: ((text: string) => void) | null; onToolUse?: ((name: string, input: any, toolUseId: string) => void) | null; onToolResult?: ((toolUseId: string, content: string, isError: boolean) => void) | null; onContextUsage?: ((usage: ContextUsage) => void) | null; backgroundRun?: HeldRun | null }): Promise<void> {
   // Decoupling: `result.sessionId` is the BACKEND's own session id (Claude self-generated / PI
   // bootstrap id), not the tracking id. Store it as the resume target on the STABLE track record
   // (keyed by sessionName) — do NOT rebind the channel or the registry key to it. The channel stays
@@ -70,101 +68,23 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
   const askCount = await askUserQuestion.sendMessages(result, channel, adapter, statusMsg.messageId, threadAnchorId, stream);
   // Background-task continuation: background work remains — either still running
   // (pendingBackgroundTasks) or finished-but-unnotified (undeliveredBackgroundTasks; CC may
-  // deliver the notification seconds later, or never — 2026-07-10 investigation). Hold the
-  // status in a "waiting" state (don't seal) and register a sink so the spontaneous
-  // continuation turn merges into this reply and seals the status then. The RUN bounds the hold:
-  // a grace watchdog for undelivered-only work (F5) and a max-wait cap for never-ending tasks
-  // (F6), reported here as onGraceTimeout / onMaxWait; the busy bracket below covers the whole
-  // window (F1: a deferred daemon restart must not fire and kill the Claude child). Only when
-  // there are no pending user questions and the assistant reply stream is available to merge into.
+  // deliver the notification seconds later, or never — 2026-07-10 investigation). Hold the status
+  // in a "waiting" state instead of sealing, and let `status-renderer` subscribe to the run: its
+  // continuation merges into this reply and seals the status then, and the run's own grace (F5) /
+  // max-wait (F6) bounds seal it if no continuation ever arrives. Only when no user questions are
+  // pending and the assistant reply stream is available to merge into.
   const pendingBg = result?.pendingBackgroundTasks ?? 0;
   const undeliveredBg = result?.undeliveredBackgroundTasks ?? 0;
-  if (registerContinuationSink && stream && askCount === 0 && pendingBg + undeliveredBg > 0) {
-    // Continuation cost is attributed to the session's bound project (threaded from the caller),
-    // NOT re-derived from the message text.
-    const backend = resolveBackendForChannel(channel);
-    const waitingText = (remaining: number) =>
-      renderTurnStatus({ kind: 'background-waiting', remaining }, { sessionName, sessionId, elapsedStr, metrics });
-    await writeStatus(adapter, statusMsg, waitingText(pendingBg + undeliveredBg));
-    let finalized = false;
-    // Busy bracket for the whole waiting window (F1): a deferred daemon restart must not fire and
-    // kill the backend while its background task is still running. The RUN owns the grace and
-    // max-wait bounds — it is the only thing that knows when the background phase begins and ends —
-    // and reports back through the callbacks handed to registerContinuationSink below.
-    trackPendingTask(+1);
-    let waitReleased = false;
-    const releaseWait = (): void => {
-      if (waitReleased) return;
-      waitReleased = true;
-      trackPendingTask(-1);
-    };
-    // F5: work finished but CC never delivered the notification (old-CLI same-turn completions /
-    // killed tasks). The model already saw the task's outcome inside the turn, so finalize as a
-    // normal completion with a zero-cost continuation.
-    const onGraceTimeout = (): void => {
-      if (finalized) return;
-      finalized = true;
-      log.info(`background grace timeout: sealing ${channel} without a continuation`);
-      void finalizeBackgroundContinuation({
-        adapter, statusMsg, channel, sessionName, sessionId,
-        trackSessionId, startTime, baseResult: result,
-        contResult: { total_cost_usd: null, num_turns: null } as AgentResult,
-        userMessageTs, executionId, trigger, projectId, backend,
-      }).catch((e) => log.error('finalizeBackgroundContinuation (grace) failed:', (e as Error)?.message ?? e));
-    };
-    // F6: still-running work exceeded the cap (tunnels / monitors can run forever). Seal the status
-    // as "still running" and release the busy bracket, but KEEP the sink and streaming callback —
-    // the run stays in its background phase, so a very late continuation still merges and re-seals.
-    const onMaxWait = (): void => {
-      if (finalized) return;
-      const { elapsedStr: fullElapsed } = computeElapsed(startTime);
-      const capText = renderTurnStatus({ kind: 'background-capped' }, { sessionName, sessionId, elapsedStr: fullElapsed, metrics });
-      void sealStatus(adapter, statusMsg, capText, buildSealedStatusActionBlocks(capText, { channel, sessionName, isDm: true }));
-    };
-    const sink = buildContinuationSink({
-      stream,
-      onToolUse: onToolUse || null,
-      onToolResult: onToolResult || null,
-      onContextUsage: onContextUsage || null,
-      onWaiting: (remaining) => {
-        void writeStatus(adapter, statusMsg, waitingText(remaining));
-      },
-      onRateLimited: (contResult) => {
-        if (finalized) return;
-        finalized = true;
-        // Record for auto-resume when the rate-limit window resets.
-        const provider = contResult.rateLimitProvider ?? result?.rateLimitProvider ?? null;
-        recordDirectResume({ provider, channel, trackSessionId, userMessage });
-        const { elapsedStr: fullElapsed } = computeElapsed(startTime);
-        const totals = formatMetricsSuffix({ costUsd: (result?.total_cost_usd ?? 0) + (contResult?.total_cost_usd ?? 0), numTurns: (result?.num_turns ?? 0) + (contResult?.num_turns ?? 0) });
-        const rateLimitText = renderTurnStatus({ kind: 'rate-limited' }, { sessionName, sessionId, elapsedStr: fullElapsed, metrics: totals });
-        void sealStatus(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));
-        clearStreamingCallback(channel);
-      },
-      onComplete: (contResult) => {
-        if (finalized) return;
-        finalized = true;
-        void finalizeBackgroundContinuation({
-          adapter, statusMsg, channel, sessionName, sessionId,
-          trackSessionId, startTime, baseResult: result, contResult,
-          userMessageTs, executionId, trigger, projectId, backend,
-        }).catch((e) => log.error('finalizeBackgroundContinuation failed:', (e as Error)?.message ?? e));
-      },
-      // F2: the Claude process died while background tasks were pending (restart / crash /
-      // kill / timeout) — seal honestly as interrupted, never leave the waiting state.
-      onInterrupted: () => {
-        if (finalized) return;
-        finalized = true;
-        const { elapsedStr: fullElapsed } = computeElapsed(startTime);
-        const interruptedText = renderTurnStatus({ kind: 'background-interrupted' }, { sessionName, sessionId, elapsedStr: fullElapsed, metrics });
-        void sealStatus(adapter, statusMsg, interruptedText, buildSealedStatusActionBlocks(interruptedText, { channel, sessionName, isDm: true }));
-        if (userMessageTs) {
-          void conversationLedger.completeTurn(channel, userMessageTs, { executionId }).catch((e) => log.error('completeTurn (bg-interrupted) failed:', (e as Error).message));
-        }
-        clearStreamingCallback(channel);
-      },
+  if (backgroundRun && stream && askCount === 0 && pendingBg + undeliveredBg > 0) {
+    await holdBackgroundStatus({
+      run: backgroundRun, adapter, statusMsg, channel, stream,
+      sessionName, sessionId, trackSessionId, startTime, baseResult: result,
+      userMessage, userMessageTs, executionId, trigger, projectId,
+      // Continuation cost is attributed to the session's bound project (threaded from the caller),
+      // NOT re-derived from the message text.
+      backend: resolveBackendForChannel(channel),
+      onToolUse, onToolResult, onContextUsage,
     });
-    registerContinuationSink(sink, { onGraceTimeout, onMaxWait, onWaitEnded: releaseWait });
     return; // status held; finalization deferred to the continuation turn / the run's watchdog
   }
 
@@ -214,56 +134,6 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
       log.warn('onMessageEnd hook skipped: assistant stream unavailable on onAssistantMessage');
     }
   }
-}
-
-async function recordBackgroundCost(input: {
-  result: AgentResult; projectId: string; trigger: string; backend: string;
-  /** The mode the continuation actually ran under — the channel's profile, not a global (D5). */
-  mode: string | null;
-  sessionId: string | null; executionId: string | null;
-}): Promise<void> {
-  const accounting = input.result.reportedAccounting;
-  if (input.result.total_cost_usd == null && accounting?.usageReported !== true) return;
-  await recordCost({
-    project: input.projectId,
-    trigger: input.trigger ? `${input.trigger}:bg-continuation` : 'bg-continuation',
-    cost_usd: input.result.total_cost_usd, backend: input.backend,
-    mode: input.mode ?? null, source: 'estimate',
-    input_tokens: accounting?.inputTokens ?? null,
-    output_tokens: accounting?.outputTokens ?? null,
-    prompt_tokens: accounting?.promptTokens ?? null,
-    cache_read_tokens: accounting?.cacheReadTokens ?? null,
-    cache_creation_tokens: accounting?.cacheCreationTokens ?? null,
-    provider_requests: Number.isSafeInteger(input.result.num_turns)
-      && Number(input.result.num_turns) > 0 ? input.result.num_turns : null,
-    session_id: input.sessionId, execution_id: input.executionId,
-    provider: 'anthropic', model: accounting?.model ?? undefined,
-  });
-}
-
-/** Finalize a held turn once its background continuation completes. */
-async function finalizeBackgroundContinuation({ adapter, statusMsg, channel, sessionName, sessionId, trackSessionId, startTime, baseResult, contResult, userMessageTs, executionId, trigger, projectId, backend }: {
-  adapter: PlatformAdapter; statusMsg: MessageRef; channel: string; sessionName: string | null;
-  sessionId: string | null; trackSessionId: string | null; startTime: number;
-  baseResult: AgentResult; contResult: AgentResult; userMessageTs: string | null;
-  executionId: string | null; trigger: string; projectId: string; backend: string;
-}): Promise<void> {
-  const { elapsedStr } = computeElapsed(startTime);
-  const totalCost = (baseResult?.total_cost_usd ?? 0) + (contResult?.total_cost_usd ?? 0);
-  const totalTurns = (baseResult?.num_turns ?? 0) + (contResult?.num_turns ?? 0);
-  const metrics = formatMetricsSuffix({ costUsd: totalCost, numTurns: totalTurns });
-  const statusText = renderTurnStatus({ kind: 'done' }, { sessionName, sessionId, elapsedStr, metrics });
-  await sealStatus(adapter, statusMsg, statusText, buildSealedStatusActionBlocks(statusText, { channel, sessionName, isDm: true }));
-  await maybeNotifyTurnComplete({ adapter, channel, threadAnchorId: null, sessionName, sessionId, elapsedS: computeElapsed(startTime).elapsedS, elapsedStr, status: 'completed', metricsSuffix: metrics });
-  if (userMessageTs) {
-    await conversationLedger.completeTurn(channel, userMessageTs, { executionId }).catch((e) => log.error('completeTurn failed:', (e as Error).message));
-  }
-  clearStreamingCallback(channel);
-  await recordBackgroundCost({
-    result: contResult, projectId, trigger, backend,
-    mode: resolveRunConfig({ channel }).profile.mode,
-    sessionId: trackSessionId ?? sessionId, executionId,
-  }).catch((e) => log.warn('recordCost (bg-continuation) failed:', (e as Error).message));
 }
 
 async function backfillLedgerSessionId(result: { sessionId?: string | null }, channel: string): Promise<void> {
