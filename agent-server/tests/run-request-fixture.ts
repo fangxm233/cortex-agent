@@ -117,7 +117,11 @@ export function runRequestFixture(
     prompt: { text: partial.promptText ?? '' },
     context: {
       channel: partial.channel ?? '',
-      project: partial.project ?? '',
+      // Undefined when the flat literal named none, exactly as the old options bag behaved:
+      // `spawnContext` turns an absent project into null, and production only ever fills it with a
+      // real project id. Saying `''` instead would change the resolved spec (and the evidence that
+      // attests it) for every fixture that never had a project.
+      project: partial.project as string,
       trigger: partial.trigger ?? '',
       threadId: partial.threadId ?? null,
       threadDepth: partial.threadDepth ?? null,

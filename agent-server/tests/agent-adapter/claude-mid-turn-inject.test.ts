@@ -84,6 +84,12 @@ function openFixture(t: any, key: string, extra: Record<string, unknown> = {}): 
   return { pool, engine, session, child, writes: child.writes };
 }
 
+/** A turn the test is not exercising: enough of the real turn shape that the session can still
+ *  abort it when the fixture's fake child reports its process closing. */
+function stubTurn(): any {
+  return { resolve() {}, reject() {}, killed: false, spontaneous: false };
+}
+
 /** Consume a run's whole event stream in the background; `done` resolves when the queue closes. */
 function collect(run: EngineRun): { events: RunEvent[]; done: Promise<void> } {
   const events: RunEvent[] = [];
@@ -144,7 +150,7 @@ const RESULT_CONT = JSON.stringify({ type: 'result', subtype: 'success', is_erro
 
 test('steer: no live process → false, nothing written', (t) => {
   const f = openFixture(t, 'inject-no-process');
-  f.session.currentTurn = {} as any;
+  f.session.currentTurn = stubTurn();
   f.session.proc = null;
 
   assert.equal(f.engine.steer({ text: 'hi' }).accepted, false);
@@ -153,7 +159,7 @@ test('steer: no live process → false, nothing written', (t) => {
 
 test('steer: process not alive → false', (t) => {
   const f = openFixture(t, 'inject-dead-process');
-  f.session.currentTurn = {} as any;
+  f.session.currentTurn = stubTurn();
   f.session.alive = false;
 
   assert.equal(f.engine.steer({ text: 'hi' }).accepted, false);
