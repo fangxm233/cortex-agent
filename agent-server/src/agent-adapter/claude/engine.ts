@@ -11,7 +11,7 @@ import type { EngineRunOptions } from '../types.js';
 import { createEventStream } from '../normalize/event-stream.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
 import type {
-  AgentCompactResult, AgentProcessSupervision, Backend, ContinuationSink,
+  AgentCompactResult, AgentProcessSupervision, Backend, BackgroundTurnSink,
   EngineRun, EngineSession, EngineSpec, InjectionAckSink, UserMessage,
 } from '../types.js';
 import {
@@ -43,7 +43,7 @@ export interface ClaudeEngineSessionHost extends ClaudeTurnAccountingSource {
   sendMessage(text: string, options: ClaudeTurnCallbacks): Promise<AgentResult>;
   injectUserMessage(message: UserMessage): boolean;
   setInjectionAckSink(sink: InjectionAckSink): void;
-  setContinuationSink(sink: ContinuationSink): void;
+  setBackgroundTurnSink(sink: BackgroundTurnSink): void;
   getSupervision(): AgentProcessSupervision | undefined;
   compact(): Promise<AgentCompactResult>;
   /** `ClaudeSession.close()` is synchronous (stdin end + grace timer); the engine wraps it. */
@@ -155,7 +155,7 @@ export class ClaudeEngineSession implements EngineSession {
       close: () => queue.close(),
     });
     active.phase = phase;
-    this.session.setContinuationSink(phase.sink());
+    this.session.setBackgroundTurnSink(phase.sink());
 
     // `turn_complete` is the callback stream's terminal marker, not a result: the engine pushes the
     // authoritative `foreground_result` itself once the turn resolves, and translating the marker

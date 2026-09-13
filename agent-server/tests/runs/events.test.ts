@@ -1,13 +1,12 @@
-// input:  domain/runs/events.ts and the NormalizedEvent / ContinuationSink shapes
-// output: spec that every NormalizedEvent and ContinuationSink callback translates with its phase
+// input:  domain/runs/events.ts and the NormalizedEvent / BackgroundTurnSink shapes
+// output: spec that every NormalizedEvent and BackgroundTurnSink callback translates with its phase
 // pos:    P1.1 contract — RunEvent translation is total and phase-tagged
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
-import { continuationSinkToEvents, toRunEvent, type RunEvent } from '../../src/domain/runs/events.js';
-import type { ContinuationSink } from '../../src/agent-adapter/types.js';
+import { toRunEvent, type RunEvent } from '../../src/domain/runs/events.js';
 import type { NormalizedEvent, ToolUseSubagent } from '../../src/agent-adapter/normalize/event-types.js';
 import type { AgentResult, TodoSnapshot } from '../../src/core/types/agent-types.js';
 
@@ -156,62 +155,4 @@ test('the phase tag is independent of the union member for every passthrough kin
     assert.equal((foreground as { phase?: string }).phase, 'foreground', kind);
     assert.equal((done as { phase?: string }).phase, 'done', kind);
   }
-});
-
-test('continuationSinkToEvents turns every callback into a background RunEvent', () => {
-  const emitted: RunEvent[] = [];
-  const sink: ContinuationSink = continuationSinkToEvents((event) => emitted.push(event));
-
-  sink.onTurnOpen?.();
-  assert.deepEqual(emitted.at(-1), {
-    type: 'phase', phase: 'background', pendingBackground: 0, undeliveredBackground: 0,
-  });
-
-  sink.onAssistantText('continued', 'sonnet', subagent);
-  assert.deepEqual(emitted.at(-1), {
-    type: 'assistant_text', text: 'continued', model: 'sonnet', subagent, phase: 'background',
-  });
-
-  sink.onToolUse?.('Bash', { command: 'ls' }, 'tu-9', subagent);
-  assert.deepEqual(emitted.at(-1), {
-    type: 'tool_use', toolUseId: 'tu-9', name: 'Bash', input: { command: 'ls' },
-    subagent, phase: 'background',
-  });
-
-  sink.onToolResult?.('tu-9', 'failed', true, subagent);
-  assert.deepEqual(emitted.at(-1), {
-    type: 'tool_result', toolUseId: 'tu-9', ok: false, content: 'failed',
-    subagent, phase: 'background',
-  });
-
-  sink.onContextUsage?.({ usedTokens: 5, contextWindow: 50, percent: 10, accuracy: 'estimate' });
-  assert.deepEqual(emitted.at(-1), {
-    type: 'context_usage', usedTokens: 5, contextWindow: 50, percent: 10,
-    accuracy: 'estimate', phase: 'background',
-  });
-
-  sink.onSubagentEnd?.('toolu_parent', 'killed');
-  assert.deepEqual(emitted.at(-1), {
-    type: 'subagent_end', parentToolUseId: 'toolu_parent', status: 'killed', phase: 'background',
-  });
-
-  sink.onResult(result({ pendingBackgroundTasks: 1, undeliveredBackgroundTasks: 2 }));
-  assert.deepEqual(emitted.at(-1), {
-    type: 'background_result', result: result({ pendingBackgroundTasks: 1, undeliveredBackgroundTasks: 2 }),
-  });
-
-  // A later turn-open reports the counts from the last result.
-  sink.onTurnOpen?.();
-  assert.deepEqual(emitted.at(-1), {
-    type: 'phase', phase: 'background', pendingBackground: 1, undeliveredBackground: 2,
-  });
-});
-
-test('continuationSinkToEvents tolerates an absent toolUseId', () => {
-  const emitted: RunEvent[] = [];
-  const sink = continuationSinkToEvents((event) => emitted.push(event));
-  sink.onToolUse?.('Read', { path: '/x' });
-  assert.deepEqual(emitted.at(-1), {
-    type: 'tool_use', toolUseId: '', name: 'Read', input: { path: '/x' }, phase: 'background',
-  });
 });

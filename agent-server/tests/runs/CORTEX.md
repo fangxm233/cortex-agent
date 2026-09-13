@@ -13,7 +13,7 @@ policies (what a run tries and what it says about it) and the run observers' pol
 | throttle-fixture.ts | fixture | loadThrottleHome — the private CORTEX_HOME + seeded profiles + armed throttle both attempt-policy suites need |
 | engine-spec.test.ts | test | buildEngineSpec exact captured-output assertions, and engineIdentity key-order stability plus its three exclusions |
 | engines.test.ts | test | SessionEngines pool ownership: reuse, retirement, synchronous eviction on close, and the detached registerSessionPath reference |
-| events.test.ts | test | every NormalizedEvent translation and phase tag, and every ContinuationSink callback |
+| events.test.ts | test | every NormalizedEvent translation and phase tag, for both the foreground and background phases |
 | prompt.test.ts | test | composeSystemPrompt / composeUserPrompt pinned byte-for-byte against the pre-P3.3b builders |
 | registry.test.ts | test | RunRegistry.sessionState combinations and the background-hold lifecycle |
 | resume-recorder.test.ts | test | recordDirectResume's throttle gate (and why an un-throttled 429 is terminal) vs recordThreadResume's unconditional record |

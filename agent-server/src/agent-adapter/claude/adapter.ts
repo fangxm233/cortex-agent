@@ -13,7 +13,7 @@ import { Capability, CAPABILITIES_BY_BACKEND } from '../capabilities.js';
 import { resolveMcpComposition } from '../types.js';
 import type {
   AgentCompactResult, AgentProcessSpawner,
-  AgentProcessSupervision, EngineAdapter, EngineSpec, Backend, ContinuationSink,
+  AgentProcessSupervision, EngineAdapter, EngineSpec, Backend, BackgroundTurnSink,
   InjectionAckSink, McpComposition, RateLimitObservation, RateLimitOrigin, RateLimitReporter,
   SpawnedAgentProcess, UserMessage,
 } from '../types.js';
@@ -559,7 +559,7 @@ class ClaudeSession implements TurnHost {
   close() {
     if (this.idleTimer) clearTimeout(this.idleTimer);
     if (this.turnIdleTimer) clearTimeout(this.turnIdleTimer);
-    // Do NOT clear continuationSink here: if background tasks are pending, the process
+    // Do NOT clear backgroundTurnSink here: if background tasks are pending, the process
     // 'close' event (handleProcessClose) must still deliver the interruption to the sink
     // so the held "background task running" status seals instead of waiting forever.
     if (!this.proc || !this.alive) {
@@ -630,8 +630,8 @@ class ClaudeSession implements TurnHost {
   get currentTurn(): PendingTurn | null { return this.turns.currentTurn; }
   set currentTurn(turn: PendingTurn | null) { this.turns.currentTurn = turn; }
 
-  get continuationSink(): ContinuationSink | null { return this.turns.continuationSink; }
-  set continuationSink(sink: ContinuationSink | null) { this.turns.continuationSink = sink; }
+  get backgroundTurnSink(): BackgroundTurnSink | null { return this.turns.backgroundTurnSink; }
+  set backgroundTurnSink(sink: BackgroundTurnSink | null) { this.turns.backgroundTurnSink = sink; }
 
   get bgTracker(): BgTaskTracker { return this.turns.bgTracker; }
 
@@ -640,9 +640,9 @@ class ClaudeSession implements TurnHost {
 
   get lastTokenUsage(): TurnTokenUsage | null { return this.turns.lastTokenUsage; }
 
-  setContinuationSink(sink: ContinuationSink): void { this.turns.setContinuationSink(sink); }
+  setBackgroundTurnSink(sink: BackgroundTurnSink): void { this.turns.setBackgroundTurnSink(sink); }
 
-  clearContinuationSink(): void { this.turns.clearContinuationSink(); }
+  clearBackgroundTurnSink(): void { this.turns.clearBackgroundTurnSink(); }
 
   setInjectionAckSink(sink: InjectionAckSink): void { this.turns.setInjectionAckSink(sink); }
 
@@ -935,7 +935,7 @@ function makeSessionForTest(
   turns.bgTracker = new BgTaskTracker();
   turns.streamDeltaState = createStreamDeltaState();
   turns.contextUsageTracker = new ClaudeContextUsageTracker(modelName, autoCompactWindow);
-  turns.continuationSink = null;
+  turns.backgroundTurnSink = null;
   turns.pendingContinuationDeliveries = [];
   turns.pendingInjections = [];
   turns.injectionAck = null;

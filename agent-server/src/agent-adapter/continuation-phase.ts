@@ -1,4 +1,4 @@
-// input:  continuation sink callbacks, the run's await-background policy, timers
+// input:  BackgroundTurnSink callbacks, the run's await-background policy, timers
 // output: the background phase of one engine run — RunEvents, merged result, grace/max-wait watchdog
 // pos:    agent-adapter — engine-side background continuation controller (one per EngineRun)
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -25,7 +25,7 @@
 
 import { createLogger } from '@core/log.js';
 import type { AgentResult } from '@core/types/agent-types.js';
-import type { ContinuationSink } from './types.js';
+import type { BackgroundTurnSink } from './types.js';
 import { getBgGraceMs, getBgMaxWaitMs, remainingBg } from './bg-wait.js';
 import type { RunEvent } from './run-events.js';
 
@@ -154,10 +154,10 @@ export class ContinuationPhase {
     this.maxWaitMs = completionOnly ? 0 : (port.maxWaitMs ?? getBgMaxWaitMs());
   }
 
-  /** The continuation sink the engine hands its transport for this run's background turns. The
+  /** The background-turn sink the engine hands its transport for this run. The
    *  translation is `sinkToRunEvents`; the control flow (`onTurnOpen` / `onResult`) is this
    *  phase's, which is why the two are composed here rather than in the engine. */
-  sink(): ContinuationSink {
+  sink(): BackgroundTurnSink {
     const emit = sinkToRunEvents((event) => this.ingest(event));
     return {
       ...emit,
@@ -369,11 +369,11 @@ export class ContinuationPhase {
 }
 
 /**
- * The event-carrying half of a continuation sink: everything a background turn emits, without the
+ * The event-carrying half of a BackgroundTurnSink: everything a background turn emits, without the
  * two members that are control flow rather than stream content (`onTurnOpen` / `onResult`).
  * Whatever drives the wait composes those on top.
  */
-export type BackgroundEventSink = Omit<ContinuationSink, 'onTurnOpen' | 'onResult'>;
+export type BackgroundEventSink = Omit<BackgroundTurnSink, 'onTurnOpen' | 'onResult'>;
 
 /**
  * Adapt a continuation turn's callbacks into the run's `RunEvent` stream, tagged

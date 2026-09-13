@@ -54,7 +54,7 @@ import { acquireDeviceBrowser, releaseDeviceBrowser } from '@domain/remote/devic
 import { tryAnswerFromHuman } from './manager-qa.js';
 import { shouldHoldForBg, shouldHoldWebForBg } from './background-hold-gates.js';
 import { holdWebSessionForBackground } from './web-status-renderer.js';
-import type { ContinuationSink } from '../agent-adapter/types.js';
+import type { BackgroundTurnSink } from '../agent-adapter/types.js';
 import { downloadFiles as downloadPlatformFiles } from './routing/file-handler.js';
 import { WORKSPACE_DIR, resolveWorkspaceRelPath } from '@core/utils.js';
 import { acquireTurnMutationLock, type TurnMutationRelease } from './turn-mutation-lock.js';
@@ -375,7 +375,7 @@ export class AgentRunner {
     beginForegroundSession(sessionId, channel);
     let capturedExecutionId: string | null = null;
     // Web background-task hold: when set, the turn ended with a live background task and a
-    // ContinuationSink was registered to stream the spontaneous continuation. The hold owns the
+    // BackgroundTurnSink was registered to stream the spontaneous continuation. The hold owns the
     // terminal running:false publish, so the finally below must NOT seal the session idle.
     let webBgHeld = false;
     // Token-level streaming for the Web chat. Null for every other surface (Slack / Feishu /
@@ -554,7 +554,7 @@ export class AgentRunner {
       // reply (handleAgentSuccess holds the status and subscribes to the run's background phase).
       // Otherwise clear the callback as usual.
       const canSink = convResult.canAwaitBackground;
-      // The engine owns the background phase's continuation sink and the run fans its events out:
+      // The engine owns the background phase's own sink and the run fans its events out:
       // the Slack/Feishu status surface subscribes to the RUN (status-renderer) rather than
       // registering its own sink, which would clobber the engine's and drop the fan-out to every
       // other observer.

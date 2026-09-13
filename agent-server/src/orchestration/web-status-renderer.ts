@@ -11,7 +11,7 @@
 //
 // Why it is a RunObserver: this is the same surface as `status-renderer.ts`, rendered through
 // web's event stream instead of a Slack status message. Both used to reach the run through a
-// `ContinuationSink` bridge; both now just subscribe.
+// `BackgroundTurnSink` bridge; both now just subscribe.
 
 import { createLogger } from '@core/log.js';
 import type {

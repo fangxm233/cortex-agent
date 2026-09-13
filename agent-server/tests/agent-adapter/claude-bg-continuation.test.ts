@@ -42,7 +42,7 @@ function backgroundResults(events: RunEvent[]): BackgroundResult[] {
 
 /**
  * Open one run over a fresh pooled engine and feed the session raw CLI lines. This is the seam the
- * old `setContinuationSink`/`waitForBgContinuation` tests move onto: the run's own policy
+ * old `setBackgroundTurnSink`/`waitForBgContinuation` tests move onto: the run's own policy
  * (`awaitBackground`) decides what the phase does, and the run stream carries the background events.
  */
 function engineRun(
@@ -78,9 +78,9 @@ test('handleLine: normal turn result carries pendingBackgroundTasks count', (t) 
   assert.equal(cap.value.pendingBackgroundTasks, 1, 'result reports 1 pending background task');
 });
 
-// The engine installs its own continuation sink when `run()` opens, but a one-shot CLI can deliver
+// The engine installs its own background-turn sink when `run()` opens, but a one-shot CLI can deliver
 // a continuation before that: the session buffers it (`preserveUnreportedAccounting`) and the phase
-// replays it once it starts. This is the same fact the old `setContinuationSink` buffering test
+// replays it once it starts. This is the same fact the old `setBackgroundTurnSink` buffering test
 // asserted, observed through the run stream the engine actually installs.
 test('run: one-shot buffers a continuation until the run installs its sink', async (t) => {
   const { engine, session, close } = openClaudeTestEngine({ preserveUnreportedAccounting: true });
@@ -292,7 +292,7 @@ test('handleProcessClose: waiting window (bg pending, no active turn) → one ba
   const results = backgroundResults(events);
   assert.equal(results.length, 1, 'run stream notified once');
   assert.equal(results[0].result.backgroundInterrupted, true, 'result flagged as interrupted');
-  assert.equal(session.continuationSink, null, 'the engine sink is released after the notify');
+  assert.equal(session.backgroundTurnSink, null, 'the engine sink is released after the notify');
 
   session.handleProcessClose(1);    // double close must not re-notify
   await tick();
@@ -310,7 +310,7 @@ test('handleProcessClose: nothing pending → sink released silently (no interru
   await tick();
 
   assert.equal(backgroundResults(events).length, 0, 'no interrupted delivery for a clean close');
-  assert.equal(session.continuationSink, null, 'sink still released (session is gone)');
+  assert.equal(session.backgroundTurnSink, null, 'sink still released (session is gone)');
 });
 
 test('handleProcessClose: crash mid-continuation (spontaneous turn open) → backgroundInterrupted result', async (t) => {
@@ -450,6 +450,6 @@ test('handleLine: compact_boundary with no active turn is a no-op', (t) => {
   );
 });
 
-// The old `setContinuationSink/clearContinuationSink and close clear the sink` test drove a surface
+// The old `setBackgroundTurnSink/clearBackgroundTurnSink and close clear the sink` test drove a surface
 // that no longer exists: the engine installs and releases the sink itself as part of `run()`, which
 // the interruption tests above already exercise.

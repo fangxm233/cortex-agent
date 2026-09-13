@@ -153,13 +153,17 @@ export type AgentProcessSpawner = (
 ) => SpawnedAgentProcess;
 
 /**
- * Session-level sink for background-task continuation turns (run_in_background Bash/Agent).
- * After a background task finishes, the Claude CLI spontaneously re-invokes the model and
- * emits a follow-up turn with no caller awaiting it. The adapter routes that turn here so
- * orchestration can merge it into the originating reply and seal the status once the
- * background tasks are done. Only the Claude backend implements this (capability-gated).
+ * Where a BACKGROUND TURN reports itself: a turn the backend opened on its own, with no caller
+ * awaiting it — a finished `run_in_background` task making the CLI re-invoke the model, or an
+ * injected message the CLI consumed after the foreground result.
+ *
+ * A background turn is the same run, later, so this is a phase of the run and not a side channel:
+ * `ContinuationPhase` installs it on the session and turns everything that arrives into `RunEvent`s
+ * tagged `phase: 'background'`; the session never learns what happens next. Only Claude opens these
+ * turns today (capability-gated), which is why the two members below follow the CLI's own lifecycle
+ * (`onTurnOpen` when the CLI starts the turn, `onResult` when it ends).
  */
-export interface ContinuationSink {
+export interface BackgroundTurnSink {
   /** Optional: the continuation turn has opened (first assistant line arrived). The wait is over;
    *  holders pause their grace/max-wait watchdogs until `onResult` reports what remains. */
   onTurnOpen?: () => void;
@@ -191,7 +195,7 @@ export interface ContinuationSink {
  * A successful backend write only queues the message. `onDelivered` fires when the backend begins
  * consuming it; `onUndelivered` seals an accepted message that the backend later rejects or loses.
  * `foldedIntoTurn` tells orchestration whether the already tracked run will carry the reply (`true`)
- * or a spontaneous continuation sink must carry it (`false`).
+ * or a spontaneous background turn must carry it (`false`).
  */
 export interface InjectionAckSink {
   /** Fired once per injected message, when the backend reports having consumed it. */

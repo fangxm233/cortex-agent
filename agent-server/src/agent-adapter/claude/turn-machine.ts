@@ -9,7 +9,7 @@ import * as path from 'path';
 import { readableTimestamp } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
 import type {
-  AgentCompactUsage, ContinuationSink, InjectionAckSink, RateLimitObservation, RateLimitOrigin,
+  AgentCompactUsage, BackgroundTurnSink, InjectionAckSink, RateLimitObservation, RateLimitOrigin,
   UserMessage,
 } from '../types.js';
 import type { AgentResult, ContextUsage, ReportedAccountingSnapshot } from '@core/types/agent-types.js';
@@ -83,7 +83,7 @@ export interface PendingTurn {
   ) => void) | null;
   /** Authoritative end of one subagent spawned by this turn. A backgrounded child can reach its
    *  terminal state while the parent turn is still open, so the signal needs an in-turn route —
-   *  the continuation sink only exists once the turn has ended and a background hold is up. */
+   *  the background-turn sink only exists once the turn has ended and a background hold is up. */
   onSubagentEnd: ((
     parentToolUseId: string, status: SubagentEndStatus,
   ) => void) | null;
@@ -128,7 +128,7 @@ function subagentActivityKind(data: any): SubagentActivityKind | null {
   return null;
 }
 
-type ContinuationDelivery = (sink: ContinuationSink) => void;
+type ContinuationDelivery = (sink: BackgroundTurnSink) => void;
 
 /**
  * Extract the prompt text from a `--replay-user-messages` echo. `message.content` arrives either
@@ -182,7 +182,7 @@ export class ClaudeTurnMachine {
   /** Tracks in-flight background tasks (run_in_background) for this session. */
   bgTracker = new BgTaskTracker();
   /** Set by orchestration to receive spontaneous background-task continuation turns. */
-  continuationSink: ContinuationSink | null = null;
+  backgroundTurnSink: BackgroundTurnSink | null = null;
   /** One-shot events that arrived before completion-only waiting installed its sink. */
   private pendingContinuationDeliveries: ContinuationDelivery[] = [];
   /** Messages injected into an in-flight turn that the CLI has not echoed back yet, in write
@@ -204,13 +204,13 @@ export class ClaudeTurnMachine {
     this.contextUsageTracker = contextUsageTracker;
   }
 
-  /** Deliver a synthetic interrupted result to the continuation sink (single-fire: the sink
+  /** Deliver a synthetic interrupted result to the background-turn sink (single-fire: the sink
    *  reference is cleared before invoking). Fires only when background work may still produce
    *  a continuation (or `force`, for a dying spontaneous turn); otherwise just clears the sink. */
   notifyBgInterrupted(force = false): void {
-    const sink = this.continuationSink;
+    const sink = this.backgroundTurnSink;
     if (!sink) return;
-    this.continuationSink = null;
+    this.backgroundTurnSink = null;
     // An injected message that was never echoed back, or one already consumed into a spontaneous
     // turn that never arrived, is work the caller is still waiting on — seal it like pending
     // background work rather than dropping the sink silently.
@@ -277,29 +277,29 @@ export class ClaudeTurnMachine {
   }
 
   private deliverContinuation(delivery: ContinuationDelivery): void {
-    const sink = this.continuationSink;
+    const sink = this.backgroundTurnSink;
     if (!sink) {
       if (this.host.preserveUnreportedAccounting) this.pendingContinuationDeliveries.push(delivery);
       return;
     }
     try { delivery(sink); }
-    catch (error) { log.warn('continuation sink threw:', (error as Error).message); }
+    catch (error) { log.warn('background-turn sink threw:', (error as Error).message); }
   }
 
-  /** Register/replace the continuation sink. Persists across normal turns; lives as long
+  /** Register/replace the background-turn sink. Persists across normal turns; lives as long
    *  as the pooled session, until close()/kill(). */
-  setContinuationSink(sink: ContinuationSink): void {
-    this.continuationSink = sink;
+  setBackgroundTurnSink(sink: BackgroundTurnSink): void {
+    this.backgroundTurnSink = sink;
     const pending = this.pendingContinuationDeliveries.splice(0);
     for (const delivery of pending) this.deliverContinuation(delivery);
   }
 
-  clearContinuationSink(): void {
-    this.continuationSink = null;
+  clearBackgroundTurnSink(): void {
+    this.backgroundTurnSink = null;
     this.pendingContinuationDeliveries.length = 0;
   }
 
-  /** Register/replace the injection delivery-ack sink. Lifetime mirrors continuationSink. */
+  /** Register/replace the injection delivery-ack sink. Lifetime mirrors backgroundTurnSink. */
   setInjectionAckSink(sink: InjectionAckSink): void {
     this.injectionAck = sink;
   }
@@ -320,7 +320,7 @@ export class ClaudeTurnMachine {
    *     to do; the turn's own callbacks carry the reply.
    *   - mid-text-generation → the CLI drains its queue only after this turn's result and then
    *     starts a turn of its own. The echo handler arms the existing spontaneous-turn
-   *     path so that reply is captured by continuationSink instead of dropped.
+   *     path so that reply is captured by backgroundTurnSink instead of dropped.
    *
    * Returns false when there is no live process or no active turn — the caller then falls back to
    * the normal queue.
@@ -385,7 +385,7 @@ export class ClaudeTurnMachine {
   }
 
   /** Open a synthetic turn to capture the spontaneous continuation the CLI emits after a
-   *  background task finishes. Its output is delivered or buffered for continuationSink. */
+   *  background task finishes. Its output is delivered or buffered for backgroundTurnSink. */
   private openContinuationTurn(label = '[background-task continuation]'): void {
     this.bgTracker.disarmContinuation();
     const streams = this.createTurnStreams(label);
@@ -515,7 +515,7 @@ export class ClaudeTurnMachine {
   /**
    * A backgrounded subagent's own `assistant`/`user` line arriving with no turn open. Routed here
    * by `routeLine` → 'subagent-orphan' instead of being dropped. Deliberately minimal: it feeds
-   * the continuation sink the same three attributed callbacks the in-turn path uses, and touches
+   * the background-turn sink the same three attributed callbacks the in-turn path uses, and touches
    * NO turn bookkeeping (no turn counts, no finalOutput, no plan-file capture, no delta cursor) —
    * there is no turn here to account for, and the main agent's next real turn must not inherit
    * anything from a subagent that ran beside it.
@@ -697,7 +697,7 @@ export class ClaudeTurnMachine {
       const subagentEnd = this.bgTracker.subagentEndFor(data);
       if (subagentEnd) {
         // In-turn first: a subagent that finishes while its parent turn is still open has no
-        // continuation sink to reach (one is registered only when the turn ends holding background
+        // background-turn sink to reach (one is registered only when the turn ends holding background
         // work), and `subagentEndFor` is consuming — dropping it here loses the end for good.
         const inTurn = this.currentTurn?.onSubagentEnd;
         if (inTurn) {
@@ -711,7 +711,7 @@ export class ClaudeTurnMachine {
       }
       // A backgrounded subagent keeps working after its parent turn closed, and the CLI keeps
       // streaming its lines. With no turn open the branches above skip them, so route them to the
-      // continuation sink here — otherwise the whole tail of a background agent's trajectory
+      // background-turn sink here — otherwise the whole tail of a background agent's trajectory
       // (tool calls AND its final report) is received and then dropped.
       if (!this.currentTurn && routeLine(this.bgTracker, data, false) === 'subagent-orphan') {
         this.handleOrphanSubagentLine(data);
@@ -719,8 +719,8 @@ export class ClaudeTurnMachine {
       // No active turn, and the model just started speaking anyway: either a background task
       // finished (bgTracker armed) or an injected message was consumed after this turn's result
       // Both make the CLI open a turn of its own — open a synthetic turn for it so its
-      // output is routed (to continuationSink) instead of being dropped.
-      const canCaptureContinuation = this.continuationSink || this.host.preserveUnreportedAccounting;
+      // output is routed (to backgroundTurnSink) instead of being dropped.
+      const canCaptureContinuation = this.backgroundTurnSink || this.host.preserveUnreportedAccounting;
       if (!this.currentTurn && canCaptureContinuation && data.type === 'assistant'
           && (this.injectionContinuationArmed || routeLine(this.bgTracker, data, false) === 'open-continuation')) {
         const fromInjection = this.injectionContinuationArmed;

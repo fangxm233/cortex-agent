@@ -244,7 +244,7 @@ export function createTranscriptSink(opts: TranscriptSinkOptions): RunObserver {
 // `injection_delivered` / `injection_rejected` events plus background-phase continuation events.
 //
 // `AgentRun` installs the backend `InjectionAckSink` and owns the process's single
-// `ContinuationSink`; the ledger never touches either. It is only fed RunEvents.
+// `BackgroundTurnSink`; the ledger never touches either. It is only fed RunEvents.
 
 /** Side-effect seams for the injection ledger, bound by `buildInjectDeps` in production. */
 export interface InjectionLedgerDeps {

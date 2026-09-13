@@ -6,7 +6,7 @@ Defines shared contracts, capabilities, and normalized backend events.
 | filename | role | function |
 |---|---|---|
 | index.ts | entry | re-exports the shared adapter contract (types, capabilities, events, hooks); the daemon assembly lives in domain/runs/adapters.ts |
-| types.ts | types | Shared engine/session contracts (EngineSpec, EngineRun, EngineSession, EngineAdapter), usage, tool-gate, MCP and the continuation/injection sink shapes |
+| types.ts | types | Shared engine/session contracts (EngineSpec, EngineRun, EngineSession, EngineAdapter), usage, tool-gate, MCP and the two session ports (BackgroundTurnSink, InjectionAckSink) |
 | run-events.ts | types | RunPhase/RunEvent vocabulary, the NormalizedEvent → RunEvent translation and the RunEventQueue backing EngineRun.events |
 | mcp-private-dir.ts | util | Guards private physical MCP directories |
 | mcp-remote-fetch.ts | util | Rejects remote MCP HTTP redirects |

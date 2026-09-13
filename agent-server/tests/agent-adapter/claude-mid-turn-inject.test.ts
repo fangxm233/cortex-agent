@@ -62,7 +62,7 @@ function fakeTurn(capture: { value?: any; error?: any; resolves?: number }) {
 
 /**
  * Open one pooled Claude engine over a fake child. The engine installs the injection-ack and
- * continuation sinks in `run()`; the test drives the raw protocol through `session.handleLine`
+ * turn sinks in `run()`; the test drives the raw protocol through `session.handleLine`
  * so the echo/ack ordering stays synchronous and every internal counter is still observable.
  */
 function openFixture(t: any, key: string, extra: Record<string, unknown> = {}): ClaudeFixture {
@@ -237,7 +237,7 @@ test('fold-in: echo while the turn is live acks as folded, opens no continuation
 
 // --- Post-result: injected message lands mid-text-generation → consumed AFTER this turn's result ---
 
-test('post-result: echo after the result opens a spontaneous turn routed to the continuation sink', async (t) => {
+test('post-result: echo after the result opens a spontaneous turn routed to the run stream', async (t) => {
   const f = openFixture(t, 'inject-post-result');
   const run = f.engine.run({ text: 'opening' }, { awaitBackground: 'hold' });
   const { events, done } = collect(run);

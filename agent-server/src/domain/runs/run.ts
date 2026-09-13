@@ -64,7 +64,7 @@ export interface AgentRun {
   subscribe(observer: RunObserver): () => void;
   /**
    * True once a background surface (`status-renderer` / `web-status-renderer`) has claimed the
-   * background turn's rows. The legacy flow bound exactly one continuation sink, so exactly one
+   * background turn's rows. The legacy flow bound exactly one background-turn sink, so exactly one
    * consumer ever wrote those rows; this flag preserves that guarantee now that several observers
    * can watch the same run.
    */

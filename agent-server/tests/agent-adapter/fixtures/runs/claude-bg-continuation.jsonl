@@ -1,4 +1,4 @@
-{"$cortex":"note","text":"Claude run_in_background Bash: the user turn's result fires with the task still running; the CLI then re-invokes the model on task_notification and that turn is delivered through ContinuationSink."}
+{"$cortex":"note","text":"Claude run_in_background Bash: the user turn's result fires with the task still running; the CLI then re-invokes the model on task_notification and that turn is delivered through the run's background stream."}
 {"$cortex":"turn","text":"run the test suite in the background"}
 {"type":"assistant","message":{"model":"claude-opus-5","content":[{"type":"tool_use","id":"toolu_bg01","name":"Bash","input":{"command":"pnpm -C agent-server test","run_in_background":true,"description":"Run the suite"}}]}}
 {"type":"user","isReplay":true,"uuid":"u-bg-01","session_id":"test-session","message":{"role":"user","content":"run the test suite in the background"}}

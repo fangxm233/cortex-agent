@@ -78,7 +78,7 @@ export interface RunConversationOptions {
 /**
  * Whether this run's backend can open a continuation turn of its own (Claude does; PI's runs are
  * foreground-only). The hold decision uses it as the "there is something to hold for" gate that
- * used to be `typeof proc.setContinuationSink === 'function'`.
+ * used to be `typeof proc.setBackgroundTurnSink === 'function'`.
  */
 export function supportsBackgroundContinuation(run: AgentRun): boolean {
   return run.request.profile.backend === 'claude';

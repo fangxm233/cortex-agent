@@ -1,4 +1,4 @@
-{"$cortex":"note","text":"An injected message the CLI only drains after the turn's result: the replay echo arrives with no turn in flight (foldedIntoTurn=false), arms a synthetic turn, and that turn's reply reaches the ContinuationSink instead of being dropped."}
+{"$cortex":"note","text":"An injected message the CLI only drains after the turn's result: the replay echo arrives with no turn in flight (foldedIntoTurn=false), arms a synthetic turn, and that turn's reply reaches the run's background stream instead of being dropped."}
 {"$cortex":"turn","text":"write the release note"}
 {"$cortex":"inject","text":"TEXT-INTERRUPTED: use the short form"}
 {"type":"result","subtype":"success","is_error":false,"num_turns":2,"total_cost_usd":0.25,"session_id":"test-session","result":"Release note drafted."}

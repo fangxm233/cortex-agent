@@ -14,7 +14,7 @@ edit-retry, ask-user-resume, scheduled auto-compound and Claude-subagent paths a
 | compact.ts | core | compactAgentContext / isSessionCompactionSupported — compaction is a command on a session's pooled engine, not a run |
 | fallback.ts | core | planAttempts / attemptLabel / allConfigsRateLimited — the ordered attempt chain a run walks and the gate that skips a blocked attempt |
 | notices.ts | core | AttemptNoticeTracker + assistantNoticeLevel — the only place run lifecycle becomes prose; holds a 429 card until the outcome is known |
-| events.ts | core | re-exports RunPhase/RunEvent/toRunEvent from agent-adapter and translates ContinuationSink callbacks into them |
+| events.ts | core | re-exports RunPhase/RunEvent/toRunEvent from agent-adapter — the run layer's name for the event vocabulary |
 | engine-spec.ts | core | buildEngineSpec + engineIdentity(); owns the scoped-plugin gate and PI gateway-path derivation |
 | adapters.ts | entry | builds the daemon's Claude and PI engine adapters, injecting the collaborators the adapter may not import (usage store, rate-limit throttle, PI home) — getAdapter/getEngineAdapter |
 | engines.ts | core | SessionEngines — the one owner of pooled engine sessions for both backends (acquire/close/kill/closeByPrefix/closeAll/registerSessionPath); module singleton `engines` |

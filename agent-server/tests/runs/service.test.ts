@@ -22,7 +22,7 @@ import type { RunObserver, RunRequest } from '../../src/domain/runs/request.js';
 // `ClaudeEngineSession` over the daemon's own adapter; the request's
 // `isolation.spawner` hands that session a passive fake CLI child, and the test feeds the
 // session line-by-line through `session.handleLine` — exactly the seam
-// `tests/agent-adapter/replay-harness.ts` uses. The deleted `AgentProcess`/`ContinuationSink`
+// `tests/agent-adapter/replay-harness.ts` uses. The deleted `AgentProcess`/`BackgroundTurnSink`
 // fixtures are gone: the engine installs and owns its continuation/injection sinks now, and the
 // only observation surface is the run's `RunEvent` stream plus its result promises.
 
@@ -259,9 +259,9 @@ test('startRun enters the background phase and settles after the continuation re
   session.handleLine(assistantLine('fg'));
   session.handleLine(resultLine({ result: 'fg' }));
 
-  // The engine installs its own continuation sink on the session (the old single-slot
-  // `ContinuationSink` fixture is no longer the observation point).
-  assert.ok(session.continuationSink, 'the engine installed its continuation sink');
+  // The engine installs its own background-turn sink on the session (the old single-slot
+  // `BackgroundTurnSink` fixture is no longer the observation point).
+  assert.ok(session.backgroundTurnSink, 'the engine installed its background-turn sink');
   // `legacyProcess()` is gone: the run holds a live pooled engine session, and its backend
   // session id is recorded from the settled result (asserted below).
   assert.equal(engines.get(key), engine, 'the pooled engine session stays live for the run');

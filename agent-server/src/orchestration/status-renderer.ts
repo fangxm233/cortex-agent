@@ -4,7 +4,7 @@
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 //
 // Why this is a RunObserver: the background hold used to be assembled inline in
-// `lifecycle.handleAgentSuccess` out of three parts — a `ContinuationSink` built by
+// `lifecycle.handleAgentSuccess` out of three parts — a `BackgroundTurnSink` built by
 // `bg-continuation.ts`, a `bg-wait-guard` owning the grace/max-wait timers, and a pile of closures
 // deciding when the status was allowed to seal. The run owns the timers now and emits the
 // whole background phase as events, so the surface is exactly what it should have been: one
