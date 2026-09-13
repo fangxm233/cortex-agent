@@ -1,4 +1,4 @@
-// input:  session/history stores, tool metadata, DEBUG policy
+// input:  session/history/run stores, tool metadata, DEBUG policy
 // output: session snapshots, transcripts, subagent detail, DEBUG
 // pos:    Authoritative query boundary for session transcripts
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -50,21 +50,6 @@ export async function handleSessionsList(
     sessions = results;
   }
 
-  // Live running snapshot: an interactive turn = a non-thread execution registered on the
-  // session's channel (threads run their own executions on the same channel and must not
-  // mark the session itself running). Snapshot + delta: this field is the queryable snapshot;
-  // the `session.status` event stream is the delta.
-  const isChannelInTurn = (channel: string | undefined): boolean =>
-    !!channel && deps.runningExecutions.getByChannel(channel).some((e) => !e.threadId);
-
-  // Live agent-turn count of the in-flight interactive turn (the running snapshot): the non-thread
-  // execution on the channel carries its own live numTurns, updated in-memory on each turn_progress.
-  const liveTurnsForChannel = (channel: string | undefined): number | null => {
-    if (!channel) return null;
-    const exec = deps.runningExecutions.getByChannel(channel).find((e) => !e.threadId);
-    return exec && typeof (exec as any).numTurns === 'number' ? (exec as any).numTurns : null;
-  };
-
   // Idle snapshot: the last COMPLETED interactive run's turn count AND total cost. One pass over the
   // execution registry builds channel → latest non-thread execution (by startedAt), carrying both its
   // numTurns and metrics.costUsd (same run). A running turn never falls back to this (avoids showing
@@ -82,8 +67,12 @@ export async function handleSessionsList(
       lastRunByChannel.set(channel, { startedAt, numTurns, costUsd: typeof costUsd === 'number' ? costUsd : null });
     }
   }
-  const resolveNumTurns = (channel: string | undefined, running: boolean): number | null => {
-    if (running) return liveTurnsForChannel(channel);
+  const resolveNumTurns = (
+    channel: string | undefined,
+    inTurn: boolean,
+    liveNumTurns: number | null,
+  ): number | null => {
+    if (inTurn) return liveNumTurns;
     return channel ? (lastRunByChannel.get(channel)?.numTurns ?? null) : null;
   };
   // Last run's cost: idle → the latest non-thread run's finalized cost; running → null (no live source).
@@ -93,13 +82,20 @@ export async function handleSessionsList(
   };
 
   const infos = sessions.map((s: any): SessionInfo => {
-    const inTurn = isChannelInTurn(s.channel);
+    // Busy snapshot: the registry's single answer for this session. Snapshot + delta — this field
+    // is the queryable snapshot, the `session.status` event stream is the delta.
+    const state = deps.runningExecutions.sessionState(s.sessionId);
+    // Foreground turn = a live non-thread execution belonging to THIS session (threads run beside
+    // their parent and never make the session itself busy). Pre-P4.2 this keyed off the session's
+    // CHANNEL, so a session switch left the old record looking busy while the NEW session on that
+    // channel ran — resolving by session id fixes that false positive.
+    const inTurn = state.executionId !== null;
     // Web bg-hold snapshot: the foreground execution is gone from the live-run registry, but a
     // background task still holds the session (running stays true per the session.status contract).
     // A live foreground turn wins — the session then renders as plain running. Metrics
     // (numTurns/costUsd) key off the foreground turn: a held session shows its last completed run.
-    const bgHeld = !inTurn && (deps.isSessionBgHeld?.(s.sessionId) ?? false);
-    const running = inTurn || bgHeld;
+    const bgHeld = !inTurn && state.backgroundRunning;
+    const running = inTurn || bgHeld;   // identical to state.running
     // Awaiting user action: the session is blocked on a pending ask-user question or plan approval
     // (keyed by the session's channel). This is the ONLY signal that turns the rail dot amber —
     // running/background stay blue. A non-blocking ask does not stall the session, so it stays
@@ -131,7 +127,7 @@ export async function handleSessionsList(
       running,
       backgroundRunning: bgHeld,
       awaitingInput,
-      numTurns: resolveNumTurns(s.channel, inTurn),
+      numTurns: resolveNumTurns(s.channel, inTurn, state.numTurns),
       costUsd: resolveCost(s.channel, inTurn),
       // Unread = activity (lastUsedAt, bumped at turn end) after the user's last view
       // (sessions.markRead → lastReadAt). Legacy DIRECT records without lastReadAt → read

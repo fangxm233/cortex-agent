@@ -596,9 +596,6 @@ process.on('SIGTERM', async () => {
     },
     // Transcript materialization liveness signal (pending rows with no live entry derive to expired).
     isInteractionPending: (id) => interactionRecords.isPending(id),
-    // Web bg-hold snapshot: sessions.list serves the held state so it survives session switches /
-    // app restarts (the registry mirrors session.status events — subscribed at the bus wiring above).
-    isSessionBgHeld: (sessionId) => runRegistry.has(sessionId),
     // Web UI ask-user-question: resolve a pending interaction by requestId. The MCP tool blocks
     // on the HTTP response; this callback collects answers, resolves the entity (which persists
     // the record and broadcasts session.interaction to every client), and unblocks the tool.

@@ -77,7 +77,8 @@ test('sessionState: a thread execution does not make the session itself busy', (
   const r = new RunRegistry();
   r.register(makeInput({ executionId: 'exec-thread', threadId: 'thr_1', trackSessionId: 's1' }));
 
-  // sessions.ts only counts non-thread executions as an interactive turn.
+  // The registry owns this rule: a thread step runs beside its parent on the same channel, and
+  // sessions.list joins on sessionState rather than re-deriving it.
   assert.deepEqual(r.sessionState('s1'), {
     running: false,
     backgroundRunning: false,

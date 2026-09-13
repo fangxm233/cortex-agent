@@ -270,7 +270,7 @@ export interface AgentAdapter {
 
 /**
  * One engine-side run (plan §3.3): the event stream and the foreground result for a single
- * `EngineSession.run()` call. Nothing implements this yet — P2.2b (PI) and P2.3 (Claude) do.
+ * `EngineSession.run()` call.
  */
 export interface EngineRun {
   /** The run's events. Does NOT close at the foreground result: a session that owes background
@@ -282,12 +282,15 @@ export interface EngineRun {
 }
 
 /**
- * A live backend session (Claude subprocess / PI SDK session); plan §3.3. Types only for now:
- * P2.2b (PI) and P2.3 (Claude) implement it, `domain/runs/engines.ts: SessionEngines` owns lifetime.
+ * A live backend session (Claude subprocess / PI SDK session); plan §3.3. Implemented by
+ * `pi/engine.ts` and `claude/engine.ts`; `domain/runs/engines.ts: SessionEngines` owns lifetime.
  */
 export interface EngineSession {
   readonly backend: Backend;
-  /** `engineIdentity(spec)` of the spec this session was opened from — the pool's reuse test. */
+  /** The pool's reuse test: a stable string derived from the spec this session was opened from.
+   *  Produced by the BACKEND (`pi.specIdentity` / `claude.specIdentity`), not by the shared
+   *  `engineIdentity(spec)` — each backend's own identity covers resolved env / MCP / args and is
+   *  strictly more precise. See the note on `engineIdentity` in domain/runs/engine-spec.ts. */
   readonly identity: string;
   /** Feature gates this *session* supports. Per session, not per backend (D9): a profile can
    *  declare a backend-level capability the concrete session does not implement, so the run layer
@@ -306,8 +309,8 @@ export interface EngineSession {
 }
 
 /**
- * Stateless engine factory (plan §3.3). Types only for now: P2.2b (PI) and P2.3 (Claude)
- * implement it. Replaces the pooled `AgentAdapter` contract for new callers.
+ * Stateless engine factory (plan §3.3). Implemented by `PIAdapter` and `ClaudeAdapter`.
+ * Replaces the pooled `AgentAdapter` contract for new callers.
  */
 export interface EngineAdapter {
   readonly backend: Backend;

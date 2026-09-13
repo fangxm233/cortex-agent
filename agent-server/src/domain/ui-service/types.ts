@@ -2768,10 +2768,4 @@ export interface UiServiceDeps {
    * still-`pending` persisted rows derive to `expired` at read time.
    */
   isInteractionPending?: (id: string) => boolean;
-  /**
-   * Web bg-hold snapshot (core/run-registry, fed from `session.status` events in entry/app.ts):
-   * true while the session's foreground turn ended but a background task still holds it. Optional so
-   * fixtures / the TUI need not provide it — absent ⇒ no session is held.
-   */
-  isSessionBgHeld?: (sessionId: string) => boolean;
 }

@@ -292,6 +292,12 @@ export function buildEngineSpec(
 /**
  * A stable string for "would this spec reuse the same engine": canonical JSON with sorted keys,
  * excluding `resume`, `env.context.executionId`, and `process.spawner`.
+ *
+ * NOT the pool's reuse test, despite D3 proposing it as one. `SessionEngines.acquire` calls the
+ * BACKEND's `specIdentity` (`pi.specIdentity` / `claude.specIdentity`) instead, because each covers
+ * the resolved env, MCP composition and argv that this generic form cannot see — a spec pair that
+ * looks identical here can still need different processes. Kept and tested as the neutral
+ * definition; do not "fix" the pool to call it without first widening it.
  */
 export function engineIdentity(spec: EngineSpec): string {
   const { resume: _resume, ...rest } = spec;

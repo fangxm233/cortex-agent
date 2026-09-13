@@ -238,8 +238,8 @@ export class RunRegistry {
 
   /**
    * The newest non-thread (interactive) execution for a session. Thread steps run alongside their
-   * parent on the same channel and must not make the session itself read as busy — this mirrors the
-   * `!threadId` filter in domain/ui-service/query/sessions.ts.
+   * parent on the same channel and must not make the session itself read as busy — sessions.list
+   * now delegates its running snapshot to `sessionState`, which calls this by session id.
    */
   private getForegroundBySessionId(sessionId: string): RunningExecution | null {
     let best: RunningExecution | null = null;

@@ -43,7 +43,7 @@ The foundation layer. Contains only pure TypeScript with no runtime dependencies
 | `cli-utils.ts` | `formatHelp`, `formatError`, `readStdinSync`, `cliError` — shared CLI formatting |
 | `status-format.ts` | Pure formatting: `computeElapsed`, `formatMetricsSuffix`, `buildSessionTag`, `buildUserProcessingMessage` |
 | `task-parser.ts` | Task interface definition, YAML parsing/serialization with kebab↔snake_case key mapping, `scanAllTasks`, `scanAvailableTasks`, `filterTasks`, `getTaskStats` |
-| `running-executions.ts` | `RunningExecutions` singleton with three-index registry (byKey, byThreadId, byExecutionId). Publishes `agent.*` lifecycle events to the EventBus |
+| `run-registry.ts` | `RunRegistry` — the single in-memory index of live runs and background holds. Answers `sessionState(sessionId)` and publishes `agent.*` lifecycle events to the EventBus |
 | `types/agent-types.ts` | `AgentResult`, `AgentHandle`, `AgentProgress`, `AskUserQuestionInfo` |
 | `types/thread-types.ts` | Full thread type family: `ThreadRecord`, `AgentDefinition`, `ThreadTemplate`, `TransitionRule`, `HookConfig`, `RunThreadOptions`, `AgentStep`, and more |
 | `config-generator.ts` | Config file initialization for new installs |
@@ -64,7 +64,7 @@ All write operations are serialized through `AsyncMutex` to prevent corruption f
 | `atomic-write.ts` | `atomicWrite(filePath, data)` — write to `.tmp.<pid>.<ts>` then `fs.rename` |
 | `outbound-queue.ts` | WAL-based durable outbound message queue. 30-min TTL, 200-entry compaction, 5-second drain loop. Coalesces consecutive updates to the same message |
 | `thread-repo.ts` | `ThreadRepo` — in-memory `Map<string, ThreadRecord>` + async persist. Queries: `findByChannel`, `findActive`, `findByPlatformThread`. Startup recovery: `markRunningAsFailedOnStartup`. Cleanup: 7-day old threads (24h for auto-records) |
-| `session-repo.ts` | `SessionRepo` — `Record<string, string>` mapping `backend:channel → sessionId` |
+| `session-repo.ts` | `SessionRepo` — `Record<string, string>` mapping `channel → sessionId`; legacy `backend:channel` keys are still read and migrated on write |
 | `conversation-ledger-repo.ts` | Per-channel turn tracking: `initConversation`, `beginTurn`, `addResponseTs`, `completeTurn`, `rollbackTo` |
 | `session-registry-repo.ts` | JSONL-backed `cortex-XXXX` short-name registry. Replays an append-only journal, admits sessions, writes `delete-intent`/`delete-commit` guards, and compacts snapshots when the log grows |
 | `execution-repo.ts` | Pattern B repository. Full CRUD: `startLocalExecution`, `registerDispatchExecution`, `completeExecution`, `failExecution`. Async stale detection via `reconcileStaleDispatches` |
@@ -96,11 +96,12 @@ A synchronous, type-safe event bus with JSONL logging.
 
 ### Layer 3: `domain/` — Business Logic
 
-The thickest layer. Contains 14 subdirectories, each encapsulating a domain concern.
+The thickest layer. Contains 23 subdirectories, each encapsulating a domain concern; the table below covers the main ones.
 
 | Subdirectory | Purpose |
 |-------------|---------|
 | `agents/` | Agent execution facade. `runAgent()` delegates to the backend adapter. Profile resolution, backend detection |
+| `runs/` | The run layer: `startRun` and the `AgentRun` ownership object, `RunRequest` profile/spec/prompt resolution, the backend-neutral `RunEvent` stream, and the `SessionEngines` pool |
 | `sessions/` | Session lifecycle. Hook pipeline (onNew, onMessageEnd) with VirtualMessage display and optional agent injection |
 | `tasks/` | Full task system: YAML parsing, dispatch, archiving, pending tracking, lock management, CLI (`cortex-task`), verification |
 | `executions/` | Thin re-export over `store/execution-repo.ts` with lock-release side effect: every terminal transition auto-releases task locks |
@@ -137,7 +138,7 @@ layer) is detailed in [hooks.md](./hooks.md).
 
 | File | Purpose |
 |------|---------|
-| `app.ts` | **Composition root**. Wires EventBus → logger → hook-bridge → runningExecutions → adapters → commands → interactions → scheduler → remote clients → webhook → memory watcher. Handles SIGTERM graceful shutdown |
+| `app.ts` | **Composition root**. Wires EventBus → logger → hook-bridge → RunRegistry → adapters → commands → interactions → scheduler → remote clients → webhook → memory watcher. Handles SIGTERM graceful shutdown |
 | `daemon.ts` | Process supervisor. Forks `app.js`, watches `src/*.ts` for auto-rebuild (when `CORTEX_REPO` is set), watches `.restart` trigger file, crash recovery with exponential backoff (1s→30s max) |
 | `cli.ts` | `cortex` CLI entry point. Dispatches to: `init`, `start`, `daemon`, `restart`, `task`, `config`, `setup-gateway` |
 | `init.ts` | Interactive first-time initialization |
@@ -150,8 +151,10 @@ The `agent-adapter/` directory abstracts two LLM backends behind a unified inter
 
 | Backend | Adapter | Notes |
 |---------|---------|-------|
-| Claude Code | `claude/adapter.ts` | Session pool, `stream-json` mode, TUI mode (tmux + JSONL tail). Spawn-args builder, event parser |
-| PI | `pi/adapter.ts` | PISession, MCP bridge, hook bridge, tool shims |
+| Claude Code | `claude/adapter.ts` | Stateless engine adapter: opens a Claude process session (print mode), spawn-args builder, event parser. TUI mode (tmux + JSONL tail) is deprecated (D9) |
+| PI | `pi/adapter.ts` | Stateless engine adapter: opens an in-process PI session, MCP bridge, hook bridge, tool shims |
+
+The session pool lives in `domain/runs/engines.ts` (`SessionEngines`), not in either adapter.
 
 A normalization layer (`normalize/`) converts backend-specific events into a unified `NormalizedEvent` stream. The `capabilities.ts` file declares a `Capability` enum with capability sets for Claude and PI.
 
@@ -197,7 +200,7 @@ The EventBus is wired in `app.ts` via a singleton-then-inject pattern. Component
 
 | Component | Publishes | Subscribes |
 |-----------|-----------|------------|
-| `runningExecutions` | `agent.started/completed/failed/superseded` | — |
+| `runRegistry` | `agent.started/completed/failed/superseded` | — |
 | `eventLogger` | `event-logger.dropped` | `'*'` (all events → JSONL) |
 | `planApprovals` | `plan.approved` | `plan.submitted` |
 | `busyTracker` | — | `llm.active-count-delta` |
@@ -210,7 +213,7 @@ Cortex stores all state on the filesystem under `~/.cortex/`. There is no databa
 
 | Path | Purpose |
 |------|---------|
-| `mode.json` | Current runtime mode and profile |
+| `agent-state.json` | Selected profile, default agent, and per-channel overrides (migrated once from `mode.json`) |
 | `profiles.json` | Named agent profile list |
 | `schedules.json` | Persistent scheduled task list |
 | `sessions.json` | Channel-to-agent session mapping |

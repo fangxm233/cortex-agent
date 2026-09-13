@@ -1,7 +1,7 @@
 # 后端 {#backends}
 
 
-后端是 Cortex 对特定编程智能体的适配器。Cortex 不直接调用 LLM API，而是驱动一个编程智能体——Claude Code 以子进程运行，PI 以服务器进程内的会话运行——向其发送消息，并消费标准化的事件流。每个后端实现 `agent-server/src/agent-adapter/types.ts` 中定义的 `AgentAdapter` 接口。
+后端是 Cortex 对特定编程智能体的适配器。Cortex 不直接调用 LLM API，而是驱动一个编程智能体——Claude Code 以子进程运行，PI 以服务器进程内的会话运行——向其发送消息，并消费标准化的事件流。每个后端实现 `agent-server/src/agent-adapter/types.ts` 中定义的 `EngineAdapter` 接口。
 
 ## 支持的后端 {#supported-backends}
 
@@ -12,11 +12,17 @@
 
 ## 后端如何工作 {#how-backends-work}
 
-当智能体会话开始时，Cortex 解析活动配置（从 `profiles.json` 或 `--profile` 标志）以确定使用哪个后端。然后它调用 `getAdapter(backend)` 获取适配器实例，并调用 `adapter.spawn(config)` 启动会话。
+从一条消息到一个后端进程，只需要三个名词：**运行（run）**、**会话（session）**和**引擎（engine）**。
 
-`AgentSpawnConfig` 携带完整的会话上下文：系统提示、插件目录、工具允许列表、MCP 服务器配置、钩子、模型名称和后端特定的透传参数。适配器把它翻译成后端原生形式：对 Claude Code 是子进程的命令行参数，对 PI 是进程内会话的 session options。
+**运行**是一次用户请求的一次执行：一个对话回合、一个线程步骤、一个钩子智能体、一次编辑重试、一次 ask-user 续跑，或一个子智能体。`startRun`（`domain/runs/service.ts`）从一个完全解析好的 `RunRequest`（配置、提示、策略与上下文，不含回调）打开运行，并返回 `AgentRun`（`domain/runs/run.ts`）；后者持有这次运行的事件流、取消与 steer 句柄、回退链和结果。
 
-从那里，Cortex 发送用户消息并接收标准化的事件流。标准化层（`agent-adapter/normalize/`）将每个后端的原生事件格式转换为公共的 `NormalizedEvent` 可区分联合类型，因此编排层永远不需要知道运行的是哪个后端。
+**会话**是这次运行所延续的对话身份：稳定的 Cortex session id、后端自身的 resume id、它运行的 profile，以及它绑定的频道。会话拥有它恢复进去的那个引擎。运行复用其会话池中的引擎；不同的 engine key（线程步骤的 slot、钩子注入的回合）各有自己的引擎。
+
+**引擎**就是后端进程本身——池化的 `claude` 子进程，或进程内的 PI SDK 会话。`SessionEngines`（`domain/runs/engines.ts`）是池化引擎的唯一持有者：`acquire(spec)` 在该 engine key 对应的会话仍存活、且由同一 session identity 打开时复用它，否则将其退休并新开一个。适配器是无状态的；它依据 `EngineSpec` 打开一个会话，并翻译该会话发出的事件。
+
+配置每次运行只解析一次。`resolveRunConfig`（`domain/runs/config-resolver.ts`）按优先级选定 profile——显式 override、会话记录的 profile、频道 profile、全局 active profile，最后是 `profiles.json` 的 `defaultProfile`——由 profile 提供后端、模型、provider、gateway mode、思考档位与回退链。`buildEngineSpec`（`domain/runs/engine-spec.ts`）把解析后的运行变成后端中立的 `EngineSpec`，适配器再把它翻译成后端原生形式：对 Claude Code 是子进程的命令行参数，对 PI 是进程内会话的 session options。
+
+此后引擎只发出一条 `RunEvent` 流（`domain/runs/events.ts`）。标准化层（`agent-adapter/normalize/`）把每个后端的原生事件格式翻译成 `NormalizedEvent`，`toRunEvent` 再为它标上运行的阶段，因此运行层永远不需要知道运行的是哪个后端。
 
 ## 功能矩阵 {#feature-matrix}
 
@@ -38,13 +44,13 @@ Cortex 定义了后端可能支持的十一种能力。编排层在尝试后端�
 
 ## Claude Code
 
-参考后端。支持所有十一种能力。有两种适配器模式可用：
+参考后端。支持所有十一种能力。定义了两种适配器模式；TUI 已废弃：
 
 **Print 模式**（`claudeBackend: "print"`，默认）。使用持久化的 `claude -p` 进程以及 stream-json 输入输出。Cortex 按 session key 池化该进程，并通过同一 NDJSON stream 发送后续回合，直到 session 被关闭、超时或 spawn identity 改变。
 
-**TUI 模式**（`claudeBackend: "tui"`）。在 tmux 下生成交互式 Claude 会话，并尾随会话的 JSONL 文件获取事件。支持带会话持久化的多轮对话。资源使用更重，但允许交互式工作流。
+**TUI 模式**（`claudeBackend: "tui"`，已废弃）。历史上会在 tmux 下生成交互式 Claude 会话，并尾随会话的 JSONL 文件获取事件。D9 已废弃该模式：适配器会警告一次，并以 print 模式运行该会话。
 
-Claude Code 适配器会话池按键频道以重用会话。费用报告从 `message.usage` 令牌计数逆向推导 USD 费用，使用 Anthropic 发布的定价。
+Claude Code 会话按 engine key 池化以复用（`SessionEngines`，`domain/runs/engines.ts`）。费用报告从 `message.usage` 令牌计数逆向推导 USD 费用，使用 Anthropic 发布的定价。
 
 session-retention 协调器还会把 Claude 用户级 `cleanupPeriodDays` 同步到 `$CLAUDE_CONFIG_DIR/settings.json`（或 `~/.claude/settings.json`）里，值来源于 Cortex 运行时设置中的 `sessionRetentionDays`。这次写入只会 merge 进用户设置文件：保留所有其它 Claude 键，不会碰 spawn cwd 下的项目级 `.claude/settings.local.json` 或 `.claude/settings.json`，也不会借此接管 hook/permission 配置的归属。若用户文件里已是相同的 `cleanupPeriodDays`，则不会重写文件。
 
@@ -259,11 +265,11 @@ MiB 大小，可直接修改。网关会自己热重载配置，路由和请求�
 
 ## 添加新后端 {#adding-a-new-backend}
 
-新后端在 `agent-server/src/agent-adapter/` 下的新目录中实现 `AgentAdapter` 接口。所需接口：
+新后端在 `agent-server/src/agent-adapter/` 下的新目录中实现 `EngineAdapter` 接口。所需接口：
 
-1. **`adapter.ts`** — 实现 `AgentAdapter`，包括 `spawn()`、`close()`、`kill()` 和 `listSessions()`。从 `spawn()` 返回 `AgentProcess`。
-2. **`AgentProcess`** — 暴露用于用户消息的 `send(message)` 和作为 `NormalizedEvent` 异步可迭代的 `events`。还必须支持 `close()` 和 `kill()`。
-3. **`event-parser.ts`** — 将后端的原生事件格式转换为 `NormalizedEvent` 可区分联合成员。
-4. **注册** — 将适配器添加到 `agent-adapter/index.ts` 中的 `ADAPTERS` 映射，将能力添加到 `capabilities.ts`，并将后端标签包含在 `types.ts` 的 `Backend` 类型联合中。
+1. **`adapter.ts`** — 实现 `EngineAdapter` 的 `open(spec)`，返回 `EngineSession`。适配器无状态：池由 `SessionEngines` 持有。
+2. **`EngineSession`** — 提供用于一个回合的 `run(prompt, opts)`，返回 `EngineRun`；其 `events` 是 `RunEvent` 的异步可迭代，其 `result` 是前台 `AgentResult`；另有 `steer()`、`respondToDialog()`、`compact()`、`close()` 和 `kill()`。
+3. **`event-parser.ts`** — 将后端的原生事件格式转换为 `NormalizedEvent` / `RunEvent` 成员。
+4. **注册** — 将适配器加入 `domain/runs/adapters.ts` 的装配，并在 `domain/runs/engines.ts` 的 `SessionEngines.acquire` 中加一个分支；将能力加入 `capabilities.ts`；将后端标签加入 `core/types/agent-types.ts` 的 `Backend` 类型联合。
 
 标准化层（`agent-adapter/normalize/`）提供所有后端使用的事件流排队、工具名称转换和钩子规范的共享工具。
