@@ -140,7 +140,7 @@ export function formatUserEvent(data: any): string | null {
   // `user` lines come in two shapes: the tool_result carriers this formatter exists for (block
   // array), and — since `--replay-user-messages` — the prompt echo, whose content is a bare
   // string. Without this guard the loop below would iterate that string character by character
-  // (a 40 KB prompt = 40 000 no-op iterations per echo). Mirrors jsonl-tail.ts's guard.
+  // (a 40 KB prompt = 40 000 no-op iterations per echo).
   if (!Array.isArray(content)) return null;
   const parts: string[] = [];
   for (const block of content) {

@@ -31,7 +31,7 @@ import {
   buildClaudeEnv, buildSpawnArgs, claudeRouteIdentity, resolveClaudeMcpBundles,
   ClaudeSpawnOptions, CortexAgentContext,
 } from './spawn-args.js';
-import { computeJsonlPath, resolveTuiResume } from './adapter-tui.js';
+import { computeTranscriptPath, resolveResumeAgainstTranscript } from './transcript-path.js';
 import { TmuxControl, type TmuxExec } from './tmux-control.js';
 import { TUI_TMUX_NAME_PREFIX } from './defaults.js';
 import {
@@ -672,7 +672,8 @@ class ClaudeSession implements TurnHost {
  * "No conversation found with session ID: <id>". Gating the resume request on the
  * transcript actually existing keeps the first turn on `--session-id` (create) and lets
  * only later turns / reconnects use `--resume`. Self-healing: a deleted transcript also
- * correctly falls back to create. Mirrors {@link resolveTuiResume} for the tmux path.
+ * correctly falls back to create. The decision itself lives in
+ * {@link resolveResumeAgainstTranscript} so any print-mode caller shares one rule.
  */
 export function resolveResumeForPrint(
   requestedResume: boolean,
@@ -680,7 +681,7 @@ export function resolveResumeForPrint(
   exists?: (p: string) => boolean,
   cwd: string = AGENT_CWD,
 ): boolean {
-  return resolveTuiResume(requestedResume, computeJsonlPath(cwd, sessionId), exists);
+  return resolveResumeAgainstTranscript(requestedResume, computeTranscriptPath(cwd, sessionId), exists);
 }
 
 // --- ClaudeAdapter — DR-0008 §3.2 generic AgentAdapter entry point ---
@@ -891,18 +892,18 @@ export class ClaudeAdapter implements EngineAdapter {
 }
 
 /**
- * DR-0012 §3.6 startup hook — sweep orphan tmux sessions matching the cortex-claude- prefix.
+ * Startup hook — sweep orphan tmux sessions matching the `cortex-claude-` prefix.
  *
- * Rationale: tmux sessions are independent of agent-server's process lifetime, but the in-memory
- * bookkeeping (the TUI session map, removed in P2.3c) is not. After an agent-server restart we have
- * no record of channel/sessionKey → tmux mapping (it was never persisted), so we cannot re-adopt
- * existing tmux sessions into the pool. The honest choice is to kill them at startup; otherwise
- * they accumulate forever and a later session reusing the same sessionId would conflict with
- * `tmux new-session -s <name>` (which fails on duplicate). Logs the killed names so operators can
- * investigate if needed.
+ * This is a one-way MIGRATION SWEEP, not support for a live TUI mode: D9 retired
+ * `claudeBackend: 'tui'` and no new TUI tmux session can be created. It exists because tmux
+ * sessions outlive agent-server's process, so machines upgrading across the D9 boundary still
+ * hold `cortex-claude-<sessionId>` sessions from older builds. The in-memory bookkeeping that
+ * could re-adopt them (the TUI session map, removed in P2.3c) is gone, so the honest move is to
+ * kill the leftovers at startup — otherwise they accumulate forever and a later session reusing
+ * the same sessionId would collide with `tmux new-session -s <name>` (which fails on duplicates).
  *
- * Full re-adoption (preserving an in-flight TUI session across restart) requires persisting
- * sessionKey + cwd + needsResume metadata to disk — deferred as a follow-up.
+ * Deletable once the deprecation window closes and no pre-D9 build can still be upgraded from.
+ * Logs the killed names so operators can investigate if needed.
  *
  * Override `exec` in tests so we don't touch the real tmux server.
  */

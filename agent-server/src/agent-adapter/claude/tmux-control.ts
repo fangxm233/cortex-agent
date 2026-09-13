@@ -46,7 +46,10 @@ export interface NewSessionOptions {
  * Stateless tmux command wrapper. All side effects flow through the injected exec — tests inject mocks,
  * production uses {@link defaultTmuxExec}. No internal state means safe concurrent use.
  *
- * @see DR-0012 §3.1 (architecture) — this is the bottom-most utility used by adapter-tui.
+ * D9 retired the Claude TUI mode, so this is no longer on any live turn path. It survives as the
+ * tool behind {@link recoverTuiOrphans}: a one-way MIGRATION SWEEP that kills tmux sessions left
+ * behind by pre-D9 builds on the first startup after an upgrade. It becomes deletable once that
+ * deprecation window closes.
  */
 export class TmuxControl {
   constructor(private readonly exec: TmuxExec = defaultTmuxExec) {}
@@ -139,7 +142,7 @@ export class TmuxControl {
    * Returns [] if no tmux server is running (status != 0) — graceful for the "agent-server startup
    * with no prior tmux state" case.
    *
-   * @see DR-0012 §3.6 — used at agent-server startup to discover orphan TUI sessions for re-adoption.
+   * Used by the {@link recoverTuiOrphans} migration sweep, not by a live TUI mode (D9).
    */
   listSessions(prefix?: string): string[] {
     const r = this.exec(['list-sessions', '-F', '#{session_name}']);

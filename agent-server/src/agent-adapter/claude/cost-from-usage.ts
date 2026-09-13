@@ -96,8 +96,6 @@ export interface CostResult {
  *
  * Cache creation rule: prefer `cache_creation.ephemeral_{5m,1h}_input_tokens` split; if absent,
  * fall back to treating the flat `cache_creation_input_tokens` count as 5m (conservative lower bound).
- *
- * @see DR-0012 §3.4 — per-message cost is summed across a turn by adapter-tui.ts using msg.id dedup.
  */
 export function usageToCost(usage: ClaudeUsage | null | undefined, modelId: string | null | undefined): CostResult | null {
   const family = normalizeModelId(modelId);
