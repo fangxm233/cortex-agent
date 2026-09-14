@@ -16,7 +16,8 @@ import type { ToolUseSubagent } from '../agent-adapter/normalize/event-types.js'
 import { getActiveProfile, getDefaultAgent, resolveBackendForChannel } from '@domain/agents/index.js';
 import { resolveProfileConfig } from '@domain/agents/profile-manager.js';
 import { registerNamedSession } from '@domain/sessions/session-lifecycle.js';
-import { consumePendingTurnSupersession, finishTurnTracking, handleAgentSuccess, handleAgentError, initTurnTracking } from './lifecycle.js';
+import { handleAgentSuccess, handleAgentError } from './lifecycle.js';
+import { consumePendingTurnSupersession, finishTurnTracking, initTurnTracking } from './turn/turn-tracking.js';
 import { buildUserProcessingMessage, renderTurnStatus, makeFallbackLabelNotifier, makeStreamingMessageCallback, computeElapsed, writeStatus, sealStatus, buildStatusActionBlocks, buildSealedStatusActionBlocks, initStatusBlocks } from './status-helpers.js';
 import { createLogger } from '@core/log.js';
 import { isDebugMode } from '@core/debug-mode.js';
