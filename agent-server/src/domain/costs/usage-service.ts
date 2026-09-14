@@ -3,7 +3,7 @@
 // pos:    Public orchestration service for provider usage visibility
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { getAdapter as getDaemonAdapter, getEngineAdapter } from '../runs/adapters.js';
+import { getClaudeEngineAdapter, getPiEngineAdapter } from '../runs/adapters.js';
 import { Capability } from '../../agent-adapter/capabilities.js';
 import type { AgentUsageScope, Backend } from '../../agent-adapter/types.js';
 import { getSettings as readSettings, type Settings } from '@core/settings.js';
@@ -37,9 +37,9 @@ type UsageAdapter = {
 };
 type AdapterResolver = (backend: Backend) => UsageAdapter;
 
-/** PI's usage probe lives on the engine adapter; the other backends keep it on the daemon adapter. */
+/** Both backends keep their usage probe on their engine adapter. */
 function defaultUsageAdapter(backend: Backend): UsageAdapter {
-  return backend === 'pi' ? getEngineAdapter('pi') : getDaemonAdapter(backend);
+  return backend === 'pi' ? getPiEngineAdapter() : getClaudeEngineAdapter();
 }
 type SettingsReader = () => Pick<Settings, 'anthropicSubscriptionModes' | 'subscriptionBillingModes'>;
 

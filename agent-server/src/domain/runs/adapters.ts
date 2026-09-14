@@ -1,5 +1,5 @@
 // input:  the two engine adapter classes plus the daemon-owned collaborators they must not reach
-// output: getAdapter / getEngineAdapter — the daemon's two assembled engine adapters
+// output: getClaudeEngineAdapter / getPiEngineAdapter — the daemon's two assembled engine adapters
 // pos:    domain/runs — the one assembly point where an adapter is wired to domain state (D10)
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -8,7 +8,6 @@ import { PIAdapter } from '../../agent-adapter/pi/adapter.js';
 import { ensureAuthVisible, USER_PI_MODELS_PATH } from '../../agent-adapter/pi/agent-dir.js';
 import { DEFAULT_SESSION_DIR, PI_AGENT_DIR } from '../../agent-adapter/pi/defaults.js';
 import { piProviderDiscovery } from '../../agent-adapter/pi/discovery.js';
-import type { Backend } from '../../agent-adapter/types.js';
 import { handleRateLimitEvent } from '../costs/rate-limit-throttle.js';
 import { usageStore } from '../costs/usage-store.js';
 import { openBundledMcpServer } from '../mcp/bundled-server.js';
@@ -66,14 +65,14 @@ export function setPiBackgroundSubagentBridge(bridge: {
 
 const CLAUDE_ADAPTER = new ClaudeAdapter({ onRateLimit: handleRateLimitEvent });
 
-/** The Claude engine adapter. Stateless: `SessionEngines` owns the sessions it opens. */
-export function getAdapter(backend: Backend): ClaudeAdapter {
-  if (backend === 'claude') return CLAUDE_ADAPTER;
-  throw new Error(`Unknown backend: ${backend}`);
+/** The daemon's Claude engine adapter. Stateless: `SessionEngines` owns the sessions it opens,
+ *  and this is the one place the daemon wires the adapter to domain state (D10). */
+export function getClaudeEngineAdapter(): ClaudeAdapter {
+  return CLAUDE_ADAPTER;
 }
 
-/** The stateless PI engine factory. `SessionEngines` owns the sessions it opens. */
-export function getEngineAdapter(backend: 'pi'): PIAdapter {
-  if (backend !== 'pi') throw new Error(`Unknown engine backend: ${backend}`);
+/** The daemon's PI engine adapter — the same object `setPiBackgroundSubagentBridge` arms, and the
+ *  one `SessionEngines.registerSessionPath` writes through. */
+export function getPiEngineAdapter(): PIAdapter {
   return PI_ADAPTER;
 }

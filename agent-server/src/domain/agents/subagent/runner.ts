@@ -11,7 +11,7 @@ import { Capability, CAPABILITIES_BY_BACKEND } from '../../../agent-adapter/capa
 import type { Backend } from '../../../agent-adapter/types.js';
 import type { SubagentNotice } from '../../../agent-adapter/pi/event-parser.js';
 import { noticesFor } from '../../../agent-adapter/pi/child-events.js';
-import { getEngineAdapter } from '../../runs/adapters.js';
+import { getPiEngineAdapter } from '../../runs/adapters.js';
 import { resolveRunConfig } from '../../runs/config-resolver.js';
 import { GATEWAY_URL } from '../../costs/gateway-manager.js';
 import { type AgentRole } from '@core/agents/roles.js';
@@ -145,16 +145,11 @@ async function runPiSubagent(request: SubagentRunRequest): Promise<SubagentResul
   const inherited = parentModel(request);
   const spec = resolveSpec(request);
   const provider = spec.provider ?? inherited.provider;
-  const adapter = getEngineAdapter('pi') as unknown as {
-    agentDir: string;
-    ensureProviderRouting?: (opts: {
-      provider: string; gatewayPath?: string | null; gatewayBaseUrl: string; model?: string;
-    }) => void;
-  };
+  const adapter = getPiEngineAdapter();
   if (provider) {
     const mode = resolvePiMode(request, provider);
     try {
-      adapter.ensureProviderRouting?.({
+      adapter.ensureProviderRouting({
         provider,
         gatewayPath: buildPiGatewaySubPath(mode, provider) ?? null,
         gatewayBaseUrl: GATEWAY_URL,

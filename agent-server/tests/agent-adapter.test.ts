@@ -7,25 +7,21 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join as pathJoin } from 'node:path';
-import {
-  toCanonical,
-  fromCanonical,
-  type Backend,
-  type NormalizedEvent,
-} from '../src/agent-adapter/index.js';
-import { getAdapter, getEngineAdapter } from '../src/domain/runs/adapters.js';
+import { toCanonical, fromCanonical, type NormalizedEvent } from '../src/agent-adapter/index.js';
+import { getClaudeEngineAdapter, getPiEngineAdapter } from '../src/domain/runs/adapters.js';
 import { engines } from '../src/domain/runs/engines.js';
 import { claudePool } from './agent-adapter/claude-pool-fixture.js';
 
-test('getAdapter dispatches Claude and getEngineAdapter dispatches PI', () => {
-  const claude = getAdapter('claude');
-  const pi = getEngineAdapter('pi');
+test('each backend has one engine adapter, and it answers for its own backend', () => {
+  const claude = getClaudeEngineAdapter();
+  const pi = getPiEngineAdapter();
   assert.equal(claude.backend, 'claude');
   assert.equal(pi.backend, 'pi');
+  assert.notEqual(claude, pi as unknown);
 });
 
-test('engines.registerSessionPath updates the same PI singleton returned by getEngineAdapter', () => {
-  const adapter = getEngineAdapter('pi');
+test('engines.registerSessionPath updates the same PI singleton returned by getPiEngineAdapter', () => {
+  const adapter = getPiEngineAdapter();
   const sessionId = `singleton-path-${process.pid}-${Date.now()}`;
   const restoredPath = pathJoin(adapter.sessionDir, `2026-08-01T00-00-00Z_${sessionId}.jsonl`);
   const canonicalPath = pathJoin(adapter.sessionDir, `${sessionId}.jsonl`);
@@ -35,16 +31,11 @@ test('engines.registerSessionPath updates the same PI singleton returned by getE
 
   try {
     engines.registerSessionPath(sessionId, restoredPath);
-    assert.equal(getEngineAdapter('pi').resolveSessionPath(sessionId), restoredPath);
+    assert.equal(getPiEngineAdapter().resolveSessionPath(sessionId), restoredPath);
   } finally {
     rmSync(restoredPath, { force: true });
     rmSync(canonicalPath, { force: true });
   }
-});
-
-test('getAdapter rejects removed and unknown backends', () => {
-  assert.throws(() => getAdapter('codex' as unknown as Backend), /Unknown backend/);
-  assert.throws(() => getAdapter('unknown' as unknown as Backend), /Unknown backend/);
 });
 
 test('toCanonical / fromCanonical round-trip per DR-0008 §3.4 tool table', () => {
@@ -77,7 +68,7 @@ test('SessionEngines exposes the real pool contract (no spawn side effects)', as
   assert.deepEqual(engines.listKeys(), [], 'listKeys returns empty array before any spawn');
   assert.equal(engines.kill('nonexistent'), false, 'kill on unknown key returns false');
   await assert.doesNotReject(engines.close('nonexistent'), 'close on unknown key resolves');
-  assert.equal(getEngineAdapter('pi').backend, 'pi');
+  assert.equal(getPiEngineAdapter().backend, 'pi');
 });
 
 test('Claude engine pool exposes the real pool contract (no spawn side effects)', async () => {
@@ -86,7 +77,7 @@ test('Claude engine pool exposes the real pool contract (no spawn side effects)'
   // is not exercised here because it fork-execs the `claude` CLI and would leak timers;
   // `tests/agent-adapter-claude.test.ts` covers the pure buildSpawnArgs / computeSpawnArgs surface.
   // P2.3c moved the pool to SessionEngines, so the contract is reached through the test fixture.
-  const adapter = getAdapter('claude');
+  const adapter = getClaudeEngineAdapter();
   const pool = claudePool(adapter);
   assert.deepEqual(pool.listSessions(), [], 'listSessions returns empty array before any spawn');
   assert.equal(pool.kill('nonexistent'), false, 'kill on unknown key returns false');

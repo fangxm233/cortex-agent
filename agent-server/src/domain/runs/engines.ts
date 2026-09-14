@@ -4,7 +4,7 @@
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { createLogger } from '@core/log.js';
-import { getAdapter, getEngineAdapter } from './adapters.js';
+import { getClaudeEngineAdapter, getPiEngineAdapter } from './adapters.js';
 import type { AgentCompactResult, EngineSpec } from '../../agent-adapter/types.js';
 import type { PIAdapter } from '../../agent-adapter/pi/adapter.js';
 import type { ClaudeAdapter } from '../../agent-adapter/claude/adapter.js';
@@ -184,8 +184,8 @@ export class SessionEngines {
   };
 }
 
-const PI_ENGINE_ADAPTER = getEngineAdapter('pi');
-const CLAUDE_ENGINE_ADAPTER = getAdapter('claude');
+const PI_ENGINE_ADAPTER = getPiEngineAdapter();
+const CLAUDE_ENGINE_ADAPTER = getClaudeEngineAdapter();
 
 /** The daemon's pool. Tests build their own `new SessionEngines({ pi })` or `{ claude }`. */
 export const engines = new SessionEngines({
