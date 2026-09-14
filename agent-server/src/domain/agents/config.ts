@@ -1,8 +1,3 @@
-// input:  agent-state selection, Claude auth files, atomic env writes
-// output: mode env, expiring Claude credentials, retry policy
-// pos:    Agent runtime configuration and failure policy
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { readFileSync } from 'fs';
 import { parse as parseDotenv } from 'dotenv';
 import { mutateFileAtomically } from '@core/atomic-write.js';

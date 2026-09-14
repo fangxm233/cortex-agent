@@ -1,8 +1,3 @@
-// input:  task files and cross-process mutation locks
-// output: collision-safe task ID generation, assignment, and validation
-// pos:    Assigns IDs without overwriting concurrent task lifecycle changes
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { PROJECTS_DIR, listProjectDirs } from '@core/utils.js';

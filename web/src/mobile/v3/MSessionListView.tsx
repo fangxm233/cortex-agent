@@ -1,7 +1,3 @@
-// input:  session groups, DTOs, and list callbacks
-// output: fixed-header Sessions tab presentation
-// pos:    Presentational mobile session-list screen
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1a L86-128)
 import { PlusGlyph } from '@/design';
 import { MScreen, MTabHeader, MScrollBody, MCard, MGroupLabel, MDot, MC, MONO } from '@/mobile/ui/kit';

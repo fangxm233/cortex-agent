@@ -1,7 +1,3 @@
-// input:  thread detail, step, child, status DTOs, and shared USD formatting
-// output: themed inline thread-card presentation model
-// pos:    Pure mapper for workbench thread cards
-// >>> If I am updated, update my header comment and CORTEX.md <<<
 // Pure mapper: ThreadDetail (threads.get, B1) → the prototype inline-thread-card row model
 // (prototype.dc.html L180–246). Frame-work-free so it is unit-tested in isolation (TDD). The card
 // is the ONE live-data surface in the center chat; it renders whatever the real DTO carries

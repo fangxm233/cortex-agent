@@ -1,8 +1,3 @@
-// input:  session rows, SessionInfo status facts, and list copy
-// output: run-state row styling and card-geometry regressions
-// pos:    Verifies the mobile session row's conditional run treatment
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { SessionInfo } from '@cortex-agent/ui-contract';

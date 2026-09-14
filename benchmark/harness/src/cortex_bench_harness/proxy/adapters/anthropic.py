@@ -1,8 +1,3 @@
-# input:  container request lines, request bodies, and upstream payloads
-# output: Anthropic route, body, auth, and usage decisions
-# pos:    Anthropic messages API-key and subscription adapters
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import json
 from urllib.parse import urlsplit
 

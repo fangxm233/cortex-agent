@@ -1,8 +1,3 @@
-// input:  startup notification helpers and MockAdapter
-// output: startup notification behavior tests
-// pos:    Verifies configured and disabled startup notifications
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { sendStartupDmIfConfigured, buildStartupMessage } from '../src/entry/startup-notify.js';

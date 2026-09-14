@@ -1,8 +1,3 @@
-// input:  budget scope/value writes, config.set, and the shared query cache
-// output: synchronously serialized nullable writes with unified config and cost invalidation
-// pos:    Shared desktop/mobile budget mutation controller
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { BudgetValue } from '@cortex-agent/ui-contract';

@@ -1,8 +1,3 @@
-# input:  DeepSeek adapter, bounded proxy, synthetic OpenAI streams
-# output: exact route, cap, auth, usage, and byte-limit proofs
-# pos:    DeepSeek chat-completions adapter contract tests
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path

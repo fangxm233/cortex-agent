@@ -1,8 +1,3 @@
-// input:  UiServiceDeps (+commissionStore seam) + commissions.* params; decisions.jsonl on disk
-// output: handleCommissionsList / handleCommissionsGet / handleCommissionsDecisions
-// pos:    query handlers for 'commissions.list' / 'commissions.get' / 'commissions.decisions'
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import * as fs from 'node:fs';
 import { commissionRepo, type CommissionRecord } from '@store/commission-repo.js';
 import type {

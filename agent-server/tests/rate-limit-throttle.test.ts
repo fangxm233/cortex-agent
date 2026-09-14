@@ -1,8 +1,3 @@
-// input:  Vitest timers, settings writes, and labeled throttle events
-// output: throttle window, exact policy, label identity, and retry assertions
-// pos:    Covers provider-scoped quota and outage throttles
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';

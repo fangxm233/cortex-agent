@@ -1,8 +1,3 @@
-// input:  typed thread evidence context and resolved production engine spec
-// output: immutable attempts, spawn topology, and strict reads
-// pos:    Production benchmark identity persistence boundary
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import fs from 'node:fs';
 import path from 'node:path';
 import { STORE_DIR } from '../../core/paths.js';

@@ -1,7 +1,3 @@
-# input:  the approved paid production-server direct-arm re-baseline over the r7 tasks
-# output: three concurrent production-direct trials and one campaign report
-# pos:    Committed Terminal-Bench 2.1 paid direct-arm re-baseline campaign
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # The three task directories and runtime images are byte/digest pinned to upstream commit
 # 7131e4375048a0e408a8fb404b5f499d726b695b by

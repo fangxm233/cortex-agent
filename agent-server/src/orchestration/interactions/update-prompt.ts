@@ -2,7 +2,6 @@
 // output: createUpdatePrompt(adapter, router, opts?) => UpdatePrompt
 // pos:    Platform-neutral UpdatePrompt implementation — pre-registers three actionIds on router,
 //         posts interactive message to system-notice, resolves ask() promise on button click.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { PlatformAdapter, ActionElement, MessageRef, MessageContent } from '@platform/index.js';
 import type { CommandActionRouter } from '@orch/interactions/command-action-router.js';

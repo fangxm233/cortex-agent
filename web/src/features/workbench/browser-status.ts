@@ -1,7 +1,3 @@
-// input:  browser status payloads and live turn-start state
-// output: browser takeover and startup hints
-// pos:    Browser status presentation model
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { apiBase, authHeaders } from '@/lib/desktop-config';
 
 export interface BrowserStatus {

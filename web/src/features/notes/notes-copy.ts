@@ -1,8 +1,3 @@
-// input:  English or Chinese UI language
-// output: localized project-notes labels
-// pos:    Copy table shared by desktop and mobile notes surfaces
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 export interface NotesCopy {
   title: string;
   inputPlaceholder: string;

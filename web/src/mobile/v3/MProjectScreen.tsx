@@ -1,7 +1,3 @@
-// input:  project queries, shared notes resource, approvals, rate-limit and creation state
-// output: mobile Projects screen with scoped note previews, approvals and settings
-// pos:    Composition owner for the Projects tab
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';

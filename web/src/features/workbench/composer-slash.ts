@@ -1,7 +1,3 @@
-// input:  composer text, UI shortcut catalog and profile options
-// output: slash suggestions, resolution, feedback keys and dispatch
-// pos:    Shared desktop/mobile slash-command model
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { SLASH_COMMANDS } from './chat-content';
 
 export interface SlashProfileOption {

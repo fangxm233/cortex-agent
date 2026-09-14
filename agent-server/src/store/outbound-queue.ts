@@ -1,8 +1,3 @@
-// input:  PlatformAdapter, AsyncMutex, fs
-// output: OutboundQueue — WAL-based durable outbound message queue
-// pos:    Store layer. Ensures critical messages (streaming text, final status, errors) are not lost on restart.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';

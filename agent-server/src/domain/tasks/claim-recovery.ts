@@ -7,7 +7,6 @@
 //         survive a restart are respected: a waiting/rate_limited thread that owns the task
 //         (DR-0014 suspension, rate-limit pause), a remote cortex-run tracked in pending-tasks.json,
 //         and manual (non-dispatcher) claims.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { scanAllTasks, type Task } from '@core/task-parser.js';
 import { threadStore } from '@store/thread-repo.js';

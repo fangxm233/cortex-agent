@@ -1,8 +1,3 @@
-// input:  process.env-style connection config for cortex-client
-// output: resolved WebSocket server URL + optional Cloudflare Access headers
-// pos:    side-effect-free connection-config resolution for cortex-client
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 export interface ClientConnectEnv {
   CORTEX_SERVER_URL?: string;
   CORTEX_SERVER_HOST?: string;

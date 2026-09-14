@@ -1,8 +1,3 @@
-// input:  system.rateLimitStatus query, shared rate-limit events, reconnect epoch, language
-// output: locally ticking active-only RateLimitView or null
-// pos:    Query/live-sync owner shared by desktop rail and mobile Projects screen
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';

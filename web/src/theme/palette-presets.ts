@@ -1,8 +1,3 @@
-// input:  palette parameters and accent preferences
-// output: Named palette presets and the active-preset matcher
-// pos:    Preset table for the appearance settings
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { DEFAULT_PALETTE, PALETTE_KEYS, type Palette } from './palette';
 import { DEFAULT_ACCENT_INTENSITY, type AccentHue, type AccentIntensity } from './theme';
 

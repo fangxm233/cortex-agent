@@ -1,8 +1,3 @@
-// input:  bounded chip widths and total tool-call counts
-// output: collapsed tool-row overflow layout regressions
-// pos:    Verifies hidden counts beyond the measured chip prefix
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import { toolCallOverflowLayout } from './tool-call-overflow';
 

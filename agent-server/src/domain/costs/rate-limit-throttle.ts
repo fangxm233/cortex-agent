@@ -1,8 +1,3 @@
-// input:  provider state, runtime settings, labeled quota events, and timer generations
-// output: committed throttle gates, exact-window policy resolution, clear callbacks, and manual early-release
-// pos:    Provider-scoped quota and outage throttle state machine
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import type { PlatformAdapter, ActionElement } from '@platform/index.js';
 import { emitSystemNotice } from '@domain/system/system-notice.js';
 import { getSettings } from '@core/settings.js';

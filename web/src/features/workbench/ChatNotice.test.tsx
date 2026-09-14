@@ -1,8 +1,3 @@
-// input:  ChatNotice levels, actions, and caller-provided text
-// output: semantic notice roles and auth activation
-// pos:    Shared chat-notice behavior contract
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { renderToStaticMarkup } from 'react-dom/server';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';

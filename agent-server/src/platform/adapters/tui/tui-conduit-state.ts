@@ -1,8 +1,3 @@
-// input:  nothing (leaf module)
-// output: In-memory Map<conduitId, TuiConduitState> + helpers
-// pos:    TUI adapter — per-conduit session/project/backend binding
-// >>> If I am updated, update the folder's CORTEX.md <<<
-
 export interface TuiConduitState {
   sessionId: string | null;
   projectId: string;

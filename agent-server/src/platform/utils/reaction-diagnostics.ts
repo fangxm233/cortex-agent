@@ -1,8 +1,3 @@
-// input:  rejected reaction-API errors from any platform SDK
-// output: reaction failure reason + once-per-reason report gate
-// pos:    Shared diagnostics for the queue/consumed reaction markers
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 /**
  * Reaction markers are best-effort everywhere: every caller drops their failures so a broken marker
  * can never break a turn. That is why a token without `reactions:write` produced no marker and no

@@ -1,8 +1,3 @@
-// input:  Mobile settings view model, connection state and section callbacks
-// output: Mobile settings parity and interaction regression coverage
-// pos:    Interaction test for the mobile settings top level
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { MSettingsView, type MSettingsCopy } from './MSettingsView';

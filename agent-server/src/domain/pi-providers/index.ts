@@ -1,8 +1,3 @@
-// input:  custom provider model, stores and service modules
-// output: the public custom PI provider API
-// pos:    Entry point of the PI provider domain
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 export {
   CUSTOM_PROVIDER_APIS,
   CUSTOM_PROVIDER_NAME_RE,

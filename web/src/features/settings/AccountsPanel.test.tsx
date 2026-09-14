@@ -1,8 +1,3 @@
-// input:  AccountsPanel, auth status fixtures, and login/logout spies
-// output: desktop account capability, interaction, and safety tests
-// pos:    Verifies the desktop account-management surface
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuthStatusSnapshot } from '@cortex-agent/ui-contract';

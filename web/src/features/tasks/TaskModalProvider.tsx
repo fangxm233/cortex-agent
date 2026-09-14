@@ -1,8 +1,3 @@
-// input:  task tRPC queries/mutations and TaskModal
-// output: AppShell-level task modal provider and open API
-// pos:    Opens project-scoped desktop task details globally
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import {
   createContext,
   useCallback,

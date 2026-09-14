@@ -1,7 +1,3 @@
-# input:  a campaign that stages agent runtimes and arms that ask to have them mounted
-# output: proof that a mounted runtime reaches the container read-only, or is refused
-# pos:    Staged runtime mount admission tests
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # Baking the runtime into the image is what made 89 tasks cost 267 image builds. Mounting it means
 # a trial's container is now assembled from two host trees instead of one, so the second tree gets

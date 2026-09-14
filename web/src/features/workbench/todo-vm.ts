@@ -1,8 +1,3 @@
-// input:  persisted/live task-list snapshots and raw SSE payloads
-// output: validated snapshots, active ordinal and rail row models
-// pos:    shared task-list model; surfaces own their visibility policy
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { TodoItem, TodoSnapshot, TodoStatus } from '@cortex-agent/ui-contract';
 
 export interface TodoRowViewModel {

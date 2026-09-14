@@ -1,8 +1,3 @@
-# input:  synthetic task assets, runtime pins, fake gateway and Docker inventory
-# output: zero-provider full-suite preflight validation proofs
-# pos:    Full-suite preflight tests
-# >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import json
 import subprocess
 from pathlib import Path

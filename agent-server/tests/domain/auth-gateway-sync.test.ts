@@ -1,8 +1,3 @@
-// input:  gateway sync service, stub endpoint discovery, temporary config dirs
-// output: verification that a login refreshes gateway.yaml and profiles.json
-// pos:    Post-login model routing sync tests
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { test, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import * as path from 'node:path';

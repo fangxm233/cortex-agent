@@ -1,8 +1,3 @@
-// input:  Agent config/profile state and platform adapter
-// output: Mode, backend, model, profile, skill, and agent commands
-// pos:    Handles chat commands that select agent configuration
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { Destination, PlatformAdapter } from '@platform/index.js';
 import type { CommandResult } from './command-context.js';
 import { Icons } from '../../../core/icons.js';

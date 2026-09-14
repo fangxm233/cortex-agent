@@ -1,7 +1,3 @@
-// input:  Session DTOs, run-status facts, transcript models, and shared USD formatting
-// output: Chat rows, localized status, profile labels, and attachment/menu placement
-// pos:    Pure presentation logic for the mobile session chat
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { ConfigProfileEntry, SessionTranscript } from '@cortex-agent/ui-contract';
 import {
   buildTranscriptRows,

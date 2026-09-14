@@ -1,8 +1,3 @@
-// input:  native-shell detection, typed disconnect capability, and connect-screen navigation
-// output: recoverable credential clearing followed by unconditional connect-screen handoff
-// pos:    Shared shell connection lifecycle used by desktop and mobile daemon surfaces
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 // The daemon interfaces (desktop DaemonStatusModal, mobile MDaemonView) offer a "断开连接"/Disconnect
 // action that clears the saved credentials (key/token) and returns to the connect (login) screen.
 // This is the SPA-side counterpart of the shell's `disconnect` Tauri command (clears the OS keychain /

@@ -1,8 +1,3 @@
-// input:  Node test runner + task-dispatcher + dispatch/parser
-// output: per-GPU slot scheduling regression tests
-// pos:    Verify GPU slot occupancy/gpu_count parsing and injection
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test, beforeAll } from 'vitest';
 import assert from 'node:assert/strict';
 import { checkRealGpuOccupancy, filterDispatchableTasks } from '../src/domain/tasks/dispatcher.js';

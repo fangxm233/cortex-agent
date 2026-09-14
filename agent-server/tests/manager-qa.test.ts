@@ -1,8 +1,3 @@
-// input:  Vitest, manager Q&A routing, production topology ledger
-// output: manager/human routing, nested escalation, and reload tests
-// pos:    Verifies synchronous and durable manager Q&A behavior
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import { threadStore } from '../src/store/thread-repo.js';

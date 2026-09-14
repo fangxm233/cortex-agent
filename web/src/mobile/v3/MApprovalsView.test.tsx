@@ -1,8 +1,3 @@
-// input:  expanded mobile approval cards, optional feedback, and decision handlers
-// output: feedback presentation and reject handoff regressions
-// pos:    Mobile approval queue presentation specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { MApprovalsView, type MApprovalsCopy } from './MApprovalsView';

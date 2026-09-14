@@ -1,8 +1,3 @@
-# input:  existing H3 manifest and safe trial proxy handle
-# output: atomically updated credential-free proxy block
-# pos:    Proxy manifest persistence
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import json
 import os
 import tempfile

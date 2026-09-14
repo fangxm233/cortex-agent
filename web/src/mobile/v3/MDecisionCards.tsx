@@ -1,7 +1,3 @@
-// input:  decision items, shared decision rules, and the respondDecision hook
-// output: Mobile decision cards that expand in place, with actions
-// pos:    @ds-adherence-ignore Mobile presentation of agent-announced decisions
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useState } from 'react';
 import type { DecisionItem, DecisionActionKind } from '@cortex-agent/ui-contract';
 import { MC, MONO } from '@/mobile/ui/kit';

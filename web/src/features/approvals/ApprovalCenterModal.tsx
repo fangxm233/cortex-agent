@@ -1,8 +1,3 @@
-// input:  shared approval queue, desktop selection/deny state, vocab, and toast adapter
-// output: approval-center modal and desktop-only decision presentation
-// pos:    Desktop approval queue surface and interaction owner
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useEffect, useState } from 'react';
 import type { ApprovalInfo } from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';

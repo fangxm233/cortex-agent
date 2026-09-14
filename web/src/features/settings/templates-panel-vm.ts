@@ -4,7 +4,6 @@
 //         Client-side checks are deliberately shallow: only "is this parseable JSON" and "is this
 //         name filename-safe" live here. Everything else round-trips to threadTemplates.validate,
 //         so there is exactly one validator and the UI can never disagree with what will be saved.
-// >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import type { ThreadTemplateEntry, ThreadTemplateDetail } from '@cortex-agent/ui-contract';
 

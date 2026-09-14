@@ -1,8 +1,3 @@
-// input:  a delegating parent's registered execution and a child's run events
-// output: the two guards that keep child attribution from feeding itself forever
-// pos:    Tests live subagent attribution into a parent transcript
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { afterEach, test } from 'vitest';
 import assert from 'node:assert/strict';
 

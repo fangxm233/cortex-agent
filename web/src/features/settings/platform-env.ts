@@ -1,8 +1,3 @@
-// input:  redacted env entries, runtime settings, vocabulary keys and numeric drafts
-// output: indexed config rows, setting descriptors, whole numbers and durations
-// pos:    Pure shared model for desktop/mobile environment and runtime settings views
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { ConfigEnvEntry, ConfigSettingEntry } from '@cortex-agent/ui-contract';
 import type { Vocab } from '@/i18n';
 

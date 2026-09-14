@@ -1,8 +1,3 @@
-// input:  host PI auth file, PI path defaults, the shared role registry
-// output: PI auth mirroring, shared-role seeding, transport pinning and compaction headroom
-// pos:    Managed PI agent directory configuration
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import {
   mkdirSync,
   existsSync,

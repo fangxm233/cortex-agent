@@ -1,8 +1,3 @@
-// input:  PiSessionRequest, a PiRuntimeFactory, the transcript path registry
-// output: PISession: one pooled in-process PI session serving Cortex turns
-// pos:    Turn, steering, compaction and lifecycle over a PI runtime handle
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as path from 'node:path';
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';

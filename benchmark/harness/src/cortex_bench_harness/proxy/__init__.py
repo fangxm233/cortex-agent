@@ -1,8 +1,3 @@
-# input:  proxy model, adapter, lifecycle, and manifest modules
-# output: public per-trial credential proxy API
-# pos:    Proxy package import surface
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 from .adapters import (
     AdapterUnavailable,
     AdapterVersionMismatch,

@@ -1,8 +1,3 @@
-// input:  platform, environment, and probe results for graphical sessions
-// output: the display a managed browser should use, and whether a human can take it over
-// pos:    Managed-browser display resolution; the decision half is pure
-// >>> If I am updated, update CORTEX.md <<<
-
 import * as fs from 'fs';
 import { execFileSync } from 'child_process';
 import { createLogger } from '@core/log.js';

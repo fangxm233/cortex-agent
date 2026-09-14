@@ -1,8 +1,3 @@
-// input:  the plugin authoring mutations and the catalog query key
-// output: one busy gate, one toast policy, and one refresh for every plugin write
-// pos:    Shared write controller for the plugin package manager
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { useCallback, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type {

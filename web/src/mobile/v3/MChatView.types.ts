@@ -1,8 +1,3 @@
-// input:  Mobile chat rows, interaction models, composer state, session totals, and sheet actions
-// output: Shared public contracts for the mobile chat presentation modules
-// pos:    Mobile chat presentation type boundary
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { ReactNode } from 'react';
 import type { SessionContextUsage, TodoSnapshot } from '@cortex-agent/ui-contract';
 import type { SlashSuggestion } from '@/features/workbench/composer-slash';

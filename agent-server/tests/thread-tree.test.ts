@@ -1,8 +1,3 @@
-// input:  Node test runner + domain/threads/tree
-// output: getRootThreadId / getTreeThreads / summarizeTree / checkSpawnGuards / buildThreadTree tests
-// pos:    Verify recursive thread-tree infrastructure (DR-0014)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import { threadStore } from '../src/store/thread-repo.js';

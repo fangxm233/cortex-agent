@@ -1,8 +1,3 @@
-// input:  provider-icon-data brand svg markup
-// output: ProviderIcon component and resolveProviderIcon
-// pos:    Brand icon with letter fallback for account rows
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { PROVIDER_ICON_SVGS } from './provider-icon-data';
 
 // Exact provider-id → brand glyph. Unknown ids retry with their first hyphen

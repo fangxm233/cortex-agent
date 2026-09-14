@@ -1,8 +1,3 @@
-// input:  fs/path, DATA_DIR
-// output: loadCortexRules + resolveScopedRules
-// pos:    scans ~/.cortex/rules/ directory, parses YAML frontmatter paths field
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as fs from 'fs';
 import * as path from 'path';
 import { DATA_DIR } from '@core/utils.js';

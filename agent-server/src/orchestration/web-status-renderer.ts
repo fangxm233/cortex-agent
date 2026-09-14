@@ -1,7 +1,3 @@
-// input:  a held turn's run + the web session's history/publish callbacks
-// output: a RunObserver that keeps the Web session live through its background phase
-// pos:    orchestration — the web `session.status` surface for a run's background phase
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 //
 // Why this exists (the gap it closed): the background-task continuation machinery was wired only
 // for slack:/feishu: channels. A web: turn that ended with a live background task fell through both

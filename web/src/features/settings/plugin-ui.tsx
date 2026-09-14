@@ -1,8 +1,3 @@
-// input:  sanitized plugin catalog DTOs and vocab
-// output: shared plugin styles, labels, and read-only presentation pieces
-// pos:    Presentational primitives shared by the plugins page and the assignment control
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import type { CSSProperties, ReactNode } from 'react';
 import type { UiPluginCatalogEntry, UiPluginMcpServer } from '@cortex-agent/ui-contract';
 import { useVocab, type Vocab } from '@/i18n';

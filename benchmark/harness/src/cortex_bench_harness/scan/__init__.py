@@ -1,8 +1,3 @@
-# input:  scanner models and closed-inventory scan implementation
-# output: public trial artifact scanner API
-# pos:    Artifact scanner package import surface
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 from .models import (
     ArtifactInventory,
     ArtifactReadError,

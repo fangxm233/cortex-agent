@@ -1,8 +1,3 @@
-// input:  TypeBox, Turndown, fetch API
-// output: Bounded PI WebFetch with sanitized HTML Markdown
-// pos:    PI-local HTTP(S) fetch and safe text conversion
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { Type } from '@sinclair/typebox';
 import TurndownService from 'turndown';
 import { gfm } from 'turndown-plugin-gfm';

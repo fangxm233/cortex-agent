@@ -1,8 +1,3 @@
-// input:  Node test runner + client/src/reverse-stream.ts
-// output: target policy, callback URL derivation and open-stream recognition
-// pos:    Regression guard for the device half of the reverse channel
-// >>> If I am updated, update me and the parent folder's CORTEX.md <<<
-
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { callbackUrl, isAllowedTarget, isOpenStream } from '../../src/reverse-stream.js';

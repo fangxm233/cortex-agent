@@ -4,7 +4,6 @@
 //         card via card patch (im.v1.message.patch), backs openMutable with a real
 //         updatable region (so tool-call traces render), and threads overflow
 //         chunks under the first message (reply_in_thread, Slack-style).
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { createLogger } from '@core/log.js';
 import type { FeishuAdapter } from './feishu.js';

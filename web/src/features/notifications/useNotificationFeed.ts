@@ -1,8 +1,3 @@
-// input:  direct-session snapshots, live DM turns/system notices, open-session predicate, external delivery
-// output: retryable direct-turn buffering plus deduped async-delivery notification queue
-// pos:    Shared desktop/mobile notification feed controller
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { SessionInfo } from '@cortex-agent/ui-contract';

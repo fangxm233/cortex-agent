@@ -1,8 +1,3 @@
-// input:  injected PI scan results, custom providers and gateway mode maps
-// output: models.catalog union, mode fallbacks and piPending assertions
-// pos:    Regression coverage for the profile editor's engine catalog
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 

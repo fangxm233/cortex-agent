@@ -1,8 +1,3 @@
-// input:  config dir, desired UI port, existing .env and settings.json
-// output: enableLocalUi — idempotent local Web UI endpoint enablement
-// pos:    Shared local-UI enablement for `cortex init` and `cortex ui enable`
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { existsSync, readFileSync } from 'fs';
 import * as path from 'path';
 import * as dotenv from 'dotenv';

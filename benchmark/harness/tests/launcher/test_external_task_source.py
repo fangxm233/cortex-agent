@@ -2,7 +2,6 @@
 # output: proof that an external corpus is expanded, pinned and selectable, and that its long
 #         task ids still compose hostnames
 # pos:    External task-source and trial-id composition tests
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # Terminal-Bench 2.1 is 89 tasks. Enumerating them inline meant committing 89 entries, 89 task
 # copies and 267 baked images, which is why the 89-task suite grew a second runner instead. The

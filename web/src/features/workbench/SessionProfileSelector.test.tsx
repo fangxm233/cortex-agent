@@ -1,7 +1,3 @@
-// input:  Mocked profile config, shared selector and mutations
-// output: Shared draft/live profile routing and interaction regressions
-// pos:    Composer profile selector behavior specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { LangProvider } from '@/i18n';

@@ -1,7 +1,3 @@
-// input:  mounted CenterChat/Composer, deferred mutations, captured live events
-// output: optimistic-send, layout-phase, and submission regressions
-// pos:    Mounted desktop optimistic sender integration specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { LangProvider } from '@/i18n';

@@ -1,7 +1,3 @@
-// input:  session/schedule queries, project scope, mobile navigation, and editor-capable sheet
-// output: Sessions tab with sentinel-safe Scheduled run and edit navigation
-// pos:    Mobile session-list data container for the single Scheduled sheet
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 // 1a 会话列表 — the current project's direct sessions, day-grouped, newest first (scheme 1a L86-128).
 // ＋ opens a new-session draft; a row drills into the chat page (1b). The header clock button
 // (scheme-mobile 8a) opens the Scheduled sheet (8b/8c) — scheduled runs never mix into the day

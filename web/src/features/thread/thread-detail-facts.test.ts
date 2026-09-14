@@ -1,8 +1,3 @@
-// input:  thread detail DTO fixtures, timestamps, dispatches, and child trees
-// output: locale- and CSS-free thread detail fact regressions
-// pos:    Shared desktop/mobile thread detail semantics specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import type {
   ThreadChildNode,

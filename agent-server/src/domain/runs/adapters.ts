@@ -1,8 +1,3 @@
-// input:  the two engine adapter classes plus the daemon-owned collaborators they must not reach
-// output: getClaudeEngineAdapter / getPiEngineAdapter — the daemon's two assembled engine adapters
-// pos:    domain/runs — the one assembly point where an adapter is wired to domain state (D10)
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { ClaudeAdapter } from '../../agent-adapter/claude/adapter.js';
 import { PIAdapter } from '../../agent-adapter/pi/adapter.js';
 import { ensureAuthVisible, USER_PI_MODELS_PATH } from '../../agent-adapter/pi/agent-dir.js';

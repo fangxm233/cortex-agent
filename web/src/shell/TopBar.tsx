@@ -1,7 +1,3 @@
-// input:  pane state, the navigation stack, the app menus and the window chrome mode
-// output: Compact app bar; no reserved space while fullscreen
-// pos:    The window's single top bar, above the pane row
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { useVocab } from '@/i18n';
 import { captionInsetLeft, titleBarMode } from '@/lib/desktop-platform';

@@ -1,8 +1,3 @@
-// input:  Project memory queries, shared tree facts, and desktop view models
-// output: Hierarchical memory browser, markdown reader, and blame pane
-// pos:    Desktop project-memory surface
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useMemo, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';

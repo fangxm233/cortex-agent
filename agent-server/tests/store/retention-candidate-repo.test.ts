@@ -1,8 +1,3 @@
-// input:  temp repo path and retention candidate store
-// output: retention candidate persistence and two-sweep contract tests
-// pos:    Verifies orphan retention candidate durability
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';

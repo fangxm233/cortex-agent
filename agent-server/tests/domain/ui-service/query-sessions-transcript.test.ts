@@ -1,8 +1,3 @@
-// input:  histories, tool devices, compact data, DEBUG gate
-// output: transcript metadata, grouping, subagents, DEBUG tests
-// pos:    Authoritative sessions.transcript handler specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {

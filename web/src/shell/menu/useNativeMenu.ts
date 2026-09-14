@@ -1,7 +1,3 @@
-// input:  the assembled menu model and the native bridge
-// output: the macOS system menu bar, kept in sync, and its click routing
-// pos:    Bridges one menu model to the platform's real menu
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { listenNativeEvent, safeInvoke } from '@/lib/native-bridge';
 import { flattenItems, toNativeAccel, type MenuDef, type MenuNode } from './menu-model';

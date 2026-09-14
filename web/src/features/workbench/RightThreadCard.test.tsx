@@ -1,8 +1,3 @@
-// input:  SubtaskCard and a thread subtask fixture
-// output: waiting-task click delegation regression
-// pos:    Guards task modal opening from expanded thread cards
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import type { ReactElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import type { ThreadDetail } from '@cortex-agent/ui-contract';

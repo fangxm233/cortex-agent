@@ -1,8 +1,3 @@
-# input:  real Docker PI image, admitted OpenAI Codex oauth cap, synthetic Responses upstream
-# output: pure-PI request/lifecycle proof for the OpenAI Codex path
-# pos:    Real-container boundary test for the new PI OpenAI Codex runtime
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer

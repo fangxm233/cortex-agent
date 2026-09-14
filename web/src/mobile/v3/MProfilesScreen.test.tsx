@@ -1,8 +1,3 @@
-// input:  mobile profile editor drafts, the engine catalog, validation facts and callbacks
-// output: field-local error copy, catalog pickers and change-delegation regressions
-// pos:    Verifies the independent presentational mobile profile editor
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { LangProvider } from '@/i18n';

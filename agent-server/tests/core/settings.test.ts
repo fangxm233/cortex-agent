@@ -1,8 +1,3 @@
-// input:  settings module plus isolated config and env
-// output: parsing, provenance, exact-window policy, failure, reload, and write tests
-// pos:    Specifies the L0 runtime settings contract
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { afterAll, beforeAll, describe, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';

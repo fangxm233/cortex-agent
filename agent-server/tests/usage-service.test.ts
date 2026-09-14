@@ -1,8 +1,3 @@
-// input:  usage service/store, PI cache, gateway quota/spend fakes
-// output: dynamic row discovery, billing split, race, failure, and spend regressions
-// pos:    Validates the public provider usage orchestration boundary
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import { describe, test, vi } from 'vitest';
 import type { AgentUsageScope, Backend } from '../src/agent-adapter/types.js';

@@ -1,8 +1,3 @@
-// input:  nav marks, the visible turn set, mocked rail geometry, and a fake jump callback
-// output: Rail visibility, visible-turn lighting, pointer magnification, preview and jump wiring
-// pos:    Behavior tests for the desktop transcript nav rail
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { LangProvider } from '@/i18n';

@@ -1,8 +1,3 @@
-// input:  Shared current-project state, left-rail order, and bilingual vocabulary
-// output: Profile-styled project chip and ordered draft project menu
-// pos:    New-session project visibility and switching control
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useEffect, useState } from 'react';
 import type { ProjectConduitInfo } from '@cortex-agent/ui-contract';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';

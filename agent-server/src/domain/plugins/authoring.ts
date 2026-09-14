@@ -1,7 +1,3 @@
-// input:  plugin ids, skill names, SKILL.md text, portable MCP envelopes
-// output: contained create/write/move/remove operations under PLUGINS_DIR
-// pos:    Write side of the plugin catalog — the read side (catalog.ts) never mutates
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
 // Every path here is re-resolved against PLUGINS_DIR with resolveContainedAbsolutePath, which
 // walks each segment through realpath. A plugin directory is operator-writable, so a symlink

@@ -1,8 +1,3 @@
-// input:  schedule/session DTO fixtures and SCHEDULED rail helpers
-// output: row grouping, ordinal, real-DTO action, and unread-count regressions
-// pos:    Desktop/mobile shared schedule-rail view-model specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, it, expect } from 'vitest';
 import type { ScheduleInfo, SessionInfo } from '@cortex-agent/ui-contract';
 import {

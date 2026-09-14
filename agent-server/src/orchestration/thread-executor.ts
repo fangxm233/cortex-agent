@@ -1,8 +1,3 @@
-// input:  threads, platform files, channel queue, busy tracker
-// output: ThreadExecutor with file-aware buffering and detached runs
-// pos:    Sole thread-routing execution path
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as path from 'path';
 import { randomUUID } from 'node:crypto';
 import type { Destination, PlatformAdapter, MessageRef, DownloadedFile, IncomingMessage, PlatformFileRef } from '@platform/index.js';

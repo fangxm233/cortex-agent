@@ -1,8 +1,3 @@
-// input:  platform contracts and TUI adapter
-// output: composite streams, routing, and adapter update helpers
-// pos:    Routes platform operations and live settings
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { PlatformAdapter } from '../adapter.js';
 import type {
   MessageRef,

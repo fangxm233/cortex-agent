@@ -5,7 +5,6 @@
 // pos:    domain/executions layer (L3). The genuinely-new engine for B2 live log streaming.
 //         RED LINE: uses only the existing single-shot client actions (fs locally, `bash` remotely) —
 //         no client WS protocol change, no client redeploy.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';

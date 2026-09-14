@@ -1,8 +1,3 @@
-// input:  UI-service dependencies and task-store fixtures
-// output: Task readiness, dependency, claim and field tests
-// pos:    UI task query contract tests
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { handleTasksList } from '../../../src/domain/ui-service/query/tasks.js';

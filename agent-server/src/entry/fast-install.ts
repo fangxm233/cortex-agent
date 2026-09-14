@@ -1,8 +1,3 @@
-// input:  repo build outputs, repo + installed package manifests
-// output: dependency-parity check and staged sync of build outputs into the install root
-// pos:    entry/ layer — dev hot-reload fast path that replaces npm pack + install -g
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as fs from 'fs';
 import * as path from 'path';
 

@@ -1,8 +1,3 @@
-// input:  OutputStream, icons, runtime settings
-// output: compact traces plus TUI-only full Agent prompts
-// pos:    Renders compact tool-use traces through OutputStream
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import type { OutputStream, MutableRegion } from '@platform/index.js';
 
 import { Icons } from '../core/icons.js';

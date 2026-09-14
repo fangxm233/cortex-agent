@@ -1,8 +1,3 @@
-// input:  mutation-returned project id and mobile scope/sheet/navigation actions
-// output: ordered completion of mobile project creation
-// pos:    Mobile new-project success transition helper
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 interface MobileProjectCreationActions {
   setCurrentProject: (id: string) => void;
   close: () => void;

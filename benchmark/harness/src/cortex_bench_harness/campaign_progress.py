@@ -1,7 +1,3 @@
-# input:  a campaign's declared trials and each one's transition as it happens
-# output: an atomic run-level ledger of what ran, what is running and what is left
-# pos:    Campaign progress ledger
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # A campaign's result document is written once, at the end. For a three-trial campaign that is
 # fine. For 623 trials over tens of hours it is not: the only way to see progress was to list

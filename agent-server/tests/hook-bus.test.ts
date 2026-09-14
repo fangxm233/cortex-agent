@@ -1,8 +1,3 @@
-// input:  HookBus, deferred runner mock, entries, timeout defaults
-// output: HookBus ordering, result, diagnostics, and isolation tests
-// pos:    Regression coverage for server-side hook dispatch
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import { beforeEach, test, vi } from 'vitest';
 import type { HookEntry } from '../src/store/hook-registry.js';

@@ -1,8 +1,3 @@
-// input:  a view document item, authenticated file access, and a render mode
-// output: the sandboxed frame that renders an agent-authored HTML view
-// pos:    the single renderer behind the inline card, the doc modal and the docked pane
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { fileDownloadUrl } from '@/lib/files';
 import { authHeaders } from '@/lib/desktop-config';

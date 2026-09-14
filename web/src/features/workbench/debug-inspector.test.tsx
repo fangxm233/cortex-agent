@@ -1,8 +1,3 @@
-// input:  DEBUG values, inspector controls, formatting helpers
-// output: scoped hover, Unicode, and formatting regressions
-// pos:    DEBUG inspector behavior tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { LangProvider } from '@/i18n';

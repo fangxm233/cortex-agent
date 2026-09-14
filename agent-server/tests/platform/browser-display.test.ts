@@ -1,7 +1,3 @@
-// input:  synthetic probe results for each platform
-// output: pinned display-resolution policy for the managed browser
-// pos:    tests for managed-browser display selection
-// >>> If I am updated, update CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import { decideDisplay, type DisplayProbe } from '@platform/browser/display.js';
 import { resolveChromeBinary, backendSupportsBrowser } from '@platform/browser/managed-browser.js';

@@ -1,7 +1,3 @@
-// input:  cost reports, attempt attribution, budget config
-// output: durable cost records, summaries, and budget operations
-// pos:    Cost accounting and budget aggregation boundary
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { costRepo, type BudgetConfig } from '@store/cost-repo.js';
 import { projectStore } from '@domain/projects/index.js';
 export type { CostsData, BudgetConfig, ProjectBudget } from '@store/cost-repo.js';

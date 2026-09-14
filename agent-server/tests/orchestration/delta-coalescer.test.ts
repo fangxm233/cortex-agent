@@ -1,8 +1,3 @@
-// input:  delta coalescer, fake timers, runtime settings
-// output: batching and settings-backed stream gate tests
-// pos:    Covers server-side assistant delta throttling
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { afterEach, beforeEach, describe, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 

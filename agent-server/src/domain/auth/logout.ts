@@ -1,8 +1,3 @@
-// input:  auth status, Claude auth CLI, PI runtime, discovery
-// output: structured account logout results without credential data
-// pos:    Authentication credential logout service
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { piProviderDiscovery } from '../../agent-adapter/pi/discovery.js';

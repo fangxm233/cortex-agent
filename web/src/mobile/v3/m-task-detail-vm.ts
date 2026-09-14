@@ -1,8 +1,3 @@
-// input:  task/list DTOs, verification DTO, and canonical task detail facts
-// output: Mobile read-only blocker, claim, dependency, field, and history projection
-// pos:    Mobile-only projection over shared task detail semantics
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 // Maps tasks.list plus tasks.verification into a language-neutral detail model. Only fields backed
 // by the DTO are surfaced; missing evidence remains null or empty for an honest view placeholder.
 import type { TaskInfo, TaskVerificationInfo, TaskDispatchRecord } from '@cortex-agent/ui-contract';

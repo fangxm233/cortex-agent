@@ -1,8 +1,3 @@
-// input:  declarative mobile route ids, path patterns, tab ownership, and parent links
-// output: element-free route registry, concrete matching, and semantic parent paths
-// pos:    Canonical metadata for mobile routing, tabs, validation, and native back
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { generatePath, matchPath, type Params } from 'react-router-dom';
 
 export type MobileTabId = 'sessions' | 'threads' | 'tasks' | 'project';

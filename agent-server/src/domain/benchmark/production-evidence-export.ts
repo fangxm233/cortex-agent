@@ -1,8 +1,3 @@
-// input:  launcher facts and durable production evidence stores
-// output: atomically published terminal/composite v2 directory
-// pos:    Public production benchmark evidence-export boundary
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { createHash, randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';

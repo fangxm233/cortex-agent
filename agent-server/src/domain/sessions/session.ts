@@ -1,8 +1,3 @@
-// input:  sessions.json file, channel ID
-// output: { getSessionAsync, setSessionAsync, deleteSessionAsync } — channel session CRUD
-// pos:    thin re-export layer, all session CRUD goes through store/session-repo.ts (AsyncMutex serialization)
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { sessionRepo } from '@store/session-repo.js';
 
 // A channel has ONE session; the backend it runs is on the session record. `backend` is

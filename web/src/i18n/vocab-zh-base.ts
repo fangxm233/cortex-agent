@@ -1,8 +1,3 @@
-// input:  shared Chinese product copy
-// output: Chinese base vocabulary including About dialog copy
-// pos:    Base Chinese web vocabulary
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 export const zhBase = {
   // ── Group A: prototype dict() ──
   newSession: '新会话',

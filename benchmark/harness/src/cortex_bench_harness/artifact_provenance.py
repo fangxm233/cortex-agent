@@ -1,7 +1,3 @@
-# input:  a built trial artifact and the checkout it was supposed to be built from
-# output: a provenance sidecar, and the verdict on whether an artifact still matches its source
-# pos:    Trial artifact source-provenance record and staleness gate
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # WHY THIS EXISTS
 #

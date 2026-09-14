@@ -3,7 +3,6 @@
 //         (deprecated re-exports: PACKAGE_ROOT, SERVER_ROOT, REPO_ROOT) + moduleDir + utility helpers
 //         + resolveNpmGlobalPrefix / withNpmPrefix (npm global prefix for self-update)
 // pos:    cross-module shared constants and ESM/time/path utilities
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as fs from 'fs';
 import * as path from 'path';

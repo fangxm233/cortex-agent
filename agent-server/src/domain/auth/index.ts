@@ -1,8 +1,3 @@
-// input:  auth status, login/logout adapters, lifecycle events
-// output: public backend authentication and LoginFlow API
-// pos:    Authentication domain entry point
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 export * from './auth-events.js';
 export * from './cc-login.js';
 export * from './cc-subscription.js';

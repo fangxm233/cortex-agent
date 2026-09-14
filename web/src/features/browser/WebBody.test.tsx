@@ -1,8 +1,3 @@
-// input:  WebBody actions over one owned tab, plus forward mocks
-// output: navigation, frame identity and port provenance regressions
-// pos:    Focused component tests for a single web tab body
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useCallback, useState } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';

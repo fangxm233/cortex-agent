@@ -1,7 +1,3 @@
-// input:  plugin fixtures plus the authoring handlers
-// output: skill edit/lifecycle, plugin lifecycle, containment and MCP secret coverage
-// pos:    ui-service plugin authoring regression tests
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import '../../_test-home.js';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';

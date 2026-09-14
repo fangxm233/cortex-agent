@@ -1,8 +1,3 @@
-// input:  NotesVm, localized copy and add/open callbacks
-// output: desktop Overview quick-add card with note previews
-// pos:    Scheme 26a desktop Overview notes entry
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { useState, type FormEvent } from 'react';
 import type { NotesCopy } from './notes-copy';
 import type { NoteRowVm, NotesVm } from './notes-vm';

@@ -1,8 +1,3 @@
-// input:  auth events, capability snapshot, PlatformAdapter, i18n
-// output: retryable auth notices and recent-reminder query
-// pos:    Authentication-required notification subscriber
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { t } from '@core/i18n.js';
 import { createLogger } from '@core/log.js';
 import type { AuthNoticeAction } from '@core/types/agent-types.js';

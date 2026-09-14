@@ -1,8 +1,3 @@
-// input:  CustomProviderView DTO and the auth.upsertCustomProvider arg type
-// output: custom provider form state, validation/copy mapping, and mutation args
-// pos:    Canonical view model for desktop/mobile custom PI provider editors
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type {
   AuthUpsertCustomProviderArgs,
   CustomProviderApi,

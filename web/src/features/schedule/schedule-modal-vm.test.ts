@@ -1,8 +1,3 @@
-// input:  schedule forms and DTO fixtures across create/edit modes
-// output: payload, validation, timing, field-lock, and initialization regressions
-// pos:    Pure shared schedule editor view-model specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, it, expect } from 'vitest';
 import {
   defaultScheduleForm,

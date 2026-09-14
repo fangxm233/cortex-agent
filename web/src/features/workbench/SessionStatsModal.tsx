@@ -1,8 +1,3 @@
-// input:  controlled bare Modal, session totals rows and localized labels
-// output: Accessible themed whole-session statistics overlay
-// pos:    Desktop session-totals detail hosted by the shared dialog primitive
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { Modal } from '@/design/Modal';
 import { useVocab } from '@/i18n';
 import type { SessionStatsRow } from './session-stats';

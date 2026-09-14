@@ -1,7 +1,3 @@
-# input:  a staged external task corpus and the images its inventory pins
-# output: per-task Harbor inputs shaped exactly like a committed task copy
-# pos:    External corpus staging boundary
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # Terminal-Bench ships each task as a directory that also carries its own Dockerfile, its README
 # and its SOLUTION. A committed task copy in this repository carries three things instead —

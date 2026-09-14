@@ -1,8 +1,3 @@
-// input:  temp Claude credentials, auth status, expiry scan
-// output: Claude-owned expiry scan end-to-end proof
-// pos:    Claude credential expiry scan regression
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as os from 'node:os';

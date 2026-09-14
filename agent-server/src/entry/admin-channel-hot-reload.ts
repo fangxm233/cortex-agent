@@ -1,8 +1,3 @@
-// input:  adapter factory, settings callbacks, platform routing
-// output: runtime adapter with registered admin hot-reload
-// pos:    Composition seam for live admin settings
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { getSettings, onSettingsChange } from '@core/settings.js';
 import { createAdapterFromEnv, setPlatformAdminChannel } from '@platform/index.js';
 import type { PlatformAdapter } from '@platform/index.js';

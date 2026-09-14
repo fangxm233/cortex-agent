@@ -1,8 +1,3 @@
-// input:  cortex-client server-URL resolution
-// output: precedence tests (env > config serverUrl > ws://host:port)
-// pos:    regression guard for tunnel-routable cortex-client connection
-// >>> If I am updated, update me and the parent folder's CORTEX.md <<<
-
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveServerUrl } from '../../src/server-url.js';

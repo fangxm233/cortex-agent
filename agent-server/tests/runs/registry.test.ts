@@ -1,8 +1,3 @@
-// input:  core/run-registry.ts
-// output: spec for RunRegistry.sessionState and the background-hold lifecycle
-// pos:    P1.2 contract — RunRegistry is the one answer to "is this session busy"
-// >>> If I am updated, update my header comment and the parent folder CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 

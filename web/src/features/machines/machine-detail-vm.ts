@@ -1,8 +1,3 @@
-// input:  MachineDetail DTO (machines.detail live probe)
-// output: buildMachineDetailVm + formatSince/formatUptime/shortenGpuName
-// pos:    Shared locale- and CSS-free machine detail facts
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { MachineDetail, MachineGpu, MachineLiveRun, MachineVitals } from '@cortex-agent/ui-contract';
 
 export interface MachineMeter {

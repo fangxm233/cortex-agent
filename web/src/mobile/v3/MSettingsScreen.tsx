@@ -1,8 +1,3 @@
-// input:  config query, shared machine roster, and connection state
-// output: immediately rendered mobile settings index with stable presentation
-// pos:    Mobile settings query adapter preserving the current settings presentation
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';

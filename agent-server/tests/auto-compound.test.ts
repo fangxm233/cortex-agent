@@ -1,8 +1,3 @@
-// input:  Node test runner + auto-compound helpers
-// output: compound gating + final-output merge tests
-// pos:    Verify auto-compound trigger rules and merging
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { shouldAutoRunCompound, combineFinalOutputs } from '../src/domain/threads/auto-thread.js';

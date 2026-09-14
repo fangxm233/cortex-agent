@@ -1,8 +1,3 @@
-// input:  shell config, tRPC/query clients, theme, language, overlays
-// output: global application provider stack including LoginFlow
-// pos:    Root dependency and cross-surface provider composition
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { TRPCProvider, createTrpcClient } from '@/lib/trpc';

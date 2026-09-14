@@ -1,8 +1,3 @@
-// input:  Claude partial and complete stream events
-// output: reported-model and delta parser regressions
-// pos:    Covers Claude stream normalization
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { describe, test } from 'vitest';
 import assert from 'node:assert/strict';
 

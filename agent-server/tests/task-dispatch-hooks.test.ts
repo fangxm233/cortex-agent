@@ -1,8 +1,3 @@
-// input:  dispatch job, parent threads, settings, task doubles
-// output: ancestry, limits, hooks, quarantine, recovery tests
-// pos:    Task dispatch lifecycle behavioral regressions
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import './_test-home.js';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';

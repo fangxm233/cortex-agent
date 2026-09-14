@@ -1,8 +1,3 @@
-// input:  auth mutation args and backend login/logout services
-// output: Web login flow and account logout results
-// pos:    Write handlers for Web authentication mutations
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import {
   authLoginService,
   bindAuthNoticeFlow,

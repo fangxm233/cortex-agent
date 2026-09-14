@@ -1,8 +1,3 @@
-# input:  ordered comparison runs, contrasts, and Cortex telemetry
-# output: report pins, rewards, outcomes and unavailable fields
-# pos:    Contract tests for comparable benchmark reporting
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import json
 
 import pytest

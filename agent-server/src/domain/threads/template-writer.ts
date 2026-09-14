@@ -7,7 +7,6 @@
 //         optimistic baseHash stops a stale editor from clobbering an edit that landed underneath
 //         it — a real risk because the config is git-synced across machines and hot-reloaded.
 //         Deletes are reference-guarded. No backups: the directory is git-tracked, so git is undo.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';

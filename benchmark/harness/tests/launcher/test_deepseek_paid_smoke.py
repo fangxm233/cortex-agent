@@ -1,8 +1,3 @@
-# input:  exact paid trial inputs, synthetic gateway credential, fake Harbor trial
-# output: contract refusal, opaque handoff, and cleanup proofs
-# pos:    DeepSeek paid-smoke launcher contract tests
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import asyncio
 import json
 from pathlib import Path

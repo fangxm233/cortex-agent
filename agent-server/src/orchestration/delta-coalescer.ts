@@ -4,7 +4,6 @@
 // pos:    orch/ — sits between the adapter's per-token deltas and the EventBus publish, so the bus,
 //         the SSE subscription queues and the browser see a bounded event rate no matter how chatty
 //         a backend is.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { isWebChannel } from './background-hold-gates.js';
 import { isStreamDeltasEnabled } from '../agent-adapter/claude/spawn-args.js';

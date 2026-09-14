@@ -1,8 +1,3 @@
-// input:  Vitest, codex quota header fixtures
-// output: window-extraction, disabled-window and notice-codec assertions
-// pos:    Covers Codex quota header parsing and its child-to-server wire form
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {

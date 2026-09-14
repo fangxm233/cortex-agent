@@ -1,8 +1,3 @@
-// input:  Selected mobile session id, thread queries, and localized labels
-// output: Live inline thread stepper for the selected chat session
-// pos:    Mobile chat session-thread presentation boundary
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useTRPC } from '@/lib/trpc';

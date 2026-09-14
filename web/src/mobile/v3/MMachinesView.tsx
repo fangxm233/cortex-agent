@@ -1,8 +1,3 @@
-// input:  mobile roster model, shared detail facts and mobile callbacks
-// output: single-expand machine cards with registration action
-// pos:    Presentational mobile Machines view
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1k L556-599)
 import { type ReactNode } from 'react';
 import { MDrillHeader, MScrollBody, MCard, MPill, MDot, MC, MONO } from '@/mobile/ui/kit';

@@ -1,8 +1,3 @@
-// input:  McpServer, daemon UI-view webhook, session tool context
-// output: Web-only send_view tool registration
-// pos:    Sends agent-authored HTML views into Web chat sessions
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import * as fs from 'fs';

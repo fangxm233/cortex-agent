@@ -1,8 +1,3 @@
-// input:  PI SDK model scan seam, provider scanner, fake clock
-// output: provider de-duplication, forced refresh, and cache retry contracts
-// pos:    Covers non-blocking cached PI provider discovery
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 

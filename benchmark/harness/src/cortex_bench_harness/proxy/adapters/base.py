@@ -1,8 +1,3 @@
-# input:  one provider protocol expressed as five request-path duties
-# output: the provider adapter interface and its decision value types
-# pos:    Provider adapter contract
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 from dataclasses import dataclass
 from typing import Mapping, Protocol
 

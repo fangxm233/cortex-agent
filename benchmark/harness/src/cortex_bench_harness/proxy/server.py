@@ -1,8 +1,3 @@
-# input:  trial/retry policy, requests, provider adapter, fixed upstream
-# output: proxy handle with usage, delivery outcomes and proven revocation evidence
-# pos:    Proxy admission and lifecycle core
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import hmac
 import json
 import secrets

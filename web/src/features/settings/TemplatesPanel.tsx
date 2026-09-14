@@ -1,8 +1,3 @@
-// input:  threadTemplates APIs, editor VM, shared settings primitives
-// output: bounded master-detail editor with fixed actions and guards
-// pos:    Settings view for thread-template configuration
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {

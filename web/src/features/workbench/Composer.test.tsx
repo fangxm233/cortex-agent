@@ -1,7 +1,3 @@
-// input:  Desktop composer, session status facts, UI handlers, and bilingual vocabulary
-// output: Slash feedback, run status, attachments and failed sends
-// pos:    Desktop composer behavior specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { ComponentProps } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';

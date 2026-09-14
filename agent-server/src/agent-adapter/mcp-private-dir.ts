@@ -1,8 +1,3 @@
-// input:  runtime directory path and error label
-// output: private physical directory or fail-closed error
-// pos:    Shared MCP runtime directory guard
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import fs from 'node:fs';
 import path from 'node:path';
 

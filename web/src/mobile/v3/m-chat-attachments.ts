@@ -1,8 +1,3 @@
-// input:  Mobile composer scope, text, shared upload items, and persisted draft identity
-// output: Mobile-specific attachment draft loading and persistence effects
-// pos:    Mobile chat draft adapter over the neutral attachment controller
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useEffect, type MutableRefObject } from 'react';
 import type { AttachmentMeta, AttachmentUploadItem } from '@/features/attachments/types';
 import { completedAttachmentMetas } from '@/features/attachments/types';

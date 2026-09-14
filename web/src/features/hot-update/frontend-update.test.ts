@@ -1,8 +1,3 @@
-// input:  staged update payloads and representative bundle byte sizes
-// output: parsing and preserved update-size label regressions
-// pos:    Unit tests for the native hot-update bridge
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import { formatUpdateSize, parseStagedUpdate } from './frontend-update';
 

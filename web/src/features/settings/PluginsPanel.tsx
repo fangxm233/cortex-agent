@@ -1,8 +1,3 @@
-// input:  the plugin catalog query and shared plugin presentation pieces
-// output: a bounded master-detail view of what each installed plugin contains
-// pos:    Desktop plugin package manager
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { useMemo, useState, type CSSProperties } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { PluginAssignmentTarget, PluginsListReturn, UiPluginCatalogEntry } from '@cortex-agent/ui-contract';

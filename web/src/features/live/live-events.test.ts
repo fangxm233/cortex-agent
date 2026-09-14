@@ -1,7 +1,3 @@
-// input:  Vitest and shared live-event pure rules
-// output: shared-union, task-link refresh and reconnect tests
-// pos:    Unit tests for the Web shared SSE event model
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import {
   applyConnState,

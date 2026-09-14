@@ -1,8 +1,3 @@
-// input:  Session stores, conversation ledger, profile state, commission feature switch
-// output: Session register/attach/create/adopt/reset primitives
-// pos:    Central session lifecycle shared by chat and TUI
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as crypto from 'node:crypto';
 import { setSessionAsync, deleteSessionAsync } from './session.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';

@@ -1,8 +1,3 @@
-// input:  the current route / project / session tuple and the existing stack
-// output: push, replace and dedupe rules for the app navigation stack
-// pos:    Pure state rules behind the top bar's back and forward buttons
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 /** One navigable location. Route alone is not enough: every session lives at `/workbench`, so
  *  switching session — the app's dominant navigation — never changes the path. The project is part
  *  of the tuple because `SelectedSessionProvider` re-derives the session per project. */

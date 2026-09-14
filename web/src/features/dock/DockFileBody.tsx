@@ -1,8 +1,3 @@
-// input:  one docked file preview item
-// output: the file's own identity/actions row over the same body the modals render
-// pos:    Dock file rendering; reuses the modal renderers rather than reimplementing them
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useState, type CSSProperties } from 'react';
 import { PdfBody, TextBody } from '@/features/media/DocViewer';
 import { HtmlBody } from '@/features/media/HtmlBody';

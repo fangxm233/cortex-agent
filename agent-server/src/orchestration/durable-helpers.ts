@@ -1,8 +1,3 @@
-// input:  OutboundQueue (store), DurableHooks (platform/types)
-// output: buildDurableHooks() + re-exports of durablePost/durableUpdate
-// pos:    orch layer bridge — connects store/outbound-queue and platform/types.DurableHooks
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { Destination, DurableHooks, RichBlock } from '@platform/types.js';
 import type { OutboundQueue } from '@store/outbound-queue.js';
 

@@ -5,7 +5,6 @@
 //         childBusy stays true across the entire thread, deferring daemon restart/rebuild. The
 //         gate is held across the onSettled callback too (test e) — it wakes the parent agent for
 //         a full turn, and a deferred restart firing mid-wake would drop the notification.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

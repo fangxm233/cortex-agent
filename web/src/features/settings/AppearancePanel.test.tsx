@@ -1,8 +1,3 @@
-// input:  Desktop appearance panel with mocked preference providers
-// output: Theme, palette, preset, accent, and motion wiring coverage
-// pos:    Interaction test for desktop appearance settings
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { en } from '@/i18n/vocab';

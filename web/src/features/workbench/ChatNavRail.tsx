@@ -1,8 +1,3 @@
-// input:  nav marks, the turns the viewport shows, and a jump callback
-// output: Left-edge tick rail that magnifies under the pointer and previews the marked prompt
-// pos:    Desktop transcript in-session navigation chrome
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useLang } from '@/i18n';
 import { attachmentFileExt, attachmentTypeColor } from './attachment-presentation';

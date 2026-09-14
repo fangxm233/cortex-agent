@@ -1,8 +1,3 @@
-// input:  raw thread entities, registry snapshots, tool gates
-// output: validation errors, warnings and dependency impact
-// pos:    Validates thread-template registry entities
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { z } from 'zod';
 import { isShellBinding, expandShell } from './shell-templates.js';
 import { parseTarget } from './utils.js';

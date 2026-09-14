@@ -1,8 +1,3 @@
-// input:  image/video items, source/download/zoom hooks, and dock state
-// output: media-viewer context plus mounted full-screen preview behavior
-// pos:    shared desktop/mobile modal; Lightbox chrome stays module-internal
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useBackDismiss } from '@/mobile/use-back-dismiss';
 import { useDock } from '@/features/dock/DockProvider';

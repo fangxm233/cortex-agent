@@ -1,8 +1,3 @@
-// input:  controlled bare Modal, ScheduleRow, ordinals, i18n, and shared USD formatting
-// output: Accessible 30b run-list modal (RUN · FIRED · COST)
-// pos:    Repeating schedule's run history → open a run in chat
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { Modal } from '@/design/Modal';
 import { useVocab } from '@/i18n';
 import { runOrdinals, type ScheduleRow } from './schedule-rail';

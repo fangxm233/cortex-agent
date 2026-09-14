@@ -1,8 +1,3 @@
-// input:  local-ui enablement module, temporary config dirs
-// output: verification of .env/settings.json writes and idempotency
-// pos:    Local Web UI endpoint enablement tests
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { test, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import * as path from 'node:path';

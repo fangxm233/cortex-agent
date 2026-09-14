@@ -3,7 +3,6 @@
 // pos:    orchestration — shared by the surfaces that open a follow-up run (ask-user resume,
 //         edit retry) so both keep the "open the execution record, then let the run reject an
 //         unknown name" ordering.
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { ResolvedProfileConfig } from '@domain/agents/profile-manager.js';
 import { resolveProfileConfig } from '@domain/agents/profile-manager.js';

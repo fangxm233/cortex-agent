@@ -1,8 +1,3 @@
-// input:  runMigrations, temp config trees, collision fixtures
-// output: Legacy session hook migration regression tests
-// pos:    Verifies safe session hook registry migration
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';

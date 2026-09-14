@@ -1,8 +1,3 @@
-// input:  the shared system-turn origin vocabulary
-// output: Platform-independent message/block/modal type family
-// pos:    Type foundation of the Platform abstraction
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { SystemTurnOrigin } from '@core/types/agent-types.js';
 
 // --- Message Identity ---

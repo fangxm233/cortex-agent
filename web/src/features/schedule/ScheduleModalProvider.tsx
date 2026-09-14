@@ -1,8 +1,3 @@
-// input:  global open/edit requests, shared editor controller, toast copy, and children
-// output: desktop schedule context plus one controller-backed modal mount
-// pos:    Global desktop schedule editor provider
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { createContext, useCallback, useContext, useMemo, type ReactNode } from 'react';
 import type { ScheduleInfo } from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';

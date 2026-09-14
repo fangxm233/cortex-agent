@@ -1,8 +1,3 @@
-// input:  mid-turn injection, remote tools, backend/path seams
-// output: device metadata, DEBUG prompt, lifecycle regressions
-// pos:    Mid-turn injection lifecycle behavioral tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test, beforeEach, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import * as path from 'node:path';

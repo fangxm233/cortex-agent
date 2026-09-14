@@ -1,8 +1,3 @@
-# input:  an expired codex credential, a synthetic token host, and a model host
-# output: refresh-shape proofs and CP1, CP2, CP3 containment proofs
-# pos:    OpenAI Codex second-upstream containment tests
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import json
 import select
 import socket

@@ -1,8 +1,3 @@
-// input:  agent-authored HTML and a render mode
-// output: the sandbox token set, an injected CSP, a wrapped srcdoc, and the parsed frame protocol
-// pos:    the security boundary for every agent-rendered view; pure, no DOM, no I/O
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 // An agent-rendered view (`AttachmentMeta.type === 'view'`) is UNTRUSTED HTML that runs in this
 // app's webview. The isolation is the `sandbox` attribute and nothing else — there is no CSP header
 // anywhere in the stack (the Tauri shell sets `csp: null`, the ui-http server and the desktop

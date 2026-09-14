@@ -1,8 +1,3 @@
-// input:  machine registry + client-manager exec
-// output: queryGpuSnapshot + renderGpuSnapshot
-// pos:    GPU query and rendering shared with commands like !nvtop
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { getMachineRegistry } from '../tasks/dispatch-utils.js';
 import { sendCommand, isDeviceOnline } from '../remote/client-manager.js';
 import { Icons } from '../../core/icons.js';

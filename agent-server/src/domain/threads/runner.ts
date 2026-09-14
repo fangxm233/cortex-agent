@@ -1,8 +1,3 @@
-// input:  thread state, tool gates, buffered input, hooks, run service
-// output: evidence runs, device-aware transcripts, and notices
-// pos:    Thread step runtime and lifecycle
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { randomUUID } from 'node:crypto';
 import { threadStore } from '@store/thread-repo.js';
 import {

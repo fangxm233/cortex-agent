@@ -1,8 +1,3 @@
-// input:  respondToPlan, PlanApprovals, InteractionRecords, RunRegistry run.respondToDialog
-// output: PI approval delivery and retry-safety regression tests
-// pos:    Verifies Web plan responses unblock the waiting backend
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { PlanApprovals } from '../../src/orchestration/interactions/plan-approvals.js';

@@ -1,8 +1,3 @@
-// input:  ProviderUsage snapshots, policy config, language, epoch, and shared USD formatting
-// output: known-bucket quota, spend, freshness, severity, timing, row policy, and legacy fallback views
-// pos:    Shared desktop/mobile usage presentation model
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import type {
   ProviderRateLimitPolicyOverride,
   ProviderRateLimitWindowPolicyOverride,

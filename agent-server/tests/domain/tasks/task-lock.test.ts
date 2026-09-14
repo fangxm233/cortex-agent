@@ -1,8 +1,3 @@
-// input:  Node test runner, assert, task-lock primitives
-// output: tests for acquireLock / releaseLock / readLock / writeLock / assertLockHeld / isProjectLocked / getOwnerIdentity
-// pos:    verifies domain/tasks/system/task-lock.ts lock lifecycle + edge cases
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import '../../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

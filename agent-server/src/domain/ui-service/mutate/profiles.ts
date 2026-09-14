@@ -1,8 +1,3 @@
-// input:  profiles.* schemas, CONFIG_DIR, profiles.json on disk
-// output: create / update / remove writes over the profiles map
-// pos:    Mutation handlers for the profiles.* operations
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { CONFIG_DIR } from '@core/paths.js';

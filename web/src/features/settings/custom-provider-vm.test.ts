@@ -1,8 +1,3 @@
-// input:  custom-provider forms/views, vocabulary copy, and mutation DTOs
-// output: validation, error-copy, round-trip, and mutation-argument regressions
-// pos:    Canonical custom-provider view-model specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import type { CustomProviderView } from '@cortex-agent/ui-contract';
 import { en } from '@/i18n';

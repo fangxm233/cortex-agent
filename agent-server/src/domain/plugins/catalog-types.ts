@@ -1,8 +1,3 @@
-// input:  none
-// output: public catalog DTOs and private MCP runtime carriers
-// pos:    Shared result types for plugin catalog loading
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 export type PluginCatalogKind = 'portable' | 'legacy' | 'unknown';
 export type PluginCatalogManifestSource = 'root' | 'legacy' | 'none';
 export type PluginMcpStatus = 'missing' | 'valid' | 'invalid';

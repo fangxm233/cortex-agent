@@ -1,8 +1,3 @@
-// input:  running state, formatted run text and the optional whole-session summary
-// output: desktop composer status row (pulse dot + run meta + session totals)
-// pos:    Presentational status line below the composer input
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 const MONO = "'IBM Plex Mono',monospace";
 
 export interface ComposerStatusLineProps {

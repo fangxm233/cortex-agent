@@ -1,7 +1,3 @@
-# input:  campaign configs, trial recorder and published envelopes
-# output: routing, terminal outcome, resume and delivery proofs
-# pos:    Campaign runner behaviour tests
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # The driver is proven black-box: a campaign document goes in, trial roots and one comparison
 # report come out. The production trial path is replaced by a recorder that reserves a fresh root

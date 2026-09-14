@@ -5,7 +5,6 @@
 //         The rules under test are the ones that keep a UI edit from breaking a running thread:
 //         a save that would not validate never reaches disk, and a stale editor cannot silently
 //         discard an edit that landed underneath it.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test, describe, beforeEach, afterEach } from 'vitest';
 import assert from 'node:assert/strict';

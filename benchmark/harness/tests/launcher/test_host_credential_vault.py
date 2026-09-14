@@ -1,8 +1,3 @@
-# input:  process-local credential vault and monotonic clock
-# output: consume-once, expiry, purge, and secret-free handle proofs
-# pos:    Host-only benchmark credential vault tests
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import pytest
 
 from cortex_bench_harness.launcher.host_credential_vault import HostCredentialVault

@@ -1,8 +1,3 @@
-// input:  PI hook bridge, fixture hooks, shipped task guard
-// output: Registry, native contract, and task-guard regressions
-// pos:    Tests PI hook registration and guard dispatch
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';

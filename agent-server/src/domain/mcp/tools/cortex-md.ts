@@ -1,6 +1,3 @@
-// helper: CORTEX.md injection blocks for remote_* tool responses
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { getDefaultCortexInjector, type CortexMDEntry } from '../../memory/cortex-md-injector.js';
 
 export { type CortexMDEntry };

@@ -1,8 +1,3 @@
-# input:  one suite-wide admitted request ceiling
-# output: thread-safe reservation and release decisions
-# pos:    Cross-route request-count limiter
-# >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import threading
 
 

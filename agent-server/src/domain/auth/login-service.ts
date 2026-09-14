@@ -1,8 +1,3 @@
-// input:  LoginFlow API and Claude/PI login consumers
-// output: shared login service, notice bindings, and cancel fencing
-// pos:    Selects one credential adapter per LoginFlow start request
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { loginClaudeApiKey } from './cc-login.js';
 import { loginClaudeSubscription } from './cc-subscription.js';
 import {

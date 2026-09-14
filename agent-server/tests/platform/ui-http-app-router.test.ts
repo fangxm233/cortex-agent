@@ -1,8 +1,3 @@
-// input:  isolated test home, fake UiService, typed tRPC caller
-// output: AppRouter routing incl usage, draft ids, auth flows, and errors
-// pos:    Transport-contract regression coverage for UI routes
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import '../_test-home.js'; // MUST be first import: isolate CORTEX_HOME before paths.ts loads
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

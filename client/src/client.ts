@@ -1,7 +1,3 @@
-// input:  WebSocket commands, cortex-client config
-// output: Remote command results and cortex-run callbacks
-// pos:    Standalone cortex-client daemon entry point
-// >>> If I am updated, update my header comment and parent CORTEX.md <<<
 import WebSocket from 'ws';
 import * as fs from 'fs';
 import * as path from 'path';

@@ -1,8 +1,3 @@
-// input:  shared Zod schema maps
-// output: query/mutate schema behavior incl compact transcript detail routes
-// pos:    UI-contract runtime schema guard
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { queryInputSchemas, mutateInputSchemas } from './schemas.js';

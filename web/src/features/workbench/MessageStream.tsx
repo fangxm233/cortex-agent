@@ -1,8 +1,3 @@
-// input:  ChatRows, lazy subagent detail, extracted attachment/decision cards, notices, and edits
-// output: Scroll-stable transcript with prompt cards, turn-tail actions, and message controls
-// pos:    Desktop workbench message presentation
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLang, useVocab } from '@/i18n';
 import type { ChatRow } from './transcript-vm';

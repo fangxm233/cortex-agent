@@ -1,8 +1,3 @@
-// input:  UiService, runtime settings, HTTP/auth/static dependencies
-// output: Web UI HTTP/SSE server and authenticated file routes
-// pos:    Entry-layer Web UI transport composition
-// >>> If I am updated, update CORTEX.md <<<
-
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { fileURLToPath } from 'node:url';

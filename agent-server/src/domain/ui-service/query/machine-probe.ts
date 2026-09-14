@@ -1,8 +1,3 @@
-// input:  raw stdout of the machines.detail shell probe
-// output: buildProbeCommand + parseMachineProbe (pure) → { vitals, gpus }
-// pos:    probe command text and its parser for the machines.detail handler
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { MachineGpu, MachineGpuProcess, MachineVitals } from '../types.js';
 
 /** Probe budget: one bash round trip. Above the client's own spawn latency, below a stuck device. */

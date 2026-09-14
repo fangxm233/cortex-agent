@@ -1,8 +1,3 @@
-// input:  shared approval queue facts plus desktop selection, deny, and toast adapters
-// output: desktop feedback handoff, surface-state reset, and toast regressions
-// pos:    Desktop approval modal interaction specification
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { act, create } from 'react-test-renderer';
 import type { ApprovalInfo } from '@cortex-agent/ui-contract';
 import { beforeEach, describe, expect, it, vi } from 'vitest';

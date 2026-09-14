@@ -1,8 +1,3 @@
-// input:  source globs and shared CSS-variable design tokens/keyframes
-// output: Tailwind build configuration for generated utility classes
-// pos:    web styling compiler config; toast timing is presentation-owned
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { Config } from 'tailwindcss';
 
 // Single source of truth for the Cortex UI design tokens (design §5, v2 定稿).

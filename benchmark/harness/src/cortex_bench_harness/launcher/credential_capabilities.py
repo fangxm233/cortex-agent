@@ -1,8 +1,3 @@
-# input:  fixed provider protocol capability declarations
-# output: host registry and non-secret compiler projection
-# pos:    Host-authoritative credential capability registry
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from types import MappingProxyType

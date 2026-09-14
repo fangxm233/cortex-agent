@@ -1,8 +1,3 @@
-# input:  host credential values, expiry durations, monotonic clock
-# output: opaque handles with locked consume-once credential ownership
-# pos:    Process-local paid-trial credential handoff
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import secrets
 import threading
 import time

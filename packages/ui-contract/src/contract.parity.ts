@@ -1,8 +1,3 @@
-// input:  shared schemas and UI op maps
-// output: exact parity guards including platform configuration
-// pos:    Anti-drift boundary for UI contract
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import type { z } from 'zod';
 import type { QueryParamMap, MutateArgsMap, ExecutionsLogParams } from './dto.js';
 import type {

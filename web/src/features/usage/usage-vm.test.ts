@@ -1,8 +1,3 @@
-// input:  usage-status fixtures, per-window policies, language, and current epoch
-// output: quota-row, policy, fallback, severity, and timing regressions
-// pos:    Verifies the shared desktop/mobile usage presentation model
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import type { ProviderRateLimits, SystemUsageStatus } from '@cortex-agent/ui-contract';
 import { buildUsageView, utilizationSeverity } from './usage-vm';

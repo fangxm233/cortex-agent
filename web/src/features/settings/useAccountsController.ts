@@ -1,8 +1,3 @@
-// input:  auth status/logout/syncGateway tRPC, query cache, and localized toasts
-// output: shared account snapshot and independently pending logout/rescan actions
-// pos:    Cross-surface accounts data and mutation controller
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AuthStatusSnapshot } from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';

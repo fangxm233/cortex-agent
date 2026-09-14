@@ -1,8 +1,3 @@
-// input:  HookBus registry entries and real shared hook runner
-// output: spaced registry script path execution regression
-// pos:    Verifies HookBus executes script paths as one argument
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import * as os from 'node:os';

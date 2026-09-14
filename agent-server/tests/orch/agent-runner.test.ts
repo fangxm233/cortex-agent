@@ -1,8 +1,3 @@
-// input:  AgentRunner, queue, platform files, MockAdapter
-// output: routing, download reuse, injection, snapshot regressions
-// pos:    Verifies plain user-message orchestration
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { AgentRunner, acceptUserMessage, resolveDefaultAgent, emitTurnProgress, persistSessionContextUsage } from '../../src/orchestration/agent-runner.js';

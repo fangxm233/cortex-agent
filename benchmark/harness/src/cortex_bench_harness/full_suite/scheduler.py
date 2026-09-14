@@ -1,8 +1,3 @@
-# input:  ordered task ids, bounded slots, one task executor
-# output: ordered one-attempt outcomes with bounded concurrency
-# pos:    Full-suite task scheduler
-# >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence

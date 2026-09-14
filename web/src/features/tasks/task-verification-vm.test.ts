@@ -1,8 +1,3 @@
-// input:  task verification fixtures with evidence, unordered dispatches, duration, and cost
-// output: regression coverage for honest evidence and newest-first desktop dispatch formatting
-// pos:    Desktop task-verification projection regression tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, it, expect } from 'vitest';
 import type { TaskVerificationInfo } from '@cortex-agent/ui-contract';
 import { buildTaskVerificationVm } from './task-verification-vm';

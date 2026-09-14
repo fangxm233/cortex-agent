@@ -1,8 +1,3 @@
-// input:  ../../_test-home, vitest, tmp fs, commission-finalize with store seams
-// output: draft rename, scaffold, registration, bind and rejection tests
-// pos:    Commission approval-time landing contract
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import '../../_test-home.js';
 import { afterAll, beforeAll, test } from 'vitest';
 import assert from 'node:assert/strict';

@@ -1,8 +1,3 @@
-// input:  OverviewView with schedule and provider mocks
-// output: schedule edit, delete and resume interaction regressions
-// pos:    Overview schedule action integration tests
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

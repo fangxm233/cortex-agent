@@ -1,8 +1,3 @@
-// input:  a device name, and that device's shell
-// output: a CDP endpoint on THIS server that drives a managed Chrome on that device
-// pos:    Device browser — the remote twin of platform/browser/managed-browser.ts
-// >>> If I am updated, update CORTEX.md <<<
-
 import { createLogger } from '@core/log.js';
 import { sendCommand, getOnlineDevices } from './client-manager.js';
 import { closeDevicePort, openDevicePort } from './device-port.js';

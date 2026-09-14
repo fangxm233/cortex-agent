@@ -1,8 +1,3 @@
-// input:  ThreadExecutor, platform files, readiness registry
-// output: thread routing, file buffering, and eviction regressions
-// pos:    Verifies thread queueing and buffered-input coordination
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import '../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

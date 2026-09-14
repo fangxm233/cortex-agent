@@ -1,8 +1,3 @@
-// input:  Markdown source with frontmatter, formatting, and math
-// output: parser behavior regression coverage
-// pos:    Unit tests for the memory Markdown parser
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, it, expect } from 'vitest';
 import { splitFrontmatter, parseInline, parseBlocks } from './markdown';
 

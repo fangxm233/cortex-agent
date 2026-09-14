@@ -2,7 +2,6 @@
 // output: stale "suspended — waiting on children" Slack message gets refreshed on terminal/re-suspend
 // pos:    Regression for the 2026-06-11 verification finding: thr_1cfda9a9 completed but its
 //         dispatch status message still read "suspended — waiting on N child task(s)"
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test, afterAll } from 'vitest';

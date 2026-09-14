@@ -1,8 +1,3 @@
-// input:  thread-template config, prompts, shells, resilient watch
-// output: config lookup, reload revision, and watcher APIs
-// pos:    Thread template configuration loader and watcher
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { readFileSync, writeFileSync, readdirSync, renameSync, existsSync, mkdirSync, watch, type FSWatcher } from 'fs';
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';

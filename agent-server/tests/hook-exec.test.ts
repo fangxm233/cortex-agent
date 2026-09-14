@@ -1,8 +1,3 @@
-// input:  core hook-exec runner, Node subprocess fixtures
-// output: hook process output, exit-code, timeout, and stdin tests
-// pos:    shared hook subprocess runner regression coverage
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { afterAll, test } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';

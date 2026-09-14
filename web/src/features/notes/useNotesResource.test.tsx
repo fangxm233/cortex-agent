@@ -1,8 +1,3 @@
-// input:  mounted project scopes, notes transport outcomes and query cache
-// output: shared list, mutation, status, invalidation and latest-scope regressions
-// pos:    Integration specification for the project-scoped notes resource
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { NoteInfo } from '@cortex-agent/ui-contract';

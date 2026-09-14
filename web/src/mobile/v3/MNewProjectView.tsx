@@ -1,7 +1,3 @@
-// input:  controlled project name, shared create state, localized copy, and sheet actions
-// output: mobile new-project bottom-sheet content with real backend errors
-// pos:    Presentational project creation sheet
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1i L509-518)
 import type { ReactNode } from 'react';
 import { MBottomSheet, MC, MONO } from '@/mobile/ui/kit';

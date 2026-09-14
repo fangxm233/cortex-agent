@@ -1,8 +1,3 @@
-// input:  RunRequest + RunObserver[], and the attempts its profile allows
-// output: AgentRun state machine — the attempt chain, phases, results, registry hooks, fan-out
-// pos:    The run ownership object: it walks the attempt chain and owns everything about a run
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { randomUUID } from 'node:crypto';
 import { createLogger } from '@core/log.js';
 import type { RunRegistry } from '@core/run-registry.js';

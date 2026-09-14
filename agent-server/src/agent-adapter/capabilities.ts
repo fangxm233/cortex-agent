@@ -1,8 +1,3 @@
-// input:  Backend type
-// output: Capability enum and backend capability matrix
-// pos:    Declares backend feature capabilities
-// >>> If I am updated, update this header and folder CORTEX.md <<<
-
 import type { Backend } from './types.js';
 
 export enum Capability {

@@ -1,8 +1,3 @@
-// input:  a started `agent` invocation, its abort controller and its completion promise
-// output: the daemon-wide table of live and recently finished subagent runs
-// pos:    Lifecycle of one `agent` call, foreground or background
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { randomBytes } from 'node:crypto';
 import { createLogger } from '@core/log.js';
 import type { SubagentToolResult } from '@core/agents/subagent/orchestrate.js';

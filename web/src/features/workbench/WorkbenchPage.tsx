@@ -1,7 +1,3 @@
-// input:  Workbench panes, pinned preview and Settings overlay
-// output: Desktop workbench frame with global UI actions
-// pos:    Workbench route composition root
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { DockPane } from '@/features/dock/DockPane';
 import { useDock } from '@/features/dock/DockProvider';
 import { LeftRail } from './LeftRail';

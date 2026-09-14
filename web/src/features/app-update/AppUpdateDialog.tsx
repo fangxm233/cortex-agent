@@ -1,8 +1,3 @@
-// input:  app-update metadata, copy helpers, and decision callbacks
-// output: current desktop shell-update content inside the desktop-only frame
-// pos:    Desktop dialog for native application updates
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { DesktopUpdateFrame } from '@/features/update/DesktopUpdateFrame';
 import {
   appUpdateSummaryLine,

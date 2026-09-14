@@ -1,8 +1,3 @@
-// input:  sidecars, hooks, commands, benchmark evidence
-// output: startWebhookServer with authenticated single-root trial confinement
-// pos:    Serves task, thread, manager, and hook webhooks
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
 import { AUTH_HEADER, getWebhookToken, timingSafeEqualStr } from '@core/auth.js';

@@ -1,8 +1,3 @@
-// input:  MCP tool declarations and CORTEX_MCP_TOOL_ALLOWLIST
-// output: canonical allowlists, plan-tool variants and gated registrar execution
-// pos:    Fail-closed MCP tool allowlist policy
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 export const MCP_TOOL_ALLOWLIST_ENV = 'CORTEX_MCP_TOOL_ALLOWLIST';

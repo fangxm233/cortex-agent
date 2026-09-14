@@ -2,7 +2,6 @@
 // output: PI run-phase regression: steer form per loop state, deferred foreground result, injection
 //         acks, session_started placement
 // pos:    PI backend run-phase fixture (plan §9.2 P0.2), now driven through the EngineSession seam
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { engineSpecFixture, type EngineSpecFixtureInput } from '../engine-spec-fixture.js';
 
 

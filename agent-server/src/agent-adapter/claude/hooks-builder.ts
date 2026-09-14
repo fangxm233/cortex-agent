@@ -1,8 +1,3 @@
-// input:  tools, hook registry, Claude defaults, runtime settings
-// output: buildHooksSettings and hardcoded rollback table
-// pos:    Builds safe Claude hook settings from the registry
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import * as path from 'path';
 import { getSettings } from '@core/settings.js';
 import { filterHookEntries, loadHookRegistry, type HookEntry, type HookRun } from '../../store/hook-registry.js';

@@ -1,8 +1,3 @@
-// input:  consumed by recommendation-extractor.ts
-// output: regex + string literal constants
-// pos:    shared regex/constant module for recommendation scanning
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { ImpliedTaskPattern } from './types.js';
 
 export const RECOMMENDATION_HEADER_RE = /^(#{2,4})\s+(Recommended\s+actions?|Next\s+steps?|Prevention|Implications|Quick\s+wins?|Experiments?\s+needed|Proposed\s+solutions?|What\s+NOT\s+to\s+do)\s*$/i;

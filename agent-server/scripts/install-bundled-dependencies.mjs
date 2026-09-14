@@ -1,8 +1,3 @@
-// input:  packaged bundled-dependencies asset
-// output: synchronized package-local runtime node_modules
-// pos:    Packaged runtime closure installer
-// >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

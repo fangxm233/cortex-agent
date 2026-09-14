@@ -1,8 +1,3 @@
-// input:  package manifest, the hoisted workspace node_modules it resolves against
-// output: direct bundles and recoverable runtime package asset
-// pos:    Stages the runtime closure the workspace actually resolves, for npm pack
-// >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

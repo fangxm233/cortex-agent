@@ -1,8 +1,3 @@
-// input:  parsed Claude stream-json events (system/user-replay/result)
-// output: BgTaskTracker (running/undelivered background-task counts, armed continuation) + isContinuationResult
-// pos:    CC backend background-task continuation tracking (pure, no I/O)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 /**
  * Tracks in-flight background tasks (run_in_background Bash/Agent) for a single
  * persistent Claude session, by observing the CLI's stream-json `system` events.

@@ -1,8 +1,3 @@
-// input:  a PI models.json path and provider entries
-// output: merge-preserving reads, writes and removals of provider blocks
-// pos:    Persistence of PI's user-owned provider catalog
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import {
   copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync,
 } from 'fs';

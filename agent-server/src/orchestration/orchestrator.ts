@@ -1,8 +1,3 @@
-// input:  orch/agent-runner, orch/thread-executor
-// output: Orchestrator — two-branch decision tree (thread-match / default) [S8]
-// pos:    orch/ — sole post-normalize routing entry called by message-router.ts
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { PlatformAdapter, IncomingMessage } from '@platform/index.js';
 import { agentRunner } from './agent-runner.js';
 import { threadExecutor } from './thread-executor.js';

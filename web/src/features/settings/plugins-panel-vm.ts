@@ -1,8 +1,3 @@
-// input:  the sanitized plugin catalog and assignment targets
-// output: plugin list filtering, selection, and usage grouping
-// pos:    Pure view model for the plugin package manager
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import type { PluginAssignmentTarget, UiPluginCatalogEntry } from '@cortex-agent/ui-contract';
 import { pluginUsedBy } from './plugin-assign-vm';
 

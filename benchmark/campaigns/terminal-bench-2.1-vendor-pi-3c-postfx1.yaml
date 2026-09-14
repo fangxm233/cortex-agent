@@ -1,8 +1,3 @@
-# input:  the PI vendor arm and three pinned Terminal-Bench 2.1 tasks
-# output: one paid three-concurrency PI stream-fix validation wave
-# pos:    Post-fix live PI stream-validation campaign
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 schema_version: cortex-bench-campaign/1
 campaign: tb21-pi-3c-postfx1-20260821
 paid: true

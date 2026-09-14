@@ -1,8 +1,3 @@
-// input:  ScheduleModal, editable-field gates, custom Select stub, and form fixtures
-// output: typed patches, API locks, honest once timing, and Escape regressions
-// pos:    Desktop shared-controller schedule presentation specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LangProvider } from '@/i18n';

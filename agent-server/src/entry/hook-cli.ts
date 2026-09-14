@@ -1,8 +1,3 @@
-// input:  hook registry/templates, CLI helpers, hook process runner
-// output: runHookCli and cortex-hook executable entry point
-// pos:    Operator CLI for hook observability and blocking user asks
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as fs from 'node:fs';
 import * as http from 'node:http';
 import * as path from 'node:path';

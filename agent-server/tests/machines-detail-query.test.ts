@@ -1,8 +1,3 @@
-// input:  parseMachineProbe parser + handleMachineDetail handler with mock deps
-// output: machines.detail tests — probe parsing, offline short-circuit, probe failure, live-run join
-// pos:    backend regression test for the machines.detail live-probe read scope
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import './_test-home.js'; // MUST be first — isolates CORTEX_HOME
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

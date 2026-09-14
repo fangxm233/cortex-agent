@@ -1,8 +1,3 @@
-// input:  JSON input files/stdin and injected production exporter
-// output: CLI parsing, structured output, and failure coverage
-// pos:    Verifies the installed production evidence export command
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';
 

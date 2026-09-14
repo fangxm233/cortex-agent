@@ -2,7 +2,6 @@
 // output: aborted-thread → block-task escalation tests
 // pos:    Verify worker [ABORT] escalation path (DR-0014 §8 Phase C — also fixes the
 //         pre-existing bug where aborted dispatch threads were finalized as successes)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test } from 'vitest';

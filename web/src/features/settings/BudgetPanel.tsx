@@ -1,8 +1,3 @@
-// input:  config/cost/project queries, scope/form state, and shared budget writer
-// output: desktop budget panel with pending-safe write, chip, Enter, apply and clear actions
-// pos:    Desktop Budget settings view
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { ConfigSnapshot, CostSummary } from '@cortex-agent/ui-contract';

@@ -1,8 +1,3 @@
-// input:  provider throttle snapshot, epoch time, UI language
-// output: compact labels, model labels, countdowns, and detail rows
-// pos:    Shared desktop/mobile rate-limit presentation model
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { SystemRateLimitStatus } from '@cortex-agent/ui-contract';
 import type { Lang } from '@/i18n';
 

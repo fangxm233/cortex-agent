@@ -1,8 +1,3 @@
-// input:  data/agent-state.json, and data/mode.json on the one migrating boot
-// output: the daemon's agent selection state — profiles per channel, default agent, overrides
-// pos:    The single reader/writer of agent selection state (D5)
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { STORE_DIR } from '@core/paths.js';

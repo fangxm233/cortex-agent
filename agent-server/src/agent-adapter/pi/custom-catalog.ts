@@ -1,8 +1,3 @@
-// input:  a PI models.json path
-// output: the provider blocks it declares, and which of them are user-defined
-// pos:    Reader for PI's provider catalog file format
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { existsSync, readFileSync } from 'fs';
 
 /**

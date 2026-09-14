@@ -1,8 +1,3 @@
-// input:  McpServer, Feishu LarkClient, session fallback channel
-// output: feishu_send_file tool registration
-// pos:    MCP tool for uploading files to Feishu
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import * as fs from 'fs';

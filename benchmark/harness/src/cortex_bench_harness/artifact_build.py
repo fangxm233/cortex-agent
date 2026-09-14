@@ -1,8 +1,3 @@
-# input:  repository checkout, installed dependencies and host file locks
-# output: serialized npm artifacts and deterministic harness wheels
-# pos:    Trial artifact builders
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 # The npm builder lived in `tests/offline_package.py` and was reachable only from three tests, so
 # the only automated thing that ever rebuilt the agent-server artifact was a test run. Whether the
 # `dist/` copy a campaign pins was current depended on an operator remembering to rebuild it by

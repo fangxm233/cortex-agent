@@ -1,8 +1,3 @@
-// input:  React effects, clock state, browser interval functions
-// output: minute-resolution current time for recent lists
-// pos:    Shared recent-list clock hook
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useEffect, useState } from 'react';
 
 export const RECENT_TICK_MS = 60_000;

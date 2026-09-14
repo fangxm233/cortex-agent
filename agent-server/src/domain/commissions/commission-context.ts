@@ -1,8 +1,3 @@
-// input:  fs, commissionRepo, commission-paths
-// output: loadCommissionPromptContext + CommissionPromptContext
-// pos:    Resolves the commission identity + directory for the [Commission] prompt block
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import * as fsp from 'node:fs/promises';
 import * as path from 'node:path';
 import { commissionRepo } from '@store/commission-repo.js';

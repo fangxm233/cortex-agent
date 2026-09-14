@@ -1,8 +1,3 @@
-// input:  daemon rebuild helpers, daemon-notice handler, MockAdapter
-// output: daemon import safety, rebuild order and abort-notice tests
-// pos:    Verify daemon import safety and rebuild behavior
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { test } from 'vitest';

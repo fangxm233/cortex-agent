@@ -5,7 +5,6 @@
 //         (web-interactions-redesign plan). The in-memory index doubles as the liveness
 //         signal: after a restart the index is empty, so readers derive still-`pending`
 //         JSONL records to `expired` — no startup scan needed.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { createLogger } from '@core/log.js';
 import type { EventBus } from '@events/index.js';

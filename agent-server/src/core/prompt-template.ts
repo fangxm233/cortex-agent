@@ -1,8 +1,3 @@
-// input:  a template string, caller-supplied variables, the wall clock
-// output: renderPromptTemplate, resolveSystemVars, promptSystemVars
-// pos:    The `{{var}}` / `{{#if}}` mini-template every prompt composer renders through
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 /** System variables are resolved at render time, never at config load time: a template that names
  *  `{{currentDateTime}}` must read the clock when the prompt is sent, not when the file was read. */
 export function promptSystemVars(): Record<string, string> {

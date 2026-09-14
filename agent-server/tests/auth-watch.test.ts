@@ -1,8 +1,3 @@
-// input:  EventBus, MockAdapter, auth-watch registration, locale state
-// output: capability, retry, debounce, recovery, privacy regressions
-// pos:    Covers user-visible authentication-required notifications
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { afterEach, test } from 'vitest';
 import assert from 'node:assert/strict';
 import { setLocale } from '../src/core/i18n.js';

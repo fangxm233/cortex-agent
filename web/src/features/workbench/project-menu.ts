@@ -1,8 +1,3 @@
-// input:  session and thread summaries grouped by project
-// output: per-project running and attention counts
-// pos:    shared project attention aggregation for desktop and mobile
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { SessionInfo, ThreadInfo } from '@cortex-agent/ui-contract';
 
 const ACTIVE_THREAD_STATUSES: ReadonlySet<ThreadInfo['status']> = new Set(['running', 'waiting']);

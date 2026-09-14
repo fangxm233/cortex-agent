@@ -1,8 +1,3 @@
-// input:  Node test runner + domain/threads/contract
-// output: buildContractPrompt / buildMissionChain / checkContractBudget tests
-// pos:    Verify structured delegation contracts and budget circuit breaker (DR-0014 Phase 3)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {

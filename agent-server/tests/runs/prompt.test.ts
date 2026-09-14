@@ -1,7 +1,3 @@
-// input:  domain/runs/prompt.ts, the prompt templates the shipped agents actually use
-// output: byte-exact expectations for composeSystemPrompt / composeUserPrompt
-// pos:    P3.3b contract — the one prompt composer, pinned against the pre-refactor output
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
 // Every expectation below is the byte-for-byte output of the implementation this file replaced
 // (threads/prompt-builder.buildConversationPrompt + buildRegularStepPrompt + appendPendingMessages,

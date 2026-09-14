@@ -1,8 +1,3 @@
-# input:  Harbor lifecycle, proxy evidence, stop observation
-# output: deadline-aware production run and final envelope
-# pos:    Production Harbor lifecycle wrapper for Cortex
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import os
 import shlex
 from pathlib import Path, PurePosixPath

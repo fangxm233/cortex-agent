@@ -2,7 +2,6 @@
 // output: Lock down PI routing layering — profile carries logical `mode` + optional `provider`;
 //         the gateway sub-path `/m/<mode>/<provider>` is derived in code, not stored in the profile.
 // pos:    PI per-provider gateway routing — decouple gateway route (mode) from PI protocol (provider)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

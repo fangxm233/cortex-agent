@@ -1,7 +1,3 @@
-# input:  a campaign's declared network block, the trial proxy host, and host DNS
-# output: the trial's Harbor network policies, a denylist address set, and the evidence fragment
-# pos:    Trial network access boundary
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # A trial used to have exactly one network shape: deny everything, allow the one credential route.
 # That shape is now one of three, and this module is where a campaign's declaration becomes them.

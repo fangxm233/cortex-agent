@@ -1,8 +1,3 @@
-// input:  config snapshot, runtime descriptors, shared writer and localized controls
-// output: writable Notifications and Advanced desktop panels
-// pos:    Desktop runtime settings presentation independent of writer ownership
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useEffect, useState, type CSSProperties } from 'react';
 import type { ConfigSnapshot, ConfigSettingEntry } from '@cortex-agent/ui-contract';
 import { CONTROL_HEIGHT, Select } from '@/design';

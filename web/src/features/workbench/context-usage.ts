@@ -1,8 +1,3 @@
-// input:  persisted/live context snapshots and raw SSE payloads
-// output: validated snapshot resolution plus usage labels and fractions
-// pos:    shared context model; surfaces own their visibility policy
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { SessionContextUsage } from '@cortex-agent/ui-contract';
 
 export interface ContextUsageViewModel {

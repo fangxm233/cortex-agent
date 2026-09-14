@@ -1,7 +1,3 @@
-// input:  BackgroundTurnSink callbacks, the run's await-background policy, timers
-// output: the background phase of one engine run — RunEvents, merged result, grace/max-wait watchdog
-// pos:    agent-adapter — engine-side background continuation controller (one per EngineRun)
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 //
 // A run's life does not end with its foreground result. Claude opens a *spontaneous* turn of its
 // own when a background task finishes (or when an injected message is consumed after the result),

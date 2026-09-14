@@ -1,8 +1,3 @@
-// input:  app process, temp Cortex home, mock observer
-// output: settings migration and hot-reload E2E evidence
-// pos:    Integration coverage for live settings behavior
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { afterAll, test } from 'vitest';
 import assert from 'node:assert/strict';
 import { fork, spawn, type ChildProcess } from 'node:child_process';

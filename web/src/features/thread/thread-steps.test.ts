@@ -1,8 +1,3 @@
-// input:  thread detail DTO fixtures and step selectors
-// output: thread-step selector regression tests
-// pos:    Verifies active-step child and summary derivations
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import type {
   ThreadDetail,

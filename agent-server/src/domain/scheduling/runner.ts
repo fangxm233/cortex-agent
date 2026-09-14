@@ -1,8 +1,3 @@
-// input:  job registry, Scheduler, self-registering job modules
-// output: user scheduler creation and remaining internal handler wiring
-// pos:    Composes persisted schedule execution
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { dispatch, ctx, register } from './job-registry.js';
 
 // Import job modules to trigger self-registration at module load

@@ -1,7 +1,3 @@
-// input:  a held turn's run + its Slack/Feishu status message, stream and transcript callbacks
-// output: a RunObserver that renders the turn's outcome line and finalizes the held turn
-// pos:    orchestration — the Slack/Feishu status surface for a run's background phase
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 //
 // Why this is a RunObserver: the background hold used to be assembled inline in
 // `lifecycle.handleAgentSuccess` out of three parts — a `BackgroundTurnSink` built by

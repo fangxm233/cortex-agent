@@ -2,7 +2,6 @@
 # output: per-task evidence that the upstream verifier bootstraps, and the tasks no arm may be
 #         paid to attempt until it does
 # pos:    Pre-agent verifier bootstrap gate
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # A campaign spends its money on the agent phase and reads its answer from the verifier phase, and
 # until now nothing checked that the second one worked. It does not always: an upstream

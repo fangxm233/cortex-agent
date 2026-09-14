@@ -1,8 +1,3 @@
-// input:  notices, session usage, tool and subagent metadata
-// output: CortexEvent union for the shared EventBus
-// pos:    Typed event contract for the shared EventBus
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import type {
   AuthNoticeAction,
   ChatNoticeLevel,

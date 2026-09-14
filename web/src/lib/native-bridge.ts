@@ -1,8 +1,3 @@
-// input:  optional Tauri core, events and Android plugins
-// output: typed setup invokes, retained actions and safe listeners
-// pos:    Canonical native boundary for all web surfaces
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 type NativeArgs = Record<string, unknown>;
 type NativeUnlisten = () => unknown;
 type NativeEventHandler = (event: unknown) => void;

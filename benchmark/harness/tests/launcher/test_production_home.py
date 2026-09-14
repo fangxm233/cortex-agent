@@ -1,8 +1,3 @@
-# input:  committed arm bundles, hostile env, launcher facts
-# output: fresh-home, residue, digest, attestation and refusal proofs
-# pos:    Contract tests for the production arm materializer
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import base64
 import dataclasses
 import hashlib

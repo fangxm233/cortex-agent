@@ -1,8 +1,3 @@
-// input:  SessionTotals fixtures and session timestamps
-// output: summary/rows coverage for the whole-session statistics view model
-// pos:    Session stats view-model specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import type { SessionTotals } from '@cortex-agent/ui-contract';
 import { sessionSpanMs, sessionStatsView, type SessionStatsCopy } from './session-stats';

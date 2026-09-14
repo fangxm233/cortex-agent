@@ -1,7 +1,3 @@
-// input:  source-aware optimistic state, authority fixtures, deferred mutations
-// output: stale-response, reconciliation, and failure regressions
-// pos:    Optimistic Web sender contract specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, expect, it, vi } from 'vitest';
 import type { SessionTranscript } from '@cortex-agent/ui-contract';
 import { applyDelivered, buildTranscriptRows, type LiveSessionMessage, type PendingUserMessage } from './transcript-vm';

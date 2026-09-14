@@ -1,8 +1,3 @@
-// input:  Vitest, commissions query/mutate handlers, tmp project dirs
-// output: commissions.list/get/decisions and commissions.close regressions
-// pos:    Tests the commission board's ui-service surface (DR-0037)
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';

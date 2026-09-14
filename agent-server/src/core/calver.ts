@@ -1,8 +1,3 @@
-// input:  none (pure)
-// output: compareCalVer — CalVer YYYY.M.D[-N] comparator
-// pos:    shared version ordering for server update check and app-update manifest
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 // CalVer comparison: YYYY.M.D[-N]. Supports an optional suffix (e.g. 2026.5.23-1) for hotfix
 // releases — the suffix sorts ABOVE the plain version (unlike semver prerelease ordering, which is
 // why semver comparators must never be used on these versions). Default suffix is 0 when absent.

@@ -1,8 +1,3 @@
-# input:  the host instant at which the launcher arms the proxy and the arm's deadline budget
-# output: the provisional credential-lease bound the proxy is armed with
-# pos:    Provisional lease bound
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 # The launcher arms the credential proxy before the container exists, so it cannot know the trial's
 # own deadline: that instant is derived inside the container, from the container's clock, at policy
 # compile. Only durations may cross that boundary. The launcher therefore arms a bound built out of

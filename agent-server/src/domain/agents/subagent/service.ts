@@ -1,8 +1,3 @@
-// input:  raw `agent` tool parameters plus the calling session's own routing
-// output: a registered subagent run, foreground or background
-// pos:    Daemon-side entry of the `agent` tool
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { SubagentNotice } from '../../../agent-adapter/pi/event-parser.js';
 import { findRole, loadRoles } from '@core/agents/roles.js';
 import { failedChildResult, runInvocation } from '@core/agents/subagent/orchestrate.js';

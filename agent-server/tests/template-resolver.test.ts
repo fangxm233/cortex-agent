@@ -1,8 +1,3 @@
-// input:  Node test runner + template-resolver + tmp fs
-// output: template frontmatter/vars/blocks/conditional tests
-// pos:    Verify prompt template parsing flow
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, rmSync } from 'fs';

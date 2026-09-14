@@ -1,8 +1,3 @@
-// input:  Vitest, commission-tools tool, mock HTTP transport, tmp contract files
-// output: commission plan-exit payload and outcome-mapping regressions
-// pos:    Tests the commission contract approval tool
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'fs';

@@ -1,8 +1,3 @@
-// input:  session publishers, tool devices, isolated EventBus
-// output: context, message, notice, pending, delivery regressions
-// pos:    Orchestration session-event contract specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { EventBus } from '../../src/events/event-bus.js';

@@ -1,8 +1,3 @@
-// input:  Session ids, session totals, choices, context usage, copy, and shared clipboard feedback
-// output: Single-action chat menu and bottom-sheet presentations
-// pos:    Mobile chat sheet presentation seam
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { SessionContextUsage } from '@cortex-agent/ui-contract';
 import { ContextCompactFooter, ContextUsageDetails, contextUsageTitle, type ContextCompactAction } from '@/features/workbench/ContextUsageControl';
 import { buildSessionIdRows } from '@/features/workbench/session-id';

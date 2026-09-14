@@ -1,8 +1,3 @@
-// input:  a turn's terminal result + its channel
-// output: the four gates that decide whether a turn's background phase is held, and for whom
-// pos:    Background-continuation hold gates (the surfaces themselves are the *-renderer observers)
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { isBgContinuationEnabled } from '../agent-adapter/bg-wait.js';
 
 /** Single gate for the background-task hold decision (agent-runner + lifecycle share it):

@@ -1,7 +1,3 @@
-// input:  platform messages, command dispatcher, thread store
-// output: registerMessageHandler with normalized command routing
-// pos:    Shared Slack and Feishu message router
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { PlatformAdapter, IncomingMessage, MessageEditContext } from '@platform/index.js';
 import { normalizeSkillCommandPrefix } from '@domain/memory/skill-scanner.js';
 import { createLogger } from '@core/log.js';

@@ -1,8 +1,3 @@
-// input:  decision items, vocab copy, and the respondDecision mutation
-// output: Desktop decision cards with expansion-gated response actions
-// pos:    Transcript-inline presentation of agent-announced decisions
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useCallback, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { DecisionItem, DecisionActionKind } from '@cortex-agent/ui-contract';

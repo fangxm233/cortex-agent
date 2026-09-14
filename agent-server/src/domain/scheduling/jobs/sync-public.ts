@@ -1,8 +1,3 @@
-// input:  CORTEX_REPO, sync-public script, PlatformAdapter
-// output: sync-public path resolver and registered job runner
-// pos:    Pulls public/main changes into a source checkout
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { execFileSync } from 'child_process';
 import * as path from 'path';
 import { register, ctx } from '../job-registry.js';

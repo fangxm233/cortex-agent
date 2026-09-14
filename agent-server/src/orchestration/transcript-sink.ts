@@ -4,7 +4,6 @@
 // pos:    orchestration — the one history+publish observer every run surface shares, replacing
 //         the four hand-wired copies (agent-runner foreground, the two background surfaces,
 //         mid-turn-inject). The pending-injection two-phase persistence lives here.
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';

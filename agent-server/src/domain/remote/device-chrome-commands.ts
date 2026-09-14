@@ -1,8 +1,3 @@
-// input:  a device's platform
-// output: the shell snippets that launch, and stop, a managed Chrome on that device
-// pos:    Device browser — everything that must be phrased in the device's own shell
-// >>> If I am updated, update CORTEX.md <<<
-
 /**
  * Every command here runs through the device's bash (git-bash on Windows — see
  * `client/src/command-exec.ts`), which is why one snippet shape covers all three platforms and only

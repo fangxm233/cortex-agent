@@ -11,7 +11,6 @@
 //         satisfy each other when every differing key is optional), and key-set equality misses a
 //         field whose TYPE changed. Together they catch both. Deliberate divergences are narrowed
 //         explicitly below with the reason.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { z } from 'zod';
 import type {

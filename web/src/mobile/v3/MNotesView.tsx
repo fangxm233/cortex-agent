@@ -1,8 +1,3 @@
-// input:  mobile notes VM, gesture policy, localized copy and CRUD callbacks
-// output: tappable notes list with swipe delete and fixed input
-// pos:    Mobile project notes presentation
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import type { NotesCopy } from '@/features/notes/notes-copy';
 import { MScreen, MDrillHeader, MScrollBody, MC, MONO } from '@/mobile/ui/kit';

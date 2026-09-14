@@ -1,8 +1,3 @@
-// input:  declarative mobile route metadata and concrete pathnames
-// output: route registry, matching, tab attribution, and semantic-parent regressions
-// pos:    Verifies the element-free mobile route manifest
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import {
   MOBILE_ROUTE_MANIFEST,

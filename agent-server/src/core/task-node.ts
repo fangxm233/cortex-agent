@@ -6,7 +6,6 @@
 //         execution attempt — the node's durable state (artifact.md checkpoint,
 //         ledger.json acceptance record) lives under the project context dir and
 //         survives any thread death, rotation, or server restart.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { mkdirSync, writeFileSync, existsSync } from 'fs';

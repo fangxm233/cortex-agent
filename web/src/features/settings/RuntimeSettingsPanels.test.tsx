@@ -1,8 +1,3 @@
-// input:  desktop runtime panel views and settings/env fixtures
-// output: settings-backed rows, validation and toggle interaction regressions
-// pos:    Verifies desktop Notifications and Advanced presentation
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { Children, isValidElement, type ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { act, create } from 'react-test-renderer';

@@ -2,7 +2,6 @@
 // output: !lang show / switch en↔zh / unknown-arg coverage + persistence + live setLocale
 //         + the change notifier that lets open Web UIs follow a chat-side switch
 // pos:    !lang command regression
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { describe, it, beforeEach, afterEach } from 'vitest';
 import * as assert from 'node:assert/strict';

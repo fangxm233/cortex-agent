@@ -1,8 +1,3 @@
-// input:  raw `agent` tool parameters from either entry point
-// output: a validated Invocation, or a message naming exactly what is wrong
-// pos:    The one shape of the `agent` tool, dialect-independent
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { Backend } from '@core/types/agent-types.js';
 import type { Invocation, SubagentMode, SubagentTask } from './types.js';
 

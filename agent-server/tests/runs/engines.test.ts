@@ -1,8 +1,3 @@
-// input:  SessionEngines over a PIAdapter backed by the fake PI runtime
-// output: pool ownership regression: reuse, retirement, eviction, detached control references
-// pos:    P2.2c — the pool moved out of PIAdapter, so its guarantees are asserted here
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';

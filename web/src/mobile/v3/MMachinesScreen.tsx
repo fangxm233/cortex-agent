@@ -1,7 +1,3 @@
-// input:  shared machines resource, mobile navigation, copy and toast feedback
-// output: single-expand mobile telemetry and registration-request screen
-// pos:    Mobile Machines resource adapter
-// >>> If I am updated, update my header comment and CORTEX.md <<<
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/design';

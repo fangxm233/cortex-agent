@@ -1,8 +1,3 @@
-// input:  config schemas, CONFIG_DIR, runtime settings API, and the display-language knob
-// output: validated budget, profile, settings, language, and per-window provider policy writes
-// pos:    Mutation handlers for writable config sections and provider policies
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { CONFIG_DIR } from '@core/paths.js';

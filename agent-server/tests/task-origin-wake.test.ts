@@ -2,7 +2,6 @@
 // output: notifyTaskOriginSession tests for origin-session terminal-task notices
 // pos:    Verifies wake precedence, system-reminder framing, and thread-origin
 //         degradation to project notices (fire-and-forget tasks never wake a session)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test, afterAll } from 'vitest';

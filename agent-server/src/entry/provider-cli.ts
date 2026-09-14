@@ -1,8 +1,3 @@
-// input:  provider subcommand arguments and the two store paths
-// output: custom provider listing, saving and removal with CLI framing
-// pos:    Custom PI provider CLI handler
-// >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import { formatError, formatHelp, readStdinSync } from '@core/cli-utils.js';
 import { t } from '@core/i18n.js';
 import {

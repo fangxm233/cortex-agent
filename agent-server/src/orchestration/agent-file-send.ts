@@ -1,8 +1,3 @@
-// input:  file args, filesystem, conversation history, session events
-// output: sendAgentFile and safe workspace copy metadata
-// pos:    delivers agent-produced files into Web chat sessions
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as path from 'path';
 import { conversationHistory } from '@store/conversation-history-repo.js';
 import { publishSessionMessage, type SessionMessagePayload } from './session-events.js';

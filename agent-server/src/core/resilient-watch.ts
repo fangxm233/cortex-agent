@@ -1,8 +1,3 @@
-// input:  fs.watch factories and filesystem snapshots
-// output: watcher monitors with polling fallback and cleanup
-// pos:    Shared resilient filesystem watch lifecycle
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { readFileSync, watch, type FSWatcher } from 'node:fs';
 import { createHash } from 'node:crypto';
 import path from 'node:path';

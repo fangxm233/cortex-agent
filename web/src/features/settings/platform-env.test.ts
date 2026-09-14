@@ -1,8 +1,3 @@
-// input:  env/runtime-setting fixtures, numeric drafts and duration values
-// output: redaction, indexing, whole-number parsing and duration-bound regressions
-// pos:    Verifies shared desktop/mobile runtime-setting model helpers
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, it, expect } from 'vitest';
 import type { ConfigEnvEntry, ConfigSettingEntry } from '@cortex-agent/ui-contract';
 import {

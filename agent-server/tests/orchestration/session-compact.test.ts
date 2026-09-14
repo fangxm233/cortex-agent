@@ -1,8 +1,4 @@
 import '../_test-home.js'; // MUST be first — repoints CORTEX_HOME before paths bind
-// input:  session-compact coordinator with injectable state/control deps
-// output: idle guards, native control, snapshot, and event assertions
-// pos:    Manual session context compaction orchestration tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

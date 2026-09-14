@@ -1,8 +1,3 @@
-// input:  projects/<p>/experiments + knowledge + patterns atoms
-// output: JSON lifecycle report (candidates/stale/contradict)
-// pos:    knowledge lifecycle detection engine CLI
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as fs from 'fs';
 import * as path from 'path';
 import { PROJECTS_DIR, isMainModule } from '@core/utils.js';

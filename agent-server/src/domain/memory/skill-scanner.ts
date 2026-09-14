@@ -1,8 +1,3 @@
-// input:  DATA_DIR/.claude/skills and DATA_DIR/plugins/*/skills
-// output: getKnown/Display/Groups + normalize prefix
-// pos:    skill discovery and command prefix normalization
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { readdirSync, existsSync } from 'fs';
 import * as path from 'path';
 import { DATA_DIR, PLUGINS_DIR } from '@core/utils.js';

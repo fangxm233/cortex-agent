@@ -1,8 +1,3 @@
-// input:  NormalizedEvents, InjectionAckSink, user messages
-// output: PI timers, EventQueue, steering queue, turn accumulator
-// pos:    Small state primitives shared by PI session lifecycle code
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { createLogger } from '@core/log.js';
 import type { AgentResult, AskUserQuestionInfo } from '@core/types/agent-types.js';
 import type { InjectionAckSink, UserMessage } from '../types.js';

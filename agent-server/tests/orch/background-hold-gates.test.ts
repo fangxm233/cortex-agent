@@ -1,8 +1,3 @@
-// input:  terminal results, channels, runtime settings
-// output: hold-gate and channel-scope tests
-// pos:    Covers which turns are held for their background phase, and by which surface
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 

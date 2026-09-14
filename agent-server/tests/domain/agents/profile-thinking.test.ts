@@ -1,8 +1,3 @@
-// input:  profile manager and the run-layer engine-spec builder
-// output: thinking and output-cap validation and propagation
-// pos:    Profile execution-control regressions
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';

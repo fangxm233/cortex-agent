@@ -1,8 +1,3 @@
-# input:  image metadata, env values, egress options, Docker runtime
-# output: isolated commands, sealed Docker policy overlays, per-slot CPU pin overlay
-# pos:    Admission IO and deterministic serialization primitives
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import hashlib
 import json
 import os

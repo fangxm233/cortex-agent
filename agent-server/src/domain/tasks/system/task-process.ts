@@ -1,8 +1,3 @@
-// input:  pending dispatch metadata, process signals, generation-fenced task state
-// output: stopped dispatch process and ownership-safe task unclaim
-// pos:    Cancels tracked task executions without unclaiming newer incarnations
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { STORE_DIR } from '@core/utils.js';

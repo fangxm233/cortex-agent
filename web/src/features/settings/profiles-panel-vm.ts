@@ -1,8 +1,3 @@
-// input:  ConfigProfileEntry DTO, the models.catalog snapshot, profile vocabulary and mutation args
-// output: shared form transitions, field choice lists, validation copy and mutation args
-// pos:    View model for desktop and mobile profile editors
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import type { Vocab } from '@/i18n';
 import type {
   ConfigProfileEntry,

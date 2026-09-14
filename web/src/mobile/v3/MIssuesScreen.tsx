@@ -1,8 +1,3 @@
-// input:  shared project scope, canonical issue model, mutations, and mobile navigation
-// output: mobile project issue list with canonical selection and handling flow
-// pos:    Mobile issues data and routing controller over the shared issue model
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 // 24c 移动端 Issues — the project issue list, drilled from the 项目 page's Issues card (24a → 24c).
 // A non-Tab drill page (the shell hides the Tab bar); back returns to the project page. Wired to the
 // REAL `issues.*` ui-service scope: `issues.list({projectId})` feeds the list; `issues.delete`

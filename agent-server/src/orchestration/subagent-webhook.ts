@@ -1,8 +1,3 @@
-// input:  /webhook/subagent payloads from an MCP sidecar
-// output: start / wait / stop / list answers for the daemon's subagent registry
-// pos:    Daemon side of the `agent` MCP tool
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { createLogger } from '@core/log.js';
 import type { Backend } from '../agent-adapter/types.js';
 import { resolveProfileConfig } from '@domain/agents/profile-manager.js';

@@ -1,8 +1,3 @@
-// input:  profile form state, ConfigProfileEntry and models.catalog fixtures
-// output: validation, route transitions, choice lists, error copy, dirty and mutation-args regressions
-// pos:    Unit tests for shared desktop/mobile profile form behavior
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import type { ConfigProfileEntry, ModelCatalogSnapshot } from '@cortex-agent/ui-contract';
 import {

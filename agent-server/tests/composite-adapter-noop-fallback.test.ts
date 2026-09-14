@@ -1,8 +1,3 @@
-// input:  Node test runner + CompositeAdapter + MockAdapter
-// output: Unknown-conduit no-op coverage including marker add/remove
-// pos:    Verifies Web conduits never leak into real platform adapters
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { CompositeAdapter } from '../src/platform/adapters/composite-adapter.js';

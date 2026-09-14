@@ -1,8 +1,3 @@
-# input:  validated suite/host inputs, host-only credential and fixed slots
-# output: one-attempt per-task Harbor results with isolated proxy evidence
-# pos:    Full-suite execution coordinator
-# >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 from __future__ import annotations
 
 import json

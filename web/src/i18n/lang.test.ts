@@ -1,8 +1,3 @@
-// input:  viewport language derivation helper, breakpoint, and the language cache
-// output: viewport language selection + first-paint cache regressions
-// pos:    Tests viewport-based language derivation and the local cache of the server language
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { deriveLang, MOBILE_MAX_WIDTH, readStoredLang, resolveInitialLang, storeLang } from './lang';
 

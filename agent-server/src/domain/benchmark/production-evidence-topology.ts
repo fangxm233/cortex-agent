@@ -1,8 +1,3 @@
-// input:  frozen attempt linkage and production topology facts
-// output: validated durable v2 edges and attempt dispositions
-// pos:    Production evidence topology projector
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import type { ProductionAttemptIdentityRecord } from './production-attempt-identity.js';
 import type { ProductionTopologyFact } from '../tasks/production-topology-ledger.js';
 import type { AttemptDisposition, AttemptEdge } from './attempt-record.js';

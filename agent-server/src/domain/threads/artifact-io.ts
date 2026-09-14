@@ -1,8 +1,3 @@
-// input:  thread store, session-activity JSONL
-// output: Artifact I/O and modified-file path lookup
-// pos:    Thread artifact and activity-log filesystem helpers
-// >>> If I am updated, update my header comment and parent CORTEX.md <<<
-
 import { readFileSync, rmSync, existsSync } from 'fs';
 import * as path from 'path';
 import { DATA_DIR } from '@core/utils.js';

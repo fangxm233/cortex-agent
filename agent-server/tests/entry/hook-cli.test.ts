@@ -1,8 +1,3 @@
-// input:  hook CLI, registry sync, real subprocess fixtures
-// output: CLI metadata, mutation, execution, and ask-flow tests
-// pos:    Verifies the declarative hook registry CLI contract
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import '../_test-home.js';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';

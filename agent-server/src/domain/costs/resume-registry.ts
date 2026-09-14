@@ -1,8 +1,3 @@
-// input:  persistence and provider-attributed interruptions
-// output: resume queue records, drains, counts, and hooks
-// pos:    Provider-scoped interrupted-work registry
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { createLogger } from '@core/log.js';
 
 const log = createLogger('resume-registry');

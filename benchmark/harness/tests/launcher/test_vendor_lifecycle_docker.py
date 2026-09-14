@@ -1,8 +1,3 @@
-# input:  real Docker PI image, synthetic upstream, lifecycle failures
-# output: prompt transport, timeout containment, resume, revoke proofs
-# pos:    Real-container boundary test for vendor trial lifecycle
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import argparse
 import asyncio
 import json

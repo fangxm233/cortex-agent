@@ -1,8 +1,3 @@
-# input:  named trial artifacts, expected sources, and leak rules
-# output: leak detection and closed-inventory assertions
-# pos:    Negative coverage tests for the artifact scanner
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 from collections import Counter
 from pathlib import Path
 

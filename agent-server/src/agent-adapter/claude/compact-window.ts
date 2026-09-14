@@ -1,8 +1,3 @@
-// input:  Claude settings files under the spawn cwd and the user config dir
-// output: the configured auto-compact window, or null when unset
-// pos:    Resolves the auto-compact window that caps usable Claude context
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';

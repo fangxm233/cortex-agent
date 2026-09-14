@@ -1,8 +1,3 @@
-// input:  node:fs, commission-paths, commissionRepo
-// output: draft-directory creation and commission-mode session options
-// pos:    Commission-mode session creation: the server owns the draft dir (DR-0037 v2)
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { commissionsRoot, DRAFT_DIR_PREFIX } from './commission-paths.js';

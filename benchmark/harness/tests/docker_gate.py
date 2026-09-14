@@ -1,8 +1,3 @@
-# input:  the CORTEX_BENCH_DOCKER_TESTS opt-in environment variable
-# output: shared marker and module guard for container tests
-# pos:    Fail-closed Docker opt-in gate for benchmark tests
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import os
 
 import pytest

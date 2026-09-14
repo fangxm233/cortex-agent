@@ -1,8 +1,3 @@
-// input:  Select with mocked Radix parts and typed option fixtures
-// output: value mapping, trigger forwarding, and option-state regressions
-// pos:    Verifies the shared custom selection adapter
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 

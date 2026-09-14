@@ -1,8 +1,3 @@
-// input:  UiServiceDeps + MachineDetailParams (machine name)
-// output: machines.detail handler → MachineDetail (live probe + running dispatch join)
-// pos:    query handler for 'machines.detail', the lazy per-machine expand
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { UiServiceDeps, MachineDetail, MachineDetailParams, MachineLiveRun } from '../types.js';
 import { buildProbeCommand, parseMachineProbe, PROBE_TIMEOUT_MS } from './machine-probe.js';
 

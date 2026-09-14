@@ -1,7 +1,3 @@
-// input:  a faked device shell and a faked CDP endpoint
-// output: pinned acquire/verify/relaunch/reclaim policy for a browser on another machine
-// pos:    tests for the remote twin of the managed browser
-// >>> If I am updated, update CORTEX.md <<<
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const sendCommand = vi.fn();

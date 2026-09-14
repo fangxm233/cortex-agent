@@ -1,8 +1,3 @@
-// input:  identifier value, copyability, class names, and shared clipboard feedback
-// output: monospace identifier text or a success-aware copy button
-// pos:    Design-system identifier primitive
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { MonoText } from './MonoText';
 import { useClipboardFeedback } from './useClipboardFeedback';
 

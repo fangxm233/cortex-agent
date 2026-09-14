@@ -1,8 +1,3 @@
-# input:  scripted or opt-in Docker state and host proc census
-# output: post-stop exit and observed process census recording proofs
-# pos:    Container stop/wait boundary tests
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import asyncio
 import json
 import shutil

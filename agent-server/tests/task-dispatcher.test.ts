@@ -1,8 +1,3 @@
-// input:  task dispatcher, outages, template/profile config
-// output: preselect, provider gates, and CLI tests
-// pos:    Covers task pre-filter and dispatch eligibility
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test, beforeAll } from 'vitest';
 import assert from 'node:assert/strict';

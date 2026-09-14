@@ -1,7 +1,3 @@
-// input:  profiles.json through profileRepo
-// output: validated profile, caps, and fallback resolution
-// pos:    Resolves named backend execution profiles
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { profileRepo } from '@store/profile-repo.js';
 import type { Backend } from '../../agent-adapter/types.js';
 

@@ -1,8 +1,3 @@
-// input:  one task + role, a cwd, the parent's env, and a nested-session factory
-// output: one SubagentResult from a nested in-process PI session
-// pos:    Runs a `pi` subagent child, for both the PI shim and the daemon runner
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { InlineExtension } from '@earendil-works/pi-coding-agent';
 import type { AgentRole } from '@core/agents/roles.js';
 import { roleToolsForBackend } from '@core/agents/roles.js';

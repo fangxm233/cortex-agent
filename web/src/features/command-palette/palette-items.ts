@@ -1,7 +1,3 @@
-// input:  Session/thread/task DTOs, i18n vocab keys
-// output: Command-palette rows, modal and navigation targets
-// pos:    Pure command-palette row mapping and filtering
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import type { SessionInfo, ThreadInfo, TaskInfo } from '@cortex-agent/ui-contract';
 import type { Vocab } from '@/i18n';
 

@@ -1,8 +1,3 @@
-// input:  session/history/run stores, tool metadata, DEBUG policy
-// output: session snapshots (incl. whole-session totals), transcripts, subagent detail, DEBUG
-// pos:    Authoritative query boundary for session transcripts
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type {
   UiServiceDeps,
   SessionInfo,

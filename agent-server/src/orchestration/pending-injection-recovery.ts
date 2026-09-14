@@ -1,8 +1,3 @@
-// input:  durable pending records plus ledger/history/store seams
-// output: idempotent pending commit and startup orphan recovery
-// pos:    cross-store commit coordinator for mid-turn injection
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { createLogger } from '@core/log.js';
 import { conversationHistory } from '@store/conversation-history-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';

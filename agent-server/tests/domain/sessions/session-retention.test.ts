@@ -1,8 +1,3 @@
-// input:  temp filesystem, retention sweep deps, registry/session stores
-// output: session retention sweep regressions across registry, orphans, and helper sync
-// pos:    Exercises the orchestration-free retention sweep contract
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import '../../_test-home.js';
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

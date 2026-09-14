@@ -1,8 +1,3 @@
-// input:  row policy views, control readiness, and local threshold draft text
-// output: synced threshold draft text plus per-row save/reset disabled state
-// pos:    Shared desktop/mobile row-policy helpers
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { useEffect, useState } from 'react';
 import type { UsageWindowPolicyView } from './usage-vm';
 

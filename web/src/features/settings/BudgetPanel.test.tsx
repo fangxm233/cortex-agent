@@ -1,8 +1,3 @@
-// input:  desktop budget panel, pending/nullable writer states and config fixtures
-// output: chip, Enter, apply, clear and ignored-operation feedback regressions
-// pos:    Desktop Budget interaction-gate specification
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import type { ConfigSnapshot, CostSummary } from '@cortex-agent/ui-contract';
 import { beforeEach, describe, expect, it, vi } from 'vitest';

@@ -1,8 +1,3 @@
-// input:  shared headless prompt variants and stub mobile dialogs
-// output: exactly one mobile update dialog selected by the shared prompt
-// pos:    Consolidated mobile update provider specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 

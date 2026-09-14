@@ -2,7 +2,6 @@
 // output: registration shape, webhook proxy payloads, foreground polling, child-is-a-leaf checks,
 //         catalog-driven field descriptions
 // pos:    Tests the MCP delegation surface
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';

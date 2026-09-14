@@ -1,8 +1,3 @@
-// input:  redacted MCP drafts and edited form state
-// output: name, payload, secret-patch and dirty-detection regressions
-// pos:    Unit tests for the plugin authoring view model
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import type { PluginsMcpRead } from '@cortex-agent/ui-contract';
 import {

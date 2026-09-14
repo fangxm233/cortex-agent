@@ -1,7 +1,3 @@
-// input:  browser status and turn-start payloads
-// output: takeover sentences and startup-window regressions
-// pos:    Unit tests for browser status reporting
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, expect, it } from 'vitest';
 import { browserStartupHint, browserStartupPending, takeoverHint, type BrowserStatus } from './browser-status';
 

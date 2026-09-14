@@ -1,8 +1,3 @@
-// input:  nothing (leaf module)
-// output: TokenBucketRateLimiter class
-// pos:    Generic token bucket rate limiter for Slack API client pacing
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { createLogger } from '@core/log.js';
 
 const log = createLogger('rate-limiter');

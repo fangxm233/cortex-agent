@@ -1,8 +1,3 @@
-// input:  cli.ts init with a JSON answers file, temporary CORTEX_HOME
-// output: machine init, local UI, and usage-choice verification
-// pos:    Init --answers integration tests
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcess } from 'node:child_process';

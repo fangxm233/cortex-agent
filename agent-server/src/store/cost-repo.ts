@@ -5,7 +5,6 @@
 //         and reads are served from an incremental cache that only parses newly appended bytes,
 //         Budget still uses the JsonRepository abstraction. Budget carries global limits plus an
 //         optional per-project override map (pair-only overrides).
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as path from 'path';
 import fs from 'node:fs/promises';

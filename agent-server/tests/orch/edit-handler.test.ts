@@ -1,8 +1,3 @@
-// input:  edit handler, backup paths, PI registry fixtures
-// output: exact restore identity and retry routing regressions
-// pos:    Verifies platform edit rollback orchestration
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import '../_test-home.js';
 import { test, vi, afterEach } from 'vitest';
 import assert from 'node:assert/strict';

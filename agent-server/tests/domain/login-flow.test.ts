@@ -1,8 +1,3 @@
-// input:  LoginFlow API, fake consumers, fake timers
-// output: Lifecycle, safe-error, abort, and privacy tests
-// pos:    Backend-neutral login flow regression tests
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import { afterEach, test, vi } from 'vitest';
 import {

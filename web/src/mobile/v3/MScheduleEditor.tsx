@@ -1,8 +1,3 @@
-// input:  shared headless schedule editor state, editable gates, and navigation callbacks
-// output: mobile schedule form composition without owning a second bottom sheet
-// pos:    Editor level inside the Scheduled sheet state machine
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useVocab } from '@/i18n';
 import {
   EditorFields,

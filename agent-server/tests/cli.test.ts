@@ -1,8 +1,3 @@
-// input:  CLI source, subprocess entry, and auth fixtures
-// output: routing, error, and output-framing assertions
-// pos:    Cortex CLI dispatcher and binary regression coverage
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { test } from 'vitest';

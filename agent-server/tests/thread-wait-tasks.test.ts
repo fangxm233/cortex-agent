@@ -1,8 +1,3 @@
-// input:  task files, thread repo, thread state machine
-// output: task-child wait-set and recovery regression tests
-// pos:    Verifies manager suspension on child tasks
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';

@@ -1,8 +1,3 @@
-// input:  Node runner, command handlers, auth/profile/usage fixtures
-// output: Bang-command routing including profile, login and usage
-// pos:    Command handler regression test
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test, beforeAll } from 'vitest';
 import assert from 'node:assert/strict';

@@ -1,8 +1,3 @@
-// input:  projects/*/experiments|knowledge|patterns dirs
-// output: auto-regenerated index.md on change
-// pos:    atomic memory index rebuild triggered by fs.watch
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as fs from 'fs';
 import * as path from 'path';
 import { PROJECTS_DIR } from '@core/utils.js';

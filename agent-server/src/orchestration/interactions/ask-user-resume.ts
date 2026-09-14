@@ -1,8 +1,3 @@
-// input:  an ask-user answer plus its pending question group
-// output: the follow-up run that delivers the answer back to the agent
-// pos:    orchestration/interactions — the resume half of ask-user-question.ts
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { randomUUID } from 'node:crypto';
 import { createLogger } from '@core/log.js';
 import { Icons } from '../../core/icons.js';

@@ -1,8 +1,3 @@
-# input:  Docker CLI, pinned Debian image, raw HTTP request data
-# output: isolated bridge fixtures and real-container command results
-# pos:    Docker containment test support
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import ipaddress
 import json
 import shlex

@@ -1,8 +1,3 @@
-// input:  project data, cost summary, threads, notes and shared machine roster
-// output: animated collapsible desktop right pane with icon navigation
-// pos:    Workbench right-side pane host and machine-count adapter
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { useEffect, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';

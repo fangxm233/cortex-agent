@@ -4,7 +4,6 @@
 //         (stable for identical content, changes when a file changes); method guard (405 on POST).
 // pos:    Regression guard for the server side of desktop frontend OTA (unit A). Routes are mounted
 //         via ui-http-server customRoutes (auth-gated there); these tests exercise the handlers.
-// >>> If I am updated, update the parent folder's CORTEX.md <<<
 
 import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';

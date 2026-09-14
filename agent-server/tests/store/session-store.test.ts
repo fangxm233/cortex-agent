@@ -1,8 +1,3 @@
-// input:  ../_test-home, vitest, tmp fs, and session registry repo/journal helpers
-// output: Legacy migration, coexistence, backup, prune, and replacement failure tests
-// pos:    Session registry migration and reference behavior coverage
-// >>> If I am updated, update my header comment and the parent folder CORTEX.md <<<
-
 import '../_test-home.js';
 import { afterAll, beforeAll, test } from 'vitest';
 import assert from 'node:assert/strict';

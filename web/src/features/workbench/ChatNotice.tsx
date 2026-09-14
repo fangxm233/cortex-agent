@@ -1,7 +1,3 @@
-// input:  ChatNoticeLevel, text, actions, and active Web language
-// output: localized semantic notice, auth CTA, and noticeTone tokens
-// pos:    Shared semantic notice renderer for desktop and mobile chat
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { CSSProperties } from 'react';
 import type { AuthNoticeAction, ChatNoticeLevel, NoticeAction } from '@cortex-agent/ui-contract';
 import { useOptionalLoginFlow } from '@/features/auth/LoginFlowProvider';

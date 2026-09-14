@@ -1,8 +1,3 @@
-// input:  fs/path/crypto, YAML task files, project paths
-// output: Task parsing, serialization, filtering, and generation types
-// pos:    Canonical TASKS.yaml schema and query helpers
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as crypto from 'node:crypto';

@@ -1,8 +1,3 @@
-// input:  assignment view props, design mocks, language copy
-// output: plugin assignment, effective scope and mode tests
-// pos:    Static plugin assignment control regressions
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { PluginAssignmentTarget, UiPluginCatalogEntry } from '@cortex-agent/ui-contract';

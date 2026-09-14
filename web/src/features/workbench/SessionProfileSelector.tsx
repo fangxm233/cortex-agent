@@ -1,7 +1,3 @@
-// input:  Session profile state, configured profiles and mutation
-// output: Shared profile controller and composer selector
-// pos:    Desktop session profile control
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';

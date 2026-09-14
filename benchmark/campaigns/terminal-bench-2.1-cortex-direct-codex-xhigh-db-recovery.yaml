@@ -1,8 +1,3 @@
-# input:  one Cortex direct Codex arm and the unrecovered db-wal task
-# output: one paid db-wal recovery trial
-# pos:    Cortex direct Codex xhigh db-wal recovery campaign
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 schema_version: cortex-bench-campaign/1
 campaign: tb21-cxdir-r3-0823
 paid: true

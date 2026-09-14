@@ -1,8 +1,3 @@
-// input:  external URL helper with injected native/browser seams
-// output: browser, native, fallback, and scheme regressions
-// pos:    Verifies authorization links leave every supported shell
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, expect, it, vi } from 'vitest';
 import {
   openExternalUrl,

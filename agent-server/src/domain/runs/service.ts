@@ -1,8 +1,3 @@
-// input:  RunRequest + RunObserver[] and the execution/run registries
-// output: the single startRun entry point that opens the execution record and returns an AgentRun
-// pos:    domain/runs service — owns the execution bookkeeping call sites used to duplicate (D8).
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { runRegistry } from '@core/run-registry.js';
 import * as executionRegistry from '../executions/registry.js';
 import { AgentRunImpl, type AgentRun } from './run.js';

@@ -1,8 +1,3 @@
-// input:  composite, mock, and TUI adapters
-// output: routing, fan-out, and nullable live-setting regressions
-// pos:    Verifies multi-platform adapter composition
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import { WebSocket } from 'ws';

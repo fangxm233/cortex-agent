@@ -1,8 +1,3 @@
-// input:  approval queue, route targets and feedback interactions
-// output: route selection, fallback and feedback reset tests
-// pos:    Mobile approval screen interaction specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create } from 'react-test-renderer';
 import type { ApprovalInfo } from '@cortex-agent/ui-contract';
 import { beforeEach, describe, expect, it, vi } from 'vitest';

@@ -1,7 +1,3 @@
-// input:  shared machines resource/detail facts and localized desktop labels
-// output: themed independently expandable machine status cards
-// pos:    Desktop right-panel adapter and machine list view
-// >>> If I am updated, update my header comment and CORTEX.md <<<
 import { useState } from 'react';
 import type { MachineInfo } from '@cortex-agent/ui-contract';
 import { useVocab } from '@/i18n';

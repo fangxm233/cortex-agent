@@ -1,8 +1,3 @@
-// input:  templates, tool gates, thread state, buffered-input readiness
-// output: ready step prompts and canonical resolved runtime configs
-// pos:    Thread step prompt assembly (composition itself lives in domain/runs/prompt.ts)
-// >>> If I am updated, update my header comment and parent CORTEX.md <<<
-
 import { threadStore } from '@store/thread-repo.js';
 import { buildResumeReminder } from '@core/resume-reminder.js';
 import { canonicalizeMcpToolAllowlist } from '@core/mcp-tool-gate.js';

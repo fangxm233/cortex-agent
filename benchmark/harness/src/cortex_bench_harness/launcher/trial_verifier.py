@@ -1,7 +1,3 @@
-# input:  harbor's verification phase and the admitted trial environment
-# output: the task's own tests, run in the environment its image ships
-# pos:    Verifier phase boundary
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # Harbor hands the verifier the same environment object the agent ran in, and this harness seals
 # that object: a PATH of its own, HOME and TMPDIR inside the trial home. Sealing is a property of

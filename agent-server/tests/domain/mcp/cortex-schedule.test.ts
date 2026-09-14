@@ -3,7 +3,6 @@
 // pos:    locks the __current__ shorthand → concrete ScheduleTarget mapping that
 //         cortex_schedule_add applies at create time (decided 2026-04: resolve at create,
 //         not at fire — so the persisted record always shows real IDs in list output).
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

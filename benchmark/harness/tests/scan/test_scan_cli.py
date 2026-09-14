@@ -1,8 +1,3 @@
-# input:  scanner CLI arguments, policy JSON, and trial files
-# output: exit-code, fail-closed, source-identity, and redaction assertions
-# pos:    Command boundary tests for the artifact scanner
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import io
 import json
 from pathlib import Path

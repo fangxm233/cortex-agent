@@ -1,8 +1,3 @@
-// input:  PI SDK model scan, refresh requests, session filenames
-// output: refreshable provider/model-pair cache and filename session lookup
-// pos:    PI provider, model-pair, and resume-target discovery
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { scanPiAvailableModels, type PiDiscoveredModel } from '@core/gateway-generator.js';
 import { createLogger } from '@core/log.js';
 

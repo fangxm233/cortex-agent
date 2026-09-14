@@ -1,8 +1,3 @@
-// input:  untrusted production benchmark evidence values
-// output: validated immutable evidence context
-// pos:    Canonicalizes benchmark admission facts
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import * as fs from 'node:fs';
 import type {
   ProductionBenchmarkEvidenceContext,

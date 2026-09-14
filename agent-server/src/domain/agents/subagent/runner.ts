@@ -2,7 +2,6 @@
 // output: one SubagentResult, from a nested PI session or a frozen one-shot Claude run that owns
 //         its own pool slot and retires it on settle
 // pos:    Backend dispatch for a single subagent child
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { randomUUID } from 'node:crypto';
 import { withoutSubagentTools } from '@core/mcp-tool-gate.js';

@@ -1,7 +1,3 @@
-// input:  Mobile session queries, shared run/attachment controllers, drafts, and mutations
-// output: Mobile chat with status, attachments and slash feedback
-// pos:    Mobile session detail data orchestration and presentation composition
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';

@@ -1,8 +1,3 @@
-// input:  localStorage, matchMedia, document root
-// output: Theme, accent, and motion resolve/persist/apply helpers
-// pos:    Device-local appearance preference utilities
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 export type Theme = 'light' | 'dark' | 'system';
 export type ResolvedTheme = Exclude<Theme, 'system'>;
 export type AccentHue = number | null;

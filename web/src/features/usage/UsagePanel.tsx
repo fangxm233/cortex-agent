@@ -1,8 +1,3 @@
-// input:  shared usage hook, provider usage view, row policy state, and localized copy
-// output: desktop usage cards, animated quota, policy, and spend
-// pos:    Independently queried desktop usage settings panel
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import type { CSSProperties, ReactNode } from 'react';
 import { useVocab } from '@/i18n';
 import {

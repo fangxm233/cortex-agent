@@ -1,8 +1,3 @@
-# input:  offline capability, bounded request, credential, scan policy
-# output: no-retry request, provider-identifier-safe response diagnostic, promotion evidence
-# pos:    Bootstrap authorization for one live provider handshake
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import base64
 import hashlib
 import json

@@ -1,8 +1,3 @@
-// input:  schedule rows, localized copy, timestamps, callbacks, and shared USD formatting
-// output: small DOM-preserving list and runs level presentations
-// pos:    Presentational helpers for the mobile Scheduled sheet state machine
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { MC, MONO } from '@/mobile/ui/kit';
 import { runOrdinals, scheduleSubline, type ScheduleRow } from '@/features/workbench/schedule-rail';
 import { cadenceLabel, nextRunDelta } from '@/features/workbench/scheduled-chat';

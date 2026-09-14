@@ -1,8 +1,3 @@
-// input:  PI MCP bridge, session env, plugin server configs, tool gates, fake clients
-// output: Bundle selection, in-process core server, plugin isolation and retry tests
-// pos:    Tests PI MCP bridge behavior
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { openBundledMcpServer } from '../src/domain/mcp/bundled-server.js';

@@ -1,8 +1,3 @@
-// input:  execution-shaped rows and the archive carry repo
-// output: coverage of the session-totals fold rule and its exactly-once carry
-// pos:    store session-totals specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test, beforeEach, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs/promises';

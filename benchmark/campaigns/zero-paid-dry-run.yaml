@@ -1,7 +1,3 @@
-# input:  the ZERO-PAID campaign the public runner is proven against
-# output: two trials on a synthetic upstream, and one comparison report
-# pos:    Committed neutral ZERO-PAID campaign
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # ZERO-PAID means no paid-provider request: `paid: false`, a loopback-only synthetic upstream,
 # no provider endpoint and no real credential. `proxy_usage.cost_usd` still applies the declared

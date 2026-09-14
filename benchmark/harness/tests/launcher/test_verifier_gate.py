@@ -1,7 +1,3 @@
-# input:  upstream task test scripts and what a probe container printed back
-# output: proof the gate separates a verifier that could not start from an agent that was wrong
-# pos:    Pre-agent verifier bootstrap gate tests
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # The distinction under test is the one that cost two full suites: an upstream test.sh writes
 # reward 0 both when pytest could not import numpy and when the answer was wrong, so a gate that

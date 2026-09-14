@@ -1,8 +1,3 @@
-// input:  temporary Claude settings trees and config directories
-// output: auto-compact window resolution regression tests
-// pos:    Claude auto-compact window settings contract
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, test } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';

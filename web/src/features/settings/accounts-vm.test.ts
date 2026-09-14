@@ -1,8 +1,3 @@
-// input:  secret-free auth status snapshots and provider filters
-// output: shared accounts VM grouping, status, and action tests
-// pos:    Pins desktop/mobile account state derivation
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import type {
   AuthAccountStatus,

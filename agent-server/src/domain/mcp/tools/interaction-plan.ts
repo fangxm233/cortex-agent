@@ -1,8 +1,3 @@
-// input:  McpServer, tool dependencies or session tool context, plan files
-// output: Shared plan-mode MCP registrations and handlers
-// pos:    Implements blocking human plan approval
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as fs from 'fs';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';

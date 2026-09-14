@@ -1,8 +1,3 @@
-// input:  ./types.js (RichBlock/ModalDefinition/ActionElement)
-// output: Question types, ask-level helpers, buildQuestion*/buildPlan*
-// pos:    Platform-independent interactive component builder
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { RichBlock, ModalDefinition, ActionElement } from './types.js';
 import type { ChatNoticeLevel } from '../core/types/agent-types.js';
 import { Icons } from '../core/icons.js';

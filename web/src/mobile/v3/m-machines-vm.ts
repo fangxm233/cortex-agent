@@ -1,7 +1,3 @@
-// input:  shared machine roster DTOs, wall-clock time and canonical formatters
-// output: mobile-only machine card slots and online totals
-// pos:    Pure view-model for the 1k Machines screen
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
 // 守则11 no-fabrication — every rendered field has a real DTO source or is explicitly omitted:
 //   • per-GPU util / VRAM bars and the running-run NAME live in the machines.detail probe, which the

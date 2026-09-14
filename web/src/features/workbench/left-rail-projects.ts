@@ -1,7 +1,3 @@
-// input:  SessionInfo lists, per-project activity maps and keydown keys
-// output: relative ages, the activity order and the ⌘1–9 index
-// pos:    Shared project-ordering primitives for the rail tree and mobile
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 
 // The rail's ordering contract: projects sort by MOST RECENT ACTIVITY — the project whose newest

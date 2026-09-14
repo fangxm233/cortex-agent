@@ -1,8 +1,3 @@
-// input:  ClaudeSession lines, costs, rate limits, late sinks; the engine-run seam
-// output: continuation routing, cursor, limit, compaction and interruption specs on RunEvents
-// pos:    Claude run-phase wiring tests (engine-owned background phase, no process surface)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 

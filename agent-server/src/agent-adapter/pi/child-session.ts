@@ -1,8 +1,3 @@
-// input:  a child's cwd, agent dir, model selection, tool allowlist, role prompt and extensions
-// output: ChildSessionHandle: one nested in-memory PI SDK session, bound headless, disposable
-// pos:    Builds the nested PI sessions the Agent tool runs subagents on
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as path from 'node:path';
 import type { AgentSession, InlineExtension } from '@earendil-works/pi-coding-agent';
 import { createLogger } from '@core/log.js';

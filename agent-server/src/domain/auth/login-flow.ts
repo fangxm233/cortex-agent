@@ -1,8 +1,3 @@
-// input:  AuthType, timers, UUIDs, abort and safe errors
-// output: LoginFlow API, safe errors, and AuthInteraction bridge
-// pos:    In-memory backend login session coordinator
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { randomUUID } from 'node:crypto';
 import type { AuthType } from './auth-status.js';
 

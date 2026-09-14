@@ -1,8 +1,3 @@
-// input:  Node test runner + replay-harness + NormalizedEvent
-// output: parser edge-case regression tests
-// pos:    NormalizedEvent translator edge case scenarios
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 

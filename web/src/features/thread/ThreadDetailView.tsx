@@ -1,8 +1,3 @@
-// input:  ThreadDetail DTO, modal callbacks, and optional chat renderer
-// output: navigation-free desktop thread detail content
-// pos:    Presentational body of the thread detail modal
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import type { ReactNode } from 'react';
 import type { ThreadDetail } from '@cortex-agent/ui-contract';
 import { useVocab } from '@/i18n';

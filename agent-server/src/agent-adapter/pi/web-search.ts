@@ -1,8 +1,3 @@
-// input:  TypeBox, PI model context, provider HTTP APIs
-// output: Validated provider/API-dispatched PI WebSearch tool
-// pos:    PI search request and resilient response decoder
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { randomUUID } from 'node:crypto';
 import { Type } from '@sinclair/typebox';
 import type { ExtensionContext, ToolDefinition } from '@earendil-works/pi-coding-agent';

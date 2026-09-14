@@ -1,8 +1,3 @@
-// input:  node:http, JSON payloads, MCP timeout contract
-// output: Explicitly bounded loopback JSON requests
-// pos:    Connects MCP sidecars to the daemon webhook
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as http from 'node:http';
 import type { OutgoingHttpHeaders, RequestOptions } from 'node:http';
 import { MCP_INFRASTRUCTURE_TIMEOUT_MS } from './mcp-timeout.js';

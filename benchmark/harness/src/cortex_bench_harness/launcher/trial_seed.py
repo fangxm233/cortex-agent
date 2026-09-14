@@ -1,8 +1,3 @@
-# input:  one launcher trial seed mapping
-# output: immutable validated trial seed facts
-# pos:    Trial seed parsing boundary
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass

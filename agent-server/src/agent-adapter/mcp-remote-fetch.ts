@@ -1,8 +1,3 @@
-// input:  configured MCP headers and fetch requests
-// output: manual-redirect fetch with safe header merging
-// pos:    Shared remote MCP HTTP boundary
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 function mergedHeaders(configured: HeadersInit | undefined, request: HeadersInit | undefined): Headers {
   const headers = new Headers(configured);
   for (const [key, value] of new Headers(request).entries()) headers.set(key, value);

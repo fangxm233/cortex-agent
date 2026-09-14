@@ -1,8 +1,3 @@
-# input:  ordered campaign runs, arm/task pins, contrast declarations
-# output: terminal outcomes, rewards, telemetry and admission
-# pos:    Host-side comparison provenance and classification builder
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import json
 import math
 from collections.abc import Mapping, Sequence

@@ -1,7 +1,3 @@
-// input:  tRPC data, shared project order, shell overlays, and schedule actions
-// output: collapsible project rail, shared rendered order, and global controls
-// pos:    Owns workbench navigation and shell-overlay triggers
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';

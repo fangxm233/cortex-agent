@@ -1,8 +1,3 @@
-// input:  per-message PI usage records and per-child totals
-// output: zeroed, turn-accumulated and cross-child aggregated SubagentUsage
-// pos:    Subagent accounting arithmetic
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { SubagentResult, SubagentUsage } from './types.js';
 
 export function emptyUsage(): SubagentUsage {

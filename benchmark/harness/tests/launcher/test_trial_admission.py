@@ -1,8 +1,3 @@
-# input:  Harbor trial builder, synthetic task, hostile inputs
-# output: construction, endpoint enforcement and launch evidence
-# pos:    Synthetic proof for the production Harbor admission boundary
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import asyncio
 import hashlib
 import importlib

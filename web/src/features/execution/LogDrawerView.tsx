@@ -1,7 +1,3 @@
-// input:  execution log presentation props and localized labels
-// output: themed drawer header, log stream, and stop footer
-// pos:    Presentational execution-log drawer chrome
-// >>> If I am updated, update my header comment and CORTEX.md <<<
 import type { CSSProperties, Ref } from 'react';
 import { useVocab } from '@/i18n';
 

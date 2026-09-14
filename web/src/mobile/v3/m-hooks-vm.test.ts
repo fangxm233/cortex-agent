@@ -1,8 +1,3 @@
-// input:  hooks.list fixtures and canonical namespace grouping
-// output: mobile projection, ordering and declaration-slot regressions
-// pos:    Unit tests for the mobile hook projection model
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import type { HookDetail, HooksOverview } from '@cortex-agent/ui-contract';
 import { buildMHooksVm } from './m-hooks-vm';

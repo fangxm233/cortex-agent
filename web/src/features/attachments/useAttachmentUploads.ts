@@ -1,8 +1,3 @@
-// input:  Attachment scope/bucket, local files, restored metadata, and upload dependencies
-// output: Shared three-lane FIFO upload controller with retry, abort, progress, and preview lifecycle
-// pos:    Headless desktop/mobile attachment queue controller
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
 import { AttachmentUploadStore, type AttachmentStoreOptions } from './attachment-upload-store';
 import { completedAttachmentMetas, type AttachmentMeta, type AttachmentUploadItem } from './types';

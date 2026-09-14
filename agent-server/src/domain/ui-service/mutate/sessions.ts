@@ -1,7 +1,3 @@
-// input:  UiServiceDeps, session mutation arguments, commission feature switch
-// output: create/send/cancel/compact/profile/rewind handlers
-// pos:    UI-service session mutation handlers
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 // Injects a genuine user turn into an existing session. Resolves the session's conduit/channel
 // (via sessionStore) and hands off to the injected `sendSessionMessage` callback, which is wired
 // in the entry layer to the orchestration send path (agentRunner.route). Fire-and-forget: the

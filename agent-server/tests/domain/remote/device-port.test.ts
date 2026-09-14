@@ -1,7 +1,3 @@
-// input:  a mapped device port, accepted connections and simulated device callbacks
-// output: pinned handshake, byte transparency and teardown policy for device ports
-// pos:    tests for the server half of the reverse channel
-// >>> If I am updated, update CORTEX.md <<<
 import { describe, it, expect, afterEach } from 'vitest';
 import { EventEmitter } from 'events';
 import * as net from 'net';

@@ -1,7 +1,3 @@
-# input:  one committed production coder-review reviewer-fix ZERO-PAID trial
-# output: one production webhook/exporter trial over the coder-then-fixer template
-# pos:    Committed single-trial production reviewer-fix recording campaign
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # The second coder-review variant beside zero-paid-production-coder-review.yaml. Everything outside
 # the arm is the same committed trial: same task fixture, same sealed proxy policy, same

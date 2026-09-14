@@ -1,8 +1,3 @@
-// input:  AccentPicker controls and localized labels
-// output: Preset, slider, reset, and selected-state regression coverage
-// pos:    Interaction tests for the shared accent picker
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { AccentPicker, type AccentPickerCopy } from './AccentPicker';

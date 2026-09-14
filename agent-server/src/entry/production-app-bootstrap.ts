@@ -1,8 +1,3 @@
-// input:  one-shot launcher auth file and sealed production environment
-// output: authenticated app import with the credential file already unlinked
-// pos:    Production benchmark bootstrap that keeps bearer tokens out of initial process env
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import fs from 'node:fs';
 import path from 'node:path';
 

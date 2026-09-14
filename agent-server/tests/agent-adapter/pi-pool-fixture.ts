@@ -1,8 +1,3 @@
-// input:  a PIAdapter over a fake runtime
-// output: a per-instance SessionEngines over it — the pool a test drives engine sessions from
-// pos:    Test seam for the PI pool: `open(spec)` is `SessionEngines.acquire(spec)`
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { SessionEngines } from '../../src/domain/runs/engines.js';
 import type { PIAdapter } from '../../src/agent-adapter/pi/adapter.js';
 import type { PIEngineSession } from '../../src/agent-adapter/pi/engine.js';

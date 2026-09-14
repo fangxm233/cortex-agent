@@ -1,8 +1,3 @@
-// input:  Claude/PI stream-json fixtures, Claude run-script fixtures (fixtures/runs/)
-// output: Claude/PI replay + golden helpers, plus engine-driven Claude run-phase traces
-// pos:    Backend fixture replay infrastructure (normalized events and engine-seam run traces)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { readFileSync, writeFileSync, readdirSync } from 'node:fs';

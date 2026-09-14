@@ -1,8 +1,3 @@
-// input:  thread rotation, mutable settings, acceptance ledger
-// output: rotation threshold, rehydration, and resume regressions
-// pos:    Manager session rotation behavioral tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test, afterAll, beforeEach, vi } from 'vitest';
 import assert from 'node:assert/strict';

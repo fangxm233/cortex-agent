@@ -1,7 +1,3 @@
-// input:  Mobile chat view models, shared run-status facts, and Vitest
-// output: Mobile localized run-status/profile-label/row-model regressions
-// pos:    Verifies mobile chat pure presentation logic
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import type { ConfigProfileEntry, SessionTranscript } from '@cortex-agent/ui-contract';
 import { deriveSessionRunStatus } from '@/features/workbench/session-run-status';

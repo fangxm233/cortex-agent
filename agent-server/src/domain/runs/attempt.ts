@@ -1,7 +1,3 @@
-// input:  a resolved RunRequest, one attempt's engine selection and the route it runs under
-// output: one attempt against a pooled engine session — its event stream, its two results, its kill
-// pos:    Run layer — the unit a run's fallback chain is made of
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 //
 // A run is not one call to a backend. `AgentRun` walks a chain of attempts (domain/runs/fallback.ts);
 // THIS is one link of that chain: acquire the pooled engine session for the spec, open a run on it,

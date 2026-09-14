@@ -1,8 +1,3 @@
-// input:  ScheduleInfo DTO, schedule-modal humanizeDelta
-// output: cadenceLabel + nextRunDelta for the schedule context bar
-// pos:    Pure VM for the 27b scheduled-session chat surface
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { ScheduleInfo } from '@cortex-agent/ui-contract';
 import { humanizeDelta } from '@/features/schedule/schedule-modal-vm';
 

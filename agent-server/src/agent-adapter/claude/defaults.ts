@@ -1,8 +1,3 @@
-// input:  Cortex paths, filesystem, OS paths
-// output: Claude constants, MCP paths, CancelledError
-// pos:    Claude defaults and config paths
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import * as path from 'path';
 import * as os from 'os';
 import { DATA_DIR, CONFIG_DIR, HOOKS_DIR } from '../../core/utils.js';

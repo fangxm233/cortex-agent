@@ -1,8 +1,3 @@
-// input:  node:perf_hooks event-loop delay histogram, sample interval, optional histogram seam
-// output: start/stop, a manual sample tick, and the last recorded lag reading
-// pos:    Records event-loop lag percentiles for the daemon process
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { createLogger } from '@core/log.js';
 

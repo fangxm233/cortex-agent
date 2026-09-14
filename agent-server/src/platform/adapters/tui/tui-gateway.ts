@@ -1,8 +1,3 @@
-// input:  ws, protocol, PlatformAdapter, TUI connection/state modules
-// output: TuiGatewayAdapter, controls, and WebSocket server
-// pos:    Bridges TUI WebSocket sessions to PlatformAdapter
-// >>> If I am updated, update the folder's CORTEX.md <<<
-
 import { WebSocketServer, WebSocket } from 'ws';
 import type { IncomingMessage } from 'http';
 import * as crypto from 'crypto';

@@ -1,8 +1,3 @@
-// input:  notes query/mutation handlers, UiService facade, temp project context
-// output: project scoping, CRUD result and private audit regressions
-// pos:    Tests the transport-neutral project notes UI service
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';

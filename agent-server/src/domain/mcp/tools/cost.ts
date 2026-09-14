@@ -1,8 +1,3 @@
-// input:  McpServer, cost-repo, cost-tracker
-// output: cost_query tool registration (optional projectId scope)
-// pos:    MCP tool for querying current cost and budget status, global or per-project
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getCostSummary, pickBudget } from '../../costs/cost-tracker.js';

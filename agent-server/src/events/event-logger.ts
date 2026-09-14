@@ -1,8 +1,3 @@
-// input:  EventBus, CortexEvent, runtime settings
-// output: createEventLogger with hot-toggleable JSONL persistence
-// pos:    Settings-gated event log writer
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { AsyncMutex } from '@core/async-mutex.js';

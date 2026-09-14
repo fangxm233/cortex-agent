@@ -1,8 +1,3 @@
-// input:  platform and title-bar flags injected by the native shell before the bundle runs
-// output: platform detection and the window-chrome mode the SPA must draw
-// pos:    Platform adapter for the app-drawn title bar
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 // The Rust shell bakes these into the initialization script (desktop/src-tauri/src/lib.rs), so they
 // are readable synchronously before React mounts — the top bar must not flash the wrong chrome.
 //

@@ -1,7 +1,3 @@
-# input:  shipped agent, synthetic probes and host proxy specs
-# output: route accounting, bootstrap failure and revocation proofs
-# pos:    Production start/revoke boundary tests
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # Harbor constructs the agent inside `Trial.__init__` (trial/trial.py:123,801) and creates the
 # container much later, when `Trial.run()` reaches `DockerEnvironment.start` (trial.py:351,1155;

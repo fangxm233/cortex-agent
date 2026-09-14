@@ -1,8 +1,3 @@
-// input:  UiServiceDeps, TasksListParams, task and thread records
-// output: Task DTOs with lifecycle, dependencies and claim thread
-// pos:    Task DTO mapper and tasks.list query handler
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import type { UiServiceDeps, TaskInfo, TasksListParams } from '../types.js';
 
 const ACTIVE_THREAD_STATUSES = new Set(['running', 'waiting', 'rate_limited']);

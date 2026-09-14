@@ -1,7 +1,3 @@
-// input:  os.tmpdir(), CORTEX_TEST_HOME_ROOT
-// output: per-process test-home directories, plus a sweeper for stale ones
-// pos:    shared temp-home allocator for _test-home.ts (node:test) and _vitest-setup.ts (vitest)
-// >>> If I am updated, update my header comment <<<
 //
 // Why this exists: both isolation guards used to call mkdtempSync(os.tmpdir(), 'cortex-test-home-')
 // and free the directory from a `process.on('exit')` handler. That handler never runs under vitest:

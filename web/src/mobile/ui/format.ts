@@ -1,8 +1,3 @@
-// input:  timestamps, optional money values, language, and shared USD formatting
-// output: mobile relative-time, missing-aware money, and copy selection helpers
-// pos:    Thin mobile formatting adapters over canonical lib primitives
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { formatUsd } from '@/lib/format';
 
 /** Relative Chinese time label from an ISO ts (scheme uses 现在 / N 分钟 / N 小时 / 昨天 / 周一…). */

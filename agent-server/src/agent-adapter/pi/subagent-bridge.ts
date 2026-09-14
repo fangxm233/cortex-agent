@@ -1,8 +1,3 @@
-// input:  nothing (port declaration)
-// output: PiSubagentBridge — the daemon collaborators PI's `agent` tool needs
-// pos:    The one port through which a PI session reaches the daemon's subagent machinery
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { StartBackgroundSubagent, StopBackgroundSubagent } from './background-subagent.js';
 import type { RunForeignSubagent } from './subagent.js';
 

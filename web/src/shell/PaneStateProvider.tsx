@@ -1,7 +1,3 @@
-// input:  persisted collapse flags for the workbench side panes
-// output: shared collapse state and setters for rail, panel and their toggles
-// pos:    Window-level pane layout state owner, readable by the top bar
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 // The left rail and right panel own their own width, but their COLLAPSED flags are window-level:

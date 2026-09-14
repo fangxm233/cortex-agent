@@ -1,8 +1,3 @@
-// input:  shared CLI formatter and localized auth vocabulary
-// output: CLI help including localized auth login discovery
-// pos:    Cortex CLI help-family definitions
-// >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import { formatHelp } from '@core/cli-utils.js';
 import { t } from '@core/i18n.js';
 

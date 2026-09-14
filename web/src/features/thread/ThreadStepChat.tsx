@@ -1,8 +1,3 @@
-// input:  thread-step session id, transcript and live session stream
-// output: bounded thread-step chat with lazy DEBUG inspection
-// pos:    Embeds one thread step's session transcript
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';

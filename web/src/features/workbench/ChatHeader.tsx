@@ -1,7 +1,3 @@
-// input:  Session title, identifiers, command palette, browser dock and project notes
-// output: Desktop chat header navigation controls
-// pos:    Desktop chat header controls
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useEffect, useState } from 'react';
 import { useVocab } from '@/i18n';
 import { SessionIdModal } from './SessionIdModal';

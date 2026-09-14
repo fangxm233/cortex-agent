@@ -1,8 +1,3 @@
-// input:  Vitest lifecycle, aistatus GatewayServer, temp home
-// output: per-mode routing, quota snapshot, cache and cost tests
-// pos:    Verifies the vendored gateway runtime boundary
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { afterAll, beforeAll, beforeEach, test } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';

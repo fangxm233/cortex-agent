@@ -1,8 +1,3 @@
-// input:  shared project scope, routed task id, task queries, and navigation
-// output: read-only mobile task detail with verification history
-// pos:    Mobile task-detail data controller
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 // 1h 任务详情 — a single task's read-only detail, drilled from 1d (scheme-mobile.dc.html 1h L440-484).
 // NON-Tab drill page (route :taskId). Editing / dispatch / cancel live on desktop or in chat — this
 // page only READS. Real tRPC: `tasks.list` (find the task by id, scoped to the current project, + the

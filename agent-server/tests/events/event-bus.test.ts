@@ -1,8 +1,3 @@
-// input:  EventBus, createEventLogger, mutable settings
-// output: event fan-out, filtering, flush, and hot-toggle tests
-// pos:    Event bus and logger behavioral regressions
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';

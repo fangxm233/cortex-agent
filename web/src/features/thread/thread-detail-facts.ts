@@ -1,8 +1,3 @@
-// input:  ThreadDetail DTO and wall-clock milliseconds
-// output: locale- and CSS-free lifecycle, timing, dispatch, agent, and depth facts
-// pos:    Canonical desktop/mobile thread detail semantics
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type {
   ThreadDetail,
   ThreadDispatchInfo,

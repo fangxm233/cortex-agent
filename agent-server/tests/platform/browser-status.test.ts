@@ -1,7 +1,3 @@
-// input:  the managed browser's status payload
-// output: pinned shape of the takeover answer the UI renders
-// pos:    tests for the browser status route
-// >>> If I am updated, update CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import { browserStatusPayload, BROWSER_STATUS_PATH } from '@platform/ui-http/browser-status.js';
 

@@ -1,8 +1,3 @@
-// input:  the Python proxy-export golden files and hand-built journal totals
-// output: tagged-union, purity, input-validation and unaccounted-role proofs
-// pos:    Accounting record tests
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 // There is no proxy-vs-journal comparison left to test. It was removed deliberately — the two sides
 // priced the same tokens from different price lists and a 12.7x disagreement between two individually
 // correct figures discarded a finished trial (see `accounting-reconciliation.ts`). What is tested

@@ -1,8 +1,3 @@
-# input:  task ids, bounded worker slots, atomic run ledger
-# output: concurrency, no-rerun and crash-state scheduling proofs
-# pos:    Full-suite scheduler tests
-# >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import threading
 import time
 from pathlib import Path

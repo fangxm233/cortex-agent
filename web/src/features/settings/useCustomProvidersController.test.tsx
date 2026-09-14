@@ -1,8 +1,3 @@
-// input:  mounted custom-provider controller, auth adapters, query cache, and toast spy
-// output: list, draft, validation, save, two-step remove, and independent pending regressions
-// pos:    Shared desktop/mobile custom-provider controller integration specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { CustomProviderView } from '@cortex-agent/ui-contract';

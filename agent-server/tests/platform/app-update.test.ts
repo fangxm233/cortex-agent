@@ -4,7 +4,6 @@
 //         (shape, no-store, method guard, {} on no release, TTL caching, failure fallback).
 // pos:    Regression guard for the server side of app shell self-update. Routes are mounted via
 //         ui-http-server customRoutes (auth-gated there); these tests exercise the handlers.
-// >>> If I am updated, update the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

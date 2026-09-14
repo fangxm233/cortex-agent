@@ -1,8 +1,3 @@
-# input:  committed smoke campaign, pinned image, synthetic or host gateway
-# output: path-safe terminal, leak-scan, network, and revocation evidence
-# pos:    Executable pinned-image DeepSeek smoke launcher
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import argparse
 import asyncio
 import json

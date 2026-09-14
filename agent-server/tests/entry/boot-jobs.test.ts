@@ -1,8 +1,3 @@
-// input:  boot job registration helpers and fake timers
-// output: client reload and store archive settings guard tests
-// pos:    Verifies optional boot jobs arm only when enabled
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { afterEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { startClientHotReloadJob, startStoreArchiveJob } from '../../src/entry/boot-jobs.js';

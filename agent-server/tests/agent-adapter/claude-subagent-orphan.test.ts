@@ -1,8 +1,3 @@
-// input:  backgrounded-subagent lines arriving with no turn open, while a run holds
-// output: orphan-subagent routing and background-run-stream delivery specs
-// pos:    Claude print backgrounded-subagent trace-continuity tests (engine-owned background phase)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 

@@ -1,8 +1,3 @@
-# input:  committed smoke config, pinned Docker images, synthetic gateway/upstream
-# output: pre-arm refusal and one-request path-safe smoke evidence proofs
-# pos:    Executable DeepSeek paid-smoke launcher tests
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import asyncio
 import json
 import threading

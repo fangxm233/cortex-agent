@@ -1,8 +1,3 @@
-// input:  MCP SDK, tool gate, Web UI file + view + decision registrars
-// output: Web-specific MCP stdio service
-// pos:    Serves file, view and decision delivery tools to Web-originated sessions
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { registerUiFileTools } from './tools/ui-file.js';

@@ -1,8 +1,3 @@
-// input:  ProjectStore and temporary project directories
-// output: discovery, scaffolding, creation, and cache tests
-// pos:    Specifies project registry behavior
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';

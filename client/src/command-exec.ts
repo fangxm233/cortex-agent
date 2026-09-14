@@ -1,8 +1,3 @@
-// input:  child_process, filesystem, platform process APIs
-// output: bounded foreground and detached bash execution
-// pos:    Executes remote shell commands and terminates process trees
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { execFileSync, spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 

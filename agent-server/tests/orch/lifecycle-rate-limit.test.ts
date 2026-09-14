@@ -1,7 +1,3 @@
-// input:  Node test runner + lifecycle.handleAgentError (shares throttle/resume singletons)
-// output: provider-attributed error pause and unrelated-provider guards
-// pos:    Validate orchestration/lifecycle.ts direct/TUI thrown-rate-limit recovery (parity with thread path)
-// >>> If I am updated, update my require first <<<
 import '../_test-home.js'; // MUST be first — isolates store singletons
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

@@ -1,8 +1,3 @@
-// input:  thread-op webhook, thread store, detached runner
-// output: single-root confinement, control persistence and evidence tests
-// pos:    Verifies thread control and production evidence injection
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test, afterAll, beforeAll, vi } from 'vitest';
 import assert from 'node:assert/strict';

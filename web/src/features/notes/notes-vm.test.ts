@@ -1,8 +1,3 @@
-// input:  NoteInfo fixtures and view-model helpers
-// output: grouping and shortcut regressions
-// pos:    Tests shared project notes interaction rules
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import type { NoteInfo } from '@cortex-agent/ui-contract';
 import { buildNotesVm, isNotesShortcut } from './notes-vm';

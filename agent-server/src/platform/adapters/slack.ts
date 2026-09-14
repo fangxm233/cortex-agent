@@ -1,8 +1,3 @@
-// input:  @slack/bolt, core/settings, platform types
-// output: SlackAdapter messaging and live admin-channel routing
-// pos:    Slack PlatformAdapter implementation
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { App } from '@slack/bolt';
 import type { WebClient } from '@slack/web-api';
 import type { PlatformAdapter } from '../adapter.js';

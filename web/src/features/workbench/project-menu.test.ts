@@ -1,8 +1,3 @@
-// input:  project-scoped session and thread fixtures
-// output: running, unread, and action-required count tests
-// pos:    Verifies active project attention aggregation
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, it, expect } from 'vitest';
 import type { ThreadInfo } from '@cortex-agent/ui-contract';
 import {

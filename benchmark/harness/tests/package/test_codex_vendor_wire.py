@@ -1,8 +1,3 @@
-# input:  current and historical Codex wire fixtures, Harbor agent, OAuth adapter
-# output: exact pins, auth, request, SSE, probes, and expiry assertions
-# pos:    Contract tests for Codex native wire evidence
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import base64
 import json
 import runpy

@@ -1,8 +1,3 @@
-// input:  node:test, temporary filesystem, cortex-run launch module
-// output: launch, cancel, callback generation, orphan, and utility tests
-// pos:    Verifies durable cortex-run client lifecycle behavior
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 // Merged into one file to avoid ESM module-cache isolation issues with CORTEX_HOME.
 import { describe, it, mock, before, after, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';

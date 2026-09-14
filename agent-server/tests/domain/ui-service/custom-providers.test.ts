@@ -1,8 +1,3 @@
-// input:  temporary catalog/gateway stores and the UI-service registry
-// output: custom provider list, writes, validation and redaction tests
-// pos:    Regression coverage for the Web custom PI provider surface
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as os from 'node:os';

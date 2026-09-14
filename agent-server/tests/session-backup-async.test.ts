@@ -1,8 +1,3 @@
-// input:  Claude backup helpers and controlled promise copies
-// output: round-trip, event-loop, and failure regressions
-// pos:    Verifies Claude transcript copies stay asynchronous
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { beforeEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';

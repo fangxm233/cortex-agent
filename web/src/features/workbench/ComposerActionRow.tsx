@@ -1,7 +1,3 @@
-// input:  ＋ menu actions, browser and commission controls, profile/context/send nodes
-// output: Desktop composer toolbar row (＋ menu · mode capsules left, send cluster right) and slash menu
-// pos:    Groups composer shortcuts and controls under the input
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { PlusGlyph } from '@/design';
 import { useVocab } from '@/i18n';

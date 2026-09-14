@@ -1,8 +1,3 @@
-# input:  synthetic DeepSeek server and OpenAI chat-completion requests
-# output: deterministic write-tool and final-answer SSE turns
-# pos:    Contract test for the ZERO-PAID synthetic model endpoint
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import json
 import os
 import subprocess

@@ -1,7 +1,3 @@
-# input:  approved paid ceilings and committed vendor envelopes
-# output: the upper bound a declared run envelope is validated against
-# pos:    Committed capability ceiling policy
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # These are configuration, not code. A run declares its own envelope; the launcher only checks
 # `envelope <= ceiling` for the capability the run names. Editing this file is a normal reviewable

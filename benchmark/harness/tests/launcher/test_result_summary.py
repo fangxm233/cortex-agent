@@ -1,8 +1,3 @@
-# input:  minimal campaign summaries and committed production-arm declarations
-# output: explicit thinking projections for vendor and Cortex result summaries
-# pos:    Result summary thinking tests
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 from pathlib import Path
 from types import SimpleNamespace
 

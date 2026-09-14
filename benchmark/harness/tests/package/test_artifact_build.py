@@ -1,8 +1,3 @@
-# input:  artifact builder, file locks and temporary output roots
-# output: deterministic checkout pack serialization assertions
-# pos:    Regression tests for concurrent artifact builds
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Event, Lock

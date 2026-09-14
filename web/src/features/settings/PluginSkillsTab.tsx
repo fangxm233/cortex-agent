@@ -1,8 +1,3 @@
-// input:  one plugin's skills, the SKILL.md query, and the authoring actions
-// output: the skills tab — list, inline SKILL.md editor, create, move and delete
-// pos:    Skill management inside the plugin package manager
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PluginsSkillFile, UiPluginCatalogEntry, UiPluginSkill } from '@cortex-agent/ui-contract';

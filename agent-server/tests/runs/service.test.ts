@@ -1,8 +1,3 @@
-// input:  domain/runs/service.ts startRun, driven against a scripted Claude CLI child
-// output: spec for RunEvent fan-out, phase transitions, bookkeeping, cancel and observer safety
-// pos:    startRun / AgentRun contract — the run layer over a real pooled engine
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { afterEach, beforeEach, test } from 'vitest';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';

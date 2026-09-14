@@ -4,7 +4,6 @@
 //         the question notice through agentRunner.route, whose tryAnswerFromHuman consumed the notice
 //         itself as "the human's answer" — the question echoed back to the asker and never reached
 //         the origin session or the human.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import '../_test-home.js'; // MUST be first — isolates store singletons
 import { test, afterAll } from 'vitest';

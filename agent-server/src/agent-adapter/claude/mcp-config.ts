@@ -1,8 +1,3 @@
-// input:  portable MCP servers and runtime root
-// output: private deterministic Claude MCP config
-// pos:    Claude supplemental MCP config writer
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';

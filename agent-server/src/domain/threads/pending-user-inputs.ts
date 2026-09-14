@@ -1,8 +1,3 @@
-// input:  thread ids, buffered input ids, preparation promises
-// output: readiness registration, snapshot waits, eviction release
-// pos:    Coordinates asynchronous thread-input preparation
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 interface ReadinessGate {
   ready: Promise<void>;
   release: () => void;

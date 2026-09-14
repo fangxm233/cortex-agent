@@ -1,8 +1,3 @@
-// input:  FeishuAdapter, isolated config, mocked Lark calls
-// output: messaging, rich-text parsing, forms, and routing tests
-// pos:    Verifies Feishu adapter platform mappings
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';

@@ -1,8 +1,3 @@
-// input:  Profile backend identities and history state
-// output: Profile-switch allow/block decisions
-// pos:    Cross-backend profile switch policy tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { decideProfileSwitch } from '../../../src/domain/agents/profile-switch.js';

@@ -1,8 +1,3 @@
-// input:  nothing (pure factory)
-// output: createEventStream<T>() FIFO iterable/push/close/isClosed
-// pos:    Single-producer queue infrastructure for NormalizedEvent stream
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 export interface EventStream<T> {
   iterable: AsyncIterable<T>;
   push: (value: T) => void;

@@ -1,8 +1,3 @@
-# input:  Harbor adapter implementation on demand
-# output: lazy CortexBenchAgent public package export
-# pos:    Import surface for cortex-bench-harness
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:

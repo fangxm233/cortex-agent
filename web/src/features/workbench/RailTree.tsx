@@ -1,7 +1,3 @@
-// input:  rail tree nodes, sort state and selection callbacks
-// output: the scrollable project folder tree with its section header
-// pos:    Presentational body of the left rail
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useRef, useState, type ReactNode } from 'react';
 import { useVocab } from '@/i18n';
 import { ProjectFolderIcon } from './ProjectFolderIcon';

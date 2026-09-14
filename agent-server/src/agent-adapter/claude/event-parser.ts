@@ -1,8 +1,3 @@
-// input:  Claude complete and partial stream events
-// output: prompt, stream, result, and fallback parsers
-// pos:    Claude stream event parser
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { readFileSync } from 'fs';
 import { CancelledError, DEFAULT_PLAN_DIRS, PROJECT_SETTINGS } from './defaults.js';
 import { summarizeToolInput } from './tool-summarizers.js';

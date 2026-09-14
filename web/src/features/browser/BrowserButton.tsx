@@ -1,8 +1,3 @@
-// input:  dock state
-// output: the chat-header control that opens a web tab in the dock
-// pos:    desktop entry point for the browser
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { CSSProperties } from 'react';
 import { useDock } from '@/features/dock/DockProvider';
 

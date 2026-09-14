@@ -4,7 +4,6 @@
 //         session. It must run on an ISOLATED pool key — NOT the channel — and close that
 //         key after the turn; otherwise the resurrected old session collides with the live
 //         channel pool slot and the next conversation !new starts resumes the old session.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

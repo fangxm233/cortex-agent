@@ -7,7 +7,6 @@
 //         same-backend profiles (switching in place, no session reset); a fresh session (no
 //         history) may switch to any profile freely. A same-backend switch never resets the
 //         session — the agent runner re-resolves the profile per turn, so only the model changes.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { sessionStore } from '@store/session-registry-repo.js';

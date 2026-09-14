@@ -1,8 +1,3 @@
-// input:  mocked fs watcher, isolated settings file
-// output: ordering, reset, polling fallback and content tests
-// pos:    Settings watcher edge-case regressions
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { beforeAll, describe, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';

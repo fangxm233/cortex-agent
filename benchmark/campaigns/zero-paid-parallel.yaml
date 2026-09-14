@@ -1,7 +1,3 @@
-# input:  the ZERO-PAID campaign that proves concurrent trials on one host
-# output: three trials run two at a time across two address slots, and one comparison report
-# pos:    Committed ZERO-PAID concurrency campaign
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # Same ZERO-PAID contract as `zero-paid-dry-run.yaml` — `paid: false`, a loopback-only synthetic
 # upstream, no provider endpoint and no real credential — and the same RUN-LOCAL values, prepared

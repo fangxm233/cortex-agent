@@ -1,8 +1,3 @@
-// input:  Node test runner + replay-harness + NormalizedEvent
-// output: Claude fixture-replay regression tests
-// pos:    Lock down Claude stream-json to NormalizedEvent contract
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 

@@ -1,8 +1,3 @@
-// input:  Vitest, threadStore singleton, isolated CORTEX_HOME
-// output: regression tests for ThreadRepo cleanup archival
-// pos:    verifies terminal threads are archived to JSONL, not discarded
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';

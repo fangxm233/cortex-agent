@@ -1,8 +1,3 @@
-// input:  DEBUG env maps plus complete tool inputs/results
-// output: gate, threshold parsing, character count, and warning tests
-// pos:    specifies process-wide DEBUG behavior and large-tool policy
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {

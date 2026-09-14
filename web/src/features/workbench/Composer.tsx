@@ -1,7 +1,3 @@
-// input:  Session state and totals, chat drop target, attachments and drafts
-// output: Composer with uploads, run status, session totals and slash feedback
-// pos:    Workbench message input and turn-control surface
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import {
   useRef, useState, useCallback, useEffect, useLayoutEffect, useMemo,
   type ReactNode, type RefObject,

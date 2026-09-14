@@ -1,8 +1,3 @@
-// input:  owning pane side, expanded state and the click handler
-// output: shared chevron button collapsing or expanding a workbench side pane
-// pos:    Collapse control shared by the left rail and the right panel
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 export type PaneSide = 'left' | 'right';
 
 // The chevron points at the screen edge the pane collapses INTO, and back toward the centre once

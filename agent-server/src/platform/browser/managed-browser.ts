@@ -1,8 +1,3 @@
-// input:  acquire/release calls from browser-enabled sessions
-// output: a live CDP endpoint backed by one long-running Chrome, shared by all of them
-// pos:    Managed browser lifecycle; the only place Chrome is spawned
-// >>> If I am updated, update CORTEX.md <<<
-
 import * as fs from 'fs';
 import * as net from 'net';
 import * as path from 'path';

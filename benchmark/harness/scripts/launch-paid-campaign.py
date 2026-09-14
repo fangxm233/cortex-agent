@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-# input:  a committed campaign document and the host gateway or Codex auth source
-# output: the five resolved host-scan references, a redacted report and the campaign run
-# pos:    Host-only paid campaign launch procedure
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # `cortex-bench run` reads five host references it never sets itself: the provider credential named
 # by `proxy.credential_env`, and the four `host_scan_policy` references

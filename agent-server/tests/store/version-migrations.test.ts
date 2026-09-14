@@ -1,8 +1,3 @@
-// input:  Vitest, assertions, temporary config files
-// output: Config, prompt, and version-clock migration regressions
-// pos:    Regression tests for versioned file migrations
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';

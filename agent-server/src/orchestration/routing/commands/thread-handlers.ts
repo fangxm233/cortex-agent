@@ -1,8 +1,3 @@
-// input:  PlatformAdapter, threadStore, domain/threads APIs
-// output: handleThreadCmd(channel, adapter, msg)
-// pos:    !thread sub-command family handlers
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { createLogger } from '@core/log.js';
 import { Icons } from '../../../core/icons.js';
 import { t } from '../../../core/i18n.js';

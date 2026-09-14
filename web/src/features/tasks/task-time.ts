@@ -1,8 +1,3 @@
-// input:  A task store ISO timestamp (`completed-at`)
-// output: Local `YYYY-MM-DD HH:mm` label, or null when absent
-// pos:    Shared task timestamp formatter for desktop and mobile
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 // The task store writes `completed-at` as a full ISO-8601 instant (task-completion.ts). Both
 // surfaces render it in the viewer's local wall clock — never the raw ISO, which is unreadable in a
 // pill or a right-aligned field column. Null (not a fabricated placeholder) when there is no source.

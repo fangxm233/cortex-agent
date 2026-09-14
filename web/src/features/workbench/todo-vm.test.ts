@@ -1,8 +1,3 @@
-// input:  raw session.todos payloads and task-list snapshots
-// output: payload validation, active ordinal and rail row tests
-// pos:    Tests the task-list view model
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import type { TodoSnapshot } from '@cortex-agent/ui-contract';
 import { resolveTodos, todoRailViewModel, todoSnapshotFromLivePayload } from './todo-vm';

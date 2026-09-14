@@ -1,8 +1,3 @@
-// input:  React context, persisted appearance helpers, system scheme
-// output: ThemeProvider and hooks for theme, palette, accent, and motion
-// pos:    React owner for global device-local appearance state
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   applyAccentHue,

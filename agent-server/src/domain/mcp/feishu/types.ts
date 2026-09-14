@@ -1,8 +1,3 @@
-// input:  LarkClient type
-// output: FeishuToolDeps + MCP result helpers (ok/fail) + lark response unwrap
-// pos:    Shared plumbing for feishu_* tool registration modules
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { LarkClient } from './client.js';
 
 /** Dependencies injected into each register*Tools function (client is mockable in tests). */

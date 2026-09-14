@@ -1,8 +1,3 @@
-// input:  PI extension UI calls, host answers keyed by request id
-// output: An ExtensionUIContext that surfaces dialogs as extension_ui_request records
-// pos:    Host side of PI's extension UI protocol for in-process sessions
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { randomUUID } from 'node:crypto';
 import type { ExtensionUIContext, ExtensionUIDialogOptions, Theme } from '@earendil-works/pi-coding-agent';
 

@@ -1,8 +1,3 @@
-// input:  Vitest, task CLI processes, dispatcher, prompts
-// output: Structured task-file, validation, and literal regressions
-// pos:    Verifies shell-free task creation through executor prompts
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import './_test-home.js';
 import { beforeAll, test } from 'vitest';
 import assert from 'node:assert/strict';

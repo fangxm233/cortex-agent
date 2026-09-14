@@ -1,8 +1,3 @@
-// input:  Legacy coder, reviewer, manager, worker and director prompt text
-// output: Commit-policy, task-input and STATUS-register replacement tables
-// pos:    Defines stock-text directive migrations
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 const REVIEWER_HANDOFF_BOUNDARY_BASE = '- Commits must land **before** the handoff boundary (before downstream consumers run it, before QA reviews, before the thread ends). Uncommitted changes at handoff are **Blockers**.';
 const REVIEWER_HANDOFF_BOUNDARY = `${REVIEWER_HANDOFF_BOUNDARY_BASE} Your own fixes are held to the same rule: they are committed before you write the review artifact, and the artifact cites their SHAs.`;
 const REVIEWER_COMMIT_RULES = [

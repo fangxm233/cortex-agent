@@ -1,8 +1,3 @@
-// input:  runtime settings callbacks and periodic job definitions
-// output: settings-backed built-in job lifecycle controller
-// pos:    Owns timers, serial execution, and graceful job shutdown
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 export type BuiltinJobMode = 'serial' | 'detached';
 
 export interface BuiltinJobDefinition {

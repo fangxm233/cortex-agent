@@ -1,8 +1,3 @@
-// input:  Claude/PI profile fixtures and profile-menu view model
-// output: Profile labels, filtering, and switch-gating assertions
-// pos:    Workbench profile menu regression tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, it, expect } from 'vitest';
 import type { ConfigProfileEntry } from '@cortex-agent/ui-contract';
 import { buildProfileOptions, currentBackendOf } from './profile-menu';

@@ -1,8 +1,3 @@
-// input:  ../_test-home, vitest, tmp fs, CommissionRepo
-// output: commission registry CRUD and corrupt-file fallback tests
-// pos:    Commission registry persistence contract
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import '../_test-home.js';
 import { afterAll, beforeAll, test } from 'vitest';
 import assert from 'node:assert/strict';

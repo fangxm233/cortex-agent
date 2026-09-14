@@ -1,8 +1,3 @@
-// input:  auth notice targets, AuthLoginService, platform actions
-// output: one-click notification flow start, reuse, and stale feedback
-// pos:    Coordinates actionable Slack and Feishu auth notices
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { t } from '@core/i18n.js';
 import type { AuthNoticeAction } from '@core/types/agent-types.js';
 import {

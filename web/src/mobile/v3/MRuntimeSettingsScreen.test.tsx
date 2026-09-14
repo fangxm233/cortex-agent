@@ -1,8 +1,3 @@
-// input:  mobile runtime screens, keyed descriptors and snapshot-backed writer fake
-// output: advanced row identity, safe integer gating and setting-key write regressions
-// pos:    Verifies mobile runtime views without desktop view ownership
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';

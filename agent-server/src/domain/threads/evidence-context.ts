@@ -1,8 +1,3 @@
-// input:  thread metadata, persisted parent lookup, evidence parser
-// output: canonical root or inherited descendant metadata
-// pos:    Enforces immutable benchmark context inheritance
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { isDeepStrictEqual } from 'node:util';
 import { parseProductionBenchmarkEvidenceContext } from '@core/production-benchmark-evidence.js';
 import type { ThreadMetadata, ThreadRecord } from '@core/types/thread-types.js';

@@ -1,7 +1,3 @@
-// input:  shared daemon facts plus mobile thread, schedule and recent-execution DTOs
-// output: mobile daemon summary, fallback, restart and recent-activity view model
-// pos:    Mobile projection over canonical daemon status semantics
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { ThreadInfo, ScheduleInfo, ExecutionInfo, SystemDaemonStatus } from '@cortex-agent/ui-contract';
 import {
   buildDaemonVm as buildSharedDaemonVm,

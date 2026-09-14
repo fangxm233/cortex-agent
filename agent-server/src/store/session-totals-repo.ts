@@ -2,7 +2,6 @@
 // output: sessionTotalsCarry — per-session roll-up of records the live registry no longer holds,
 //         plus the watermark that keeps carry and live an exact partition
 // pos:    Session-totals persistence layer (data/session-totals.json)
-// >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import * as path from 'path';
 import { JsonRepository } from '@core/json-repository.js';

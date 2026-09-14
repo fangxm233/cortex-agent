@@ -1,8 +1,3 @@
-// input:  staged frontend update metadata and decision callbacks
-// output: current mobile hot-update content inside the mobile-only frame
-// pos:    Mobile dialog for staged frontend updates
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { CSSProperties } from 'react';
 import { updateSummaryLine, type StagedUpdate } from '@/features/hot-update/frontend-update';
 import { MUpdateFrame } from './MUpdateFrame';

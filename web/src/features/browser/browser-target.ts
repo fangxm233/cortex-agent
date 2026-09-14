@@ -1,8 +1,3 @@
-// input:  address text, origins, navigation intents and one tab's state
-// output: URL guards, history, title/forward tab state and viewports
-// pos:    Pure model of a single web tab; the dock owns the tab list
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 // The docked browser pane previews HTTP services that are reachable from THIS machine — a local
 // dev server, or a remote one surfaced by the port forward (see plan/embedded-browser.md §4).
 // Everything here is pure so the pane itself stays a thin view.

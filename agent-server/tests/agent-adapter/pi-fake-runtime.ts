@@ -2,7 +2,6 @@
 // output: FakeRuntime: an in-memory PI runtime handle whose calls a test can inspect and drive,
 //         optionally exposing the mid-turn compaction surface the context guard drives
 // pos:    Shared stand-in for the PI SDK behind PIAdapter/PISession tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type {
   PiAgentSessionLike, PiRawEvent, PiRuntimeCallbacks, PiRuntimeFactory, PiRuntimeHandle,

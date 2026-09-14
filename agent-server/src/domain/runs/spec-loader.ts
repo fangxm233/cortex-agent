@@ -1,8 +1,3 @@
-// input:  a resolved agent slot, a subagent role, or nothing at all
-// output: AgentSpec and the three loaders that produce one
-// pos:    Run-layer spec resolution — the one place an AgentSpec is built
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { resolveSystemVars } from '@core/prompt-template.js';
 import { roleToolsForBackend } from '@core/agents/roles.js';
 import type { AgentRole } from '@core/agents/roles.js';

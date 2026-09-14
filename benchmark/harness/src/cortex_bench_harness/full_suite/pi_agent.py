@@ -1,8 +1,3 @@
-# input:  read-only mounted Node/PI runtimes and Harbor environment
-# output: zero-install PI agent retaining canonical process containment
-# pos:    Full-suite mounted PI adapter
-# >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 from harbor.environments.base import BaseEnvironment
 
 from cortex_bench_harness.vendor_agents import PreinstalledPi, VendorPreflightError

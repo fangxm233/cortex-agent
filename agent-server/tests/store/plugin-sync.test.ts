@@ -5,7 +5,6 @@
 //         plugin, refresh a deployed one when the shipped plugin.json version is newer, bring legacy
 //         (unversioned) copies under management, never downgrade, never touch unversioned defaults,
 //         and preserve user-added files inside a managed plugin.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

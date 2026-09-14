@@ -1,8 +1,3 @@
-# input:  the PI vendor arm and pinned constraints-scheduling task
-# output: one paid PI trial retaining sanitized DeepSeek terminal-SSE diagnostics
-# pos:    Single-run reproduction campaign for EXP-082 stream termination
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 schema_version: cortex-bench-campaign/1
 campaign: tb21-pi-sse-dx-20260821
 paid: true

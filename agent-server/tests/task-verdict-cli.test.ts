@@ -3,7 +3,6 @@
 //         parent existence check; atomicWriteSync test-isolation tripwire
 // pos:    Verify DR-0017 W1-closure: the manager's write path for acceptance verdicts
 //         (without it, accepted-dedupe and rehydration pending lists never converge)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test, afterAll } from 'vitest';

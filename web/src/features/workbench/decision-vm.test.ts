@@ -1,7 +1,3 @@
-// input:  decision items with action logs and message templates
-// output: assertions on status derivation and message composition
-// pos:    Unit tests for the decision card rules
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import type { DecisionItem } from '@cortex-agent/ui-contract';
 import { decisionStatus, buildDecisionMessage, type DecisionMsgTemplates } from './decision-vm';

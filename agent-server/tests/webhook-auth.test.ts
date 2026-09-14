@@ -1,8 +1,3 @@
-// input:  Node test runner + webhook createWebhookHandler auth gate
-// output: bearer and thread-op-only route confinement tests
-// pos:    Regression guard for the webhook HTTP bearer-token gate (no-Cloudflare auth model)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';

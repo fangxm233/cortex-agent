@@ -1,8 +1,3 @@
-// input:  detectProject + _resetProjectCache from cost-tracker.ts
-// output: unit tests for dynamic project detection
-// pos:    detectProject unit tests (tag matching / dynamic directory name matching / fallback / cache behavior)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 

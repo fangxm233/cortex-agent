@@ -1,7 +1,3 @@
-// input:  project sessions, config and external draft prefill
-// output: selected-session context with reliable draft reload
-// pos:    Cross-pane selected and draft session state owner
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';

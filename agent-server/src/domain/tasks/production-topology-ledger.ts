@@ -1,8 +1,3 @@
-// input:  STORE_DIR, atomic writes, production lifecycle correlations
-// output: durable topology facts and strict manager-Q&A projection
-// pos:    Restart-safe production manager topology ledger and read model
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';

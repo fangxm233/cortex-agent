@@ -1,8 +1,3 @@
-// input:  mounted schedule editor controller, config query, and mutation outcomes
-// output: shared initialization, payloads, invalidation and editor-generation async regressions
-// pos:    Headless schedule editor controller integration specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ScheduleInfo } from '@cortex-agent/ui-contract';

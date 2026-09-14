@@ -1,8 +1,3 @@
-// input:  task list and verification fixtures with conflicting lifecycle and ordering data
-// output: locale- and CSS-free status, claim, completion, dependency, and dispatch regressions
-// pos:    Shared desktop/mobile task detail semantics specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import type { TaskDispatchRecord, TaskInfo, TaskVerificationInfo } from '@cortex-agent/ui-contract';
 import {

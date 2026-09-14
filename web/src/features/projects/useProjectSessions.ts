@@ -1,8 +1,3 @@
-// input:  tRPC session registry and optional project scope
-// output: shared unscoped and project-selected session query hooks
-// pos:    Reuses one session cache across desktop and mobile navigation
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { SessionInfo } from '@cortex-agent/ui-contract';

@@ -1,8 +1,3 @@
-// input:  Mock XHR events, Unicode files, desktop auth config, and abort signals
-// output: Upload wire, progress, stable HTTP/network errors, and pre-abort regressions
-// pos:    Shared attachment transport specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { uploadAttachment } from './upload-attachment';
 import type { AttachmentMeta } from './types';

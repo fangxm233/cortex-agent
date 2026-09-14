@@ -1,8 +1,3 @@
-// input:  PIAdapter, scoped Codex usage cache, no-traffic spawner
-// output: PI cold, cached stale, and scope usage regressions
-// pos:    Validates PI push-only usage reads without provider traffic
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { PIAdapter } from '../../src/agent-adapter/pi/adapter.js';

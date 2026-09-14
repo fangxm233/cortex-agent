@@ -1,7 +1,3 @@
-// input:  router location, current project, selected session and the pure stack rules
-// output: back and forward navigation over the app's real location tuple
-// pos:    App navigation stack owner behind the top bar arrows
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';

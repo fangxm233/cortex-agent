@@ -1,7 +1,3 @@
-// input:  SessionInfo DTO, i18n Vocab
-// output: groupSessions + row stamp helpers
-// pos:    Day-grouped session-list view model (desktop + mobile)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 import type { Vocab } from '@/i18n';
 

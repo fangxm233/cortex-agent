@@ -1,7 +1,3 @@
-// input:  unscoped lifecycle, interaction, context and Todo events
-// output: sessions.list cache invalidation for rail and later session selection
-// pos:    Rail-wide snapshot convergence hook
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLiveEvents } from '@/features/live/LiveEventsProvider';

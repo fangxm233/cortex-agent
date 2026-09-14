@@ -1,8 +1,3 @@
-// input:  UiServiceDeps, thread query params, task DTO mapper
-// output: normalized thread lists and task-linked detail
-// pos:    Thread list/detail query handlers
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { readFile } from 'node:fs/promises';
 import type {
   UiServiceDeps,

@@ -1,8 +1,3 @@
-// input:  the Anthropic model table, PI's discovered model pairs, custom providers and gateway.yaml
-// output: the models.catalog snapshot — one route per endpoint with its modes and model ids
-// pos:    Read adapter for the engine catalog the profile editor picks from
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { ANTHROPIC_MODELS } from '@core/anthropic-models.js';
 import { readGatewayYaml } from '@core/gateway-generator.js';
 import {

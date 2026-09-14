@@ -1,7 +1,3 @@
-// input:  PIAdapter over a fake PI runtime, driven through startAttempt + cost-tracker
-// output: Per-attempt PI cost recording (columns AND values) once the foreground result settles
-// pos:    PI cost record end-to-end integration path through the attempt seam
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
 // The old file drove the deleted `facade._test.runWithAdapter` with an `AgentAdapter` built on the
 // PI pool. The attempt seam is now `startAttempt`: it acquires the pooled engine itself, opens one

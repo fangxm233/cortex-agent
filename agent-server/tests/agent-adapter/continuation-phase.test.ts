@@ -1,8 +1,3 @@
-// input:  ContinuationPhase with its port, fake timers and scripted continuation results
-// output: spec for the background phase: settle policy, phase events, merge, watchdog, interruption
-// pos:    Engine-side run-lifecycle spec — one definition of when a run is over (plan W1.1)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 

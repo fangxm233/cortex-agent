@@ -1,8 +1,3 @@
-// input:  scoped and bundled MCP config builders
-// output: Bundled configs, gates and user MCP isolation tests
-// pos:    Config-generator pure-logic tests
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';

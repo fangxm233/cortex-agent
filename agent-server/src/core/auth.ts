@@ -3,7 +3,6 @@
 // pos:    Shared-secret auth for the cortex-client WebSocket and the webhook HTTP server.
 //         No Cloudflare dependency — two independent bearer tokens carried in the
 //         `x-cortex-token` header, generated on first start and persisted to .env (fail-closed).
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as crypto from 'crypto';
 import { readFileSync, appendFileSync, mkdirSync } from 'fs';

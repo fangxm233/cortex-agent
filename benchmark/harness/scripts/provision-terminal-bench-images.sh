@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# input:  pinned Terminal-Bench sources, vendor runtimes, Node/npm
-# output: role-safe tasks and immutable runtime image refs
-# pos:    Provisions pull-disabled Terminal-Bench 2.1 runtimes
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 
 set -euo pipefail
 shopt -s inherit_errexit

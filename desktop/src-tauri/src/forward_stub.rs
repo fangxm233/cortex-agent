@@ -1,8 +1,3 @@
-// input:  forward_* command calls on a platform with no port forward
-// output: the same command surface, always refusing
-// pos:    Android stand-in for src/forward.rs (whose tokio/tungstenite deps are desktop-only)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 use serde::Serialize;
 use tauri::State;
 

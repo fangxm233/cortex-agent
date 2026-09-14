@@ -1,8 +1,3 @@
-// input:  role markdown, the shipped defaults dir, a legacy PI role dir
-// output: frontmatter parsing, per-backend tool translation, seeding and one-time migration
-// pos:    Tests the unified agent role table
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';

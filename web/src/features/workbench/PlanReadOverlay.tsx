@@ -1,7 +1,3 @@
-// input:  plan card model, markdown renderer, and decision callbacks
-// output: themed desktop plan reader with approve and reject actions
-// pos:    Full-plan overlay opened from interaction cards
-// >>> If I am updated, update my header comment and CORTEX.md <<<
 // Desktop plan reading overlay — the target of every 13c 阅读 › / 查看计划 › affordance. The
 // desktop scheme defines no reading page (13c footnote: 「卡片只负责路由 + 批/驳，全文在阅读页看」;
 // the page itself is only drawn as mobile 6b) → this ports the 6b structure (header meta + read

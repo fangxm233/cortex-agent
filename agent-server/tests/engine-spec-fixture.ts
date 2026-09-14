@@ -1,8 +1,3 @@
-// input:  a flat spawn-shaped partial
-// output: an EngineSpec with the same logical fields
-// pos:    Test-only flat→EngineSpec fixture for the P2.1b adapter seam
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { EngineSpec, McpComposition } from '../src/agent-adapter/types.js';
 import type {
   AgentProcessSpawner, CortexContextEnv, McpServerConfig,

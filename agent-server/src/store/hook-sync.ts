@@ -1,8 +1,3 @@
-// input:  shipped hook scripts/entries, data paths, atomicWrite
-// output: managed hook sync and fail-soft diagnostics
-// pos:    Startup CalVer synchronization for shipped hook assets
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { existsSync } from 'node:fs';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';

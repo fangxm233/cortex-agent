@@ -1,8 +1,3 @@
-// input:  ui-contract DTOs, nested-thread helpers, and shared USD formatting
-// output: budget, task-linked, and status view models
-// pos:    Pure view models for the workbench right panel
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import type {
   ThreadInfo,
   ThreadStepDetail,

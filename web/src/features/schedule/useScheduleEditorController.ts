@@ -1,8 +1,3 @@
-// input:  config/schedule tRPC endpoints, project scope, and optional outcome callbacks
-// output: generation-safe shared profile/form/create/update/invalidation schedule editor state
-// pos:    Cross-surface schedule editor data controller
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useCallback, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ScheduleInfo } from '@cortex-agent/ui-contract';

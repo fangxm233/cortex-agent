@@ -1,8 +1,3 @@
-// input:  Node test runner + SlackAdapter subtype→kind mapping
-// output: IncomingMessage.kind correctness per Slack subtype
-// pos:    Verify Slack adapter classifies all known subtypes into the semantic 3-kind system
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { SlackAdapter } from '../src/platform/adapters/slack.js';

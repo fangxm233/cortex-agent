@@ -1,8 +1,3 @@
-// input:  one plugin's redacted MCP servers and the authoring actions
-// output: the MCP tab — server forms with write-only secrets, plus the portable conversion
-// pos:    MCP management inside the plugin package manager
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PluginsMcpRead, UiPluginCatalogEntry } from '@cortex-agent/ui-contract';

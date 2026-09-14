@@ -1,8 +1,3 @@
-// input:  loopback HTTP helper, local HTTP server
-// output: JSON request and explicit timeout behavior tests
-// pos:    Verifies bounded MCP-to-daemon loopback requests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { createServer, type RequestListener } from 'node:http';

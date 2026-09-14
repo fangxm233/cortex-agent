@@ -1,8 +1,3 @@
-// input:  auth snapshot getter, shared formatter, localized CLI copy
-// output: auth subcommand parser and result
-// pos:    Authentication status, login and provider CLI handler
-// >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import { formatError } from '@core/cli-utils.js';
 import { t } from '@core/i18n.js';
 import { formatAuthStatusSummary } from '@domain/auth/auth-format.js';

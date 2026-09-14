@@ -1,8 +1,3 @@
-// input:  context support state and compact-action state
-// output: visibility and action availability contracts
-// pos:    Shared context usage behavior tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import {

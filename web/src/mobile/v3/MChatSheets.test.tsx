@@ -1,8 +1,3 @@
-// input:  chat sheet copy and formatted session-totals rows
-// output: session-stats sheet content regressions behind a stubbed bottom sheet
-// pos:    Mobile chat sheet presentation specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type { SessionStatsRow } from '@/features/workbench/session-stats';

@@ -1,8 +1,3 @@
-// input:  McpServer, InteractionToolDeps, interaction level codec
-// output: Shared ask-user MCP registration and handler
-// pos:    Implements blocking and non-blocking human questions for agent sessions
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { normalizeAskLevel } from '@platform/interactive-builder.js';

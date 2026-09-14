@@ -1,8 +1,3 @@
-// input:  HookDetail records, chip/search state, and editor form fields
-// output: shared namespace groups plus capability, validation and hooks.* mutation args
-// pos:    Canonical desktop/mobile hook model and desktop editor view model
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import type {
   HookDetail,
   HookDraftInput,

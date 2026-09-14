@@ -5,7 +5,6 @@
 //         only thing that unwires a retired plugin or wires a newly shipped one. Pins the
 //         customization discriminator (stock copies lose their ref, locally re-versioned ones keep
 //         it), the never-delete-files rule, and the sentinel that makes it run exactly once.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

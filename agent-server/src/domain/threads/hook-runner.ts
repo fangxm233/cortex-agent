@@ -1,8 +1,3 @@
-// input:  thread store, HookBus, agents and run service
-// output: lifecycle event emitters and hook-agent execution
-// pos:    Adapts thread lifecycle hooks to the shared HookBus
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { readFileSync } from 'fs';
 import { randomUUID } from 'node:crypto';
 import { threadStore } from '@store/thread-repo.js';

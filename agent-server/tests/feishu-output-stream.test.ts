@@ -1,8 +1,3 @@
-// input:  node:test, MockAdapter, FeishuOutputStream
-// output: FeishuOutputStream coalescing / mutable-region / threading tests
-// pos:    Feishu-specific OutputStream regression test (coalescing parity w/ Slack)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test, beforeEach, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import {

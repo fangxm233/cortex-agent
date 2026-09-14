@@ -1,8 +1,3 @@
-// input:  PlatformAdapter, thread-runner, scheduler domain types
-// output: runScheduledTask job runner — registers as 'scheduled-task'
-// pos:    scheduled task execution (scheduled-task dispatchType), RunnerFn payload
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { register, ctx } from '../job-registry.js';
 import { createLogger } from '@core/log.js';
 import { Icons } from '../../../core/icons.js';

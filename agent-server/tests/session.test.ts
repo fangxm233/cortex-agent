@@ -1,8 +1,3 @@
-// input:  Node test runner + session.ts + sessions.json
-// output: set/get/delete on the channel key + the P3.2 backend-prefix migration
-// pos:    Verify session CRUD and legacy migration, all tests use async API
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';

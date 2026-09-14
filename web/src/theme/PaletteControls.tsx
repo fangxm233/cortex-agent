@@ -1,8 +1,3 @@
-// input:  palette parameters, preset table, localized labels
-// output: Preset chips and background/foreground parameter sliders
-// pos:    Shared desktop/mobile palette editor
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import type { CSSProperties } from 'react';
 import { PALETTE_RANGES, type Palette, type PaletteKey } from './palette';
 import { PALETTE_PRESETS, type PalettePreset } from './palette-presets';

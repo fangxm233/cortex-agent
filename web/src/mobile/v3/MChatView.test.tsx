@@ -1,8 +1,3 @@
-// input:  mobile rows, lazy detail, Todo, composer and profiles
-// output: Chat stacking, overflow, Todo and interaction contracts
-// pos:    Mobile chat interaction behavior tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { renderToStaticMarkup } from 'react-dom/server';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';

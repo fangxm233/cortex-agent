@@ -1,8 +1,3 @@
-// input:  Vitest and injected doctor runtime/auth probes
-// output: cmdDoctor text, JSON, exit, and fix assertions
-// pos:    Doctor CLI wrapper regression tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
 

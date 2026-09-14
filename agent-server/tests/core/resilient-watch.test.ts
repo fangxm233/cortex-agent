@@ -1,8 +1,3 @@
-// input:  fake filesystem watchers and snapshots
-// output: fallback, registration race, and cleanup tests
-// pos:    Resilient watcher-to-polling lifecycle tests
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { EventEmitter } from 'node:events';
 import assert from 'node:assert/strict';
 import { afterEach, test, vi } from 'vitest';

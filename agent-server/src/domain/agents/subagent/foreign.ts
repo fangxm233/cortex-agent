@@ -1,8 +1,3 @@
-// input:  a ForeignSubagentRequest raised by the PI `agent` tool
-// output: the SubagentResult produced by the daemon-side backend runner
-// pos:    domain/agents/subagent — the daemon half of PI's cross-backend delegation
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { RunForeignSubagent } from '../../../agent-adapter/pi/subagent.js';
 
 /**

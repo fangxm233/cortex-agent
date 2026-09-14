@@ -1,8 +1,3 @@
-// input:  AskUserQuestion tool_use payloads, hook requests
-// output: state management + interactive component builders
-// pos:    AskUserQuestion state management and interaction construction
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { Destination, PlatformAdapter, OutputStream } from '@platform/index.js';
 import { createLogger } from '@core/log.js';
 import { buildQuestionGroupBlocks, buildQuestionModalDefinition } from '@platform/index.js';

@@ -1,7 +1,3 @@
-// input:  send scope, neutral attachment metadata, and the live message authority rendered
-// output: reconciled pending rows and the enqueue/accept/reject send lifecycle
-// pos:    Shared optimistic-send state for the desktop and mobile chats
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { SessionTranscript } from '@cortex-agent/ui-contract';
 import {

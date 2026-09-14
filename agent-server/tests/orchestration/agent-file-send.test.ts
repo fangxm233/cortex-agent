@@ -1,8 +1,4 @@
 import '../_test-home.js'; // MUST be first — repoints CORTEX_HOME before paths bind
-// input:  agent-file-send module and isolated temporary files
-// output: regressions for delivery, Unicode names, MIME and copying
-// pos:    guards the agent-sent file delivery path
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

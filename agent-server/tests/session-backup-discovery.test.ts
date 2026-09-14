@@ -1,8 +1,3 @@
-// input:  isolated PI files and backup filesystem calls
-// output: discovery latency and async-copy regressions
-// pos:    Proves lookup skips unrelated transcript bodies
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import './_test-home.js';
 import { beforeEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';

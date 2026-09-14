@@ -1,7 +1,3 @@
-# input:  an offline trial driven through the shipped agent class and its armed proxy
-# output: closed-inventory scan proofs for the four new proxy sources and the container surface
-# pos:    Leak-scan extension over the credential-proxy flows
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # The trial here runs with no container, no Docker and no network egress: the upstream is a closed
 # loopback port, so the one forwarded request exercises route, body and auth injection and then

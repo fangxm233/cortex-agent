@@ -1,8 +1,3 @@
-// input:  Vitest fake timers and an injected delay histogram
-// output: sampling, reset, and stop assertions for the event-loop monitor
-// pos:    Verify event-loop lag recording and monitor lifecycle
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { afterEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 

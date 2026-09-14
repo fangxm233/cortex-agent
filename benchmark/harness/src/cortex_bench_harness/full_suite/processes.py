@@ -1,8 +1,3 @@
-# input:  Harbor commands, allowlisted env and cancellation requests
-# output: tracked process groups with bounded TERM-to-KILL cleanup
-# pos:    Full-suite Harbor process registry
-# >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 from __future__ import annotations
 
 import os

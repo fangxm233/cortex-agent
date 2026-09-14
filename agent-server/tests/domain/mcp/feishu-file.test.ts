@@ -1,8 +1,3 @@
-// input:  uploadFileToFeishu function, FEISHU_CHANNEL with platform prefix
-// output: uploadFileToFeishu correctly strips 'feishu:' prefix before calling Feishu API
-// pos:    regression test for channel ID prefix handling
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'fs';

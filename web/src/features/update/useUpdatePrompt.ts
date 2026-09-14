@@ -1,8 +1,3 @@
-// input:  update source hooks and manual check busy state
-// output: one surface-neutral prompt model with app-update priority
-// pos:    Shared headless owner of both native update hooks
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useSyncExternalStore } from 'react';
 import { getManualCheckBusy, subscribeManualCheck } from './manual-update-check';
 import { useAppUpdate } from '@/features/app-update/useAppUpdate';

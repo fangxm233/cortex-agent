@@ -1,8 +1,3 @@
-// input:  fake timers, settings callbacks, and retention controller deps
-// output: controller startup, interval, debounce, singleflight, and stop tests
-// pos:    Verifies retention controller lifecycle orchestration
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { afterEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { createSessionRetentionController } from '../../src/orchestration/session-retention-controller.js';

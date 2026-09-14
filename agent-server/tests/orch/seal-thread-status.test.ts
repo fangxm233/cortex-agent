@@ -6,7 +6,6 @@
 //         previously each inlined buildThreadSummary + updateMessage; the missing call is what froze
 //         rate-limit-resume status messages. Funnelling them through one function makes the seal
 //         hard to forget. The dispatch seal (finalizeThreadSuccess) stays separate by layer/design.
-// >>> If I am updated, update my require first <<<
 import '../_test-home.js'; // MUST be first — isolates store singletons pulled in by status-helpers
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

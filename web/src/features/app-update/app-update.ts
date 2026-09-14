@@ -1,8 +1,3 @@
-// input:  native update payloads, typed bridge events/commands, and shared byte formatting
-// output: parsed update state, install labels, observable store, and safe shell actions
-// pos:    App-update domain and off-shell-safe adapter for desktop and Android prompts
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 // The Tauri shell checks the server's /api/app-update/manifest.json in the background, downloads +
 // sha256-verifies the platform asset from the GitHub release, then emits `app-update-available`
 // (see desktop/src-tauri/src/app_update.rs). Installing is platform-branched shell-side: AppImage

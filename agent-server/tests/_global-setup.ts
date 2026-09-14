@@ -1,7 +1,3 @@
-// input:  none (runs before any worker fork is spawned)
-// output: CORTEX_TEST_HOME_ROOT env var; sweeps stale homes; removes this run's homes on teardown
-// pos:    vitest globalSetup — the only cleanup hook that is guaranteed to run
-// >>> If I am updated, update my header comment <<<
 //
 // globalSetup executes in vitest's MAIN process, and the teardown it returns runs after every
 // worker has finished. That main process exits normally, so unlike the workers (killed with

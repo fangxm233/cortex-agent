@@ -1,8 +1,3 @@
-// input:  Node test runner, assert, tmp filesystem
-// output: regression tests for ProjectDirRepo (concurrent mutate, flush ordering, CRUD)
-// pos:    verifies store/project-dir-repo.ts Pattern A guarantees
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';

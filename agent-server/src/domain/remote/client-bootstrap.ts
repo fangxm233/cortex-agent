@@ -1,7 +1,3 @@
-// input:  SSH target and resolved client bundle
-// output: managed client bundle and config on the target device
-// pos:    One-time install and rescue CLI for server-owned clients
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { execFile } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';

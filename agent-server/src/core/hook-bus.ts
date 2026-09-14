@@ -1,8 +1,3 @@
-// input:  HookEntry snapshots, hook payloads, shared hook runner
-// output: HookSpec, HookEmitResult, timeout-aware emit API
-// pos:    Dispatches hooks serially with safe args and diagnostics
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as path from 'node:path';
 import type { HookEntry } from '../store/hook-registry.js';
 import { runHookProcess } from './hook-exec.js';

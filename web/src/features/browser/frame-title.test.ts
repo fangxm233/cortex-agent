@@ -1,8 +1,3 @@
-// input:  untrusted iframe title messages, sources and origins
-// output: parser and frame-routing regressions
-// pos:    Unit tests for frame-title message validation
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import { FRAME_TITLE_TAG, matchFrameTitleMessage, parseFrameTitleMessage } from './frame-title';
 

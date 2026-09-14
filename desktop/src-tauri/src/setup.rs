@@ -1,8 +1,3 @@
-// input:  wizard answers, process/package/Claude setup helpers
-// output: async setup IPC, progress events, local daemon startup
-// pos:    Drives a local Cortex install from the native shell
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
 use std::time::{Duration, Instant};

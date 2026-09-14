@@ -1,8 +1,3 @@
-# input:  parsed arms, trial seed, proxy and host scan policy
-# output: isolated vendor/Cortex AgentConfig and refusals
-# pos:    Host arm-selection and Harbor construction boundary
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import re
 from collections.abc import Mapping, Sequence
 from pathlib import Path

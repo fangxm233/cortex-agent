@@ -1,7 +1,3 @@
-// input:  provider overrides, PI catalog refresh fixtures, a fake PI runtime
-// output: custom providers and frozen DeepSeek caps in opened catalogs
-// pos:    Unit tests for PI provider routing at session open time
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { engineSpecFixture } from './engine-spec-fixture.js';
 
 

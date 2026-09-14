@@ -1,7 +1,3 @@
-# input:  two Terminal-Bench 2.1 corpus tasks named by inventory, and runtimes staged for mounting
-# output: two ZERO-PAID trials on unmodified upstream images, one vendor arm and one Cortex arm
-# pos:    External-corpus and mounted-runtime ZERO-PAID gate
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # WHAT THIS PROVES. Every other committed campaign names its tasks inline and runs them on images
 # baked to carry an agent runtime -- 89 tasks times three vendors is 267 builds, which is why the

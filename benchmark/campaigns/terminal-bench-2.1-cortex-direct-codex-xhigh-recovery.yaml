@@ -1,8 +1,3 @@
-# input:  one Cortex direct Codex arm and the unrecovered constraints task
-# output: one paid constraints recovery trial
-# pos:    Cortex direct Codex xhigh constraints recovery campaign
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 schema_version: cortex-bench-campaign/1
 campaign: tb21-cxdir-r2-0823
 paid: true

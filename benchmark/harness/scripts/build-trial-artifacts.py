@@ -3,7 +3,6 @@
 # output: both trial artifacts, built from current source, at the exact paths the campaign pins,
 #         each with a provenance sidecar the launcher checks before it will run
 # pos:    Trial artifact build procedure
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # A campaign installs two artifacts into every container: the harness wheel and the packed
 # agent-server. Until now nothing on any release path built the second one -- the logic existed

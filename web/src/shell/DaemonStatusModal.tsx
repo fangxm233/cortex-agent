@@ -1,7 +1,3 @@
-// input:  shared daemon resource, desktop confirmation state and shell connection helpers
-// output: themed desktop daemon diagnostics, restart and disconnect modal
-// pos:    Desktop shell adapter for canonical daemon lifecycle
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useEffect, useState } from 'react';
 import type { Tone } from '@/design/tone';
 import { useDaemonResource } from '@/features/daemon/useDaemonResource';

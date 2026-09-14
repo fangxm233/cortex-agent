@@ -1,8 +1,3 @@
-// input:  expanded machine names, machines/approvals tRPC contracts and query cache
-// output: shared polled roster, detail facts and approval request/cache lifecycle
-// pos:    Headless desktop/mobile machines resource
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   ApprovalsRequestReturn,

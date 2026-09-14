@@ -1,7 +1,3 @@
-// input:  open requests from the menu bar, the left rail and the chat header
-// output: window-level modal flags plus the self-contained modals themselves
-// pos:    Owner of the modals the menu bar must be able to open
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 import { NewProjectModal } from '@/features/workbench/NewProjectModal';
 import { DaemonStatusModal } from './DaemonStatusModal';

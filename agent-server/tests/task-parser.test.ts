@@ -1,8 +1,3 @@
-// input:  Vitest, task parser, task CLI
-// output: schema round trips, query, deps, and lint tests
-// pos:    Verifies TASKS.yaml parsing and read-path health
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

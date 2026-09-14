@@ -1,8 +1,3 @@
-// input:  thread id, artifact mode, tRPC/Query clients, live events, timer, and cancel callback
-// output: shared thread detail query, one-second clock, and cancellation controller
-// pos:    Headless desktop/mobile thread detail resource lifecycle
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ThreadDetail } from '@cortex-agent/ui-contract';

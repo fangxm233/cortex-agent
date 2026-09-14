@@ -1,8 +1,3 @@
-// input:  Task DTOs, lifecycle and dependency state
-// output: six lifecycle groups (done newest-first) and open-task count
-// pos:    Shared desktop/mobile task list model
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { TaskInfo } from '@cortex-agent/ui-contract';
 import { unresolvedDependencyIds } from './task-dependencies';
 

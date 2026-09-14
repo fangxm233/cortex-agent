@@ -1,8 +1,3 @@
-// input:  untrusted postMessage payloads from preview frames
-// output: normalized page titles with validated HTTP(S) origins
-// pos:    Browser title-bridge protocol parser
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 export const FRAME_TITLE_TAG = '__cortexBrowserTitle:v1';
 const TITLE_MAX = 160;
 

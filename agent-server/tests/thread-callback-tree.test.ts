@@ -1,8 +1,3 @@
-// input:  Vitest, thread callback state, child contracts
-// output: Parent re-entry and safe replacement-task regressions
-// pos:    Verifies child-to-parent result delivery and recovery
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import { threadStore } from '../src/store/thread-repo.js';

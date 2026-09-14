@@ -4,7 +4,6 @@
 //         `lang`), because the same knob decides what Cortex speaks in the conversation; this
 //         provider just holds it, caches it for first paint, and writes changes back through the
 //         sync seam. Mount <LangServerSync/> inside it wherever tRPC is available.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
 import { isMobileShell } from '@/lib/desktop-config';

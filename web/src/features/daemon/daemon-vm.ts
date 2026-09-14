@@ -1,8 +1,3 @@
-// input:  nullable system daemon status DTOs and legal process states
-// output: locale- and CSS-free process tones, metrics, extras and restart facts
-// pos:    Canonical desktop/mobile daemon status facts
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { DaemonProcessInfo, SystemDaemonStatus } from '@cortex-agent/ui-contract';
 import type { Tone } from '@/design/tone';
 

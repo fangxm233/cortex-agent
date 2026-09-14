@@ -1,7 +1,3 @@
-// input:  the same flat, spawn-shaped partial the EngineSpec fixture takes
-// output: a RunRequest + RunAttemptConfig pair, and the EngineSpec they build
-// pos:    Test-side adapter from the terse flat fixtures to the run layer's request contract
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
 // `buildEngineSpec` takes a resolved `RunRequest` plus the attempt's engine selection — there is no
 // flat options bag in production any more. The spawn-seam and profile suites still want to state a

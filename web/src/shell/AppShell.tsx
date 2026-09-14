@@ -1,7 +1,3 @@
-// input:  Router outlet, project scope, global UI providers, and prioritized update provider
-// output: persistent desktop application shell with one update-overlay owner
-// pos:    Keeps shared state and task/thread overlays across routes
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { Outlet } from 'react-router-dom';
 import { CommandPalette } from '@/features/command-palette/CommandPalette';
 import { useCommandPalette } from '@/features/command-palette/useCommandPalette';

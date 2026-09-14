@@ -1,8 +1,3 @@
-// input:  Filesystem, YAML, PI SDK model runtime
-// output: Gateway config discovery, merge, serialization
-// pos:    Gateway configuration generator
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { writeFileSync, copyFileSync, mkdirSync, existsSync, readFileSync } from 'fs';
 import * as path from 'path';
 import * as os from 'os';

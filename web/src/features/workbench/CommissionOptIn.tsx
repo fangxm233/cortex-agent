@@ -2,7 +2,6 @@
 // output: the commission feature switch, commission-mode options for the composer ＋ menu, and the
 //         request they encode
 // pos:    Commission-mode choice model (off / new / join an active one)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useQuery } from '@tanstack/react-query';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { useVocab } from '@/i18n';

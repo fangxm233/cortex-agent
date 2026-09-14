@@ -1,8 +1,3 @@
-// input:  ClaudeSession stream-json lines that carry parent_tool_use_id
-// output: OC-11 native-subagent census specs (§17 G4-SA5/G4-SA6) and the additive-dispatch pin
-// pos:    Claude print subagent-linkage wiring tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 

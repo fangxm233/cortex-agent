@@ -1,8 +1,3 @@
-// input:  ClaudeAdapter.open over a scripted fake CLI, with a background task and its continuation
-// output: end-to-end spec for the engine-owned background phase of one run (policy per mode)
-// pos:    The run-lifecycle contract: `EngineRun.events` carries the whole run, result follows policy
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';

@@ -1,8 +1,3 @@
-// input:  stored dock/split values and divider drag geometry
-// output: bounded split/dock parsing and drag-to-share arithmetic
-// pos:    pure dock geometry; pane-size constants stay presentation-internal
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 // The DOCK is the workbench's fourth pane: it splits the center region into chat | dock and holds
 // one tab strip of file previews and live web pages (see `dock-tabs.ts`). This module is only its
 // geometry — how wide it is, and how a divider drag maps to that width.

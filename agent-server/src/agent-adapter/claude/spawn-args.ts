@@ -1,8 +1,3 @@
-// input:  Claude options, composition, tool gates, hooks, the cached PI model catalog
-// output: Claude args, interaction tools, MCP configs, env (incl. the PI subagent model catalog)
-// pos:    Resolves Claude process configuration
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { createHash } from 'crypto';
 import {
   ALWAYS_STRIP_TOOLS,

@@ -1,8 +1,3 @@
-// input:  element-free mobile route manifest plus explicit screen element mapping
-// output: inspectable mobile route table with index and unknown-path fallbacks
-// pos:    Mobile route declarations; React elements stay outside declarative metadata
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { type ReactNode } from 'react';
 import { Navigate, type RouteObject } from 'react-router-dom';
 import { MobileShell } from './MobileShell';

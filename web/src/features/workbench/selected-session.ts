@@ -1,7 +1,3 @@
-// input:  SessionInfo, pending session metadata and key events
-// output: draft sentinel, selection and shortcut resolvers
-// pos:    Workbench selected-session state rules
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 
 // Pure state logic for the cross-pane "selected session" (the session the center chat shows). A

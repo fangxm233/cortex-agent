@@ -5,7 +5,6 @@
 //       All callers in src/ have been migrated to store/session-registry-repo.ts.
 //       This file is kept only so any external tooling that still imports this path
 //       continues to compile until the S12 git-mv sweep.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { sessionStore, type SessionOrigin } from '@store/session-registry-repo.js';
 export { sessionStore, sessionRegistryRepo, type Session, type SessionOrigin, type SessionRegistryData } from '@store/session-registry-repo.js';

@@ -1,8 +1,3 @@
-// input:  hook declarations, registry backend rules, Claude event map
-// output: mount targets, legal result modes, and apply time per entry
-// pos:    UI-facing derived view of a hook declaration
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { claudeEventName } from '../../agent-adapter/claude/hooks-builder.js';
 import {
   RESULT_CAPABILITY_BY_EVENT,

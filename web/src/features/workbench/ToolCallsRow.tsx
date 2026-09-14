@@ -1,8 +1,3 @@
-// input:  tool calls, session id and lazy DEBUG query
-// output: bounded collapsed row and inspectable expanded calls
-// pos:    Desktop workbench tool-call presentation
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useState, type CSSProperties, type MouseEvent } from 'react';
 import { useVocab } from '@/i18n';
 import { useTRPCClient } from '@/lib/trpc';

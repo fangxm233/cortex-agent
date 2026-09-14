@@ -1,8 +1,3 @@
-# input:  declared network blocks and a stubbed resolver
-# output: proof that a declaration becomes exactly the policy it names, or is refused
-# pos:    Trial network access boundary tests
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import pytest
 from harbor.models.task.config import NetworkMode
 

@@ -1,8 +1,3 @@
-// input:  shared runtime writer, typed setting keys and mutation/cache fakes
-// output: commit lifecycle, serialization, refresh and production-adapter regressions
-// pos:    Verifies the desktop/mobile-neutral runtime settings write owner
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { renderToStaticMarkup } from 'react-dom/server';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';

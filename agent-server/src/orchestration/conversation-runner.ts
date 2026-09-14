@@ -1,7 +1,3 @@
-// input:  run service, profile/spec resolution, tool gates, prompts
-// output: gated plain turns and backend-ready prompt callbacks
-// pos:    Thread-free user-turn execution
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 //
 // Why this exists: plain user chat messages used to be wrapped in a `templateName:'default'`
 // ThreadRecord and run through runThread() with ~12 `isDefault` short-circuits. That coupled

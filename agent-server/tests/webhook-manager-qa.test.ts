@@ -1,8 +1,3 @@
-// input:  Node test runner + webhook /webhook/manager-qa (ask/poll/answer) + thread-repo
-// output: ask/poll/answer HTTP entry-point validation (DR-0016 up-ask channel)
-// pos:    Verify the synchronous ask_manager / answer_subtask webhook bridge end to end
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';

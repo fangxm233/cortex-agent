@@ -1,8 +1,3 @@
-// input:  secret-free auth account and credential status DTOs
-// output: shared desktop/mobile account cards, groups, and actions
-// pos:    Canonical accounts settings view model
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import type {
   AuthAccountState,
   AuthAccountStatus,

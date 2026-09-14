@@ -1,8 +1,3 @@
-// input:  mocked clipboard outcomes, fake timers, and mounted hook harnesses
-// output: regression coverage for success feedback, failures, replacement, and cleanup
-// pos:    Unit tests for the shared clipboard-feedback hook
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useClipboardFeedback, type ClipboardFeedback } from './useClipboardFeedback';

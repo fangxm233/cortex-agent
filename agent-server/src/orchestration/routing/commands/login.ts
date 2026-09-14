@@ -1,8 +1,3 @@
-// input:  auth status/LoginFlow services, command router, platform forms
-// output: Channel-bound auth prompts, notices, and expiry results
-// pos:    Chat authentication entry, notice, and prompt coordinator
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { setTimeout as delay } from 'node:timers/promises';
 import { t } from '@core/i18n.js';
 import {

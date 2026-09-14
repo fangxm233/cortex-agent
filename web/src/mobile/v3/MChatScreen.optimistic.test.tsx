@@ -1,7 +1,3 @@
-// input:  Mounted mobile chat, live run status, Todo state, mutations, and routes
-// output: Status, attachments, optimistic sends and slash feedback
-// pos:    Mounted mobile composer integration specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { LangProvider } from '@/i18n';

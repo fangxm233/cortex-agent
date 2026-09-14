@@ -1,8 +1,3 @@
-// input:  node:fs, node:path
-// output: listing and containment helpers
-// pos:    Symlink-safe guards for plugin catalog I/O
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import fs from 'node:fs';
 import path from 'node:path';
 

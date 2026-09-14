@@ -1,8 +1,3 @@
-// input:  Filesystem, config paths, MCP bundles and gates
-// output: Scoped configs and collapsed per-process MCP compositions
-// pos:    Generates and materializes MCP configurations
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { createHash } from 'node:crypto';
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import * as path from 'path';

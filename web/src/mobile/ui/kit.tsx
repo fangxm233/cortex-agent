@@ -1,7 +1,3 @@
-// input:  React nodes, shared Tone semantics, mobile dismissal, and presentation tokens
-// output: Mobile primitives, layered sheets, and composer exports
-// pos:    Shared mobile primitives over the canonical design status-tone model
-// >>> If I am updated, update my header comment and CORTEX.md <<<
 // @ds-adherence-ignore -- mobile v3 UI kit, chrome extracted 1:1 from scheme-mobile.dc.html
 // (raw px/hex/font by design §8.3; the mobile palette is not in the light `proto.*` token set).
 //

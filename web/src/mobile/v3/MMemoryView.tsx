@@ -1,7 +1,3 @@
-// input:  mobile memory VM, UI kit, and view callbacks
-// output: fixed project-memory header with file drill-ins
-// pos:    Presentational mobile project-memory view
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1j L523-554)
 //
 // Files are openable in the read-only viewer. Memory directories render as controlled accordions from

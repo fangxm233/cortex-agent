@@ -1,7 +1,3 @@
-// input:  session snapshots and lifetime, file drops and shortcut actions
-// output: chat with a pane-wide attachment target and composer
-// pos:    Workbench conversation pane orchestration
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useMemo, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';

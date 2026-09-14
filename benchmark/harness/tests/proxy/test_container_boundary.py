@@ -1,8 +1,3 @@
-# input:  trial proxy API, Docker internal bridge, synthetic upstream
-# output: real-container credential, source, and egress proofs
-# pos:    Container network containment tests
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import base64
 import shlex
 from datetime import UTC, datetime, timedelta

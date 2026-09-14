@@ -1,8 +1,3 @@
-// input:  daemon status/restart tRPC contracts and query cache
-// output: shared 5s status polling, canonical facts and restart lifecycle
-// pos:    Headless desktop/mobile daemon resource
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   SystemDaemonStatus,

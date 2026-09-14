@@ -1,8 +1,3 @@
-// input:  tool labels, chip measurement elements, container width
-// output: refs and responsive visible/hidden tool-call layout
-// pos:    Shared Desktop/Mobile collapsed tool-call measurement hook
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { toolCallOverflowLayout, type ToolCallOverflowLayout } from './tool-call-overflow';
 

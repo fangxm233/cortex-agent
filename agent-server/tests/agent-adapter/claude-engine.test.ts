@@ -1,8 +1,3 @@
-// input:  ClaudeAdapter.open driven over one scripted fake CLI process
-// output: engine contract: phased RunEvent order/result, failure, cancel/reuse, steer, identity, rate limits
-// pos:    Claude EngineSession contract after the legacy spawn() parity half was deleted
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';

@@ -1,8 +1,3 @@
-// input:  Mobile composer modes, attachment retry/remove actions, tools, and menus
-// output: Composer chrome, plus menu, profile/context tools, and slash suggestions
-// pos:    Mobile chat composer presentation seam
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { ReactNode } from 'react';
 import type { SlashSuggestion } from '@/features/workbench/composer-slash';
 import { ContextUsageRing } from '@/features/workbench/ContextUsageControl';

@@ -1,8 +1,3 @@
-// input:  thread runner (startAttempt seam), template isolation, HookBus entries
-// output: lifecycle payload, isolation, and scoped-hook regressions
-// pos:    Verifies thread lifecycle hook routing and suppression
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { afterAll, afterEach, beforeAll, beforeEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';

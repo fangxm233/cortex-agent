@@ -1,8 +1,3 @@
-// input:  hook scripts written into the test HOOKS_DIR + handlePostToolUse
-// output: In-process hook execution and spawned-form fallback regressions
-// pos:    Verifies the PI hook bridge's in-process entry point
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';

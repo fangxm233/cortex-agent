@@ -1,8 +1,3 @@
-// input:  both desktop dialogs, representative metadata, and a stub desktop frame
-// output: preserved copy, button order/state, and callback semantics after frame extraction
-// pos:    Desktop update dialog characterization
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 

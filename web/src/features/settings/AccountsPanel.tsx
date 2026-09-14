@@ -1,8 +1,3 @@
-// input:  shared accounts controller/VM, LoginFlow, and desktop settings primitives
-// output: desktop Claude and PI account-management panel with operation-local gates
-// pos:    Desktop view over canonical accounts ownership
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { useState } from 'react';
 import type { AuthType } from '@cortex-agent/ui-contract';
 import { ProviderIcon } from '@/features/auth/ProviderIcon';

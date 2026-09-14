@@ -1,8 +1,3 @@
-// input:  McpServer, Slack WebClient or session tool context, fallback channel
-// output: slack_send_file tool registration
-// pos:    MCP tool for uploading files to Slack
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { WebClient } from '@slack/web-api';
 import { z } from 'zod';

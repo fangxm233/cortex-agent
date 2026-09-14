@@ -1,8 +1,3 @@
-# input:  run identity, spec digest and per-task lifecycle transitions
-# output: atomic crash-visible no-rerun ledger
-# pos:    Full-suite paid-run state boundary
-# >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 from __future__ import annotations
 
 import json

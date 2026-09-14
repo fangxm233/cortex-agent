@@ -1,8 +1,3 @@
-// input:  UI HTTP host, entry wiring, mutable settings, auth fakes
-// output: transport, auth, CORS, SPA, OTA, upload/download regressions
-// pos:    Web UI HTTP transport integration tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import '../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { describe, test, beforeAll, afterAll, vi } from 'vitest';
 import assert from 'node:assert/strict';

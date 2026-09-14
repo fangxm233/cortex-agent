@@ -1,8 +1,3 @@
-// input:  Shared project scope, memory-tree query/facts, and mobile navigation
-// output: Mobile project-memory accordions and read-only file drill-ins
-// pos:    Mobile memory browser data controller
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 // 1j 项目记忆 — the current project's memory tree, drilled from the project page (scheme 1e→1j). NON-Tab
 // drill page (the shell hides the Tab bar for /m/memory). READ-ONLY. Real tRPC: `memory.tree({ projectId })`
 // scoped to the mobile current project. Back → the project page (1e). Files tap through to the read-only

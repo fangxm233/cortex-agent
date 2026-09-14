@@ -1,8 +1,3 @@
-// input:  raw prompt file content, template directory path
-// output: prompt content with vars/blocks/conditionals expanded
-// pos:    pure parsing layer for prompts/ templates
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { readFileSync } from 'fs';
 import * as path from 'path';
 import { createLogger } from '@core/log.js';

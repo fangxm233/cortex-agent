@@ -1,7 +1,3 @@
-// input:  vitest, selected-session helpers, SessionInfo DTO
-// output: selection, transition and shortcut regressions
-// pos:    Pure tests for workbench session-selection state
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 import {

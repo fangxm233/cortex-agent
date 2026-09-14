@@ -1,8 +1,3 @@
-// input:  schedule DTOs, create/edit form values, and API field constraints
-// output: initialized forms, editable-field gates, validated payloads, and next-run labels
-// pos:    Framework-free schedule editor view model shared by desktop and mobile
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { ScheduleAddArgs, ScheduleUpdateArgs, ScheduleInfo } from '@cortex-agent/ui-contract';
 
 export type SchedType = 'interval' | 'daily' | 'weekly' | 'once';

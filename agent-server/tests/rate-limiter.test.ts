@@ -1,8 +1,3 @@
-// input:  node:test, TokenBucketRateLimiter
-// output: token bucket rate limiter behavior
-// pos:    RateLimiter unit test
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test, vi, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import { TokenBucketRateLimiter } from '../src/platform/utils/rate-limiter.js';

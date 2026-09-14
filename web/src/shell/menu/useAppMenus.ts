@@ -1,7 +1,3 @@
-// input:  window providers, native actions and manual update checks
-// output: shared menus with async update progress and disabled state
-// pos:    Single definition of the desktop application menus
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useVocab } from '@/i18n';

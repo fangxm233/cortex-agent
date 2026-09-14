@@ -1,8 +1,3 @@
-// input:  PI filenames and backend session id
-// output: parsed and selected PI transcript filenames
-// pos:    Shared PI transcript filename selector
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 const SESSION_ID_RE = '[A-Za-z0-9-]+';
 const TIMESTAMP_RE = '\\d{4}-\\d{2}-\\d{2}T\\d{2}(?:[-:]\\d{2}){2}(?:-\\d{3})?Z';
 const BACKUP_RE = /^(?<primary>.+)\.turn-(?<turn>\d+)\.bak$/;

@@ -1,8 +1,3 @@
-// input:  Node child processes, core paths and logging
-// output: HookProcessOptions, output/exit result, runHookProcess
-// pos:    shared subprocess runner for hook commands
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { spawn } from 'node:child_process';
 import { createLogger } from './log.js';
 import { DATA_DIR } from './paths.js';

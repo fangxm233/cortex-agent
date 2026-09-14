@@ -1,8 +1,3 @@
-// input:  machine SSH targets, child_process, STORE_DIR
-// output: supervised SSH reverse tunnels and safe argv builders
-// pos:    Owns the persistent transport for SSH-routed clients
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';

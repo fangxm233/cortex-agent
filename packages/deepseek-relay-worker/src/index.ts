@@ -1,8 +1,3 @@
-// input:  Cloudflare Fetch API request and secret bindings
-// output: authenticated, bounded DeepSeek API relay response
-// pos:    Worker entrypoint and fixed-upstream request handler
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 export interface RelayEnv {
   RELAY_TOKEN: string;
   DEEPSEEK_API_KEY: string;

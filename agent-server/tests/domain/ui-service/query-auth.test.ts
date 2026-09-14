@@ -1,8 +1,3 @@
-// input:  auth flow-state getter and Web-owned login fixtures
-// output: Web flow ownership and metadata-isolation assertions
-// pos:    UI-service authentication flow-state regression
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { handleAuthFlowState } from '../../../src/domain/ui-service/query/auth.js';

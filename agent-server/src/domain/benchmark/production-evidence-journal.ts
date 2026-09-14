@@ -1,8 +1,3 @@
-// input:  frozen production identity and closed journal record
-// output: verified journal bytes and normalized event projection
-// pos:    Production evidence journal reader
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 

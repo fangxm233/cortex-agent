@@ -1,8 +1,3 @@
-// input:  Vitest, Scheduler, schedule CLI, HookBus mock
-// output: Schedule API, CLI, fired payload and isolation tests
-// pos:    Verifies schedule persistence and firing behavior
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test, beforeAll, beforeEach, afterAll, vi } from 'vitest';
 import assert from 'node:assert/strict';
 

@@ -5,7 +5,6 @@
 //           2. deps.clientRegistry.getOnlineDevices()  — live WebSocket state (online/timestamps/capabilities)
 //           3. deps.executionRegistry.getAll()         — running dispatch execution count per machine
 //         SECURITY: ssh field is a presence flag only (sshConfigured:boolean) — raw user@host never returned.
-// >>> If I am updated, update CORTEX.md and the parent folder's CORTEX.md <<<
 
 import type { UiServiceDeps, MachineInfo, MachinesListParams } from '../types.js';
 

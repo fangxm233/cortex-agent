@@ -1,8 +1,3 @@
-// input:  spawn facade, context, tool gates, adapters, goldens
-// output: cwd, accounting, gating, composition, route, pool tests
-// pos:    Verifies the backend process spawn contract
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { afterAll, beforeAll, describe, test } from 'vitest';
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';

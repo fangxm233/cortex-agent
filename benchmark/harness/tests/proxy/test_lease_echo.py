@@ -1,8 +1,3 @@
-# input:  a virtual host clock, a separate container clock, and the echo control route
-# output: skew invariance, clamp, duplicate, no-echo, validation and revocation proofs
-# pos:    Lease echo-back tests
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import json
 import threading
 from collections.abc import Callable

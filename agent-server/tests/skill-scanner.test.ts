@@ -1,8 +1,3 @@
-// input:  Vitest, isolated skill fixtures, skill-scanner
-// output: plugin discovery + prefix normalization tests
-// pos:    Verify !skills group discovery and namespace completion
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import './_test-home.js';
 import { beforeEach, test } from 'vitest';
 import assert from 'node:assert/strict';

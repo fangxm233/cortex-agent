@@ -1,8 +1,3 @@
-// input:  a ClaudeAdapter
-// output: a per-instance SessionEngines over it — the pool a test drives engine sessions from
-// pos:    Test seam for the Claude pool: `open(spec)` is `SessionEngines.acquire(spec)`
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { SessionEngines } from '../../src/domain/runs/engines.js';
 import type { ClaudeAdapter } from '../../src/agent-adapter/claude/adapter.js';
 import type { ClaudeEngineSession } from '../../src/agent-adapter/claude/engine.js';

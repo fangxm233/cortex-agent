@@ -1,8 +1,3 @@
-// input:  thread detail VM, subthread open callback, step chat renderer
-// output: expandable desktop thread pipeline
-// pos:    Pipeline column in the thread detail modal
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { useState } from 'react';
 import { useVocab } from '@/i18n';
 import type { DetailStep, DetailStepSub, ThreadDetailVm } from './thread-detail-vm';

@@ -1,8 +1,3 @@
-// input:  plugin mcp.json, schemas, and path guards
-// output: safe MCP views and private runtime values
-// pos:    Portable MCP loader for plugin inventory
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import fs from 'node:fs';
 import path from 'node:path';
 import net from 'node:net';

@@ -1,8 +1,3 @@
-// input:  app-update metadata, copy helpers, and decision callbacks
-// output: current mobile shell-update content inside the mobile-only frame
-// pos:    Mobile dialog for native application updates
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { CSSProperties } from 'react';
 import {
   appUpdateSummaryLine,

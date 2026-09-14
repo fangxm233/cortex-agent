@@ -1,7 +1,3 @@
-// input:  transcript DTOs, tool devices, decisions, pending data
-// output: device-aware ChatRows, previews, and reconciliation
-// pos:    Shared desktop/mobile transcript view-model
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type {
   AuthNoticeAction,
   ChatNoticeLevel,

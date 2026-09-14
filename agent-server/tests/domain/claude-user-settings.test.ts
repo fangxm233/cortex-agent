@@ -1,8 +1,3 @@
-// input:  Claude settings sync helper, temp config dirs, injectable fs hooks, and symlink fixtures
-// output: path resolution, merge, no-op, atomic temp-write guards, mode, symlink, corruption, and guard tests
-// pos:    Regression tests for Claude user settings cleanup-period syncing
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';

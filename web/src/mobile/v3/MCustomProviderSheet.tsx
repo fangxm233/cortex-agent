@@ -1,8 +1,4 @@
 // @ds-adherence-ignore -- mobile v3 raw px/font by design §8.3
-// input:  canonical custom-provider draft/errors/copy mapping and operation state
-// output: mobile bottom-sheet editor with save-local gating
-// pos:    Mobile view over shared custom-provider ownership
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { ReactNode } from 'react';
 import type { CustomProviderApi } from '@cortex-agent/ui-contract';

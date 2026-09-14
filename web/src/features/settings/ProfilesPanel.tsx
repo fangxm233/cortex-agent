@@ -1,8 +1,3 @@
-// input:  shared profiles controller facts/actions, the engine catalog, error copy and controls
-// output: profile table with desktop-specific action gates and a pick-first validated CRUD editor
-// pos:    Desktop Profiles settings view and controller adapter
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import type { ConfigProfileEntry, ConfigSnapshot, ModelCatalogSnapshot } from '@cortex-agent/ui-contract';
 import { Select } from '@/design';

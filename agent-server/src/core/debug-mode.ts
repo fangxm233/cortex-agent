@@ -1,8 +1,3 @@
-// input:  process env plus complete DEBUG tool inputs/results
-// output: DEBUG gate, warning threshold, character count, size policy
-// pos:    L0 source of truth for process-wide DEBUG behavior
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 export const DEFAULT_DEBUG_TOOL_WARNING_CHARS = 10_000;
 
 interface DebugToolDetails {

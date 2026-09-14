@@ -1,7 +1,3 @@
-// input:  buildSpawnArgs / withoutCommissionTools / PI bridge env, with and without commission tools
-// output: pinned additivity of the commission tools and their invisibility everywhere else
-// pos:    tests for the standalone commission-creation tools (DR-0037 v3)
-// >>> If I am updated, update CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import { buildSpawnArgs, type ClaudeSpawnOptions } from '../../src/agent-adapter/claude/spawn-args.js';
 import { MCP_TOOL_ALLOWLIST_ENV, withoutCommissionTools } from '../../src/core/mcp-tool-gate.js';

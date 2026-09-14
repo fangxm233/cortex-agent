@@ -1,8 +1,3 @@
-// input:  auth UI-service handlers, login/logout services, audit sink
-// output: auth flow, logout routing, conflict, and redaction tests
-// pos:    Tests the transport-neutral Web authentication write surface
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import {

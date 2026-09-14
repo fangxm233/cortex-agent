@@ -1,8 +1,3 @@
-// input:  Vitest, status helpers, MockAdapter, runtime settings
-// output: status actions, sealing, and settings reset tests
-// pos:    Covers status message serialization and actions
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as statusHelpers from '../src/orchestration/status-helpers.js';

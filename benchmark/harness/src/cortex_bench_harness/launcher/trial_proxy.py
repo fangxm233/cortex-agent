@@ -1,7 +1,3 @@
-# input:  arm capability, limits, host proxy spec, trial roots
-# output: armed route, accounting sources and proven revocation
-# pos:    Production start and revoke boundary for the credential proxy
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # The launcher arms the route before the container exists, so it arms the provisional bound `P`
 # (lease_bound.py) and never a container-derived instant: the trial's own absolute deadline is

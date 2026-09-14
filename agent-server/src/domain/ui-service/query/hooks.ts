@@ -1,8 +1,3 @@
-// input:  hook registry dir, template dir, hook scripts dir
-// output: HooksOverview with per-entry derived mount and edit state
-// pos:    Hermetic hooks.list read model
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { CONFIG_DIR, HOOKS_DIR } from '@core/paths.js';

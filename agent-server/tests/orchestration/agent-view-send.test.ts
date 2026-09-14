@@ -1,8 +1,4 @@
 import '../_test-home.js'; // MUST be first — repoints CORTEX_HOME before paths bind
-// input:  agent-view-send module with injected storage and sinks
-// output: regressions for view delivery, the 'view' bucket, limits and naming
-// pos:    guards the agent-rendered HTML view delivery path
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

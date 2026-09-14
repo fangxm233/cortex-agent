@@ -1,8 +1,3 @@
-// input:  shared English product copy
-// output: English base vocabulary including About dialog copy
-// pos:    Base English web vocabulary
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 export const enBase = {
   // ── Group A: prototype dict() ──
   newSession: 'New session',

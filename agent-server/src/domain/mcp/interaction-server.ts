@@ -1,8 +1,3 @@
-// input:  MCP SDK, tool gate, env-built tool context, interaction registrars
-// output: Shared blocking interaction MCP stdio service
-// pos:    Serves human questions and plan approval to agents
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { isMainModule } from '@core/utils.js';

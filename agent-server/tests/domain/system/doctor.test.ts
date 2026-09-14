@@ -1,8 +1,3 @@
-// input:  Injected environment, auth, PI runtime, and gateway probes
-// output: Diagnostic reports and safe-fix assertions
-// pos:    Doctor engine regression tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
 

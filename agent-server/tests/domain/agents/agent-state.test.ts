@@ -1,8 +1,3 @@
-// input:  data/agent-state.json and the legacy data/mode.json, in a per-file test home
-// output: parse, one-time migration and save-round-trip coverage for the agent selection store
-// pos:    P3.1a gate — the rename must not cost a user their profile selection
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { afterEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';

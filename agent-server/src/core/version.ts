@@ -1,8 +1,3 @@
-// input:  package.json (read at module load)
-// output: CORTEX_VERSION string (CalVer: YYYY.M.D, no zero-padding); CORTEX_DOCS_URL (docs site)
-// pos:    single source of truth for Cortex version — imported by MCP servers and anywhere else
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { INSTALL_ROOT } from './paths.js';

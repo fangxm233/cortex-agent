@@ -1,8 +1,3 @@
-// input:  shared headless prompt variants and stub desktop dialogs
-// output: exactly one desktop update dialog with delegated source actions
-// pos:    Consolidated desktop update provider specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 

@@ -1,7 +1,4 @@
 import '../_test-home.js'; // MUST be first — repoints CORTEX_HOME before paths bind
-// input:  agent-decision-send module with injected history and event sinks
-// output: regressions for decision recording, id minting, limits and shared ts
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 // pos:    guards the agent-announced decision delivery path
 
 import { test } from 'vitest';

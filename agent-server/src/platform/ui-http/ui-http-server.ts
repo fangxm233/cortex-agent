@@ -1,8 +1,3 @@
-// input:  tRPC router, auth accessors, SPA, per-request CORS source
-// output: authenticated HTTP/SSE server with static routes, custom routes and the port forward
-// pos:    Web UI HTTP transport host
-// >>> If I am updated, update CORTEX.md <<<
-
 import * as http from 'http';
 import * as fs from 'fs';
 import * as path from 'path';

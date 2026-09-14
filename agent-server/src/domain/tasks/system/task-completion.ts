@@ -1,8 +1,3 @@
-// input:  fs/path, git process, task generation, lifecycle storage
-// output: ownership-first completeTask/uncompleteTask transitions
-// pos:    Verifies completion ownership, state and evidence
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { execFileSync } from 'node:child_process';

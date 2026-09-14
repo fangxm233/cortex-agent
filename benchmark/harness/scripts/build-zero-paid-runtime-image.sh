@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# input:  pinned Debian image and one local vendor runtime
-# output: digest-pinned offline single-vendor runtime image
-# pos:    Builds one isolated benchmark vendor runtime
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 
 set -euo pipefail
 

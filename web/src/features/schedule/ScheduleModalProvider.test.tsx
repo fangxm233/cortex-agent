@@ -1,8 +1,3 @@
-// input:  desktop provider context requests and a mocked shared editor controller
-// output: controller delegation and controller-backed modal prop regressions
-// pos:    Desktop schedule modal provider integration specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import type { ScheduleInfo } from '@cortex-agent/ui-contract';
 import { describe, expect, it, vi } from 'vitest';

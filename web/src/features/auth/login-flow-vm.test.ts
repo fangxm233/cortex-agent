@@ -1,8 +1,3 @@
-// input:  LoginFlow metadata states and English vocabulary
-// output: selection, prompt, notice, and terminal view-model regressions
-// pos:    Tests the secret-free Web login state renderer
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import type { LoginFlowState } from '@cortex-agent/ui-contract';
 import { en } from '@/i18n/vocab';

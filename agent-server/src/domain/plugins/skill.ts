@@ -1,8 +1,3 @@
-// input:  contained SKILL.md files, yaml
-// output: skill entries plus fatal/advisory frontmatter issues
-// pos:    Agent Skills frontmatter validator (lenient: only unusable skills are dropped)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import fs from 'node:fs';
 import path from 'node:path';
 import { parse as yamlParse } from 'yaml';

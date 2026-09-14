@@ -1,7 +1,3 @@
-// input:  Toolbar nodes, ＋-menu actions, browser/commission controls and slash suggestions
-// output: Composer toolbar, ＋-menu and local slash-menu interaction regressions
-// pos:    Desktop composer action behavior specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';

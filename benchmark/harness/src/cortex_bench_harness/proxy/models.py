@@ -1,8 +1,3 @@
-# input:  the declared request cap, UTC deadline, aggregate usage
-# output: validated proxy policy, its request bound, and safe manifest metadata
-# pos:    Proxy value types
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal

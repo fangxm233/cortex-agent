@@ -1,8 +1,3 @@
-// input:  Accent hue value, localized labels, shared palette tokens
-// output: Accessible preset swatches, hue slider, and reset control
-// pos:    Shared desktop/mobile accent color picker
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import type { CSSProperties } from 'react';
 import { DEFAULT_ACCENT_HUE, type AccentHue } from './theme';
 

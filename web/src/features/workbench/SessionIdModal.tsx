@@ -1,8 +1,3 @@
-// input:  controlled bare Modal, session identifiers, clipboard feedback, and localized labels
-// output: Accessible themed session identifier modal with copy actions
-// pos:    Desktop session metadata overlay hosted by the shared dialog primitive
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { Modal } from '@/design/Modal';
 import { useVocab } from '@/i18n';
 import { buildSessionIdRows } from './session-id';

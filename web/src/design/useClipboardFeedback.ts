@@ -1,8 +1,3 @@
-// input:  clipboard text, feedback keys, and reset duration
-// output: success-only copied feedback state and an async copy action
-// pos:    Shared clipboard-feedback lifecycle hook for desktop and mobile views
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 export interface ClipboardFeedback<Key> {

@@ -1,8 +1,3 @@
-// input:  pointer deltas for one mobile note row
-// output: bounded swipe offset, release and click-suppression policy
-// pos:    Pure gesture policy for mobile project notes
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 export const DELETE_REVEAL_PX = 78;
 const SWIPE_OPEN_PX = 48;
 const GESTURE_SLOP_PX = 8;

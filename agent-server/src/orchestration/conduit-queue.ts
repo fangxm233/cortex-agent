@@ -1,8 +1,3 @@
-// input:  nothing (leaf module)
-// output: conduitQueues, enqueue(), and enqueueAndWait()
-// pos:    orch/ layer [S6-B]
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 /**
  * Per-conduit serial Promise queue. Each conduit has at most one tail entry.
  * Consumers may call .has(conduitId) to check whether a queue is already running

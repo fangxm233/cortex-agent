@@ -1,7 +1,6 @@
 /* input:  Tailwind layers and shared theme.css custom properties */
 /* output: global styles, UI animations and usage meter motion */
 /* pos:    SPA-wide structural stylesheet layered over theme tokens */
-/* >>> If I am updated, update my header comment and CORTEX.md <<< */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

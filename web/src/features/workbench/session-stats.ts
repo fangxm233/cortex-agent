@@ -1,8 +1,3 @@
-// input:  SessionInfo.totals plus the session's createdAt/lastUsedAt
-// output: the status-line summary and the detail rows, locale-free
-// pos:    Shared desktop/mobile view-model for whole-session statistics
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { SessionTotals } from '@cortex-agent/ui-contract';
 import { formatElapsed } from './transcript-vm';
 import { formatUsd } from '@/lib/format';

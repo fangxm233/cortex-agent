@@ -1,8 +1,3 @@
-// input:  active Claude turn capture paths/pairs
-// output: queryable in-process registry of live capture files
-// pos:    Claude adapter-local liveness state for retention protection
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import path from 'node:path';
 
 interface ActiveCaptureEntry {

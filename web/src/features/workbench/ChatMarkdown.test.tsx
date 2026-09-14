@@ -1,8 +1,3 @@
-// input:  Assistant Markdown containing valid, invalid, and untrusted math, plus tables
-// output: KaTeX behavior, safety regression, and table-width opt-in coverage
-// pos:    Component tests for assistant Markdown rendering
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { ChatMarkdown } from './ChatMarkdown';

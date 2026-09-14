@@ -1,8 +1,3 @@
-# input:  one native Codex xhigh vendor arm and three pinned Terminal-Bench 2.1 Codex tasks
-# output: three concurrent paid native Codex trials
-# pos:    Committed Terminal-Bench 2.1 native Codex xhigh campaign
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 schema_version: cortex-bench-campaign/1
 campaign: tb21-natcdx-0823
 paid: true

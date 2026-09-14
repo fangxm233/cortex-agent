@@ -1,8 +1,3 @@
-// input:  mobile new-project view props with backend error and pending state
-// output: real-error presentation and submit-gating regressions
-// pos:    Mobile new-project sheet presentation specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 

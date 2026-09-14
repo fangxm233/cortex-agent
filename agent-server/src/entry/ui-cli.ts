@@ -1,8 +1,3 @@
-// input:  ui subcommand arguments and the local-UI enablement module
-// output: `cortex ui` command results in human or JSON form
-// pos:    Local Web UI endpoint CLI handler
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { formatError } from '@core/cli-utils.js';
 import { getResolvedPaths } from './init.js';
 import { enableLocalUi } from './local-ui.js';

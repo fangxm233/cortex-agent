@@ -1,8 +1,3 @@
-// input:  navigation type, route frames, tab mapping
-// output: route transition and retention tests
-// pos:    Mobile outlet behavior tests
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { create } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
 import { AnimatedOutletLayers, planFrameChange, planTransition, type Frame } from './MobileAnimatedOutlet';

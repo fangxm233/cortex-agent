@@ -1,8 +1,3 @@
-# input:  Anthropic adapter duties over synthetic requests and payloads
-# output: route, model, API-key, OAuth bearer, and usage proofs
-# pos:    Anthropic messages adapter unit tests
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import json
 
 import pytest

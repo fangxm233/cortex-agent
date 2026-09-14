@@ -1,7 +1,3 @@
-// input:  plugin id plus skill name or MCP request
-// output: plugins.skillFile and plugins.mcpRead payloads
-// pos:    Read side of the plugin authoring surface
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 //
 // mcpRead deliberately carries more than the catalog summary does — a form cannot round-trip a
 // command it was never given — but it stops at the same line the catalog does: env and header

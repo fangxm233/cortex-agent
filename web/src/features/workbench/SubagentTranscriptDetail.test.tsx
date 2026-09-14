@@ -1,7 +1,3 @@
-// input:  lazy subagent detail mounts, query outcomes, and desktop row rendering
-// output: expansion-gated query, loading/error fallback, and ChatRows detail regressions
-// pos:    Shared lazy subagent transcript detail contract
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useState } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';

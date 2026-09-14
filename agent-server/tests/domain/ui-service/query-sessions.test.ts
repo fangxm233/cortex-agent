@@ -1,8 +1,3 @@
-// input:  session query handlers with injected stores and live registries
-// output: session list/context/compact/transcript snapshot coverage
-// pos:    ui-service session query specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { handleSessionsList, handleSessionsTranscript } from '../../../src/domain/ui-service/query/sessions.js';

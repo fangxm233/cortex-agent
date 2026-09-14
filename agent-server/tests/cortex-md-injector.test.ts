@@ -1,8 +1,3 @@
-// input:  Node test runner + CortexMDInjector + fs/path/os
-// output: shared-cache/device/mtime dedup regression tests
-// pos:    Verifies CORTEX.md injection dedup and persistence
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'fs';

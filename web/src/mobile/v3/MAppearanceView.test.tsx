@@ -1,8 +1,3 @@
-// input:  Mobile appearance copy and preference callbacks
-// output: Mobile appearance control wiring regression coverage
-// pos:    Interaction test for mobile appearance settings
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_PALETTE } from '@/theme';

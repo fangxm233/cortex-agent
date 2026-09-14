@@ -1,8 +1,3 @@
-// input:  settings migration/reset, isolated config files
-// output: migration safety, modes, and idempotency tests
-// pos:    Specifies one-time legacy settings migration
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { beforeEach, describe, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';

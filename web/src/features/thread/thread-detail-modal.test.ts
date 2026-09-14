@@ -1,8 +1,3 @@
-// input:  thread detail modal state transitions
-// output: open, switch, and close state regressions
-// pos:    Guards in-place modal state without router navigation
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import { nextThreadDetailModalId } from './ThreadDetailModal';
 

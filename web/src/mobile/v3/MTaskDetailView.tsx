@@ -1,8 +1,3 @@
-// input:  Task detail model, copy, navigation callbacks
-// output: Mobile task detail with conditional blocker card
-// pos:    Presentational view for mobile task details
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1h L440-484)
 // Presentational view for the 1h 任务详情 drill page. Pure — takes a built MTaskDetailVm + a copy
 // table + nav callbacks. Every px/hex/font is lifted 1:1 from the scheme's inner data-screen-label

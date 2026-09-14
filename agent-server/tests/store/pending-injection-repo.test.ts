@@ -1,7 +1,3 @@
-// input:  isolated JsonRepository-backed pending-injection store
-// output: durable add/list/remove and concurrent-update regression coverage
-// pos:    pending message persistence store specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import '../_test-home.js';
 
 import { test } from 'vitest';

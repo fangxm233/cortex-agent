@@ -1,8 +1,3 @@
-# input:  one Harbor trial root and its declared trial identity
-# output: terminal outcome, canonical verifier rewards, score status
-# pos:    Trial result and outer-envelope outcome reader
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import hashlib
 import json
 import math

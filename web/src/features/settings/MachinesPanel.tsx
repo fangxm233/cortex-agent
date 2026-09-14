@@ -1,8 +1,3 @@
-// input:  shared machines resource, localized desktop copy and settings primitives
-// output: desktop machine registry table and approval-gated Add machine action
-// pos:    Desktop Machines settings resource adapter and independent view
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { CSSProperties } from 'react';
 import type { MachineInfo } from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';

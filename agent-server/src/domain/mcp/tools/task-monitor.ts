@@ -5,7 +5,6 @@
 //         Read-only and disk-direct (TASKS.yaml is on the shared filesystem) — no daemon webhook,
 //         mirroring tools/context.ts. They replace the removed thread_status / thread_result /
 //         thread_list monitoring tools now that a task (not a thread) is the unit of delegation.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';

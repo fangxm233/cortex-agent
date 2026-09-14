@@ -1,8 +1,3 @@
-// input:  mounted package manager, tRPC mocks, toast capture
-// output: skill editing, plugin lifecycle and MCP secret regressions
-// pos:    Plugin package manager React Query integration regressions
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

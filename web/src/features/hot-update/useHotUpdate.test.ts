@@ -1,8 +1,3 @@
-// input:  lightweight focused-element shapes consumed by the shared update typing gate
-// output: text-editing classification regressions used by the hot-update hook
-// pos:    Hot-update compatibility coverage for the neutral focus gate
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import { isEditableTarget } from '@/features/update/useUpdateGating';
 

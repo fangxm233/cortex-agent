@@ -1,8 +1,3 @@
-// input:  provider/gateway route, Codex quota readings, an injected usage writer and throttle
-// output: resolveQuotaSource and durable labeled reportCodexQuota
-// pos:    Persists PI quota under routed provider keys and feeds throttle
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import type { RateLimitSource } from '@domain/costs/rate-limit-throttle.js';
 import type { ProviderUsage, UsageStore } from '@domain/costs/usage-store.js';
 import type { CodexQuotaReading } from '@core/codex-quota.js';

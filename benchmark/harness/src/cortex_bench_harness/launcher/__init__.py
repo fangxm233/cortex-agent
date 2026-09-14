@@ -1,8 +1,3 @@
-# input:  launcher admission, arm, handshake, credential and report modules
-# output: lazy public trial, handshake, projection, and report exports
-# pos:    Import surface for host benchmark launching
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 from importlib import import_module
 from typing import TYPE_CHECKING, Any
 

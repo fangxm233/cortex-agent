@@ -1,8 +1,3 @@
-// input:  agent-dir module, temporary provider/auth/role files
-// output: PI provider, auth, and built-in role installation contracts
-// pos:    Unit tests for PI managed agent directory helpers
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';

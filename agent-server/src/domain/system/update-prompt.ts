@@ -1,8 +1,3 @@
-// input:  nothing (pure types module)
-// output: UpdateChoice type + UpdatePrompt interface
-// pos:    Platform-agnostic interface for server update prompts
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 export type UpdateChoice = 'apply' | 'skip' | 'cancel';
 
 export interface UpdatePrompt {

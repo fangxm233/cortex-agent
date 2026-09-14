@@ -1,8 +1,3 @@
-// input:  custom provider drafts and the stores held in UiServiceDeps
-// output: upsert and remove results over the PI catalog and gateway route
-// pos:    Write handlers for the user-defined PI provider operations
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { t } from '@core/i18n.js';
 import {
   defaultCustomProviderStores,

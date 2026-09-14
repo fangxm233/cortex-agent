@@ -1,8 +1,3 @@
-// input:  Session running, background-hold, and run-history facts
-// output: Locale-free foreground/background/idle/fresh status facts
-// pos:    Shared desktop/mobile session run-status derivation
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 export type SessionRunPhase = 'foreground' | 'background' | 'idle' | 'fresh';
 
 export interface SessionRunStatusInput {

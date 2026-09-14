@@ -1,8 +1,3 @@
-// input:  Claude print stream/result events and configured model name
-// output: exact current-context snapshots with reconciled window size
-// pos:    Stateful provider-call usage tracker for Claude print sessions
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { ContextUsage } from '@core/types/agent-types.js';
 
 const DEFAULT_CONTEXT_WINDOW = 200_000;

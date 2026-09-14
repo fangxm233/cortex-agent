@@ -1,8 +1,3 @@
-// input:  nothing (leaf type-only module)
-// output: NormalizedHookSpec + HookTrigger
-// pos:    Adapter-neutral hook contract types
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 export type HookTrigger =
   | { phase: 'pre-tool'; toolNames: string[] }
   | { phase: 'post-tool'; toolNames: string[] }

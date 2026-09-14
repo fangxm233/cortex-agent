@@ -1,8 +1,3 @@
-// input:  ExecutionRecord-shaped rows (live registry or archived JSONL)
-// output: pure per-session roll-up of runs / turns / active time / cost
-// pos:    The ONE folding rule shared by the sessions query and the archive carry
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { ExecutionRecord } from './execution-repo.js';
 
 /**

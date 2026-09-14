@@ -1,8 +1,3 @@
-// input:  mobile route table and element-free route manifest
-// output: complete registry and canonical settings route coverage
-// pos:    Verifies explicit screen registration matches mobile metadata
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import { MOBILE_ROUTE_MANIFEST } from './mobile-route-manifest';
 import { mobileRoutes } from './mobile-routes';

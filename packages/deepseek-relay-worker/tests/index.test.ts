@@ -1,8 +1,3 @@
-// input:  Worker handler, Fetch API requests, fake upstream fetch
-// output: relay authentication, allowlist, streaming, and failure tests
-// pos:    DeepSeek relay Worker security and forwarding regressions
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import worker, {

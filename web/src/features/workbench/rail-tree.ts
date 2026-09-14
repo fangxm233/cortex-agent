@@ -1,8 +1,3 @@
-// input:  project/session/schedule/commission/thread DTOs plus rail UI state
-// output: one flat list of project folder nodes with their session, schedule and commission rows
-// pos:    Pure view model behind the left rail's project folder tree
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import type {
   CommissionInfo, ProjectConduitInfo, ScheduleInfo, SessionInfo, ThreadInfo,
 } from '@cortex-agent/ui-contract';

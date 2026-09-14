@@ -1,8 +1,3 @@
-// input:  mobile UI primitives, labels, field feedback and form callbacks
-// output: compact settings page, rows, toggles and validated fields
-// pos:    Shared presentation controls for mobile settings drill-ins
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import type { CSSProperties, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react';
 import { MCard, MDrillHeader, MScreen, MScrollBody, MC, MONO } from '@/mobile/ui/kit';
 

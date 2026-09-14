@@ -1,8 +1,3 @@
-// input:  McpServer, CORTEX_* environment of a stdio entry or a caller-built context, session store
-// output: CortexToolContext type + env constructor, cortex_context tool registration
-// pos:    Defines the per-session scope every Cortex MCP tool is registered against
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { parseMcpToolAllowlist, MCP_TOOL_ALLOWLIST_ENV } from '@core/mcp-tool-gate.js';
 import { decodeSubagentModels, type SubagentModelOption } from '@core/agents/subagent/catalog.js';

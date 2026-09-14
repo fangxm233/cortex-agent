@@ -1,8 +1,3 @@
-// input:  a channel, an optional session record, an optional explicit profile name, an attempt
-// output: the profile a run should use, its name, its channel model override, and its mode route
-// pos:    domain/runs — the one place a run's configuration is decided (D5)
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { getActiveProfile, getChannelModelOverride, resolveModeEnv, type ModeEnv } from '../agents/config.js';
 import {
   getDefaultProfileName, resolveProfileConfig,

@@ -1,8 +1,3 @@
-// input:  PlatformAdapter + startup metadata
-// output: buildStartupMessage + sendStartupDmIfConfigured
-// pos:    send DM notification to admin channel during startup
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { PlatformAdapter } from '@platform/index.js';
 import { CORTEX_VERSION } from '@core/version.js';
 import { emitSystemNotice } from '@domain/system/system-notice.js';

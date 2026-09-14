@@ -1,8 +1,3 @@
-// input:  thread artifact view model and shared Markdown renderer
-// output: inline artifact card with references and wrapped content
-// pos:    Artifact column in the desktop thread detail modal
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { useVocab } from '@/i18n';
 import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
 import type { DetailArtifact } from './thread-detail-vm';

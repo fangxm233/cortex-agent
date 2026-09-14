@@ -1,7 +1,3 @@
-// input:  execution queries, live logs, Radix dialog, toast actions
-// output: themed execution log drawer with cancel controls
-// pos:    Data-bound container for execution detail logs
-// >>> If I am updated, update my header comment and CORTEX.md <<<
 import * as RadixDialog from '@radix-ui/react-dialog';
 import { useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';

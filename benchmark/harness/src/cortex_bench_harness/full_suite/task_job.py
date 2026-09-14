@@ -1,8 +1,3 @@
-# input:  one task, isolated proxy handle, fixed network slot, mounted runtimes
-# output: private PI config, single-task Harbor job and allowlisted child env
-# pos:    Full-suite Harbor job materializer
-# >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 from __future__ import annotations
 
 import json

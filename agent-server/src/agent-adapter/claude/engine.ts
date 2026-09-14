@@ -1,8 +1,3 @@
-// input:  ClaudeSession, resolved EngineSpec, Claude turn callbacks
-// output: ClaudeEngineSession: EngineSession over one ClaudeSession plus its RunEvent queue
-// pos:    Claude backend's session surface: RunEvent runs over one ClaudeSession
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import type { AgentResult } from '@core/types/agent-types.js';
 import { CAPABILITIES_BY_BACKEND, type Capability } from '../capabilities.js';
 import { ContinuationPhase, type AwaitBackground } from '../continuation-phase.js';

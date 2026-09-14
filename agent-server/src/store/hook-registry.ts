@@ -1,8 +1,3 @@
-// input:  hook registry/templates, filesystem, config paths
-// output: event-capability-validated entries, mounted-hook loading, filtering API
-// pos:    Declarative hook registry and mounted-state reader
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { CONFIG_DIR } from '../core/paths.js';

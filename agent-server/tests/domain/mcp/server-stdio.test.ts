@@ -1,8 +1,3 @@
-// input:  MCP entries, bundles, gates, tool contexts and QA webhook
-// output: bundled surfaces, refusals, answerer identity and per-context isolation tests
-// pos:    Built MCP server integration tests
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';

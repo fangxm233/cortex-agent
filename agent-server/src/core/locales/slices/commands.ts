@@ -1,8 +1,3 @@
-// input:  nothing (leaf data slice)
-// output: English/Chinese command, auth-status, and login copy
-// pos:    Localized message table for orchestration commands
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 export const commandsEn = {
   // --- cancel ---
   'cmd.cancel.nothingRunning': 'Nothing running to cancel.',

@@ -1,8 +1,3 @@
-// input:  canonical issue view-model functions and IssueInfo fixtures
-// output: shared desktop/mobile parsing, detail, and selection regressions
-// pos:    Single-source issues view-model unit tests
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { describe, expect, test } from 'vitest';
 import type { IssueInfo } from '@cortex-agent/ui-contract';
 import {

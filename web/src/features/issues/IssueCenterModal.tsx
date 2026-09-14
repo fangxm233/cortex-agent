@@ -1,8 +1,3 @@
-// input:  issue DTOs, center state, and issue mutations
-// output: issue-center modal and internal presentation
-// pos:    Desktop issue queue surface
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';

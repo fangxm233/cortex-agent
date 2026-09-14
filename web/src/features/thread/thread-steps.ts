@@ -1,8 +1,3 @@
-// input:  ThreadDetail DTOs
-// output: exact step-to-cortex-run attribution
-// pos:    Shared pure selectors for thread detail/card surfaces
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import type {
   ThreadDetail,
   ThreadStepDetail,

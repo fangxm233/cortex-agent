@@ -1,8 +1,3 @@
-// input:  palette clamping, preset table, and localized preset copy
-// output: Regression coverage for palette parameters and presets
-// pos:    Unit tests for the palette model
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { describe, expect, it, vi } from 'vitest';
 import { en, zh } from '@/i18n/vocab';
 import {

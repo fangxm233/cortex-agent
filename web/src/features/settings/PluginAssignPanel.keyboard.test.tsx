@@ -1,8 +1,3 @@
-// input:  mounted assignment view and design mocks
-// output: native mode-control accessibility tests
-// pos:    Plugin assignment mode control interaction regressions
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type { PluginAssignmentTarget, UiPluginCatalogEntry } from '@cortex-agent/ui-contract';

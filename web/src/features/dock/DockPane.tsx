@@ -1,8 +1,3 @@
-// input:  dock state, file bodies, browser bodies and divider drags
-// output: the workbench's fourth pane — one tab strip over live tab bodies
-// pos:    Dock host; the only place a tab's kind chooses a body
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useCallback, useEffect, useRef, type CSSProperties } from 'react';
 import { WebBody } from '@/features/browser/WebBody';
 import { splitFromDrag } from './dock-split';

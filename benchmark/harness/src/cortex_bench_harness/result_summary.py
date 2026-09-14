@@ -1,8 +1,3 @@
-# input:  campaign config, terminal outcomes and proxy exports
-# output: path-sanitized campaign result summary
-# pos:    Public campaign delivery projection
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import json
 import math
 import os

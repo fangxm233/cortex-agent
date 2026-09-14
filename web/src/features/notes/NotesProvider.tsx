@@ -1,8 +1,3 @@
-// input:  current project, shared notes resource, language and draft context
-// output: desktop notes view model, actions and drawer controller
-// pos:    Desktop composition owner for project notes surfaces
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import {
   createContext,
   useCallback,

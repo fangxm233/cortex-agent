@@ -1,8 +1,3 @@
-// input:  shared Chinese product and notification copy
-// output: trailing Chinese vocabulary chunk
-// pos:    Extra Chinese web vocabulary
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 export const zhExtra = {
   stMobileNotifyTitle: '本设备后台通知',
   stMobileNotifyNote: '保留静默常驻通知，监听运行会话、审批和待回答问题。Android 省电限制或强制停止可能延迟通知。关闭后，应用活跃时仍可收到回复通知。',

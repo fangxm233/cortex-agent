@@ -1,8 +1,3 @@
-// input:  production attempt stores, topology ledger and evidence exporter
-// output: real-root production evidence fixtures for boundary tests
-// pos:    Builds durable thread/task evidence without standalone roots
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { createHash, randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';

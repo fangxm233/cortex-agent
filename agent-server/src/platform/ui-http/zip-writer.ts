@@ -6,7 +6,6 @@
 //         an EOCD. Output is deterministic (fixed DOS timestamp + entries sorted by name) so an
 //         unchanged SPA always encodes to identical bytes. Uses only Node's built-in zlib — no deps,
 //         matching the repo's minimal-dependency posture.
-// >>> If I am updated, update CORTEX.md <<<
 
 import * as zlib from 'node:zlib';
 

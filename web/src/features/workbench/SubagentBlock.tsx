@@ -1,8 +1,3 @@
-// input:  one subagent's identity, complete prompt, and grouped rows
-// output: rounded sticky prompt block and tool-call count
-// pos:    desktop workbench subagent card presentation
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { useVocab } from '@/i18n';
 import { subagentModelLabel } from './transcript-vm';

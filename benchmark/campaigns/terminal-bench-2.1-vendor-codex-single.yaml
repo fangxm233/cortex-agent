@@ -1,8 +1,3 @@
-# input:  the Codex vendor arm and one pinned Terminal-Bench 2.1 task
-# output: one paid Codex vendor trial with the committed production envelope
-# pos:    Stage-2 single-task live Codex campaign declaration
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 schema_version: cortex-bench-campaign/1
 campaign: tb21-vendor-codex-single
 paid: true

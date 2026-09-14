@@ -1,8 +1,3 @@
-// input:  redacted MCP drafts from the server and operator form edits
-// output: name validation plus the editable MCP model and its write payload
-// pos:    Pure view model for the plugin authoring surface
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import type { PluginsMcpRead, PluginsMcpServerInput, UiPluginMcpDraft } from '@cortex-agent/ui-contract';
 
 /** The canonical Agent Skills name, matched by the server before it touches the filesystem. */

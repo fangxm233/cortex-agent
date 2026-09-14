@@ -1,8 +1,3 @@
-// input:  profiles.json, the agent-state selection, an explicit override and a session record
-// output: priority-chain, override and unknown-name coverage for resolveRunConfig
-// pos:    P3.1b gate — D5's five layers must resolve in exactly this order
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { afterEach, beforeEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';

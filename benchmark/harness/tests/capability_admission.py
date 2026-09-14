@@ -1,7 +1,3 @@
-# input:  a capability id and, where the shipped key is incomplete, the member that fills it
-# output: a test-local registry in which the named rows are admitted or refused
-# pos:    Capability admission fixture
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # The arming point refuses an unadmitted row, so without the admitting direction a test cannot
 # reach the wiring behind the gate at all. The refusing direction exists for the mirror reason: a

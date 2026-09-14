@@ -1,8 +1,3 @@
-// input:  draft/session ids, attachment metadata, workspace filesystem
-// output: moveDraftAttachments with canonical truthful aliases
-// pos:    Promotes Web draft uploads into session storage
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import * as path from 'node:path';
 import { promises as fs } from 'node:fs';
 import { createLogger } from '@core/log.js';

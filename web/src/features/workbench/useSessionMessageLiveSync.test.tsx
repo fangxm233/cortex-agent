@@ -1,7 +1,3 @@
-// input:  mounted live-sync hook, tool devices, message events
-// output: message authority, metadata, compact, Todo regressions
-// pos:    Verifies session-scoped live state around renders
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 

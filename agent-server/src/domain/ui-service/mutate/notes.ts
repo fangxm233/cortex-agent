@@ -1,8 +1,3 @@
-// input:  notes mutation args, project path resolver, projectNotesRepository
-// output: Result envelopes for add/edit/complete/delete/clear operations
-// pos:    Write handlers for user-private project notes
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { projectNotesRepository } from '@store/project-notes-repo.js';
 import type {
   NoteActionArgs,

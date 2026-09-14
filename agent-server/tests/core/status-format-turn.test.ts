@@ -1,7 +1,3 @@
-// input:  renderTurnStatus + the locale-resolved status labels
-// output: the exact line each turn outcome shows, and the done/awaiting layout asymmetry
-// pos:    Pin core/status-format.ts renderTurnStatus — what a user reads in Slack/Feishu
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { Icons } from '../../src/core/icons.js';

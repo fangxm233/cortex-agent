@@ -1,7 +1,3 @@
-// input:  createAndSend handler, PI adapter, deferred discovery
-// output: fresh PI session response and event-loop ordering regression
-// pos:    Proves slow PI discovery cannot hide a fresh Web message
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { engineSpecFixture } from '../../engine-spec-fixture.js';
 
 

@@ -11,7 +11,6 @@
 //         `alg:none` / HS256 confusion. Config is env-driven; when team-domain or AUD is unset,
 //         accessVerifierFromEnv returns undefined so the gate degrades to token-only (fail-closed —
 //         an unconfigured Access path never admits a request).
-// >>> If I am updated, update CORTEX.md <<<
 
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { createLogger } from '@core/log.js';

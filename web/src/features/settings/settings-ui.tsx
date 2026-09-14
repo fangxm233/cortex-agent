@@ -1,8 +1,3 @@
-// input:  settings card chrome and control props
-// output: cards, rows, toggles, buttons, and radios
-// pos:    Shared desktop settings primitives
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 
 const MONO = "'IBM Plex Mono',monospace";

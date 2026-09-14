@@ -2,7 +2,6 @@
 // output: INSTALL_ROOT / DEFAULTS_DIR / DATA_DIR / AGENT_CWD / resolveSpawnCwd() / CONFIG_DIR / STORE_DIR / CONTEXT_DIR / PROJECTS_DIR / WORKSPACE_DIR / PLUGINS_DIR / PROMPTS_DIR / HOOKS_DIR / LOGS_DIR / resolveWorkspaceRelPath()
 //         (deprecated aliases: PACKAGE_ROOT, SERVER_ROOT, REPO_ROOT — all map to INSTALL_ROOT for migration period)
 // pos:    canonical path constants — install root (immutable code/assets) + user data/config/store/context/tmp
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as fs from 'fs';
 import * as path from 'path';

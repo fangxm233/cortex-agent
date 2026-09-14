@@ -1,8 +1,3 @@
-// input:  mounted rail-wide session sync hook and captured live events
-// output: Todo-driven sessions.list refresh regression
-// pos:    Tests unscoped session snapshot convergence
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 

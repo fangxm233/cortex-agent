@@ -1,8 +1,3 @@
-// input:  flat hook draft arguments and mounted hook fixtures
-// output: draft rebuild and test-timeout clamp tests
-// pos:    Verifies the hooks mutate argument mapping
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 

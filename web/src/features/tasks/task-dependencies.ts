@@ -1,8 +1,3 @@
-// input:  Task dependency ids and optional scoped status lookup
-// output: Authoritative or locally resolved unmet dependency ids
-// pos:    Shared task dependency display and grouping helper
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import type { TaskInfo } from '@cortex-agent/ui-contract';
 
 export function unresolvedDependencyIds(

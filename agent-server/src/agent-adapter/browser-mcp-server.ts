@@ -1,8 +1,3 @@
-// input:  a CDP endpoint of a managed browser
-// output: the one MCP server descriptor that exposes it, in the shape every backend accepts
-// pos:    Shared by the Claude and PI spawn paths; the single definition of "the browser tools"
-// >>> If I am updated, update CORTEX.md <<<
-
 import * as path from 'path';
 import { DATA_DIR } from '@core/paths.js';
 import type { McpStdioServerConfig } from './types.js';

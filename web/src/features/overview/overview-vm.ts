@@ -1,7 +1,3 @@
-// input:  schedule, execution, cost DTOs, and shared USD formatting
-// output: overview money, schedule, and execution presentation models
-// pos:    Pure view model for the project overview
-// >>> If I am updated, update my header comment and CORTEX.md <<<
 import type {
   ScheduleInfo,
   ExecutionInfo,

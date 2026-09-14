@@ -1,8 +1,3 @@
-// input:  fs/path, task schema, project paths, template config
-// output: locked atomic TASKS.yaml reads, writes, edits, dependency clears
-// pos:    Base persistence and cross-process mutation lock for tasks
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { PROJECTS_DIR, STORE_DIR, listProjectDirs } from '@core/utils.js';

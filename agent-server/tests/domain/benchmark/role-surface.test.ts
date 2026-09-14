@@ -1,8 +1,3 @@
-// input:  resolved engine specs and temporary plugin trees
-// output: prompt, plugin, skill, MCP, and hook identity proofs
-// pos:    Regression tests for exact spawn role identity
-// >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';

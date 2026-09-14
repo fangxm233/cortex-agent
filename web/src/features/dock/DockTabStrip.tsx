@@ -1,8 +1,3 @@
-// input:  the dock tab list, motion preferences and tab intents
-// output: one sortable strip mixing file previews and web pages
-// pos:    Dock chrome; the only place a tab's kind becomes a label and a chip
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { forwardRef, type CSSProperties, type ReactNode } from 'react';
 import { AnimatePresence, MotionConfig, Reorder, motion, useIsPresent, useReducedMotion } from 'motion/react';
 import { useMotionMode, type MotionMode } from '@/theme';

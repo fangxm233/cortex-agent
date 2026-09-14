@@ -1,7 +1,3 @@
-// input:  Profile options, menu placement and selection callback
-// output: Selectable profile menu with disabled reasons
-// pos:    Shared desktop profile menu
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useState } from 'react';
 import { useVocab } from '@/i18n';
 import type { ProfileOption } from './profile-menu';

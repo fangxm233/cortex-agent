@@ -1,8 +1,3 @@
-// input:  Zod plus UI-service query parameter contracts
-// output: shared query input schemas for sessions, threads, and tasks
-// pos:    Extracted query-schema leaf to keep ui-service validators modular
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { z } from 'zod';
 
 export const sessionsListInput = z.object({

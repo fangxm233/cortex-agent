@@ -1,8 +1,3 @@
-// input:  a rate-limited run's provider, channel, track id and the raw user message
-// output: recordDirectResume / recordThreadResume — the resume queue's only writers
-// pos:    Resume-queue policy: which interrupted work is worth resuming, and with what
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { recordResume } from '../../costs/resume-registry.js';
 import { isProviderRateLimited } from '../../costs/rate-limit-throttle.js';
 

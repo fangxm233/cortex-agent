@@ -1,8 +1,3 @@
-// input:  hook writer API over a temp registry directory
-// output: create/update/remove/setEnabled behaviour and guard tests
-// pos:    Verifies the registry write side and its source guards
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as os from 'node:os';

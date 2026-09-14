@@ -1,8 +1,3 @@
-# input:  Docker PI fixture, admitted 65536 cap, synthetic upstream
-# output: cap-aligned models.json and proxy traversal proof
-# pos:    Real-container regression for PI completion-cap projection
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import json
 from pathlib import Path
 

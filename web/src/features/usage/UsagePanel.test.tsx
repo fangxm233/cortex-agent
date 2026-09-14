@@ -1,8 +1,3 @@
-// input:  UsagePanel with tRPC query/mutation fakes and per-window config snapshots
-// output: layout, animated quota, refresh and policy regressions
-// pos:    Verifies desktop Usage presentation, interactions, and hook wiring
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ConfigSnapshot, ConfigSettingEntry, SystemUsageStatus } from '@cortex-agent/ui-contract';

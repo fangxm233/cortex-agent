@@ -1,7 +1,3 @@
-// input:  a session's identity and the profile it runs, plus the engine pool
-// output: manual context compaction on that session's pooled engine, and its cost row
-// pos:    Run layer — compaction is a command on a session's engine, not a run
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 //
 // Compaction is not a run: nothing is asked, no turn is opened, no attempt chain applies. It is a
 // command sent to the engine session a channel is already resuming into — which is why it runs on

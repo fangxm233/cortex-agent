@@ -1,8 +1,3 @@
-// input:  plugin catalog, template registry, plugin DTOs
-// output: plugins.list data with targets
-// pos:    Query handler for plugin inventory
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { CONFIG_TEMPLATES_DIR } from '@domain/threads/template-loader.js';

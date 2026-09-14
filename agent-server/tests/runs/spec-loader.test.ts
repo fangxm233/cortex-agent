@@ -1,7 +1,3 @@
-// input:  domain/runs/spec-loader.ts, resolved agent slots and real subagent roles
-// output: the AgentSpec each of the three loaders produces, field by field
-// pos:    P3.3c contract — the one place an AgentSpec is built
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
 // These pin the five inline spec literals this file replaced (conversation-runner, threads/runner,
 // threads/hook-runner, subagent/runner, status-helpers, plus the two `empty*Spec` helpers in

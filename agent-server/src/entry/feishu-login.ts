@@ -1,8 +1,3 @@
-// input:  readline, dotenv, atomic mutation, Feishu user auth
-// output: cmdFeishu and serialized dotenv updates
-// pos:    Feishu user-login command-line adapter
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as readline from 'readline';
 import * as path from 'path';
 import * as dotenv from 'dotenv';

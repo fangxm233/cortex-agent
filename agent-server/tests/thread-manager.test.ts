@@ -1,8 +1,3 @@
-// input:  vitest, thread APIs, session activity fixtures
-// output: Prompt variables, transitions, and creation regressions
-// pos:    Thread helper and orchestration behavioral tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test, beforeAll, afterAll, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';

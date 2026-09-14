@@ -1,8 +1,3 @@
-// input:  web background hold driven by a fake run's background-phase events
-// output: status, resume, timeout, and seal regressions
-// pos:    Web background-task hold unit tests
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 

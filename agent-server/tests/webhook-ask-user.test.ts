@@ -1,8 +1,3 @@
-// input:  createWebhookHandler, hook-bridge, sessionStore
-// output: /hook/ask-user-question level validation and sessionId→channel resolution tests
-// pos:    Regression guard for the hook-facing ask-user API contract
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';

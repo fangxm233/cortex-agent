@@ -1,8 +1,3 @@
-// input:  budget snapshots, scopes, limit patches, and amount drafts
-// output: shared budget scope, payload, parsing, formatting, and bar regressions
-// pos:    Unit specification for the desktop/mobile budget view model
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { describe, it, expect } from 'vitest';
 import type { ConfigBudget } from '@cortex-agent/ui-contract';
 import {

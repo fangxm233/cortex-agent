@@ -1,8 +1,3 @@
-// input:  mobile route state, shared lightweight detail controller, document viewer, and copy
-// output: routed mobile thread detail screen adapter
-// pos:    Mobile route/artifact composition over the canonical thread resource lifecycle
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 // Non-Tab page; ancestor breadcrumbs ride in React Router location state.
 import { useCallback } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';

@@ -1,8 +1,3 @@
-// input:  Node test runner + scanCortexMDChain + fs/path/os
-// output: ancestor order/filtering/host identity regressions
-// pos:    Verifies CORTEX.md ancestor scanner behavior
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'fs';

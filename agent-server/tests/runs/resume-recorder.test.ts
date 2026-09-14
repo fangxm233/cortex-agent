@@ -1,7 +1,3 @@
-// input:  Node test runner + the live throttle and resume-registry singletons
-// output: the direct-path throttle gate, the thread path's unconditional record, and entry shape
-// pos:    Pin domain/runs/observers/resume-recorder.ts — the resume queue's only writers
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import '../_test-home.js'; // MUST be first — isolates store singletons
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

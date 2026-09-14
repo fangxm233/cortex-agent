@@ -1,8 +1,3 @@
-# input:  vendor-baseline arms and Harbor factory
-# output: native inheritance and absence of Cortex config/artifacts
-# pos:    Isolation proof for all vendor baseline paths
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 from pathlib import Path
 
 import pytest

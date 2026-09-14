@@ -1,8 +1,3 @@
-// input:  role markdown under DATA_DIR/config/agents, the shipped defaults, the legacy PI role dir
-// output: parsed AgentRole records, per-backend tool lists, seeding and one-time migration
-// pos:    The one role table both backends delegate through
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import {
   copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync,
   constants as fsConstants,

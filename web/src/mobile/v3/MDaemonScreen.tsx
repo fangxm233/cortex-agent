@@ -1,7 +1,3 @@
-// input:  shared daemon resource, independent mobile summaries, connection and shell helpers
-// output: mobile daemon drill screen with long-press restart control
-// pos:    Mobile adapter for canonical daemon lifecycle and mobile-only activity
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';

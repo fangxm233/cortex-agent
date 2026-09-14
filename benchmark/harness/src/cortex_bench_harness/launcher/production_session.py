@@ -1,8 +1,3 @@
-# input:  installed server, sealed home, production arm and instruction
-# output: terminal production result, emitted evidence files, workdir contract proof
-# pos:    Owns one production arm server lifecycle
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import asyncio
 import json
 import shlex

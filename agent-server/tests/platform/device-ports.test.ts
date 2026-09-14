@@ -1,7 +1,3 @@
-// input:  device-port route handlers driven with fake requests and injected device operations
-// output: pinned validation and response shape for mapping a port on another machine
-// pos:    tests for the device-facing port routes
-// >>> If I am updated, update CORTEX.md <<<
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Readable } from 'stream';
 import type * as http from 'http';

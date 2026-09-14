@@ -1,8 +1,3 @@
-// input:  arbitrary plugin and tool names
-// output: bounded safe backend and manifest names
-// pos:    Collision-safe portable plugin name mapper
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { createHash } from 'node:crypto';
 
 const SAFE_RE = /[^A-Za-z0-9_-]+/g;

@@ -1,8 +1,3 @@
-// input:  usage service singleton and UI-service facade
-// output: persisted usage reads and unthrottled refresh routing
-// pos:    UI-service regression coverage for system usage routes
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { afterEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { usageService } from '../../../src/domain/costs/usage-service.js';

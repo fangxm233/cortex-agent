@@ -1,8 +1,3 @@
-# input:  host credential capability registry
-# output: exact row-state and non-secret projection assertions
-# pos:    Contract tests for launcher credential capabilities
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import json
 import re
 from dataclasses import replace

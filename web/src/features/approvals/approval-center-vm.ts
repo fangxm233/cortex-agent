@@ -1,7 +1,3 @@
-// input:  approval DTOs and status values
-// output: approval queue labels, pills, and command presentation
-// pos:    Pure view model for the desktop approval center
-// >>> If I am updated, update my header comment and CORTEX.md <<<
 import type { ApprovalInfo, ApprovalStatus } from '@cortex-agent/ui-contract';
 
 // Pure view-model for the approval center overlay (design 7a, prototype.dc.html L1317-1405).

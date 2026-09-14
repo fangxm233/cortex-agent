@@ -1,8 +1,3 @@
-// input:  `!login custom` arguments and the custom provider stores
-// output: chat listing, creation and deletion of user-defined PI providers
-// pos:    Chat surface for custom PI provider management
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { t } from '@core/i18n.js';
 import {
   CUSTOM_PROVIDER_APIS,

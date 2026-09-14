@@ -6,7 +6,6 @@
 //         completed / failed / cancelled→failed)
 // pos:    verifies a RUNNING thread step carries a queryable sessionId from step start
 //         (web UI live transcript: snapshot + delta) and backend resume ids stay decoupled
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test, beforeAll, afterEach } from 'vitest';
 import assert from 'node:assert/strict';

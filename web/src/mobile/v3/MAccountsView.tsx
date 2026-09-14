@@ -1,8 +1,3 @@
-// input:  canonical accounts/custom-provider VMs, localized copy, and local action gates
-// output: mobile Accounts view with independently gated account, rescan, and custom actions
-// pos:    Presentational mobile settings view over shared ownership
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 // @ds-adherence-ignore -- mobile v3 raw px/font by design §8.3
 import type { ReactNode } from 'react';
 import type { AuthType, CustomProviderView } from '@cortex-agent/ui-contract';

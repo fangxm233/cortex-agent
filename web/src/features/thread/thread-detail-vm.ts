@@ -1,8 +1,3 @@
-// input:  ThreadDetail DTO, canonical detail facts, wall-clock time, and shared USD formatting
-// output: desktop copy, artifact, written-by, metadata, and pipeline projection
-// pos:    Desktop-only projection over shared thread detail semantics
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 // Framework-free mapping from the real threads.get DTO into presentation slots.
 
 // Data-driven, not stage-name-string matched (same discipline as thread-steps.ts): the active step

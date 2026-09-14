@@ -1,8 +1,3 @@
-// input:  thread store, templates, tasks, evidence context
-// output: lifecycle, inherited evidence, control transitions
-// pos:    Thread lifecycle and suspension state machine
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { mkdirSync, writeFileSync, readFileSync } from 'fs';
 import { createHash, randomUUID } from 'crypto';
 import * as path from 'path';

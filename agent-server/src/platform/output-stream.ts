@@ -1,8 +1,3 @@
-// input:  nothing (pure types module)
-// output: OutputStream types with optional prompt-display capability
-// pos:    Platform-neutral output streaming interface
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { MessageRef, Destination, RichBlock, ActionElement, DurableHooks } from './types.js';
 
 export interface MutableRegion {

@@ -1,8 +1,3 @@
-// input:  plugin DTO fixtures and assignment helpers
-// output: order, inherit, hash, and MCP payload tests
-// pos:    Plugin assignment view-model regressions
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import type { PluginAssignmentTarget, UiPluginCatalogEntry } from '@cortex-agent/ui-contract';
 import {

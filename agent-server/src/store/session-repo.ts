@@ -1,8 +1,3 @@
-// input:  sessions.json + JsonRepository
-// output: SessionRepo class and sessionRepo singleton
-// pos:    Channel binding store for stable track session ids
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as path from 'path';
 import { JsonRepository } from '@core/json-repository.js';
 import { STORE_DIR } from '@core/paths.js';

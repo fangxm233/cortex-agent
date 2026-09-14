@@ -1,8 +1,3 @@
-// input:  command dependencies, platform adapter, command handlers
-// output: registerCommands dispatcher including auth and usage flows
-// pos:    Orchestration command registry and dispatcher
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { createLogger } from '@core/log.js';
 import { Icons } from '../../../core/icons.js';
 import { t, type Locale } from '../../../core/i18n.js';

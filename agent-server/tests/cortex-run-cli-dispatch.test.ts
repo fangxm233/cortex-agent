@@ -1,8 +1,3 @@
-// input:  Vitest, cortex-run CLI, task lifecycle fixtures
-// output: CLI parsing, ownership rejection, dispatch argument tests
-// pos:    Cortex-run launch and ownership regression coverage
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

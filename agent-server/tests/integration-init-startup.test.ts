@@ -1,8 +1,3 @@
-// input:  child processes, init CLI, server app, hook registry
-// output: Init plus server lifecycle hook integration tests
-// pos:    Verifies initialized startup and graceful shutdown
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcess } from 'node:child_process';

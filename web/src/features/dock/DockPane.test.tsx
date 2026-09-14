@@ -1,8 +1,3 @@
-// input:  dock actions over mixed file and web tabs, plus theme
-// output: tab-body lifetime, isolation and mixed-kind switching regressions
-// pos:    Focused component test for the docked tab pane
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { Reorder } from 'motion/react';
 import { beforeAll, describe, expect, it, vi } from 'vitest';

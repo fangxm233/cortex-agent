@@ -1,8 +1,3 @@
-// input:  MCP SDK, tool gate, remote-operation and time registrars
-// output: cortex-core MCP stdio service
-// pos:    Remote execution and clock MCP server
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { isMainModule } from '@core/utils.js';

@@ -1,8 +1,3 @@
-// input:  EngineSpec builder, matrix of run options
-// output: frozen builder equality plus engineIdentity properties
-// pos:    P2.1a engine-spec seam regression — pins buildEngineSpec's own output
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { beforeAll, test } from 'vitest';
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';

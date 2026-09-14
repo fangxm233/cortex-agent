@@ -1,8 +1,3 @@
-# input:  the PI vendor arm and three pinned Terminal-Bench 2.1 tasks
-# output: one paid three-concurrency PI stream-failure reproduction wave
-# pos:    Pre-fix live PI stream-diagnosis campaign
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 schema_version: cortex-bench-campaign/1
 campaign: tb21-pi-3c-prefx1-20260821
 paid: true

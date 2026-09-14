@@ -1,8 +1,3 @@
-// input:  embedded attempt records and 13 historical edges
-// output: member, durable-edge, slot, and identity proofs
-// pos:    Composite v2 attempt-node tests
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 
 import {

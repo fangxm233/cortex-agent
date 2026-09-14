@@ -1,7 +1,3 @@
-// input:  production run attempt, scripted backends, spawn-linked identity, cost repo
-// output: concurrent attempt accounting persistence and reload proofs
-// pos:    Verifies durable request and token attribution
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 //
 // The old suite injected a fake `AgentAdapter` whose process yielded a raw `cost_record` and drove
 // it through the deleted facade. The run layer now owns the pooled engine, so this suite drives a

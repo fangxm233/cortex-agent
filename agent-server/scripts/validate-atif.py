@@ -1,8 +1,3 @@
-# input:  ATIF path, uv, PyPI harbor 0.20.0
-# output: structured Harbor validation result
-# pos:    Ephemeral authoritative ATIF validation runner
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import argparse
 import json
 from pathlib import Path

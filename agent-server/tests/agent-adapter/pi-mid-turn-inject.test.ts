@@ -1,7 +1,3 @@
-// input:  PIAdapter over the fake PI runtime, temp session files
-// output: PI switch guard, steering form, FIFO injection_delivered/injection_rejected, and failure guarantees
-// pos:    PI backend mid-turn injection wiring regression on the EngineSession seam
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { engineSpecFixture } from '../engine-spec-fixture.js';
 
 

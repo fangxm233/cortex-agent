@@ -1,8 +1,3 @@
-# input:  admitted HTTP request, fixed upstream URL, provider adapter
-# output: relayed upstream response bytes and adapter-extracted model usage
-# pos:    Fixed-route upstream adapter
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import threading
 import time
 from dataclasses import dataclass

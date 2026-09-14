@@ -1,8 +1,3 @@
-// input:  thread store, task ancestry, production topology ledger
-// output: tree queries, parent resolution, guards, spawn facts
-// pos:    Recursive thread-tree infrastructure
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { createLogger } from '@core/log.js';
 import { threadStore } from '@store/thread-repo.js';
 import { recordProductionTopologyFact } from '@domain/tasks/production-topology-ledger.js';
