@@ -1,8 +1,3 @@
-// input:  core/settings, adapter implementations, process env
-// output: adapter factories and primary adapter composition
-// pos:    Selects and composes configured platform adapters
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { PlatformAdapter } from '../adapter.js';
 import { SlackAdapter } from './slack.js';
 import type { SlackAdapterConfig } from './slack.js';

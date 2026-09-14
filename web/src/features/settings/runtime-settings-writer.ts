@@ -1,8 +1,3 @@
-// input:  typed runtime setting values, config.set mutation and config snapshot cache
-// output: serialized runtime setting commits and shared desktop/mobile writer hook
-// pos:    Runtime write owner independent of desktop and mobile settings views
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ConfigSetArgs } from '@cortex-agent/ui-contract';

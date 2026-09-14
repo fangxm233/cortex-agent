@@ -3,7 +3,6 @@
 // pos:    extracted from scheduled-task.ts so the target dispatch is unit-testable
 //         without spinning up the platform adapter, execution registry, or thread runner.
 //         Removed channel variant in M4; project replaces it as the default target kind.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { ScheduleTarget, ScheduleTask } from '@store/schedule-repo.js';
 import type { ThreadRecord } from '@core/types/thread-types.js';

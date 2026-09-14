@@ -1,8 +1,3 @@
-// input:  hooks.list overview DTO and canonical hook namespace groups
-// output: shared-namespace-grouped mobile rows and read-only declaration slots
-// pos:    Mobile projection over the canonical hooks settings grouping model
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 // Read-only mirror of the hook registry (plan §6). Every field below has a real `hooks.list` source —
 // nothing is derived from copy or invented. The mobile surface renders the declaration exactly as the
 // server reports it; editing lives on desktop, so there is no draft/patch shape here.

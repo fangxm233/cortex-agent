@@ -1,8 +1,3 @@
-// input:  numeric USD amounts, byte counts, and byte precision options
-// output: canonical dollar and binary byte-size labels
-// pos:    Shared locale-neutral formatting primitives for every Web UI surface
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 const BYTE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB'] as const;
 export type ByteUnit = typeof BYTE_UNITS[number];
 

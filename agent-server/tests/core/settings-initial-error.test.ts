@@ -1,8 +1,3 @@
-// input:  malformed initial settings file and legacy env
-// output: initial fallback and later recovery regression
-// pos:    Covers first-read settings corruption handling
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { beforeAll, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';

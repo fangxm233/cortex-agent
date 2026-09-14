@@ -1,8 +1,3 @@
-// input:  channel ids and turn mutation requests
-// output: keyed mutation lease type and acquisition functions
-// pos:    Serializes snapshot and rewind mutations
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 export type TurnMutationRelease = () => void;
 
 interface LockEntry {

@@ -1,8 +1,3 @@
-// input:  Vitest and SSH tunnel supervisor fakes
-// output: SSH reverse-route lifecycle regression coverage
-// pos:    Verifies tunnel argv, deduplication, retry and shutdown
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { EventEmitter } from 'node:events';
 import { afterEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';

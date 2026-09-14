@@ -1,8 +1,3 @@
-// input:  sessions compact mutate handler with fake store/coordinator
-// output: success, not-found, busy, unsupported, and unwired mappings
-// pos:    UI-service manual context compact mutation tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { handleCompactSession } from '../src/domain/ui-service/mutate/sessions.js';

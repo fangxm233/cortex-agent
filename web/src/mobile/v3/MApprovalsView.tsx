@@ -1,7 +1,3 @@
-// input:  mobile approval view model, copy, feedback draft, and surface handlers
-// output: MApprovalsView with expandable cards and optional reject feedback
-// pos:    Pure mobile approval queue presentation
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3
 // The selected pending card renders expanded with optional feedback plus reject / approve actions.
 // Real data fills reason, impact, command, and provenance without fabricated estimates.

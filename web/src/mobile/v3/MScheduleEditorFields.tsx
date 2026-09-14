@@ -1,8 +1,3 @@
-// input:  mobile schedule editor props and localized schedule copy
-// output: small DOM-preserving presentational field groups for MScheduleEditor
-// pos:    Presentational helpers for the mobile schedule editor level
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { CSSProperties } from 'react';
 import { useVocab } from '@/i18n';
 import { MC, MONO } from '@/mobile/ui/kit';

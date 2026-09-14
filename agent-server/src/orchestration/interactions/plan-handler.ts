@@ -1,7 +1,3 @@
-// input:  plan content, PlatformAdapter, postOnce
-// output: sendPlanToSlack
-// pos:    Plan mode display — plan content delivery to Slack
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { PlatformAdapter } from '@platform/index.js';
 import { postOnce } from '@platform/index.js';
 import { Icons } from '../../core/icons.js';

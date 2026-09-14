@@ -1,8 +1,3 @@
-// input:  resolved profiles, tool gates and launcher pre-boot inputs
-// output: canonical model, role, and bundle SHA-256 hashes
-// pos:    Benchmark identity hash contract
-// >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import { createHash } from 'node:crypto';
 import type { McpComposition } from '../../agent-adapter/types.js';
 import type { ResolvedProfileConfig } from '../agents/profile-manager.js';

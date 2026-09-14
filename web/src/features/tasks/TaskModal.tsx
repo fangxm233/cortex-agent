@@ -1,8 +1,3 @@
-// input:  controlled bare Modal, task/list DTOs, verification query, projections, and mutations
-// output: Accessible desktop task detail with full-bleed shell, evidence, and actions
-// pos:    Desktop task detail view and query adapter hosted by the shared dialog primitive
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useQuery } from '@tanstack/react-query';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
 import { Modal } from '@/design/Modal';

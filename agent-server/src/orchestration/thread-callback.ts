@@ -1,8 +1,3 @@
-// input:  thread store, task generations, runner, outbound queue
-// output: fenced callbacks, resumes, rotation, waiting sweeps
-// pos:    Delivers child results and resumes suspended parents
-// >>> If I am updated, update my header comment and parent CORTEX.md <<<
-
 import { threadStore } from '@store/thread-repo.js';
 import { agentRunner } from './agent-runner.js';
 import { getOutboundQueue, durablePost } from '@store/outbound-queue.js';

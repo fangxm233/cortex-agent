@@ -1,8 +1,3 @@
-// input:  Task DTO, task claim helper, and task vocabulary
-// output: Desktop task card with one-line blocker metadata
-// pos:    Clickable desktop task lifecycle card presentation
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import type { CSSProperties } from 'react';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
 import { useVocab, type Vocab } from '@/i18n';

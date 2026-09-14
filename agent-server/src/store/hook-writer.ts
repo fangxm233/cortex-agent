@@ -1,8 +1,3 @@
-// input:  hook registry directory, entry drafts, hook ids
-// output: create/update/remove/setEnabled writers with source guards
-// pos:    Declarative hook registry write side
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { atomicWriteSync } from '../core/atomic-write.js';

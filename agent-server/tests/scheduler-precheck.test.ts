@@ -1,8 +1,3 @@
-// input:  Node test runner + Scheduler module
-// output: preCheck exit-code + env-var passing tests
-// pos:    Verify preCheck skip/execute and env passing
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'fs';

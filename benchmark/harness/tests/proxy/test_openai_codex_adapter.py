@@ -1,8 +1,3 @@
-# input:  codex request targets, request bodies, and streamed upstream payloads
-# output: route, body, auth, usage, billable, and offline containment proofs
-# pos:    OpenAI Codex responses adapter tests
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import base64
 import json
 import secrets

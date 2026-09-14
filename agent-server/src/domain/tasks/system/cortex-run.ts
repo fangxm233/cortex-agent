@@ -1,8 +1,4 @@
 #!/usr/bin/env node
-// input:  task lifecycle, daemon webhook, process environment
-// output: remote launch/cancel CLI with dispatch generation metadata
-// pos:    Dispatches cortex-run work through the daemon
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 // cortex-run CLI dispatch via sendCommand (DR-0011 §4.8 + §4.9).
 //

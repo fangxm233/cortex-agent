@@ -1,7 +1,3 @@
-// input:  the assembled menu model and the platform's primary modifier
-// output: a readable list of every accelerator the app binds
-// pos:    Help → Keyboard shortcuts sheet
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { Modal } from '@/design';
 import { useVocab } from '@/i18n';
 import { usesCommandKey } from '@/lib/desktop-platform';

@@ -1,8 +1,3 @@
-// input:  lifecycle.handleAgentError with a track id and a backend id that differ
-// output: which id binds the channel, keys the registry and addresses the error message
-// pos:    the failure path's half of track/backend id decoupling (fix 9809d9a3's leftover)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import '../_test-home.js'; // MUST be first — isolates store singletons
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

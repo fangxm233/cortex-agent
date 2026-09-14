@@ -1,7 +1,3 @@
-// input:  a run's assistant prose, its attempt transitions and its terminal outcome
-// output: the notice lines a chat surface shows about the run itself (errors, fallbacks, pauses)
-// pos:    Run layer — the only place that turns run lifecycle into prose
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 //
 // Two jobs, both about narration rather than execution:
 //

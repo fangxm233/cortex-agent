@@ -1,8 +1,3 @@
-// input:  Shared chat attachment names, sizes, semantic types, and byte formatting
-// output: Stable file labels, byte labels, and type token colors
-// pos:    Reusable attachment presentation helpers for workbench surfaces
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { AttachmentMeta } from '@/features/attachments/types';
 import { formatBytes } from '@/lib/format';
 

@@ -1,8 +1,3 @@
-// input:  desktop frame slots, close callback, and lightweight Radix primitives
-// output: preserved modal chrome, animation classes, accessibility link, and close semantics
-// pos:    Desktop-only shared update frame characterization
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 

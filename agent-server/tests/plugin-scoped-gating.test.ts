@@ -1,8 +1,3 @@
-// input:  engine-spec's scoped-plugin gate (filterScopedPlugins / filterChannelScopedPlugins)
-// output: scoped pluginDir filtering tests (cortex-feishu by channel, cortex-commission by mode)
-// pos:    Verify scoped plugins load only for the sessions they belong to
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 

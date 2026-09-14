@@ -1,7 +1,3 @@
-// input:  runtime env, stores, scheduler, auth publishers
-// output: server runtime, immutable-config boot, attempt evidence, settings pushes
-// pos:    Agent-server composition root
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { mkdirSync } from 'fs';
 import * as os from 'node:os';
 import * as path from 'path';
@@ -107,7 +103,10 @@ import { createDirectSession, adoptScheduledSession } from '@domain/sessions/ses
 import { runSessionRetentionSweep, type RetentionLivenessSnapshot } from '@domain/sessions/session-retention.js';
 import { syncClaudeUserCleanupPeriodDays } from '@domain/auth/claude-user-settings.js';
 import { setSessionAsync } from '@domain/sessions/session.js';
-import { resolveBackendForChannel, switchChannelProfile } from '@domain/agents/index.js';
+import {
+  applyChannelSelection, getChannelOverride, getSelectionDefault, resolveBackendForChannel,
+  switchChannelProfile,
+} from '@domain/agents/index.js';
 import { isSessionCompactionSupported } from '@domain/runs/compact.js';
 import { initDiskMonitor, stopDiskMonitor } from '@domain/monitor/disk-monitor.js';
 import { startEventLoopMonitor, stopEventLoopMonitor } from '@domain/monitor/event-loop-monitor.js';
@@ -580,6 +579,12 @@ process.on('SIGTERM', async () => {
     // Web profile switch: apply the shared per-channel profile-switch rule (same one the Slack/Feishu
     // `!profile` command uses). Wired here so the ui-service domain never imports domain/agents.
     switchSessionProfile: (opts) => switchChannelProfile(opts),
+    // Web model picker: the composer's profile / model / provider / thinking choice, applied under
+    // the one domain rule. Wired here for the same reason as the profile switch above.
+    applySessionSelection: (opts) => applyChannelSelection(opts),
+    getChannelSelectionOverride: (channel) => getChannelOverride(channel),
+    // What a draft composer starts on before any session exists.
+    getSelectionDefault: () => getSelectionDefault(),
     // Draft uploads are promoted into the newly-created session before its first turn is sent.
     moveDraftAttachments,
     bus,

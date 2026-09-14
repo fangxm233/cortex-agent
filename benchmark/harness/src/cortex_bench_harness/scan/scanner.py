@@ -1,8 +1,3 @@
-# input:  named artifact inventory, scan policy, and binary streams
-# output: artifact/path leak findings and inventory scan report
-# pos:    Trial artifact inventory scanner
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import os
 import re
 from collections.abc import Iterator, Mapping

@@ -1,8 +1,3 @@
-// input:  PI ExtensionAPI, provider response headers, codex quota codec
-// output: provider quota readings handed to the host as they arrive
-// pos:    Reports provider quota read off PI response headers
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { ExtensionFactory } from '@earendil-works/pi-coding-agent';
 import { parseCodexQuotaHeaders, type CodexQuotaReading } from '@core/codex-quota.js';
 

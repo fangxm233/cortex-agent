@@ -1,7 +1,3 @@
-// input:  session ids, turn indexes, recorded backup paths
-// output: async snapshot restore and cleanup helpers
-// pos:    Backend transcript snapshot and restore
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { unlinkSync, readdirSync } from 'fs';
 import { copyFile, readdir } from 'node:fs/promises';
 import * as path from 'path';

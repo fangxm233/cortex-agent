@@ -1,7 +1,3 @@
-// input:  a scripted Claude CLI child (request.isolation.spawner) + a fake PI runtime; run observers
-// output: attempt-level event/cost/foreground/settled behaviour + run-level notices and wait policy
-// pos:    Backend-neutral run-attempt and run-stage tests over the engine seam
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 //
 // This file used to drive the deleted `facade._test.runWithAdapter` with hand-rolled mock
 // `AgentProcess`/`AgentAdapter`s. It now drives the two things that replaced it:

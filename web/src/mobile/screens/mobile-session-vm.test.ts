@@ -1,8 +1,3 @@
-// input:  mobile thread-stepper view model and thread DTO fixtures
-// output: step state, connector, and child-count regressions
-// pos:    Verifies legacy mobile thread-stepper derivation
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { describe, it, expect } from 'vitest';
 import type { ThreadDetail } from '@cortex-agent/ui-contract';
 import { buildMobileStepper } from './mobile-session-vm';

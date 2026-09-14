@@ -1,8 +1,3 @@
-// input:  singleton-lock primitive and temporary paths
-// output: lock acquisition, directory, release, liveness tests
-// pos:    Specifies singleton pidfile behavior
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, existsSync, readFileSync, rmSync } from 'node:fs';

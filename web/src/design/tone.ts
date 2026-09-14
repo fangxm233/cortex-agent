@@ -1,8 +1,3 @@
-// input:  Contract status strings from thread, task, and execution surfaces
-// output: One of the five shared visual tones with a cancelled fallback
-// pos:    Canonical desktop/mobile status-to-tone mapping
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 export const TONES = ['running', 'waiting', 'done', 'failed', 'cancelled'] as const;
 
 export type Tone = (typeof TONES)[number];

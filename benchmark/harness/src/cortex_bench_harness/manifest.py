@@ -1,8 +1,3 @@
-# input:  build artifacts, CLI version, Harbor metadata, resolved cwd
-# output: versioned cortex-bench-harness-manifest.json document
-# pos:    Reproducibility manifest serializer
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import hashlib
 import json
 import platform

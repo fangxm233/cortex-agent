@@ -4,7 +4,6 @@
 //         language knob: it drives every server-side t() string AND, via config.get, the Web UI's
 //         vocabulary. Set-once + runtime switchable via !lang or the UI appearance toggle.
 //         Separate from mode.json (LLM execution state) by design.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as fs from 'fs';
 import * as path from 'path';

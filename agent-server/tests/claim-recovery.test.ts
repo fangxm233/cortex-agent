@@ -3,7 +3,6 @@
 // pos:    Verify startup auto-unclaim of dispatcher claims orphaned by a server crash —
 //         a claimed task is invisible to the dispatcher, so a dead claim strands the task
 //         (and any manager waiting on it) forever without this recovery.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test, afterAll } from 'vitest';

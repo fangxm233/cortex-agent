@@ -1,8 +1,3 @@
-// input:  createTranscriptSink, RunEvent shapes, injected transcript seams
-// output: history/publish side effects, subagent attribution and delta-flush ordering
-// pos:    P1.4 transcript-sink contract — one observer replaces the four hand-wired copies
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import '../_test-home.js'; // first — keep the store singletons off the real data home
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

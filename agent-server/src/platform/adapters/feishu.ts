@@ -1,8 +1,3 @@
-// input:  Lark SDK, core/settings, platform types
-// output: FeishuAdapter messaging, rich-text links, forms, routing
-// pos:    Feishu PlatformAdapter implementation
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type * as lark from '@larksuiteoapi/node-sdk';
 import { createRequire } from 'node:module';
 import type { PlatformAdapter } from '../adapter.js';

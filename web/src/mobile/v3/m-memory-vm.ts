@@ -1,7 +1,3 @@
-// input:  Shared memory-tree facts and an optional clock
-// output: Mobile core rows, directory accordions, relative times, and total count
-// pos:    Pure mobile project-memory presentation model
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { MemoryTreeFacts } from '@/features/memory/memory-tree';
 import { relTimeZh } from '@/mobile/ui/format';
 

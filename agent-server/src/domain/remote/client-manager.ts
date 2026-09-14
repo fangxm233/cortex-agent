@@ -1,8 +1,3 @@
-// input:  cortex-client WS, SSH tunnels, tasks, machine registry
-// output: client routes, lifecycle, commands, update hooks, fenced callbacks
-// pos:    Registers, routes and restarts remote clients
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { WebSocketServer, WebSocket } from 'ws';
 import * as crypto from 'crypto';
 import * as fs from 'fs';

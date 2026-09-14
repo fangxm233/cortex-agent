@@ -1,8 +1,3 @@
-// input:  settings callback, timeout functions, and retention sweep runner
-// output: createSessionRetentionController
-// pos:    Serializes startup, periodic, and settings-driven retention sweeps
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
 const SETTINGS_DEBOUNCE_MS = 300;
 

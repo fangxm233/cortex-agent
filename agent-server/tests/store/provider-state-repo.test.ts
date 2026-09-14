@@ -1,8 +1,3 @@
-// input:  Vitest, temp JSON, provider-state domains
-// output: Provider throttle, usage, resume, and migration regressions
-// pos:    Store coverage for provider-state.json ownership
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { afterAll, afterEach, beforeAll, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';

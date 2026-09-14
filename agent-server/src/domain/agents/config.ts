@@ -1,8 +1,3 @@
-// input:  agent-state selection, Claude auth files, atomic env writes
-// output: mode env, expiring Claude credentials, retry policy
-// pos:    Agent runtime configuration and failure policy
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { readFileSync } from 'fs';
 import { parse as parseDotenv } from 'dotenv';
 import { mutateFileAtomically } from '@core/atomic-write.js';
@@ -14,7 +9,10 @@ import { resolveProfileConfig } from './profile-manager.js';
 import { GATEWAY_URL, isGatewayHealthy } from '../costs/gateway-manager.js';
 import { classifyAuthError } from '../auth/auth-events.js';
 import { createLogger } from '@core/log.js';
-import { loadAgentState, saveAgentState, type AgentState } from './agent-state.js';
+import {
+  loadAgentState, saveAgentState,
+  type AgentState, type ChannelOverride, type SelectionDefault,
+} from './agent-state.js';
 import type { Backend } from '../../agent-adapter/types.js';
 
 const log = createLogger('config');
@@ -336,21 +334,80 @@ export function getChannelProfiles(): Record<string, string> {
   return { ...channelProfiles };
 }
 
+/** The channel's whole selection on top of its profile (model / provider / thinking). null when the
+ *  channel runs its profile as declared, which is the normal case. */
+export function getChannelOverride(channel?: string | null): ChannelOverride | null {
+  if (!channel) return null;
+  const override = agentState.channelOverrides[channel];
+  return override && Object.keys(override).length > 0 ? { ...override } : null;
+}
+
 /** The channel-scoped model override `!model` writes. null when the channel runs its profile's
  *  own model, which is the normal case. */
 export function getChannelModelOverride(channel?: string | null): string | null {
-  if (!channel) return null;
-  return agentState.channelOverrides[channel]?.model ?? null;
+  return getChannelOverride(channel)?.model ?? null;
+}
+
+/**
+ * Patch the channel's selection. A field set to `null` is cleared, a field left out is untouched,
+ * and an override with nothing left in it is removed entirely (so "has a selection" stays a
+ * truthful question to ask of the map).
+ *
+ * Takes effect on the next turn — a live turn already has its EngineSpec.
+ */
+export function setChannelOverride(channel: string, patch: Partial<Record<keyof ChannelOverride, string | null>>): void {
+  const overrides = { ...agentState.channelOverrides };
+  const next: ChannelOverride = { ...overrides[channel] };
+  for (const [field, value] of Object.entries(patch) as [keyof ChannelOverride, string | null | undefined][]) {
+    if (value === undefined) continue;
+    if (value) next[field] = value;
+    else delete next[field];
+  }
+  if (Object.keys(next).length > 0) overrides[channel] = next;
+  else delete overrides[channel];
+  agentState = { ...agentState, channelOverrides: overrides };
+  persist();
+}
+
+/**
+ * Remember a composer's pick as the seed a brand-new conversation starts on.
+ *
+ * Written for direct (`web:`) channels only, by `applyChannelSelection` — never for a platform
+ * channel, and never by `!model` / `!thinking`, which write their channel's override directly.
+ * Those are channel-scoped tools; letting one of them decide what the next Web session runs would
+ * be action at a distance. Clearing back to the profile IS a choice and is remembered as one — the
+ * seed then carries a profile and no overrides.
+ */
+export function setSelectionDefault(seed: SelectionDefault | null): void {
+  agentState = { ...agentState, selectionDefault: seed ?? undefined };
+  persist();
+}
+
+/** The seed for the next conversation, or null when nothing has been picked on this host yet. */
+export function getSelectionDefault(): SelectionDefault | null {
+  return agentState.selectionDefault ?? null;
+}
+
+/** Drop every override the channel carries — what an explicit "run this profile as declared"
+ *  (a profile switch) means. */
+export function clearChannelOverride(channel: string): void {
+  if (!agentState.channelOverrides[channel]) return;
+  const overrides = { ...agentState.channelOverrides };
+  delete overrides[channel];
+  agentState = { ...agentState, channelOverrides: overrides };
+  persist();
 }
 
 /** Set or clear the channel's model override. Takes effect on the next turn — a live turn already
  *  has its EngineSpec. */
 export function setChannelModelOverride(channel: string, model: string | null): void {
-  const overrides = { ...agentState.channelOverrides };
-  if (model) overrides[channel] = { ...overrides[channel], model };
-  else delete overrides[channel];
-  agentState = { ...agentState, channelOverrides: overrides };
-  persist();
+  setChannelOverride(channel, { model });
+}
+
+/** The channel-scoped thinking level `!thinking` writes — the chat twin of the composer's picker.
+ *  Clearing drops ONLY the level: a model chosen separately was a separate decision. */
+export function setChannelThinkingOverride(channel: string, thinking: string | null): void {
+  setChannelOverride(channel, { thinking });
 }
 
 export function getDefaultAgent(): string | null { return defaultAgent; }

@@ -1,8 +1,3 @@
-// input:  HooksPanelView, language provider, HookDetail fixtures
-// output: hook capability, validation, delete, and runner regressions
-// pos:    Verifies hook capabilities, interactions and validity state
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { HookDetail, HooksTestReturn } from '@cortex-agent/ui-contract';

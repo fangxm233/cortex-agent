@@ -1,8 +1,3 @@
-// input:  NoteInfo records, current time, device timezone and language
-// output: grouped note rows, local time labels and shortcuts
-// pos:    Shared pure view model for project notes
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import type { NoteInfo } from '@cortex-agent/ui-contract';
 
 export interface NoteRowVm extends NoteInfo {

@@ -1,7 +1,3 @@
-// input:  thread runner (startAttempt seam), throttle, resume dispatcher
-// output: outage pause, backoff, cap, rerun, and session-reuse tests
-// pos:    Tests thrown outages rerun the interrupted step
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import '../_test-home.js'; // MUST be first — isolates store singletons to a temp CORTEX_HOME
 import { afterEach, beforeAll, test, vi } from 'vitest';
 import assert from 'node:assert/strict';

@@ -3,7 +3,6 @@
 // pos:    orchestration — where a turn opens and closes; the surfaces that render it live in
 //         status-renderer.ts / web-status-renderer.ts, and the follow-up runs in edit-retry.ts
 //         and interactions/ask-user-resume.ts
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { createLogger } from '@core/log.js';
 import { t } from '../core/i18n.js';
 import type { Destination, PlatformAdapter, MessageRef, OutputStream } from '@platform/index.js';

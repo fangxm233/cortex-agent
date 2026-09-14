@@ -1,7 +1,3 @@
-// input:  thread groups, detail DTOs, budget state, mobile copy
-// output: grouped mobile Threads view and wrapped pipeline cards
-// pos:    Presentational mobile thread-list view
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 // @ds-adherence-ignore -- mobile v3 uses the approved raw visual tokens
 import type { ReactNode } from 'react';
 import { MTabHeader, MCard, MGroupLabel, MPill, statusPillTone, MC, MONO } from '@/mobile/ui/kit';

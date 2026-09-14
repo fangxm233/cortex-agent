@@ -1,7 +1,3 @@
-// input:  Session running, background-hold, and run-history facts
-// output: Foreground/background/idle/fresh run-status derivation regressions
-// pos:    Shared desktop/mobile session run-status specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, expect, it } from 'vitest';
 import { deriveSessionRunStatus } from './session-run-status';
 

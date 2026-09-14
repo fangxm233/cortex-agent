@@ -1,8 +1,3 @@
-// input:  an entity scope, the plugin catalog, and the assign mutation
-// output: plugin assignment for one agent or template, with MCP acknowledgement
-// pos:    Assignment control embedded in the thread-template editor
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { useEffect, useMemo, useState, type CSSProperties, type Dispatch, type SetStateAction } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PluginAssignmentTarget, PluginsAssignArgs, PluginsListReturn, UiPluginCatalogEntry } from '@cortex-agent/ui-contract';

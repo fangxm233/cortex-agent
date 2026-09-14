@@ -1,8 +1,3 @@
-// input:  CustomProvidersCard with stubbed custom provider queries and mutations
-// output: list rendering, save payload and delete-confirmation tests
-// pos:    Verifies the desktop custom provider surface
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CustomProviderView } from '@cortex-agent/ui-contract';

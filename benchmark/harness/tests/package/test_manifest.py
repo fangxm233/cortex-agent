@@ -1,8 +1,3 @@
-# input:  wheel/lock bytes, CLI version, manifest serializer
-# output: exact H3 schema, version, and hash assertions
-# pos:    Contract tests for the harness run manifest
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import hashlib
 import json
 import platform

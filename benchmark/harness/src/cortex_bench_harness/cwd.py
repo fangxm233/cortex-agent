@@ -1,8 +1,3 @@
-# input:  Harbor BaseEnvironment and POSIX path commands
-# output: resolved task cwd or a fail-closed exception
-# pos:    Container-side task workdir resolver
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import logging
 import shlex
 from dataclasses import dataclass

@@ -1,8 +1,3 @@
-// input:  argv schedule subcommands + Scheduler instance
-// output: runScheduleCli + main entrypoint
-// pos:    schedule management CLI for terminal/script use
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { Scheduler, parseDuration } from './scheduler.js';
 import type { ScheduleTask } from './scheduler.js';
 import { isValidDispatchPrompt } from '../tasks/dispatcher.js';

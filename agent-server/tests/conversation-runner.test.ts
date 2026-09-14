@@ -1,7 +1,3 @@
-// input:  prompt builder and execution registration seams
-// output: prompt and registration ordering tests
-// pos:    Verifies thread-free conversation execution
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 //
 // Plain user messages no longer run as a `templateName:'default'` thread; they run via
 // runConversation, which assembles its prompt with composeUserPrompt (no thread, no

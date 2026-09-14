@@ -1,8 +1,3 @@
-// input:  fake timers, mutable settings, built-in job services
-// output: registration, timer, serial, and shutdown tests
-// pos:    Verifies settings-backed built-in periodic jobs
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 import type { PlatformAdapter } from '../src/platform/index.js';

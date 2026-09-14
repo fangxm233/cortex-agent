@@ -1,7 +1,3 @@
-// input:  Command-palette mappers and neutral DTO fixtures
-// output: Regression coverage for palette rows and targets
-// pos:    Pure command-palette behavior tests
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import type { SessionInfo, ThreadInfo, TaskInfo } from '@cortex-agent/ui-contract';
 import { buildCmdkItems, NAV_COMMAND_ITEMS, selectPaletteRows } from './palette-items';

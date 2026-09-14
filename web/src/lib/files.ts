@@ -1,8 +1,3 @@
-// input:  workspace/commission paths, authenticated HTTP config, and typed native download capabilities
-// output: URL builders, blob fetch, download, clipboard, open, and reveal helpers
-// pos:    Cross-runtime file transport for chat cards and native download-complete actions
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { apiBase, authHeaders, isNativeShell, isMobileShell } from './desktop-config';
 import { hasNativeCapability, safeInvoke, type NativeInvokeResult } from './native-bridge';
 

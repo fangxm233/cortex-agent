@@ -1,8 +1,3 @@
-// input:  app-update store, manual results, and typing gate
-// output: gated shell updates, install, skip and dismissal actions
-// pos:    Shell update source for the shared prompt owner
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { useUpdateGating } from '@/features/update/useUpdateGating';
 import { subscribeManualCheckResult } from '@/features/update/manual-update-check';

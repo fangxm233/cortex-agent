@@ -1,8 +1,3 @@
-// input:  file preview items, browser tab state, and tab intents
-// output: one ordered tab list mixing file previews with live web pages
-// pos:    pure dock tab model; the container is generic over tab identity
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { browserTabLabel, type BrowserTabState } from '@/features/browser/browser-target';
 import type { MediaItem } from '@/features/media/MediaViewer';
 import type { DocItem } from '@/features/media/DocViewer';

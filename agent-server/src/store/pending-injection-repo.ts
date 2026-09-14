@@ -1,8 +1,3 @@
-// input:  pending injection records + JsonRepository
-// output: PendingInjectionRepo and process-wide singleton
-// pos:    durable active-state store for unconsumed injected messages
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import path from 'node:path';
 import { JsonRepository } from '@core/json-repository.js';
 import { STORE_DIR } from '@core/paths.js';

@@ -1,8 +1,3 @@
-# input:  H3 manifest file and live trial proxy handle
-# output: exact credential-free proxy block assertions
-# pos:    Proxy manifest integration test
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import json
 from datetime import UTC, datetime
 from pathlib import Path

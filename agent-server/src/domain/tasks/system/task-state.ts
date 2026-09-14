@@ -1,8 +1,3 @@
-// input:  task lifecycle storage, task generation, current date
-// output: owned claim, pending, block and approval transitions
-// pos:    Applies non-completion TASKS.yaml state changes
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { todayISO } from '@core/utils.js';
 import type { Task, TaskGenerationExpectation } from '@core/task-parser.js';
 import {

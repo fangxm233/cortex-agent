@@ -1,8 +1,3 @@
-// input:  mid-turn injection with deferred durable-store and backend-ack seams
-// output: persistence, early-ack, and platform-marker ordering regressions
-// pos:    Specifies durable phase-one ordering for pending injection
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { beforeEach, test } from 'vitest';
 import assert from 'node:assert/strict';
 import {

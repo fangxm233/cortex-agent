@@ -3,7 +3,6 @@
 // pos:    side-effect-free auth-header resolution for the cortex-client WebSocket.
 //         The agent-server WS gate (fail-closed) requires `x-cortex-token`; the token is
 //         distributed via cortex-client.json (clientToken) or CORTEX_CLIENT_TOKEN env.
-// >>> If I am updated, update me and the parent folder's CORTEX.md <<<
 
 /**
  * Resolve the WS bearer token. Env (CORTEX_CLIENT_TOKEN) takes precedence so an operator can

@@ -1,8 +1,3 @@
-// input:  HookBus, thread adapter, session registry, agent doubles
-// output: lifecycle, session diagnostics, and injection regressions
-// pos:    Verifies public hook callers and prompt injection
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { afterAll, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';

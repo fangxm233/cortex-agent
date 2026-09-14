@@ -214,6 +214,27 @@ export const sessionsSetProfileInput = z.object({
   profileName: z.string().min(1),
 });
 
+/** What a session runs on top of its profile. Stated WHOLE, never patched: a field the object does
+ *  not carry is a field that follows the profile, so "go back to the profile's model" needs no null
+ *  (which the typed tRPC client cannot express through an optional input anyway). */
+const sessionSelectionInput = z.object({
+  model: z.string().min(1).optional(),
+  provider: z.string().min(1).optional(),
+  thinking: z.string().min(1).optional(),
+  mode: z.string().min(1).optional(),
+});
+
+// sessions.setSelection — the profile and/or the selection on top of it, in one decision. Shape
+// gate only: WHICH levels a backend accepts, whether it has a provider at all, and whether a live
+// conversation may change backend stay with the domain rule (domain/agents/model-selection.ts),
+// which every surface goes through.
+export const sessionsSetSelectionInput = z.object({
+  sessionId: z.string(),
+  profileName: z.string().min(1).optional(),
+  /** Absent: the profile keeps whatever the session had (and a profile switch drops it). */
+  selection: sessionSelectionInput.optional(),
+});
+
 export const sessionsAnswerQuestionInput = z.object({
   requestId: z.string().min(1),
   answers: z.record(z.string(), z.string()),
@@ -247,6 +268,7 @@ export const sessionsRewindInput = z.object({
 export const sessionsCreateAndSendInput = z.object({
   projectId: z.string(),
   profileName: z.string().optional(),
+  selection: sessionSelectionInput.optional(),
   browser: sessionBrowserInput.nullish(),
   commission: sessionCommissionInput.nullish(),
   text: z.string(),
@@ -850,6 +872,7 @@ export const mutateInputSchemas = {
   'sessions.cancel': sessionsCancelInput,
   'sessions.compact': sessionsCompactInput,
   'sessions.setProfile': sessionsSetProfileInput,
+  'sessions.setSelection': sessionsSetSelectionInput,
   'sessions.createAndSend': sessionsCreateAndSendInput,
   'sessions.markRead': sessionsMarkReadInput,
   'sessions.answerQuestion': sessionsAnswerQuestionInput,

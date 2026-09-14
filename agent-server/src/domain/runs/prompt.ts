@@ -1,8 +1,3 @@
-// input:  the prompt-bearing half of an AgentSpec, the turn's input, ambient text blocks
-// output: composeSystemPrompt / composeUserPrompt and the two ambient-block loaders
-// pos:    Run-layer prompt composition — the one place a prompt is assembled
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { renderPromptTemplate, promptSystemVars, resolveSystemVars } from '@core/prompt-template.js';
 import { loadCortexRules } from '../memory/rules-loader.js';
 import { loadUserContext } from '../memory/user-context.js';

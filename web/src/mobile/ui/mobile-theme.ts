@@ -1,8 +1,3 @@
-// input:  Global mobile CSS custom properties
-// output: Shared mobile palette references and monospace font stack
-// pos:    Mobile presentation token boundary
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 export const MC = {
   canvas: 'var(--m-canvas)',
   card: 'var(--m-card)',

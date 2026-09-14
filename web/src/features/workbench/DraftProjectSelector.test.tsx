@@ -1,8 +1,3 @@
-// input:  Mocked project context, left-rail order, and draft selector interactions
-// output: Profile-chip styling, ordered menu, switching, and pending-state regressions
-// pos:    Desktop draft project selector behavior specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, create } from 'react-test-renderer';
 import { LangProvider } from '@/i18n';

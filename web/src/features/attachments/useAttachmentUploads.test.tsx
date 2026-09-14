@@ -1,8 +1,3 @@
-// input:  Shared upload hook, deferred transport, scope changes, previews, and mixed states
-// output: FIFO concurrency, retry, abort, stale guard, restoration, cleanup, progress, and send-gate tests
-// pos:    Shared attachment queue and controller specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import type { AttachmentUploadTransport } from './upload-attachment';

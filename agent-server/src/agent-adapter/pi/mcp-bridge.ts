@@ -1,8 +1,3 @@
-// input:  PI API, session env, plugin MCP configs, tool gates
-// output: Bundled Cortex tools (in-process) and independent plugin MCP tools
-// pos:    Bridges MCP servers into PI tools
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import {

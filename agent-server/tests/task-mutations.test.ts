@@ -1,8 +1,3 @@
-// input:  Node test runner + task-system/task-mutations API
-// output: add/batchEdit/decompose unit tests
-// pos:    Verify task structure transformation API
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

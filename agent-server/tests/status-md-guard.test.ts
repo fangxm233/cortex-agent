@@ -1,8 +1,3 @@
-// input:  Node test runner + spawn status-md-guard.mjs subprocess
-// output: context-file size-guard allow/deny/warn regressions (STATUS.md / ISSUES.md / CORTEX.md)
-// pos:    Verifies status-md-guard.mjs hook behavior
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';

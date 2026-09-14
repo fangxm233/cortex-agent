@@ -1,8 +1,3 @@
-// input:  daemon, thread, schedule and recent-execution DTO fixtures
-// output: mobile summary, canonical process, fallback and event projection regressions
-// pos:    Mobile daemon view-model specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, it, expect } from 'vitest';
 import type {
   ThreadInfo,

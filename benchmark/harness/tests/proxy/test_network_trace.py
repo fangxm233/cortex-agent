@@ -1,8 +1,3 @@
-# input:  synthetic upstream, per-trial proxy, planted secrets
-# output: phase ordering, route isolation and content-free trace proofs
-# pos:    Network phase trace regression tests
-# >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import json
 import threading
 import time

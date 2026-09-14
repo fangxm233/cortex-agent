@@ -1,8 +1,3 @@
-// input:  provider override set, gateway base URL, explicit models.json path
-// output: an atomically written multi-provider PI models.json
-// pos:    Ambient-free PI provider catalog writer
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { existsSync, mkdirSync, renameSync, unlinkSync, writeFileSync } from 'fs';
 import * as path from 'path';
 

@@ -1,8 +1,3 @@
-// input:  folder open/current/dim state
-// output: the rail's project glyph, closed or open
-// pos:    Carries a folder's disclosure state without a separate chevron
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 // The rail has no disclosure triangle: hierarchy is carried by indent + the guide line, and the
 // OPEN/CLOSED state is carried by the glyph itself — closed folder when collapsed, open folder when
 // expanded. Colour never encodes identity (that is the project's name); it encodes state only:

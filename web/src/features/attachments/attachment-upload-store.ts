@@ -1,8 +1,3 @@
-// input:  Attachment binding, local files, restored metadata, transport, and preview loader
-// output: Observable three-lane FIFO upload state with abort-safe lifecycle operations
-// pos:    Framework-light engine behind the shared attachment upload hook
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { fetchFileObjectUrl } from '@/lib/files';
 import { uploadAttachment, type AttachmentUploadTransport } from './upload-attachment';
 import type { AttachmentMeta, AttachmentUploadItem } from './types';

@@ -1,7 +1,3 @@
-// input:  none (static manifest)
-// output: list of test files safe for the shared (isolate:false) fork pool
-// pos:    read by vitest.config.ts when CORTEX_TEST_SHARD is set
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
 // A file may ONLY be listed here when ALL of the following hold — the shared
 // pool reuses one module registry, one process.env, and one CORTEX_HOME across

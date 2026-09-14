@@ -1,8 +1,3 @@
-// input:  Node test runner + core/task-node path helpers + domain/tasks/acceptance-ledger
-// output: task-keyed artifact path / ensureTaskArtifact idempotency / ledger verdict lifecycle tests
-// pos:    Verify DR-0017 W1 foundations: task-keyed manager artifacts + acceptance ledger
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';

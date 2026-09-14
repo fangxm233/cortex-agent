@@ -1,8 +1,3 @@
-// input:  the backend-neutral orchestrator, the shared schema, and the daemon-side entry
-// output: invocation validation, mode semantics, caps, failure isolation, backend precedence
-// pos:    Tests backend-neutral subagent orchestration and dispatch
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import assert from 'node:assert/strict';

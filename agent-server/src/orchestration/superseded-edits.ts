@@ -1,8 +1,3 @@
-// input:  nothing (leaf module)
-// output: supersededEdits singleton — tracks channels where the active agent was killed by a message edit
-// pos:    orch/ layer [S6-B]
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 /**
  * Tracks channels whose current agent was superseded by a message edit.
  *

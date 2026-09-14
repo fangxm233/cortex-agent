@@ -1,16 +1,17 @@
-// input:  project sessions, config and external draft prefill
-// output: selected-session context with reliable draft reload
-// pos:    Cross-pane selected and draft session state owner
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useProjectSessions } from '@/features/projects/useProjectSessions';
 import {
+  applyDraftSelection,
   resolveSelectedSessionId,
+  seedDraftSelection,
   DRAFT_SENTINEL,
+  EMPTY_DRAFT_SELECTION,
+  type DraftSelection,
   type PendingCreatedSession,
+  type SelectionChange,
 } from './selected-session';
 import { prefillProjectDraft } from './composer-draft';
 
@@ -30,9 +31,11 @@ interface SelectedSessionContextValue {
   pendingCreatedSession: PendingCreatedSession | null;
   /** True when the user is in a "New Conversation" draft (no session created yet). */
   isDraft: boolean;
-  /** The user-chosen profile for the draft session (null = use system default). */
-  draftProfile: string | null;
-  setDraftProfile: (name: string) => void;
+  /** The engine the draft session will be created with: a profile (null = system default) plus the
+   *  model / provider / thinking chosen on top of it. */
+  draftSelection: DraftSelection;
+  /** Patch the draft's engine choice — same semantics as the server's `sessions.setSelection`. */
+  setDraftSelection: (change: SelectionChange) => void;
   /** Changes whenever another surface replaces the current project's draft text. */
   draftReloadToken: number;
   /** Seed a user-editable new-session draft without sending it. */
@@ -52,7 +55,7 @@ export function SelectedSessionProvider({ children }: { children: ReactNode }) {
   const scheduledSessionsQuery = useProjectSessions(currentProjectId, 'scheduled');
   const configQuery = useQuery(trpc.config.get.queryOptions({}));
   const [override, setOverride] = useState<string | null>(null);
-  const [draftProfile, setDraftProfile] = useState<string | null>(null);
+  const [draftSelection, setDraftSelectionState] = useState<DraftSelection>(EMPTY_DRAFT_SELECTION);
   const [draftReloadToken, setDraftReloadToken] = useState(0);
   // A just-created session whose authoritative sessions.list row has not landed yet.
   const [pendingCreatedSession, setPendingCreatedSession] = useState<PendingCreatedSession | null>(null);
@@ -79,24 +82,33 @@ export function SelectedSessionProvider({ children }: { children: ReactNode }) {
     setPendingCreatedSession(null);
   }, [currentProjectId]);
 
-  // When entering draft mode, pick up the system default profile if none chosen yet.
+  // When entering draft mode, start from the last engine chosen on this host — profile included, so
+  // the draft is never left in the "no profile named" state the server has to guess about. Only
+  // while nothing has been picked for this draft yet; a user choice is never overwritten.
   useEffect(() => {
-    if (isDraft && !draftProfile && configQuery.data?.profiles) {
-      const def = configQuery.data.profiles.defaultProfile;
-      if (def && configQuery.data.profiles.profiles.find(p => p.name === def)) {
-        setDraftProfile(def);
-      }
-    }
-  }, [isDraft, draftProfile, configQuery.data]);
+    if (!isDraft || draftSelection.profileName || draftSelection.override) return;
+    const profilesSnapshot = configQuery.data?.profiles;
+    if (!profilesSnapshot) return;
+    const seeded = seedDraftSelection(
+      configQuery.data?.selectionDefault, profilesSnapshot.profiles, profilesSnapshot.defaultProfile,
+    );
+    if (seeded) setDraftSelectionState(seeded);
+  }, [isDraft, draftSelection.profileName, draftSelection.override, configQuery.data]);
+
+  const setDraftSelection = useCallback((change: SelectionChange) => {
+    setDraftSelectionState((current) => applyDraftSelection(current, change));
+  }, []);
 
   const setSelectedSession = useCallback((id: string) => {
     setPendingCreatedSession(null);
     setOverride(id);
   }, []);
   const selectCreatedSession = useCallback((id: string) => {
-    setPendingCreatedSession({ sessionId: id, profileName: draftProfile });
+    setPendingCreatedSession({
+      sessionId: id, profileName: draftSelection.profileName, override: draftSelection.override,
+    });
     setOverride(id);
-  }, [draftProfile]);
+  }, [draftSelection]);
   const prefillDraft = useCallback((text: string) => {
     prefillProjectDraft(currentProjectId ?? 'general', text);
     setPendingCreatedSession(null);
@@ -106,7 +118,7 @@ export function SelectedSessionProvider({ children }: { children: ReactNode }) {
   const clearDraft = useCallback(() => {
     setPendingCreatedSession(null);
     setOverride(null);
-    setDraftProfile(null);
+    setDraftSelectionState(EMPTY_DRAFT_SELECTION);
   }, []);
 
   const value = useMemo(
@@ -116,14 +128,14 @@ export function SelectedSessionProvider({ children }: { children: ReactNode }) {
       selectCreatedSession,
       pendingCreatedSession,
       isDraft,
-      draftProfile,
-      setDraftProfile,
+      draftSelection,
+      setDraftSelection,
       draftReloadToken,
       prefillDraft,
       clearDraft,
     }),
     [selectedSessionId, setSelectedSession, selectCreatedSession, pendingCreatedSession, isDraft,
-      draftProfile, draftReloadToken, prefillDraft, clearDraft],
+      draftSelection, setDraftSelection, draftReloadToken, prefillDraft, clearDraft],
   );
 
   return <SelectedSessionContext.Provider value={value}>{children}</SelectedSessionContext.Provider>;

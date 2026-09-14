@@ -1,8 +1,3 @@
-// input:  channel text, adapter, optional mutation lease
-// output: fire-and-forget Web user turn routing
-// pos:    Web session turn admission adapter
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import type { IncomingMessage, PlatformAdapter } from '@platform/index.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
 import type { SystemTurnOrigin } from '@core/types/agent-types.js';

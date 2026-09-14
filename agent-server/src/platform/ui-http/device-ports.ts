@@ -1,8 +1,3 @@
-// input:  injected device-registry, device-shell and device-port operations
-// output: authenticated routes for discovering and mapping ports that live on other machines
-// pos:    Web UI transport host — the device-facing half of port discovery
-// >>> If I am updated, update CORTEX.md <<<
-
 import type * as http from 'http';
 import { createLogger } from '@core/log.js';
 import { listenerProbes, type ListeningPort } from './listening-ports.js';

@@ -2,7 +2,6 @@
 // output: createSlackUpdatePrompt(adapter, router, opts?) => UpdatePrompt
 // pos:    Slack-specific UpdatePrompt implementation — pre-registers three actionIds on router,
 //         posts interactive message to system-notice, resolves ask() promise on button click.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { PlatformAdapter, ActionElement, MessageRef } from '@platform/index.js';
 import type { CommandActionRouter } from '@orch/interactions/command-action-router.js';

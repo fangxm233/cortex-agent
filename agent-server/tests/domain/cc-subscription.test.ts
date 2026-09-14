@@ -1,8 +1,3 @@
-// input:  Claude subscription bridge, LoginFlow, fake auth CLI
-// output: URL/code relay, cleanup, recovery, and safe failure tests
-// pos:    Claude subscription LoginFlow bridge tests
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';

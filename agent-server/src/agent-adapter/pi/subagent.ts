@@ -1,8 +1,3 @@
-// input:  PI `agent` tool calls, the shared role/model catalog, a nested PI session factory
-// output: Single, parallel and chain subagent runs with attributed child events and usage
-// pos:    PI `agent` tool: runs role-scoped subagents, locally or on the other backend
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { Type } from '@sinclair/typebox';
 import type { ExtensionContext, InlineExtension, ToolDefinition } from '@earendil-works/pi-coding-agent';
 import { findRole, loadRoles, type AgentRole } from '@core/agents/roles.js';

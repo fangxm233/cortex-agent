@@ -1,8 +1,3 @@
-// input:  a validated Invocation and a backend-agnostic child runner
-// output: single / parallel / chain execution plus the tool result text both entries return
-// pos:    Backend-neutral subagent orchestration
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { MAX_SUBAGENT_CONCURRENCY } from './schema.js';
 import { aggregateUsage, emptyUsage } from './usage.js';
 import type {

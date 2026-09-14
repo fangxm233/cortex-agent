@@ -1,8 +1,3 @@
-// input:  Vitest, tsconfig paths, shard environment
-// output: parallel unit test configuration
-// pos:    Configures isolated and shared unit-test fork pools
-// >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import { defineConfig } from 'vitest/config';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import { SHARED_POOL_FILES } from './tests/_shared-pool-manifest.js';

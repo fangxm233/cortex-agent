@@ -1,8 +1,3 @@
-// input:  none (static message table slice)
-// output: providersEn / providersZh — custom PI provider copy
-// pos:    L0 locale slice for user-defined provider management
-// >>> If I am updated, add the same keys to both objects and update the parent CORTEX.md <<<
-
 export const providersEn = {
   // --- custom provider CLI ---
   'provider.cli.description': 'Manage user-defined PI providers (self-hosted or proxied endpoints).',

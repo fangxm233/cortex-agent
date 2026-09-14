@@ -1,8 +1,3 @@
-// input:  core agent types
-// output: normalized events, spawn metadata, subagent attribution, task snapshots
-// pos:    Backend-neutral event schema
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import type { ContextUsage, TodoSnapshot } from '@core/types/agent-types.js';
 
 export type { TodoItem, TodoSnapshot, TodoStatus } from '@core/types/agent-types.js';

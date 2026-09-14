@@ -1,8 +1,3 @@
-# input:  a capability id, an upstream base URL and a temporary trial root
-# output: arm, seed, manifest and spec documents, and a test-local capability admission
-# pos:    Shared launcher trial fixtures
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import socket
 from pathlib import Path
 

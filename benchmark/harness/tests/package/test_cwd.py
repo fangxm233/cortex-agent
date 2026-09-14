@@ -1,8 +1,3 @@
-# input:  Harbor ExecResult values and cwd resolver
-# output: dynamic path and fail-closed regression assertions
-# pos:    Contract tests for container-side cwd discovery
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import asyncio
 from collections.abc import Sequence
 

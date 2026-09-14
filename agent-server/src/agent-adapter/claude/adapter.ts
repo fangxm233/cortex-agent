@@ -1,8 +1,3 @@
-// input:  Claude streams, spawn config, MCP gate, accounting
-// output: Claude turns, fallback and exact accounting
-// pos:    Claude backend adapter
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { spawn, ChildProcess } from 'child_process';
 import { createInterface, Interface } from 'readline';
 import * as crypto from 'crypto';

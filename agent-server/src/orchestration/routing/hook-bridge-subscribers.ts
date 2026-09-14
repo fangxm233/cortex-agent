@@ -3,7 +3,6 @@
 //         ask-user.requested / plan.submitted handler bodies from entry/app.ts into orch/,
 //         plus non-blocking-ask answer delivery as an ordinary user turn
 // pos:    orch/routing/ — hook-bridge event subscribers (S13 composition-root extraction)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { EventBus, CortexEvent } from '@events/index.js';
 import type { Destination, PlatformAdapter, OutputStream } from '@platform/index.js';

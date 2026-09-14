@@ -1,8 +1,3 @@
-// input:  Node test runner + module-loader + mocked http/cp
-// output: gateway port-conflict handling tests
-// pos:    Verify gateway reuses port on contention instead of spawning
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';

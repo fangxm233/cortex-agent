@@ -1,8 +1,3 @@
-// input:  subagent identity, folded rows, and turn-copy actions
-// output: rounded sticky header, prompt, count, and copy tests
-// pos:    Desktop subagent card presentation contract
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { LangProvider } from '@/i18n';

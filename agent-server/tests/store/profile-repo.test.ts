@@ -1,8 +1,3 @@
-// input:  Node test runner, assert, tmp filesystem
-// output: regression tests for ProfileRepo (concurrent mutate, flush ordering, readSync)
-// pos:    verifies store/profile-repo.ts Pattern A guarantees
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';

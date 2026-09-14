@@ -1,8 +1,3 @@
-// input:  Node test runner + registerMessageHandler + MockAdapter
-// output: mention normalization, routing, and edit delegation tests
-// pos:    Verify message-router core routing branches
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { MockAdapter } from '../src/platform/testing.js';

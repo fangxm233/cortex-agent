@@ -1,8 +1,3 @@
-// input:  normalized events, agent slot, paths and identity
-// output: durable ordered journal records and sync/async closure
-// pos:    One-shot run NDJSON journal writer
-// >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import type { NormalizedEvent } from '../../agent-adapter/normalize/event-types.js';

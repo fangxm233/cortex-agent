@@ -1,8 +1,3 @@
-// input:  mobile thread-list view model and DTO fixtures
-// output: task-linked mobile thread metadata regressions
-// pos:    Verifies mobile thread-list mapping
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { describe, it, expect } from 'vitest';
 import type { ThreadInfo, ThreadDetail, ThreadStepDetail, ThreadChildNode } from '@cortex-agent/ui-contract';
 import {

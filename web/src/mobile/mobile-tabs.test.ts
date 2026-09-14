@@ -1,8 +1,3 @@
-// input:  manifest-backed mobile route paths and badge counts
-// output: dynamic drill-route tab attribution and tab visibility regressions
-// pos:    Tests the derived mobile tab navigation model
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { describe, it, expect } from 'vitest';
 import { activeTabId, isTabRoute, tabBadge } from './mobile-tabs';
 

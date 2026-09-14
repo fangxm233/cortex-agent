@@ -1,8 +1,3 @@
-// input:  controller-owned form/editable gates, localized labels, and shared Select
-// output: API-locked desktop editor with typed updates and honest once timing copy
-// pos:    Desktop presentation for the shared schedule editor controller
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useEffect, type CSSProperties } from 'react';
 import { CONTROL_HEIGHT, Select } from '@/design';
 import { useVocab } from '@/i18n';

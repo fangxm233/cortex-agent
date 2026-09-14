@@ -1,7 +1,3 @@
-// input:  Shared memory-tree facts and an injected clock
-// output: Mobile accordion, time, count, and clean-read row regressions
-// pos:    Mobile memory view-model specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import type { MemoryTree, MemoryFileEntry } from '@cortex-agent/ui-contract';
 import { deriveMemoryTreeFacts, type MemoryTreeFacts } from '@/features/memory/memory-tree';

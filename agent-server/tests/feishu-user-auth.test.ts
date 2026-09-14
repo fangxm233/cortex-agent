@@ -2,7 +2,6 @@
 // output: TDD spec for user_access_token acquisition/refresh/persistence + code parsing
 // pos:    Verifies FEISHU_AUTH_MODE=user plumbing: authorize URL, code exchange, refresh,
 //         on-disk token store, and getValidUserAccessToken auto-refresh/expiry semantics.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

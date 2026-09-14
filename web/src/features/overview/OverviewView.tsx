@@ -1,8 +1,3 @@
-// input:  project cost, schedules, executions, issues and notes
-// output: desktop project Overview with note and schedule CRUD actions
-// pos:    Project dashboard center pane
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { useMemo, type CSSProperties, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';

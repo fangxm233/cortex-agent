@@ -1,8 +1,3 @@
-// input:  the proxy-authoritative export and the journal-derived totals
-// output: the accounting record — each side's own measured figures, tagged, plus the A4 role excess
-// pos:    Pure §9.6 A1-A5 accounting record construction
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { decimalFromNumber, decimalText, isDecimalText } from './decimal-text.js';
 
 export const ACCOUNTING_RECORD_SCHEMA_VERSION = 'cortex-bench-accounting/2';

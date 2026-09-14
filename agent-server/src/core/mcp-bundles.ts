@@ -1,8 +1,3 @@
-// input:  MCP bundle names and encoded process environment
-// output: Validated Cortex MCP bundle selections
-// pos:    Shared contract for per-process MCP composition
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 export const MCP_BUNDLES_ENV = 'CORTEX_MCP_BUNDLES';
 export const BUNDLED_MCP_SERVER_NAME = 'cortex-core';
 

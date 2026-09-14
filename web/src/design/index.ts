@@ -1,8 +1,3 @@
-// input:  shared design primitives, hooks, and their public types
-// output: design-system barrel exports
-// pos:    Public import surface for Web UI primitives
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 export { TONES, statusTone, type Tone } from './tone';
 export { StatusPill, type StatusPillProps } from './StatusPill';
 export { MonoText, type MonoTextProps } from './MonoText';

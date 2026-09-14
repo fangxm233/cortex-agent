@@ -1,8 +1,3 @@
-// input:  Node test runner + client/src/auth-headers.ts
-// output: token resolution + WS auth header construction tests
-// pos:    Regression guard for cortex-client WS bearer-token auth (x-cortex-token)
-// >>> If I am updated, update me and the parent folder's CORTEX.md <<<
-
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveClientToken, buildClientHeaders } from '../../src/auth-headers.js';

@@ -1,7 +1,3 @@
-// input:  composer text, profile options and UI action handlers
-// output: slash suggestion, resolution and local dispatch contracts
-// pos:    Shared Web UI slash-command behavior tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, expect, it, vi } from 'vitest';
 import {
   buildSlashSuggestions,

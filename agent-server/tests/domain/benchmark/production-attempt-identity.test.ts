@@ -1,7 +1,3 @@
-// input:  a resolved RunRequest driven through startAttempt over a real scripted backend
-// output: identity freeze, linkage, drift, reload, secret containment
-// pos:    Verifies production benchmark attempt identity freezing through the run layer
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 //
 // The suite used to hand-build `AgentProcess` objects and drive them through the deleted facade.
 // Its subject is the run layer's identity freeze (the step inside `startAttempt`), so it now

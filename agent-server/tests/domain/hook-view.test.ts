@@ -1,8 +1,3 @@
-// input:  hook declarations across every event namespace
-// output: mount-target, result-capability and apply-time derivation tests
-// pos:    Verifies the UI-facing derived view of a hook declaration
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 

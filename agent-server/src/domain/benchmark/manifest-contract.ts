@@ -1,8 +1,3 @@
-// input:  lifecycle, journal, usage, and identity values
-// output: v2 terminal marker and non-negative token validator
-// pos:    Terminal evidence v2 value contract
-// >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import path from 'node:path';
 
 export const TERMINAL_MANIFEST_SCHEMA_VERSION = 'cortex-bench-manifest/2';

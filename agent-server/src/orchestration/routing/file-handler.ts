@@ -1,8 +1,3 @@
-// input:  PlatformAdapter, PlatformFileRef, temp directory
-// output: downloadFiles
-// pos:    Platform-agnostic file download (mimetype classification moved to @core/media-types)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { createLogger } from '@core/log.js';
 import type { PlatformAdapter } from '@platform/adapter.js';
 import type { PlatformFileRef, DownloadedFile } from '@platform/types.js';

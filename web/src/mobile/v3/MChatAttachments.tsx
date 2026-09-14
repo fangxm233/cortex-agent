@@ -1,8 +1,3 @@
-// input:  Transcript attachments, shared queue items, retry/remove actions, and viewers
-// output: Message groups and queued/progress/error/done composer attachment strip
-// pos:    Mobile chat attachment presentation seam
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { downloadFile } from '@/lib/files';
 import { HtmlBody } from '@/features/media/HtmlBody';
 import { useDocViewer } from '@/features/media/DocViewer';

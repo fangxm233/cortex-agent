@@ -1,8 +1,3 @@
-// input:  a view iframe ref and a height ceiling
-// output: the content height the frame reported, clamped
-// pos:    parent half of the view frame's postMessage protocol
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useEffect, useState, type RefObject } from 'react';
 import { parseViewMessage, VIEW_HEIGHT_DEFAULT } from './html-sandbox';
 

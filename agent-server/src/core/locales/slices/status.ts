@@ -1,8 +1,3 @@
-// input:  nothing (leaf data slice)
-// output: statusEn/statusZh lifecycle and auth warning messages
-// pos:    one locale slice; aggregated by core/locales/en.ts & zh.ts barrels
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 // Keep en and zh keys in lockstep (zh is typed against keyof typeof statusEn).
 
 export const statusEn = {

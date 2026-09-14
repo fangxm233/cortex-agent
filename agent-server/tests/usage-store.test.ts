@@ -1,8 +1,3 @@
-// input:  Vitest, ProviderStateRepo, usage-store model and API
-// output: usage ordering, persistence, replacement, and legacy regressions
-// pos:    Validates the durable provider usage source
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';

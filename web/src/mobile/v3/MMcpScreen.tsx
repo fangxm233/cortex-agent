@@ -1,8 +1,3 @@
-// input:  config.get MCP server summary
-// output: read-only mobile MCP server list
-// pos:    Mobile MCP settings screen
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useVocab } from '@/i18n';

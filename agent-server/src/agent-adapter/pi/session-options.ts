@@ -1,8 +1,3 @@
-// input:  EngineSpec, resolved agent/session dirs, transcript path, inherited env
-// output: PiSessionRequest (everything an in-process PI session is created from), its CORTEX_* env and identity
-// pos:    Resolves Cortex spawn configuration into PI session inputs
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { resolveMcpComposition } from '../types.js';
 import type { CortexContextEnv, EngineSpec, McpComposition, McpServerConfig } from '../types.js';
 import { fromCanonical } from '@core/tool-names.js';

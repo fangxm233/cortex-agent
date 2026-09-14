@@ -1,8 +1,4 @@
 #!/bin/bash
-# input:  script-relative checkout, public remote, sync tracking ref
-# output: fetched commits cherry-picked onto the current checkout
-# pos:    Synchronizes public/main changes into the private main branch
-# >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"

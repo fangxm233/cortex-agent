@@ -1,8 +1,3 @@
-// input:  TemplateDetailPane, language provider, ThreadTemplateDetail fixtures
-// output: parse-error, mutation-guard, validation, and path-safety regressions
-// pos:    Statically verifies thread-template editor safeguards
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { ThreadTemplateDetail } from '@cortex-agent/ui-contract';

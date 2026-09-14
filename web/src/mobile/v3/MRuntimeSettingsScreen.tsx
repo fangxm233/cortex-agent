@@ -1,8 +1,3 @@
-// input:  runtime config, native notification state and writers
-// output: mobile Notifications and Advanced settings screens
-// pos:    Mobile runtime and device-local notification settings
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';

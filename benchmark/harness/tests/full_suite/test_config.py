@@ -1,8 +1,3 @@
-# input:  external-suite YAML, ordered task pins, malformed documents
-# output: strict reproducible spec and run-readiness parsing proofs
-# pos:    Full-suite specification boundary tests
-# >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import json
 from pathlib import Path
 

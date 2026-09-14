@@ -1,8 +1,3 @@
-// input:  TUI frame fixtures and protocol codec
-// output: round-trip, validation, and representative guard tests
-// pos:    Verifies TUI wire parsing and encoding behavior
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {

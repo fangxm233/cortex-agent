@@ -1,8 +1,3 @@
-// input:  all tui/ modules
-// output: barrel — TuiGatewayAdapter + TuiConnection + helpers
-// pos:    TUI adapter public API
-// >>> If I am updated, update the folder's CORTEX.md <<<
-
 export { TuiGatewayAdapter } from './tui-gateway.js';
 export type { TuiAdapterControls } from './tui-gateway.js';
 export { TuiConnection } from './tui-connection.js';

@@ -1,8 +1,3 @@
-// input:  File bytes, attachment bucket, auth config, progress callback, and abort signal
-// output: Authenticated XHR upload resolving canonical attachment metadata
-// pos:    Shared desktop/mobile attachment upload transport
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { apiBase, authHeaders } from '@/lib/desktop-config';
 import type { AttachmentMeta } from './types';
 

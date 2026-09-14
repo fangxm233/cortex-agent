@@ -1,7 +1,3 @@
-// input:  MemoryTree DTOs with top-level files and directory entries
-// output: Canonical desktop/mobile memory-tree facts and file paths
-// pos:    Shared hierarchical memory-tree mapping specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, expect, it } from 'vitest';
 import type { MemoryFileEntry, MemoryTree } from '@cortex-agent/ui-contract';
 import { deriveMemoryTreeFacts } from './memory-tree';

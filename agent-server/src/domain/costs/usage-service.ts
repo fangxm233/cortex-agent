@@ -1,8 +1,3 @@
-// input:  gateway usage/quota HTTP, PI adapter quota, settings, usage store
-// output: one usage row per (provider, billing kind) — subscription quota or metered spend
-// pos:    Public orchestration service for provider usage visibility
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { getClaudeEngineAdapter, getPiEngineAdapter } from '../runs/adapters.js';
 import { Capability } from '../../agent-adapter/capabilities.js';
 import type { AgentUsageScope, Backend } from '../../agent-adapter/types.js';

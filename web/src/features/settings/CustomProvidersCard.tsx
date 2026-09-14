@@ -1,8 +1,3 @@
-// input:  shared custom-provider controller/VM, Select, and desktop settings primitives
-// output: desktop list and editor with view-owned operation gates
-// pos:    Desktop custom-provider view over canonical settings ownership
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { ReactNode } from 'react';
 import type { CustomProviderApi, CustomProviderView } from '@cortex-agent/ui-contract';
 import { Select } from '@/design';

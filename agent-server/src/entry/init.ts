@@ -1,8 +1,3 @@
-// input:  defaults, filesystem, MCP builders, setup
-// output: localized PI-first init, provider onboarding and configuration
-// pos:    Initializes Cortex home and config surfaces
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { mkdirSync, writeFileSync, copyFileSync, existsSync, readFileSync, readdirSync } from 'fs';
 import { randomBytes } from 'crypto';
 import { execSync } from 'child_process';

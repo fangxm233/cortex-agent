@@ -1,7 +1,3 @@
-# input:  committed campaigns, synthetic packages, fake credentials
-# output: hermetic launch, provenance and credential-hygiene proofs
-# pos:    Paid campaign launch procedure tests
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # The launcher is proven against the committed paid document itself, because the failure it exists
 # to prevent is a launch that satisfies a fixture while leaving one of the five host references

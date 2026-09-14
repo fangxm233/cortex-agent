@@ -1,7 +1,3 @@
-# input:  one committed campaign YAML document and the directory it is read against
-# output: a strictly validated campaign with its ordered trial plan, or a refusal
-# pos:    Campaign configuration boundary
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # The campaign document is the run's declared configuration: arms, tasks, the proxy envelope, and
 # the address space and concurrency its trials run in. It is read closed-world — an unknown key is

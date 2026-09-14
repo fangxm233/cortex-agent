@@ -1,8 +1,3 @@
-// input:  user-supplied custom provider definitions
-// output: validation issues, gateway auth styles, PI catalog entries
-// pos:    Shape and rules of a user-defined PI provider
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 /** PI request protocols a custom provider may speak (PI docs/models.md §Supported APIs). */
 export const CUSTOM_PROVIDER_APIS = [
   'anthropic-messages',

@@ -1,8 +1,3 @@
-# input:  admitted vendor arms, fake proxy, recording environment
-# output: setup, prompt, usage, containment, and lifecycle proofs
-# pos:    Contract tests for preinstalled vendor lifecycle agents
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import asyncio
 import base64
 import hashlib

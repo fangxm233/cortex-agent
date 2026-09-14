@@ -1,8 +1,3 @@
-# input:  committed external-suite YAML, task inventory, host placement flags
-# output: strict immutable suite readiness and host input types
-# pos:    Full-suite configuration boundary
-# >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 from __future__ import annotations
 
 import hashlib

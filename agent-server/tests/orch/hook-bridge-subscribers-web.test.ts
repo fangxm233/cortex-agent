@@ -1,8 +1,3 @@
-// input:  Hook bridge events, EventBus, interaction records
-// output: Web question and plan interaction persistence tests
-// pos:    Tests hook-to-Web interaction delivery
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { EventBus } from '../../src/events/event-bus.js';

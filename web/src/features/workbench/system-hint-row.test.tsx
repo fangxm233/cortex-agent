@@ -1,8 +1,3 @@
-// input:  system-authored ChatRows rendered through the desktop and mobile streams
-// output: hint-row presentation, suppressed bubble affordances, DEBUG-gated inspector
-// pos:    Contract for how a turn Cortex wrote is drawn
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { LangProvider } from '@/i18n';

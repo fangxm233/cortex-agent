@@ -1,8 +1,3 @@
-// input:  one-shot production auth file and isolated environment
-// output: consumed in-memory server auth with no residual file/path
-// pos:    Guards the sealed production server bootstrap credential handoff
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';

@@ -1,8 +1,3 @@
-// input:  Vitest, MockAdapter, OutputStream, runtime settings
-// output: platform prompt visibility, grouping, ordering, and trace tests
-// pos:    Covers runtime enablement and mutable-tail behavior
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { test, beforeEach, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import { MockAdapter, MockOutputStream } from '../src/platform/testing.js';

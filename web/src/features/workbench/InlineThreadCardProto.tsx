@@ -1,8 +1,3 @@
-// input:  session-scoped thread queries and detail modal opener
-// output: inline live thread progress card
-// pos:    Thread status card inside the desktop chat stream
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { Fragment } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';

@@ -1,7 +1,3 @@
-// input:  Mobile session queries, shared run/attachment controllers, drafts, and mutations
-// output: Mobile chat with status, attachments and slash feedback
-// pos:    Mobile session detail data orchestration and presentation composition
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -25,14 +21,14 @@ import { useSessionCompact } from '@/features/workbench/useSessionCompact';
 import { browserStartupHint, browserStartupPending } from '@/features/workbench/browser-status';
 import { deriveSessionRunStatus } from '@/features/workbench/session-run-status';
 import { sessionSpanMs, sessionStatsView } from '@/features/workbench/session-stats';
-import { buildProfileOptions, currentBackendOf } from '@/features/workbench/profile-menu';
+import { buildProfileOptions, effectiveSelection, profileChange } from '@/features/workbench/selection-menu';
 import {
   buildSlashSuggestions, resolveSlashInput, runSlashAction, slashFeedbackKey,
   type SlashAction, type SlashActionHandlers, type SlashSuggestion,
 } from '@/features/workbench/composer-slash';
 import {
-  resolveTransitionProfile,
-  type PendingCreatedSession,
+  applyDraftSelection, EMPTY_DRAFT_SELECTION, resolveTransitionSelection, seedDraftSelection,
+  type DraftSelection, type PendingCreatedSession, type SelectionChange,
 } from '@/features/workbench/selected-session';
 
 import {
@@ -72,8 +68,9 @@ import {
   chatHeaderStatus,
   interactionHeaderStatus,
   effectiveProfileName,
-  profileChipLabel,
-  buildProfileSheetItems,
+  selectionChipLabel,
+  buildSelectionSheet,
+  type SelectionSheetRow,
   type PendingAttachmentVM,
 } from './m-chat-vm';
 import { usePersistedMobileChatDraft } from './m-chat-attachments';
@@ -106,6 +103,13 @@ const COPY: { en: MChatCopy; zh: MChatCopy } = {
     profileSubtitle: '仅本会话 · 热更新',
     profileCurrent: '当前',
     profileFooter: '切换仅影响本会话后续 turn · 运行中线程不受影响 · 全局默认在设置',
+    selectionModel: '模型',
+    selectionThinking: '思考强度',
+    selectionMode: '计费路由',
+    selectionFollow: '跟随 profile',
+    selectionCrossBackend: '需要新建会话（当前对话运行在不同的后端上）',
+    selectionNoProfile: '本机没有运行该后端的 profile',
+    selectionPending: '正在加载模型…',
     lineUnit: '行',
     charUnit: '字',
   },
@@ -133,6 +137,13 @@ const COPY: { en: MChatCopy; zh: MChatCopy } = {
     profileSubtitle: 'This session · hot-swap',
     profileCurrent: 'current',
     profileFooter: 'Applies to this session’s next turns only · running threads unaffected · global default in Settings',
+    selectionModel: 'model',
+    selectionThinking: 'thinking',
+    selectionMode: 'route',
+    selectionFollow: 'follow profile',
+    selectionCrossBackend: 'needs a new session (this conversation runs on a different backend)',
+    selectionNoProfile: 'no profile on this host runs that backend',
+    selectionPending: 'loading models…',
     lineUnit: 'lines',
     charUnit: 'chars',
   },
@@ -307,7 +318,23 @@ export function MChatScreen(): JSX.Element {
   const configQuery = useQuery(trpc.config.get.queryOptions({}));
   const profiles = configQuery.data?.profiles?.profiles ?? [];
   const defaultProfile = configQuery.data?.profiles?.defaultProfile ?? null;
-  const [draftProfile, setDraftProfile] = useState<string | null>(null);
+  const [selectionOpen, setSelectionOpen] = useState(false);
+  // Only fetched once the sheet is opened: on a cold PI host the catalog costs a provider scan, and
+  // the chip itself reads the profile. See domain/ui-service/query/models.
+  const catalogQuery = useQuery(trpc.models.catalog.queryOptions({}, { enabled: selectionOpen }));
+  const [draftSelection, setDraftSelection] = useState<DraftSelection>(EMPTY_DRAFT_SELECTION);
+  // Same seed as the desktop composer (SelectedSessionProvider): a new conversation opens on the
+  // last engine chosen on this host, profile included. Without it a mobile draft stayed at
+  // `profileName: null` and the created session had no profile of its own to come back to.
+  useEffect(() => {
+    if (!isDraft || draftSelection.profileName || draftSelection.override) return;
+    const snapshot = configQuery.data?.profiles;
+    if (!snapshot) return;
+    const seeded = seedDraftSelection(
+      configQuery.data?.selectionDefault, snapshot.profiles, snapshot.defaultProfile,
+    );
+    if (seeded) setDraftSelection(seeded);
+  }, [isDraft, draftSelection.profileName, draftSelection.override, configQuery.data]);
   // Browser control is chosen on the draft only: the agent's tool set is fixed when its process
   // spawns, so a live session can report it but never change it.
   const [draftBrowserDevice, setDraftBrowserDevice] = useState<string | null>(null);
@@ -331,16 +358,24 @@ export function MChatScreen(): JSX.Element {
   // offers no entry point; a live session's read-only capsule is unaffected.
   const commissionEnabled = useCommissionEnabled();
   const [pendingCreatedSession, setPendingCreatedSession] = useState<PendingCreatedSession | null>(null);
-  const transitionProfile = resolveTransitionProfile(
-    active?.profileName,
+  const transition = resolveTransitionSelection(
+    { profileName: active?.profileName, override: active?.selectionOverride },
     pendingCreatedSession,
     sessionId,
   );
   const effectiveProfile = effectiveProfileName(
-    isDraft ? draftProfile : transitionProfile,
+    isDraft ? draftSelection.profileName : transition.profileName,
     profiles,
     defaultProfile,
   );
+  const selectionOverride = isDraft ? draftSelection.override : transition.override;
+  // The profile is the base; the session's own model/thinking choice sits on top of it. One shared
+  // resolver with the desktop composer, so the two surfaces cannot disagree about what will run.
+  const effective = effectiveSelection(profiles, effectiveProfile, selectionOverride);
+  const hasHistory = transcript.turns.length > 0 || liveTail.length > 0;
+  const profileOptions = buildProfileOptions(profiles, effectiveProfile, {
+    currentBackend: effective.backend, hasHistory,
+  });
 
   useEffect(() => {
     if (!pendingCreatedSession) return;
@@ -355,8 +390,8 @@ export function MChatScreen(): JSX.Element {
   // onto the new session id and navigating to it must land in one render, or the row blinks out
   // while the draft scope is already gone.
   const createAndSendMut = useMutation(trpc.sessions.createAndSend.mutationOptions());
-  const setProfileMut = useMutation(
-    trpc.sessions.setProfile.mutationOptions({
+  const setSelectionMut = useMutation(
+    trpc.sessions.setSelection.mutationOptions({
       onSuccess: () => queryClient.invalidateQueries(trpc.sessions.list.queryFilter()),
     }),
   );
@@ -392,7 +427,6 @@ export function MChatScreen(): JSX.Element {
   // Composer text before the edit hijacked it — restored on × cancel (原样退出).
   const preEditText = useRef('');
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
   const [contextUsageOpen, setContextUsageOpen] = useState(false);
   const [systemLines, setSystemLines] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -497,11 +531,9 @@ export function MChatScreen(): JSX.Element {
       : `send failed · ${error.message} · text restored to the composer`]);
   };
 
-  const profileBackend = currentBackendOf(profiles, effectiveProfile);
-  const slashProfiles = buildProfileOptions(profiles, effectiveProfile, {
-    currentBackend: profileBackend,
-    hasHistory: transcript.turns.length > 0 || liveTail.length > 0,
-  }).map((profile) => ({ name: profile.name, detail: profile.sub, disabled: profile.disabled }));
+  const slashProfiles = profileOptions.map(
+    (profile) => ({ name: profile.name, detail: profile.sub, disabled: profile.disabled }),
+  );
   const slashAvailability = {
     newDisabled: attachmentUploads.hasNonDone,
     cancelDisabled: !running || cancelMut.isPending,
@@ -515,7 +547,7 @@ export function MChatScreen(): JSX.Element {
     onNew: () => navigate('/m/session/new'),
     onCancel: () => { if (running) onStop(); },
     onCompact: compactAction.onCompact,
-    onProfile: onPickProfile,
+    onProfile: (name) => applySelection(profileChange(profileOptions, effective, name), name),
     onSettings: () => navigate('/m/settings'),
   };
   const consumeSlashText = (): void => {
@@ -589,7 +621,8 @@ export function MChatScreen(): JSX.Element {
       mutate: () => isDraft
         ? createAndSendMut.mutateAsync({
             projectId: currentProjectId ?? 'general',
-            profileName: draftProfile ?? undefined,
+            profileName: draftSelection.profileName ?? undefined,
+            ...(draftSelection.override ? { selection: draftSelection.override } : {}),
             text: t,
             draftUploadId: sent.draftUploadId,
             ...(draftBrowserDevice ? { browser: { device: draftBrowserDevice } } : {}),
@@ -606,7 +639,11 @@ export function MChatScreen(): JSX.Element {
         }
         optimistic.accept(entry.clientId, { acceptedAt: data.acceptedAt, createdSessionId: data.sessionId });
         draftUploadId.current = null;
-        setPendingCreatedSession({ sessionId: data.sessionId, profileName: draftProfile });
+        setPendingCreatedSession({
+          sessionId: data.sessionId,
+          profileName: draftSelection.profileName,
+          override: draftSelection.override,
+        });
         queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
         navigate(`/m/session/${data.sessionId}`, { replace: true });
       },
@@ -621,21 +658,25 @@ export function MChatScreen(): JSX.Element {
     });
   };
 
-  function onPickProfile(name: string): void {
-    setProfileOpen(false);
-    if (name === effectiveProfile) return;
-    const from = effectiveProfile;
-    const line = lang === 'zh'
-      ? `profile 切换 ${from} → ${name} · 下一 turn 生效`
-      : `profile ${from} → ${name} · takes effect next turn`;
+  function onPickSelection(row: SelectionSheetRow): void {
+    setSelectionOpen(false);
+    applySelection(row.change, row.label);
+  }
+
+  /** Send an engine change and, once it has landed, note it in the stream. */
+  function applySelection(change: SelectionChange | null, label: string): void {
+    if (!change) return;
+    const from = selectionChipLabel(effective);
+    // The line is written once the change has actually landed, so a refusal leaves no trace claiming
+    // it did. The draft has nothing to refuse it, so it writes immediately.
+    const note = (): void => setSystemLines((prev) => [...prev, lang === 'zh'
+      ? `引擎切换 ${from} → ${label} · 下一 turn 生效`
+      : `engine ${from} → ${label} · takes effect next turn`]);
     if (isDraft) {
-      setDraftProfile(name);
-      setSystemLines((prev) => [...prev, line]);
+      setDraftSelection((prev) => applyDraftSelection(prev, change));
+      note();
     } else if (sessionId) {
-      setProfileMut.mutate(
-        { sessionId, profileName: name },
-        { onSuccess: () => setSystemLines((prev) => [...prev, line]) },
-      );
+      setSelectionMut.mutate({ sessionId, ...change }, { onSuccess: note });
     }
   }
 
@@ -790,7 +831,7 @@ export function MChatScreen(): JSX.Element {
         composerPlaceholder={composerPlaceholder}
         onStop={onStop}
         stopEnabled={!cancelMut.isPending}
-        profileChipLabel={profileChipLabel(effectiveProfile)}
+        selectionChipLabel={selectionChipLabel(effective)}
         browserDevice={isDraft ? draftBrowserDevice : (active?.browser?.device ?? null)}
         onOpenBrowser={isDraft ? () => setBrowserSheetOpen(true) : undefined}
         browserSheet={browserSheetOpen ? {
@@ -816,7 +857,7 @@ export function MChatScreen(): JSX.Element {
           onClose: () => setCommissionSheetOpen(false),
           onPick: (value: string | null) => { setDraftCommission(value); setCommissionSheetOpen(false); },
         } : undefined}
-        onOpenProfile={() => setProfileOpen(true)}
+        onOpenSelection={() => setSelectionOpen(true)}
         contextUsage={contextUsage}
         contextUsageSupported={!!active?.contextCompactionSupported}
         contextUsageLang={lang}
@@ -833,9 +874,30 @@ export function MChatScreen(): JSX.Element {
         onCamera={() => pickFiles('image/*', 'environment')}
         onLibrary={() => pickFiles('image/*,video/*')}
         onFile={() => pickFiles('*/*')}
-        profileSheet={
-          profileOpen
-            ? { items: buildProfileSheetItems(profiles, effectiveProfile), onClose: () => setProfileOpen(false), onPick: onPickProfile }
+        selectionSheet={
+          selectionOpen
+            ? {
+              sections: buildSelectionSheet({
+                profiles,
+                catalog: catalogQuery.data,
+                effective,
+                override: selectionOverride,
+                hasHistory,
+                defaultProfile,
+                copy: {
+                  profile: copy.profileTitle,
+                  model: copy.selectionModel,
+                  thinking: copy.selectionThinking,
+                  mode: copy.selectionMode,
+                  followProfile: copy.selectionFollow,
+                  crossBackend: copy.selectionCrossBackend,
+                  noProfile: copy.selectionNoProfile,
+                },
+              }),
+              pending: catalogQuery.isLoading || (catalogQuery.data?.piPending ?? false),
+              onClose: () => setSelectionOpen(false),
+              onPick: onPickSelection,
+            }
             : undefined
         }
       />

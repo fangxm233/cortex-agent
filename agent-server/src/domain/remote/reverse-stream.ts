@@ -1,8 +1,3 @@
-// input:  requests for a TCP connection on a remote device, and the callback sockets it dials back
-// output: byte-transparent streams from the server to any cortex-client device
-// pos:    Reverse half of the port forward — the direction NAT forbids
-// >>> If I am updated, update CORTEX.md <<<
-
 import * as crypto from 'crypto';
 import type { WebSocket } from 'ws';
 import { createLogger } from '@core/log.js';

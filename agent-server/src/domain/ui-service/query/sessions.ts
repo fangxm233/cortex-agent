@@ -1,8 +1,3 @@
-// input:  session/history/run stores, tool metadata, DEBUG policy
-// output: session snapshots (incl. whole-session totals), transcripts, subagent detail, DEBUG
-// pos:    Authoritative query boundary for session transcripts
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type {
   UiServiceDeps,
   SessionInfo,
@@ -148,6 +143,9 @@ export async function handleSessionsList(
       resumable: s.kind !== 'scheduled',
       label: s.label ?? null,
       profileName: s.profileName ?? null,
+      // The other half of "what will the next turn run": the profile alone would misreport every
+      // session whose model or thinking level the user picked in the composer.
+      selectionOverride: deps.getChannelSelectionOverride?.(s.channel) ?? null,
       browser: s.browser ?? null,
       contextUsage: s.contextUsage ?? null,
       todos: deps.getSessionTodos?.(s.sessionId) ?? null,

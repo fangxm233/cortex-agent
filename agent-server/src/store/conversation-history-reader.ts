@@ -1,8 +1,3 @@
-// input:  persisted session JSONL and DEBUG warning policy
-// output: collapsed history with tool device metadata
-// pos:    Full and compact conversation-history parser
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { createReadStream } from 'fs';
 import { createInterface } from 'node:readline';
 import { debugToolWarningChars, isDebugToolOverWarningThreshold } from '@core/debug-mode.js';

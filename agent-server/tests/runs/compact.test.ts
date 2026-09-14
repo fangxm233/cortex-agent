@@ -1,8 +1,4 @@
 import '../_test-home.js'; // MUST be first — isolates paths before the run layer loads
-// input:  compactAgentContext over a real pooled PI engine and a scripted fake PI runtime
-// output: support gating, same-session resume, no-turn compact, pooling, and the recorded cost row
-// pos:    Run layer — manual compaction is a command on a session's pooled engine, not a run
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

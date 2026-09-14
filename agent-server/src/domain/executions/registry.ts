@@ -3,7 +3,6 @@
 // pos:    thin re-export layer — delegates to ExecutionRepo. Maintains backward compat for all import sites.
 //         Lock-release: every terminal transition (complete/fail/cancel/stale) auto-releases any task lock held by the executionId.
 //         releaseExecutionLocks(id) exposes the same release for the thread SUSPEND path (thread_wait) WITHOUT ending the execution (DR-0014 lock hygiene).
-// >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import * as fs from 'node:fs';
 import { executionRepo, TERMINAL_STATUSES } from '@store/execution-repo.js';

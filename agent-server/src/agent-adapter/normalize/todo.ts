@@ -1,8 +1,3 @@
-// input:  backend label + native tool name + raw TodoWrite input
-// output: parseTodoWrite → TodoSnapshot, and renderTodoProgress for one-line surfaces
-// pos:    Backend-neutral TodoWrite payload normalization
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { Backend } from '../types.js';
 import type { TodoItem, TodoSnapshot, TodoStatus } from './event-types.js';
 import { matchesCanonicalAnyBackend, toCanonical } from '@core/tool-names.js';

@@ -1,8 +1,3 @@
-// input:  auth status, auth-watch debounce, system notice delivery
-// output: self-registering daily in-use authentication warning job
-// pos:    Scheduled authentication expiry and logout scanner
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { t } from '@core/i18n.js';
 import type { AuthNoticeAction } from '@core/types/agent-types.js';
 import {

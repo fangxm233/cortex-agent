@@ -2,7 +2,6 @@
 // output: regression tests for the persistent interaction entity service
 //         (web-interactions-redesign plan: create/resolve lifecycle, idempotency,
 //         pending index as liveness, channel scoping, session.interaction events)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

@@ -1,8 +1,3 @@
-// input:  interaction state, plan response delivery, adapter
-// output: registerInteractionHandlers(adapter)
-// pos:    AskUserQuestion and ExitPlanMode handler registration
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { Destination, PlatformAdapter, ActionContext, ModalSubmitContext, ModalFieldValue, QuestionGroup } from '@platform/index.js';
 import { buildPlanFeedbackModal } from '@platform/index.js';
 

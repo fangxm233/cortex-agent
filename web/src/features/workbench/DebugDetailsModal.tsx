@@ -1,8 +1,3 @@
-// input:  DEBUG detail, hover scope, localized labels, layered Modal
-// output: scoped inspector control and character-counted dialog
-// pos:    desktop DEBUG behavior surface
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { MouseEvent } from 'react';
 import { Modal } from '@/design/Modal';
 import { useVocab } from '@/i18n';

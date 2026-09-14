@@ -1,8 +1,3 @@
-// input:  pending updates, focused element shapes, and focusout events
-// output: shared typing gate classification and deferred prompt surfacing
-// pos:    Headless update focus-gating specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { isEditableTarget, useUpdateGating } from './useUpdateGating';

@@ -1,8 +1,3 @@
-// input:  Radix Select, controlled typed options and trigger attributes
-// output: accessible profile-styled single-value selection control
-// pos:    Shared custom dropdown primitive for desktop form fields
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as RadixSelect from '@radix-ui/react-select';
 import type { ButtonHTMLAttributes, CSSProperties } from 'react';
 

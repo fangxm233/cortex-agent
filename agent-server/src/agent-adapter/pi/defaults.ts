@@ -1,8 +1,3 @@
-// input:  install root and the Cortex data directory
-// output: PI adapter path defaults
-// pos:    Static path defaults for the PI backend
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as path from 'path';
 import { DATA_DIR } from '@core/utils.js';
 

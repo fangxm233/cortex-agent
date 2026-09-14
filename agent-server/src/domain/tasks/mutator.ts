@@ -1,8 +1,3 @@
-// input:  task repo, lifecycle ownership, locks, EventBus
-// output: serialized mutations, generation-aware events
-// pos:    Serializes task mutations across processes
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { taskStore, TaskRepo } from '@store/task-repo.js';
 import type { TaskGenerationExpectation } from '@core/task-parser.js';
 import type { EventBus } from '@events/index.js';

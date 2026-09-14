@@ -1,8 +1,3 @@
-// input:  appearance providers, language state + provenance, and navigation
-// output: mobile appearance drill-in bound to device-local theme state and the server language
-// pos:    Mobile appearance routing container
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { useNavigate } from 'react-router-dom';
 import { useLang, useLangSource, useSetLang } from '@/i18n';
 import {

@@ -1,8 +1,3 @@
-// input:  parsed Claude stdout lines, turn callbacks, continuation/injection sinks
-// output: settled turns, streamed assistant/tool events, accounting, continuation delivery
-// pos:    Claude print-mode turn machine (the turn half of the persistent session)
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { createWriteStream, mkdirSync } from 'fs';
 import { Writable } from 'stream';
 import * as path from 'path';

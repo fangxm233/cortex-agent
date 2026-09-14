@@ -1,8 +1,3 @@
-# input:  stdlib HTTP requests and fixed synthetic responses
-# output: loopback captures, injected failures, and proxy request helpers
-# pos:    Synthetic model endpoint fixture
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import json
 import socket
 import struct

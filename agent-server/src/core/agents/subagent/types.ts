@@ -1,8 +1,3 @@
-// input:  subagent task fields, per-child accounting, run outcomes
-// output: the task/result/usage shapes both backends and both entry points share
-// pos:    Vocabulary of one delegated subagent run
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { Backend } from '@core/types/agent-types.js';
 
 export type SubagentMode = 'single' | 'parallel' | 'chain';

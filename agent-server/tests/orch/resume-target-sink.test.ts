@@ -1,8 +1,3 @@
-// input:  createResumeTargetSink with injected store seams, RunEvent shapes
-// output: when a backend resume target is written, and when writing it is skipped
-// pos:    resume-target-sink contract — the mid-turn half of first-turn resume durability
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import '../_test-home.js'; // first — keep the store singletons off the real data home
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

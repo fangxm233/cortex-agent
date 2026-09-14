@@ -1,8 +1,3 @@
-// input:  task-list snapshots and persisted expand state
-// output: active ordinal and expanded click-to-collapse tests
-// pos:    Tests the desktop task-list rail interaction
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TodoSnapshot } from '@cortex-agent/ui-contract';

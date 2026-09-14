@@ -1,8 +1,3 @@
-// input:  task-node paths, atomic writes, production topology ledger
-// output: delivery dedupe, verdicts, and correlated rework facts
-// pos:    Persistent task-child acceptance and delivery ledger
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { readFileSync, mkdirSync } from 'fs';
 import * as path from 'path';
 import { managerNodeDir } from '@core/task-node.js';

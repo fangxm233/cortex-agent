@@ -1,8 +1,3 @@
-// input:  UiService, CORTEX_UI_HTTP environment flag
-// output: optional Web UI HTTP server handle
-// pos:    Lazily gates the Web UI HTTP transport startup
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { UiService } from '@domain/ui-service/types.js';
 
 /**

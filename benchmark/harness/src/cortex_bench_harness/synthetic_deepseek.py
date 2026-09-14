@@ -1,8 +1,3 @@
-# input:  loopback OpenAI chat-completion requests
-# output: deterministic DeepSeek-shaped SSE tool turns
-# pos:    ZERO-PAID synthetic model endpoint
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import argparse
 import json
 import os

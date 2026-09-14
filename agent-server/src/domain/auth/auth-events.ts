@@ -1,8 +1,3 @@
-// input:  provider error messages, run identity, shared EventBus
-// output: auth classification and required/recovered lifecycle events
-// pos:    Authentication failure event publisher
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import type { AuthErrorKind, EventBus } from '@events/index.js';
 
 const AUTH_ERROR_PATTERNS: ReadonlyArray<readonly [RegExp, AuthErrorKind]> = [

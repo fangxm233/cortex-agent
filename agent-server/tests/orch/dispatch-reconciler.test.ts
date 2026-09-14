@@ -1,8 +1,3 @@
-// input:  dispatch reconciler, fake execution state, fake timers
-// output: dispatch reconciler settings guard tests
-// pos:    Verifies stale-dispatch interval registration is optional
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { afterEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 

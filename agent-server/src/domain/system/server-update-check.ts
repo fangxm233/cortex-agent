@@ -1,8 +1,3 @@
-// input:  update prompt/state, version, runtime settings
-// output: compareCalVer, isUpdateDevMode, checkServerUpdate
-// pos:    Checks and dispatches server package updates
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import * as fs from 'node:fs';
 import { execSync, spawn } from 'node:child_process';
 import { getSettings } from '@core/settings.js';

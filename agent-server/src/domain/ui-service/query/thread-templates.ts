@@ -5,7 +5,6 @@
 //         `readThreadTemplates(configDir)` + thin `handleThreadTemplatesGet` binding CONFIG_DIR.
 //         No secrets in template JSON files; body is the full parsed content, null on parse error.
 //         Kind order: templates → agents → shells. Within each kind: alphabetical by filename.
-// >>> If I am updated, update CORTEX.md <<<
 
 import fs from 'node:fs/promises';
 import path from 'node:path';

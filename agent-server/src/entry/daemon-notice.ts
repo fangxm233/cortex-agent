@@ -1,8 +1,3 @@
-// input:  daemon fork IPC messages, PlatformAdapter
-// output: handleDaemonMessage + subscribeDaemonNotices
-// pos:    entry/ layer — turns supervisor-side notices into admin/system broadcasts
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { PlatformAdapter } from '@platform/index.js';
 import { emitSystemNotice } from '@domain/system/system-notice.js';
 

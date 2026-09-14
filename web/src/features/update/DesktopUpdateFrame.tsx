@@ -1,8 +1,3 @@
-// input:  desktop update title, summary, description, actions, and dismissal
-// output: Radix modal chrome shared only by desktop update dialogs
-// pos:    Desktop-only update dialog frame preserving current DOM and animation classes
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as RadixDialog from '@radix-ui/react-dialog';
 import type { ReactNode } from 'react';
 

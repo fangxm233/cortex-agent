@@ -1,8 +1,3 @@
-// input:  Mobile composer modes, attachment retry/remove actions, tools, and menus
-// output: Composer chrome, plus menu, profile/context tools, and slash suggestions
-// pos:    Mobile chat composer presentation seam
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { ReactNode } from 'react';
 import type { SlashSuggestion } from '@/features/workbench/composer-slash';
 import { ContextUsageRing } from '@/features/workbench/ContextUsageControl';
@@ -101,9 +96,9 @@ export function ComposerAbove({ props }: { props: MChatViewProps }): JSX.Element
   );
 }
 
-function ProfileChip({ label, onClick }: { label: string; onClick: () => void }): JSX.Element {
+function SelectionChip({ label, onClick }: { label: string; onClick: () => void }): JSX.Element {
   return (
-    <button type="button" onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 6, border: `1.5px solid ${MC.runBorder}`, background: MC.card, borderRadius: 999, height: 34, padding: '0 13px', boxSizing: 'border-box', flex: '0 1 auto', minWidth: 0, overflow: 'hidden', cursor: 'pointer' }}>
+    <button type="button" data-chip="selection" onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 6, border: `1.5px solid ${MC.runBorder}`, background: MC.card, borderRadius: 999, height: 34, padding: '0 13px', boxSizing: 'border-box', flex: '0 1 auto', minWidth: 0, overflow: 'hidden', cursor: 'pointer' }}>
       <span style={{ width: 5, height: 5, borderRadius: '50%', background: MC.run, flex: 'none' }} />
       <span style={{ minWidth: 0, font: `600 11.5px ${MONO}`, color: MC.run, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
     </button>
@@ -182,7 +177,7 @@ export function ComposerTools({ props }: { props: MChatViewProps }): JSX.Element
   if (props.editing || props.rejectBar) return null;
   return (
     <>
-      <ProfileChip label={props.profileChipLabel} onClick={props.onOpenProfile} />
+      <SelectionChip label={props.selectionChipLabel} onClick={props.onOpenSelection} />
       {(props.contextUsageSupported || props.contextUsage != null) ? <span data-context-usage-position="composer-toolbar" style={{ display: 'inline-flex', flex: 'none' }}><ContextUsageRing usage={props.contextUsage ?? null} variant="mobile" lang={props.contextUsageLang ?? 'en'} onClick={props.onContextUsageOpen} data-context-compact-enabled={props.contextCompactAction ? 'true' : undefined} /></span> : null}
     </>
   );

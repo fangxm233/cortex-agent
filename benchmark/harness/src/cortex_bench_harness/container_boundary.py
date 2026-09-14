@@ -1,8 +1,3 @@
-# input:  Docker lifecycle state and host /proc namespace census
-# output: post-stop container exit and process census observation
-# pos:    Host container boundary recorder
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import asyncio
 import json
 import re

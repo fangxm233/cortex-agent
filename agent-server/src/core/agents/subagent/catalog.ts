@@ -1,8 +1,3 @@
-// input:  the live role table plus each backend's known models
-// output: bounded `agent` tool field descriptions and encode/decode helpers for a model catalog
-// pos:    Shared subagent catalog: renders role and model choices for the PI tool and MCP sidecar
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { ANTHROPIC_MODELS } from '@core/anthropic-models.js';
 import type { Backend } from '@core/types/agent-types.js';
 import type { AgentRole } from '../roles.js';

@@ -1,8 +1,3 @@
-// input:  schedule sheet rows, real schedule DTOs, and a headless editor controller
-// output: single-sheet transitions, pending-safe back/reopen and level-aware regressions
-// pos:    Mobile Scheduled bottom-sheet state-machine specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import type { ScheduleInfo, SessionInfo } from '@cortex-agent/ui-contract';
 import { describe, expect, it, vi } from 'vitest';

@@ -1,8 +1,3 @@
-// input:  custom provider definitions and the two files that hold them
-// output: list, upsert and remove operations spanning catalog and gateway
-// pos:    Orchestration of user-defined PI providers
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { createLogger } from '@core/log.js';
 import { GATEWAY_URL } from '@domain/costs/gateway-manager.js';
 import { piProviderDiscovery } from '../../agent-adapter/pi/discovery.js';

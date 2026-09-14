@@ -1,8 +1,3 @@
-// input:  hooks.list query, language, navigation
-// output: data-bound read-only mobile hooks screen
-// pos:    Mobile hooks query and sheet-selection container
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 // Drilled from 1l 设置 (`Hooks · N` row). NON-Tab drill page — the shell hides the Tab bar for
 // /m/settings/hooks and hardware back returns to /m/settings (mobile-navigation PARENT_RULES).
 // Real tRPC: `hooks.list` — the full registry read model (declaration + source + load order +

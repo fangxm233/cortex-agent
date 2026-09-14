@@ -1,8 +1,3 @@
-// input:  legacy schedule records, settings snapshots, fake repository
-// output: upgrade mapping, conflicts, ordering, and idempotence tests
-// pos:    Verifies programmatic schedules migrate into runtime settings
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import { test, vi } from 'vitest';
 import { migrateBuiltinJobSchedules } from '../src/domain/scheduling/builtin-job-migration.js';

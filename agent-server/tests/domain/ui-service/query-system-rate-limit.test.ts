@@ -1,8 +1,3 @@
-// input:  provider throttle domain state and system rate-limit query handler
-// output: labeled provider/window DTO, waiting counts, and inactive assertions
-// pos:    UI-service regression coverage for system.rateLimitStatus
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { afterEach, test } from 'vitest';
 import assert from 'node:assert/strict';
 import {

@@ -1,8 +1,3 @@
-// input:  mounted budget writer, config.set outcomes, and query cache
-// output: serialized nullable operations, payload, invalidation, and failure regressions
-// pos:    Shared desktop/mobile budget writer integration specification
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

@@ -4,7 +4,6 @@
 //         (c) re-entrant trackPendingTask inside subscriber is handled without crash,
 //         (d) non-tracker bus.publish fires correct IPC (S13 subscriber-as-source-of-truth),
 //         (e) non-tracker aggregate produces correct single busy+idle
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

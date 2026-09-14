@@ -1,8 +1,3 @@
-// input:  usage model, policy state, mobile UI kit, and copy
-// output: fixed Usage header, animated quota and policy controls
-// pos:    Presentational mobile Usage settings view
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 // @ds-adherence-ignore -- mobile v3 uses its dedicated scheme tokens and metrics
 import type { CSSProperties } from 'react';
 import type {

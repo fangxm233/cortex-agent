@@ -154,6 +154,7 @@ export type MutateOp =
   | 'sessions.cancel'
   | 'sessions.compact'
   | 'sessions.setProfile'
+  | 'sessions.setSelection'
   | 'sessions.createAndSend'
   | 'sessions.markRead'
   | 'sessions.answerQuestion'
@@ -360,6 +361,7 @@ export interface CostSummaryParams {
 
 export type ConfigGetParams = Record<string, never>;
 
+
 export type AuthStatusParams = Record<string, never>;
 
 export interface AuthFlowStateParams {
@@ -505,6 +507,34 @@ export interface SessionsSetProfileArgs {
   profileName: string;
 }
 
+/** The part of a session's engine selection that came from the user rather than from its profile.
+ *  Every field is optional: a session may override only its thinking level, only its model, or any
+ *  mix. Backend is never here — it belongs to the profile (and a live conversation cannot change it). */
+export interface SessionSelectionOverride {
+  model?: string;
+  provider?: string;
+  thinking?: string;
+  /** Which gateway route of the profile's endpoint bills the turn — anthropic `plan` vs `api`. */
+  mode?: string;
+}
+
+/**
+ * One change to what the session's next turn runs: its profile, its model, its PI provider, its
+ * thinking level — or any combination, applied as a single decision.
+ *
+ * A field left out is untouched; an explicit `null` returns that field to the profile's own value.
+ * Naming a profile without naming anything else means "run this profile as declared", which drops
+ * the session's earlier model/thinking choices.
+ */
+export interface SessionsSetSelectionArgs {
+  sessionId: string;
+  profileName?: string;
+  /** The WHOLE selection to run on top of the profile — a field it does not carry follows the
+   *  profile. Absent means "leave the session's selection as it is", which for a profile switch
+   *  means dropping it (choosing a profile is choosing to run it as declared). */
+  selection?: SessionSelectionOverride;
+}
+
 export interface SessionsAnswerQuestionArgs {
   requestId: string;
   answers: Record<string, string>;
@@ -575,6 +605,10 @@ export interface SessionsCreateAndSendArgs {
   projectId: string;
   /** The profile to create the session with. Omitted → system default. */
   profileName?: string;
+  /** The model / provider / thinking the draft composer had selected on top of that profile.
+   *  Omitted → the profile's own values. Applied at creation so the first turn already runs what
+   *  the user picked (there is no session to `setSelection` on before this call). */
+  selection?: SessionSelectionOverride;
   /** Opt in to browser control for this session. Omitted → no browser tools are loaded. */
   browser?: { device: string } | null;
   /** Commission mode for this session, chosen at creation like the browser opt-in. `new` has the
@@ -834,6 +868,10 @@ export interface SessionInfo {
   /** The session's active agent profile (registry record). Null when never explicitly set — the
    *  client falls back to the config default. Kept in sync by the shared profile-switch rule. */
   profileName: string | null;
+  /** What the user selected on top of that profile (model / provider / thinking), or null when the
+   *  session runs its profile as declared. The composer needs both halves to show what the next turn
+   *  will actually run; the profile alone would lie whenever a model was picked. */
+  selectionOverride?: SessionSelectionOverride | null;
   /** Browser control this session opted into at creation, or null. Fixed for the session's life:
    *  the agent's tool set is decided when its process spawns, so this is a fact to display, not a
    *  setting to flip. */
@@ -1401,12 +1439,21 @@ export interface ModelCatalogRoute {
   /** Where the route was first seen: the built-in Anthropic table, PI's scan of logged-in
    *  providers, a user-defined provider, or gateway.yaml alone (⇒ likely not logged in). */
   source: 'builtin' | 'pi' | 'custom' | 'gateway';
+  /** Thinking levels keyed by model id, for the models whose source could tell — PI reports each
+   *  model's own ladder. A model absent from this map accepts `thinkingLevels` below: the catalog
+   *  never narrows what it cannot vouch for. Optional while clients and servers roll
+   *  independently; an older server omits it and every model gets the backend's whole ladder. */
+  modelThinking?: Record<string, string[]>;
 }
 
 export interface ModelCatalogSnapshot {
   routes: ModelCatalogRoute[];
   /** True while PI's first model scan is still in flight — the client may refetch shortly. */
   piPending: boolean;
+  /** The backend-wide thinking ladders, served so a picker does not keep a second copy of the
+   *  table the profile validator already enforces. Optional for the same roll-skew reason as
+   *  `modelThinking`. */
+  thinkingLevels?: Record<Backend, string[]>;
 }
 
 export interface ConfigMachine {
@@ -1562,6 +1609,13 @@ export interface HooksTestReturn {
   error: string | null;
 }
 
+/** What a brand-new conversation starts on: the profile the composer should preselect, plus the
+ *  model / provider / thinking / route the last pick left on top of it. Null on a host where
+ *  nobody has picked anything yet — the composer then falls back to the default profile. */
+export interface ConfigSelectionDefault extends SessionSelectionOverride {
+  profileName?: string;
+}
+
 export interface ConfigSnapshot {
   platforms?: PlatformSettingsSnapshot[];
   budget: ConfigBudget | null;
@@ -1581,6 +1635,9 @@ export interface ConfigSnapshot {
    * falls back to its local cache.
    */
   lang?: ConfigLang;
+  /** Seed for a draft composer — see {@link ConfigSelectionDefault}. Optional while clients and
+   *  servers roll independently. */
+  selectionDefault?: ConfigSelectionDefault | null;
 }
 
 export interface ConfigLang {
@@ -2281,6 +2338,22 @@ export interface SessionsSetProfileReturn {
   backendChanged: boolean;
 }
 
+/** What the session will run on its next turn, after the change — effective values, so the client
+ *  can render the chip without re-deriving the profile/override layering. */
+export interface SessionsSetSelectionReturn {
+  profileName: string;
+  backend: Backend;
+  model: string;
+  provider: string | null;
+  thinking: string | null;
+  /** The gateway route the next turn bills to. */
+  mode: string;
+  /** The fields that came from the selection rather than from the profile. Null when the session
+   *  runs its profile as declared. */
+  override: SessionSelectionOverride | null;
+  backendChanged: boolean;
+}
+
 export interface SessionsCreateAndSendReturn {
   /** The id of the newly created session (the client transitions from draft to this session). */
   sessionId: string;
@@ -2429,6 +2502,7 @@ export interface MutateArgsMap {
   'sessions.cancel': SessionsCancelArgs;
   'sessions.compact': SessionsCompactArgs;
   'sessions.setProfile': SessionsSetProfileArgs;
+  'sessions.setSelection': SessionsSetSelectionArgs;
   'sessions.createAndSend': SessionsCreateAndSendArgs;
   'sessions.markRead': SessionsMarkReadArgs;
   'sessions.answerQuestion': SessionsAnswerQuestionArgs;
@@ -2501,6 +2575,7 @@ export interface MutateReturnMap {
   'sessions.cancel': SessionsCancelReturn;
   'sessions.compact': SessionsCompactReturn;
   'sessions.setProfile': SessionsSetProfileReturn;
+  'sessions.setSelection': SessionsSetSelectionReturn;
   'sessions.createAndSend': SessionsCreateAndSendReturn;
   'sessions.markRead': void;
   'sessions.answerQuestion': SessionsInteractionMutateReturn;
@@ -2682,7 +2757,7 @@ export interface UiServiceDeps {
    * id. Injected in the entry layer (app.ts) to the domain `createDirectSession` primitive with the
    * real session/ledger singletons, so the ui-service domain never imports store internals.
    */
-  createDirectSession: (opts: { projectId: string; sessionId?: string; profileName?: string | null; browser?: { device: string } | null; commission?: { mode: 'new' } | { mode: 'join'; commissionId: string } | null }) => Promise<{ sessionId: string; sessionName: string; channel: string }>;
+  createDirectSession: (opts: { projectId: string; sessionId?: string; profileName?: string | null; selection?: SessionSelectionOverride | null; browser?: { device: string } | null; commission?: { mode: 'new' } | { mode: 'join'; commissionId: string } | null }) => Promise<{ sessionId: string; sessionName: string; channel: string }>;
   /**
    * Convert a scheduled run's session into a normal direct web session before a reply is sent
    * (design 27b: replying adopts the run — it leaves the schedule grouping and becomes a normal
@@ -2712,6 +2787,43 @@ export interface UiServiceDeps {
     backendChanged: boolean;
     reason?: 'unknown-profile' | 'cross-backend-live-session';
   }>;
+  /**
+   * Apply a session's engine selection (profile and/or model / provider / thinking) under the
+   * shared rule — the domain `applyChannelSelection`, wired in the entry layer (app.ts) so the
+   * ui-service domain never imports domain/agents. Returns the effective selection, or a structured
+   * refusal the handler maps to a Result code.
+   */
+  applySessionSelection?: (opts: {
+    channel: string;
+    profileName?: string;
+    model?: string | null;
+    provider?: string | null;
+    thinking?: string | null;
+    mode?: string | null;
+  }) => Promise<{
+    ok: boolean;
+    backendChanged: boolean;
+    /** The channel's selection after the change — or the untouched one when `ok` is false. */
+    profileName: string;
+    backend: Backend;
+    model: string;
+    provider: string | null;
+    thinking: string | null;
+    mode: string;
+    override: SessionSelectionOverride | null;
+    /** Present only when `ok` is false. */
+    reason?: 'unknown-profile' | 'cross-backend-live-session' | 'invalid-thinking' | 'provider-not-supported'
+      | 'invalid-mode';
+    currentBackend?: string;
+    targetBackend?: string;
+    allowed?: readonly string[];
+  }>;
+  /** What a session selected on top of its profile, by channel — the read half of
+   *  `applySessionSelection`, used to render `sessions.list`. Injected for the same reason. */
+  getChannelSelectionOverride?: (channel: string) => SessionSelectionOverride | null;
+  /** The last composer pick on this host, which a draft conversation starts from. Injected for the
+   *  same reason as the two above. */
+  getSelectionDefault?: () => ConfigSelectionDefault | null;
   threadStore: {
     getAll(): any[];
     get(id: string): any | null;

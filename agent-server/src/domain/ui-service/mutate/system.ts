@@ -1,8 +1,3 @@
-// input:  daemon files, process signals, throttle and usage services
-// output: restart, clear-rate-limit, and refresh-usage handlers
-// pos:    System UI mutation handlers
-// >>> If I am updated, update CORTEX.md and the parent folder's CORTEX.md <<<
-
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { utimesSync } from 'node:fs';
 import * as path from 'node:path';

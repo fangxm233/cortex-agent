@@ -1,8 +1,3 @@
-// input:  PI ExtensionAPI, session env, declarative hook registry
-// output: Ordered PI hook handlers with native results and mutations
-// pos:    Compiles registry entries into PI event handlers, run in-process or as scripts
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import * as path from 'node:path';

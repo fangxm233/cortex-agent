@@ -1,8 +1,3 @@
-// input:  representative USD amounts, binary byte boundaries, and precision strategies
-// output: regression coverage for canonical shared number labels
-// pos:    Unit tests for lib/format
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import { formatBytes, formatUsd } from './format';
 

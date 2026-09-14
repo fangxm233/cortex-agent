@@ -1,8 +1,3 @@
-// input:  budget snapshots, scope selections, and typed daily/monthly drafts
-// output: shared scope, payload, draft, formatting, chip, and spend-bar derivations
-// pos:    Framework-free budget view model for desktop and mobile settings
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import type { ConfigBudget, BudgetValue } from '@cortex-agent/ui-contract';
 
 // Pure derivations for the Budget panel. This module governs the only real write in the settings

@@ -1,7 +1,3 @@
-// input:  PIAdapter, fake PI runtime, events, runtime settings
-// output: delta, buffered text, and settings reset tests
-// pos:    Covers the PI token streaming contract
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { engineSpecFixture } from './engine-spec-fixture.js';
 
 

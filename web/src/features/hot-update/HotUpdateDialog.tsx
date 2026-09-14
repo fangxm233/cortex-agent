@@ -1,8 +1,3 @@
-// input:  staged frontend update metadata and decision callbacks
-// output: current desktop hot-update content inside the desktop-only frame
-// pos:    Desktop dialog for staged frontend updates
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { DesktopUpdateFrame } from '@/features/update/DesktopUpdateFrame';
 import { updateSummaryLine, type StagedUpdate } from './frontend-update';
 

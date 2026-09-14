@@ -1,8 +1,3 @@
-// input:  launcher facts, durable attempts, attributed usage
-// output: validated token-complete terminal/composite v2 bytes
-// pos:    Production evidence read-model projection
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { createHash } from 'node:crypto';
 
 import type { ThreadRecord } from '../../core/types/thread-types.js';

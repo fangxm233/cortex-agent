@@ -1,8 +1,3 @@
-// input:  mobile note pointer deltas
-// output: swipe clamp, release and click-suppression regressions
-// pos:    Tests mobile note tap and swipe thresholds
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import { noteSwipeOffset, resolveNoteGesture, shouldSuppressNoteClick } from './m-notes-gestures';
 

@@ -1,8 +1,3 @@
-// input:  threads.json persistence file
-// output: { threadStore } — Thread state in-memory cache + coalesced atomic persistence
-// pos:    Thread persistence layer: CRUD + queries; cleanup archives old terminal threads to JSONL
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { readFileSync, rmSync } from 'fs';

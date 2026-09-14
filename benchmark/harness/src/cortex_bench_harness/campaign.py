@@ -1,7 +1,3 @@
-# input:  campaign config and host Codex OAuth expiry
-# output: CLI result, comparison report and sanitized summary
-# pos:    Public campaign runner
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # The driver owns exactly three policies the trial path does not: which trials run and in what
 # order, how many run at once, and the resume rule. It delegates execution to `create_harbor_trial`,

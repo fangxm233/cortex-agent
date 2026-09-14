@@ -1,8 +1,3 @@
-// input:  User turns, files, provider limits, callbacks
-// output: Provider runs, transcripts, remote metadata, resumes
-// pos:    Runs plain user messages and injections
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import * as path from 'path';
 import type { Destination, PlatformAdapter, MessageRef, DownloadedFile, IncomingMessage, PlatformFileRef, OutputStream } from '@platform/index.js';
 import { resolveDestinationConduit, SYNTHETIC_CALLBACK_SENDER } from '@platform/types.js';

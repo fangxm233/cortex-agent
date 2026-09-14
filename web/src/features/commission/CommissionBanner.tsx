@@ -1,8 +1,3 @@
-// input:  the active session's commissionId plus commission and session queries
-// output: the persistent chat-header strip naming the commission this session serves
-// pos:    Chat-side entry point to the commission board (DR-0037)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';

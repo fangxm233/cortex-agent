@@ -3,7 +3,6 @@
 // pos:    standalone platform server loaded only for Feishu-originated
 //         sessions (channel carries the `feishu:` prefix) — Claude via mcp-config-feishu.json layering,
 //         PI via the mcp-bridge feishu handle. Not loaded for thread/core sessions.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';

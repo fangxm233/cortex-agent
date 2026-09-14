@@ -1,8 +1,3 @@
-// input:  SessionHistory with subagent attribution, spawn refs and reported subagent ends
-// output: compact titles, subagent summaries, and detail views
-// pos:    Read-model reducer for lazy subagent transcripts
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { HistoryEvent, SessionHistory } from './conversation-history-repo.js';
 
 export interface CompactConversationEvent extends HistoryEvent {

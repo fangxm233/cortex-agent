@@ -1,8 +1,3 @@
-// input:  Radix Dialog, shared detail controller, artifact-bearing mode, and desktop view
-// output: AppShell-level thread detail modal provider and open API
-// pos:    Desktop modal/router adapter over the canonical thread resource lifecycle
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as Dialog from '@radix-ui/react-dialog';
 import { createContext, useContext, useReducer, type ReactNode } from 'react';
 import type { ThreadDetail } from '@cortex-agent/ui-contract';

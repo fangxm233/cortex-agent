@@ -1,7 +1,3 @@
-// input:  recursive thread-child DTOs
-// output: display levels and bounded maximum tree depth
-// pos:    Shared nested-thread depth model
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
 // Level model: the focused thread on the detail page is level 1; a direct subthread
 // (backend depth 0) is level 2, and so on — so `level = node.depth + 2`. The backend caps

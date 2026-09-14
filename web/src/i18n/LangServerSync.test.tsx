@@ -1,8 +1,3 @@
-// input:  mounted LangProvider + LangServerSync over a mocked config.get/config.set pair
-// output: server-adopts-over-cache, write-through on toggle, and offline-degradation regressions
-// pos:    Specification for "the language is one server setting, not a per-device preference"
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ConfigSnapshot } from '@cortex-agent/ui-contract';

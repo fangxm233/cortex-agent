@@ -1,8 +1,3 @@
-// input:  atomic .md files + _meta/access-log.jsonl
-// output: regenerated index.md + updated refs frontmatter
-// pos:    atomic memory index and reference counter regenerator
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as fs from 'fs';
 import * as path from 'path';
 import { PROJECTS_DIR, isMainModule } from '@core/utils.js';

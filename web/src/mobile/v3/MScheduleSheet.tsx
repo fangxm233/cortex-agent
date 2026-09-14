@@ -1,8 +1,3 @@
-// input:  DTO-carrying schedule rows, shared editor controller, and back-aware bottom sheet
-// output: one mobile sheet state machine spanning schedule list, runs, and editor levels
-// pos:    Mobile Scheduled drill-in and editor sheet
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { useCallback, useState } from 'react';
 import { useToast } from '@/design';
 import { useVocab } from '@/i18n';

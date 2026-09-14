@@ -1,8 +1,3 @@
-# input:  real Docker vendor lifecycle and verifier-created uvx alias
-# output: clean gradable outer-envelope publication proof
-# pos:    Real-container regression for leak-scan finalization
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import json
 import uuid
 from pathlib import Path

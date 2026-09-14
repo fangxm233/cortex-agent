@@ -1,8 +1,3 @@
-// input:  adapter factories, settings, and isolated env
-// output: platform composition and settings reset regressions
-// pos:    Verifies multi-platform adapter factory behavior
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import {

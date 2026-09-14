@@ -4,7 +4,6 @@
 // pos:    Shared Feishu OpenAPI client for all feishu_* MCP doc tools. In user mode every
 //         leaf API call is auto-tagged with the operator's user_access_token; messaging
 //         (platform/adapters/feishu.ts) is separate and always stays bot/app identity.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type * as lark from '@larksuiteoapi/node-sdk';
 import { createRequire } from 'node:module';

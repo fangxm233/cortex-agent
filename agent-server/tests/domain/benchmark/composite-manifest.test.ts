@@ -1,8 +1,3 @@
-// input:  v2 attempt DAGs, accounting, and corrupt manifests
-// output: schema, topology, token range, and evidence proofs
-// pos:    Composite evidence v2 contract tests
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 // BOTH DIRECTIONS. Every §9.2 structural invariant is proved twice: a valid graph is ACCEPTED, and
 // each violation is REFUSED with its OWN named code, asserted BY CODE. No assertion in this file
 // matches a message string — `codesOf` collects `violation.code`, never `violation.detail`.

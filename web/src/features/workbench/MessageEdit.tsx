@@ -1,8 +1,3 @@
-// input:  message text, edit callbacks, actions, and shared clipboard feedback
-// output: Bare message actions and rewind presentation
-// pos:    Desktop message edit and action chrome
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useEffect, useRef, useState } from 'react';
 import { useClipboardFeedback } from '@/design/useClipboardFeedback';
 

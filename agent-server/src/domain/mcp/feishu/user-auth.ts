@@ -5,7 +5,6 @@
 //         fallback) — plus refresh, on-disk store, and getValidUserAccessToken() (auto-refresh)
 // pos:    Powers FEISHU_AUTH_MODE=user — MCP doc tools act as the operator's Feishu account.
 //         Messaging (platform/adapters/feishu.ts) is unaffected; it stays app/bot identity.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as path from 'path';
 import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync } from 'fs';

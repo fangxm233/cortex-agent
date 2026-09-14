@@ -1,8 +1,3 @@
-// input:  resumed task generations, waiting sweeps, settings
-// output: fenced event closure and sweep scheduling regressions
-// pos:    Resumed dispatch and waiting-manager backstop tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test, afterAll, beforeEach, vi } from 'vitest';
 import assert from 'node:assert/strict';

@@ -1,8 +1,3 @@
-# input:  capability rows, evidence and refreshed offline proof hashes
-# output: strict promotion-evidence validation or refusal
-# pos:    Capability-state provenance validator
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import hashlib
 import json
 from dataclasses import asdict, dataclass

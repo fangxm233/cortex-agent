@@ -1,8 +1,3 @@
-// input:  a docked file's workspace path and its host actions
-// output: the identity-and-actions row a docked file body owns
-// pos:    Dock chrome for non-PDF files; the PDF pager plays the same role
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { CSSProperties, ReactNode } from 'react';
 
 // A docked tab has no header of its own — the strip above is shared by every tab — so each file body

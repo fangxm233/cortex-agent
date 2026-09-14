@@ -1,8 +1,3 @@
-// input:  formatDurationCompact (core/utils)
-// output: 6 pure formatting functions: computeElapsed / formatMetricsSuffix / buildSessionTag / buildUserProcessingMessage / buildThreadStatusMessage / renderTurnStatus
-// pos:    zero-dependency pure functions in the core layer; the subset imported by domain-layer status-helpers
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { formatDurationCompact } from './utils.js';
 import { Icons } from './icons.js';
 import { t } from './i18n.js';

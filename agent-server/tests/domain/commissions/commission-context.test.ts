@@ -1,8 +1,3 @@
-// input:  ../../_test-home, vitest, commission-context with injected deps
-// output: identity/dir resolution, ledger presence, closed-commission and missing-contract tests
-// pos:    [Commission] injection payload loader contract
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import '../../_test-home.js';
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

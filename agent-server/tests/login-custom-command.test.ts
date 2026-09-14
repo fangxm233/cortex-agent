@@ -1,8 +1,3 @@
-// input:  temporary catalog/gateway stores and !login custom arguments
-// output: chat listing, add, remove and secret-free usage regressions
-// pos:    Regression tests for the custom provider chat command
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as os from 'node:os';

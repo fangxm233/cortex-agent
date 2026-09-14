@@ -1,8 +1,3 @@
-// input:  Shared live events and light/full threads.get query keys
-// output: useThreadGetLiveSync
-// pos:    Keeps one expanded thread detail query live
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLiveEvents } from '@/features/live/LiveEventsProvider';

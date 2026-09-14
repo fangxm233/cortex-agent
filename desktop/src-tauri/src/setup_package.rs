@@ -1,8 +1,3 @@
-// input:  package override, filesystem, reported server version
-// output: validated npm package selection and version floor checks
-// pos:    Package policy for the local setup wizard
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 use std::ffi::{OsStr, OsString};
 use std::path::Path;
 

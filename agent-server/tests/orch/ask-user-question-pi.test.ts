@@ -1,8 +1,3 @@
-// input:  ask-user-question.tryResolveHook, RunRegistry entries with run.respondToDialog
-// output: regression tests for native PI and MCP-over-PI routing
-// pos:    verifies extension UI and webhook resolver separation
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { runRegistry } from '../../src/core/run-registry.js';

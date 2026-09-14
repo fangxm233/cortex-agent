@@ -268,7 +268,12 @@ At agent spawn time, Cortex resolves the profile through this chain:
 2. Otherwise, use `defaultProfile` from `profiles.json`.
 3. The resolved profile supplies `model`, `backend`, `mode`, `extraEnv`,
    `extraOption`, `claudeBackend`, and `thinking`.
-4. If the backend call fails with a transient error, Cortex iterates
+4. A direct session may override `model`, `provider`, `thinking` and `mode`
+   on top of that profile, chosen in the Web composer's engine picker and
+   stored per channel. Nothing else is overridable — the backend, environment
+   and fallback chain stay the profile's. See
+   [backends.md](./backends.md#per-session-model-thinking-level-and-route).
+5. If the backend call fails with a transient error, Cortex iterates
    through the `fallback` array (if any), trying each entry in order.
 
 ### Validation rules

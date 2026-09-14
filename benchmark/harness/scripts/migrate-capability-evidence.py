@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-# input:  pinned v1 evidence documents and supporting artifacts
-# output: canonical v2 evidence bytes and reproducibility digests
-# pos:    Capability evidence field-set migration command
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import argparse
 import hashlib

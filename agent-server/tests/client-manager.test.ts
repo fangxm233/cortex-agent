@@ -1,8 +1,3 @@
-// input:  Vitest, client manager, WebSockets, SSH route fakes
-// output: Client lifecycle, route, command and authentication tests
-// pos:    Verifies remote client registration and routing
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test, beforeEach, afterAll, vi } from 'vitest';
 import assert from 'node:assert/strict';
 

@@ -1,7 +1,3 @@
-// input:  mounted CenterChat/Composer, deferred mutations, captured live events
-// output: optimistic-send, layout-phase, and submission regressions
-// pos:    Mounted desktop optimistic sender integration specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { LangProvider } from '@/i18n';
@@ -44,6 +40,10 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
           ? { data: [], isPending: false }
           : { data: harness.sessions, isPending: false };
       }
+      // The engine picker's catalog: present but empty — these scenarios never open the menu.
+      if (options.__kind === 'models.catalog') {
+        return { data: { routes: [], thinkingLevels: { claude: [], pi: [] }, piPending: false } };
+      }
       if (options.__kind === 'schedules.list') return { data: [], isPending: false };
       // No commissions in these scenarios; the composer registers both queries either way.
       if (options.__kind === 'commissions.list') return { data: [], isPending: false };
@@ -83,6 +83,9 @@ vi.mock('@/lib/trpc', () => ({
       config: {
         get: query('config.get'),
       },
+      models: {
+        catalog: query('models.catalog'),
+      },
       sessions: {
         list: query('sessions.list'),
         transcript: query('sessions.transcript'),
@@ -92,6 +95,7 @@ vi.mock('@/lib/trpc', () => ({
         cancel: mutation('sessions.cancel'),
         rewind: mutation('sessions.rewind'),
         setProfile: mutation('sessions.setProfile'),
+        setSelection: mutation('sessions.setSelection'),
       },
       schedules: {
         list: query('schedules.list'),
@@ -133,7 +137,7 @@ vi.mock('./SelectedSessionProvider', async () => {
         ...selection,
         setSelectedSession: vi.fn(),
         selectCreatedSession: publishSelection,
-        setDraftProfile: vi.fn(),
+        setDraftSelection: vi.fn(),
         prefillDraft: vi.fn(),
         clearDraft: vi.fn(),
       };
@@ -197,7 +201,7 @@ function selection(isDraft: boolean) {
     selectedSessionId: isDraft ? '__new__' : 's1',
     pendingCreatedSession: null,
     isDraft,
-    draftProfile: null,
+    draftSelection: { profileName: null, override: null },
     draftReloadToken: 0,
   };
 }

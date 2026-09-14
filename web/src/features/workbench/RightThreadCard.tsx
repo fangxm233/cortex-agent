@@ -1,8 +1,3 @@
-// input:  ThreadDetail DTO, tRPC hooks, task/thread modal APIs
-// output: RightThreadCard with clickable run and waiting-task rows
-// pos:    Expanded thread card and browser-probed step row renderer
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ThreadInfo, ThreadDetail, ThreadStepDetail, ThreadDispatchInfo } from '@cortex-agent/ui-contract';

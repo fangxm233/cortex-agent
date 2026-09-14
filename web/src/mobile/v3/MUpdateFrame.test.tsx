@@ -1,8 +1,3 @@
-// input:  mobile frame slots and representative update copy
-// output: preserved alert DOM, scrim/card styles, icon, and slotted actions
-// pos:    Mobile-only shared update frame characterization
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { create } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
 import { MUpdateFrame } from './MUpdateFrame';

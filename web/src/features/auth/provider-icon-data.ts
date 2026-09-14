@@ -1,8 +1,3 @@
-// input:  none (vendored @lobehub/icons-static-svg 1.94.0 markup, MIT)
-// output: PROVIDER_ICON_SVGS brand-keyed inline svg markup
-// pos:    Static monochrome brand icon data for account rows
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 // Monochrome 1em fill=currentColor glyphs; regenerate by re-vendoring from the pinned package.
 export const PROVIDER_ICON_SVGS: Record<string, string> = {
   "anthropic": "<svg fill=\"currentColor\" fill-rule=\"evenodd\" height=\"1em\" style=\"flex:none;line-height:1\" viewBox=\"0 0 24 24\" width=\"1em\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M13.827 3.52h3.603L24 20h-3.603l-6.57-16.48zm-7.258 0h3.767L16.906 20h-3.674l-1.343-3.461H5.017l-1.344 3.46H0L6.57 3.522zm4.132 9.959L8.453 7.687 6.205 13.48H10.7z\"></path></svg>",

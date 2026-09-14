@@ -1,8 +1,3 @@
-// input:  ../../_test-home, vitest, decision-projection with injected deps
-// output: projection targeting, line shape, and no-commission no-op tests
-// pos:    Commission decisions.jsonl projection contract
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import '../../_test-home.js';
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

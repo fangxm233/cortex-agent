@@ -1,8 +1,3 @@
-// input:  selected workbench session, project scope, router state, and shared notification feed
-// output: desktop notification navigation and toaster presentation
-// pos:    Thin desktop adapter for the shared notification feed
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useSelectedSession } from '@/features/workbench/SelectedSessionProvider';

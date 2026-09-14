@@ -3,7 +3,6 @@
 //         RunEvents, run result + settled, injection and background policy)
 // pos:    Run-phase baseline — the behaviour the engine-owned background phase must keep for
 //         continuation, injection, orphan subagents and the resume notification turn
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

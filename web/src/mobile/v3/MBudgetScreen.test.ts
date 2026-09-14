@@ -1,8 +1,3 @@
-// input:  shared budget draft builder, writer operations, and mobile screen query fixtures
-// output: complete-pair initialization, pending gates and nullable operation toast regressions
-// pos:    Mobile Budget editor specification
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { createElement } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';

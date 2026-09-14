@@ -1,8 +1,3 @@
-// input:  PiSessionRequest, provider quota callback
-// output: Cortex's PI extensions as in-process factories for one session
-// pos:    Assembles the extension set a PI session runs with
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { InlineExtension } from '@earendil-works/pi-coding-agent';
 import type { CodexQuotaReading } from '@core/codex-quota.js';
 import type { PiSessionRequest } from './session-options.js';

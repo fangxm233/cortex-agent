@@ -1,8 +1,3 @@
-// input:  a remote loopback port, the stored server URL + token
-// output: forward_* Tauri commands and a local listener piping TCP over the server WebSocket
-// pos:    Desktop-only: makes a service on the Cortex server reachable at 127.0.0.1 here
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 use std::collections::HashMap;
 use std::sync::Mutex;
 

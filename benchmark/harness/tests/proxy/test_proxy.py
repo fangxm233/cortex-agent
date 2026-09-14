@@ -1,8 +1,3 @@
-# input:  trial proxy API and synthetic model upstream
-# output: forwarding, the declared request count, deadline, stop, and redaction proofs
-# pos:    Core proxy behavior tests
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import json
 import socket
 import time

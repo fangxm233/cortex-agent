@@ -1,8 +1,3 @@
-// input:  sessionStore, commissionRepo, commission-paths, fs append
-// output: projectCommissionDecisions / projectCommissionDecisionAction
-// pos:    Mirrors send_decision traffic into commission decisions.jsonl
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import * as fsp from 'node:fs/promises';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { commissionRepo } from '@store/commission-repo.js';

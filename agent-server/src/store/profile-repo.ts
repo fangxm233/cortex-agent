@@ -1,8 +1,3 @@
-// input:  profiles.json, JsonRepository, resilient file monitor
-// output: ProfileRepo, reload revision, and file monitor
-// pos:    Profile persistence, sync cache, and hot reload
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { readFileSync } from 'fs';
 import * as path from 'path';
 import { JsonRepository } from '@core/json-repository.js';

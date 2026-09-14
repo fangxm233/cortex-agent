@@ -1,8 +1,3 @@
-// input:  SlackAdapter, isolated config, mocked Slack client
-// output: conduit, persistence, and nullable hot-routing regressions
-// pos:    Verifies Slack adapter platform boundaries
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';

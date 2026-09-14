@@ -1,8 +1,3 @@
-// input:  task lifecycle, dependency graph, claim state, and completion evidence
-// output: Desktop approval, stored-field, shared-fact, dependency, and action tests
-// pos:    Desktop task-modal projection regression tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import type { TaskInfo, TaskVerificationInfo } from '@cortex-agent/ui-contract';
 import { buildTaskModalVm } from './task-modal-vm';

@@ -1,8 +1,3 @@
-# input:  build script, locked source, hostile env and committed arm bundles
-# output: reproducible wheel and packaged production bundle assertions
-# pos:    Contract tests for deterministic complete wheel contents
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import os
 import shutil
 import subprocess

@@ -1,8 +1,3 @@
-// input:  utils, aistatus npm package, ~/.aistatus/gateway.yaml
-// output: startGateway / stopGateway / isGatewayHealthy
-// pos:    aistatus gateway subprocess lifecycle management
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { spawn as childSpawn, ChildProcess } from 'child_process';
 import { createWriteStream, mkdirSync, existsSync } from 'fs';
 import * as path from 'path';

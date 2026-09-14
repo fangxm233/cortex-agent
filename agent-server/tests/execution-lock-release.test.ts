@@ -1,8 +1,3 @@
-// input:  Node test runner + execution registry + task-lock primitives
-// output: regression tests for auto lock-release on terminal execution transitions + suspend path
-// pos:    verifies complete/fail/cancel/stale terminal paths AND releaseExecutionLocks (thread_wait suspend) release owned task locks
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';

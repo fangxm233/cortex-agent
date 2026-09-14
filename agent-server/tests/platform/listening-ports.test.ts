@@ -1,7 +1,3 @@
-// input:  real ss / netstat / lsof / proc output from each supported platform
-// output: pinned platform dispatch and the listening-port parse for each
-// pos:    tests for port discovery across platforms
-// >>> If I am updated, update CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import {
   listenerProbes, parseLsofListeners, parseNetstatListeners, parseProcNetTcp, parseSsListeners,

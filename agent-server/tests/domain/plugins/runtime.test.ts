@@ -1,8 +1,3 @@
-// input:  plugin roots, manifests, runtime resolver
-// output: backend projection, MCP, and fingerprint tests
-// pos:    Tests the shared plugin runtime resolver
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import '../../_test-home.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';

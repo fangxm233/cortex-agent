@@ -1,8 +1,3 @@
-// input:  node:test, MockAdapter, SlackOutputStream
-// output: SlackOutputStream emitText/flush/postInteractive/tail behavior tests
-// pos:    Slack-specific OutputStream regression test (ported from VirtualMessage)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test, beforeEach, afterEach, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import {

@@ -2,7 +2,6 @@
 // output: Test results for parseTuiArgs, tuiPortListening, cmdTui not-listening exit
 // pos:    Verifies cortex tui subcommand argument parsing, daemon detection, and
 //         not-running behavior.
-// >>> If I am updated, update the parent folder's CORTEX.md <<<
 
 import { describe, it, vi } from 'vitest';
 import assert from 'node:assert/strict';

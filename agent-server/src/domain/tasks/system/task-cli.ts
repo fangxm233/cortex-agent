@@ -1,8 +1,3 @@
-// input:  Task argv, project files, lifecycle operations
-// output: cortex-task command parsing and structured results
-// pos:    Task-system command line entry point
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as fs from 'node:fs';
 import type { TaskGenerationExpectation } from '@core/task-parser.js';
 import { isMainModule, listProjectDirs } from '@core/utils.js';

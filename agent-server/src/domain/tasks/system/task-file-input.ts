@@ -1,8 +1,3 @@
-// input:  JSON task specs, filesystem, and stdin reader
-// output: Normalized TaskFileSpec values
-// pos:    Parses shell-free add and spawn task input
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as fs from 'node:fs';
 import { cliError, readStdinSync } from '@core/cli-utils.js';
 

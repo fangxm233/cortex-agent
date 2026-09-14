@@ -1,8 +1,3 @@
-// input:  threads.get handler and mock domain stores
-// output: thread detail and artifact-read regression tests
-// pos:    Verifies thread steps, children, and artifact content
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';

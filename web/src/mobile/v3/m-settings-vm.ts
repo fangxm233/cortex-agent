@@ -1,8 +1,3 @@
-// input:  config snapshot, cost summary, settings formatters
-// output: mobile settings summaries from canonical config sources
-// pos:    Pure data mapping for the mobile settings screen
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import type { ConfigSnapshot, ConfigProfileEntry, CostSummary } from '@cortex-agent/ui-contract';
 import { fmtMoney } from '@/mobile/ui/format';
 import { budgetBarPct } from '@/features/settings/budget-vm';

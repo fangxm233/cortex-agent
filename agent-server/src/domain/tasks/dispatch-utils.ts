@@ -1,8 +1,3 @@
-// input:  machine config, resilient watch, task ownership
-// output: device registry, task IDs, dispatch outcome helpers
-// pos:    Shared task dispatch utilities
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as crypto from 'crypto';
 import { readFileSync, existsSync } from 'fs';
 import * as path from 'path';

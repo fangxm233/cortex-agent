@@ -1,7 +1,3 @@
-// input:  pending-tasks.json + channel/execution registries + dispatch generation
-// output: generation-aware launch/progress tracking and status messages
-// pos:    Durable dispatch tracking used by stop and orphan-claim recovery
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { readFileSync, writeFileSync } from 'fs';
 import * as path from 'path';
 import type { PlatformAdapter, MessageRef } from '@platform/index.js';

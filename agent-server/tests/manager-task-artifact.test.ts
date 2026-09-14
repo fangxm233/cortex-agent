@@ -1,8 +1,3 @@
-// input:  Node test runner + createThread task-keyed artifact resolution + cleanupWorkspace
-// output: manager-thread artifact placement / preservation / cleanup-survival tests
-// pos:    Verify DR-0017 W1: manager-template dispatch threads get task-keyed durable artifacts
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';

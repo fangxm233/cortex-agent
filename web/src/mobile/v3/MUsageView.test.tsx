@@ -1,8 +1,3 @@
-// input:  shared usage view model, mobile Usage view, and row-policy callbacks
-// output: animated quota, policy, config and refresh regressions
-// pos:    Verifies mobile Usage presentation and interactions
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type { ProviderRateLimits, SystemUsageStatus } from '@cortex-agent/ui-contract';

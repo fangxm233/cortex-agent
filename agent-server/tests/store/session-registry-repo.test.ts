@@ -1,8 +1,3 @@
-// input:  ../_test-home, vitest, tmp fs, and session registry repo/journal options
-// output: JSONL journal replay, append, delete, compact, and failure-mode tests
-// pos:    Session registry JSONL authority and mutation contract
-// >>> If I am updated, update my header comment and the parent folder CORTEX.md <<<
-
 import '../_test-home.js';
 import { afterAll, beforeAll, test } from 'vitest';
 import assert from 'node:assert/strict';

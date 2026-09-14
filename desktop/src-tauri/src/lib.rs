@@ -1,8 +1,3 @@
-// input:  App config, credentials, update coordinator, native plugins
-// output: Shell config, setup and update IPC, desktop chrome
-// pos:    Cortex native shell composition root
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Mutex;

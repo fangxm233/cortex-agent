@@ -1,8 +1,3 @@
-// input:  Claude-native tool name + input payload
-// output: summarizeToolInput + TOOL_INPUT_SUMMARIZERS table
-// pos:    Compact input rendering for tool-trace display
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 export const TOOL_INPUT_SUMMARIZERS: Record<string, (inp: any) => string> = {
   Bash:  (inp) => inp.command || '',
   Read:  (inp) => inp.file_path || JSON.stringify(inp),

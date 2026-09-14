@@ -1,7 +1,3 @@
-# input:  row-four trial, synthetic token expiry and fixed clocks
-# output: closed-inventory scan proofs over real refusal flows
-# pos:    Leak-scan extension over the codex responses row
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # No container, no Docker and no network egress: the upstream is a synthetic loopback server. The
 # row's `??` protocol member is filled for the duration of a test only — the shipped registry is

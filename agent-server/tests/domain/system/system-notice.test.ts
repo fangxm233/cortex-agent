@@ -3,7 +3,6 @@
 // pos:    Verifies the encapsulated system-notice seam: the bus `system.notice` event
 //         (default/explicit level, no-op without a bus) and the combined post+publish
 //         path (platform admin post AND bus event, event fires even if the post fails).
-// >>> If I am updated, update the parent folder's CORTEX.md <<<
 
 import { describe, it, afterEach } from 'vitest';
 import assert from 'node:assert/strict';

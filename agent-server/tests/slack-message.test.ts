@@ -1,8 +1,3 @@
-// input:  Node test runner + mergeSubstantialOutput
-// output: output merge regression tests
-// pos:    Verify Claude output merging logic
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { _test as claudeTest } from '../src/agent-adapter/claude/adapter.js';

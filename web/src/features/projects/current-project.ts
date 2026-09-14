@@ -1,8 +1,3 @@
-// input:  direct sessions, listed projects, and an optional explicit selection
-// output: derived and effective current-project identifiers
-// pos:    Shared project-selection resolver for desktop and mobile
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { ProjectConduitInfo, SessionInfo } from '@cortex-agent/ui-contract';
 
 /** Most-recently-used session project, then first listed project, then no project. */

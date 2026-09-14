@@ -1,8 +1,3 @@
-// input:  MCP SDK, tool gate, cost/execution/context/schedule registrars
-// output: platform-agnostic ext MCP stdio service assembled from production registrations
-// pos:    ext server; no remote/platform tools and no duplicate name inventory
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { registerCostTools } from './tools/cost.js';

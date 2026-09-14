@@ -1,8 +1,3 @@
-// input:  a gateway.yaml path and one endpoint/mode route
-// output: single-route reads, upserts and removals preserving every other route
-// pos:    Route-level editing of the aistatus gateway config
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { copyFileSync, existsSync, mkdirSync, writeFileSync } from 'fs';
 import * as path from 'path';
 import * as os from 'os';

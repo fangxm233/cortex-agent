@@ -1,7 +1,3 @@
-# input:  one campaign arm declaration, or one committed bundle key
-# output: the bundle, root template and evidence shape that arm names
-# pos:    Arm-to-bundle resolution for production trials
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # An arm is a committed config bundle plus the parameters the launcher has to state about it: which
 # directory becomes the sealed CORTEX_HOME, which profile the agents run under, which root template

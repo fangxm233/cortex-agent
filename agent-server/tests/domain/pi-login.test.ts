@@ -1,8 +1,3 @@
-// input:  PI login adapter, LoginFlow, EventBus, fake login runtime
-// output: PI api-key login, failures, recovery, and privacy tests
-// pos:    PI api-key login adapter regression tests
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import { afterEach, test, vi } from 'vitest';
 import { EventBus } from '../../src/events/event-bus.js';

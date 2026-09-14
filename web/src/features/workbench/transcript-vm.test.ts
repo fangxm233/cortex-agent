@@ -1,7 +1,3 @@
-// input:  transcript helpers, tool devices, notices, pending data
-// output: remote labels, grouping, streaming, pending regressions
-// pos:    Workbench transcript view-model specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import {
   buildTranscriptRows,

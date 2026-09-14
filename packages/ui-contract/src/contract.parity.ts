@@ -1,8 +1,3 @@
-// input:  shared schemas and UI op maps
-// output: exact parity guards including platform configuration
-// pos:    Anti-drift boundary for UI contract
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import type { z } from 'zod';
 import type { QueryParamMap, MutateArgsMap, ExecutionsLogParams } from './dto.js';
 import type {
@@ -16,6 +11,7 @@ import type {
   sessionsSendInput,
   sessionsCompactInput,
   sessionsSetProfileInput,
+  sessionsSetSelectionInput,
   threadsListInput,
   threadsGetInput,
   tasksListInput,
@@ -148,6 +144,7 @@ const _sessionsCreate: MutateParity<'sessions.create', typeof sessionsCreateInpu
 const _sessionsSend: MutateParity<'sessions.send', typeof sessionsSendInput> = true;
 const _sessionsCompact: MutateParity<'sessions.compact', typeof sessionsCompactInput> = true;
 const _sessionsSetProfile: MutateParity<'sessions.setProfile', typeof sessionsSetProfileInput> = true;
+const _sessionsSetSelection: MutateParity<'sessions.setSelection', typeof sessionsSetSelectionInput> = true;
 const _threadsCancel: MutateParity<'threads.cancel', typeof threadsCancelInput> = true;
 const _executionsCancel: MutateParity<'executions.cancel', typeof executionsCancelInput> = true;
 const _schedulesPause: MutateParity<'schedules.pause', typeof scheduleActionInput> = true;
@@ -211,7 +208,7 @@ export const _contractParityChecked = [
   _projectsList, _sessionsList, _sessionsTranscript, _sessionsSubagentTranscript, _threadsList, _threadsGet, _tasksList, _schedulesList,
   _executionsList, _executionsGet, _memoryTree, _memoryFile, _approvalsList, _notesList, _costSummary, _configGet,
   _authStatus, _authFlowState, _machinesList, _skillsList, _pluginsList, _threadTemplatesGet,
-  _projectsCreate, _sessionsCreate, _sessionsSend, _sessionsCompact, _sessionsSetProfile, _threadsCancel, _executionsCancel,
+  _projectsCreate, _sessionsCreate, _sessionsSend, _sessionsCompact, _sessionsSetProfile, _sessionsSetSelection, _threadsCancel, _executionsCancel,
   _schedulesPause, _schedulesResume, _schedulesRemove, _schedulesAdd, _schedulesUpdate, _tasksClaim,
   _commissionsList, _commissionsGet, _commissionsDecisions, _commissionsClose,
   _tasksUnclaim, _tasksComplete, _tasksBlock, _tasksUnblock,

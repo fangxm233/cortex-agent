@@ -1,8 +1,3 @@
-// input:  hooks view model, copy, and the selected row
-// output: namespace-grouped read-only hook list with a declaration sheet
-// pos:    Presentational mobile hooks view
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (drill page under 1l 设置)
 //
 // The mobile mirror of the hook registry (plan §6). Read-only by design: editing a declaration lives

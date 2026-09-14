@@ -1,8 +1,3 @@
-// input:  Neutral queued/uploading/done/error attachment item and retry/remove callbacks
-// output: Media thumbnail or document-aware file chip with unchanged controls
-// pos:    Desktop composer attachment presentation boundary
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { CSSProperties, MouseEvent } from 'react';
 import { useDocViewer } from '@/features/media/DocViewer';
 import { useMediaViewer } from '@/features/media/MediaViewer';

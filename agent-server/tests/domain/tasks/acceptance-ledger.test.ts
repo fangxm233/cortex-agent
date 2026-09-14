@@ -1,8 +1,3 @@
-// input:  Vitest, the shipped acceptance ledger and a temp project node
-// output: D-10 widening, preserved history and the unchanged shipped delivery semantics
-// pos:    Acceptance ledger verdict and delivery contract tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import '../../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import assert from 'node:assert/strict';
 import fs from 'node:fs';

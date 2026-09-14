@@ -1,8 +1,3 @@
-// input:  active note count, drawer state and localized copy
-// output: persistent desktop project-header notes button
-// pos:    Scheme 26a desktop notes entry control
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import type { CSSProperties } from 'react';
 import type { NotesCopy } from './notes-copy';
 

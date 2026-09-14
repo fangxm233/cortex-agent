@@ -1,8 +1,3 @@
-// input:  retention-candidates.json + JsonRepository
-// output: RetentionCandidateRepo and singleton
-// pos:    Persists two-sweep orphan retention candidates
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import path from 'node:path';
 import { JsonRepository } from '@core/json-repository.js';
 import { STORE_DIR } from '@core/paths.js';

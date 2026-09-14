@@ -1,8 +1,3 @@
-// input:  the pinned @earendil-works/pi-coding-agent dependency, home directory
-// output: one cached in-process handle to the PI SDK module (prewarmable), its version, PI's user agent paths
-// pos:    Single import boundary between agent-server and the PI SDK
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as os from 'node:os';
 import * as path from 'node:path';
 import type * as PiSdk from '@earendil-works/pi-coding-agent';

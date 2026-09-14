@@ -1,7 +1,3 @@
-// input:  the app menu model and the platform's primary modifier
-// output: the in-window File / Edit / View / Help bar with its dropdowns
-// pos:    Windows and Linux menu bar inside the app-drawn title bar
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useEffect, useRef, useState } from 'react';
 import { usesCommandKey } from '@/lib/desktop-platform';
 import { formatAccel, type MenuDef, type MenuNode } from './menu-model';

@@ -1,8 +1,3 @@
-// input:  shared profiles controller facts/actions, the engine catalog, error copy and controls
-// output: mobile-specific Profiles list, native delete confirmation and pick-first CRUD editor
-// pos:    Mobile Profiles settings screen and independent presentational view
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { ConfigProfileEntry, ModelCatalogSnapshot } from '@cortex-agent/ui-contract';

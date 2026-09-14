@@ -1,8 +1,3 @@
-# input:  artifact paths, host/container roots, and leak literals
-# output: immutable scan inventory, policy, findings, and reports
-# pos:    Artifact scanner value contracts
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Mapping

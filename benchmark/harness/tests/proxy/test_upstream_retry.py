@@ -1,7 +1,3 @@
-# input:  a synthetic upstream that answers with provider error statuses
-# output: proof that a provider outage costs attempts, not the route
-# pos:    Upstream error-status retry and non-revocation tests
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # On 2026-08-23 nineteen of forty-nine paid tasks scored zero without ever failing at their
 # task: each took a single upstream 502, the error body failed usage extraction, and the route

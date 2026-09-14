@@ -1,8 +1,3 @@
-// input:  legacy schedule repository and runtime settings storage
-// output: migrated built-in job settings and removed legacy records
-// pos:    Performs the fail-closed programmatic-schedule cutover
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import {
   assertSettingsFileValid, getSettingsSnapshot, updateSettings, type Settings,
 } from '@core/settings.js';

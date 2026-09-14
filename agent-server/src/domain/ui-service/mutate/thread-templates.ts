@@ -4,7 +4,6 @@
 //         had — see domain/threads/template-writer.ts for the rules it enforces. `validate` is a
 //         mutation despite being side-effect-free because it carries a whole JSON body, which does
 //         not belong in a batched GET url (same reasoning as hooks.test).
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { saveEntity, removeEntity } from '@domain/threads/template-writer.js';
 import {

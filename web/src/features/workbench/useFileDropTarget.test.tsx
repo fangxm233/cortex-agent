@@ -1,7 +1,3 @@
-// input:  File-drop hook, DOM target and drag events
-// output: Pane-wide file acceptance and non-file drag checks
-// pos:    Desktop chat drop-target behavior specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { useFileDropTarget } from './useFileDropTarget';

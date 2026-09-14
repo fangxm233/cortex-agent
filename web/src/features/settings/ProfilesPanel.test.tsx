@@ -1,8 +1,3 @@
-// input:  ProfilesPanelView, controller-derived facts/errors, catalog and config fixtures
-// output: desktop table, editor gating, field-picker and delete-guard regressions
-// pos:    Verifies the independent desktop Profiles view renders its refusals
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type {

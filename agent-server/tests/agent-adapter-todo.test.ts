@@ -1,8 +1,3 @@
-// input:  raw TodoWrite payloads and native tool names
-// output: snapshot parsing, degradation and progress-rendering tests
-// pos:    Tests the backend-neutral TodoWrite normalization
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {

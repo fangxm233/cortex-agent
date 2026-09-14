@@ -1,8 +1,3 @@
-// input:  composer draft helpers and attachment metadata
-// output: storage key, parsing, prefill, and failed-send restore tests
-// pos:    Tests persistent desktop/mobile composer drafts
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { describe, it, expect } from 'vitest';
 import {
   draftStorageKey,

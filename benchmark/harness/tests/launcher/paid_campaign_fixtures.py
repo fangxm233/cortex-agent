@@ -1,8 +1,3 @@
-# input:  committed campaigns, temporary Git trees, provenance APIs
-# output: isolated campaign paths and verified synthetic artifacts
-# pos:    Hermetic paid-launch infrastructure fixtures
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import subprocess
 from pathlib import Path
 

@@ -1,8 +1,3 @@
-// input:  shared Chinese product copy
-// output: Chinese base vocabulary including About dialog copy
-// pos:    Base Chinese web vocabulary
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 export const zhBase = {
   // ── Group A: prototype dict() ──
   newSession: '新会话',
@@ -175,6 +170,12 @@ export const zhBase = {
   wbIdle: '空闲',
   wbSwitchTo: '切换到',
   wbNeedsNewSession: '需要新建会话（当前对话运行在不同的后端上）',
+  wbModel: '模型',
+  wbThinking: '思考强度',
+  wbRoute: '计费路由',
+  wbFollowProfile: '跟随配置',
+  wbNoProfileForBackend: '本机没有运行该后端的 profile',
+  wbModelsPending: '正在加载模型…',
   wbNewConversation: '新对话',
   wbSend: '发送',
   wbSlashInvalid: '未发送：无法识别该命令或参数无效。以 / 开头的内容会被当作命令；若要发送普通消息，请改为不以 / 开头。',

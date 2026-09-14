@@ -1,8 +1,3 @@
-// input:  Claude CLI, child-process streams, abort signals
-// output: scrubbed Claude auth login/status/logout operations
-// pos:    Claude-owned authentication CLI adapter
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import {
   spawn as nodeSpawn,
   type ChildProcessWithoutNullStreams,

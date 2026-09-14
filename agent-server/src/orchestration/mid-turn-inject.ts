@@ -1,8 +1,3 @@
-// input:  live run lookup, platform files, path/pending seams
-// output: injected turns, remote device and subagent metadata
-// pos:    Busy-channel injection branch of AgentRunner.route
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 /**
  * Mid-turn user-message injection router. The injection itself lives on `AgentRun.steer()`
  * (which installs the backend `InjectionAckSink` and fans acks out as `injection_delivered` /

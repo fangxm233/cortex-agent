@@ -1,8 +1,3 @@
-// input:  commission tRPC queries/mutations, member sessions and CommissionBoardModal
-// output: AppShell-level commission board provider and its open API
-// pos:    Opens the commission board globally from the rail and the chat banner (DR-0037)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import {
   createContext,
   useCallback,

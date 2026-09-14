@@ -1,8 +1,3 @@
-// input:  Vitest, tsconfig paths, integration test globs
-// output: serial process-level integration test configuration
-// pos:    Runs server and agent-run process tests in one fork
-// >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import { defineConfig } from 'vitest/config';
 import tsconfigPaths from 'vite-tsconfig-paths';
 

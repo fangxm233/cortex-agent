@@ -1,8 +1,3 @@
-// input:  project, notes and provider throttle data
-// output: Projects tab with project-scoped cards and a settings gear
-// pos:    Presentational mobile Projects surface
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 // @ds-adherence-ignore -- mobile v3 raw px/font by design §8.3
 import type { CostSummary } from '@cortex-agent/ui-contract';
 import { PlusGlyph } from '@/design';

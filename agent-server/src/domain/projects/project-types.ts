@@ -1,8 +1,3 @@
-// input:  nothing (leaf module)
-// output: Project — id, name, kind, contextDir
-// pos:    pure type definitions for the Project domain entity
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 export interface Project {
   /** Directory name under PROJECTS_DIR, e.g. "cortex-self". Also the canonical identifier. */
   id: string;

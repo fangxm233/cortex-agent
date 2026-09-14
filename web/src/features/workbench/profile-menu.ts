@@ -1,8 +1,3 @@
-// input:  Configured profiles and current session backend
-// output: Filtered profile options and backend-switch gating
-// pos:    Workbench profile menu view model
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { ConfigProfileEntry } from '@cortex-agent/ui-contract';
 
 // Profile-picker options, built from the REAL configured profiles (config.get → ConfigProfiles).

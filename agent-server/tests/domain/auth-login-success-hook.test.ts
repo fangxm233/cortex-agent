@@ -1,8 +1,3 @@
-// input:  login flow coordinator and its success listener registry
-// output: verification that completed logins notify observers exactly once
-// pos:    Login success notification tests
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 

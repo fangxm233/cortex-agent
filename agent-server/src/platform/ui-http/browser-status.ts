@@ -1,8 +1,3 @@
-// input:  the managed browser's live state and this host's display capability
-// output: an authenticated status route telling the UI where the browser is and how to reach it
-// pos:    Web UI transport host — the takeover half of browser control
-// >>> If I am updated, update CORTEX.md <<<
-
 import type * as http from 'http';
 import { browserStatus } from '@platform/browser/managed-browser.js';
 import { resolveBrowserDisplay, type BrowserDisplay } from '@platform/browser/display.js';

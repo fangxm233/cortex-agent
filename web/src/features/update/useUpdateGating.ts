@@ -1,8 +1,3 @@
-// input:  pending update values and the currently focused DOM element
-// output: pending values delayed until text-editing focus has ended
-// pos:    Surface-neutral headless typing gate shared by both update hooks
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useEffect, useState } from 'react';
 
 const NON_TEXT_INPUTS = ['button', 'checkbox', 'radio', 'submit', 'reset', 'file', 'range', 'color'];

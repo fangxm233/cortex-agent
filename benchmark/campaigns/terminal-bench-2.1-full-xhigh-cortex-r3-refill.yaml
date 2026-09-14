@@ -1,7 +1,3 @@
-# input:  the 15 r3 tasks whose trials a proxy fault voided, and the pinned runtimes they mount
-# output: 58 paid gpt-5.6-sol xhigh trials that refill the holes r3 left in its own trials_dir
-# pos:    lab-ksu r3 segment 2 refill -- same campaign id, same trials_dir, missing roots only
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # WHAT THIS IS. Segment 2 of r3 produced 170 trials on 2026-08-31. 58 of them carry no usable
 # reward: the trial proxy met one provider response it could not meter and, by the rule in

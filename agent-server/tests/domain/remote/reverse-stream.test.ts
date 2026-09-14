@@ -1,7 +1,3 @@
-// input:  reverse-stream requests, callbacks and device disconnects
-// output: pinned pairing, expiry and rejection policy for device-side streams
-// pos:    tests for the reverse half of the port forward
-// >>> If I am updated, update CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import type { WebSocket } from 'ws';
 import {

@@ -1,8 +1,3 @@
-// input:  Radix Dialog, React nodes, chrome/visibility flags, and narrow style/data seams
-// output: Accessible standard or bare modal with sizing, layering, and hidden semantics
-// pos:    Token-styled centered dialog primitive and safe bespoke-shell host
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as RadixDialog from '@radix-ui/react-dialog';
 import type { CSSProperties, ReactNode } from 'react';
 

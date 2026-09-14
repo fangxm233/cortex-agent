@@ -1,8 +1,3 @@
-// input:  both mobile dialogs, representative metadata, and a stub mobile frame
-// output: preserved copy, button order/state, and touch-action semantics after frame extraction
-// pos:    Mobile update dialog characterization
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 

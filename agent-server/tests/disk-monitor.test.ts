@@ -1,8 +1,3 @@
-// input:  Vitest, mocked fs/settings, disk-monitor helpers
-// output: path, toggle, and alert-decision regressions
-// pos:    Verify disk monitor lifecycle and alert policy
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { afterEach, beforeEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import type { PlatformAdapter } from '../src/platform/index.js';

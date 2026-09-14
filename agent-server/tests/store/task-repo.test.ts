@@ -1,8 +1,3 @@
-// input:  Node test runner, assert, TaskRepo + TaskMutator
-// output: tests for TaskRepo (concurrent add, state serialization, flush, end-to-end round-trip)
-// pos:    verifies store/task-repo.ts Pattern B-lite guarantees (S3 migration)
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import '../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

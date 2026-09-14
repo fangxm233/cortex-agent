@@ -1,8 +1,3 @@
-// input:  one preinstalled vendor CLI and loopback-only networking
-// output: version, CLI isolation, and one synthetic request proof
-// pos:    Offline runtime-image preflight for vendor CLI variants
-// >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createServer } from "node:http";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";

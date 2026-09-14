@@ -1,8 +1,3 @@
-// input:  view args (inline html or an html file), conversation history, session events
-// output: sendAgentView + the view size limits shared with the MCP tool
-// pos:    delivers agent-authored HTML views into Web chat sessions
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { conversationHistory } from '@store/conversation-history-repo.js';
 import { publishSessionMessage, type SessionMessagePayload } from './session-events.js';
 import { copyFileIntoOutputs, writeTextIntoOutputs, sanitizeDisplayFilename, type StoredOutput } from './outputs-store.js';

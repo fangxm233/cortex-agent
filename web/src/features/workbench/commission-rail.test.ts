@@ -1,8 +1,3 @@
-// input:  CommissionInfo/SessionInfo fixtures
-// output: commission row membership, rollup, ordering and title-fallback tests
-// pos:    Verifies the COMMISSION rail-section view model
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, it, expect } from 'vitest';
 import type { CommissionInfo, SessionInfo } from '@cortex-agent/ui-contract';
 import { buildCommissionRows, commissionSessionIds, unreadCommissionCount } from './commission-rail';

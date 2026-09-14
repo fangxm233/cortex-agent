@@ -1,8 +1,3 @@
-// input:  active rate-limit view model and desktop/mobile open-close callbacks
-// output: throttle controls with wait counts, labeled resets, and early-clear buttons
-// pos:    Shared active-only provider rate-limit presentation
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { forwardRef, type ButtonHTMLAttributes, type CSSProperties } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';

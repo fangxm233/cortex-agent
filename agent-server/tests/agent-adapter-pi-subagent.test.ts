@@ -1,8 +1,3 @@
-// input:  PI Agent tool, parent env, fake nested child sessions
-// output: Schema, chain prompt, isolation, attribution and usage regressions
-// pos:    Tests PI subagent contracts
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';

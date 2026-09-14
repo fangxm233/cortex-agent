@@ -1,8 +1,3 @@
-// input:  runtime settings, platform adapter, jobs, usage service
-// output: startBuiltinJobs and stopBuiltinJobs lifecycle
-// pos:    Composes daemon-owned periodic infrastructure jobs
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { createLogger } from '@core/log.js';
 import { getSettings, onSettingsChange } from '@core/settings.js';
 import { getDefaultProfileName } from '../agents/profile-manager.js';

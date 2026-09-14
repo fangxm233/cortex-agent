@@ -1,8 +1,3 @@
-// input:  thread repo, wait controls, thread state machine
-// output: thread-child wait-set and restart regression tests
-// pos:    Verifies parent suspension on child threads
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';

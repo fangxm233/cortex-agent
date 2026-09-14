@@ -6,7 +6,6 @@
 //         (→ that agent's entryStage) placeholders, then validates. The 7 validation semantics from
 //         the old code-expander are preserved: missing param, unknown placeholder, agent not found,
 //         missing entryStage, missing (retry) stage — plus unknown-shell handled by the loader.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type {
   AgentDefinition,

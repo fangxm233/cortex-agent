@@ -1,8 +1,3 @@
-// input:  context snapshot, compact action, modal/surface
-// output: shared context ring/details and desktop context modal
-// pos:    Cross-surface context usage presentation primitives
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { forwardRef, type ButtonHTMLAttributes, type CSSProperties } from 'react';
 import type { SessionContextUsage } from '@cortex-agent/ui-contract';
 import { Button } from '@/design/Button';

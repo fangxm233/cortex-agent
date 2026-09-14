@@ -1,8 +1,3 @@
-// input:  mounted project-creation controller and mutation outcomes
-// output: validation, list invalidation, returned-id, and real-error regressions
-// pos:    Shared create-project controller integration specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';

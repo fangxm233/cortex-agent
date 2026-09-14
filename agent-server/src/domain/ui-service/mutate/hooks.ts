@@ -1,8 +1,3 @@
-// input:  UiServiceDeps + flattened hook draft / id arguments
-// output: create/update/setEnabled/remove/test handlers → Ok | Err
-// pos:    mutate handlers for the 'hooks.*' operations
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as path from 'node:path';
 import { HOOKS_DIR } from '@core/paths.js';
 import { runHookProcess, type HookProcessOptions } from '@core/hook-exec.js';

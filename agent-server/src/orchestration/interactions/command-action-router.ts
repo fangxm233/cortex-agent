@@ -2,7 +2,6 @@
 // output: CommandActionRouter — action routing + session state for interactive ! commands
 // pos:    bridge between PlatformAdapter onAction/onModalSubmit and command handlers
 //         Separate concern from interaction-handlers.ts (AskUserQuestion / ExitPlanMode)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { PlatformAdapter, ActionContext, ModalSubmitContext, MessageRef } from '@platform/index.js';
 

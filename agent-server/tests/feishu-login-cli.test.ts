@@ -1,8 +1,3 @@
-// input:  Feishu login CLI with injected auth and file dependencies
-// output: login, status, logout, and env persistence tests
-// pos:    Feishu login CLI regression suite
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as os from 'os';

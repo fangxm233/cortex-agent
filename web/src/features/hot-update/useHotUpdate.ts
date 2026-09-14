@@ -1,8 +1,3 @@
-// input:  native events, manual check results, and typing gate
-// output: gated frontend updates, apply and dismissal actions
-// pos:    Frontend update source for the shared prompt owner
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { useUpdateGating } from '@/features/update/useUpdateGating';
 import { subscribeManualCheckResult } from '@/features/update/manual-update-check';

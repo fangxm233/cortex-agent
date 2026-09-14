@@ -1,8 +1,3 @@
-// input:  project ids, activity timestamps and a persisted manual order
-// output: rail sort mode, manual order reconciliation and drag-move
-// pos:    Owns the left rail's project ordering rules
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 // The rail offers two orders and no third:
 //
 //   'activity'  — most-recent activity first, recomputed from the session registry on every render.

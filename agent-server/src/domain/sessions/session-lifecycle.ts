@@ -1,12 +1,7 @@
-// input:  Session stores, conversation ledger, profile state, commission feature switch
-// output: Session register/attach/create/adopt/reset primitives
-// pos:    Central session lifecycle shared by chat and TUI
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as crypto from 'node:crypto';
 import { setSessionAsync, deleteSessionAsync } from './session.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
-import { setActiveProfile } from '@domain/agents/index.js';
+import { applyChannelSelection, setActiveProfile } from '@domain/agents/index.js';
 import { resolveProfileConfig } from '@domain/agents/profile-manager.js';
 import * as sessionBackup from './session-backup.js';
 import type { SessionOrigin } from '@store/session-registry-repo.js';
@@ -93,6 +88,7 @@ export async function createDirectSession(
   deps: CreateDirectSessionDeps,
   opts: {
     projectId: string; sessionId?: string; profileName?: string | null;
+    selection?: { model?: string; provider?: string; thinking?: string; mode?: string } | null;
     browser?: SessionBrowserOption | null; commission?: CommissionCreateRequest | null;
   },
 ): Promise<{ sessionId: string; sessionName: string; channel: string }> {
@@ -105,6 +101,21 @@ export async function createDirectSession(
     setActiveProfile(opts.profileName, channel);
   } else {
     backend = deps.resolveBackend(channel);
+  }
+
+  // The draft composer's choice, carried onto the new channel before the first turn is routed —
+  // through the SAME rule the picker writes with, not a direct state write. A draft has no history
+  // to protect, but it can still name a level the backend does not take or a provider on a claude
+  // profile: without the rule those land unchecked and the first turn dies at the CLI. The channel
+  // is minted here, so the cross-backend guard has nothing to refuse.
+  if (opts.selection && Object.keys(opts.selection).length > 0) {
+    await applyChannelSelection({
+      channel,
+      model: opts.selection.model ?? null,
+      provider: opts.selection.provider ?? null,
+      thinking: opts.selection.thinking ?? null,
+      mode: opts.selection.mode ?? null,
+    });
   }
 
   // Commission mode is off by default while the feature is under test (settings.commissionEnabled).

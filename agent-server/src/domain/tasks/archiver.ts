@@ -1,8 +1,3 @@
-// input:  task store, project paths, filesystem, git, task mutation lock
-// output: atomically removed and archived completed tasks plus archive commits
-// pos:    Scheduled retention job serialized with lifecycle writers
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';

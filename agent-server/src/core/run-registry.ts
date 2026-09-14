@@ -1,7 +1,3 @@
-// input:  Agent kill functions, EventBus, session.status payloads, streaming callbacks
-// output: RunRegistry class + runRegistry singleton — the one index of live runs and bg holds
-// pos:    core/ zero-dependency state registry — the single in-memory index of live runs
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
 // This is the single in-memory index of "what is live right now":
 //   - running executions (foreground runs, keyed by executionId, indexed by thread/channel)

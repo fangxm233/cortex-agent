@@ -3,7 +3,6 @@
 // pos:    Verifies the fix for the "Invalid signature in thinking block" bug —
 //         thread-spawned sessions store their profile in session-registry, NOT in the
 //         channel-level conversation-ledger; the hook must prefer the registry source.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

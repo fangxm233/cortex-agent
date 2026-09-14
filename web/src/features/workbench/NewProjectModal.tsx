@@ -1,8 +1,3 @@
-// input:  controlled bare Modal, shared project-creation controller, and localized copy
-// output: Accessible desktop new-project creation modal with prototype visuals
-// pos:    Workbench project-creation surface hosted by the shared dialog primitive
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useRef, useState } from 'react';
 import { Modal } from '@/design/Modal';
 import { useVocab } from '@/i18n';

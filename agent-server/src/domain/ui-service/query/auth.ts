@@ -1,8 +1,3 @@
-// input:  authentication snapshot and LoginFlow readers
-// output: auth.status and Web-owned auth.flowState query DTOs
-// pos:    Authentication UI query adapters
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import {
   getAuthStatus,
   getFlowState,

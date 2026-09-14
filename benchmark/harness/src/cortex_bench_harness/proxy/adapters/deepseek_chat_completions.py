@@ -1,8 +1,3 @@
-# input:  DeepSeek request targets, JSON bodies, and SSE payloads
-# output: route, auth, and usage decisions
-# pos:    DeepSeek OpenAI chat-completions API-key adapter
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import json
 from collections.abc import Mapping
 from urllib.parse import urlsplit

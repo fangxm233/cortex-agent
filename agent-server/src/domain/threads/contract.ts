@@ -2,7 +2,6 @@
 // output: buildContractPrompt / buildMissionChain / checkContractBudget
 // pos:    Structured delegation contracts for recursive thread spawns (DR-0014) — prompt
 //         composition, ancestor goal chain (drift prevention), per-thread budget breaker
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { ThreadRecord, ThreadContract } from '@core/types/thread-types.js';
 

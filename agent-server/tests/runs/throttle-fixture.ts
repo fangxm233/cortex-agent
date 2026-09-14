@@ -1,7 +1,3 @@
-// input:  a temp CORTEX_HOME, a profiles.json fixture and the rate-limit throttle singleton
-// output: loadThrottleHome() — an isolated throttle + profile world for attempt-policy tests
-// pos:    Shared fixture for the run layer's attempt-policy suites (fallback, notices)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
 // Rate-limit-throttle is a mutable module singleton. A suite must bind its private home BEFORE
 // importing it, so every module in the suite sees the same instance; `_testReset()` between tests

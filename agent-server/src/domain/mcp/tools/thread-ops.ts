@@ -1,8 +1,3 @@
-// input:  MCP server, webhook proxy, session tool context
-// output: thread_abort, thread_split, and thread_wait MCP tools
-// pos:    Self-control tools for the caller's active thread
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { requestLoopbackJson } from '@core/loopback-http.js';

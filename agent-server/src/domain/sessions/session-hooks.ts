@@ -1,7 +1,3 @@
-// input:  hook registry/events, agent sessions, run service, OutputStream
-// output: session dispatch, diagnostics, and injection helpers
-// pos:    Dispatches session events and injects prompt results
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { emitCortexEvent, type HookEmitResult } from '@core/hook-bus.js';

@@ -1,8 +1,3 @@
-// input:  selected session state, sessions.compact mutation, query cache
-// output: ContextCompactAction for the shared context modal
-// pos:    Desktop/mobile manual context compaction hook
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useCallback, useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';

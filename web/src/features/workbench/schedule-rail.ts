@@ -1,7 +1,3 @@
-// input:  ScheduleInfo/SessionInfo DTOs, scheduled-chat helpers, and shared USD formatting
-// output: schedule rows, run ordinals, DTO-carrying row actions, and sublines
-// pos:    SCHEDULED rail-section view model (desktop 30a + mobile 8b)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { ScheduleInfo, SessionInfo } from '@cortex-agent/ui-contract';
 import { cadenceLabel, nextRunDelta } from './scheduled-chat';
 import { sessionStamp } from './session-groups';

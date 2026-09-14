@@ -1,8 +1,3 @@
-// input:  MCP server, session tool context, daemon webhook proxy
-// output: the `agent` and `agent_stop` tools
-// pos:    Delegation surface for a backend that has no native subagent Cortex can see
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { requestLoopbackJson } from '@core/loopback-http.js';

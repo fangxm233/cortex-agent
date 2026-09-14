@@ -1,8 +1,3 @@
-// input:  launcher JSON and production CORTEX_HOME stores
-// output: structured immutable evidence-export result
-// pos:    Installed production evidence v2 export command
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import fs from 'node:fs';
 import path from 'node:path';
 

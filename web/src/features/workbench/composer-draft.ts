@@ -1,8 +1,3 @@
-// input:  composer scope, text and uploaded attachment metadata
-// output: per-session draft storage, prefill, and send restoration
-// pos:    Persistent composer utilities for desktop and mobile
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import type { AttachmentMeta } from '@/features/attachments/types';
 
 /** A persisted composer draft. `draftUploadId` is only set for a new-session (draft-mode) composer,

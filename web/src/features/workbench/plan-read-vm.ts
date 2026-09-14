@@ -1,8 +1,3 @@
-// input:  ui-contract interaction status
-// output: Plan-reading progress, status, metadata, action sub-label
-// pos:    Shared desktop/mobile plan-reading view model
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { TranscriptInteractionDetail } from '@cortex-agent/ui-contract';
 
 /**

@@ -1,8 +1,3 @@
-# input:  trial seed, task/config, proxy and host scan policy
-# output: sealed launch and post-stop finalization lifecycle
-# pos:    Production Harbor container admission boundary
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import asyncio
 import contextlib
 import ipaddress

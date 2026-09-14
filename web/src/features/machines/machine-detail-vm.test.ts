@@ -1,8 +1,3 @@
-// input:  machine detail DTO fixtures and deterministic wall-clock values
-// output: locale-free meter, GPU, run, timing and probe-error fact regressions
-// pos:    Shared machine detail view-model specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import type { MachineDetail } from '@cortex-agent/ui-contract';
 import { buildMachineDetailVm } from './machine-detail-vm';

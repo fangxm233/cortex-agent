@@ -1,8 +1,3 @@
-# input:  a live trial proxy, its audit log, its lease record and unreadable counter stubs
-# output: request-count fidelity, unavailable-not-zero proofs and the seam golden files
-# pos:    Proxy accounting export tests
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import os
 from datetime import UTC, datetime
 from pathlib import Path

@@ -1,8 +1,3 @@
-# input:  one frozen credential capability key per trial
-# output: the single adapter that carries it, or a start-time refusal
-# pos:    Provider adapter registry and selection
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Callable, Mapping
 

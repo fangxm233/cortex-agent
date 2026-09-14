@@ -1,8 +1,3 @@
-// input:  absent, partial, successful, failing, and delayed native bridge doubles
-// output: capability, safe invoke, event/back listener, and idempotent teardown guarantees
-// pos:    Contract tests for the single typed window.__TAURI__ adapter
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   hasNativeCapability,

@@ -1,8 +1,3 @@
-// input:  canonical settings nav, mobile facts, and connection state
-// output: mobile settings index with honest interactive capabilities
-// pos:    Presentational mobile settings view preserving dedicated profile chrome
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { ReactNode } from 'react';
 import type { ConnectionStatus } from '@/features/connection/connection-status';
 import { connectionDot, connectionLabelKey } from '@/features/connection/connection-status';

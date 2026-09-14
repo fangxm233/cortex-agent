@@ -220,7 +220,8 @@ $CORTEX_HOME/
 1. 如果显式提供了配置名称（通过 `--profile` 或线程模板），使用它。
 2. 否则，使用 `profiles.json` 中的 `defaultProfile`。
 3. 解析后的配置提供 `model`、`backend`、`mode`、`extraEnv`、`extraOption`、`claudeBackend` 和 `thinking`。
-4. 如果后端调用因瞬态错误失败，Cortex 遍历 `fallback` 数组（如果有），按顺序尝试每个条目。
+4. 直接会话可以在该 profile 之上覆盖 `model`、`provider`、`thinking` 和 `mode`——在 Web 输入框的引擎选择器里选定，按 channel 保存。其余一概不可覆盖：后端、环境变量与回退链仍属于 profile。参见 [backends.md](./backends.md#per-session-model-thinking-level-and-route)。
+5. 如果后端调用因瞬态错误失败，Cortex 遍历 `fallback` 数组（如果有），按顺序尝试每个条目。
 
 ### 验证规则 {#validation-rules}
 

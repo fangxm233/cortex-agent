@@ -1,7 +1,3 @@
-// input:  browser URL, history, title and forward helpers
-// output: regressions for guards, history and one tab's identity
-// pos:    Unit tests for the single web tab model
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import {
   EMPTY_HISTORY,

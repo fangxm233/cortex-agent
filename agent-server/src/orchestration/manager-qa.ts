@@ -1,8 +1,3 @@
-// input:  thread/task state, production topology ledger, Q&A webhooks
-// output: durable manager ask/answer routing and one-shot polling
-// pos:    Manager Q&A control channel and restart-safe evidence source
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { threadStore } from '@store/thread-repo.js';
 import { scanAllTasks } from '@core/task-parser.js';
 import { isTerminalStatus } from '@domain/threads/tree.js';

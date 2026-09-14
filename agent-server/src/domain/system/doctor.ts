@@ -1,8 +1,3 @@
-// input:  Environment, filesystem, gateway, auth, and PI probes
-// output: Doctor reports, default probes, and safe-fix actuators
-// pos:    Runs install-wide health diagnostics for cortex doctor
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';

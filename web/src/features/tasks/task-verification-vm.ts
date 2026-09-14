@@ -1,8 +1,3 @@
-// input:  task verification DTO, canonical facts, and shared desktop formatters
-// output: Desktop evidence copy slots and themed dispatch rows
-// pos:    Desktop-only verification projection over shared task detail semantics
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 // Pure view-model for the task modal's "Done-when verification" (Card B) + "Dispatch history"
 // (Card C), consuming the real `tasks.verification` scope. Framework-free so the DTO→render mapping
 // — including every honest-placeholder branch — is unit-tested in isolation. Consumed by TaskModal.tsx.

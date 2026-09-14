@@ -1,7 +1,3 @@
-// input:  session snapshots and lifetime, file drops and shortcut actions
-// output: chat with a pane-wide attachment target and composer
-// pos:    Workbench conversation pane orchestration
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useMemo, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
@@ -54,7 +50,7 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
   const trpc = useTRPC();
   const chatDropTargetRef = useRef<HTMLDivElement>(null);
   const { currentProjectId } = useCurrentProject();
-  const { selectedSessionId, isDraft, draftProfile, draftReloadToken } = useSelectedSession();
+  const { selectedSessionId, isDraft, draftSelection, draftReloadToken } = useSelectedSession();
   // Scoped to the current project (dedupes with the LeftRail / provider query) so the active session
   // is resolved from the same lists the rail shows — direct conversations AND scheduled runs
   // (design 27a-B puts both in the rail, so both must open here).
@@ -249,10 +245,11 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
           sessionSpanMs={sessionSpan}
           isDraft={isDraft}
           currentProfile={active?.profileName ?? null}
+          currentOverride={active?.selectionOverride ?? null}
           sessionBrowser={active?.browser ?? null}
           sessionCommission={sessionCommission}
           hasHistory={hasHistory}
-          draftProfile={draftProfile}
+          draftSelection={draftSelection}
           draftReloadToken={draftReloadToken}
           projectId={currentProjectId ?? 'general'}
           prepareOptimistic={optimistic.prepare}

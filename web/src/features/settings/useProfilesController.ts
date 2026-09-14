@@ -1,8 +1,3 @@
-// input:  config.get/models.catalog reads, profile mutations, canonical profile VM and toasts
-// output: shared profile facts, editor lifecycle, field choice catalog and serialized writes
-// pos:    Cross-surface profiles settings controller
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useRef, useState, type MutableRefObject } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {

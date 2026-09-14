@@ -1,8 +1,3 @@
-// input:  conversation runner, cancellation, session registries
-// output: backend prompt capture and interrupt/resume regressions
-// pos:    Prompt identity and cancellation orchestration tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test, expect, vi } from 'vitest';
 import assert from 'node:assert/strict';
 

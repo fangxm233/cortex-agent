@@ -1,8 +1,3 @@
-// input:  canonical mobile route manifest, vocab types, and badge counts
-// output: derived tab definitions, active-tab attribution, and tab-route checks
-// pos:    Four-tab mobile navigation model without duplicate route path sets
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { type Vocab } from '@/i18n';
 import {
   MOBILE_ROUTE_MANIFEST,

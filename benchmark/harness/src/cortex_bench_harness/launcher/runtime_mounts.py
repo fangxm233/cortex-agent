@@ -1,7 +1,3 @@
-# input:  a campaign's staged runtime roots and the runtimes an arm asks for
-# output: the fixed container targets those roots are admitted at, read-only
-# pos:    Staged runtime mount vocabulary
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # Until now an agent's runtime reached a trial one way: it was baked into the task image. That
 # made every (task, vendor) pair its own image -- 89 tasks times three vendors is 267 builds, one

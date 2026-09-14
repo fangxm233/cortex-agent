@@ -2,7 +2,6 @@
 // output: mobile appearance drill-in with language, theme, color, and motion
 // pos:    Presentational mobile appearance view. Everything here is device-local EXCEPT the
 //         language, which is one server setting shared with what Cortex writes in chat.
-// >>> If I am updated, update my header comment and CORTEX.md <<<
 
 // @ds-adherence-ignore -- mobile v3 raw px/font by design §8.3 (matches MSettingsView row metrics)
 import type { CSSProperties, ReactNode } from 'react';

@@ -1,8 +1,3 @@
-// input:  provider config and the rate-limit throttle's view of each provider/mode
-// output: provider identity, mode gating, and the synthetic rate-limited result
-// pos:    Provider identity helpers shared by the run layer
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import type { Backend } from '../../agent-adapter/index.js';
 import type { AgentResult } from '@core/types/agent-types.js';
 import { isProviderModeRateLimited } from '../costs/rate-limit-throttle.js';

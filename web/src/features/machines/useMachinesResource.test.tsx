@@ -1,8 +1,3 @@
-// input:  mounted machine resource, roster/detail transports, polling and approval outcomes
-// output: shared roster, probe status and approval request/cache lifecycle regressions
-// pos:    Headless desktop/mobile machines resource specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ApprovalsRequestReturn, MachineDetail, MachineInfo } from '@cortex-agent/ui-contract';

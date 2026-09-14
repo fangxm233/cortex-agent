@@ -1,7 +1,3 @@
-// input:  CommissionInfo/SessionInfo DTOs
-// output: one rail row per commission, carrying its member sessions and rolled-up signal
-// pos:    COMMISSION rail-section view model (project → commission → session, DR-0037)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { CommissionInfo, SessionInfo } from '@cortex-agent/ui-contract';
 
 // DR-0037: a commission groups the sessions of one long-horizon task. Unlike a schedule row (one

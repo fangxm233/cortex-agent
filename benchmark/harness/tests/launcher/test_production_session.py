@@ -1,8 +1,3 @@
-# input:  sealed home, installed server facts, fake executor
-# output: lifecycle, webhook, evidence and shutdown proofs
-# pos:    Integration contract for one production arm session
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import asyncio
 import json
 from pathlib import Path, PurePosixPath

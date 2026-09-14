@@ -1,8 +1,3 @@
-// input:  current project scope, notes tRPC contract and query cache
-// output: shared notes list, scoped CRUD, loading, busy and error state
-// pos:    Headless desktop/mobile project notes resource
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { NoteInfo } from '@cortex-agent/ui-contract';

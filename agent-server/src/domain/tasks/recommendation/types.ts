@@ -1,8 +1,3 @@
-// input:  consumed by recommendation-extractor/patterns
-// output: shared interfaces for recommendation scanning
-// pos:    type definitions for recommendation scanning
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 export interface RecommendationSection {
   header: string;
   body: string;

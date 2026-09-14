@@ -1,7 +1,3 @@
-# input:  ceiling policy, vendor campaigns, malformed variants
-# output: approved-ceiling and refusal proofs for the policy loader
-# pos:    Capability ceiling policy loader tests
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # The ceilings are configuration, not code: this file proves the shipped document says what the
 # approved envelope allows, and that a document which cannot be read as a ceiling is refused

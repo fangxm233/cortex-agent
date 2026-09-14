@@ -1,8 +1,3 @@
-# input:  explicit suite/host paths and preflight-or-run mode
-# output: structured zero-provider preflight or one paid full-suite execution
-# pos:    Full-suite command-line entry
-# >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 from __future__ import annotations
 
 import argparse

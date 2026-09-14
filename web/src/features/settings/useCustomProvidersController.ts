@@ -1,8 +1,3 @@
-// input:  custom-provider tRPC endpoints, canonical draft VM, query cache, and toasts
-// output: shared list/editor/save/remove state with independent mutation pending flags
-// pos:    Cross-surface custom PI provider controller
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CustomProviderView } from '@cortex-agent/ui-contract';

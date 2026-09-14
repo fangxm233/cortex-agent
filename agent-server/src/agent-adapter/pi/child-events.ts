@@ -1,8 +1,3 @@
-// input:  a parent tool-call id, a per-child task, and raw nested-session events
-// output: SubagentNotices for the parent transcript, one channel per `agent` call
-// pos:    Translates a PI child's events into parent-visible attribution
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { ChildAccumulator, ChildEventForwarder } from '@core/agents/subagent/types.js';
 import type { SubagentChannel } from '@core/agents/subagent/orchestrate.js';
 import type { SubagentNotice } from './event-parser.js';

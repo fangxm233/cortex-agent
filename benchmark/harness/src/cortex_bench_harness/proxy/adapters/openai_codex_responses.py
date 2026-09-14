@@ -1,8 +1,3 @@
-# input:  codex request targets, request bodies, and streamed upstream payloads
-# output: Codex route, auth, expiry, body, and usage decisions
-# pos:    OpenAI Codex responses adapter for an OAuth credential
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import base64
 import binascii
 import json

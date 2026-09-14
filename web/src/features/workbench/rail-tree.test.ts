@@ -1,8 +1,3 @@
-// input:  project, session, schedule, commission and thread fixtures with rail UI state
-// output: folder-tree bucketing, capping, ordering, commission grouping and filter tests
-// pos:    Verifies the left rail's project folder tree view model
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, it, expect } from 'vitest';
 import type {
   CommissionInfo,

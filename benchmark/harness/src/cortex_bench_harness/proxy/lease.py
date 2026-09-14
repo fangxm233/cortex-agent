@@ -1,8 +1,3 @@
-# input:  a provisional bound, the arm's deadline budget, and the container's echoed durations
-# output: the armed credential lease, its revocation timer, and the host-side echo record
-# pos:    Credential lease and echo-back arithmetic
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import json
 import threading
 from dataclasses import dataclass

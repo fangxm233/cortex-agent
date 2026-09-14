@@ -1,8 +1,3 @@
-// input:  stored manual orders, activity orders and drag moves
-// output: reconciliation, move and resolve-order tests
-// pos:    Verifies the left rail's two ordering modes
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, it, expect } from 'vitest';
 import {
   isRailSortMode,

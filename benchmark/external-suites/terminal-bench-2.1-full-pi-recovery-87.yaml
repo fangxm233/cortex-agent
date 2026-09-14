@@ -1,8 +1,3 @@
-# input:  pinned Terminal-Bench 2.1 recovery corpus and mounted PI runtime
-# output: reproducible 87-task per-task-proxy recovery declaration
-# pos:    Terminal-Bench PI recovery suite specification
-# >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 schema_version: cortex-bench-external-suite/1
 suite: tb21-full-pi-deepseek-flash-recovery-87
 

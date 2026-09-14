@@ -1,8 +1,3 @@
-// input:  Settings/LoginFlow providers, usage, and template fixtures
-// output: Settings routing and non-stacked login regressions
-// pos:    Verifies Settings shell routing and shared LoginFlow handoff
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { useState } from 'react';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';

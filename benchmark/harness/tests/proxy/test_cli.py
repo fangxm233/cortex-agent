@@ -1,8 +1,3 @@
-# input:  Python module CLI and synthetic credential on stdin
-# output: structured startup, argv secrecy, refusals, and signal cleanup
-# pos:    Proxy command-line contract tests
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import json
 import subprocess
 import sys

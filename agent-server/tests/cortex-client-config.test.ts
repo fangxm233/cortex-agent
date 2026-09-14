@@ -1,8 +1,3 @@
-// input:  cortex-client connection config resolution
-// output: server-URL precedence + Cloudflare Access header tests
-// pos:    regression guard for tunnel-routable cortex-client connection
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {

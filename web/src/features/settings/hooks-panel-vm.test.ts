@@ -1,8 +1,3 @@
-// input:  canonical hooks-panel-vm exports and HookDetail fixtures
-// output: namespace fallback, grouping, capability, validation and mutation regressions
-// pos:    Single-source desktop/mobile hook model unit tests
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { describe, it, expect } from 'vitest';
 import type { HookDetail } from '@cortex-agent/ui-contract';
 import {

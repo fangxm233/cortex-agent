@@ -1,8 +1,3 @@
-// input:  mobile settings view model and config/cost fixtures
-// output: runtime settings, summaries and mounted-hook mapping tests
-// pos:    Verifies mobile settings data derivation
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { describe, it, expect } from 'vitest';
 import type { ConfigSnapshot, ConfigEnvEntry, ConfigHook, CostSummary } from '@cortex-agent/ui-contract';
 import { buildMSettingsVm } from './m-settings-vm';

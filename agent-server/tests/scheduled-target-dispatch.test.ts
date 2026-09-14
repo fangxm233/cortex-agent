@@ -4,7 +4,6 @@
 //         orchestration around it (Slack / executions / progress) stays untouched.
 //         M4: channel target removed, project target added. Later: session target removed
 //         (along with the default-thread path) — user messages are no longer threads.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

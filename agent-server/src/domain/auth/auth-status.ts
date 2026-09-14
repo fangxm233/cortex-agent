@@ -1,8 +1,3 @@
-// input:  Claude auth CLI/metadata, PI auth, profiles
-// output: auth status snapshot and preferred login type
-// pos:    Backend authentication status snapshot producer
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 // Known P1 limitation: API mode reflects only the saved local key. A healthy gateway may carry
 // upstream credentials while this snapshot reports the API-key slot as logged out.
 

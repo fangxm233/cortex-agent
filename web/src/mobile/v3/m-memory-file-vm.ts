@@ -1,8 +1,3 @@
-// input:  memory-file metadata, wall-clock time, and shared byte formatting
-// output: mobile memory filename and honest metadata line
-// pos:    Pure view model for the mobile memory-file reader
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 // Only real path/size/modified fields are surfaced; desktop-only diff/blame data stays omitted.
 import { relTimeZh } from '@/mobile/ui/format';
 import { formatBytes as formatSharedBytes } from '@/lib/format';

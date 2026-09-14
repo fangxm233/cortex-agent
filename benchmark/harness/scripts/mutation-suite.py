@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-# input:  DeepSeek adapter, proxy, evidence, sealed profile and spawn cap
-# output: regenerated mutation manifest and offline capability evidence
-# pos:    Capability mutation suite runner
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # One mutation is one named weakening of a mechanism the capability rests on. It is killed when the
 # scoped test that names the property FAILS with it applied and PASSES without it; a mutation that

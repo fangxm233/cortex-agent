@@ -1,8 +1,3 @@
-// input:  canonical usage service, provider usage records, command router
-// output: !usage handler, text formatter and forced refresh action
-// pos:    Platform-neutral provider quota and spend command
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { t } from '@core/i18n.js';
 import type { MessageKey } from '@core/locales/en.js';
 import { usageService } from '@domain/costs/usage-service.js';

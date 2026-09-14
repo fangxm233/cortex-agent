@@ -1,8 +1,3 @@
-# input:  run-owned Docker slot with an attached container
-# output: container-before-network cleanup ordering proof
-# pos:    Full-suite network cleanup tests
-# >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import subprocess
 
 from cortex_bench_harness.full_suite.network import NetworkSlot, remove_networks

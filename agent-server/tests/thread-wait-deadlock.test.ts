@@ -3,7 +3,6 @@
 // pos:    Verify a waiting manager whose remaining awaited tasks are ALL stuck behind blocked
 //         dependencies is woken (once per distinct stall) instead of hanging forever —
 //         DR-0014 §8 wake-on-empty alone deadlocks when siblings depend on a blocked child.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test, afterAll } from 'vitest';

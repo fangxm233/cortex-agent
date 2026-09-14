@@ -1,8 +1,3 @@
-// input:  durable production attempts and launcher-owned arm facts
-// output: input refusal, atomic v2, token and mirror coverage
-// pos:    Production terminal/composite exporter contract tests
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';

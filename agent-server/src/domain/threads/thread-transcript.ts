@@ -1,7 +1,3 @@
-// input:  history writer, DEBUG gate, step events
-// output: step rows with remote device and subagent metadata
-// pos:    Thread-step transcript recorder
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 //
 // A SECOND recorder beside `orchestration/transcript-sink.ts`, on purpose. The sink is the one
 // history+publish observer for a run's `RunEvent` stream; this one records a thread STEP, and the

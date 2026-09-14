@@ -1,8 +1,3 @@
-// input:  hooks data, form state, mutations and shared Select
-// output: full-height hook editor with gating and test runner
-// pos:    Settings view for the declarative hook registry
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {

@@ -1,8 +1,3 @@
-// input:  current mobile project, shared notes resource and navigation
-// output: mobile notes view with shared CRUD and draft handoff
-// pos:    Mobile composition owner for the scheme 26c notes screen
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useNotesResource } from '@/features/notes/useNotesResource';

@@ -1,8 +1,3 @@
-// input:  fake auth snapshots, auth-watch clock, scheduling runner
-// output: expiry scan filtering, actions, privacy, and debounce regressions
-// pos:    Covers the daily in-use authentication warning job
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'vitest';
 import { setLocale } from '../src/core/i18n.js';

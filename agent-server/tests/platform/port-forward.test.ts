@@ -1,7 +1,3 @@
-// input:  port-forward parsers and a live forward over a loopback echo server
-// output: pinned target policy, ss parsing and end-to-end byte transport
-// pos:    tests for the desktop port forward
-// >>> If I am updated, update CORTEX.md <<<
 import { describe, it, expect, afterAll } from 'vitest';
 import * as http from 'http';
 import * as net from 'net';

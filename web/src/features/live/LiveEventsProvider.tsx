@@ -1,7 +1,3 @@
-// input:  tRPC subscribe client, React Query cache, live-event rules
-// output: LiveEventsProvider, useLiveEvents, useLiveConnection
-// pos:    Shared SSE owner and client-side event fan-out
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTRPC, useTRPCClient } from '@/lib/trpc';

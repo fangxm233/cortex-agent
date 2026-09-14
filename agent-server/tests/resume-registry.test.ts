@@ -1,8 +1,3 @@
-// input:  Node test runner + resume-registry module
-// output: provider readiness, counts, dedupe, persistence tests
-// pos:    Validate the rate-limit resume registry (interrupted session/thread bookkeeping)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { importFresh } from './module-loader.js';

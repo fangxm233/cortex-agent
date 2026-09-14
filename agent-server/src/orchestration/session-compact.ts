@@ -1,8 +1,3 @@
-// input:  session registry, live guards, conduit queue, the run layer's compaction entry point
-// output: compactSessionContext and injectable coordinator deps
-// pos:    Shared idle-only manual session compaction coordinator
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { SessionContextUsage } from '@core/types/agent-types.js';
 import { runRegistry } from '@core/run-registry.js';
 import { sessionRepo } from '@store/session-repo.js';

@@ -1,8 +1,3 @@
-// input:  plugin roots, schemas, skill and MCP loaders
-// output: plugin catalog entries plus format-aware local issues
-// pos:    Read-only inventory of installed plugins
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import fs from 'node:fs';
 import path from 'node:path';
 import { DATA_DIR, PLUGINS_DIR } from '@core/paths.js';

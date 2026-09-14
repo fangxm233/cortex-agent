@@ -1,8 +1,3 @@
-// input:  thread-template directory and a failing fs.watch implementation
-// output: polling fallback and registration-race regressions
-// pos:    Thread config watcher failure-path test
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import { mkdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import path from 'node:path';

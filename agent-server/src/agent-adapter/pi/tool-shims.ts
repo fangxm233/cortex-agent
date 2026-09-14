@@ -1,7 +1,3 @@
-// input:  PI model registry, session env and role catalog, subagent sink, Agent, todo, web tools
-// output: Gated runtime Agent (over nested sessions), todo, and web tools
-// pos:    Registers PI-local tool shims
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { Type } from '@sinclair/typebox';
 import type { ExtensionAPI, ExtensionContext, InlineExtension } from '@earendil-works/pi-coding-agent';
 import * as path from 'node:path';

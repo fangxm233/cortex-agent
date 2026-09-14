@@ -1,8 +1,3 @@
-# input:  a proxy carrying the row-1 adapter, loopback sources, and listeners
-# output: offline H7 source, limits, deadline, revocation, and host-set proofs
-# pos:    Offline containment proofs for the row-1 adapter
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import json
 import select
 import socket

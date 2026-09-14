@@ -1,8 +1,3 @@
-# input:  committed subnet pool, run identity and Docker CLI
-# output: fixed per-worker bridge networks and container source addresses
-# pos:    Full-suite Docker slot allocator
-# >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 from __future__ import annotations
 
 import ipaddress

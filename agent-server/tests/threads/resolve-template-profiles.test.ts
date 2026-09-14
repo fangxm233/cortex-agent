@@ -1,8 +1,3 @@
-// input:  Node test runner + domain/threads prompt-builder
-// output: resolveTemplateProfiles coverage (hardcoded, __active__, dedup, unknown)
-// pos:    Verify template→profile resolution used by task-dispatch rate-limit gating
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import '../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test, beforeAll } from 'vitest';
 import assert from 'node:assert/strict';

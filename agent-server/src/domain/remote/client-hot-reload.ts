@@ -1,7 +1,3 @@
-// input:  client repo builds (dev) or the npm registry client package (release)
-// output: bundle pushes over device WebSockets and convergence notices
-// pos:    Publishes the desired client bundle; each device installs it itself
-// >>> If I am updated, update CORTEX.md <<<
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';

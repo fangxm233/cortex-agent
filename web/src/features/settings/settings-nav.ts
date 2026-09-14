@@ -1,8 +1,3 @@
-// input:  localized copy and selected settings section
-// output: ordered settings nav and section metadata
-// pos:    Settings modal navigation model
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 // Labels are resolved via `getSettingsNav(L)` / `getSectionMeta(L, key)`.
 
 import type { Vocab } from '@/i18n';

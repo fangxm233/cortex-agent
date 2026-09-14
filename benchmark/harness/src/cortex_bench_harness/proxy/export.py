@@ -2,7 +2,6 @@
 # output: the proxy-authoritative accounting export, every figure tagged, never defaulted,
 #         with a tally of the outcomes the audit log recorded
 # pos:    Proxy-authoritative accounting export
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import json
 from pathlib import Path

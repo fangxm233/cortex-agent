@@ -1,8 +1,3 @@
-# input:  pinned Codex binary, synthetic SSE fixture, isolated loopback
-# output: redacted JSON observation of native request and CLI result
-# pos:    Zero-paid native Codex vendor-wire capture probe
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import argparse
 import base64
 import datetime

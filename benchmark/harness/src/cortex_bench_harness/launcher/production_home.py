@@ -1,8 +1,3 @@
-# input:  the arm's committed bundle, launcher facts, host and runtime paths, task workdir
-# output: sealed home, auth, attestations, committed bundle inventory, agent working directory
-# pos:    Builds sealed production arm homes
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import hashlib
 import json
 import os

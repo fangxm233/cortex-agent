@@ -1,8 +1,3 @@
-// input:  nothing (leaf module)
-// output: AsyncMutex
-// pos:    promise-based mutex for serializing async operations
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 export class AsyncMutex {
   private queue: Array<() => void> = [];
   private locked = false;

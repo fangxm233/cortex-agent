@@ -1,8 +1,3 @@
-// input:  handleMachinesList handler + mock deps
-// output: machines.list query handler tests — online/offline/liveRuns at-least-one assertion each
-// pos:    backend regression test for the machines.list read scope (plan §12 A item 1)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import './_test-home.js'; // MUST be first — isolates CORTEX_HOME
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

@@ -1,8 +1,3 @@
-// input:  Vitest, SlackOutputStream, FeishuOutputStream, MockAdapter
-// output: Slack and Feishu output-stream behavior regressions
-// pos:    Covers batching, retries, mutable regions, and message references
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test, beforeEach, afterEach, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { SlackOutputStream, _testSetRetryDelays, _testResetRetryDelays } from '../src/platform/adapters/slack-output-stream.js';

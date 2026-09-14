@@ -1,8 +1,3 @@
-// input:  defaults/hooks/cortex-hook-api.mjs, local HTTP stub server
-// output: askUser helper contract tests (env routing, level, token, error passthrough)
-// pos:    Regression guard for the hook-facing askUser helper library
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test, beforeEach, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import http from 'node:http';

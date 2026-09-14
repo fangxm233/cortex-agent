@@ -1,7 +1,3 @@
-// input:  resume dispatcher, ready entries, runtime settings
-// output: dispatch, requeue, settings, and guard tests
-// pos:    Covers provider-ready auto-resume behavior
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import '../_test-home.js'; // MUST be first — isolates store singletons
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

@@ -1,8 +1,3 @@
-// input:  plugin assign args and template writes
-// output: plugins.assign persistence and guards
-// pos:    Mutate handler for plugin assignments
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import {

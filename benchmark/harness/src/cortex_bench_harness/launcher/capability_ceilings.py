@@ -1,7 +1,3 @@
-# input:  the committed capability ceiling policy document
-# output: per-capability envelope ceilings, or a refusal to read one
-# pos:    Capability ceiling policy loader
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # The ceilings are configuration, not code: this module only reads them. It reads strictly, because
 # the failure it must not have is a document that parses into "no ceiling" — an unreadable, partial

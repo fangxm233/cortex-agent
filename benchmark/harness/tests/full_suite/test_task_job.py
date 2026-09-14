@@ -1,8 +1,3 @@
-# input:  one task, proxy handle, runtime roots and hostile environment
-# output: single-task Harbor config and credential-boundary proofs
-# pos:    Full-suite Harbor job builder tests
-# >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import json
 from pathlib import Path
 

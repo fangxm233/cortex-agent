@@ -1,8 +1,3 @@
-// input:  registerTaskMonitorTools from domain/mcp/tools/task-monitor
-// output: task_status / task_result / task_list handlers read TASKS.yaml correctly
-// pos:    behavioral guard for the read-only task monitoring MCP tools
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import '../../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';

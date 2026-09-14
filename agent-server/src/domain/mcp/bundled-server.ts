@@ -1,8 +1,3 @@
-// input:  MCP bundles, tool registrars, one session tool context (from env for the stdio entry)
-// output: One composition-scoped Cortex MCP server, served over stdio when run as an entry
-// pos:    Bundles selected Cortex tools against one session context
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { BUNDLED_MCP_SERVER_NAME, parseMcpBundles, MCP_BUNDLES_ENV, type McpBundleName } from '@core/mcp-bundles.js';

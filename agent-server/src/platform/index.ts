@@ -1,8 +1,3 @@
-// input:  platform contracts and concrete adapter exports
-// output: public platform API and live adapter update helpers
-// pos:    Public API export of the Platform abstraction
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 export type { PlatformAdapter } from './adapter.js';
 export { SYNTHETIC_CALLBACK_SENDER } from './types.js';
 export type {

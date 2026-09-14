@@ -1,8 +1,3 @@
-// input:  public usage feature hook, language state, and navigation
-// output: data-bound mobile Usage screen with localized threshold controls
-// pos:    Mobile Usage query, refresh, policy-save, and routing container
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { useNavigate } from 'react-router-dom';
 import { useUsage } from '@/features/usage';
 import { useLang } from '@/i18n';

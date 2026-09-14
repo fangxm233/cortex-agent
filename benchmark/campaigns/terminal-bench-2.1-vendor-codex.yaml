@@ -1,7 +1,3 @@
-# input:  the Codex vendor arm and three pinned Terminal-Bench 2.1 tasks
-# output: one paid three-task Codex vendor campaign with a concurrent TTL-bound wave
-# pos:    Codex vendor-baseline live campaign declaration
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # The image selectors below bind every task to the offline Codex-only runtime variant.
 

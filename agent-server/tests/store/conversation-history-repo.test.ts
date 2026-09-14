@@ -1,7 +1,3 @@
-// input:  session JSONL, tool devices, compact cache, DEBUG APIs
-// output: history, remote metadata, cache, and DEBUG regressions
-// pos:    Conversation-history store specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import '../_test-home.js'; // MUST be first import — repoints CORTEX_HOME before paths bind
 
 import { test } from 'vitest';

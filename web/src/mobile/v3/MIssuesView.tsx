@@ -1,7 +1,3 @@
-// input:  canonical issue details, mobile actions, and shared UI kit
-// output: themed expandable issue cards and decisions
-// pos:    Presentational mobile Issues screen over the shared issue model
-// >>> If I am updated, update my header comment and CORTEX.md <<<
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme.dc.html sec-24 24c)
 // Pure presentational view for the 24c 移动端 Issues screen (render-testable without tRPC/router).
 // The FIRST card (or whichever id is expanded) renders expanded with the inline 删除 / 处理

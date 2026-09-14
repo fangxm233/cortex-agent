@@ -1,8 +1,3 @@
-// input:  Modal chrome, sizing, layers, visibility, styles, and passive data hooks
-// output: Standard compatibility and accessible bare-dialog primitive regressions
-// pos:    Shared Modal behavior specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { create, type ReactTestInstance } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 

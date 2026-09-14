@@ -1,8 +1,3 @@
-// input:  notes context, localized copy and workbench navigation
-// output: hosted notes pane with click-selected CRUD actions
-// pos:    Desktop project notes drawer
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { NotesCopy } from './notes-copy';

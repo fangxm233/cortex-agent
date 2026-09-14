@@ -1,7 +1,3 @@
-// input:  plugin fixtures and UI handlers
-// output: plugin list/assign, safety and conflict coverage
-// pos:    ui-service plugin API regression tests
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import '../../_test-home.js';
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';

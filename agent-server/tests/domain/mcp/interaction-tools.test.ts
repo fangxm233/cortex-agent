@@ -1,8 +1,3 @@
-// input:  Vitest, interaction plan/ask tools, mock HTTP transport
-// output: Shared interaction MCP schema and handler regressions
-// pos:    Tests the Cortex interaction bridge tools
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'fs';

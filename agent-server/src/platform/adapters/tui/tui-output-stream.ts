@@ -1,8 +1,3 @@
-// input:  OutputStream interface, TuiConnection, protocol types
-// output: TUI stream with full subagent-prompt display capability
-// pos:    TUI adapter — no coalescing, client groups by streamId
-// >>> If I am updated, update the folder's CORTEX.md <<<
-
 import type { OutputStream, MutableRegion } from '../../output-stream.js';
 import type { MessageRef, RichBlock, ActionElement, Destination } from '../../types.js';
 import type { TuiConnection } from './tui-connection.js';

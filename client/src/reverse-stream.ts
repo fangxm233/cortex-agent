@@ -1,8 +1,3 @@
-// input:  an open-stream request from the server
-// output: an outbound callback WebSocket piped to a local TCP service
-// pos:    Device half of the reverse channel — the direction NAT forbids
-// >>> If I am updated, update me and the parent folder's CORTEX.md <<<
-
 import * as net from 'net';
 import WebSocket from 'ws';
 import { createLogger } from './log.js';

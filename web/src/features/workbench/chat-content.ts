@@ -1,8 +1,3 @@
-// input:  tool-call details and UI shortcuts
-// output: workbench tool types and local slash-command catalog
-// pos:    shared static shapes for workbench chat surfaces
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 export interface ToolCall {
   label: string;
   kind: string;

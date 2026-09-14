@@ -1,8 +1,3 @@
-// input:  PI session events and parser state
-// output: Tool, dialog, lifecycle, and usage event regressions
-// pos:    Tests PI event translation
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {

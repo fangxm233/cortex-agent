@@ -1,8 +1,3 @@
-// input:  decision items, fake respondDecision actions, EN vocab
-// output: disclosure-only actions, approve wiring, and message contracts
-// pos:    Behavior tests for the desktop decision cards
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type { DecisionItem } from '@cortex-agent/ui-contract';

@@ -1,8 +1,3 @@
-// input:  node:test, command execution module, temporary filesystem
-// output: timeout and cross-platform process-tree termination tests
-// pos:    Verifies bounded remote command execution
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';

@@ -1,8 +1,3 @@
-// input:  skill and plugin authoring args from the Plugins page
-// output: SKILL.md writes, skill/plugin lifecycle, and MCP server writes
-// pos:    Mutate handlers for the plugin package manager (assignment lives in mutate/plugins.ts)
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import {
   convertToPortable,
   createPlugin,

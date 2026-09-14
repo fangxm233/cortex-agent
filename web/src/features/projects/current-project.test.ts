@@ -1,8 +1,3 @@
-// input:  project/session fixtures and explicit project overrides
-// output: shared current-project derivation regression coverage
-// pos:    Project selection resolver unit specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import type { ProjectConduitInfo, SessionInfo } from '@cortex-agent/ui-contract';
 import { deriveActiveProjectId, resolveCurrentProjectId } from './current-project';

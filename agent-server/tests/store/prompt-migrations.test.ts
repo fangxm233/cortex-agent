@@ -1,8 +1,3 @@
-// input:  Vitest, temporary prompt files, shipped defaults
-// output: Historical migration and compact-default preservation tests
-// pos:    Verifies stock prompt migrations and customization guards
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test, beforeAll, afterAll, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';

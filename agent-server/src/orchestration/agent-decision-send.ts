@@ -1,8 +1,3 @@
-// input:  send_decision args, conversation history, commission projection
-// output: sendAgentDecisions + the decision field limits shared with the MCP tool
-// pos:    records agent decisions on transcripts, mirrored to commissions
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { randomBytes } from 'node:crypto';
 import { createLogger } from '@core/log.js';
 import { conversationHistory, type RawDecisionItem } from '@store/conversation-history-repo.js';

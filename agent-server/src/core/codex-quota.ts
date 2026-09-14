@@ -1,8 +1,3 @@
-// input:  Codex response headers, a clock reading, notice strings
-// output: quota header parsing, labeled reading types, and the notice codec
-// pos:    Codex quota vocabulary shared by the PI child and the server
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 /** Provider slug this reading is attributed to; matches the gateway route and profile provider. */
 export const CODEX_PROVIDER = 'openai-codex';
 

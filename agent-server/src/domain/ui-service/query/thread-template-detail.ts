@@ -6,7 +6,6 @@
 //         are re-read on every step, so a save can reroute or stall a live thread.
 //         For a shell-binding template it also returns the expanded graph, which is otherwise
 //         impossible to see: `execute-review.json` is four lines that bind a shell.
-// >>> If I am updated, update CORTEX.md <<<
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import * as path from 'node:path';

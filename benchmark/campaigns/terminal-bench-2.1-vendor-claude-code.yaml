@@ -1,7 +1,3 @@
-# input:  the Claude Code vendor arm and three pinned Terminal-Bench 2.1 tasks
-# output: a paid Claude Code three-task vendor campaign
-# pos:    Claude Code live vendor-baseline campaign declaration
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # The image selectors below bind every task to the offline Claude Code-only runtime variant.
 

@@ -1,8 +1,3 @@
-// input:  env writers, LoginFlow, isolated config and auth probe
-// output: API-key persistence, concurrency, recovery, privacy tests
-// pos:    Claude API-key login regression tests
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';

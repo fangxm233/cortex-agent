@@ -1,8 +1,3 @@
-// input:  task store, parent threads, production topology ledger
-// output: reserved cycles, inherited dispatch threads, facts
-// pos:    Runs the built-in automatic task dispatcher
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as os from 'node:os';
 import { ctx } from '../job-registry.js';
 import { createLogger } from '@core/log.js';

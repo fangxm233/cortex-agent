@@ -1,8 +1,3 @@
-// input:  created project id and ordered mobile routing callbacks
-// output: project-scope-before-close-and-navigation regression coverage
-// pos:    Mobile new-project completion flow unit specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, expect, it, vi } from 'vitest';
 import { finishMobileProjectCreation } from './m-new-project-flow';
 

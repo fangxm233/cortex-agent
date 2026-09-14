@@ -1,8 +1,3 @@
-// input:  provider throttle snapshots, language, current time
-// output: throttle visibility, countdown, classification, and order assertions
-// pos:    Regression tests for the shared rate-limit view model
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import { buildRateLimitView } from './rate-limit-vm';
 

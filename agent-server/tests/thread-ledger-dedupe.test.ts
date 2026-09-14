@@ -1,8 +1,3 @@
-// input:  thread callback, wait state machine, acceptance ledger
-// output: task-result dedupe and same-task reissue regressions
-// pos:    Verifies manager child-result delivery epochs
-// >>> If I am updated, update my header comment and parent CORTEX.md <<<
-
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';

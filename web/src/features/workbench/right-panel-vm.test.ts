@@ -1,8 +1,3 @@
-// input:  right-panel view models and DTO fixtures
-// output: task-linked thread metadata, budget, and status regressions
-// pos:    Verifies right-panel activity, budget, and machine models
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import type {
   ThreadStepDetail,

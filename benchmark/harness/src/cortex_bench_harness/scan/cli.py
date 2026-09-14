@@ -1,8 +1,3 @@
-# input:  explicit artifact flags and JSON scan policy file or stdin
-# output: redacted structured scan result and process exit status
-# pos:    Trial artifact scanner command-line interface
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import argparse
 import json
 import sys

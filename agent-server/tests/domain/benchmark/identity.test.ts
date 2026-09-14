@@ -1,8 +1,3 @@
-// input:  identity module and production role surfaces
-// output: deterministic model, role and launcher hash proofs
-// pos:    Production benchmark identity regression suite
-// >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import { it } from 'vitest';
 import {

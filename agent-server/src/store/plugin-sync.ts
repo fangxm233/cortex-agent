@@ -8,7 +8,6 @@
 //   CONVENTION: whenever you change ANY file inside a plugin (a skill's SKILL.md, a script, the
 //   manifest), bump that plugin's `version` in .claude-plugin/plugin.json — the analog of bumping
 //   @cortex-hook-version on a hook. Without a bump the change will NOT propagate to existing installs.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';

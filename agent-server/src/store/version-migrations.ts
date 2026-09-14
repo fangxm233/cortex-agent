@@ -1,8 +1,3 @@
-// input:  versions, user config, defaults, prompt replacements
-// output: Versioned and collision-safe startup migrations
-// pos:    Migrates user-owned files during server startup
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';

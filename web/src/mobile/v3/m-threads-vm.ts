@@ -1,7 +1,3 @@
-// input:  ThreadInfo/ThreadDetail DTOs, shared formatters
-// output: mobile thread card metadata, steps, and budget models
-// pos:    Pure view model for the mobile Threads screen
-// >>> If I am updated, update my header comment and CORTEX.md <<<
 import type { ThreadInfo, ThreadDetail } from '@cortex-agent/ui-contract';
 import { fmtMoney } from '@/mobile/ui/format';
 import { formatAge } from '@/features/workbench/right-panel-vm';

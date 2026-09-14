@@ -1,7 +1,3 @@
-// input:  vitest, cancel seams, foreground session start, runRegistry
-// output: Stop / foreground-supersession background-hold regressions + subagent-run cancellation
-// pos:    Background-hold cancellation and busy-release regression tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
 // The bug: the web hold is installed AFTER teardownExecution removed the execution from
 // runningExecutions, so the channel-keyed cancel path found zero executions, returned 0, and the

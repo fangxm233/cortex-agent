@@ -1,7 +1,3 @@
-// input:  runtime settings, platform adapter, outbound queue
-// output: turn notification gates and completion notifier
-// pos:    Pushes completion notices for long interactive turns
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
 import { Icons } from '../core/icons.js';

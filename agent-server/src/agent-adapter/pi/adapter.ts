@@ -1,8 +1,3 @@
-// input:  Spawn config, provider caches, MCP policy, a PI runtime factory
-// output: PI engine sessions (open), identity, usage, interaction eligibility, events
-// pos:    PI backend's stateless EngineAdapter; SessionEngines owns pooling and lifetime
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { existsSync, mkdirSync } from 'fs';
 import { resolveSpawnCwd } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
@@ -49,6 +44,7 @@ const NO_PROVIDER_DISCOVERY: PIProviderDiscovery = {
   getProviders: () => [],
   getModels: () => [],
   peekModels: () => [],
+  ensureModels: async () => [],
   refresh: () => {},
 };
 

@@ -1,8 +1,3 @@
-// input:  core agent types, normalized backend events and subagent attribution
-// output: RunPhase, AttemptLabel, the phased RunEvent union, its translation and the RunEvent queue
-// pos:    Backend-neutral run event vocabulary shared by engine sessions and the run layer
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import type {
   AgentResult, ChatNoticeLevel, ContextUsage, NoticeAction, TodoSnapshot,
 } from '@core/types/agent-types.js';

@@ -1,9 +1,3 @@
-// input:  a platform, and the stdout of the listening-port command run on it
-// output: which command to run there, and the listening ports it reports
-// pos:    Web UI transport host — platform dispatch for port discovery, local and remote
-// >>> If I am updated, update CORTEX.md <<<
-
-
 /**
  * VS Code does not solve this problem at all: its candidate finder is gated behind `isLinux` and
  * reads /proc/net/tcp directly, so on a Windows remote it falls back to scanning terminal output

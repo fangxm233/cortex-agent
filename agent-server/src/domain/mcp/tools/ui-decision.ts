@@ -1,8 +1,3 @@
-// input:  McpServer, daemon UI-decision webhook, session tool context
-// output: Web-only send_decision tool registration
-// pos:    Records agent-announced decisions on Web chat sessions
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { requestLoopbackJson } from '@core/loopback-http.js';

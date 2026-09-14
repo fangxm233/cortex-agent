@@ -1,8 +1,3 @@
-// input:  persisted/live context snapshots, raw SSE payloads, token counts
-// output: payload validation, snapshot precedence, and progress-state regressions
-// pos:    Pure specification for context usage state and presentation
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import {
   contextUsageFromLivePayload,

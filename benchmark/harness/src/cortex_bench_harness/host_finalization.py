@@ -1,7 +1,3 @@
-# input:  trial roots, arm records, proxy records, scan policy
-# output: Cortex/vendor inventory and published outer envelope
-# pos:    Shared host-side benchmark trial recorder
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # This module records; it does not verify. The launcher's parameters are written down as they were
 # emitted, the production evidence tree is collected as it was found, and provenance comes from

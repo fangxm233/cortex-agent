@@ -1,8 +1,3 @@
-# input:  capability evidence, registry rows and offline proof hashes
-# output: strict schema, binding, hash, and live-predicate proofs
-# pos:    Capability promotion evidence validation tests
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import hashlib
 import importlib.util
 import json

@@ -1,8 +1,3 @@
-// input:  auth classifier, EventBus, lifecycle state
-// output: auth classification, privacy, and recovery tests
-// pos:    Backend authentication event contract tests
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { afterEach, test } from 'vitest';
 import assert from 'node:assert/strict';
 import { EventBus } from '../src/events/event-bus.js';

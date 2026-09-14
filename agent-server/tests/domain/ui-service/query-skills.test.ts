@@ -1,8 +1,3 @@
-// input:  handleSkillsList handler + mock DATA_DIR (via _test-home.ts)
-// output: skills.list query handler tests — group structure, sorted names, empty dirs
-// pos:    backend regression test for the skills.list read scope (plan §12 A item 2 / 8a)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import '../../_test-home.js'; // MUST be first — isolates CORTEX_HOME
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

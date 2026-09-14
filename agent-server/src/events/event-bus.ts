@@ -1,8 +1,3 @@
-// input:  CortexEvent (event-types.ts)
-// output: EventBus class — subscribe / publish / close
-// pos:    events/ layer, only depends on event-types
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { createLogger } from '@core/log.js';
 import type { CortexEvent, CortexEventInput } from './event-types.js';
 

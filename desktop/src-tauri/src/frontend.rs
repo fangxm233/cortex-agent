@@ -1,8 +1,3 @@
-// input:  custom-scheme URLs, frontend root, embedded shell assets
-// output: sanitized paths and embedded/OTA asset responses
-// pos:    Resolves standalone setup assets and workbench files
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 use std::path::Path;
 
 const INDEX: &str = "index.html";

@@ -1,7 +1,3 @@
-// input:  Desktop composer, session status facts, UI handlers, and bilingual vocabulary
-// output: Slash feedback, run status, attachments and failed sends
-// pos:    Desktop composer behavior specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { ComponentProps } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
@@ -55,15 +51,21 @@ vi.mock('./SelectedSessionProvider', () => ({
   }),
 }));
 
-vi.mock('./SessionProfileSelector', async () => {
+vi.mock('./SessionSelector', async () => {
   const React = await import('react');
   return {
-    useSessionProfileSelection: () => ({
-      effectiveProfile: 'plan',
-      options: [{ name: 'execute', sub: 'sonnet', active: false, backend: 'claude', disabled: false }],
-      pick: harness.pickProfile,
+    useSessionSelection: () => ({
+      open: false, setOpen: vi.fn(),
+      effective: {
+        profileName: 'plan', backend: 'claude', model: 'claude-opus-5', provider: null,
+        thinking: 'high', modelOverridden: false, thinkingOverridden: false,
+      },
+      profileOptions: [{ name: 'execute', sub: 'sonnet', active: false, backend: 'claude', disabled: false }],
+      modelGroups: [], thinkingOptions: [], profileModel: 'claude-opus-5', profileThinking: 'high',
+      modelsReady: true,
+      pickProfile: harness.pickProfile, pickModel: vi.fn(), pickThinking: vi.fn(),
     }),
-    SessionProfileSelectorView: () => React.createElement('profile-selector'),
+    SessionSelectorView: () => React.createElement('selection-chip'),
   };
 });
 
@@ -102,6 +104,8 @@ function mountComposer(
         cost={null}
         elapsed="1s"
         currentProfile="plan"
+        currentOverride={null}
+        draftSelection={{ profileName: null, override: null }}
         hasHistory
         prepareOptimistic={() => ({ clientId: 'c1', text: '', attachments: [], createdAt: 0 }) as never}
         enqueueOptimistic={() => {}}
@@ -194,6 +198,8 @@ describe('Composer browser startup status', () => {
           cost={null}
           elapsed="1s"
           currentProfile="plan"
+          currentOverride={null}
+          draftSelection={{ profileName: null, override: null }}
           hasHistory
           sessionBrowser={{ device: 'my-pc' }}
           turnProgressStarted

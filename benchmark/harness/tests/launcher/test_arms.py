@@ -1,8 +1,3 @@
-# input:  parsed arms, trial pins, trial seed, Harbor config
-# output: immutable selection, seed binding, routing, refusal proofs
-# pos:    Contract tests for launcher arm construction
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import copy
 from pathlib import Path
 

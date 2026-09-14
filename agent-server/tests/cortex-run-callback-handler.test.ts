@@ -1,8 +1,3 @@
-// input:  Vitest, WebSocket task callbacks, execution registry
-// output: callback idempotency, state-first fencing, GPU tests
-// pos:    Remote task callback lifecycle regression coverage
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

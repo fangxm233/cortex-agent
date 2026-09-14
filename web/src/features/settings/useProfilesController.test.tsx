@@ -1,8 +1,3 @@
-// input:  mounted profiles controller, config/catalog/profile adapters, query cache and toast spy
-// output: facts, editor, catalog-driven transitions, serialized writes and pending regressions
-// pos:    Shared desktop/mobile profiles controller integration specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ConfigProfileEntry, ConfigSnapshot } from '@cortex-agent/ui-contract';

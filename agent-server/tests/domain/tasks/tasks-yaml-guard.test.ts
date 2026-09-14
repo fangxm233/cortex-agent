@@ -1,8 +1,3 @@
-// input:  Node test runner, spawn, tasks-yaml-guard.mjs
-// output: tests for PreToolUse hook — permissionDecision for Edit/Write on TASKS.yaml
-// pos:    verifies defaults/hooks/tasks-yaml-guard.mjs correctly allows/denies based on lock state
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';

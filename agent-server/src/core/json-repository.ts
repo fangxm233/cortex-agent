@@ -1,8 +1,3 @@
-// input:  JsonRepoOptions<T> (filePath, defaultValue, migrate?, compact?)
-// output: JsonRepository<T> — read / write / mutate / invalidate
-// pos:    unified file-backed JSON store with in-memory cache and AsyncMutex serialization
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createLogger } from '@core/log.js';

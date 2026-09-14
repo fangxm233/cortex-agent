@@ -1,8 +1,3 @@
-// input:  authenticated WebSocket upgrades, a port policy, and this host's listening ports
-// output: a TCP-over-WebSocket forward plus the listening-port discovery route
-// pos:    Web UI transport host — the tunnel-traversing half of the desktop port forward
-// >>> If I am updated, update CORTEX.md <<<
-
 import * as http from 'http';
 import * as net from 'net';
 import type { Duplex } from 'stream';

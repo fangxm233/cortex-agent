@@ -1,8 +1,3 @@
-// input:  mounted login overlay, tRPC/navigation fakes, targets
-// output: consent, step layout, prompt, and non-echo regressions
-// pos:    Mounted Web authentication workflow specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuthNoticeAction, LoginFlowNotice, LoginFlowState } from '@cortex-agent/ui-contract';

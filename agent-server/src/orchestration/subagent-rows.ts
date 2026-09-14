@@ -1,8 +1,3 @@
-// input:  ToolUseSubagent attribution from the adapter layer
-// output: the flat subagent fields a history row and a session.message payload carry
-// pos:    Orchestration — one place that decides the grouping key clients see
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import type { ToolUseSubagent } from '../agent-adapter/normalize/event-types.js';
 import type { SubagentRowRef } from '@store/conversation-history-repo.js';
 

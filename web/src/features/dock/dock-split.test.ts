@@ -1,7 +1,3 @@
-// input:  stored dock/split values and divider drag geometry
-// output: regressions for the dock's width band and drag arithmetic
-// pos:    Unit tests for the dock geometry model
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import {
   clampDockSplit,

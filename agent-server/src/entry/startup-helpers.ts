@@ -1,7 +1,3 @@
-// input:  startup environment and MCP config generator
-// output: managed-asset sync decision and ensureMcpConfig
-// pos:    Startup helpers for immutable config and MCP generation
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { createLogger } from '@core/log.js';
 import { generateMcpConfig } from '@core/config-generator.js';
 

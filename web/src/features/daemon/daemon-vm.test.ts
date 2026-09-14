@@ -1,8 +1,3 @@
-// input:  all legal daemon process states and nullable daemon status DTO fields
-// output: canonical process tones, extras and restart fact regressions
-// pos:    Locale- and CSS-free daemon fact specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { DaemonProcessInfo, SystemDaemonStatus } from '@cortex-agent/ui-contract';
 import { describe, expect, it } from 'vitest';
 import { buildDaemonVm, daemonStatusTone } from './daemon-vm';

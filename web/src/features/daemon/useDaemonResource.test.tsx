@@ -1,8 +1,3 @@
-// input:  mounted daemon resource, status/restart transports and query cache
-// output: polling, restart state and exact daemon/broad thread invalidation regressions
-// pos:    Headless desktop/mobile daemon resource specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type {

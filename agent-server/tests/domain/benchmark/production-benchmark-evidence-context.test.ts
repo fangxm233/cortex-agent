@@ -1,7 +1,3 @@
-// input:  typed thread evidence context and a scripted Claude/PI backend
-// output: context-gated identity, spawn linkage, and strict reads
-// pos:    Verifies production benchmark evidence context behavior through a real run attempt
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 //
 // The suite used to inject a fake `AgentAdapter` and `preparedSpec` into the deleted facade. Its
 // subject is the run layer's evidence bookkeeping, so it now drives a REAL attempt through

@@ -1,8 +1,3 @@
-// input:  !cost / !budget chat commands
-// output: cost report and global / per-project budget display + edit
-// pos:    chat surface over domain/costs/cost-tracker budget resolution
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { Destination, PlatformAdapter } from '@platform/index.js';
 import {
   formatCostReport, checkBudget, setBudget, clearProjectBudget, listProjectBudgets,

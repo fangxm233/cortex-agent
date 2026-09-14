@@ -1,7 +1,3 @@
-# input:  test capability states, arming entry, public agent class
-# output: proofs that a row no authority admits never reaches an armed route
-# pos:    Capability-state gate at the arming point
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # The in-container compiler is the only other place the state is read
 # (`domain/benchmark/policy-compiler.ts:230`), and it runs three lifecycle stages after arming:

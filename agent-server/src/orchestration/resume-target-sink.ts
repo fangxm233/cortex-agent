@@ -2,7 +2,6 @@
 // output: the backend resume target on the session record, written the moment the backend reveals it
 // pos:    orchestration — resume-target persistence for a conversation turn (transcript-sink's
 //         sibling: that one records what was said, this one records where to say it next)
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 //
 // Why this exists: the resume target used to reach disk only when the turn SETTLED
 // (`runConversation`'s finally, fix 9809d9a3). That covers an error or a Stop, because both settle

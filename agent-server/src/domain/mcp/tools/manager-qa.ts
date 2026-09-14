@@ -1,8 +1,3 @@
-// input:  McpServer, manager-Q&A webhook, session tool context
-// output: ask_manager and answer_subtask tool registrars
-// pos:    Manager/subtask Q&A MCP tool registrations
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { requestLoopbackJson } from '@core/loopback-http.js';

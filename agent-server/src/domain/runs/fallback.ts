@@ -1,7 +1,3 @@
-// input:  a resolved profile and the throttle's current view of each provider/mode
-// output: the ordered attempt chain for one run, and the gate that skips a blocked attempt
-// pos:    Run layer — what a run tries, in what order, and when it does not bother trying
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 //
 // A run is not one call to a backend: a profile may name fallbacks, and each attempt can be
 // skipped before it spawns (its provider/mode is already rate-limited) or retired after it

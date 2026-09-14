@@ -1,8 +1,3 @@
-# input:  bound offline proofs, permits, synthetic responses
-# output: admission, bounds, provider-identifier-safe diagnostics, and evidence proofs
-# pos:    Live-handshake bootstrap authorization tests
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import base64
 import hashlib
 import json

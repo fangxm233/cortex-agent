@@ -1,8 +1,3 @@
-// input:  chat rows, measured mark offsets, and rail heights
-// output: Mark extraction, visible-turn selection, pointer falloff, and tick-step clamping
-// pos:    Pure specification for the desktop transcript nav rail
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import type { ChatRow } from './transcript-vm';
 import { buildNavMarks, magnify, railStep, sameNavRows, visibleNavRows } from './chat-nav';

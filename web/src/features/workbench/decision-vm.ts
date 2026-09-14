@@ -1,8 +1,3 @@
-// input:  decision items with their recorded action logs
-// output: pure status derivation and outgoing-message composition
-// pos:    Shared decision-card rules for desktop and mobile
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { DecisionItem } from '@cortex-agent/ui-contract';
 
 // Pure rules behind the decision cards (send_decision). Kept out of the components so both the

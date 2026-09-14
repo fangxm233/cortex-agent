@@ -1,8 +1,3 @@
-// input:  NoteInfo fixtures, local timezone and mobile notes builder
-// output: grouping, preview and local-time regressions
-// pos:    Tests mobile project notes data mapping
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import type { NoteInfo } from '@cortex-agent/ui-contract';
 import { buildMNotesVm } from './m-notes-vm';

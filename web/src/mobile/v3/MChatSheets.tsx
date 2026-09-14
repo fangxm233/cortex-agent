@@ -1,14 +1,9 @@
-// input:  Session ids, session totals, choices, context usage, copy, and shared clipboard feedback
-// output: Single-action chat menu and bottom-sheet presentations
-// pos:    Mobile chat sheet presentation seam
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { SessionContextUsage } from '@cortex-agent/ui-contract';
 import { ContextCompactFooter, ContextUsageDetails, contextUsageTitle, type ContextCompactAction } from '@/features/workbench/ContextUsageControl';
 import { buildSessionIdRows } from '@/features/workbench/session-id';
 import type { SessionStatsRow } from '@/features/workbench/session-stats';
 import { MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
-import type { ProfileSheetItem } from './m-chat-vm';
+import type { SelectionSheetRow, SelectionSheetSection } from './m-chat-vm';
 import type { BrowserSheetItem, CommissionSheetItem, MChatCopy } from './MChatView.types';
 import { useClipboardFeedback } from '@/design/useClipboardFeedback';
 
@@ -114,30 +109,60 @@ export function ContextUsageSheet({ usage, lang, compactAction, onClose }: {
   );
 }
 
-function ProfileRow({ item, last, copy, onPick }: {
-  item: ProfileSheetItem;
+function SelectionRow({ row, last, copy, onPick }: {
+  row: SelectionSheetRow;
   last: boolean;
   copy: MChatCopy;
-  onPick: (name: string) => void;
+  onPick: (row: SelectionSheetRow) => void;
 }): JSX.Element {
   return (
-    <div onClick={() => onPick(item.name)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 13px', borderBottom: last ? undefined : '1px solid var(--proto-line-soft)', cursor: 'pointer' }}>
-      <div style={{ minWidth: 0, flex: 1 }}><div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><span style={{ font: `600 13px ${MONO}`, color: MC.ink }}>{item.name}</span>{item.current && <span style={{ fontSize: 9.5, fontWeight: 600, padding: '1.5px 7px', borderRadius: 999, background: MC.runBg, color: MC.run }}>{copy.profileCurrent}</span>}</div><div style={{ font: `400 10px ${MONO}`, color: MC.muted, marginTop: 3 }}>{item.sub}</div></div>
-      {item.current && <span style={{ fontSize: 15, fontWeight: 700, color: MC.run, flex: 'none' }}>✓</span>}
+    <div
+      data-selection-row={row.id}
+      data-disabled={row.disabled ? 'true' : undefined}
+      onClick={() => { if (!row.disabled) onPick(row); }}
+      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 13px', borderBottom: last ? undefined : '1px solid var(--proto-line-soft)', cursor: row.disabled ? 'default' : 'pointer', opacity: row.disabled ? 0.42 : 1 }}
+    >
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          <span style={{ font: `600 13px ${MONO}`, color: MC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.label}</span>
+          {row.current && <span style={{ fontSize: 9.5, fontWeight: 600, padding: '1.5px 7px', borderRadius: 999, background: MC.runBg, color: MC.run, flex: 'none' }}>{copy.profileCurrent}</span>}
+        </div>
+        {(row.hint ?? row.sub) && <div style={{ font: `400 10px ${MONO}`, color: MC.muted, marginTop: 3 }}>{row.hint ?? row.sub}</div>}
+      </div>
+      {row.current && <span style={{ fontSize: 15, fontWeight: 700, color: MC.run, flex: 'none' }}>✓</span>}
     </div>
   );
 }
 
-export function ProfileSheet({ items, copy, onClose, onPick }: {
-  items: ProfileSheetItem[];
+/** The engine sheet: profile first (it is the base), then the model and thinking overrides on top.
+ *  The rows come from `buildSelectionSheet`, which is the desktop menu's arithmetic — this file only
+ *  draws them. */
+export function SelectionSheet({ sections, copy, pending, onClose, onPick }: {
+  sections: SelectionSheetSection[];
   copy: MChatCopy;
+  /** PI is configured but has not reported its models yet. */
+  pending?: boolean;
   onClose: () => void;
-  onPick: (name: string) => void;
+  onPick: (row: SelectionSheetRow) => void;
 }): JSX.Element {
   return (
     <MBottomSheet onClose={onClose}>
       <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 10px' }}><span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>{copy.profileTitle}</span><span style={{ marginLeft: 'auto', font: `400 9.5px ${MONO}`, color: MC.faint }}>{copy.profileSubtitle}</span></div>
-      <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 13, overflow: 'hidden' }}>{items.map((item, index) => <ProfileRow key={item.name} item={item} last={index === items.length - 1} copy={copy} onPick={onPick} />)}</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
+        {sections.map((section) => (
+          <div key={section.key}>
+            <div style={{ font: `600 9.5px ${MONO}`, letterSpacing: '.05em', textTransform: 'uppercase', color: MC.muted, padding: '0 2px 5px' }}>{section.title}</div>
+            <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 13, overflow: 'hidden' }}>
+              {section.rows.map((row, index) => (
+                <SelectionRow key={row.id} row={row} last={index === section.rows.length - 1} copy={copy} onPick={onPick} />
+              ))}
+            </div>
+            {section.key === 'model' && pending && (
+              <div style={{ font: `400 9.5px ${MONO}`, color: MC.faint, padding: '7px 4px 0' }}>{copy.selectionPending}</div>
+            )}
+          </div>
+        ))}
+      </div>
       <div style={{ font: `400 9.5px ${MONO}`, color: MC.faint, padding: '9px 4px 0' }}>{copy.profileFooter}</div>
     </MBottomSheet>
   );

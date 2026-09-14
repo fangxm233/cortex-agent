@@ -1,8 +1,3 @@
-// input:  task DTO, project task list, optional verification, and canonical detail facts
-// output: Desktop approval fields, themed lifecycle/dependencies, and action guards
-// pos:    Desktop-only projection over shared task detail semantics
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 // Framework-free desktop projection for the task detail modal. Shared facts own lifecycle,
 // safe claim fallback, completion source precedence, dependency joins and verification ordering;
 // this module retains only desktop labels, theme values and complete/unblock guards.

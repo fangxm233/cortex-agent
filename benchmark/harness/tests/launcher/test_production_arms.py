@@ -1,8 +1,3 @@
-# input:  campaign arm declarations and the committed bundle tree
-# output: arm-to-bundle resolution, refusal and bundle-completeness proofs
-# pos:    Contract tests for production arm resolution
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import json
 from pathlib import Path
 

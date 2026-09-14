@@ -1,8 +1,3 @@
-// input:  login PATH, npm/cortex/claude CLIs, Tauri app handle
-// output: compatible version probes and token-safe process logs
-// pos:    Blocking process execution for the setup wizard
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 use serde::Serialize;
 use std::ffi::OsStr;
 use std::io::{BufRead, BufReader};

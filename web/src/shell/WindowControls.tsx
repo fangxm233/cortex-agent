@@ -1,7 +1,3 @@
-// input:  native window actions and the current maximize state
-// output: the minimize / maximize / close caption buttons
-// pos:    App-drawn window controls for Windows and Linux
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useState } from 'react';
 import { useVocab } from '@/i18n';
 import { desktopPlatform } from '@/lib/desktop-platform';

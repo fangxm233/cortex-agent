@@ -1,8 +1,3 @@
-// input:  McpServer, execution-repo
-// output: query_executions tool registration
-// pos:    MCP tool for querying execution status
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { executionRepo, type ExecutionRecord } from '@store/execution-repo.js';

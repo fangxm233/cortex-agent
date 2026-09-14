@@ -1,8 +1,3 @@
-// input:  PI runtime loader, LoginFlow API, discovery, auth events
-// output: PI api-key result, safe error, and LoginFlow consumer
-// pos:    PI api-key login adapter
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { piProviderDiscovery } from '../../agent-adapter/pi/discovery.js';
 import { publishAuthRecovered } from './auth-events.js';
 import {

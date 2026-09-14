@@ -1,8 +1,3 @@
-// input:  thread DTO fixtures and shared grouping model
-// output: active and history section regressions
-// pos:    Thread grouping model unit tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import type { ThreadInfo } from '@cortex-agent/ui-contract';
 import { groupThreads, threadScopeFilter } from './scope';

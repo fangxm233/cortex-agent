@@ -1,8 +1,3 @@
-// input:  unknown native update payloads, typed bridge capabilities, and shared byte formatting
-// output: parsed update state, display labels, subscriptions, and safe shell commands
-// pos:    Off-shell-safe hot-update adapter using the canonical native bridge
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 // Desktop and Android stage a bundle, emit `frontend-update-staged`, then relaunch/exit to promote it.
 // Plain browsers remain safe no-ops through the guarded global Tauri seam.
 import { isNativeShell } from '@/lib/desktop-config';

@@ -1,8 +1,3 @@
-// input:  temporary repo/install trees and package manifests
-// output: fast-install parity gating and staged-sync regression
-// pos:    Verifies the dev hot-reload path that replaces npm pack + install -g
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';

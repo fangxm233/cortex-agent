@@ -1,8 +1,3 @@
-// input:  node:path, projectStore
-// output: slugifyCommissionName + commission dir/file resolvers
-// pos:    Slug rules and context-dir path resolution for commissions
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import * as path from 'node:path';
 import { projectStore } from '@domain/projects/project-store.js';
 

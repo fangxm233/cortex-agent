@@ -1,8 +1,3 @@
-// input:  theme, palette, accent, motion persistence and DOM application
-// output: Regression coverage for device-local appearance preferences
-// pos:    Unit tests for appearance preference utilities
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_THEME,

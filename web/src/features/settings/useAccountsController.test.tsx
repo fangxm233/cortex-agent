@@ -1,8 +1,3 @@
-// input:  mounted accounts controller, auth adapters, query cache, and localized toast spy
-// output: status, logout, rescan, invalidation, feedback, and pending-state regressions
-// pos:    Shared desktop/mobile accounts controller integration specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { AuthStatusSnapshot } from '@cortex-agent/ui-contract';

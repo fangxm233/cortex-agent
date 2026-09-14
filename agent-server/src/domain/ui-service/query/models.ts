@@ -1,8 +1,3 @@
-// input:  the Anthropic model table, PI's discovered model pairs, custom providers and gateway.yaml
-// output: the models.catalog snapshot — one route per endpoint with its modes and model ids
-// pos:    Read adapter for the engine catalog the profile editor picks from
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { ANTHROPIC_MODELS } from '@core/anthropic-models.js';
 import { readGatewayYaml } from '@core/gateway-generator.js';
 import {
@@ -12,6 +7,7 @@ import {
   type CustomProviderView,
 } from '@domain/pi-providers/index.js';
 import { piProviderDiscovery } from '../../../agent-adapter/pi/discovery.js';
+import { THINKING_LEVELS_BY_BACKEND } from '@domain/agents/profile-manager.js';
 import type { ModelCatalogRoute, ModelCatalogSnapshot, ModelsCatalogParams, UiServiceDeps } from '../types.js';
 
 /**
@@ -54,12 +50,16 @@ class RouteBuilder {
     backend: 'claude' | 'pi',
     source: ModelCatalogRoute['source'],
     models: readonly string[],
+    modelThinking: Record<string, string[]> = {},
   ): void {
     const existing = this.routes.get(endpoint);
     if (existing) {
       // A later source only contributes model ids it is the first to know about; the route's own
       // identity (backend, provider, source) is owned by whoever declared it first.
       for (const model of models) if (!existing.models.includes(model)) existing.models.push(model);
+      for (const [model, levels] of Object.entries(modelThinking)) {
+        if (!(model in existing.modelThinking)) existing.modelThinking[model] = levels;
+      }
       return;
     }
     this.routes.set(endpoint, {
@@ -69,6 +69,7 @@ class RouteBuilder {
       modes: this.gatewayModes[endpoint] ?? defaultModes(endpoint, backend),
       models: [...models],
       source,
+      modelThinking: { ...modelThinking },
     });
   }
 
@@ -78,8 +79,8 @@ class RouteBuilder {
 }
 
 export interface ModelsCatalogReaders {
-  /** The cached PI pairs, refreshed in the background. Defaults to the host discovery singleton. */
-  piModels?: () => Array<{ provider: string; model: string }>;
+  /** The PI pairs, waiting out a cold scan. Defaults to the host discovery singleton. */
+  piModels?: () => Promise<Array<{ provider: string; model: string; thinkingLevels?: string[] }>>;
   /** The cached PI pairs with NO refresh kicked — used only to report `piPending`. */
   piPeek?: () => Array<{ provider: string; model: string }>;
   customProviders?: () => CustomProviderView[];
@@ -91,7 +92,7 @@ export async function handleModelsCatalog(
   _params: ModelsCatalogParams,
   readers: ModelsCatalogReaders = {},
 ): Promise<ModelCatalogSnapshot> {
-  const piModels = readers.piModels ?? (() => piProviderDiscovery.getModels());
+  const piModels = readers.piModels ?? (() => piProviderDiscovery.ensureModels());
   const piPeek = readers.piPeek ?? (() => piProviderDiscovery.peekModels());
   const customProviders =
     readers.customProviders
@@ -101,16 +102,25 @@ export async function handleModelsCatalog(
   const builder = new RouteBuilder(gatewayModes);
   builder.add(CLAUDE_ENDPOINT, 'claude', 'builtin', ANTHROPIC_MODELS);
 
-  // `getModels()` returns the cached snapshot and kicks a refresh when stale; an empty snapshot
-  // therefore means "the first scan has not landed yet", which is what `piPending` reports.
-  const discovered = piModels();
+  // `ensureModels()` waits out a COLD scan (bounded) and serves a warm cache at once: a picker's
+  // whole purpose is the list, so an empty first answer would only become a spinner. A scan that
+  // is still failing is not retried here — it left a backoff, and `piPending` reports the gap.
+  const discovered = await piModels();
   const byProvider = new Map<string, string[]>();
+  const thinkingByProvider = new Map<string, Record<string, string[]>>();
   for (const pair of discovered) {
     const models = byProvider.get(pair.provider) ?? [];
     if (!models.includes(pair.model)) models.push(pair.model);
     byProvider.set(pair.provider, models);
+    if (pair.thinkingLevels) {
+      const levels = thinkingByProvider.get(pair.provider) ?? {};
+      levels[pair.model] = pair.thinkingLevels;
+      thinkingByProvider.set(pair.provider, levels);
+    }
   }
-  for (const [provider, models] of byProvider) builder.add(provider, 'pi', 'pi', models);
+  for (const [provider, models] of byProvider) {
+    builder.add(provider, 'pi', 'pi', models, thinkingByProvider.get(provider) ?? {});
+  }
 
   for (const provider of customProviders()) {
     builder.add(provider.name, 'pi', 'custom', provider.models.map((model) => model.id));
@@ -120,5 +130,9 @@ export async function handleModelsCatalog(
     builder.add(endpoint, endpoint === CLAUDE_ENDPOINT ? 'claude' : 'pi', 'gateway', []);
   }
 
-  return { routes: builder.build(), piPending: piPeek().length === 0 };
+  return {
+    routes: builder.build(),
+    piPending: piPeek().length === 0,
+    thinkingLevels: { claude: [...THINKING_LEVELS_BY_BACKEND.claude], pi: [...THINKING_LEVELS_BY_BACKEND.pi] },
+  };
 }

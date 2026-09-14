@@ -1,7 +1,3 @@
-// input:  message edits, ledger snapshots, PI path registry
-// output: exact transcript rollback and reprocessing
-// pos:    Platform message edit retry orchestration
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { engines } from '@domain/runs/engines.js';
 import type { PlatformAdapter, MessageEditContext } from '@platform/index.js';
 import type { LedgerTurn, ChannelConversation } from '@store/conversation-ledger-repo.js';

@@ -414,6 +414,59 @@ Thread templates can also specify a profile per agent, allowing different
 agents in the same pipeline to use different backends. See
 [threads.md](./threads.md) for template configuration.
 
+## Per-session model, thinking level and route
+
+In a direct conversation the profile is the **base**, not the whole answer.
+The Web composer's engine chip opens a picker whose sections are profile,
+model, thinking level and — where the endpoint bills more than one way —
+route. Everything below the profile is stored as a per-session override on
+top of whatever profile the session runs. The override is applied in one
+place (`effectiveProfile`), so the profile still supplies the backend,
+`extraEnv` and the fallback chain; only `model`, `provider`, `thinking` and
+`mode` can be replaced. Each picker section has a "follow profile" row that
+gives the field back to the profile.
+
+Two rules constrain the picker, both enforced on the server and previewed by
+the client:
+
+- **Backend never changes under a live conversation.** A model that runs on
+  the other backend is reached by moving to a profile that runs it, and a
+  session that already has turns cannot make that move — the row is greyed
+  out and says a new session is needed. A fresh draft can move freely.
+- **Naming a profile clears the session's overrides.** Picking a profile
+  means "run this profile as declared"; the model and thinking level go back
+  to what it says.
+
+Choosing a PI model whose provider differs from the profile's re-bases the
+session onto a sibling profile that already runs that provider, so the
+configured gateway route is used rather than a guessed one; with no such
+profile the route falls back to the provider's own name. A thinking level
+chosen here also outranks any `--effort` / `--thinking` left in the profile's
+`extraOption`, which would otherwise silently win.
+
+**Route** is the gateway endpoint's billing lane: an Anthropic endpoint
+declares `plan` (the subscription) and `api` (a metered key), and picking one
+decides which of them pays for the next turn. Only the lanes the endpoint
+actually declares in `gateway.yaml` are offered, and an endpoint with a single
+lane offers no choice at all, so the section disappears.
+
+The picker reads the same `models.catalog` the profile editor picks from: one
+entry per gateway endpoint, carrying that endpoint's backend, provider, lanes
+and models. The level list is the backend's own value range (see below),
+narrowed to the chosen model's own ladder wherever PI reports one — PI models
+differ in which rungs they accept. On a host with no PI profile and no PI
+credentials the PI half is skipped entirely, so the PI SDK is never loaded
+just to draw a menu; while its first provider scan is in flight the menu says
+so rather than presenting a half-list as the whole truth.
+
+A new conversation opens on the last engine chosen on this host — profile and
+overrides together — instead of falling back to the default profile every
+time.
+
+Platform channels keep their own controls: `!model <name>` switches the whole
+profile, and `!thinking <level>` sets (or, with `reset`, gives back) the
+thinking level for that channel through the same rule the picker writes with.
+
 ## Thinking level
 
 The optional `thinking` profile field sets the backend's reasoning depth,

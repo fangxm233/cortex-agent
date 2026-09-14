@@ -1,8 +1,3 @@
-# input:  credential capability keys and the frozen adapter registry
-# output: exact-match, refusal, and version-refusal proofs for selection
-# pos:    Adapter selection contract tests
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import json
 from types import MappingProxyType
 

@@ -1,7 +1,3 @@
-// input:  Canonical task groups, lifecycle copy, and navigation callbacks
-// output: Mobile task list with one-line blocker metadata
-// pos:    Presentational mobile task-list screen over shared grouping semantics
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design
 
 import type { ComponentType, CSSProperties, MouseEvent } from 'react';

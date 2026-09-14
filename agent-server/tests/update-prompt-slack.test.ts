@@ -1,7 +1,3 @@
-// input:  Node test runner + createSlackUpdatePrompt + MockAdapter + CommandActionRouter
-// output: tests for update-prompt-slack.ts — 3-button registration, click paths, stale, re-prompt, timeout
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { setImmediate } from 'node:timers/promises';

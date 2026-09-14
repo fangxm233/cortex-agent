@@ -3,7 +3,6 @@
 // pos:    single registration entry; no duplicate exported name inventory
 //         Document/table/wiki tooling was removed in favor of the official lark-cli
 //         (see the feishu-doc skill); this MCP now only exposes file sending.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { registerFileTools } from './file.js';

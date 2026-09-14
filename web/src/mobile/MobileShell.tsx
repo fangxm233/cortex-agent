@@ -1,8 +1,3 @@
-// input:  Router state, project scope, mobile providers, and prioritized update provider
-// output: mobile shell with four bottom tabs and one update-overlay owner
-// pos:    Dedicated mobile app root frame
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { type CSSProperties, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';

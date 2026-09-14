@@ -2,7 +2,6 @@
 // output: { executionRepo } — ExecutionRepo singleton with sync read + coalesced async persist (Pattern B)
 //         archiveTerminal moves week-old terminal records to data/archive/executions-archive.jsonl
 // pos:    Execution truth layer persistence layer. Based on JsonRepository abstraction, reads/writes executions.json
-// >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import * as path from 'path';
 import { readFileSync } from 'fs';

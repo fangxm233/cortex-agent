@@ -1,8 +1,3 @@
-// input:  boot settings and async startup callbacks
-// output: guarded client update publisher and store archive timer
-// pos:    Registers optional composition-root boot jobs
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 const STORE_ARCHIVE_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 /**

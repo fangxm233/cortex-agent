@@ -1,7 +1,3 @@
-// input:  continuation results and the bg-continuation settings flag
-// output: remaining-background arithmetic and the inline-wait eligibility guards
-// pos:    Pure background-continuation wait policy predicates
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 //
 // The engine owns the wait itself now (`continuation-phase.ts`): it merges the continuation
 // turns, runs the grace/max-wait watchdog, and bounds the run. What stays here is the pure

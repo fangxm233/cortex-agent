@@ -1,8 +1,3 @@
-// input:  Shared live events and the commission query caches
-// output: Commission list/detail/decision invalidation on registry changes
-// pos:    Live synchronization hook for commission surfaces
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLiveEvents } from '@/features/live/LiveEventsProvider';

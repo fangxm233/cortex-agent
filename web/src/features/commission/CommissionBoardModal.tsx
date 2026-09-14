@@ -1,8 +1,3 @@
-// input:  a CommissionInfo, its ledger/contract text, projected decisions and gate sessions
-// output: the near-full-screen commission board with close actions
-// pos:    Presentational body of the commission board overlay (DR-0037)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useCallback, useState } from 'react';
 import type { CommissionDecisionEntry, CommissionInfo, SessionInfo } from '@cortex-agent/ui-contract';
 import { Modal } from '@/design/Modal';

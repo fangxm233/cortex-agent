@@ -1,8 +1,3 @@
-// input:  CORTEX_VERSION, child_process (execSync, spawn), compareCalVer from server-update-check, withNpmPrefix
-// output: cortex install latest CLI
-// pos:    CLI module for cortex install — install latest Cortex version from npm
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { execSync, spawn } from 'node:child_process';
 import { CORTEX_VERSION } from '@core/version.js';
 import { withNpmPrefix } from '@core/utils.js';

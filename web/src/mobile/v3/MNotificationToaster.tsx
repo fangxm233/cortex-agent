@@ -1,7 +1,3 @@
-// input:  full notification queue, relative time, and shared mobile tokens
-// output: newest visible themed, tappable mobile notification banners
-// pos:    Independent presentational mobile notification toaster and visibility adapter
-// >>> If I am updated, update my header comment and CORTEX.md <<<
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1q L876-883)
 // Presentational top-banner toaster for the mobile 1q notification. Props-driven (the provider binds
 // the real notification stream); renders the scheme's floating banner (cx avatar + title + meta + time),

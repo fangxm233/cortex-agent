@@ -1,8 +1,3 @@
-// input:  PISession, resolved PiSessionRequest, PI normalized events
-// output: PIEngineSession: EngineSession over one PISession plus its RunEvent queue
-// pos:    PI backend's session surface: one RunEvent stream per run over a pooled PISession
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { AgentResult } from '@core/types/agent-types.js';
 import { CAPABILITIES_BY_BACKEND, type Capability } from '../capabilities.js';
 import { ContinuationPhase, type AwaitBackground } from '../continuation-phase.js';

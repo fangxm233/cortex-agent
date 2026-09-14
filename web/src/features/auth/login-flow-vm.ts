@@ -1,8 +1,3 @@
-// input:  LoginFlow metadata and localized Web vocabulary
-// output: render-ready selection, prompt, notice, and terminal model
-// pos:    Pure view model for the shared backend login modal
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type {
   LoginFlowNotice,
   LoginFlowState,

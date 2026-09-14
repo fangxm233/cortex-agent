@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# input:  locked harness source and uv executable
-# output: byte-reproducible cortex-bench-harness wheel
-# pos:    Deterministic wheel build entry point
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 
 set -euo pipefail
 

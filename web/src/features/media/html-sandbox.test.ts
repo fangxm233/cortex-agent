@@ -1,8 +1,3 @@
-// input:  html-sandbox pure functions
-// output: regressions pinning the view isolation boundary
-// pos:    guards the only defence an agent-rendered view has
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, it, expect } from 'vitest';
 import {
   VIEW_SANDBOX,

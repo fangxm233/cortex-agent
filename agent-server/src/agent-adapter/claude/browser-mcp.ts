@@ -1,8 +1,3 @@
-// input:  a CDP endpoint of the managed browser
-// output: a private --mcp-config file exposing Playwright MCP against that browser
-// pos:    Claude print spawn path; only reached by sessions that opted into the browser
-// >>> If I am updated, update CORTEX.md <<<
-
 import { browserMcpServer } from '../browser-mcp-server.js';
 import { writeClaudeSupplementalMcpConfig } from './mcp-config.js';
 

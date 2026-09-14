@@ -1,7 +1,3 @@
-// input:  browser history, overlay dismiss callback, and optional nested-level reset key
-// output: sentinel-aware hardware-back dismissal hook that can re-arm after level changes
-// pos:    Mobile transient-overlay history guard
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useEffect, useRef } from 'react';
 
 // ── Android / browser back → dismiss a transient overlay (not navigate the router) ────────────────

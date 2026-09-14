@@ -1,8 +1,3 @@
-// input:  approval queue, project scope and approvalId route target
-// output: route-selected approvals and optional reject feedback
-// pos:    Mobile approvals routing and interaction controller
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 // 1f 审批 — the approval queue, drilled from the project page's amber bar (scheme 1e→1f). A non-Tab
 // drill page (the shell hides the Tab bar for /m/approvals); back returns to the project page. Wired to
 // the REAL `approvals.*` ui-service scope: `approvals.list({status:'pending'})` feeds the queue, and

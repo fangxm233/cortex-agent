@@ -1,7 +1,3 @@
-// input:  current browser opt-in and connected devices
-// output: browser device options for the composer ＋ menu
-// pos:    Managed-browser choice model (device list + labels)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useEffect, useState } from 'react';
 import { useVocab } from '@/i18n';
 import { listForwardDevices, type ForwardDevice } from '@/features/browser/forward';

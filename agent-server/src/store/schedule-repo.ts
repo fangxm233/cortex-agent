@@ -1,8 +1,3 @@
-// input:  schedule/channel registry JSON, JsonRepository
-// output: ScheduleRepo and task migration helpers
-// pos:    Scheduled-task persistence store
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import * as path from 'path';
 import * as fs from 'fs';
 import { JsonRepository } from '@core/json-repository.js';

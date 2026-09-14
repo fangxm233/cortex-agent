@@ -1,8 +1,3 @@
-// input:  Tauri opener, native-shell detection, browser location
-// output: validated cross-shell HTTP(S) navigation
-// pos:    Opens authorization pages outside the current workflow
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { isNativeShell } from './desktop-config';
 

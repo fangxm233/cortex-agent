@@ -1,7 +1,3 @@
-# input:  admitted Docker environment and materialized home
-# output: real sealed-exec webhook regression proof
-# pos:    Cross-seam production-session admission proof
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # The session's own suite drives a FAKE executor, and the admission suite never drives the session,
 # so an exec-time environment addition in the session was invisible to both. This module is the

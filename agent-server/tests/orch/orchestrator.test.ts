@@ -2,7 +2,6 @@
 // output: unit tests — two-branch decision tree routing [S8-A]
 // pos:    verifies (a) threadAddMatch, (b) isActiveThread, (c) threadStartMatch → thread executor;
 //         (d) no match → agent runner; (e) both flags set → thread executor wins
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

@@ -1,8 +1,3 @@
-// input:  AskUserQuestion and ExitPlanMode requests
-// output: Hook resolution, blocking TTL, and interaction events
-// pos:    PreToolUse interaction communication bridge
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { createLogger } from '@core/log.js';
 import { runRegistry } from '@core/run-registry.js';
 import type { EventBus } from '@events/index.js';

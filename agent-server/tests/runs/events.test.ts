@@ -1,8 +1,3 @@
-// input:  domain/runs/events.ts and the NormalizedEvent / BackgroundTurnSink shapes
-// output: spec that every NormalizedEvent and BackgroundTurnSink callback translates with its phase
-// pos:    P1.1 contract — RunEvent translation is total and phase-tagged
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 

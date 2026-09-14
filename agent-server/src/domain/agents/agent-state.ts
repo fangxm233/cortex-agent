@@ -1,8 +1,3 @@
-// input:  data/agent-state.json, and data/mode.json on the one migrating boot
-// output: the daemon's agent selection state — profiles per channel, default agent, overrides
-// pos:    The single reader/writer of agent selection state (D5)
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { STORE_DIR } from '@core/paths.js';
@@ -14,11 +9,34 @@ const log = createLogger('agent-state');
 const STATE_FILE = path.join(STORE_DIR, 'agent-state.json');
 const LEGACY_FILE = path.join(STORE_DIR, 'mode.json');
 
-/** A channel-scoped override the user set with a command. Narrow on purpose: backend, provider,
- *  mode and thinking come from the profile and only the profile (D5); a model is the one knob
- *  worth turning without editing profiles.json, and `!backend` switches the profile instead. */
+/** A channel-scoped selection the user made on top of the channel's profile.
+ *
+ *  The profile stays the base (it owns the gateway route, extraEnv/extraOption and the fallback
+ *  chain); these three fields are what a composer/`!model` can turn without editing profiles.json:
+ *  the model, the PI provider that model belongs to, and the thinking level.
+ *
+ *  `backend` is deliberately NOT here: it comes from the profile and only the profile (D5), so the
+ *  "a live conversation cannot change backend" rule has exactly one implementation
+ *  (`decideProfileSwitch`). Selecting a model on another backend means switching profile. */
 export interface ChannelOverride {
   model?: string;
+  /** PI only — changes both the request protocol and the gateway endpoint, so `mode` is re-derived
+   *  with it (see `effectiveProfile`). Never set for a claude profile. */
+  provider?: string;
+  /** Backend-native thinking level, validated against the channel's effective backend when set. */
+  thinking?: string;
+  /** Which gateway route of the profile's endpoint to bill — anthropic's `plan` (subscription) vs
+   *  `api` (metered key). Only ever one of the routes gateway.yaml declares for that endpoint; a
+   *  provider change re-derives it and drops this. */
+  mode?: string;
+}
+
+/** The last engine choice made from a composer, profile included — what a brand-new conversation
+ *  starts on, so "the next session picks up where the last one left off" needs no session to copy
+ *  from. Written only by the composer's own write path: a channel-scoped `!model` in some Slack
+ *  thread is a tool for that thread, not a statement about what the next Web session should run. */
+export interface SelectionDefault extends ChannelOverride {
+  profileName?: string;
 }
 
 export interface AgentState {
@@ -30,6 +48,8 @@ export interface AgentState {
   defaultAgent: string | null;
   /** Per-channel knobs layered on top of the resolved profile. */
   channelOverrides: Record<string, ChannelOverride>;
+  /** Seed for the next conversation's composer — see {@link SelectionDefault}. */
+  selectionDefault?: SelectionDefault;
 
   // ── Legacy globals, still written until their last reader is gone ──────────
   // D5 moves backend/mode/model onto the profile: the run path resolves them per channel, and a
@@ -61,13 +81,35 @@ function stringMap(value: unknown): Record<string, string> {
   return out;
 }
 
+const OVERRIDE_FIELDS = ['model', 'provider', 'thinking', 'mode'] as const;
+
+function parseOverride(value: unknown): ChannelOverride {
+  const raw = record(value);
+  const override: ChannelOverride = {};
+  for (const field of OVERRIDE_FIELDS) {
+    const candidate = raw[field];
+    if (typeof candidate === 'string' && candidate) override[field] = candidate;
+  }
+  return override;
+}
+
 function overrideMap(value: unknown): Record<string, ChannelOverride> {
   const out: Record<string, ChannelOverride> = {};
   for (const [key, entry] of Object.entries(record(value))) {
-    const model = record(entry).model;
-    if (typeof model === 'string' && model) out[key] = { model };
+    const override = parseOverride(entry);
+    // An entry with no usable field is not an override — dropping it keeps the map's presence
+    // meaningful ("this channel selected something") for every reader.
+    if (Object.keys(override).length > 0) out[key] = override;
   }
   return out;
+}
+
+function parseSelectionDefault(value: unknown): SelectionDefault | undefined {
+  if (!value) return undefined;
+  const seed: SelectionDefault = parseOverride(value);
+  const profileName = record(value).profileName;
+  if (typeof profileName === 'string' && profileName) seed.profileName = profileName;
+  return Object.keys(seed).length > 0 ? seed : undefined;
 }
 
 /** Parse either file shape into one state. Unknown and malformed fields collapse to the empty
@@ -80,6 +122,10 @@ function parseState(raw: unknown): AgentState {
   state.channelProfiles = stringMap(data.channelProfiles);
   if (typeof data.defaultAgent === 'string' && data.defaultAgent) state.defaultAgent = data.defaultAgent;
   state.channelOverrides = overrideMap(data.channelOverrides);
+  // Assigned only when there is one: an explicit `selectionDefault: undefined` key is still a key,
+  // and every caller here compares whole states.
+  const seed = parseSelectionDefault(data.selectionDefault);
+  if (seed) state.selectionDefault = seed;
   if (data.backend === 'claude' || data.backend === 'pi') state.backend = data.backend;
   // mode.json wrote the Claude mode twice — `claudeMode`, and `mode` when the backend was claude.
   const legacyMode = typeof data.claudeMode === 'string' && data.claudeMode
@@ -124,6 +170,9 @@ export function saveAgentState(state: AgentState): void {
   if (Object.keys(state.channelProfiles).length > 0) data.channelProfiles = state.channelProfiles;
   if (state.defaultAgent) data.defaultAgent = state.defaultAgent;
   if (Object.keys(state.channelOverrides).length > 0) data.channelOverrides = state.channelOverrides;
+  if (state.selectionDefault && Object.keys(state.selectionDefault).length > 0) {
+    data.selectionDefault = state.selectionDefault;
+  }
   if (state.backend) data.backend = state.backend;
   if (state.claudeMode) { data.claudeMode = state.claudeMode; data.mode = state.claudeMode; }
   if (state.claudeModel) data.claudeModel = state.claudeModel;

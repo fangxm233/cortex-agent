@@ -1,8 +1,3 @@
-// input:  provider windows, resume entries, runtime settings
-// output: resume dispatch, busy requeue, and idle wakes
-// pos:    Re-enters work after its provider clears
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { SYNTHETIC_CALLBACK_SENDER, type PlatformAdapter, type IncomingMessage } from '@platform/index.js';
 import { getSettings } from '@core/settings.js';
 import type { EventBus } from '@events/index.js';

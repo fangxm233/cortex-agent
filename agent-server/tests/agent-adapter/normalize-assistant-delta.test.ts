@@ -1,8 +1,3 @@
-// input:  NormalizedEvent union + Capability matrix + runWithAdapter event loop
-// output: spec for the `assistant_delta` normalized event and its facade dispatch
-// pos:    Token-level assistant streaming — the backend-agnostic middle of the vertical
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, test } from 'vitest';
 import assert from 'node:assert/strict';
 

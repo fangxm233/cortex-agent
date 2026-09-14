@@ -1,8 +1,3 @@
-// input:  rewind request, ledger snapshots, PI path registry
-// output: exact transcript restore and admitted resend result
-// pos:    Web message edit rollback orchestration
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { engines } from '@domain/runs/engines.js';
 import type { PlatformAdapter } from '@platform/index.js';
 import { createLogger } from '@core/log.js';

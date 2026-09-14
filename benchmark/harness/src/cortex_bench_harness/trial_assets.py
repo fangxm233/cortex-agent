@@ -1,7 +1,3 @@
-# input:  materialized arm home, pinned npm bundle, container paths
-# output: model-visible assets copied beside the trajectory and inventoried
-# pos:    Per-trial asset collection
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # A trial record has to answer "what did the model actually see" out of its own directory. The
 # production arm reads prompts from its materialized CORTEX_HOME and plugins from the installed

@@ -1,8 +1,3 @@
-// input:  execution status, command router, localized help copy
-// output: status/help handlers including auth and usage help
-// pos:    Status and categorized help command presentation
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { PlatformAdapter } from '@platform/index.js';
 import type { CommandResult } from './command-context.js';
 import type { CommandActionRouter } from '@orch/interactions/command-action-router.js';
@@ -80,7 +75,8 @@ function configHelpCategory(): HelpCategory {
   return {
     label: t('cmd.help.catConfig'),
     commands: [t('cmd.help.config.mode'), t('cmd.help.config.backend'),
-      t('cmd.help.config.model'), t('cmd.help.config.profile'), t('cmd.help.config.skills')],
+      t('cmd.help.config.model'), t('cmd.help.config.thinking'), t('cmd.help.config.profile'),
+      t('cmd.help.config.skills')],
   };
 }
 

@@ -3,7 +3,6 @@
 //         isArtifactUnchangedSinceStepStart + webhook wait rejection/acceptance
 // pos:    Verify DR-0017 W2: thread_wait is rejected unless the artifact was edited this
 //         step (turn-level edit detection; hash-based, mtime-proof). abort/split unaffected.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test, beforeAll, afterAll } from 'vitest';

@@ -1,8 +1,3 @@
-// input:  a pidfile path
-// output: singleton lock acquisition, release, and liveness checks
-// pos:    Shared process pidfile lock primitive
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'fs';
 import { dirname } from 'node:path';
 

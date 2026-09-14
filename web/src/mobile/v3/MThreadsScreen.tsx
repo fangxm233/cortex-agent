@@ -1,7 +1,3 @@
-// input:  thread/cost queries, project scope, grouped thread model
-// output: grouped mobile Threads screen with detail navigation
-// pos:    Mobile thread-list data container
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';

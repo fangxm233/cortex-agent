@@ -1,8 +1,3 @@
-// input:  thread config loader, tool gates, migration and merge
-// output: directory parity, overrides, fail-soft and migration tests
-// pos:    Thread config directory behavior tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import '../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

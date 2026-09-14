@@ -1,8 +1,3 @@
-# input:  Harbor vendor agents, admitted arm, proxy projection
-# output: sealed vendor execution, process containment, finalization
-# pos:    Fail-closed vendor execution and finalization boundary
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import hashlib
 import json
 import re

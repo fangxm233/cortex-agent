@@ -1,8 +1,3 @@
-// input:  cleanup-period days, Claude config resolution, and injectable fs/env helpers
-// output: hermetic Claude user settings sync via guarded read-merge-temp-sync-rename
-// pos:    Claude user settings helper for retention coordination follow-up wiring
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';

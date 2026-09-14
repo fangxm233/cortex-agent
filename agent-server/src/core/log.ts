@@ -1,8 +1,3 @@
-// input:  process DEBUG state and log policy
-// output: logger factory and process-scoped sink policy
-// pos:    Central console and rotating-file logger
-// >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import fs from 'node:fs';
 import path from 'node:path';
 import { LOGS_DIR } from './paths.js';

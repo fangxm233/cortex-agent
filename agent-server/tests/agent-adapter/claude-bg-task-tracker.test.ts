@@ -1,8 +1,3 @@
-// input:  Node test runner + agent-adapter/claude/bg-task-tracker module
-// output: BgTaskTracker running/undelivered counts + continuation-detection spec
-// pos:    CC backend background-task continuation tracking unit tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 

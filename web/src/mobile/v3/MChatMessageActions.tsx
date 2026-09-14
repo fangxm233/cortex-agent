@@ -1,8 +1,3 @@
-// input:  Held chat row, edit state, labels, anchor, and shared clipboard feedback
-// output: Long-press message action overlay, copy action, and edit context bar
-// pos:    Mobile chat message-action presentation seam
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { messageTimeLabel, type ChatRow } from '@/features/workbench/transcript-vm';
 import { MC, MONO } from '@/mobile/ui/kit';

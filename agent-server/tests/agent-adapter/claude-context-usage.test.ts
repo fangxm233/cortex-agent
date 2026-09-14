@@ -1,8 +1,3 @@
-// input:  Claude stream/result usage and configured models
-// output: exact context and token-split accounting tests
-// pos:    Claude print usage telemetry contract
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { describe, test } from 'vitest';
 import assert from 'node:assert/strict';
 

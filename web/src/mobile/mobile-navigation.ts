@@ -1,8 +1,3 @@
-// input:  React lifecycle, Router state, route manifest, and canonical native back capability
-// output: manifest-derived semantic back and idempotent Android listener cleanup
-// pos:    Android navigation control without duplicate route regex rules
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { useEffect, useRef } from 'react';
 import { listenNativeBack, safeInvoke } from '@/lib/native-bridge';
 import { mobileRouteParentPath, mobileRoutePath } from './mobile-route-manifest';

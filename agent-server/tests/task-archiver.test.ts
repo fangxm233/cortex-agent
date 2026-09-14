@@ -1,8 +1,3 @@
-// input:  task archive age predicate
-// output: completion timestamp compatibility regressions
-// pos:    Verifies task archive date parsing
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import './_test-home.js';
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

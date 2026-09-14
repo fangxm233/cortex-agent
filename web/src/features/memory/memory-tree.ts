@@ -1,7 +1,3 @@
-// input:  MemoryTree DTOs with top-level files and directory entries
-// output: Canonical file paths, directories, total count, and first file
-// pos:    Shared hierarchical memory-tree facts for desktop and mobile
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { MemoryFileEntry, MemoryTree } from '@cortex-agent/ui-contract';
 
 export interface MemoryTreeFileFact extends MemoryFileEntry {

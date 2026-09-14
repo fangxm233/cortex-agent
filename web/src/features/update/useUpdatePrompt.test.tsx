@@ -1,8 +1,3 @@
-// input:  mocked app-update and hot-update hooks with simultaneous pending updates
-// output: one headless update prompt with deterministic shell-update priority
-// pos:    Shared update prompt ownership and priority specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 

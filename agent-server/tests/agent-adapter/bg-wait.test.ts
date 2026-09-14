@@ -4,7 +4,6 @@
 //         completion-only stop) is specified at the engine seam in continuation-phase.test.ts;
 //         `waitForBgContinuation`'s process-driven cases were that spec's legacy duplicate, so they
 //         were removed with the process seam they drove.
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

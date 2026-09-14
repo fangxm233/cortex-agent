@@ -5,7 +5,6 @@
 //         every check that can silently stall a running thread must be an error, and every check
 //         that merely looks suspicious must be a warning. The last test is the one that matters
 //         most — every entity Cortex actually ships must validate clean, or the validator is wrong.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test, describe } from 'vitest';
 import assert from 'node:assert/strict';

@@ -1,8 +1,3 @@
-// input:  mocked direct sessions, DM turn events, system notices, and external delivery outcomes
-// output: notification gating, retryable direct lookup, fallback and unmount regressions
-// pos:    Hook integration specification for the shared desktop/mobile notification feed
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DmNotificationHandlers } from './useDmNotifications';

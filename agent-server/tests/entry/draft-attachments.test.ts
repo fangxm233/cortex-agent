@@ -1,8 +1,3 @@
-// input:  isolated workspace, draft attachment mover, filesystem
-// output: canonical promotion, truthful fallback, containment regressions
-// pos:    Verifies Web draft files become session-owned attachments
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import '../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import assert from 'node:assert/strict';
 import * as path from 'node:path';

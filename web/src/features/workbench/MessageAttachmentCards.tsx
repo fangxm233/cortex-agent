@@ -1,8 +1,3 @@
-// input:  User and agent transcript attachments plus preview/download providers
-// output: Message media thumbnails, file cards, HTML views, and grouped actions
-// pos:    Desktop MessageStream attachment and media presentation boundary
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useVocab } from '@/i18n';
 import { useDownloadFile } from '@/features/media/useDownloadFile';

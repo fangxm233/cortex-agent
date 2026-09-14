@@ -1,7 +1,3 @@
-// input:  retry config, auth events, a scripted Claude child + fake PI runtime, throttle
-// output: retry, auth lifecycle, outage, cancellation, and notice tests through the run seam
-// pos:    Provider retry and terminal authentication tests
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 //
 // This file used to spy on `getRunAdapter(backend).spawn` (now dead) to script failures per run.
 // It now drives the front door production uses — `AgentRunImpl` over the engine seam — with a

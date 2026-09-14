@@ -1,8 +1,3 @@
-// input:  ProviderStateRepo and provider usage readings
-// output: ProviderUsage model and ordered atomic usage store
-// pos:    Backend-neutral source of latest provider usage
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { AsyncMutex } from '@core/async-mutex.js';
 import { providerStateRepo } from '@store/provider-state-repo.js';
 

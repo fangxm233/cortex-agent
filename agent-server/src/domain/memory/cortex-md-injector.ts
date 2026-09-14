@@ -1,8 +1,3 @@
-// input:  fs, device identity, CortexMDEntry[], session id
-// output: CortexMDInjector class + shared cache singleton
-// pos:    Deduplicates local and remote CORTEX.md injection state
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as fs from 'fs';
 import * as path from 'path';
 import { WORKSPACE_DIR } from '@core/utils.js';

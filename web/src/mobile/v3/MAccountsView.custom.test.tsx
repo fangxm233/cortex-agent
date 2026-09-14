@@ -1,8 +1,3 @@
-// input:  custom-provider rows, independent gates, and action spies for Accounts
-// output: mobile custom interaction, pending, and delete-arming regressions
-// pos:    Verifies the mobile custom-provider presentation contract
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthStatusSnapshot, CustomProviderView } from '@cortex-agent/ui-contract';

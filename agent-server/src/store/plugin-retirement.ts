@@ -14,7 +14,6 @@
 //     3. if individual skills moved between plugins, add RETIRED_PLUGIN_PATHS entries in
 //        plugin-sync.ts so the old copy stops competing with the new one
 //   Step 1 alone is a no-op for every existing install.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';

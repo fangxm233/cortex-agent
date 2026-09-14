@@ -1,8 +1,3 @@
-// input:  resolved engine spec prompt, tool gate and plugin runtime trees
-// output: content-addressed role, tool, MCP and guard surface
-// pos:    Anti-divergence identity projection for spawns
-// >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';

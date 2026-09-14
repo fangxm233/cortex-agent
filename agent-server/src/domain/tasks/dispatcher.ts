@@ -1,7 +1,3 @@
-// input:  task store, execution registry, templates, rate limits
-// output: generation-owned claims and globally deduplicated dispatch filters
-// pos:    Selects and claims the next dispatchable task
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { randomUUID } from 'node:crypto';
 import { createLogger } from '@core/log.js';
 import { isProjectLocked } from './system/task-lock.js';

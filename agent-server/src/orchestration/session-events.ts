@@ -1,8 +1,3 @@
-// input:  session payloads, remote metadata, shared EventBus
-// output: session publishers with tool and subagent metadata
-// pos:    Orchestration bus seam; missing bus remains a no-op
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
 import type { AttachmentMeta, DecisionItem } from '@domain/ui-service/types.js';
 import type { ChatNoticeLevel, NoticeAction, SessionContextUsage, SystemTurnOrigin, TodoSnapshot } from '@core/types/agent-types.js';

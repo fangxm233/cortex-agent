@@ -1,8 +1,3 @@
-// input:  Thread DTO lifecycle statuses
-// output: fixed active and history thread groups
-// pos:    Shared desktop/mobile thread grouping model
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { ThreadInfo } from '@cortex-agent/ui-contract';
 
 export const THREAD_GROUP_ORDER = ['active', 'history'] as const;

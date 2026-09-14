@@ -1,8 +1,3 @@
-// input:  Node test runner + restart command
-// output: triggerServerRestart pure-logic tests + !restart routing test
-// pos:    Regression for the TUI/Slack `!restart` server-restart command
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

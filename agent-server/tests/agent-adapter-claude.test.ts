@@ -1,7 +1,3 @@
-// input:  Claude modules, hooks, MCP gates, settings
-// output: Spawn-args, interaction, pool, fallback, and compact tests
-// pos:    Tests Claude adapter behavior
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { engineSpecFixture, type EngineSpecFixtureInput } from './engine-spec-fixture.js';
 
 

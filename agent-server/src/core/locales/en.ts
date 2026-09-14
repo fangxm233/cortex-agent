@@ -2,7 +2,6 @@
 // output: `en` — aggregated canonical English message table + MessageKey type
 // pos:    L0 locale barrel; zh.ts mirrors it. Each cluster lives in its own slice so i18n
 //         extraction work stays conflict-free; this file only spreads them together.
-// >>> If I am updated, update zh.ts to match, and the parent folder's CORTEX.md <<<
 
 import { langEn } from './slices/lang.js';
 import { statusEn } from './slices/status.js';

@@ -1,7 +1,3 @@
-# input:  a synthetic checkout, a built artifact and its provenance sidecar
-# output: assertions that the staleness gate fires on every way an artifact can stop being current
-# pos:    Contract test for the trial artifact provenance gate
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # The r6 campaign ran a 34-hour-stale agent-server and nothing objected. These tests are the
 # objection. A gate that silently passes is worse than no gate, because it converts "nobody

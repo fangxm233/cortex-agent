@@ -1,7 +1,3 @@
-// input:  node:test + runner recordStepOutcome chokepoint + state-machine + thread-repo recovery
-// output: provider-attributed thread pause, record, and resume contract
-// pos:    asserts the REAL interruption point records a resume + leaves the thread resumable
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import '../_test-home.js'; // MUST be first — isolates store singletons to a temp CORTEX_HOME
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

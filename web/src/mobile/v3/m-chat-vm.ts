@@ -1,8 +1,11 @@
-// input:  Session DTOs, run-status facts, transcript models, and shared USD formatting
-// output: Chat rows, localized status, profile labels, and attachment/menu placement
-// pos:    Pure presentation logic for the mobile session chat
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-import type { ConfigProfileEntry, SessionTranscript } from '@cortex-agent/ui-contract';
+import type {
+  ConfigProfileEntry, ModelCatalogSnapshot, SessionSelectionOverride, SessionTranscript,
+} from '@cortex-agent/ui-contract';
+import {
+  buildModeOptions, buildModelOptions, buildProfileOptions, buildThinkingOptions, groupModelOptions,
+  modeChange, modelChange, profileChange, thinkingChange, type EffectiveSelection,
+} from '@/features/workbench/selection-menu';
+import type { SelectionChange } from '@/features/workbench/selected-session';
 import {
   buildTranscriptRows,
   type ChatRow,
@@ -140,9 +143,10 @@ export function effectiveProfileName(
   return profileName ?? defaultProfile ?? profiles[0]?.name ?? '—';
 }
 
-/** Composer profile-chip label: the configured profile name only. */
-export function profileChipLabel(name: string): string {
-  return name;
+/** Composer engine-chip label: what the next turn will run — the model, and the level if one is set.
+ *  Falls back to the profile name for a profile that declares no model of its own. */
+export function selectionChipLabel(selection: EffectiveSelection): string {
+  return [selection.model ?? selection.profileName, selection.thinking].filter(Boolean).join(' · ');
 }
 
 /** Sub-label for a profile row in the 1p sheet: `model · thinking · backend`
@@ -151,15 +155,148 @@ export function profileSub(p: ConfigProfileEntry): string {
   return [p.model, p.thinking, p.backend].filter(Boolean).join(' · ');
 }
 
-export interface ProfileSheetItem {
-  name: string;
-  sub: string;
+export interface SelectionSheetRow {
+  /** Stable identity, also the test hook: `profile:<name>`, `model:<backend>:<provider>:<id>`,
+   *  `model:follow`, `thinking:<level>`, `thinking:follow`, `mode:<mode>`, `mode:follow`. */
+  id: string;
+  label: string;
+  sub: string | null;
   current: boolean;
+  disabled: boolean;
+  /** Why a disabled row cannot be picked, in the caller's language. */
+  hint: string | null;
+  /** What to send if it is tapped. Null means the tap is a no-op (already running, or disabled). */
+  change: SelectionChange | null;
 }
 
-/** 1p Profile sheet rows (scheme L824-843): every configured profile, `当前` on the active one. */
-export function buildProfileSheetItems(profiles: ConfigProfileEntry[], current: string): ProfileSheetItem[] {
-  return profiles.map((p) => ({ name: p.name, sub: profileSub(p), current: p.name === current }));
+export interface SelectionSheetSection {
+  key: 'profile' | 'model' | 'thinking' | 'mode';
+  title: string;
+  rows: SelectionSheetRow[];
+}
+
+export interface SelectionSheetCopy {
+  profile: string;
+  model: string;
+  thinking: string;
+  /** Heading of the billing-route section — only shown when the endpoint declares more than one. */
+  mode: string;
+  followProfile: string;
+  crossBackend: string;
+  noProfile: string;
+}
+
+/**
+ * The 1p engine sheet: PROFILE (the base — backend, route, fallback chain), then MODEL, THINKING and
+ * — where the endpoint bills more than one way — ROUTE, as overrides on top of it, each with a
+ * "follow the profile" row so a choice can be taken back.
+ * Every row carries the change it produces, so the screen never re-derives the rule — it is the same
+ * shared arithmetic the desktop menu runs (features/workbench/selection-menu).
+ */
+export function buildSelectionSheet(input: {
+  profiles: ConfigProfileEntry[];
+  catalog: ModelCatalogSnapshot | null | undefined;
+  effective: EffectiveSelection;
+  override: SessionSelectionOverride | null;
+  hasHistory: boolean;
+  defaultProfile: string | null;
+  copy: SelectionSheetCopy;
+}): SelectionSheetSection[] {
+  const { profiles, catalog, effective, override, hasHistory, defaultProfile, copy } = input;
+  const profileEntry = profiles.find((entry) => entry.name === effective.profileName) ?? null;
+
+  const profileOptions = buildProfileOptions(profiles, effective.profileName, {
+    currentBackend: effective.backend, hasHistory,
+  });
+  const profileRows: SelectionSheetRow[] = profileOptions.map((option) => ({
+    id: `profile:${option.name}`,
+    label: option.name,
+    sub: option.sub,
+    current: option.active,
+    disabled: option.disabled,
+    hint: option.disabled ? copy.crossBackend : null,
+    change: profileChange(profileOptions, effective, option.name),
+  }));
+
+  const modelOptions = buildModelOptions(catalog, profiles, effective, { hasHistory, defaultProfile });
+  const modelRows: SelectionSheetRow[] = [{
+    id: 'model:follow',
+    label: copy.followProfile,
+    sub: profileEntry?.model ?? null,
+    current: !effective.modelOverridden,
+    disabled: false,
+    hint: null,
+    change: modelChange(effective, override, null),
+  }];
+  for (const group of groupModelOptions(modelOptions, effective.backend)) {
+    for (const option of group.options) {
+      modelRows.push({
+        id: `model:${option.backend}:${option.provider ?? ''}:${option.id}`,
+        label: option.id,
+        sub: group.group,
+        current: option.active,
+        disabled: option.disabled,
+        hint: option.disabledReason === 'cross-backend' ? copy.crossBackend
+          : option.disabledReason === 'no-profile' ? copy.noProfile : null,
+        change: modelChange(effective, override, option),
+      });
+    }
+  }
+
+  const thinkingOptions = buildThinkingOptions(catalog, effective);
+  const thinkingRows: SelectionSheetRow[] = thinkingOptions.length === 0 ? [] : [
+    {
+      id: 'thinking:follow',
+      label: copy.followProfile,
+      sub: profileEntry?.thinking ?? null,
+      current: !effective.thinkingOverridden,
+      disabled: false,
+      hint: null,
+      change: thinkingChange(effective, override, null),
+    },
+    ...thinkingOptions.map((option): SelectionSheetRow => ({
+      id: `thinking:${option.level}`,
+      label: option.level,
+      sub: null,
+      current: option.active,
+      disabled: false,
+      hint: null,
+      change: thinkingChange(effective, override, option.level),
+    })),
+  ];
+
+  const modeOptions = buildModeOptions(catalog, effective);
+  const modeRows: SelectionSheetRow[] = modeOptions.length === 0 ? [] : [
+    {
+      id: 'mode:follow',
+      label: copy.followProfile,
+      sub: profileEntry?.mode ?? null,
+      current: !effective.modeOverridden,
+      disabled: false,
+      hint: null,
+      change: modeChange(effective, override, null),
+    },
+    ...modeOptions.map((option): SelectionSheetRow => ({
+      id: `mode:${option.mode}`,
+      label: option.mode,
+      sub: null,
+      current: option.active,
+      disabled: false,
+      hint: null,
+      change: modeChange(effective, override, option.mode),
+    })),
+  ];
+
+  return [
+    { key: 'profile', title: copy.profile, rows: profileRows },
+    { key: 'model', title: copy.model, rows: modelRows },
+    ...(thinkingRows.length > 0
+      ? [{ key: 'thinking' as const, title: copy.thinking, rows: thinkingRows }]
+      : []),
+    ...(modeRows.length > 0
+      ? [{ key: 'mode' as const, title: copy.mode, rows: modeRows }]
+      : []),
+  ];
 }
 
 // ── 7a long-press action overlay placement ──

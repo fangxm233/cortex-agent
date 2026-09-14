@@ -1,7 +1,3 @@
-# input:  one committed production-direct ZERO-PAID trial
-# output: one production webhook/exporter trial and one comparison report
-# pos:    Single-runtime production-direct recording campaign
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # This is the single-trial counterpart to zero-paid-dry-run.yaml. It uses the same committed
 # production-direct arm, task fixture, config bundle, sealed proxy policy and digest-pinned image.

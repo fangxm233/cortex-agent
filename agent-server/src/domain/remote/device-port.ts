@@ -1,8 +1,3 @@
-// input:  a device name and a port on that device
-// output: a loopback listener on THIS server whose bytes come out on the device
-// pos:    Server half of the reverse channel — makes a remote port look local
-// >>> If I am updated, update CORTEX.md <<<
-
 import * as net from 'net';
 import type { WebSocket } from 'ws';
 import { createLogger } from '@core/log.js';

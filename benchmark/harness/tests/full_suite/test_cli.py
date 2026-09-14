@@ -1,8 +1,3 @@
-# input:  full-suite CLI flags, stdin spec and mocked preflight
-# output: explicit-flag, help and structured-JSON CLI proofs
-# pos:    Full-suite CLI contract tests
-# >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import json
 from pathlib import Path
 from types import SimpleNamespace

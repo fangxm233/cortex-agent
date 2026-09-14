@@ -1,8 +1,3 @@
-// input:  session JSONL, tool metadata, DEBUG sidecars, cache state
-// output: history reads, compact projections, and remote device labels
-// pos:    Canonical per-session transcript file store
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as path from 'path';
 import { createReadStream, promises as fs } from 'fs';
 import { createInterface } from 'node:readline';

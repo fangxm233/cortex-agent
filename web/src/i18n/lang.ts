@@ -2,7 +2,6 @@
 // output: Lang type, vocab picker, and the local-storage CACHE of the server language
 // pos:    Language resolution helpers. The language itself is owned by the server
 //         (config/preferences.json); see LangProvider.
-// >>> If I am updated, update my header comment and CORTEX.md <<<
 import { en, zh, type Vocab } from './vocab';
 
 export type Lang = 'en' | 'zh';

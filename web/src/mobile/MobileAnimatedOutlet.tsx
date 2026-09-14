@@ -1,8 +1,3 @@
-// input:  Router outlet, location and mobile tab model
-// output: animated outlet with retained tab frame
-// pos:    Mobile route-transition wrapper
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { useLayoutEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { useLocation, useNavigationType, useOutlet } from 'react-router-dom';
 import { isTabRootRoute, normalizeMobilePath } from './mobile-tabs';

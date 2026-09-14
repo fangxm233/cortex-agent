@@ -1,8 +1,3 @@
-# input:  suite spec, external task/runtime assets, fake-or-real gateway
-# output: zero-provider validation report or precise refusal
-# pos:    Full-suite host preflight boundary
-# >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 from __future__ import annotations
 
 import hashlib

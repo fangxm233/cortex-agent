@@ -1,7 +1,3 @@
-# input:  a campaign that declares OAuth refresh material and a host that holds it
-# output: proof the refresh token reaches the adapter and nothing else
-# pos:    Codex OAuth refresh binding tests
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # The Codex adapter has been able to refresh an access token since it was written. Nothing fed it
 # the refresh material, so a Codex campaign was bounded by one access token's lifetime -- which is

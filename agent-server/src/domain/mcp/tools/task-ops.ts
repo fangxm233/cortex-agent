@@ -1,8 +1,3 @@
-// input:  McpServer, session tool context, webhook proxy, image processing
-// output: Compact remote operation tool registrations
-// pos:    MCP tools for remote device operations via cortex-client
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import * as fs from 'fs';

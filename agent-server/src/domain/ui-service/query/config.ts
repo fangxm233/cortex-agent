@@ -199,9 +199,12 @@ export async function readConfigSnapshot(
   };
 }
 
-export async function handleConfigGet(_deps: UiServiceDeps, _params: ConfigGetParams): Promise<ConfigSnapshot> {
+export async function handleConfigGet(deps: UiServiceDeps, _params: ConfigGetParams): Promise<ConfigSnapshot> {
   // `value` is the LIVE process locale, not the file: a `!lang` switch takes effect without a
   // restart, and the UI must follow what Cortex is actually speaking. `source` is read from disk
   // and the environment, and is the only thing that can say "CORTEX_LANG will win again at boot".
-  return readConfigSnapshot(CONFIG_DIR, getSettingsSnapshot(), { value: getLocale(), source: langSource() });
+  const snapshot = await readConfigSnapshot(
+    CONFIG_DIR, getSettingsSnapshot(), { value: getLocale(), source: langSource() },
+  );
+  return { ...snapshot, selectionDefault: deps.getSelectionDefault?.() ?? null };
 }

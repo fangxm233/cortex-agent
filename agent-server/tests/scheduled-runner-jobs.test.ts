@@ -1,8 +1,3 @@
-// input:  job registry callbacks, sync script, temporary command shim
-// output: dispatch isolation, portable sync paths and finalization tests
-// pos:    Verifies scheduled job dispatch behavior
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';

@@ -1,8 +1,3 @@
-// input:  McpServer, daemon UI-file webhook, session tool context
-// output: Web-only send_file tool registration
-// pos:    Sends agent-produced files into Web chat sessions
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import * as fs from 'fs';

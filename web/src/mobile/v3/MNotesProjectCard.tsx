@@ -1,8 +1,3 @@
-// input:  mobile notes VM, localized copy and quick-add callbacks
-// output: always-visible project Overview notes card
-// pos:    Scheme 26a mobile notes entry
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { useState, type FormEvent } from 'react';
 import type { NotesCopy } from '@/features/notes/notes-copy';
 import { MCard, MC, MONO } from '@/mobile/ui/kit';

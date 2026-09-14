@@ -1,8 +1,3 @@
-// input:  shared English product copy
-// output: English base vocabulary including About dialog copy
-// pos:    Base English web vocabulary
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 export const enBase = {
   // ── Group A: prototype dict() ──
   newSession: 'New session',
@@ -175,6 +170,12 @@ export const enBase = {
   wbIdle: 'idle',
   wbSwitchTo: 'Switch to',
   wbNeedsNewSession: 'needs a new session (this conversation runs on a different backend)',
+  wbModel: 'model',
+  wbThinking: 'thinking',
+  wbRoute: 'route',
+  wbFollowProfile: 'follow profile',
+  wbNoProfileForBackend: 'no profile on this host runs that backend',
+  wbModelsPending: 'loading models…',
   wbNewConversation: 'New conversation',
   wbSend: 'send',
   wbSlashInvalid: 'Message not sent: unrecognized command or invalid arguments. Text starting with / is treated as a command. For a normal message, rephrase it so it does not start with /.',

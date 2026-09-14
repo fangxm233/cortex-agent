@@ -1,8 +1,3 @@
-// input:  session registry repo, send handler, and fire-and-forget session send seam
-// output: send admission touch sequencing and not-found rejection regressions
-// pos:    Verifies send-vs-sweep admission behavior
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import '../_test-home.js';
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

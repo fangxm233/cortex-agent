@@ -1,8 +1,3 @@
-// input:  auth tRPC, LoginFlow metadata, Modal/MBottomSheet
-// output: consent-gated responsive OAuth/API-key login overlay
-// pos:    Shared desktop/mobile authentication workflow
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import {
   useEffect,
   useMemo,

@@ -1,8 +1,3 @@
-// input:  Filesystem, YAML, PI SDK model runtime
-// output: Gateway config discovery, merge, serialization
-// pos:    Gateway configuration generator
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { writeFileSync, copyFileSync, mkdirSync, existsSync, readFileSync } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -141,6 +136,44 @@ const PI_PROVIDER_UPSTREAM: Record<string, { url: string; auth_style: string }> 
 export interface PiDiscoveredModel {
   provider: string;
   model: string;
+  /** Thinking levels this specific model accepts, ascending. Empty means the model takes none (a
+   *  non-reasoning model). Undefined means the scan could not tell — callers fall back to the
+   *  backend-wide set rather than hiding levels PI would have honoured. */
+  thinkingLevels?: string[];
+}
+
+/** The ascending thinking-level ladder PI's own selector walks. */
+const PI_THINKING_LADDER = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
+
+/** The two fields of a PI model that decide its thinking levels. Read structurally because the SDK
+ *  re-exports neither the `Model` type's full shape nor the helper that consumes them. */
+interface PiModelThinkingShape {
+  reasoning?: unknown;
+  thinkingLevelMap?: Record<string, unknown>;
+}
+
+/**
+ * The thinking levels one PI model accepts.
+ *
+ * Mirrors pi-ai's own `getSupportedThinkingLevels`, which `@earendil-works/pi-coding-agent` does not
+ * re-export: a non-reasoning model takes none; otherwise every ladder rung survives unless the
+ * model's `thinkingLevelMap` maps it to null, and the top two rungs (`xhigh`, `max`) additionally
+ * require an explicit mapping. Returns undefined when neither field is present, so the caller can
+ * tell "no levels" from "could not tell".
+ *
+ * Re-check against pi-ai when the PI SDK is upgraded.
+ */
+function piModelThinkingLevels(model: unknown): string[] | undefined {
+  const shape = model as PiModelThinkingShape | null;
+  if (!shape || typeof shape !== 'object') return undefined;
+  if (!('reasoning' in shape) && !('thinkingLevelMap' in shape)) return undefined;
+  if (!shape.reasoning) return [];
+  const map = shape.thinkingLevelMap;
+  return PI_THINKING_LADDER.filter((level) => {
+    const mapped = map?.[level];
+    if (mapped === null) return false;
+    return level === 'xhigh' || level === 'max' ? mapped !== undefined : true;
+  });
 }
 
 /**
@@ -158,7 +191,11 @@ export async function scanPiAvailableModels(): Promise<PiDiscoveredModel[]> {
     allowModelNetwork: false,
   });
   const models = await runtime.getAvailable();
-  return models.map((model) => ({ provider: model.provider, model: model.id }));
+  return models.map((model) => {
+    const thinkingLevels = piModelThinkingLevels(model);
+    // Omitted rather than set to undefined: "the scan could not tell" is the absence of the field.
+    return { provider: model.provider, model: model.id, ...(thinkingLevels ? { thinkingLevels } : {}) };
+  });
 }
 
 /** Endpoint discovery treats any PI scan failure as "no PI providers" and logs the reason. */

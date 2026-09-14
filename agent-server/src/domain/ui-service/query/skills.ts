@@ -5,7 +5,6 @@
 //         caches results for 60 s. The returned groups are already sorted (null plugin first for
 //         user-owned skills, then plugins alphabetically; skills within each group are sorted).
 //         Domain-to-domain import (ui-service ← memory) is acceptable within L3.
-// >>> If I am updated, update CORTEX.md <<<
 
 import { getDisplaySkillGroups } from '@domain/memory/skill-scanner.js';
 import type { UiServiceDeps, SkillsListParams, SkillGroup } from '../types.js';

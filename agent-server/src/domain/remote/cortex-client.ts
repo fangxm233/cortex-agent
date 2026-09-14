@@ -1,8 +1,3 @@
-// input:  CORTEX_SERVER_HOST/PORT/DEVICE_NAME env vars
-// output: standalone cortex-client daemon (bash/read/write/...)
-// pos:    client daemon entry point on remote devices
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import WebSocket from 'ws';
 import * as fs from 'fs';
 import * as path from 'path';

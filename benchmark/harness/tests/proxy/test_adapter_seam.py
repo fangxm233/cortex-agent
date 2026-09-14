@@ -1,8 +1,3 @@
-# input:  a live proxy carrying the row-1 adapter and a synthetic upstream
-# output: duty-order, refusal, audit, and auth-form proofs on the request path
-# pos:    Provider adapter seam integration tests
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import json
 import socket
 from datetime import UTC, datetime, timedelta

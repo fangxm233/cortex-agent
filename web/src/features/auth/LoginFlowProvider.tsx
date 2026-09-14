@@ -1,8 +1,3 @@
-// input:  React state, notice/settings targets, LoginFlowModal
-// output: global targeted login modal with notice-flow reuse
-// pos:    Shares one authentication overlay across desktop and mobile
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import {
   createContext,
   useCallback,

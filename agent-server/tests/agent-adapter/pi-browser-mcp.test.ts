@@ -1,7 +1,3 @@
-// input:  EngineSpec with and without a browser CDP endpoint, on the PI session path
-// output: pinned opt-in behaviour of the Playwright MCP layer for the PI backend
-// pos:    tests for per-session browser control on the backend that has no --mcp-config
-// >>> If I am updated, update CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import { engineSpecFixture, type EngineSpecFixtureInput } from '../engine-spec-fixture.js';
 import {

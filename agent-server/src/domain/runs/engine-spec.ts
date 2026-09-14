@@ -1,8 +1,3 @@
-// input:  a resolved RunRequest, the attempt's engine selection, the mode route, settings
-// output: EngineSpec and engine identity
-// pos:    Run-layer engine spec builder
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { getSettings } from '@core/settings.js';
 import { canonicalizeMcpToolAllowlist } from '@core/mcp-tool-gate.js';
 import type {

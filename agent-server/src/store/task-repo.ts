@@ -2,7 +2,6 @@
 // output: { taskStore, withGitLock } — TaskRepo singleton + git lock helper
 // pos:    Serialized coordination center for TASKS.yaml changes. Based on core/AsyncMutex + atomicWrite (Pattern B)
 //         S4: mutation shim methods removed, now lives in domain/tasks/mutator.ts
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as path from 'path';
 import { execSync, execFileSync, spawn } from 'child_process';

@@ -1,8 +1,3 @@
-// input:  task-operation tools with mocked loopback requests
-// output: remote bash timeout and compact mutation response contracts
-// pos:    MCP remote-operation boundary tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { afterEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { requestLoopbackJson } from '../../../src/core/loopback-http.js';

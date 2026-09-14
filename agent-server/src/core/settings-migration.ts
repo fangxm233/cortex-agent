@@ -1,8 +1,3 @@
-// input:  CONFIG_DIR/.env, SETTINGS_SPEC, updateSettings
-// output: migrateEnvToSettings startup migration
-// pos:    Moves legacy behavior settings out of .env
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { parse as parseDotenv } from 'dotenv';

@@ -1,8 +1,3 @@
-// input:  file preview items, web tab intents and divider drags
-// output: the dock's tab list, open flag and split share
-// pos:    Dock state owner; holds no viewer or browser imports
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createBrowserTab, isBlankWebTab } from '@/features/browser/browser-target';
 import {

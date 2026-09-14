@@ -1,8 +1,3 @@
-// input:  platform message and output-stream types
-// output: PlatformAdapter lifecycle and live-update contract
-// pos:    Boundary between orchestration and messaging platforms
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type {
   MessageRef,
   MessageContent,

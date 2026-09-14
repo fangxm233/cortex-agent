@@ -1,8 +1,3 @@
-// input:  frozen attempt identity, engine spec, normalized events
-// output: durable production journals and immutable linkage records
-// pos:    Production normalized-event journal persistence boundary
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';

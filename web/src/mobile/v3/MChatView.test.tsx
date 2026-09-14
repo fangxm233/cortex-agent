@@ -1,8 +1,3 @@
-// input:  mobile rows, lazy detail, Todo, composer and profiles
-// output: Chat stacking, overflow, Todo and interaction contracts
-// pos:    Mobile chat interaction behavior tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { renderToStaticMarkup } from 'react-dom/server';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -73,6 +68,13 @@ const copy: MChatCopy = {
   profileSubtitle: 'profile-subtitle',
   profileCurrent: 'current',
   profileFooter: 'profile-footer',
+  selectionModel: 'model',
+  selectionThinking: 'thinking',
+  selectionMode: 'route',
+  selectionFollow: 'follow profile',
+  selectionCrossBackend: 'needs a new session',
+  selectionNoProfile: 'no profile for that backend',
+  selectionPending: 'loading models',
   lineUnit: 'rows',
   charUnit: 'chars',
 };
@@ -96,8 +98,8 @@ const baseProps = {
   onComposerChange: () => {},
   onSend: () => {},
   sendEnabled: false,
-  profileChipLabel: 'profile',
-  onOpenProfile: () => {},
+  selectionChipLabel: 'claude-opus-5 · high',
+  onOpenSelection: () => {},
   contextUsageOpen: false,
   onContextUsageOpen: () => {},
   onContextUsageClose: () => {},
@@ -276,14 +278,14 @@ describe('MChatView send controls', () => {
     expect(button(html, 'Stop')).toBeNull();
   });
 
-  it('shrinks and truncates a long profile label without a disclosure triangle', () => {
-    const longLabel = 'profile-with-a-very-long-name';
+  it('shrinks and truncates a long engine label without a disclosure triangle', () => {
+    const longLabel = 'a-very-long-model-name-with-a-level';
     let renderer!: ReactTestRenderer;
     act(() => {
       renderer = create(
         <MChatView
           {...baseProps}
-          profileChipLabel={longLabel}
+          selectionChipLabel={longLabel}
           status={{ running: true, tone: 'running', text: 'running' }}
           rows={[]}
           sendEnabled

@@ -1,8 +1,3 @@
-// input:  budget/config/cost/project queries, scope/form state, and shared budget writer
-// output: scoped mobile editor with pending-safe nullable operation feedback
-// pos:    Mobile Budget settings screen
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';

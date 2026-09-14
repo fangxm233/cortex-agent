@@ -1,8 +1,3 @@
-// input:  LoginFlow interaction, saved API env, auth lifecycle
-// output: Claude API-key login consumer and secret-free outcome
-// pos:    Claude Code API-key login adapter
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import {
   applyAuthEnv,
   saveAnthropicApiKey,

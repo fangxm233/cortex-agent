@@ -1,8 +1,3 @@
-// input:  mounted task detail, query doubles, and shared bare Modal shell
-// output: Full-bleed chrome, independent body scroll, layered backgrounds, and dismissal regressions
-// pos:    Desktop TaskModal shell characterization
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TaskInfo } from '@cortex-agent/ui-contract';

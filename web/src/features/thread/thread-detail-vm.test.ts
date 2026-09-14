@@ -1,8 +1,3 @@
-// input:  thread detail DTO fixtures and view-model builder
-// output: thread-detail view-model regression tests
-// pos:    Verifies desktop thread-detail derivations
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { describe, it, expect } from 'vitest';
 import type {
   ThreadDetail,

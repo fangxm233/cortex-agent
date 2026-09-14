@@ -1,7 +1,3 @@
-// input:  the assembled menu model and DOM key events
-// output: one global keydown handler that runs every accelerator the menus declare
-// pos:    Replaces the app's ad-hoc per-feature shortcut listeners
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useEffect } from 'react';
 import { accelItems, matchesAccel, type MenuDef } from './menu-model';
 

@@ -3,7 +3,6 @@
 // pos:    Platform-agnostic file-backed project→conduit mapping. Slack defaults to
 //         channel-registry.json (backward compat); other adapters pass a distinct
 //         filePath (e.g. Feishu → feishu-channel-registry.json).
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as path from 'path';
 import { JsonRepository } from '@core/json-repository.js';

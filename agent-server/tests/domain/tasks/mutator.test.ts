@@ -1,8 +1,3 @@
-// input:  Vitest, TaskMutator, task lifecycle helpers
-// output: generation, mutation, lock contention, and event tests
-// pos:    Owns task state-machine behavior coverage
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import '../../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { beforeEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';

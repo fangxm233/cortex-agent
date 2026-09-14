@@ -1,8 +1,3 @@
-// input:  PI session events, parser state, and the notices subagents forward
-// output: Normalized events, including a child's events attributed to the subagent that ran them
-// pos:    Translates PI session events
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { ContextUsage } from '@core/types/agent-types.js';
 import type { NormalizedEvent, QuestionSpec } from '../normalize/event-types.js';
 import { toCanonical } from '@core/tool-names.js';

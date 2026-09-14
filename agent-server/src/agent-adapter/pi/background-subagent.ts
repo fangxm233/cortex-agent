@@ -1,8 +1,3 @@
-// input:  a backgrounded PI `agent` call — its invocation, child runner and owning session
-// output: the port types the host implements to register and stop such a run
-// pos:    Port for PI's background subagent calls; the daemon implements it in orchestration/
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { SubagentChannel } from '@core/agents/subagent/orchestrate.js';
 import type { Invocation, RunChildFn } from '@core/agents/subagent/types.js';
 

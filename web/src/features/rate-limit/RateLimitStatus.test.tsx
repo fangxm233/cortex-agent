@@ -1,8 +1,3 @@
-// input:  RateLimitView fixtures rendered through the rail popover trigger
-// output: regressions pinning Radix trigger prop forwarding on the rail banner
-// pos:    Verifies the rail rate-limit banner actually opens its popover
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { RailRateLimitStatus } from './RateLimitStatus';

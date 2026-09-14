@@ -1,8 +1,3 @@
-// input:  --date YYYY-MM-DD, --type <event-type> (optional)
-// output: matching jsonl lines from the daily events log printed to stdout
-// pos:    debug CLI — node events/event-replay.ts --date 2026-04-25 --type agent.failed
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
 import * as path from 'node:path';

@@ -1,8 +1,3 @@
-// input:  compiled CLI files and shipped hook scripts
-// output: executable CLI files and copied dist hook assets
-// pos:    Post-build setup for package executables and assets
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 // Runs after tsc as part of `npm run build`.
 import { fileURLToPath } from 'url';
 import path from 'path';

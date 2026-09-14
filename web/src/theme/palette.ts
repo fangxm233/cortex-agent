@@ -1,8 +1,3 @@
-// input:  localStorage, document root custom properties, chrome-colour sync
-// output: Background/foreground palette parameters with parse, persist, apply
-// pos:    Device-local palette parameter model
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 // The six numbers that drive every surface and text colour in public/theme.css. Each token keeps its
 // own lightness and chroma from the original palette; these parameters rotate the hue, scale the
 // chroma, and offset the lightness of the whole family at once.

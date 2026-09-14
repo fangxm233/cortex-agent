@@ -1,8 +1,3 @@
-// input:  thread details, transcript timestamps, tool calls, and shared USD formatting
-// output: mobile stepper, divider, and tool-chip models
-// pos:    Active pure helpers retained from the legacy mobile session screen
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { ThreadDetail } from '@cortex-agent/ui-contract';
 import type { ToolCallOverflowLayout } from '@/features/workbench/tool-call-overflow';
 import { formatUsd } from '@/lib/format';

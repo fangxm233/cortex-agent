@@ -1,7 +1,3 @@
-// input:  dock tab intents over file items and browser tabs
-// output: regressions for tab identity, dedupe, eviction and body order
-// pos:    Unit tests for the dock tab model
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import { createBrowserTab, isBlankWebTab, pushHistory } from '@/features/browser/browser-target';
 import {

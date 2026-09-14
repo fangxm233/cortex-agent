@@ -1,8 +1,3 @@
-// input:  the custom provider stores held in UiServiceDeps
-// output: the secret-free auth.customProviders listing
-// pos:    Read adapter for user-defined PI providers
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import {
   defaultCustomProviderStores,
   listCustomProviders,

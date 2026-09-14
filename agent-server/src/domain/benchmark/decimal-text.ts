@@ -1,8 +1,3 @@
-// input:  decimal strings from the proxy export and the journal cost boundary
-// output: exact parse, render, compare and arithmetic over BigInt scaled units
-// pos:    Exact decimal arithmetic for cost reconciliation
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 /**
  * A decimal as an exact integer of `units` scaled by 10^-`scale`. Costs are compared across a
  * language boundary, so a binary float would make the comparison depend on representation: two

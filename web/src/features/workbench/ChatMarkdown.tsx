@@ -1,8 +1,3 @@
-// input:  Markdown AST and optional KaTeX
-// output: Chat Markdown with safe formula rendering and opt-in pane-wide tables
-// pos:    Shared assistant Markdown renderer
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { Fragment, type CSSProperties, type ReactNode } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';

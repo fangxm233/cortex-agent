@@ -1,8 +1,3 @@
-// input:  CONFIG_DIR, settings spec, env, and per-window provider policy patches
-// output: validated settings, exact policy writes, disk updates, hot reload, and test reset
-// pos:    File-backed runtime settings boundary
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { AsyncMutex } from './async-mutex.js';

@@ -1,8 +1,3 @@
-// input:  buildResumeOptions(thread) from orchestration/thread-callback
-// output: restored status message without rebuilding lifecycle hooks
-// pos:    Verifies persisted thread resume option reconstruction
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';

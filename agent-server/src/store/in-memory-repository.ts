@@ -1,8 +1,3 @@
-// input:  defaultValue factory
-// output: InMemoryRepository<T> — same interface as JsonRepository, all-in-memory
-// pos:    test double; use wherever JsonRepository is accepted to avoid disk I/O in tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { AsyncMutex } from '@core/async-mutex.js';
 
 export class InMemoryRepository<T> {

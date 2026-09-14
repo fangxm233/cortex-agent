@@ -1,8 +1,3 @@
-// input:  PlatformAdapter, settings, DATA_DIR, fs.statfs
-// output: init/stop/checkDiskOnce + alert helpers
-// pos:    Cortex data filesystem capacity alert monitoring
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { promises as fsp } from 'fs';
 import type { PlatformAdapter } from '@platform/index.js';
 import { emitSystemNotice } from '@domain/system/system-notice.js';

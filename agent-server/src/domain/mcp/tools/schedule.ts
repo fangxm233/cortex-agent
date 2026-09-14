@@ -1,8 +1,3 @@
-// input:  McpServer, schedule store, scheduler, execution context
-// output: cortex_schedule_* tool registrations
-// pos:    Provides scheduled-task CRUD to MCP callers
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { Scheduler, parseDuration } from '../../scheduling/scheduler.js';

@@ -1,8 +1,3 @@
-// input:  mounted approval queue, approval outcomes, feedback drafts, and query cache
-// output: pending-list, decision payload, pending-state, and invalidation regressions
-// pos:    Shared desktop/mobile approval queue integration specification
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ApprovalInfo } from '@cortex-agent/ui-contract';

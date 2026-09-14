@@ -1,7 +1,3 @@
-// input:  PI quota probe, usage persistence, throttle keys, fake PI runtime
-// output: quota reporting, labeled routed usage, and throttle assertions
-// pos:    Covers PI quota flow from response headers into provider stores
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { engineSpecFixture } from './engine-spec-fixture.js';
 
 

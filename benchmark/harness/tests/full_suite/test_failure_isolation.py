@@ -1,7 +1,3 @@
-# input:  a two-task suite where one task fails, leaks its dummy, or meets a provider outage
-# output: proof that a task's failure stays that task's failure
-# pos:    Full-suite failure isolation tests
-# >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 #
 # Two paid runs died this way. On 2026-08-22 the first task to SUCCEED raised, and the raise
 # cancelled the pool (EXP-089). On 2026-08-23 an agent read its own config, the dummy token it

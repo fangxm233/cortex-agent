@@ -1,8 +1,3 @@
-// input:  backend label + native or canonical tool name
-// output: canonical ↔ backend-native tool name mappings + backendless matching
-// pos:    Bidirectional table for tool name normalization
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { Backend } from './types/agent-types.js';
 
 export type CanonicalToolName =

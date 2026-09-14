@@ -1,8 +1,3 @@
-// input:  a delegating session's id and channel, plus its children's SubagentNotices
-// output: attributed events pushed into the parent's live turn
-// pos:    Parent-transcript side of the `agent` MCP tool
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { createLogger } from '@core/log.js';
 import { runRegistry, type RunningExecution } from '@core/run-registry.js';
 import { toRunEvent, type RunEvent, type RunPhase } from '../agent-adapter/run-events.js';

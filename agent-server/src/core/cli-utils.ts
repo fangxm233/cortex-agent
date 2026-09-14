@@ -1,8 +1,3 @@
-// input:  help spec objects, optional labels, error context, stdin
-// output: localized help/error formatting and stdin readers
-// pos:    Shared CLI presentation and stdin utilities
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as fs from 'node:fs';
 
 // ─── Help Rendering (Rule ②) ───────────────────────────────────

@@ -1,8 +1,3 @@
-// input:  live execution/thread/interaction/bg-hold/capture state
-// output: retention liveness snapshot builder
-// pos:    shared retention protection assembly for sweeps
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { RetentionLivenessSnapshot } from '@domain/sessions/session-retention.js';
 import type { RunRegistry } from './run-registry.js';
 import type { InteractionRecords } from '@orch/interactions/interaction-records.js';

@@ -1,8 +1,3 @@
-// input:  typed native capabilities and the server's authenticated listening-port routes
-// output: port-forward lifecycle calls and remote/device listening-port lists
-// pos:    Browser pane transport; native IPC is delegated to the canonical bridge
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { apiBase, authHeaders, isDesktopShell } from '@/lib/desktop-config';
 import {
   hasNativeCapability,

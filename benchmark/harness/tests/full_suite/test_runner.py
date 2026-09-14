@@ -1,8 +1,3 @@
-# input:  two-task suite, fake task-owned proxy sessions and Harbor results
-# output: one-arm-per-task execution and deterministic result proofs
-# pos:    Full-suite runner integration tests
-# >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import json
 from pathlib import Path
 from types import SimpleNamespace

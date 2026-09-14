@@ -1,8 +1,3 @@
-// input:  pending approval query, decision requests, feedback drafts, and query cache
-// output: shared approval entries, approve/reject operations, pending state, and list refresh
-// pos:    Headless desktop/mobile approval queue controller
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ApprovalInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';

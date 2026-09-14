@@ -1,8 +1,3 @@
-// input:  Vitest, lintTasks, complete Task fixtures
-// output: unknown-template lint error gating tests
-// pos:    Verifies task template lint decisions
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { lintTasks } from '../src/domain/tasks/lint.js';

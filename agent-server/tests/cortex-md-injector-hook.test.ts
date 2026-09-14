@@ -1,8 +1,3 @@
-// input:  Node test runner + spawn cortex-md-injector.mjs subprocess
-// output: Read/Edit/SessionStart and shared-cache regressions
-// pos:    Verifies cortex-md-injector.mjs hook behavior
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';

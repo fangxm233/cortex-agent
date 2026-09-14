@@ -1,7 +1,6 @@
 /* input:  theme/accent attributes and shared web/native consumers */
 /* output: adaptive palette, semantic color, and shadow properties */
 /* pos:    Single appearance source for SPA, mobile, and native shell */
-/* >>> If I am updated, update my header comment and CORTEX.md <<< */
 
 :root {
   --accent-hue: 274;

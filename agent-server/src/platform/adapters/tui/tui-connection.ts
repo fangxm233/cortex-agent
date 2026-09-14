@@ -1,8 +1,3 @@
-// input:  WebSocket, TuiFrame from protocol.ts
-// output: TuiConnection — per-WS connection wrapper
-// pos:    TUI adapter — owns WS lifecycle, send/close, subscriptions
-// >>> If I am updated, update the folder's CORTEX.md <<<
-
 import { WebSocket } from 'ws';
 import type { TuiFrame } from '../../tui/protocol.js';
 import { encodeFrame } from '../../tui/protocol.js';

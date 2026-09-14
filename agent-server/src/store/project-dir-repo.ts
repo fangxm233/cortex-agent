@@ -2,7 +2,6 @@
 // output: ProjectDirRepo (async getProjectDir / setProjectDir / removeProjectDir / getAllProjectDirs)
 // pos:    Project-device code directory mapping persistence layer. Based on JsonRepository abstraction, AsyncMutex serializes reads/writes of project-dirs.json.
 //         Channel→project reverse lookup used to live here (getChannelProject); it now lives on PlatformAdapter as resolveInboundProject.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as path from 'path';
 import { JsonRepository } from '@core/json-repository.js';

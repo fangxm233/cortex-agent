@@ -1,7 +1,3 @@
-# input:  the ZERO-PAID campaign that proves a failed agent is a result, not a stop
-# output: one non-admitted trial with an authentic verifier reward, then a normal trial
-# pos:    Committed ZERO-PAID failed-agent campaign
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # Same ZERO-PAID contract as `zero-paid-dry-run.yaml` — `paid: false`, a loopback-only synthetic
 # upstream, no provider endpoint and no real credential — and the same RUN-LOCAL values,

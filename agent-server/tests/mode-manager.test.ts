@@ -1,8 +1,3 @@
-// input:  Vitest, fresh config, isolated dotenv, gateway mock
-// output: mode routing, saved-key, and fallback tests
-// pos:    Verify mode-manager routing and credential policy
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';

@@ -1,8 +1,3 @@
-// input:  ThreadDetail DTO, canonical detail facts, breadcrumb trail, and mobile formatters
-// output: mobile copy, crumb, artifact, agent-feed, and pipeline projection
-// pos:    Mobile-only projection over shared thread detail semantics
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 // Maps the real ThreadDetail into the mobile breadcrumb, pipeline, artifact, and footer model.
 //
 // Shared facts own lifecycle, timing, active agent/output precedence, dispatch joins, and tree depth.

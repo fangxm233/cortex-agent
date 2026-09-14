@@ -1,8 +1,3 @@
-// input:  context path, filesystem, runtime settings
-// output: loadUserContext
-// pos:    Loads the user profile for direct conversation turns
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { readFileSync, statSync } from 'fs';
 import * as path from 'path';
 import { getSettings } from '@core/settings.js';

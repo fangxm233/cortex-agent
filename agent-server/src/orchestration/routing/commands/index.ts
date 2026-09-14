@@ -1,8 +1,3 @@
-// input:  command dependencies, platform adapter, command handlers
-// output: registerCommands dispatcher including auth and usage flows
-// pos:    Orchestration command registry and dispatcher
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { createLogger } from '@core/log.js';
 import { Icons } from '../../../core/icons.js';
 import { t, type Locale } from '../../../core/i18n.js';
@@ -15,7 +10,7 @@ import { handleThreadCmd } from './thread.js';
 import { createScheduleHandler } from './schedule.js';
 import { handleCostCmd, handleBudgetCmd } from './cost.js';
 import { createTasksHandler } from './task.js';
-import { handleModeCmd, handleBackendCmd, handleModelCmd, createProfileHandler, handleSkillsCmd, createAgentHandler } from './mode.js';
+import { handleModeCmd, handleBackendCmd, handleModelCmd, handleThinkingCmd, createProfileHandler, handleSkillsCmd, createAgentHandler } from './mode.js';
 import { createStatusHandler, createHelpHandler } from './status.js';
 import { createCancelHandler } from './cancel.js';
 import { createCompactHandler, type CompactSessionByChannel } from './compact.js';
@@ -155,6 +150,7 @@ function createPrefixCommands(h: HandlerSet): PrefixHandler[] {
     { prefix: '!cancel', handler: h.cancel },
     { prefix: '!backend', handler: handleBackendCmd },
     { prefix: '!model', handler: handleModelCmd },
+    { prefix: '!thinking', handler: handleThinkingCmd },
     { prefix: '!profile', handler: h.profile },
     { prefix: '!usage ', handler: h.usage },
     { prefix: '!cost', handler: handleCostCmd },

@@ -1,8 +1,3 @@
-// input:  shared palette CSS, runtime UI source, native shell HTML
-// output: token, variant, accent-alias, no-flash, and raw-color regressions
-// pos:    Guards appearance coverage across web, mobile, and shell
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { readFileSync, readdirSync } from 'node:fs';
 import { extname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';

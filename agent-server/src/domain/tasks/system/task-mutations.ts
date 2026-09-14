@@ -1,8 +1,3 @@
-// input:  task schema, lifecycle locks, topology ledger
-// output: locked creation and generation-fenced decomposition facts
-// pos:    Task creation and decomposition persistence
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import * as fs from 'node:fs';
 import { createLogger } from '@core/log.js';
 import { type Task, type TaskGenerationExpectation } from '@core/task-parser.js';

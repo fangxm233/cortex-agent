@@ -1,8 +1,3 @@
-// input:  PI WebSearch tool, stubbed provider HTTP responses
-// output: DeepSeek routing, terminal, and SSE decoding tests
-// pos:    PI WebSearch response validation regression coverage
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import { afterEach, test, vi } from 'vitest';
 import { webSearchTool } from '../src/agent-adapter/pi/web-search.js';

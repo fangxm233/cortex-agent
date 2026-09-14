@@ -1,8 +1,3 @@
-// input:  McpServer, Intl APIs
-// output: current_time tool registration (wall-clock with optional IANA timezone)
-// pos:    MCP tool for fetching current time — agents have no implicit clock otherwise
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 

@@ -1,8 +1,3 @@
-// input:  shared desktop/mobile task DTO fixtures and lifecycle model
-// output: canonical classification, six-group order, sorting and open-count regressions
-// pos:    Single-source task list model unit tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, it, expect } from 'vitest';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
 import { groupTasks, actionableOpenCount } from './group-tasks';

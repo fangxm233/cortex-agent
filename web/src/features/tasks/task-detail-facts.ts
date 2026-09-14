@@ -1,8 +1,3 @@
-// input:  TaskInfo list and optional task verification DTO
-// output: locale- and CSS-free lifecycle, claim, completion, dependency, and dispatch facts
-// pos:    Canonical desktop/mobile task detail semantics
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type {
   TaskDispatchRecord,
   TaskInfo,

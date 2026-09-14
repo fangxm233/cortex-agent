@@ -1,8 +1,3 @@
-// input:  row width, measured chip widths, overflow suffix width
-// output: visible/hidden counts and compact overflow text
-// pos:    Pure collapsed tool-call overflow layout
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 export interface ToolCallOverflowInput {
   availableWidth: number;
   chipWidths: number[];

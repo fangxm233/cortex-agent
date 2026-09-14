@@ -1,8 +1,3 @@
-// input:  Discovered endpoints and explicit model/fallback choices
-// output: Profile generation, merge, write, and choice helpers
-// pos:    Generates Claude/PI profiles from discovered models
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import * as path from 'path';
 import * as os from 'os';

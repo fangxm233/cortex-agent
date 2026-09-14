@@ -4,7 +4,6 @@
 //         A full URL (env CORTEX_SERVER_URL or config serverUrl) lets the client reach
 //         the agent-server through a Cloudflare Tunnel over wss/443; otherwise it falls
 //         back to ws://<serverHost>:<serverPort> for direct/LAN reach.
-// >>> If I am updated, update me and the parent folder's CORTEX.md <<<
 
 /**
  * Resolve the WebSocket URL the cortex-client connects to.

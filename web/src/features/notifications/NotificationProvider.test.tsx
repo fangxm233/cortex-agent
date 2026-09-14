@@ -1,8 +1,3 @@
-// input:  mocked shared feed, workbench selection, project scope, and desktop router
-// output: desktop open-session predicate, activation navigation, and toaster wiring regressions
-// pos:    Thin-adapter specification for NotificationProvider
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NotificationToasterProps } from './NotificationToaster';

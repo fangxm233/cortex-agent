@@ -1,8 +1,3 @@
-// input:  shared accounts/custom-provider controllers, LoginFlow, and mobile navigation
-// output: mobile accounts screen with operation-specific action gates and editor sheet
-// pos:    Mobile composition view over canonical settings ownership
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { AuthStatusSnapshot } from '@cortex-agent/ui-contract';

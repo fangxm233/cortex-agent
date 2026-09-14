@@ -1,8 +1,3 @@
-// input:  mobile update title, summary, description, and action controls
-// output: centered mobile alert chrome shared only by mobile update dialogs
-// pos:    Mobile-only update frame preserving current DOM and inline visual styles
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { CSSProperties, ReactNode } from 'react';
 
 const MONO = "'IBM Plex Mono', monospace";

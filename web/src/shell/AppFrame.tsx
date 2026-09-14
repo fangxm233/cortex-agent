@@ -1,7 +1,3 @@
-// input:  the route's pane children
-// output: Viewport-filling frame without fixed minimum dimensions
-// pos:    Shared frame for every desktop route
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { ReactNode } from 'react';
 import { TopBar } from './TopBar';
 

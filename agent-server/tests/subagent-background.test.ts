@@ -1,8 +1,3 @@
-// input:  the background half of the `agent` tool — session hold, delivery, and both entry points
-// output: hold/release invariants, re-assertion, abort wiring, delivery text, PI's own flag
-// pos:    Tests backgrounded subagent runs
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';

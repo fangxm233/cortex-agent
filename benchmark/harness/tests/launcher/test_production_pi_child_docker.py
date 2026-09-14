@@ -1,8 +1,3 @@
-# input:  production Cortex package, two coder-review bundles, synthetic DeepSeek
-# output: real child-stage cap preservation with zero paid provider traffic
-# pos:    Docker gate for production PI multi-stage child execution
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import argparse
 import json
 import uuid

@@ -1,7 +1,3 @@
-// input:  shared shell-router factory and desktop pages
-// output: desktop-only SPA router tree with shell-appropriate history
-// pos:    Maps desktop shell pages and standalone provider setup
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { Navigate } from 'react-router-dom';
 import { createShellRouter } from '@/router-factory';
 import { AppShell } from '@/shell/AppShell';

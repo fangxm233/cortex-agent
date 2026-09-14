@@ -1,8 +1,3 @@
-// input:  a backgrounded PI `agent` call — its invocation, child runner and owning session
-// output: a registered run id now, and a delivered answer later
-// pos:    orchestration — the daemon half of PI's `run_in_background` subagent calls
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { runInvocation } from '@core/agents/subagent/orchestrate.js';
 import { startSubagentRun, stopSubagentRun } from '@domain/agents/subagent/registry.js';
 import type {

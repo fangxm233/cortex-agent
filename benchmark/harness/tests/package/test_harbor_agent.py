@@ -1,8 +1,3 @@
-# input:  Harbor base class, fake exec results, manifest and production trial seed
-# output: offline setup, production route proof and refusal contracts
-# pos:    Contract tests for the production Harbor agent wrapper
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import asyncio
 import hashlib
 import json

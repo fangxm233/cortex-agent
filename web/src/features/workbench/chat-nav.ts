@@ -1,8 +1,3 @@
-// input:  built chat rows plus the transcript's measured scroll geometry
-// output: One nav mark per user message, the turns the viewport shows, and the rail's tick geometry
-// pos:    Pure view model behind the desktop transcript's jump rail
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { AttachmentMeta } from '@/features/attachments/types';
 import type { ChatRow } from './transcript-vm';
 

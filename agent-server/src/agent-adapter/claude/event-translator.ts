@@ -1,8 +1,3 @@
-// input:  Claude turn callbacks and resolved AgentResult/accounting
-// output: NormalizedEvents pushed to the turn stream
-// pos:    Claude turn → NormalizedEvent translator
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
 import type { NormalizedEvent, ToolUseSubagent } from '../normalize/event-types.js';
 import { parseTodoWrite } from '../normalize/todo.js';

@@ -1,7 +1,3 @@
-// input:  package manifest, the workspace node_modules it resolves against, npm pack arguments
-// output: an npm tarball carrying its whole runtime closure, installable without a registry
-// pos:    Offline artifact packer for the benchmark harness
-// >>> If I am updated, update my header and folder CORTEX.md <<<
 //
 // The published package is thin: it declares dependencies and lets the installer fetch them. The
 // benchmark installs Cortex into containers with no registry, so it needs the opposite artifact --

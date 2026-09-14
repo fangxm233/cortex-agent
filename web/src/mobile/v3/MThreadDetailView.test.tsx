@@ -1,8 +1,3 @@
-// input:  live and terminal thread view models
-// output: cancellation affordance visibility
-// pos:    Mobile thread-detail action contract
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { MThreadDetailVm } from './m-thread-detail-vm';

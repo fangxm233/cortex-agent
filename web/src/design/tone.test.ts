@@ -1,8 +1,3 @@
-// input:  Canonical contract status vocabulary and unknown strings
-// output: Shared desktop/mobile status-to-tone regressions
-// pos:    Unit tests for the single status-tone mapping
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import { statusTone, type Tone } from './tone';
 

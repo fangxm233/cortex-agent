@@ -1,7 +1,3 @@
-// input:  expanded subagent identity, lazy detail query, and row renderer
-// output: expansion-scoped detail rows with minimal loading and retry states
-// pos:    Shared lazy subagent transcript detail loader
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useEffect, useMemo, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useLang } from '@/i18n';

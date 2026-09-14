@@ -1,7 +1,3 @@
-// input:  plan model, markdown renderer, progress state, and actions
-// output: themed mobile plan reader with resident decisions
-// pos:    Presentational mobile full-plan screen
-// >>> If I am updated, update my header comment and CORTEX.md <<<
 // @ds-adherence-ignore -- 6b 计划全文阅读页, chrome extracted 1:1 from scheme-mobile.dc.html
 // sec-6 L132-167. Raw px/hex by design §8.3. Renders the REAL plan snapshot markdown with a
 // scroll-progress bar; the resident bottom action bar approves/rejects while pending and turns

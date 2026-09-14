@@ -1,8 +1,3 @@
-// input:  mounted project provider with project/session queries and rendered order updates
-// output: provider derivation, listing, selection, and ordering regression coverage
-// pos:    Current-project context integration specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { act, create } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';

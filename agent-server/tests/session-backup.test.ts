@@ -1,8 +1,3 @@
-// input:  backup helpers and temporary transcripts
-// output: async backup, restore, and cleanup regressions
-// pos:    Verifies backend transcript snapshot utilities
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from 'fs';

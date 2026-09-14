@@ -1,8 +1,3 @@
-// input:  task/list and verification fixtures with canonical shared detail semantics
-// output: Mobile read-only blocker, approval, claim, dependency, completion, and history tests
-// pos:    Mobile task-detail projection regression tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, it, expect } from 'vitest';
 import type { TaskInfo, TaskVerificationInfo, TaskDispatchRecord } from '@cortex-agent/ui-contract';
 import { buildTaskDetailVm } from './m-task-detail-vm';

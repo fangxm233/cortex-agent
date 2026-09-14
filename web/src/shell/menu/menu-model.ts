@@ -1,8 +1,3 @@
-// input:  accelerator strings and menu item declarations
-// output: parsing, display formatting and keyboard matching for menu accelerators
-// pos:    Pure rules shared by the menu bar, its shortcuts and the shortcuts sheet
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 // One declaration drives three consumers: the dropdown's right-hand hint, the global key handler,
 // and the Help → Keyboard shortcuts sheet. Before this, the app had four ad-hoc `keydown` listeners
 // and no registry at all, so a shortcut could not be discovered from the UI.

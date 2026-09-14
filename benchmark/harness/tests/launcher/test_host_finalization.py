@@ -1,8 +1,3 @@
-# input:  host finalizer fixtures, roots, proxy revocation
-# output: Cortex/vendor envelope and fail-closed assertions
-# pos:    Host finalization recording tests
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import asyncio
 import hashlib
 import io

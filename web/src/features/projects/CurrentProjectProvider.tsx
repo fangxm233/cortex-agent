@@ -1,8 +1,3 @@
-// input:  project registry, shared sessions, explicit selection, and shell project order
-// output: shared current-project context, listed projects, and rendered project order
-// pos:    Cross-surface project selection and ordering state owner
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { ProjectConduitInfo } from '@cortex-agent/ui-contract';

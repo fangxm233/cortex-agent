@@ -1,8 +1,3 @@
-// input:  recent clock scheduler with injected timer functions
-// output: minute tick and cleanup regressions
-// pos:    Recent-list clock unit tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, expect, it, vi } from 'vitest';
 import { RECENT_TICK_MS, startRecentTicker } from './useRecentNow';
 

@@ -1,8 +1,3 @@
-# input:  real Docker Codex image, synthetic Responses upstream
-# output: dummy-auth, native-default request and lifecycle proof
-# pos:    Real-container boundary test for current Codex runtime
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import argparse
 import base64
 import json

@@ -1,8 +1,3 @@
-// input:  TuiConnection, protocol types
-// output: sendProjectReport / sendSystemNotice — notification fan-out to TUI connections
-// pos:    TUI adapter — routes project-report and system-notice to matching conduits
-// >>> If I am updated, update the folder's CORTEX.md <<<
-
 import type { TuiConnection } from './tui-connection.js';
 import { createLogger } from '@core/log.js';
 import type { MessageRef } from '../../types.js';

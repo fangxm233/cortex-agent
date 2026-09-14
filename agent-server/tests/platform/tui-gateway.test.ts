@@ -1,8 +1,3 @@
-// input:  TuiGatewayAdapter + protocol.ts + TuiFrame types
-// output: regression tests — handshake, msg.user, session.switch, EADDRINUSE, resume, serial queue, notifications
-// pos:    verifies TUI Gateway Adapter M1 implementation
-// >>> If I am updated, update the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { WebSocket } from 'ws';

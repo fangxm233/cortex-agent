@@ -1,7 +1,3 @@
-// input:  platform message and interaction types
-// output: TuiFrame union, type guards, parseFrame, and encodeFrame
-// pos:    TUI gateway/client wire protocol contract
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
 // Conventions:
 //   - Discriminator format: lowercase namespace + dot + camelCase verb

@@ -1,8 +1,3 @@
-// input:  events, capabilities, process, MCP and usage types
-// output: shared engine/session contracts, usage and MCP types, and sink shapes
-// pos:    Shared engine and session runtime contracts
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from 'node:child_process';
 import type { ProviderUsage } from '../domain/costs/usage-store.js';
 import type { Capability } from './capabilities.js';

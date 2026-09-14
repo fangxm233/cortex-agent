@@ -1,8 +1,3 @@
-// input:  React clock, usage/config queries, row-policy writes, and selected language
-// output: queried usage view with refresh state and per-target policy visibility/controls
-// pos:    Shared usage data hook for desktop and mobile consumers
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {

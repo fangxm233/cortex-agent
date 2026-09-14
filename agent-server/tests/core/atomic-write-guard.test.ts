@@ -1,8 +1,3 @@
-// input:  atomic writes, filesystem, abort signals, test env
-// output: tripwire, mode, cancellation, and serialization tests
-// pos:    Atomic-write safety regression tests
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { existsSync, rmSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';

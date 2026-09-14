@@ -1,7 +1,3 @@
-// input:  PI adapter, fake PI runtime, transcripts, provider discovery
-// output: Engine request, env, run lifecycle, pool, compaction and resume tests
-// pos:    Tests PI in-process engine session lifecycles (EngineSession/EngineRun)
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 //
 // Migration note (legacy `AgentProcess` → `EngineSession`/`EngineRun`):
 //   * `pool.spawn(spec)`            → `pool.open(spec)` (returns the pooled engine session)

@@ -1,8 +1,3 @@
-// input:  Node test runner + core/auth.ts
-// output: token comparison, generation, runtime capture and scrubbing tests
-// pos:    Regression guard for WS/webhook shared-secret auth (no-Cloudflare auth model)
-// >>> If I am updated, update me and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, existsSync, rmSync, writeFileSync } from 'node:fs';

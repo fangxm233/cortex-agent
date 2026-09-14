@@ -1,8 +1,3 @@
-// input:  registry/session/totals stores, filesystem paths, liveness snapshot
-// output: runSessionRetentionSweep and retention DTOs
-// pos:    Session retention coordinator shared by startup and periodic sweeps
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createLogger } from '@core/log.js';

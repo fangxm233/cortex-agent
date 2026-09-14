@@ -1,8 +1,3 @@
-// input:  auth login service factory and stub LoginFlow consumers
-// output: Auth selection, notice reuse, and cancellation regressions
-// pos:    Tests the shared backend login entry used by chat and Web
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import assert from 'node:assert/strict';
 import { setImmediate } from 'node:timers/promises';
 import { test } from 'vitest';

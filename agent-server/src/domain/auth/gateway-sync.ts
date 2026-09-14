@@ -1,8 +1,3 @@
-// input:  backend endpoint discovery, gateway and profile generators
-// output: syncGatewayFromBackends — refresh model routing after a login
-// pos:    Turns a successful backend login into usable gateway modes and profiles
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { existsSync, readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { createLogger } from '@core/log.js';

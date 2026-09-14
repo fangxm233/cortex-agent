@@ -1,8 +1,3 @@
-// input:  one web tab's state, frame titles, app origins and port forwarding
-// output: that tab's toolbar, port picker and live frame
-// pos:    Desktop body for a single web tab; the dock owns the tab list
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiBase } from '@/lib/desktop-config';
 import { openExternalUrl } from '@/lib/external-navigation';

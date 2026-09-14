@@ -1,7 +1,3 @@
-// input:  SSE events, tool devices, React Query, snapshots
-// output: live messages, detail invalidation, Todo, runtime state
-// pos:    Session-event bridge to desktop/mobile chat rows
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';

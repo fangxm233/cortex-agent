@@ -1,7 +1,3 @@
-# input:  a campaign run and the trial transitions it makes along the way
-# output: proof the run-level ledger answers "what is left" while the run is still going
-# pos:    Campaign progress ledger tests
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # The campaign result is written once, at the end. At three trials that is fine; at 623 trials
 # over tens of hours the operator had nothing to read but trial roots. These pin the ledger that

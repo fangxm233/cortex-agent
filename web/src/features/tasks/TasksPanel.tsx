@@ -1,8 +1,3 @@
-// input:  Task queries, lifecycle model, global task modal API
-// output: Complete lifecycle-grouped task panel with modal links
-// pos:    Desktop task list orchestration and rendering
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { TaskInfo } from '@cortex-agent/ui-contract';

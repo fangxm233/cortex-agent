@@ -1,8 +1,3 @@
-// input:  shared prioritized update prompt and mobile update dialogs
-// output: at most one mobile update overlay
-// pos:    Consolidated mobile provider for shell and frontend updates
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { useUpdatePrompt } from '@/features/update/useUpdatePrompt';
 import { MAppUpdateDialog } from './MAppUpdateDialog';
 import { MHotUpdateDialog } from './MHotUpdateDialog';

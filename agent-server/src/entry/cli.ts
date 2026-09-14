@@ -1,8 +1,3 @@
-// input:  process argv, child processes, CLI handler modules
-// output: cortex CLI dispatch and clean init cancellation exit status
-// pos:    Top-level cortex command dispatcher
-// >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import { fork } from 'child_process';
 import * as path from 'path';
 import * as net from 'net';

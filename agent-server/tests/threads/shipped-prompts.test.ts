@@ -1,8 +1,3 @@
-// input:  Vitest, shipped agent definitions and prompt files
-// output: Role handoff and manager checkpoint regressions
-// pos:    Verifies compact prompts retain thread contracts
-// >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

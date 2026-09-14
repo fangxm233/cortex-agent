@@ -1,8 +1,3 @@
-// input:  TASKS.yaml lock metadata and cross-process mutation lock
-// output: atomic project lock acquire/release operations
-// pos:    Serializes logical lock metadata with all other task-file writers
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';

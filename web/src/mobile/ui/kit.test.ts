@@ -1,8 +1,3 @@
-// input:  sheet markup, drag metrics, and composer text
-// output: Sheet layering, viewport, dismiss, and count assertions
-// pos:    Mobile UI-kit layout and logic tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';

@@ -1,8 +1,3 @@
-// input:  a session directory listing and a PI session id
-// output: the exact transcript path for that id, or null
-// pos:    Ambient-free PI transcript filename lookup
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { readdirSync } from 'fs';
 import * as path from 'path';
 

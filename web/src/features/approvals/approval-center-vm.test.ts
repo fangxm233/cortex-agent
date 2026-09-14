@@ -1,8 +1,3 @@
-// input:  approval DTOs and structural id facts
-// output: desktop mapping and shared default-selection regressions
-// pos:    Approval center pure view-model specification
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { describe, it, expect } from 'vitest';
 import type { ApprovalInfo } from '@cortex-agent/ui-contract';
 import {

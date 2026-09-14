@@ -1,8 +1,3 @@
-# input:  explicit proxy flags and host credential file or stdin
-# output: structured startup/stopped JSON and foreground proxy
-# pos:    Trial proxy command-line interface
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import argparse
 import json
 import signal

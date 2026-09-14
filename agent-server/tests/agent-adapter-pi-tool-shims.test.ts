@@ -1,7 +1,3 @@
-// input:  PI adapter over a fake runtime, web responses, extension UI events
-// output: Local shim gates, Agent, web, and generic dialog tests
-// pos:    Tests PI-local tools and extension UI transport
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { engineSpecFixture } from './engine-spec-fixture.js';
 
 

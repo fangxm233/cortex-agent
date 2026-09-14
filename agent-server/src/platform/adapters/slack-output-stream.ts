@@ -2,7 +2,6 @@
 // output: SlackOutputStream — coalescing OutputStream for Slack
 // pos:    Slack-specific OutputStream — coalesces segments, uses pendingEdits
 //         for chat.update coalescing and rate-limiter sharing.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { createLogger } from '@core/log.js';
 import type { SlackAdapter } from './slack.js';

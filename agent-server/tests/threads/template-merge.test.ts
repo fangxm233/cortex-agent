@@ -1,8 +1,3 @@
-// input:  Vitest, temp config trees, thread-template merger
-// output: Default-copy and legacy-shell upgrade regressions
-// pos:    Verifies safe thread-template config propagation
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { describe, it, beforeEach, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, readFileSync, rmSync, existsSync, mkdtempSync } from 'fs';

@@ -1,8 +1,3 @@
-// input:  platform adapter, message, and stream contracts
-// output: configurable MockAdapter with nullable admin routing
-// pos:    In-memory platform adapter for unit tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { PlatformAdapter } from './adapter.js';
 import type {
   MessageRef,

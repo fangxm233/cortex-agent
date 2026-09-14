@@ -10,7 +10,6 @@
 //         it is stable across restarts for identical content and changes iff the frontend changes;
 //         `sha256` is the hash of the ZIP bytes for download integrity. Returns {} when the SPA is
 //         not built (no spaDir / missing on disk) so OTA cleanly disables rather than 500ing.
-// >>> If I am updated, update CORTEX.md <<<
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';

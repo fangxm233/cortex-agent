@@ -1,8 +1,3 @@
-// input:  shared project scope, memory file query, and route path
-// output: read-only mobile project-memory file screen
-// pos:    Mobile memory-file data and routing controller
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 // Mobile 项目记忆 file viewer — /m/memory/file?path=<rel>. Read-only. Drilled from the 1j memory tree
 // (MMemoryScreen). NON-Tab drill page (the shell hides the Tab bar for /m/memory*). Real tRPC:
 // `memory.file({ projectId, path })` scoped to the mobile current project; `path` comes from the

@@ -1,8 +1,3 @@
-// input:  Cwd, sessionId, injected filesystem probe
-// output: Claude jsonl transcript path and the --resume-vs-create decision
-// pos:    Shared by print-mode resume gating (survived the D9 TUI retirement)
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { existsSync } from 'node:fs';
 import * as path from 'path';
 import { TUI_JSONL_BASE } from './defaults.js';

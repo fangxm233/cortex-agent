@@ -1,8 +1,3 @@
-// input:  Vitest, production topology ledger, real attempt resolver
-// output: durable lifecycle and strict manager-Q&A projection tests
-// pos:    Proves restart-safe production topology facts and read model
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import '../../_test-home.js';
 import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';

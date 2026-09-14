@@ -1,8 +1,3 @@
-# input:  exact DeepSeek trial kwargs and aistatus gateway path
-# output: one consume-once Harbor paid-smoke result
-# pos:    Bounded DeepSeek paid-smoke launcher
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any

@@ -1,8 +1,3 @@
-// input:  task modal controller state transitions
-// output: open, switch, and close state regressions
-// pos:    Guards project-scoped global task modal selection
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import { nextTaskModalRef } from './TaskModalProvider';
 

@@ -1,8 +1,3 @@
-// input:  Tauri-injected shell flags and connection config
-// output: shell detection, API base and authenticated headers
-// pos:    Native-shell environment adapter
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { RemoteConfig } from './trpc';
 
 /**

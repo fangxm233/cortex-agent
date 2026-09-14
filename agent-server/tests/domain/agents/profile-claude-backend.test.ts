@@ -1,8 +1,3 @@
-// input:  Node test runner + agent-adapter/claude/spawn-args + domain/agents/profile-manager
-// output: Lock down claudeBackend field validation + propagation through ResolvedProfileConfig
-// pos:    DR-0012 Phase 4 — profile schema regression tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 

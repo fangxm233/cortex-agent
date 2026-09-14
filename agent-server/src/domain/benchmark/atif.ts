@@ -1,8 +1,3 @@
-// input:  fragments, links, optional metrics, tool progress
-// output: deterministic ATIF-v1.7 tree with honest metrics
-// pos:    Journal-to-ATIF conversion boundary
-// >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import type { NormalizedEvent } from '../../agent-adapter/normalize/event-types.js';
 
 export interface SourceJournalHeader extends Record<string, unknown> {

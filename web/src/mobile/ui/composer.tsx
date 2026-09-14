@@ -1,8 +1,3 @@
-// input:  Mobile composer value, actions, toolbar slots, and fullscreen controls
-// output: Inline and fullscreen mobile composer presentation with text metrics
-// pos:    Shared mobile composer presentation primitives
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from 'react';
 import { PlusGlyph } from '@/design';
 import { MC, MONO } from './mobile-theme';

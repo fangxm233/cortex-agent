@@ -1,8 +1,3 @@
-// input:  file name and optional MIME type
-// output: in-app document kind or null
-// pos:    Pure classifier shared by desktop and mobile file surfaces
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 // PDF renders via pdf.js; text renders as Markdown or monospace text; other files download.
 // `html` is the RENDERED view kind and is deliberately absent from the classifier below: it is
 // minted only from an attachment the server marked `type: 'view'` (see docKindOfAttachment), never

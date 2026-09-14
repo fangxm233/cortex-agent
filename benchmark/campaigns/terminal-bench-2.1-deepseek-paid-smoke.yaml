@@ -1,8 +1,3 @@
-# input:  bounded DeepSeek credential route and one Cortex-compatible task image
-# output: one digest-pinned Cortex direct paid-smoke trial
-# pos:    One-request DeepSeek paid-smoke declaration
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 schema_version: cortex-bench-campaign/1
 campaign: ds-smoke
 paid: true

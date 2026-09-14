@@ -1,8 +1,3 @@
-// input:  ScheduleRepo, runner callbacks, profiles, HookBus
-// output: Scheduler; schedule.fired{scheduleId,name,project}
-// pos:    Tracks, reloads and fires persisted schedules
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { watch, FSWatcher } from 'fs';
 import { execSync } from 'child_process';
 import { randomBytes } from 'crypto';

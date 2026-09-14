@@ -1,8 +1,3 @@
-// input:  project-name and mutation-error fixtures
-// output: shared new-project validation and error regressions
-// pos:    Project creation helper unit specification
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { describe, expect, it } from 'vitest';
 import { canCreateProject, projectCreateErrorMessage } from './new-project';
 

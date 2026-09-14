@@ -1,8 +1,3 @@
-// input:  production attempt lifecycle and identity facts
-// output: attempt record, token validator, durable-edge policy
-// pos:    Composite v2 attempt-node contract
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import type { Backend } from '../../agent-adapter/types.js';
 import type { AgentSlot } from './journal.js';
 import type { TerminalReason, TerminalState } from './manifest-contract.js';

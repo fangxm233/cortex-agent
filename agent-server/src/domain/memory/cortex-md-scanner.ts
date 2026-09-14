@@ -1,8 +1,3 @@
-// input:  fs/path/os, target file path
-// output: CortexMDEntry[] with host identity and ancestor rules
-// pos:    Scans local CORTEX.md ancestor chains for tool injection
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';

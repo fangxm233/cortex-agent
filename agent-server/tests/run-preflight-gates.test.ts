@@ -1,7 +1,3 @@
-// input:  a seeded profiles.json, an armed throttle, startRun and the provider-identity helper
-// output: provider identity and its run-side attribution, the pre-flight skip gate, blocked-run notices/evidence, fallback events
-// pos:    Run layer — what a run can decide before it ever reaches an engine
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
 // These cases used to ride `facade.runAgent`'s decorator chain. That chain is gone: the pre-flight
 // gate (`shouldSkipAttempt`), the provider attribution (`attemptProvider`) and the fallback walk now

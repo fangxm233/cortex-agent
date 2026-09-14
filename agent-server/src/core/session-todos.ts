@@ -1,7 +1,3 @@
-// input:  TodoSnapshot values keyed by sessionId
-// output: SessionTodos / sessionTodos singleton — queryable snapshot of each session's task list
-// pos:    core/ zero-dependency state registry (sibling of run-registry.ts)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
 // Why this exists, and why it is NOT persisted: the task list is live state of a run. Snapshot +
 // delta, same shape as SessionInfo.running — `session.todos` is the delta, `sessions.list` serves

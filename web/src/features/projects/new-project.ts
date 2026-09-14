@@ -1,8 +1,3 @@
-// input:  project names and caught create-project mutation errors
-// output: shared create gate, desktop copy constants, and safe error text
-// pos:    Cross-surface new-project validation helpers
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 export const NP_BREADCRUMB = 'context/projects/';
 export const NP_PLACEHOLDER = 'nimbus';
 

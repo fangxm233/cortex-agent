@@ -1,8 +1,3 @@
-// input:  bundled PI SDK module, auth path, AuthInteraction
-// output: PI runtime login/logout handle and availability metadata
-// pos:    Bundled PI SDK runtime loader
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import * as path from 'node:path';
 import { loadPiSdk, piUserAuthPath } from '@core/pi-sdk.js';
 import type { AuthInteraction } from './login-flow.js';

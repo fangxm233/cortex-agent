@@ -1,7 +1,3 @@
-// input:  PIAdapter over the fake PI runtime, engine surface (open().run()) only
-// output: engine contract: phased RunEvent order, result/settled, steer acks, run-scoped cancel
-// pos:    PI EngineSession contract after the legacy spawn() parity half was deleted
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { engineSpecFixture } from '../engine-spec-fixture.js';
 
 import { test } from 'vitest';

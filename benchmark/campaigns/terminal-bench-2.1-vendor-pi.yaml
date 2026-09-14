@@ -1,7 +1,3 @@
-# input:  the PI vendor arm and three pinned Terminal-Bench 2.1 tasks
-# output: a schema-valid paid PI vendor campaign against the host DeepSeek relay
-# pos:    Live PI vendor-baseline campaign declaration
-# >>> If I am updated, update my header and folder CORTEX.md <<<
 #
 # The image selectors below bind every task to the offline PI-only runtime variant.
 

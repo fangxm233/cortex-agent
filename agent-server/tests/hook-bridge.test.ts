@@ -3,7 +3,6 @@
 // pos:    verifies that registerAskQuestion / registerPlanApproval publish to the bus, that a
 //         subscriber can produce platform side effects, and that resolveRequest still resolves
 //         the blocking Promise after the S5 refactor
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

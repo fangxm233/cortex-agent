@@ -1,8 +1,3 @@
-// input:  mounted assignment control, tRPC mocks, toast capture
-// output: MCP ack, refresh, dirty-guard, and conflict tests for assignment
-// pos:    Plugin assignment React Query integration regressions
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

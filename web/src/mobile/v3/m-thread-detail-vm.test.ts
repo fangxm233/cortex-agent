@@ -1,8 +1,3 @@
-// input:  mobile thread-detail view model and DTO fixtures
-// output: mobile thread-detail derivation tests
-// pos:    Verifies mobile thread-detail mapping
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { describe, it, expect } from 'vitest';
 import type {
   ThreadDetail,

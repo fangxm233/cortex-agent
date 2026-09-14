@@ -1,8 +1,3 @@
-// input:  conversation-ledger.json, channel/session ids, Slack ts
-// output: ConversationLedgerRepo persistence APIs
-// pos:    Channel turn ledger store for session-linked message state
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as path from 'path';
 import { JsonRepository } from '@core/json-repository.js';
 import { STORE_DIR } from '@core/paths.js';

@@ -1,8 +1,3 @@
-// input:  data/agent-state.json and the legacy data/mode.json, in a per-file test home
-// output: parse, one-time migration and save-round-trip coverage for the agent selection store
-// pos:    P3.1a gate — the rename must not cost a user their profile selection
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { afterEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -120,4 +115,43 @@ test('save omits empty fields and round-trips channel overrides', async () => {
   // `mode` is written beside `claudeMode` so a rolled-back build still reads the Claude mode.
   assert.equal(written.mode, 'plan');
   assert.deepEqual(loadAgentState().channelOverrides, { 'web:a': { model: 'sonnet' } });
+});
+
+test('a session\'s billing route survives a restart', async () => {
+  // `mode` joined ChannelOverride after the others; a parser that still listed three fields would
+  // drop it on load and quietly send the next turn back to the profile's route.
+  clean();
+  const { loadAgentState, saveAgentState } = await freshModule();
+  saveAgentState({
+    activeProfile: null, channelProfiles: {}, defaultAgent: null,
+    channelOverrides: { 'web:a': { model: 'claude-opus-5', provider: 'zai', thinking: 'high', mode: 'api' } },
+  });
+  assert.deepEqual(loadAgentState().channelOverrides, {
+    'web:a': { model: 'claude-opus-5', provider: 'zai', thinking: 'high', mode: 'api' },
+  });
+});
+
+test('the seed a new conversation opens on round-trips, profile included', async () => {
+  clean();
+  const { loadAgentState, saveAgentState } = await freshModule();
+  saveAgentState({
+    activeProfile: null, channelProfiles: {}, defaultAgent: null, channelOverrides: {},
+    selectionDefault: { profileName: 'sol', model: 'gpt-6-astra', thinking: 'high' },
+  });
+  assert.deepEqual(
+    loadAgentState().selectionDefault,
+    { profileName: 'sol', model: 'gpt-6-astra', thinking: 'high' },
+  );
+});
+
+test('a corrupt seed is no seed, not a crash', async () => {
+  clean();
+  writeFileSync(STATE, JSON.stringify({ selectionDefault: { profileName: 7, model: [], thinking: 'high' } }));
+  const { loadAgentState } = await freshModule();
+  assert.deepEqual(loadAgentState().selectionDefault, { thinking: 'high' });
+
+  clean();
+  writeFileSync(STATE, JSON.stringify({ selectionDefault: 'sol' }));
+  const second = await freshModule();
+  assert.equal(second.loadAgentState().selectionDefault, undefined);
 });

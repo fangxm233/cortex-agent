@@ -1,8 +1,3 @@
-// input:  a backgrounded `agent` run, its owning session, and its terminal result
-// output: the session hold that keeps it alive and the turn that delivers its answer
-// pos:    Background half of the `agent` tool
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import { createLogger } from '@core/log.js';
 import type { SystemTurnOrigin } from '@core/types/agent-types.js';
 import { runRegistry } from '@core/run-registry.js';

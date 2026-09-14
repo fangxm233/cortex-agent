@@ -2,7 +2,6 @@
 // output: buildTranscriptReplay — pure synchronous formatter, TranscriptData → TranscriptReplay | null
 // pos:    TUI adapter — replays prior chat messages as TranscriptReplay frames
 //         ZERO @store/@domain/@orch imports (see ports.ts for boundary types)
-// >>> If I am updated, update the folder's CORTEX.md <<<
 
 import type {
   ChatPost,

@@ -1,8 +1,3 @@
-// input:  settings buttons, toggles, keyboard handlers
-// output: shared control keyboard, disabled, and style-override tests
-// pos:    Settings primitive interaction and styling regressions
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { SButton, Toggle } from './settings-ui';

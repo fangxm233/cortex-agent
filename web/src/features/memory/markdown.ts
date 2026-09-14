@@ -1,8 +1,3 @@
-// input:  Markdown source and optional math parsing mode
-// output: Frontmatter, block, and code-safe inline AST nodes
-// pos:    Pure Markdown parser shared by memory and chat views
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 export interface FrontmatterEntry {
   key: string;
   value: string;

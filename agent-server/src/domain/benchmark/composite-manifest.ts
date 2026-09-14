@@ -1,8 +1,3 @@
-// input:  production attempts, durable edges, identity, accounting
-// output: canonical composite v2 bytes and strict usage validation
-// pos:    Composite evidence v2 contract
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';

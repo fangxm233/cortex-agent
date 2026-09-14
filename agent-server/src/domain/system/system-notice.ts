@@ -1,8 +1,3 @@
-// input:  PlatformAdapter, notice payload, shared job context
-// output: Web publication and rich/actionable best-effort admin delivery
-// pos:    Domain seam for admin and system broadcasts
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import type { PlatformAdapter, RichBlock, ActionElement } from '@platform/index.js';
 import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
 

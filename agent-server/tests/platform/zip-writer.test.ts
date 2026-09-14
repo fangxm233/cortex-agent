@@ -4,7 +4,6 @@
 //         empty-file and nested-path handling.
 // pos:    Regression guard for the OTA bundle encoder (desktop frontend OTA, unit A). The Rust
 //         `zip` crate is the real consumer; these tests pin the container invariants it relies on.
-// >>> If I am updated, update the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';

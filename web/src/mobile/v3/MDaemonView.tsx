@@ -1,7 +1,3 @@
-// input:  React, mobile UI kit, canonical daemon tones, mobile view model and copy
-// output: mobile daemon process, summary, long-press restart and disconnect controls
-// pos:    Mobile daemon status presentational view
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3
 import { useRef, useState, type CSSProperties } from 'react';
 import { MScreen, MDrillHeader, MScrollBody, MCard, MPill, MDot, MC, MONO } from '@/mobile/ui/kit';

@@ -1,8 +1,3 @@
-// input:  threads.list handler and mock domain stores
-// output: thread list filtering, normalization and summary regressions
-// pos:    Verifies thread list projection and scoping
-// >>> If I am updated, update my header comment and CORTEX.md <<<
-
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { handleThreadsList } from '../../../src/domain/ui-service/query/threads.js';

@@ -1,8 +1,3 @@
-// input:  isolated config fixtures, env, UI config query handlers
-// output: config redaction, settings provenance, and display-language tests
-// pos:    Regression coverage for the config.get snapshot
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-
 import '../../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';

@@ -2,7 +2,6 @@
 // output: Desktop appearance settings panel
 // pos:    Desktop appearance controls. Everything here is device-local EXCEPT the language, which
 //         is one server setting shared with the conversation Cortex writes in.
-// >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import type { ReactNode } from 'react';
 import { useVocab, useLang, useSetLang, useLangSource, type Lang } from '@/i18n';

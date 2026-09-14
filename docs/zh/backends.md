@@ -222,6 +222,25 @@ MiB 大小，可直接修改。网关会自己热重载配置，路由和请求�
 
 线程模板也可以为每个智能体指定配置，允许同一管道中的不同智能体使用不同的后端。模板配置参见 [threads.md](./threads.md)。
 
+## 按会话选择模型、思考档位与计费路由 {#per-session-model-thinking-level-and-route}
+
+在直接对话里，profile 是**基座**而不是全部。Web 输入框上的引擎胶囊会打开一个选择器，分段依次是 profile、模型、思考档位，以及——当该 endpoint 有不止一种计费方式时——计费路由。profile 以下的选择都作为**按会话生效的覆盖值**叠在该会话所用的 profile 之上。覆盖只在一个地方生效（`effectiveProfile`），所以后端、`extraEnv` 与回退链仍由 profile 决定，能被替换的只有 `model`、`provider`、`thinking` 和 `mode`。每一段都带一行「跟随 profile」，用来把该字段交还给 profile。
+
+选择器受两条规则约束，两条都由服务端强制执行，客户端只是提前把结果画出来：
+
+- **已开始的对话不换后端。** 想用另一后端上的模型，要靠切换到运行该后端的 profile；而已有轮次的会话做不到这件事——对应行会灰显，并提示需要新建会话。尚未发送过消息的草稿则可以自由切换。
+- **选择某个 profile 会清掉该会话的覆盖值。** 选 profile 的含义是「按它声明的样子运行」，模型与思考档位随之回到它写的值。
+
+选择一个 provider 与当前 profile 不同的 PI 模型时，会话会改挂到一个已经在跑该 provider 的同后端 profile 上，以便复用已配置的 gateway 路由而不是猜一个；若没有这样的 profile，路由退回到 provider 名本身。在这里选定的思考档位也会盖过 profile 的 `extraOption` 中残留的 `--effort` / `--thinking`——否则那些标志会不声不响地取胜。
+
+**计费路由**是 gateway endpoint 的计费通道：一个 Anthropic endpoint 会声明 `plan`（订阅）与 `api`（计量密钥）两条，选哪条就决定下一轮由谁买单。只提供该 endpoint 在 `gateway.yaml` 里真正声明的通道；只有一条通道时无从选择，这一段直接不出现。
+
+选择器读的就是 profile 编辑器所用的那份 `models.catalog`：每个 gateway endpoint 一条，带上它的后端、provider、通道与模型清单。档位清单是该后端自己的值域（见下一节），并在 PI 报出某个模型自己的档位阶梯时收窄到那一份——PI 各模型能接受的档位并不相同。如果本机既没有 PI profile 也没有 PI 凭据，PI 那一半会被整体跳过，不会仅仅为了画一个菜单就加载 PI SDK；首次 provider 探测尚未返回时，菜单会直说仍在加载，而不是把半份清单当作全部。
+
+新对话会从本机上一次选定的引擎开始——profile 与覆盖值一起继承，而不是每次都退回默认 profile。
+
+平台侧各有自己的入口：`!model <名称>` 仍然整体切换 profile，`!thinking <档位>` 则按选择器所用的同一套规则设置该 channel 的思考档位（`reset` 交还给 profile）。
+
 ## 思考档位 {#thinking-level}
 
 可选的 `thinking` 配置字段设置后端的推理深度，取值使用后端各自的值域。Claude Code 接受 `low`/`medium`/`high`/`xhigh`/`max`，以 `--effort` 标志传入；PI 接受 `off`/`minimal`/`low`/`medium`/`high`/`xhigh`，作为会话的 thinking level 传入。字段缺省时后端使用自身默认值。fallback 条目不继承主配置的值——每条自行声明。

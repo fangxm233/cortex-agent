@@ -1,8 +1,3 @@
-// input:  PiSessionRequest, the PI SDK, Cortex extension factories
-// output: One in-process PI AgentSession runtime per Cortex session, its events and UI answers
-// pos:    Creates and owns the PI SDK session behind a PISession
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as path from 'node:path';
 import type {
   AgentSession,

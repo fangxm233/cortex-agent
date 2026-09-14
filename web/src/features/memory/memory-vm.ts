@@ -1,7 +1,3 @@
-// input:  Shared memory-tree facts plus diff and blame DTOs
-// output: Hierarchical desktop rows, diff styles, and blame presentation models
-// pos:    Pure view model for the desktop memory browser
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { MemoryLineDiff, MemoryBlameLine } from '@cortex-agent/ui-contract';
 import type { MemoryTreeFacts } from './memory-tree';
 

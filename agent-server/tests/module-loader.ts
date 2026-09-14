@@ -1,8 +1,3 @@
-// input:  relative test module paths
-// output: ESM fresh import + root path helpers
-// pos:    tests/ shared ESM helper utilities
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import * as path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 

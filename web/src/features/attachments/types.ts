@@ -1,8 +1,3 @@
-// input:  Local files, restored upload metadata, and attachment queue state
-// output: Neutral attachment facts, accessors, completed metadata, and send gating
-// pos:    Shared desktop/mobile attachment domain model
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 export interface AttachmentMeta {
   name: string;
   path: string;

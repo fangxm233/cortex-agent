@@ -1,8 +1,3 @@
-# input:  synthetic trial seeds, container probes, proxy sessions
-# output: reusable wiring fixtures and recording handles
-# pos:    Offline trial-proxy lifecycle fixture helpers
-# >>> If I am updated, update my header and folder CORTEX.md <<<
-
 import json
 import socket
 from datetime import UTC, datetime, timedelta

@@ -1,8 +1,3 @@
-// input:  EventBus, delta: number
-// output: busyTracker singleton — activeLlmCount tracking, llm.active-count-delta publish, IPC busy/idle
-// pos:    orch/ layer — LLM busy/idle IPC signaling [S6-C]
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { EventBus } from '@events/index.js';
 
 export class BusyTracker {

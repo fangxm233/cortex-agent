@@ -1,7 +1,3 @@
-// input:  React, mobile palette, shared interaction view models
-// output: Mobile ask-user and plan-approval card components
-// pos:    @ds-adherence-ignore Mobile interaction presentation
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useState } from 'react';
 import { MC, MONO } from '@/mobile/ui/kit';
 import {

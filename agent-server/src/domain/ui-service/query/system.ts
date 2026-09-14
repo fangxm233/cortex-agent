@@ -1,8 +1,3 @@
-// input:  process files, throttle state, persisted usage service
-// output: daemon, throttle, and provider usage snapshots
-// pos:    Read-only system UI queries
-// >>> If I am updated, update CORTEX.md and the parent folder's CORTEX.md <<<
-
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import * as path from 'node:path';
 import { STORE_DIR } from '@core/paths.js';

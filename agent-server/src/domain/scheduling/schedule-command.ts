@@ -1,8 +1,3 @@
-// input:  !schedule text, PlatformAdapter, Scheduler, profile
-// output: handleScheduleCommand dispatcher
-// pos:    !schedule subcommand routing and profile pinning
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-
 import type { PlatformAdapter } from '@platform/adapter.js';
 import type { Destination } from '@platform/types.js';
 import { Icons } from '../../core/icons.js';

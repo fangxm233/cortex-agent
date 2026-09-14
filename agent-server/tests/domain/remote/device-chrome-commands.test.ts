@@ -1,7 +1,3 @@
-// input:  device platforms
-// output: pinned shell snippets that launch and stop a managed Chrome on a device
-// pos:    tests for the device-browser command builders
-// >>> If I am updated, update CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import {
   chromeCandidates, chromeLaunchCommand, chromeStopCommand, DEVICE_PROFILE_PATH,
