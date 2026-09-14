@@ -73,3 +73,18 @@ export function shouldSkipAttempt(
 export function attemptProvider(attempt: Parameters<typeof resolveRateLimitProvider>[0]): string {
   return resolveRateLimitProvider(attempt);
 }
+
+/**
+ * The same attribution, but honest about not knowing: null when the attempt carries no engine
+ * selection at all.
+ *
+ * An unknown profile name deliberately resolves to a synthetic config with an empty model
+ * (`config-resolver.syntheticProfile`) so the execution record can be opened with a truthful
+ * backend and the run itself rejects the name. Attributing that attempt's failure to a provider
+ * would open an outage window against a provider that was never called — which is exactly the
+ * "don't invent one" rule the thread runner already applies when it reports `provider: null` for
+ * a step whose profile does not resolve.
+ */
+export function attemptProviderOrNull(attempt: RunAttemptConfig): string | null {
+  return attempt.model ? resolveRateLimitProvider(attempt) : null;
+}

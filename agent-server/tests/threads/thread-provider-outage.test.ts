@@ -63,6 +63,18 @@ function writeThreadFixture(): void {
     name: 'provider-outage-fresh', description: 'non-persist provider outage fixture',
     agents: ['outage-fresh-worker'], transitions: [], entryAgent: 'outage-fresh-worker', maxTotalSteps: 3,
   }));
+  // A slot pointing at a profile that does not exist. The step still runs (the execution record is
+  // opened with a borrowed backend and the run is what rejects the name), but nothing about it
+  // names a provider.
+  fs.writeFileSync(path.join(agentsDir, 'outage-unknown-profile-worker.json'), JSON.stringify({
+    name: 'outage-unknown-profile-worker', profile: 'missing-profile',
+    persistSession: true, promptTemplate: '{{input}}',
+  }));
+  fs.writeFileSync(path.join(templatesDir, 'provider-outage-unknown-profile.json'), JSON.stringify({
+    name: 'provider-outage-unknown-profile', description: 'unresolvable profile fixture',
+    agents: ['outage-unknown-profile-worker'], transitions: [],
+    entryAgent: 'outage-unknown-profile-worker', maxTotalSteps: 3,
+  }));
 }
 
 function writeProfileFixture(): void {
@@ -110,6 +122,20 @@ function createOutageThread(outageResumeCount = 0): ThreadRecord {
     userMessageTs: String(Date.now()),
     projectId: 'atlas',
     metadata: { outageResumeCount },
+  });
+  createdThreadIds.add(thread.id);
+  return thread;
+}
+
+/** A thread whose only slot names a profile that does not exist — neither the step's own
+ *  resolution nor the pause path can name a provider for it. */
+function createUnknownProfileThread(): ThreadRecord {
+  const thread = createThread('C-provider-outage-unknown', {
+    templateName: 'provider-outage-unknown-profile',
+    userMessage: 'continue durable work',
+    userMessageTs: String(Date.now()),
+    projectId: 'atlas',
+    metadata: { outageResumeCount: 0 },
   });
   createdThreadIds.add(thread.id);
   return thread;
@@ -389,6 +415,12 @@ test('continueThread on an interrupted pause delivers the new user message with 
   const paused = await runThread(thread.id, opts);
   assert.equal(paused.thread.status, 'rate_limited');
 
+  // The pause opened an outage window on this step's provider, and a thread step is never
+  // user-initiated — so the run's pre-flight would skip the continue without ever reaching a
+  // backend (the same gate the old facade applied, one layer further in). Clear the window: this
+  // case is about the PROMPT a manual continue builds, not about the gate.
+  await throttle.clearThrottle('provider-a');
+
   await continueThread(thread.id, 'also handle the edge case', opts);
 
   const secondCall = attempt.startAttempt.mock.calls[1];
@@ -413,10 +445,7 @@ test('buildStepPrompt interrupted resume sends the reminder plus buffered replie
 
 test('unresolvable active-step profile falls back to a null provider', async () => {
   await initThrottle();
-  const thread = createOutageThread();
-  await threadStore.mutate(thread.id, (record) => {
-    record.agents[record.activeAgent].profile = 'missing-profile';
-  });
+  const thread = createUnknownProfileThread();
   queueError('HTTP 503 Service Unavailable');
 
   const paused = await runThread(thread.id, makeOptions(thread));
@@ -543,9 +572,13 @@ test('fourth retryable outage fails the thread without another pause', async () 
 
 test('permanent provider errors bypass pause even while a throttle is active', async () => {
   await initThrottle();
+  // Throttled: some OTHER provider. The global throttle is what this case is about — a permanent
+  // error must not be diverted into the outage machinery just because a window is open somewhere.
+  // Blocking this step's own provider would be a different case entirely: the run's pre-flight
+  // never spawns at all (see the test below), so no error of any kind could be raised.
   await throttle.handleRateLimitEvent(
     { rateLimitType: 'five_hour', utilization: 0.99, resetsAt: Math.floor(Date.now() / 1000) + 300 },
-    { provider: 'provider-a', displayName: 'Provider A', mode: 'api' },
+    { provider: 'provider-b', displayName: 'Provider B', mode: 'api' },
   );
   const thread = createOutageThread();
   queueError('insufficient balance: billing quota exhausted');
@@ -556,4 +589,23 @@ test('permanent provider errors bypass pause even while a throttle is active', a
   assert.equal(failed.status, 'failed');
   assert.equal(failed.metadata?.outageResumeCount, 0);
   assert.equal(resumeRegistry.getResumeCount(), 0);
+});
+
+test('a step whose own provider is throttled pauses without spawning a backend', async () => {
+  await initThrottle();
+  await throttle.handleRateLimitEvent(
+    { rateLimitType: 'five_hour', utilization: 0.99, resetsAt: Math.floor(Date.now() / 1000) + 300 },
+    { provider: 'provider-a', displayName: 'Provider A', mode: 'api' },
+  );
+  const thread = createOutageThread();
+  queueError('this attempt must never be made');
+
+  const paused = await runThread(thread.id, makeOptions(thread));
+
+  // The run's pre-flight refuses an attempt whose provider is already known blocked, and nothing
+  // is user-initiated about a thread step. The refusal IS the step's result: the thread pauses for
+  // auto-resume and the queued failure was never consumed.
+  assert.equal(paused.thread.status, 'rate_limited');
+  assert.equal(attempt.startAttempt.mock.calls.length, 0, 'no backend was ever opened');
+  assert.equal(paused.thread.metadata?.rateLimitProvider, 'provider-a');
 });

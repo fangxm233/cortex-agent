@@ -17,7 +17,8 @@ import { isRetryableError, isRetryableResult } from '../agents/config.js';
 import type { RunAttemptConfig } from '../agents/profile-manager.js';
 import { publishAuthRecovered, publishAuthRequired, classifyAuthError } from '../auth/auth-events.js';
 import {
-  attemptProvider, rateLimitedResult, shouldSkipAttempt, planAttempts, attemptLabel,
+  attemptProvider, attemptProviderOrNull, rateLimitedResult, shouldSkipAttempt, planAttempts,
+  attemptLabel,
 } from './fallback.js';
 import { resolveRunRoute } from './config-resolver.js';
 import { AttemptNoticeTracker, assistantNoticeLevel } from './notices.js';
@@ -336,17 +337,19 @@ export class AgentRunImpl implements AgentRun {
     this.onForegroundError(failure);
   }
 
-  /** Stamp the attempt's provider onto a result that did not name one. */
+  /** Stamp the attempt's provider onto a result that did not name one. An attempt with no engine
+   *  selection (an unknown profile name) names no provider: see `attemptProviderOrNull`. */
   private attribute(result: RunResult): RunResult {
-    const provider = attemptProvider(this.attemptValue.config);
-    return result.rateLimitProvider ? result : { ...result, rateLimitProvider: provider };
+    const provider = attemptProviderOrNull(this.attemptValue.config);
+    if (!provider || result.rateLimitProvider) return result;
+    return { ...result, rateLimitProvider: provider };
   }
 
   private attributeError(error: unknown): Error {
     const failure = asError(error);
-    if (isRetryableError(failure)) {
-      (failure as Error & { rateLimitProvider?: string }).rateLimitProvider
-        ??= attemptProvider(this.attemptValue.config);
+    const provider = attemptProviderOrNull(this.attemptValue.config);
+    if (provider && isRetryableError(failure)) {
+      (failure as Error & { rateLimitProvider?: string }).rateLimitProvider ??= provider;
     }
     return failure;
   }
@@ -499,11 +502,13 @@ export class AgentRunImpl implements AgentRun {
 
   /**
    * The backend came back with a different session than the one we asked it to resume: its
-   * transcript is gone and this turn starts from nothing. Only a web surface is told — elsewhere
-   * the status message already says the turn restarted.
+   * transcript is gone and this turn starts from nothing. A web surface is the only one told —
+   * everywhere else the status message already renders the turn as restarted, and a second line
+   * saying so is a duplicate (see `run-with-adapter.test.ts`, the `slack:C1` case).
    */
   private announceBackendSessionReset(backendSessionId: string): void {
     if (!this.noticesActive) return;
+    if (!this.request.context.channel?.startsWith('web:')) return;
     const spec = this.current?.spec;
     if (!spec?.resume.resume || !spec.resume.backendSessionId) return;
     if (backendSessionId === spec.resume.backendSessionId) return;

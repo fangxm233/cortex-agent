@@ -136,12 +136,16 @@ function notices(events: RunEvent[]): Array<{ text: string; level?: string }> {
 
 function claudeRequestWithScript(
   partial: RunRequestFixtureInput,
-  line: unknown,
+  line: unknown | unknown[],
   override: Partial<RunAttemptConfig> = CLAUDE,
 ): RunRequest {
+  // A single line is the common case; an array stages a whole turn. A successful Claude turn's
+  // `finalOutput` is its assistant prose, not the `result` line's `result` field, so a turn whose
+  // output is asserted must carry the assistant text too.
+  const turn = Array.isArray(line) ? line : [line];
   const request = runRequestFixture({
     ...partial,
-    processSpawner: (() => ({ process: scriptedChild([[line]]) })) as never,
+    processSpawner: (() => ({ process: scriptedChild([turn]) })) as never,
   }, override);
   return request;
 }
@@ -434,7 +438,7 @@ test('run falls back after PI exhausts a generic provider-retry error', async ()
   const request = withFallback(
     claudeRequestWithScript(
       { channel: 'web:retry', sessionKey: 'fallback-chain', piProvider: 'deepseek' },
-      resultLine({ result: 'fallback-ok', session_id: 'claude-fallback' }),
+      [textLine('fallback-ok'), resultLine({ result: 'fallback-ok', session_id: 'claude-fallback' })],
     ),
     fallbackAttempt,
   );
@@ -467,6 +471,11 @@ test('run falls back after PI exhausts a generic provider-retry error', async ()
   assert.deepEqual(notices(seen.events), [{
     text: 'Model fallback: deepseek-v4-pro/deepseek → claude-sonnet-4-6/plan.',
     level: 'warning',
+  }, {
+    // The fallback attempt's own assistant prose is a notice too; the real backend streams it
+    // (its `finalOutput` is that prose, not the result line's `result` field).
+    text: 'fallback-ok',
+    level: undefined,
   }]);
 });
 
