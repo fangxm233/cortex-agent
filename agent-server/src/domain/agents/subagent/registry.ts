@@ -19,12 +19,16 @@ export const FINISHED_RUN_TTL_MS = 30 * 60 * 1000;
 export const WAIT_SLICE_MS = 25 * 1000;
 
 /**
- * How long a foreground run may go unwaited before it is abandoned and stopped.
+ * How long a foreground run may go unwaited before it is abandoned.
  *
  * A foreground caller is an MCP sidecar polling in {@link WAIT_SLICE_MS} hops. If its turn is
  * killed the sidecar dies with it and simply stops asking — nothing else would ever tell the
- * daemon, and the children would keep spending tokens for an answer no one can receive. Three
- * missed hops is the signal. Background runs are exempt: nobody is waiting on them by design.
+ * daemon. Three missed hops is the signal. Background runs are exempt: nobody is waiting on them
+ * by design.
+ *
+ * What happens next is {@link StartSubagentRunOptions.onAbandon}'s call. When the work can still
+ * be delivered somewhere it is adopted into the background and keeps going; when it cannot, the
+ * run is stopped, because children spending tokens for an answer no one can receive is waste.
  */
 export const FOREGROUND_ABANDON_MS = 3 * WAIT_SLICE_MS;
 
@@ -54,6 +58,8 @@ interface SubagentRunRecord extends SubagentRunView {
   stopRequested: boolean;
   /** Last time a foreground caller asked about this run. See {@link FOREGROUND_ABANDON_MS}. */
   lastWaitAt: number;
+  /** Kept for the sweep, which runs long after the start call returned. */
+  onAbandon?: StartSubagentRunOptions['onAbandon'];
 }
 
 export interface StartSubagentRunOptions {
@@ -67,6 +73,14 @@ export interface StartSubagentRunOptions {
   /** Called exactly once when the run settles, with the terminal view. Background delivery hooks
    *  in here; a foreground caller ignores it and reads the result from its own wait. */
   onSettled?: (view: SubagentRunView, result: SubagentToolResult | null) => void;
+  /**
+   * Last word before a run nobody waits on is killed. Returning true means the caller has taken
+   * responsibility for the result — the run is flipped to background and left to finish; false (or
+   * no hook at all) keeps today's behaviour and stops it.
+   *
+   * Only foreground runs can reach here, and only once per run: after the flip the sweep skips it.
+   */
+  onAbandon?: (view: SubagentRunView) => boolean;
 }
 
 const runs = new Map<string, SubagentRunRecord>();
@@ -141,6 +155,7 @@ export function startSubagentRun(options: StartSubagentRunOptions): SubagentRunV
     result: null,
     stopRequested: false,
     lastWaitAt: now,
+    onAbandon: options.onAbandon,
   };
   runs.set(record.id, record);
   if (!options.background) armAbandonSweep();
@@ -229,12 +244,34 @@ export function stopSubagentRunsForSession(sessionId: string): number {
 
 let sweepTimer: NodeJS.Timeout | null = null;
 
+/**
+ * Offer a waiterless run to its `onAbandon` hook. True means it was taken: the run becomes a
+ * background one and is exempt from the sweep from here on, so the offer is made at most once.
+ */
+function adoptRun(record: SubagentRunRecord): boolean {
+  let adopted = false;
+  try {
+    adopted = record.onAbandon?.(viewOf(record)) === true;
+  } catch (error) {
+    // The hook owns delivery, not the run. A broken hook means nobody can collect the result,
+    // which is exactly the case the caller falls back to stopping for.
+    log.error(`Subagent run ${record.id} abandon hook failed: ${(error as Error).message}`);
+    return false;
+  }
+  if (adopted) record.background = true;
+  return adopted;
+}
+
 function sweepAbandoned(): void {
   const now = Date.now();
   let live = 0;
   for (const record of runs.values()) {
     if (record.status !== 'running' || record.background) continue;
     if (now - record.lastWaitAt > FOREGROUND_ABANDON_MS) {
+      if (adoptRun(record)) {
+        log.info(`Subagent run ${record.id} adopted into the background: no caller has waited on it for ${FOREGROUND_ABANDON_MS}ms`);
+        continue;
+      }
       log.warn(`Stopping subagent run ${record.id}: no caller has waited on it for ${FOREGROUND_ABANDON_MS}ms`);
       stopSubagentRun(record.id);
       continue;
@@ -247,12 +284,37 @@ function sweepAbandoned(): void {
   }
 }
 
+/**
+ * Adopt a run into the background on request, without waiting for the sweep.
+ *
+ * The foreground tool calls this when it gives up on its own deadline — it knows it is about to
+ * stop waiting, so there is no reason to make the run sit through three silent hops first.
+ *
+ * Null only when there is no such run. A run that has already finished, or is already in the
+ * background, comes back as-is: both are the answer the caller wanted anyway. A run whose hook
+ * declines adoption also comes back as-is, still in the foreground, and the sweep decides its fate
+ * on the usual schedule.
+ */
+export function detachSubagentRun(id: string): SubagentRunView | null {
+  const record = runs.get(id);
+  if (!record) return null;
+  if (record.status === 'running' && !record.background && adoptRun(record)) {
+    log.info(`Subagent run ${record.id} adopted into the background at its caller's request`);
+  }
+  return viewOf(record);
+}
+
 /** Started on the first foreground run and stopped once none are left, so an idle daemon holds no
  *  timer. Unref'd: this must never be the reason a process stays alive. */
 function armAbandonSweep(): void {
   if (sweepTimer) return;
   sweepTimer = setInterval(sweepAbandoned, WAIT_SLICE_MS);
   sweepTimer.unref?.();
+}
+
+/** Test seam: run the abandonment sweep now, instead of waiting out a real interval. */
+export function _sweepAbandonedForTest(): void {
+  sweepAbandoned();
 }
 
 /** Test seam: drop every record. */

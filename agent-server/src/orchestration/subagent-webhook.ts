@@ -2,10 +2,11 @@ import { createLogger } from '@core/log.js';
 import type { Backend } from '../agent-adapter/types.js';
 import { resolveProfileConfig } from '@domain/agents/profile-manager.js';
 import {
-  getSubagentRun, listSubagentRuns, stopSubagentRun, waitForSubagentRun,
+  detachSubagentRun, getSubagentRun, listSubagentRuns, stopSubagentRun, waitForSubagentRun,
   type SubagentRunView,
 } from '@domain/agents/subagent/registry.js';
 import { startDaemonSubagentRun } from '@domain/agents/subagent/service.js';
+import { adoptForegroundRun, settleAdoptedRun } from './subagent-adopt.js';
 import { parentNoticeSink } from './subagent-attribution.js';
 import { startBackgroundSubagentRun } from './subagent-delivery.js';
 import type { SubagentParentContext } from '@domain/agents/subagent/runner.js';
@@ -88,13 +89,19 @@ export async function handleSubagentWebhook(data: Record<string, any>): Promise<
         // that outlives the turn simply stops being able to push; delivery takes over from there.
         onNotice: parentNoticeSink(sessionId, parent.channel),
       };
-      // A foreground run needs no hold and no delivery: its caller is blocked on `wait`, which
-      // holds the turn open by itself, and the answer comes back as that call's tool result.
+      // A foreground run needs no hold and no delivery while its caller is there: that caller is
+      // blocked on `wait`, which holds the turn open by itself, and the answer comes back as that
+      // call's tool result. The two hooks below only come into play once the caller is gone — they
+      // turn a run that would have been killed into a background one, result and all.
       const view = background
         ? startBackgroundSubagentRun(
           onSettled => startDaemonSubagentRun({ ...request, onSettled }), parent.channel,
         )
-        : startDaemonSubagentRun(request);
+        : startDaemonSubagentRun({
+          ...request,
+          onAbandon: abandoned => adoptForegroundRun(abandoned, parent.channel),
+          onSettled: (settled, result) => settleAdoptedRun(settled, result, parent.channel),
+        });
       return { success: true, data: { id: view.id, status: view.status } };
     }
     if (data.action === 'wait') {
@@ -104,6 +111,12 @@ export async function handleSubagentWebhook(data: Record<string, any>): Promise<
     }
     if (data.action === 'stop') {
       const view = stopSubagentRun(String(data.runId ?? ''));
+      if (!view) return { success: false, error: `no such agent run: ${data.runId}` };
+      return { success: true, data: { id: view.id, status: view.status } };
+    }
+    if (data.action === 'detach') {
+      // The foreground tool giving up on its own deadline, ahead of the abandonment sweep.
+      const view = detachSubagentRun(String(data.runId ?? ''));
       if (!view) return { success: false, error: `no such agent run: ${data.runId}` };
       return { success: true, data: { id: view.id, status: view.status } };
     }

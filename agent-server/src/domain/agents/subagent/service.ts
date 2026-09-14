@@ -21,6 +21,8 @@ export interface DaemonSubagentRequest {
   onNotice?: (notice: SubagentNotice) => void;
   /** Called once when the run settles. The background path delivers the result from here. */
   onSettled?: Parameters<typeof startSubagentRun>[0]['onSettled'];
+  /** Called when a foreground run loses its last waiter. See StartSubagentRunOptions.onAbandon. */
+  onAbandon?: Parameters<typeof startSubagentRun>[0]['onAbandon'];
 }
 
 /**
@@ -39,6 +41,7 @@ export function startDaemonSubagentRun(request: DaemonSubagentRequest): Subagent
     sessionId: request.sessionId,
     background: request.background,
     onSettled: request.onSettled,
+    onAbandon: request.onAbandon,
     execute: (signal, runId) => {
       const runChild: RunChildFn = async (task, index, childSignal) => {
         const role = findRole(roles, task.subagent_type);
