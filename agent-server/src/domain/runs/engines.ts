@@ -133,8 +133,9 @@ export class SessionEngines {
   }
 
   /** Graceful close of the pooled session for a key. The pool entry is dropped synchronously, so
-   *  the next `acquire` opens a fresh session even while this one winds down. Never rejects — a
-   *  close failure is logged, exactly as the legacy wrappers did. Command handlers that must
+   *  the next `acquire` opens a fresh session even while this one winds down. Never rejects: a
+   *  close failure is logged, because a caller tearing a session down has no second option.
+   *  Command handlers that must
    *  not block on a subprocess grace period call this fire-and-forget (`void engines.close(...)`). */
   async close(key: string): Promise<void> {
     const engine = this.sessions.get(key);

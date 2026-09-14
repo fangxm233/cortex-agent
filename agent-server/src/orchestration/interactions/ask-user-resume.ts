@@ -23,7 +23,7 @@ import * as askUserQuestion from './ask-user-question.js';
 
 const log = createLogger('ask-user-resume');
 
-/** Ask-user groups are thread-less in practice, but the legacy facade fell back to
+/** Ask-user groups are thread-less in practice, but the pre-refactor path fell back to
  *  `shouldAwaitBgInline` (settings-gated, thread-keyed); mirror that decision here. */
 export async function resumeAskUserQuestionGroup({ adapter, group, responseText }: { adapter: PlatformAdapter; group: { channel: string; sessionId: string; groupId: string; threadId?: string | null }; responseText: string }): Promise<void> {
   let sessionRelease: (() => void) | null = null;
@@ -54,7 +54,8 @@ export async function resumeAskUserQuestionGroup({ adapter, group, responseText 
       session: {
         sessionId: group.sessionId,
         backendSessionId: askBackendSessionId,
-        // The legacy run set no session key, so the spec builder fell back to the channel.
+        // The pool key is the channel — what the interrupted turn's engine was opened under, so the
+        // resume lands on the same pooled session.
         engineKey: group.channel,
         sessionName: askSessionName,
       },
@@ -66,7 +67,7 @@ export async function resumeAskUserQuestionGroup({ adapter, group, responseText 
         project: askProjectId,
         trigger: 'ask-user-question',
         // The pre-refactor resume passed no threadId and never waited for background work inline.
-        // Both are load-bearing: a threadId lands in CORTEX_THREAD_ID and switches the facade's
+        // Both are load-bearing: a threadId lands in CORTEX_THREAD_ID and switches the run's
         // inline background wait on, which would make the resume turn block on background tasks.
         threadId: null,
         executionKind: 'local',

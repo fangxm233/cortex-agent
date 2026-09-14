@@ -67,8 +67,8 @@ function takePending(pending: PendingInjection[], text: string): PendingInjectio
 }
 
 /**
- * Claude's `EngineSession`. `run()` opens a RunEvent stream over the same `ClaudeSession` the
- * legacy `spawn()` path drives; the turn's normalized events arrive through the callback bag
+ * Claude's `EngineSession`. `run()` opens a RunEvent stream over a pooled `ClaudeSession`; the
+ * turn's normalized events arrive through the callback bag
  * (`claudeTurnCallbacks`), the derived accounting through `pushDerivedTurnEvents`, and the run adds
  * only the `session_started` and terminating `phase` bookkeeping. `cancel()` ends a run's stream,
  * never the pooled session.

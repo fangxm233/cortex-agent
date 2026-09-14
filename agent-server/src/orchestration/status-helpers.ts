@@ -51,8 +51,8 @@ export function buildExecutionStatusReport(): string {
 }
 
 /** Report an attempt switch on the status message, from the already-rendered `model/mode` labels.
- *  The run layer reports a fallback as two labels (`RunEvent.run_fallback`); the legacy callback
- *  path below renders the same labels out of the two `AgentConfig`s. */
+ *  The run layer reports a fallback as two labels (`RunEvent.run_fallback`); the callback below
+ *  renders the same labels out of a pair of attempt configs. */
 export function makeFallbackLabelNotifier(statusMsg: MessageRef | null, adapter: PlatformAdapter) {
   return async (fromLabel: string, toLabel: string) => {
     log.info(`Fallback: ${fromLabel} \u2192 ${toLabel}`);
@@ -81,8 +81,8 @@ export async function runAutoCompoundForScheduledTask({ baseResult, channel, pro
   const compoundTrigger = trigger ? `${trigger}:compound` : 'auto-compound';
   // The compound follow-up is a fresh local run against the same session. Its backend session id
   // is the base result's id (no separate Cortex track id exists for it), so both the track and the
-  // backend resume target carry it, and the pool key stays the channel exactly as the legacy
-  // `runAgent` call resolved it (sessionKey unset -> channel).
+  // backend resume target carry it, and the pool key stays the channel every other interactive
+  // turn opens its engine under.
   const request: RunRequest = {
     runId: randomUUID(),
     session: {
@@ -105,8 +105,8 @@ export async function runAutoCompoundForScheduledTask({ baseResult, channel, pro
       scheduleTaskId: null,
     },
     policy: {
-      // The legacy call left `awaitBackground` undefined; with no threadId that resolved to
-      // "do not wait inline" (see shouldAwaitBgInline), so the run never holds for bg work.
+      // With no threadId the background policy resolves to "do not wait inline" (see
+      // shouldAwaitBgInline), so the compound run never holds for background work.
       background: 'none',
       recordCost: true,
       hooks: true,

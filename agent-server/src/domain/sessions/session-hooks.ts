@@ -106,7 +106,8 @@ export interface SessionHookInject {
 /** Pool key for the onNew hook's injected "pre-close" turn.
  *
  *  MUST be distinct from the channel's live session-pool slot (which is keyed by the channel
- *  itself, see ClaudeAdapter / facade `sessionKey: options.channel`). Race it guards against:
+ *  itself — an interactive run opens its engine under `engineKey === channel`). Race it guards
+ *  against:
  *  `!new` fires this hook fire-and-forget, then synchronously closes the pooled session +
  *  resetChannelSession(channel). The hook's memory-write subprocess finishes LATER and injects
  *  its stdout as a final turn that RESUMES the old session. If that turn used `channel` as its
@@ -127,7 +128,7 @@ export interface InjectDeps {
 }
 
 /** Synthetic profile for an unknown/missing configured name: keeps the requested name so the
- *  facade still rejects it, while its backend mirrors the channel's live session. */
+ *  run still rejects it, while its backend mirrors the channel's live session. */
 function hookInjectionProfile(profileName: string | null, channel: string): ResolvedProfileConfig {
   try {
     return resolveProfileConfig(profileName);
@@ -167,13 +168,14 @@ export async function runHookInjection(
     const request: RunRequest = {
       runId: randomUUID(),
       session: {
-        // The injected turn resumes the OLD backend session; the legacy call supplied no separate
-        // track id, so it defaults to the same id.
+        // The injected turn resumes the OLD backend session; there is no separate Cortex track id
+        // for it, so both fields carry the same id.
         sessionId: inject.targetSessionId,
         backendSessionId: inject.targetSessionId,
-        // Preserve the exact pool key the legacy `runAgent` call used (onNew: the isolated
-        // `${channel}::onnew-hook`; onMessageEnd: the channel). D4's `<sessionId>::hook` is a
-        // Phase-2 rename; changing the key now would re-pool live sessions.
+        // The pool key is the sessionKey the hook has always used (onNew: the isolated
+        // `${channel}::onnew-hook`; onMessageEnd: the channel). Changing it would silently re-pool
+        // every live hook session, so it stays keyed on the injected session key and not on the
+        // session id.
         engineKey: inject.sessionKey,
         sessionName: null,
       },

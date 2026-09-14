@@ -509,9 +509,9 @@ export interface RunThreadOptions {
   onProgress?: ((progress: any) => void) | null;
   onToolUse?: ((name: string, input: any) => void) | null;
   files?: any[];
-  /** Called by the facade event loop when a plan_written NormalizedEvent fires (PI backend: during turn, not after). */
+  /** Called from the step's observer when a `plan_written` RunEvent arrives (PI backend: during the turn, not after). */
   onPlanWritten?: ((event: { path: string; content: string; toolUseId: string }) => void) | null;
-  /** Called by the facade event loop when an ask_user_question NormalizedEvent fires (PI backend: during turn). */
+  /** Called from the step's observer when an `ask_user_question` RunEvent arrives (PI backend: during the turn). */
   onAskUserQuestion?: ((event: { toolUseId: string; questions: Array<{ question: string; options?: string[]; multi?: boolean }> }) => void) | null;
   /** Invoked before end hooks when agent abort must block the owning dispatch task. */
   onAbort?: ((info: { taskId: string; project: string | null; reason: string | null }) => Promise<void> | void) | null;

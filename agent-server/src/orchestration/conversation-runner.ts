@@ -1,4 +1,4 @@
-// input:  agent facade, tool gates, prompts, run service
+// input:  run service, profile/spec resolution, tool gates, prompts
 // output: gated plain turns and backend-ready prompt callbacks
 // pos:    Thread-free user-turn execution
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -179,8 +179,9 @@ export async function resolveConversationCommission(
 
 /**
  * Execute a single plain user-conversation turn against the active default agent — no thread,
- * no workspace, no artifact. Mirrors the legacy default-thread branch of runThread() exactly
- * (channel session reuse, useCoreMcp:false, isUserInitiated:true, single step).
+ * no workspace, no artifact. The thread path's decisions are mirrored field for field (channel
+ * session reuse, no core MCP, a user-initiated single step) so a plain turn and a one-step thread
+ * behave the same.
  *
  * The execution record, the live-registry registration and the teardown are owned by `startRun`
  * (plan D8). This function only assembles the fully-resolved `RunRequest`, opens the run with the
@@ -238,9 +239,8 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
     session: {
       sessionId: opts.trackSessionId,
       backendSessionId: opts.backendSessionId,
-      // Hazard (a): the legacy run passed `sessionKey: null`, so the spec builder resolved the pool key
-      // from the channel. `engineKey` maps onto that same `sessionKey`, so use the channel here to
-      // keep the pool key byte-identical — changing it would silently re-pool every live session.
+      // Hazard (a): the pool key must stay the channel, byte-identical to what every interactive
+      // turn has opened its engine under — changing it would silently re-pool every live session.
       engineKey: opts.channel,
       sessionName: opts.sessionName,
     },
@@ -269,7 +269,7 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
       mcpComposition: 'direct',
       mcpToolAllowlist: agentConfig.mcpToolAllowlist,
       browserCdpEndpoint: opts.browserCdpEndpoint ?? null,
-      // Default for this path: legacy raw/text transcript capture stays off unless a surface opts in.
+      // Default for this path: raw/text transcript capture is off; a surface may opt in.
       // Claude writes a per-turn transcript file unless told not to; only a frozen subagent
       // child opts out. `captureTranscriptLogs` defaults to ON, so this must stay true.
       captureTranscripts: true,

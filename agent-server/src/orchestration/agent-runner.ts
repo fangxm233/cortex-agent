@@ -456,14 +456,14 @@ export class AgentRunner {
             );
             return;
           case 'run_fallback':
-            // The profile's fallback chain switched attempt. The chat notice is still synthesized by
-            // the facade (it reaches the sink through onAssistantMessage); this updates the
-            // platform status message, which is what makeFallbackNotifier always did.
+            // The profile's fallback chain switched attempt. The chat notice is synthesized by the
+            // run (domain/runs/notices.ts) and reaches the sink as assistant_text; this only
+            // updates the platform status message.
             void callbacks.onFallback(event.from, event.to);
             return;
-          // The facade synthesizes the chat notices for compaction and gateway model fallback and
-          // delivers them through onAssistantMessage, so the sink already has them; these events are
-          // the machine-readable twin, for observers that want the fact rather than the prose.
+          // The run synthesizes the chat notices for compaction and gateway model fallback and
+          // delivers them as assistant_text, so the sink already has them; these events are the
+          // machine-readable twin, for observers that want the fact rather than the prose.
           case 'context_compacted':
           case 'model_fallback':
           case 'phase':

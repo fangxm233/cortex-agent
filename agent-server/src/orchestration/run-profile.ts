@@ -1,7 +1,7 @@
 // input:  a run's profile name and channel
 // output: the ResolvedProfileConfig a continuation run spawns under
 // pos:    orchestration — shared by the surfaces that open a follow-up run (ask-user resume,
-//         edit retry) so both keep the legacy "open the execution, then let the facade reject an
+//         edit retry) so both keep the "open the execution record, then let the run reject an
 //         unknown name" ordering.
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -10,9 +10,9 @@ import { resolveProfileConfig } from '@domain/agents/profile-manager.js';
 import { resolveBackendForChannel } from '@domain/agents/index.js';
 import { resolveRunConfig } from '@domain/runs/config-resolver.js';
 
-/** Synthetic profile for an unknown configured name. Keeps the requested name so the facade still
- *  rejects it inside the run (after the execution record is opened), while its backend/mode mirror
- *  the legacy active-backend execution record. */
+/** Synthetic profile for an unknown configured name. Keeps the requested name so the run still
+ *  rejects it (after the execution record has been opened), while its backend/mode mirror the
+ *  channel's active backend. */
 function fallbackRunProfile(profileName: string | null, channel: string): ResolvedProfileConfig {
   return {
     name: profileName ?? '',
@@ -25,8 +25,8 @@ function fallbackRunProfile(profileName: string | null, channel: string): Resolv
   };
 }
 
-/** Resolve the profile a continuation run spawns, preserving the legacy "open the execution, then
- *  let the facade reject an unknown name" ordering. */
+/** Resolve the profile a continuation run spawns, preserving the "open the execution record, then
+ *  let the run reject an unknown name" ordering. */
 export function resolveRunProfile(profileName: string | null, channel: string): ResolvedProfileConfig {
   try {
     return resolveProfileConfig(profileName);

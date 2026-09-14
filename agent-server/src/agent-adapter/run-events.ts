@@ -64,8 +64,8 @@ export type RunEvent =
     }
   | { type: 'injection_delivered'; injectionId: string; foldedIntoTurn: boolean }
   | { type: 'injection_rejected'; injectionId: string; reason: string }
-  // provider/mode are optional because the legacy NormalizedEvent.rate_limit carries neither; the
-  // Phase 2 adapter always sets them.
+  // provider/mode are optional only because PI's normalized `rate_limit` event carries neither;
+  // Claude's adapter always sets both.
   //
   // Advisory only. The provider's window reaches the throttle through the injected
   // `RateLimitReporter`, never through this stream: the backend reports it between turns and

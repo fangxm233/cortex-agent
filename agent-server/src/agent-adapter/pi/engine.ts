@@ -22,7 +22,7 @@ export interface PIEngineOpenHooks {
   onSelfClose?: (sessionKey: string, session: unknown) => void;
   /** The pool evicts this engine after a successful `kill()`. */
   onEvict?: (session: PIEngineSession) => void;
-  /** Registry + disk lookup the legacy spawn path uses to resolve the transcript to send into. */
+  /** Registry + disk lookup that resolves the transcript file a turn sends into. */
   resolveSessionPath?: (sessionId: string) => string | null;
 }
 
@@ -196,7 +196,8 @@ export class PIEngineSession implements EngineSession {
     };
   }
 
-  /** The same promise shape `PIAdapter.sendSpawnedTurn` builds. A fresh/reused `PISession` serves
+  /** The promise shape `PISession.beginTurn` hands out: resolve on the turn's result, reject on
+   *  its error. A fresh/reused `PISession` serves
    *  its own transcript (`currentSessionId === sessionId`), so no resume switch is needed here. */
   private sendTurn(message: UserMessage): Promise<AgentResult> {
     return new Promise<AgentResult>((resolve, reject) => {
@@ -212,8 +213,8 @@ export class PIEngineSession implements EngineSession {
    * `PISession.sessionFile` is whatever the session was announced with — for a session whose
    * registry entry was synthesized (`<sessionId>.jsonl`) that file never appeared, and PI wrote a
    * timestamped one instead. A turn that comes back to it after an internal switch therefore has
-   * to re-resolve the path, or it hands PI a switch target that does not exist. `sendSpawnedTurn`
-   * did this per turn; the engine has to as well.
+   * to re-resolve the path, or it hands PI a switch target that does not exist. The engine does
+   * this on every turn, because the session can be switched between them.
    */
   private turnPath(): string | null {
     const targetId = this.session.sessionId;
@@ -267,8 +268,8 @@ export class PIEngineSession implements EngineSession {
     return this.session.isAlive();
   }
 
-  /** Re-point the pooled runtime at another transcript (session rewind). Mutates the same
-   *  `currentSessionId` the legacy send path reads, exactly as `PIAdapter.switchSession` did. */
+  /** Re-point the pooled runtime at another transcript (session rewind). Mutates the pooled
+   *  session's own `currentSessionId`, so its NEXT turn is the one that resumes the new file. */
   async switchSession(sessionId: string, targetPath: string): Promise<SwitchResult> {
     const result = await this.session.sendSwitchSession(targetPath);
     if (result.ok) this.session.currentSessionId = sessionId;

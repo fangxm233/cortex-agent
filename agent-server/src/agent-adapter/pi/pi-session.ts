@@ -401,7 +401,7 @@ export class PISession {
     const turn = this.pendingTurn;
     if (!turn) return evt;
     if (evt.type === 'plan_written') turn.planFilePath = evt.path;
-    // ask_user_question is handled live by the facade; accumulating it would post it twice.
+    // ask_user_question is delivered live as it arrives; accumulating it would post it twice.
     else if (evt.type === 'ask_user_question') { /* intentionally not accumulated */ }
     else if (evt.type === 'turn_complete') return this.handleTurnComplete(evt);
     else if (evt.type === 'error' && evt.fatal) {

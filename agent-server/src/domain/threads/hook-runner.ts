@@ -88,8 +88,8 @@ function asHookResult(emitted: HookEmitResult): HookResult | null {
   } as HookResult;
 }
 
-/** Same background policy as a thread step: the hook turn carries a threadId, so the legacy facade
- *  fell back to the settings-gated inline wait. */
+/** Same background policy as a thread step: the hook turn carries a threadId, so the run waits
+ *  inline, settings-gated. */
 function hookBackgroundPolicy(): 'inline' | 'none' {
   return getSettings().bgContinuation ? 'inline' : 'none';
 }
@@ -166,7 +166,7 @@ async function runHookAgent(
   const sessionName = isTargetMode ? null : await sessionStore.generateSessionName();
   const stepStartTime = new Date().toISOString();
 
-  // The legacy hook path declared no MCP composition, which resolves to 'direct'.
+  // A hook turn declares no MCP composition, which resolves to 'direct'.
   const spec: AgentSpec = bareSpec();
 
   const request: RunRequest = {
@@ -175,7 +175,7 @@ async function runHookAgent(
       sessionId: trackSessionId,
       backendSessionId: sessionId,
       engineKey: sessionKey,
-      // The legacy hook path passed no sessionName to the facade; keep it off the spawn context.
+      // A hook turn has no session name to report; keep it off the spawn context.
       sessionName: null,
     },
     // D5: the profile (and the backend/mode inside it) is resolved in one place. An unknown
@@ -186,8 +186,8 @@ async function runHookAgent(
     context: {
       channel: opts.channel,
       project: thread.projectId,
-      // One trigger for the execution record and facade cost attribution (the legacy path used
-      // 'thread-hook' for the record and the thread trigger for cost).
+      // One trigger for the execution record AND for cost attribution. The pre-refactor path used
+      // 'thread-hook' for the record and the thread's own trigger for cost; both read this field.
       trigger: meta?.trigger || 'thread-hook',
       threadId: thread.id,
       threadDepth: meta?.depth ?? 0,
@@ -224,7 +224,7 @@ async function runHookAgent(
   } satisfies RunObserver]);
 
   // The run owns the hook turn's execution record, registry registration, teardown and completion.
-  // A failed turn rejects here and skips the step record exactly as the legacy finally did.
+  // A failed turn rejects here; the step record below is skipped on that path.
   const result: any = await run.result;
 
   // Record step

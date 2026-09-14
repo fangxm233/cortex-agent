@@ -11,10 +11,10 @@ import type { RunForeignSubagent } from '../../../agent-adapter/pi/subagent.js';
  * This used to live in `agent-adapter/pi/foreign-subagent.ts`; the adapter now only declares the
  * port and `domain/runs/adapters.ts` hands this implementation over at construction (D10).
  *
- * The `runner.js` import stays deferred, for a smaller loop than the one that forced it before:
- * `facade → runs/engines → runs/adapters → subagent/foreign → subagent/runner → runs/service →
- * runs/run → facade`. A static edge here closes that ring at module-init time, which leaves
- * `facade` partially initialized for whichever member enters it first.
+ * The `runner.js` import stays deferred: a static edge here closes this ring at module-init time,
+ * `runs/engines → runs/adapters → subagent/foreign → subagent/runner → runs/service → runs/run →
+ * runs/attempt → runs/engines`, leaving whichever member enters it first partially initialized —
+ * and the entry point is `domain/runs/adapters.ts`, which every run reaches.
  */
 export const runForeignSubagent: RunForeignSubagent = async (request) => {
   const { runSubagent } = await import('./runner.js');

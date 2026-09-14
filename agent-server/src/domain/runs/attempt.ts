@@ -233,8 +233,8 @@ export function startAttempt(input: StartAttemptInput): RunAttempt {
   } catch (error) {
     // A synchronous spawn/acquire failure never opens a stream, so the event loop that normally
     // closes the wire-level sinks never starts. Close them here so a zero-event attempt is still
-    // linked (the journal's index row is written by `onClose`), exactly as the removed facade did
-    // around `adapter.spawn`.
+    // linked: the journal's index row is written by `onClose`, and an attempt that never opened a
+    // stream still owes that row.
     closeSinksSync(sinks);
     throw error;
   }

@@ -237,8 +237,8 @@ function claudeChildProfile(config: RunAttemptConfig): ResolvedProfileConfig {
   };
 }
 
-/** The RunRequest equivalent of the legacy `claudeChildOptions`. A frozen one-shot role: no
- *  session to resume, no hooks, no ambient rules, no transcript log, and a leaf tool surface. */
+/** The request a Claude child runs under. A frozen one-shot role: no session to resume, no
+ *  hooks, no ambient rules, no transcript log, and a leaf tool surface. */
 function claudeChildRequest(request: SubagentRunRequest, config: RunAttemptConfig): RunRequest {
   const mcpToolAllowlist = withoutSubagentTools(undefined, CHILD_MCP_BUNDLES);
   return {
@@ -246,8 +246,8 @@ function claudeChildRequest(request: SubagentRunRequest, config: RunAttemptConfi
     session: {
       sessionId: null,
       backendSessionId: null,
-      // The legacy one-shot run set no session key, so the spec builder resolved
-      // `options.channel || 'default'`.
+      // A child has no session of its own to pool under; it opens on the parent's channel, which
+      // is what an unset engine key resolved to.
       engineKey: request.parent.channel || 'default',
       sessionName: null,
     },
@@ -267,9 +267,9 @@ function claudeChildRequest(request: SubagentRunRequest, config: RunAttemptConfi
       scheduleTaskId: null,
     },
     policy: {
-      // Legacy `awaitBackground` was undefined with no threadId -> no inline wait.
+      // A child with no threadId never waits inline for background work.
       background: 'none',
-      // The legacy default (undefined) still recorded cost.
+      // A child's own spend is recorded like any other run's.
       recordCost: true,
       hooks: false,               // disableHooks: true
       loadRules: false,           // loadCortexRules: false

@@ -106,7 +106,8 @@ export async function runRetryAgent({ channel, text, adapter, statusMsg, startTi
       session: {
         sessionId,
         backendSessionId,
-        // The legacy run set no session key, so the spec builder fell back to the channel.
+        // The pool key is the channel — what an interactive turn's engine is opened under, and not
+        // something to change here (that would re-pool the session the retry is meant to continue).
         engineKey: channel,
         sessionName,
       },

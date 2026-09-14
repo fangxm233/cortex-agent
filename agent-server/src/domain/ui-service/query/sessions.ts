@@ -104,8 +104,9 @@ export async function handleSessionsList(
       deps.getPendingAskUser?.(s.channel)?.blocking === true || !!deps.getPendingPlan?.(s.channel);
     return {
       sessionId: s.sessionId,
-      // Backend CLI resume target (registry backendSessionId, legacy fallback to sessionId) — the
-      // real UUID the "Session ID" surface shows, decoupled from the track sessionId above.
+      // Backend CLI resume target (the registry's `backendSessionId` snapshot, falling back to the
+      // session record's own) — the real UUID the "Session ID" surface shows, decoupled from the
+      // track sessionId above.
       backendSessionId: effectiveBackendSessionId(s),
       name: s.name,
       projectId: s.projectId,

@@ -142,7 +142,7 @@ interface StepContext {
   profileName: string;
   profileBackend: string;
   /** Fully resolved profile the run spawns (fallback-synthesized when the configured name is
-   *  unknown, preserving the legacy "open the execution, then let the facade reject" order). */
+   *  unknown, preserving the "open the execution record, then let the run reject the name" order). */
   profile: ResolvedProfileConfig;
   rateLimitProvider: string | null;
   /** Filled by executeAndAwaitAgent from the run's execution id (startRun owns the record). */
@@ -466,9 +466,9 @@ function setupStepCallbacks(
   return { onAssistantMessage, onProgress, onToolUse, onToolResult };
 }
 
-/** The background policy the facade must honour for a thread step. The legacy path left
- *  `awaitBackground` undefined, so the facade fell back to `shouldAwaitBgInline` (settings-gated,
- *  thread-keyed). Mapping that decision onto the RunRequest preserves the exact same behaviour:
+/** The background policy a thread step runs under. The pre-refactor path left `awaitBackground`
+ *  undefined, so the engine fell back to `shouldAwaitBgInline` (settings-gated, thread-keyed).
+ *  Mapping that decision onto the RunRequest preserves the exact same behaviour:
  *  `'inline'` while the bg-continuation feature is enabled (thread steps always carry a threadId),
  *  `'none'` when it is disabled. */
 function stepBackgroundPolicy(): 'inline' | 'none' {
@@ -476,7 +476,8 @@ function stepBackgroundPolicy(): 'inline' | 'none' {
 }
 
 /** Build the run request for one thread step from the fully-populated StepContext. The engine pool
- *  key stays the legacy `thr:<threadId>:<slot>` (mapped onto the facade's `sessionKey`). */
+ *  key stays `thr:<threadId>:<slot>` — a step's engine is opened under it and nothing else shares
+ *  it (the interactive paths key on the channel instead). */
 export function buildThreadRunRequest(
   threadId: string, stepCtx: StepContext, ctx: ThreadContext, opts: RunThreadOptions,
 ): RunRequest {
@@ -511,8 +512,9 @@ export function buildThreadRunRequest(
     context: {
       channel: opts.channel,
       project: thread?.projectId ?? 'general',
-      // One trigger for both the execution record and the facade cost attribution (the legacy path
-      // used 'thread-step' for the record and undefined for cost); 'thread-step' is the closest.
+      // One trigger for the execution record AND for cost attribution. The pre-refactor path used
+      // 'thread-step' for the record and nothing for cost; 'thread-step' is the closest single
+      // value, and `resolveRunRoute` reads it for the per-attempt gateway path.
       trigger: meta?.trigger || 'thread-step',
       threadId,
       threadDepth: meta?.depth ?? 0,
@@ -552,9 +554,9 @@ export function buildThreadRunRequest(
   };
 }
 
-/** Map the run's event stream onto the step's legacy display/transcript callbacks and the
- *  caller-supplied plan/ask hooks. Assistant prose arrives as `assistant_text` RunEvents (the
- *  facade's `onAssistantMessage` path, which carries notice classification). */
+/** Map the run's event stream onto the step's display/transcript callbacks and the
+ *  caller-supplied plan/ask hooks. Assistant prose arrives as `assistant_text` RunEvents, carrying
+ *  its notice classification with it. */
 export function createStepObserver(
   stepCtx: StepContext, callbacks: StepCallbacks, opts: RunThreadOptions,
 ): RunObserver {
@@ -562,8 +564,8 @@ export function createStepObserver(
     onEvent(event: RunEvent): void {
       switch (event.type) {
         case 'assistant_text':
-          // The step callbacks ignore `noticeAction` (kept undefined for byte-compat with the
-          // legacy facade call, which always passed undefined on the raw assistant_text path).
+          // The step callbacks ignore `noticeAction`; it is passed undefined for byte-compat with
+          // the pre-refactor call, which never had one on the raw assistant_text path.
           callbacks.onAssistantMessage?.(
             event.text, event.blockId, event.noticeLevel, undefined, event.subagent,
           );

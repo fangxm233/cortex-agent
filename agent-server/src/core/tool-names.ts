@@ -85,8 +85,8 @@ export function nativeToolNames(backend: Backend): string[] {
 }
 
 /** True when `nativeName` maps to `canonical` under ANY backend. For the shared paths that are
- *  not scoped to one backend (background continuations run behind the facade, which wraps
- *  whichever adapter is live). Native names are unambiguous across backends — no backend maps a
+ *  not scoped to one backend (a background continuation runs on whichever engine is live).
+ *  Native names are unambiguous across backends — no backend maps a
  *  name another backend uses for something else — so recognizing a tool never requires threading
  *  a Backend through just for the lookup. */
 export function matchesCanonicalAnyBackend(nativeName: string, canonical: CanonicalToolName): boolean {

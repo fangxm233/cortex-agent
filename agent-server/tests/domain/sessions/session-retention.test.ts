@@ -614,16 +614,18 @@ test('retention liveness protects running, waiting, rate-limited, bg-held, and p
   assert.deepEqual(snapshot.activeClaudeCapturePairs, ['pair-a']);
 });
 
-test('retention liveness only dual-protects legacy execution sessionId when both explicit ids are absent', () => {
+test('retention liveness protects exactly the ids a live execution carries', () => {
   const snapshot = buildSessionRetentionLiveness({
     runningExecutions: {
       getAll: () => [
-        { sessionId: 'legacy-both-missing' },
-        { sessionId: 'legacy-backend-only', backendSessionId: 'backend-real' },
+        // An execution with no session id at all protects nothing — there is no third field to
+        // fall back on, and `register()` never produced one (it derived its ids from these two).
+        {},
+        { backendSessionId: 'backend-real' },
       ],
     } as any,
   });
 
-  assert.deepEqual(new Set(snapshot.protectedTrackSessionIds), new Set(['legacy-both-missing']));
-  assert.deepEqual(new Set(snapshot.protectedBackendSessionIds), new Set(['legacy-both-missing', 'backend-real']));
+  assert.deepEqual(snapshot.protectedTrackSessionIds, []);
+  assert.deepEqual(new Set(snapshot.protectedBackendSessionIds), new Set(['backend-real']));
 });

@@ -50,7 +50,7 @@ const CLAUDE_CAPS: Capability[] = [
   Capability.StreamingDeltas,
   // Print mode accepts a user message written to stdin while a turn is in flight.
   Capability.MidTurnInject,
-  // A child is one frozen `runAgentOnce` CLI run, observed through the normalized event stream.
+  // A child is one frozen one-shot CLI run, observed through the normalized event stream.
   Capability.Subagents,
   // The CLI opens a turn of its own when a background task finishes (or when a message injected
   // after the result is consumed), so a run has a background phase to hold a session for.
