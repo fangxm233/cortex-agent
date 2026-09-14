@@ -1,6 +1,6 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { NotificationToasterProps } from './NotificationToaster';
+import type { ToastInput } from '@/design';
 import type { UseNotificationFeedOptions } from './useNotificationFeed';
 import type { NotificationItem } from './notification-vm';
 
@@ -8,16 +8,23 @@ const harness = vi.hoisted(() => ({
   pathname: '/workbench',
   selectedSessionId: 'open-session' as string | null,
   feedOptions: null as UseNotificationFeedOptions | null,
-  toasterProps: null as NotificationToasterProps | null,
+  toasts: [] as ToastInput[],
   navigate: vi.fn(),
   setSelectedSession: vi.fn(),
   setCurrentProject: vi.fn(),
-  dismiss: vi.fn(),
 }));
 
 vi.mock('react-router-dom', () => ({
   useLocation: () => ({ pathname: harness.pathname }),
   useNavigate: () => harness.navigate,
+}));
+
+vi.mock('@/design', () => ({
+  useToast: () => ({
+    toast: (input: ToastInput) => { harness.toasts.push(input); return 'toast-0'; },
+    dismiss: vi.fn(),
+    items: [],
+  }),
 }));
 
 vi.mock('@/features/workbench/SelectedSessionProvider', () => ({
@@ -34,14 +41,6 @@ vi.mock('@/features/projects/CurrentProjectProvider', () => ({
 vi.mock('./useNotificationFeed', () => ({
   useNotificationFeed: (options: UseNotificationFeedOptions) => {
     harness.feedOptions = options;
-    return { items: [], dismiss: harness.dismiss };
-  },
-}));
-
-vi.mock('./NotificationToaster', () => ({
-  NotificationToaster: (props: NotificationToasterProps) => {
-    harness.toasterProps = props;
-    return null;
   },
 }));
 
@@ -61,11 +60,10 @@ beforeEach(() => {
   harness.pathname = '/workbench';
   harness.selectedSessionId = 'open-session';
   harness.feedOptions = null;
-  harness.toasterProps = null;
+  harness.toasts = [];
   harness.navigate.mockReset();
   harness.setSelectedSession.mockReset();
   harness.setCurrentProject.mockReset();
-  harness.dismiss.mockReset();
   act(() => { mounted = create(<NotificationProvider />); });
 });
 
@@ -85,17 +83,30 @@ describe('NotificationProvider', () => {
     expect(harness.feedOptions?.isSessionOpen('open-session')).toBe(false);
   });
 
-  it('navigates DM activations and only dismisses system notices', () => {
-    act(() => harness.toasterProps?.onActivate(item()));
+  it('publishes a DM reply onto the shared queue, activating into its session', () => {
+    act(() => harness.feedOptions?.publish(item()));
+
+    expect(harness.toasts).toHaveLength(1);
+    expect(harness.toasts[0]).toMatchObject({
+      title: 'Inbox',
+      description: 'Done',
+      level: 'info',
+      ts: '2026-08-26T10:00:00.000Z',
+      duration: 6000,
+    });
+
+    act(() => harness.toasts[0].onActivate?.());
     expect(harness.setCurrentProject).toHaveBeenCalledWith('atlas');
     expect(harness.setSelectedSession).toHaveBeenCalledWith('session-1');
     expect(harness.navigate).toHaveBeenCalledWith('/workbench');
-    expect(harness.dismiss).toHaveBeenCalledWith('dmn-1');
+  });
 
-    harness.navigate.mockClear();
-    harness.dismiss.mockClear();
-    act(() => harness.toasterProps?.onActivate(item({ id: 'sysn-2', sessionId: '', projectId: null })));
-    expect(harness.navigate).not.toHaveBeenCalled();
-    expect(harness.dismiss).toHaveBeenCalledWith('sysn-2');
+  it('publishes a system notice as resident and inert (no session to open)', () => {
+    act(() => harness.feedOptions?.publish(
+      item({ id: 'sysn-2', level: 'error', title: 'Disk', meta: 'Low space', sessionId: '', projectId: null }),
+    ));
+
+    expect(harness.toasts[0]).toMatchObject({ title: 'Disk', level: 'error', duration: Infinity });
+    expect(harness.toasts[0].onActivate).toBeUndefined();
   });
 });

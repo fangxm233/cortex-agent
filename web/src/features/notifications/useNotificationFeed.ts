@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
-import { addNotification, removeNotification } from './notification-store';
 import { buildNotification, buildSystemNotice, type NotificationItem } from './notification-vm';
 import { recordTurnMessage, takeTurnMessage, type BufferedTurnMessage } from './turn-buffer';
 import { useDmNotifications, type DmAssistantMessage } from './useDmNotifications';
@@ -21,16 +20,13 @@ interface DirectLookup {
 type DirectSession = Pick<SessionInfo, 'sessionId' | 'label' | 'name' | 'projectId'>;
 type Deliver = (item: NotificationItem) => void;
 type NextId = (prefix: 'dmn' | 'sysn') => string;
-type ItemSetter = Dispatch<SetStateAction<NotificationItem[]>>;
 
 export interface UseNotificationFeedOptions {
   isSessionOpen: (sessionId: string) => boolean;
+  /** In-app sink for an item that was not delivered externally — pushes onto the shared bubble
+   *  queue (design/Toast). The feed owns no list of its own; one queue renders every bubble. */
+  publish: (item: NotificationItem) => void;
   externalDelivery?: (item: NotificationItem) => Promise<boolean>;
-}
-
-export interface NotificationFeed {
-  items: NotificationItem[];
-  dismiss: (id: string) => void;
 }
 
 function toDirectMap(sessions: readonly DirectSession[] | undefined): Map<string, DirectEntry> {
@@ -65,10 +61,12 @@ function useMountedRef(): React.MutableRefObject<boolean> {
 }
 
 function useDelivery(
-  setItems: ItemSetter,
+  publish: UseNotificationFeedOptions['publish'],
   externalDelivery: UseNotificationFeedOptions['externalDelivery'],
 ): Deliver {
   const mounted = useMountedRef();
+  const publishRef = useRef(publish);
+  publishRef.current = publish;
   return useCallback((item: NotificationItem) => {
     void (async () => {
       try {
@@ -76,9 +74,9 @@ function useDelivery(
       } catch {
         // External delivery is best-effort; rejection takes the same in-app fallback as false.
       }
-      if (mounted.current) setItems((list) => addNotification(list, item));
+      if (mounted.current) publishRef.current(item);
     })();
-  }, [externalDelivery, mounted, setItems]);
+  }, [externalDelivery, mounted]);
 }
 
 interface DmConsumption {
@@ -148,17 +146,13 @@ function useNoticeFeed(nextId: NextId, deliver: Deliver): void {
 
 export function useNotificationFeed({
   isSessionOpen,
+  publish,
   externalDelivery,
-}: UseNotificationFeedOptions): NotificationFeed {
-  const [items, setItems] = useState<NotificationItem[]>([]);
+}: UseNotificationFeedOptions): void {
   const counter = useRef(0);
   const directLookup = useDirectLookup();
-  const deliver = useDelivery(setItems, externalDelivery);
+  const deliver = useDelivery(publish, externalDelivery);
   const nextId = useCallback<NextId>((prefix) => `${prefix}-${counter.current++}`, []);
   useDmFeed(directLookup, isSessionOpen, nextId, deliver);
   useNoticeFeed(nextId, deliver);
-  const dismiss = useCallback((id: string) => {
-    setItems((list) => removeNotification(list, id));
-  }, []);
-  return { items, dismiss };
 }

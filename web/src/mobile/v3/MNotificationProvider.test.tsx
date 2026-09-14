@@ -7,12 +7,12 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UseNotificationFeedOptions } from '@/features/notifications/useNotificationFeed';
 import type { NotificationItem } from '@/features/notifications/notification-vm';
-import type { MNotificationToasterProps } from './MNotificationToaster';
+import type { ToastInput } from '@/design';
 import type { OsActionHandler } from '@/features/notifications/os-notify';
 
 const h = vi.hoisted(() => ({
   pathname: '/m/project', feed: null as UseNotificationFeedOptions | null,
-  toaster: null as MNotificationToasterProps | null, action: null as OsActionHandler | null,
+  toasts: [] as ToastInput[], action: null as OsActionHandler | null,
   navigate: vi.fn(), project: vi.fn(), dismiss: vi.fn(), lifecycle: vi.fn(),
   send: vi.fn(async () => true), cleanup: vi.fn(), sessions: vi.fn(), approvals: vi.fn(),
   status: vi.fn(), visible: vi.fn(), owned: vi.fn(() => false),
@@ -29,14 +29,17 @@ vi.mock('@/features/notifications/mobile-notifications', () => ({
   useMobileNotificationLifecycle: h.lifecycle, nativeCompletionNotifications: h.owned,
 }));
 vi.mock('@/features/notifications/useNotificationFeed', () => ({
-  useNotificationFeed: (options: UseNotificationFeedOptions) => { h.feed = options; return { items: [], dismiss: h.dismiss }; },
+  useNotificationFeed: (options: UseNotificationFeedOptions) => { h.feed = options; },
+}));
+vi.mock('@/design', () => ({
+  useToast: () => ({ toast: (input: ToastInput) => { h.toasts.push(input); return 'toast-0'; }, dismiss: h.dismiss, items: [] }),
 }));
 vi.mock('@/features/notifications/os-notify', () => ({
   sendOsNotification: h.send,
   osNotificationSpec: (item: NotificationItem) => ({ title: item.title, body: item.meta }),
   onOsNotificationAction: async (callback: OsActionHandler) => { h.action = callback; return h.cleanup; },
 }));
-vi.mock('./MNotificationToaster', () => ({ MNotificationToaster: (props: MNotificationToasterProps) => { h.toaster = props; return null; } }));
+vi.mock('./MNotificationToaster', () => ({ MNotificationBanners: () => null }));
 import { MNotificationProvider } from './MNotificationProvider';
 
 function item(): NotificationItem {
@@ -46,6 +49,7 @@ let mounted: ReactTestRenderer;
 beforeEach(async () => {
   vi.clearAllMocks();
   h.pathname = '/m/project';
+  h.toasts = [];
   h.status.mockResolvedValue({ scope: 'current' });
   h.sessions.mockResolvedValue([{ sessionId: 's1', projectId: 'atlas' }, { sessionId: 's/2?#', projectId: 'orion' }]);
   h.approvals.mockResolvedValue([{ id: 'apr/2?', projectId: 'other-project' }]);
@@ -131,9 +135,10 @@ describe('mobile notification delivery', () => {
     expect(h.visible).toHaveBeenLastCalledWith(null);
   });
 
-  it('routes in-app replies and dismisses the activated toast', () => {
-    act(() => h.toaster?.onActivate(item()));
+  it('publishes an in-app reply onto the shared queue and routes when activated', () => {
+    act(() => h.feed?.publish(item()));
+    expect(h.toasts[0]).toMatchObject({ title: 'Inbox', description: 'Done', level: 'info' });
+    act(() => h.toasts[0].onActivate?.());
     expect(h.navigate).toHaveBeenCalledWith('/m/session/s1');
-    expect(h.dismiss).toHaveBeenCalledWith('n1');
   });
 });

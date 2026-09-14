@@ -1,36 +1,37 @@
-import * as RadixToast from '@radix-ui/react-toast';
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
-import { addToast, removeToast, type ToastAction, type ToastItem } from './toast-store';
+import { addToast, removeToast, TONE_LEVEL, type ToastAction, type ToastItem, type ToastLevel } from './toast-store';
 import type { Tone } from './tone';
 
-// Token-styled wrapper over Radix Toast (approved primitive layer, design §1):
-// role/announce, swipe-dismiss, timing and hotkey a11y come from Radix. The
-// imperative `useToast()` API pushes onto the pure `toast-store` queue; styling
-// (tone accent, surface, motion) is token-only. Mount `ToastProvider` once near
-// the app root (like `TooltipProvider`).
+// The app's single bubble queue. `ToastProvider` owns the state (mount it once near the app root,
+// like `TooltipProvider`); the renderers are separate so each shell can place the stack where it
+// belongs — `ToastViewport` (desktop, bottom-right, scheme 18a) and `MNotificationToaster`
+// (mobile, top banner). Nothing is rendered here.
+//
+// Two producers share the queue: imperative `useToast()` calls (action feedback) and the live
+// notification feed (features/notifications), which passes the richer optional fields
+// (`level`, `ts`, `onActivate`, `dedupeKey`). Keeping one queue is what stops the two stacks from
+// overlapping in the same corner, which is what they used to do.
 
-const TONE_ACCENT: Record<Tone, string> = {
-  running: 'border-l-pill-running-fg',
-  waiting: 'border-l-pill-waiting-fg',
-  done: 'border-l-pill-done-fg',
-  failed: 'border-l-pill-failed-fg',
-  cancelled: 'border-l-pill-cancelled-fg',
-};
-
-const ROOT_CLASS =
-  'relative flex flex-col gap-0.5g rounded-card border border-card border-l-4 bg-surface-card p-2g pr-4g shadow-overlay ' +
-  'data-[state=open]:animate-toast-in data-[state=closed]:animate-toast-out ' +
-  'data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] ' +
-  'data-[swipe=cancel]:translate-x-0 data-[swipe=end]:animate-toast-out ' +
-  'motion-reduce:animate-none';
+/** Default lifetime of an action toast. Feed items pass their own (info 6s, warning/error resident). */
+export const DEFAULT_TOAST_MS = 5000;
 
 export interface ToastInput {
   title: string;
   description?: string;
+  /** Status vocabulary used by call sites; mapped to a `level` unless `level` is given. */
   tone?: Tone;
+  /** Explicit severity — wins over `tone`. Used by the server-classified notification feed. */
+  level?: ToastLevel;
+  /** Milliseconds; `Infinity` keeps the bubble until it is dismissed. */
   duration?: number;
   /** Optional action buttons (e.g. the download toast's Open file / Open folder). */
   actions?: ToastAction[];
+  /** ISO-8601 event time for the age slot; defaults to now. */
+  ts?: string;
+  /** Click-through on the bubble body (feed items open their session). */
+  onActivate?: () => void;
+  /** Consecutive-duplicate key (see toast-store.addToast). */
+  dedupeKey?: string;
 }
 
 interface ToastContextValue {
@@ -38,7 +39,11 @@ interface ToastContextValue {
   dismiss: (id: string) => void;
 }
 
+// Two contexts on purpose: the imperative API is stable for the lifetime of the provider, so the
+// ~20 components that only ever call `toast()` never re-render when the queue changes. Only the
+// renderers subscribe to the queue itself.
 const ToastContext = createContext<ToastContextValue | null>(null);
+const ToastItemsContext = createContext<ToastItem[]>([]);
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
@@ -52,11 +57,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     const id = `toast-${counter.current++}`;
     const item: ToastItem = {
       id,
+      level: input.level ?? TONE_LEVEL[input.tone ?? 'running'],
       title: input.title,
       description: input.description,
-      tone: input.tone ?? 'running',
-      duration: input.duration ?? 5000,
+      ts: input.ts ?? new Date().toISOString(),
+      duration: input.duration ?? DEFAULT_TOAST_MS,
       actions: input.actions,
+      onActivate: input.onActivate,
+      dedupeKey: input.dedupeKey,
     };
     setItems((list) => addToast(list, item));
     return id;
@@ -66,52 +74,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   return (
     <ToastContext.Provider value={value}>
-      <RadixToast.Provider swipeDirection="right">
-        {children}
-        {items.map((item) => (
-          <RadixToast.Root
-            key={item.id}
-            duration={item.duration}
-            onOpenChange={(open) => {
-              if (!open) dismiss(item.id);
-            }}
-            className={[ROOT_CLASS, TONE_ACCENT[item.tone]].join(' ')}
-          >
-            <RadixToast.Title className="text-ui font-medium text-state-ink">
-              {item.title}
-            </RadixToast.Title>
-            {item.description ? (
-              <RadixToast.Description className="text-ui text-state-ink/70">
-                {item.description}
-              </RadixToast.Description>
-            ) : null}
-            {item.actions && item.actions.length > 0 ? (
-              <div className="mt-1g flex flex-wrap gap-1g">
-                {item.actions.map((action, i) => (
-                  <RadixToast.Action key={i} altText={action.altText ?? action.label} asChild>
-                    <button
-                      type="button"
-                      onClick={action.onClick}
-                      className="rounded-card border border-card bg-surface-canvas-alt px-1.5g py-0.5g text-ui text-state-ink transition-colors hover:bg-surface-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-state-run/40"
-                    >
-                      {action.label}
-                    </button>
-                  </RadixToast.Action>
-                ))}
-              </div>
-            ) : null}
-            <RadixToast.Close
-              aria-label="Dismiss"
-              className="absolute right-1g top-1g rounded-card p-0.5g text-ui text-state-ink/50 transition-colors hover:bg-surface-canvas-alt hover:text-state-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-state-run/40"
-            >
-              ✕
-            </RadixToast.Close>
-          </RadixToast.Root>
-        ))}
-        <RadixToast.Viewport className="fixed bottom-0 right-0 z-50 m-2g flex w-[24rem] max-w-[calc(100vw-2rem)] flex-col gap-1g outline-none" />
-      </RadixToast.Provider>
+      <ToastItemsContext.Provider value={items}>{children}</ToastItemsContext.Provider>
     </ToastContext.Provider>
   );
+}
+
+/** The live queue, newest last — for the shells' renderers. Empty outside a provider. */
+export function useToastItems(): ToastItem[] {
+  return useContext(ToastItemsContext);
 }
 
 export function useToast(): ToastContextValue {

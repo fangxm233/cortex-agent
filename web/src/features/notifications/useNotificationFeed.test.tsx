@@ -48,15 +48,22 @@ vi.mock('./useSystemNotices', () => ({
 
 import {
   useNotificationFeed,
-  type NotificationFeed,
   type UseNotificationFeedOptions,
 } from './useNotificationFeed';
 
-let feed: NotificationFeed | null = null;
+/** The feed owns no list any more: it publishes into the shared bubble queue (design/Toast).
+ *  These tests capture what it publishes, which is the hook's whole contract. */
+type FeedOptions = Omit<UseNotificationFeedOptions, 'publish'>;
+
+const published: NotificationItem[] = [];
 let mounted: ReactTestRenderer | null = null;
 
+function probeProps(options: FeedOptions): UseNotificationFeedOptions {
+  return { ...options, publish: (item) => { published.push(item); } };
+}
+
 function Probe(options: UseNotificationFeedOptions): null {
-  feed = useNotificationFeed(options);
+  useNotificationFeed(options);
   return null;
 }
 
@@ -72,9 +79,9 @@ function emitNotice(text: string, level: SystemNoticeMessage['level'] = 'info'):
   harness.notice?.({ text, level, title: null, ts: '2026-08-26T10:01:00.000Z' });
 }
 
-function mountFeed(options: UseNotificationFeedOptions): void {
+function mountFeed(options: FeedOptions): void {
   act(() => {
-    mounted = create(<Probe {...options} />);
+    mounted = create(<Probe {...probeProps(options)} />);
   });
 }
 
@@ -86,7 +93,7 @@ async function flush(): Promise<void> {
 }
 
 beforeEach(() => {
-  feed = null;
+  published.length = 0;
   harness.sessions = [
     { sessionId: 'direct-1', label: 'Inbox', name: 'fallback', projectId: 'atlas' },
   ];
@@ -120,8 +127,8 @@ describe('useNotificationFeed', () => {
       endTurn('open-1');
     });
 
-    expect(feed?.items).toHaveLength(1);
-    expect(feed?.items[0]).toMatchObject({
+    expect(published).toHaveLength(1);
+    expect(published[0]).toMatchObject({
       id: 'dmn-0',
       title: 'Inbox',
       meta: 'final',
@@ -141,13 +148,13 @@ describe('useNotificationFeed', () => {
       endTurn('late-direct');
     });
     await flush();
-    expect(feed?.items).toEqual([]);
+    expect(published).toEqual([]);
 
     harness.sessions = [
       { sessionId: 'late-direct', label: 'Late inbox', name: null, projectId: 'atlas' },
     ];
-    act(() => mounted?.update(<Probe {...options} />));
-    expect(feed?.items[0]).toMatchObject({ meta: 'survives retry', sessionId: 'late-direct' });
+    act(() => mounted?.update(<Probe {...probeProps(options)} />));
+    expect(published[0]).toMatchObject({ meta: 'survives retry', sessionId: 'late-direct' });
   });
 
   it('retains an ended turn while the direct map is unknown and flushes after a supplemental query', async () => {
@@ -161,11 +168,11 @@ describe('useNotificationFeed', () => {
       emitAssistant('late-direct', 'kept until known');
       endTurn('late-direct');
     });
-    expect(feed?.items).toEqual([]);
+    expect(published).toEqual([]);
     expect(harness.refetch).toHaveBeenCalledOnce();
     await flush();
 
-    expect(feed?.items[0]).toMatchObject({
+    expect(published[0]).toMatchObject({
       title: 'Late inbox', meta: 'kept until known', sessionId: 'late-direct',
     });
   });
@@ -183,9 +190,9 @@ describe('useNotificationFeed', () => {
     harness.sessions = [
       { sessionId: 'scheduled-1', label: 'Not direct', name: null, projectId: 'atlas' },
     ];
-    act(() => mounted?.update(<Probe {...options} />));
+    act(() => mounted?.update(<Probe {...probeProps(options)} />));
 
-    expect(feed?.items).toEqual([]);
+    expect(published).toEqual([]);
   });
 
   it('consumes a buffered turn when open-session suppression is confirmed without a map entry', async () => {
@@ -199,25 +206,24 @@ describe('useNotificationFeed', () => {
     });
     await flush();
 
-    expect(feed?.items).toEqual([]);
+    expect(published).toEqual([]);
     expect(harness.refetch).not.toHaveBeenCalled();
   });
 
-  it('queues system notices, dedupes consecutive content, and dismisses by id', () => {
+  it('publishes system notices with their server level, in order', () => {
+    // Consecutive-duplicate collapsing now lives in the shared queue (design/toast-store, keyed by
+    // dedupeKey) — the feed itself publishes every notice it receives.
     mountFeed({ isSessionOpen: () => false });
 
     act(() => {
       emitNotice('Daemon restarted', 'warning');
-      emitNotice('Daemon restarted', 'warning');
       emitNotice('Disk low', 'error');
     });
 
-    expect(feed?.items.map((item) => [item.id, item.meta])).toEqual([
-      ['sysn-0', 'Daemon restarted'],
-      ['sysn-2', 'Disk low'],
+    expect(published.map((item) => [item.id, item.meta, item.level])).toEqual([
+      ['sysn-0', 'Daemon restarted', 'warning'],
+      ['sysn-1', 'Disk low', 'error'],
     ]);
-    act(() => feed?.dismiss('sysn-0'));
-    expect(feed?.items.map((item) => item.id)).toEqual(['sysn-2']);
   });
 
   it('keeps successful external delivery out of app and falls back on false or rejection', async () => {
@@ -240,7 +246,7 @@ describe('useNotificationFeed', () => {
 
     act(() => emitNotice('Delivered outside'));
     await flush();
-    expect(feed?.items).toEqual([]);
+    expect(published).toEqual([]);
 
     act(() => {
       emitAssistant('direct-1', 'Fallback DM');
@@ -255,7 +261,7 @@ describe('useNotificationFeed', () => {
       'Fallback DM',
       'Fallback notice',
     ]);
-    expect(feed?.items.map((item) => item.meta)).toEqual(['Fallback DM', 'Fallback notice']);
+    expect(published.map((item) => item.meta)).toEqual(['Fallback DM', 'Fallback notice']);
   });
 
   it('does not publish an async fallback after unmount', async () => {
@@ -266,7 +272,6 @@ describe('useNotificationFeed', () => {
     mountFeed({ isSessionOpen: () => false, externalDelivery });
 
     act(() => emitNotice('Late fallback'));
-    const lastMountedFeed = feed;
     act(() => mounted?.unmount());
     mounted = null;
     await act(async () => {
@@ -274,6 +279,6 @@ describe('useNotificationFeed', () => {
       await Promise.resolve();
     });
 
-    expect(lastMountedFeed?.items).toEqual([]);
+    expect(published).toEqual([]);
   });
 });

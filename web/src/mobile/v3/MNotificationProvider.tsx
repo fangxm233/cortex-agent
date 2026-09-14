@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useToast } from '@/design';
 import { useLang } from '@/i18n';
 import { useTRPCClient } from '@/lib/trpc';
 import { mobileNotificationStatus, setNativeVisibleSession } from '@/lib/native-bridge';
@@ -13,10 +14,11 @@ import { useNotificationFeed } from '@/features/notifications/useNotificationFee
 import {
   nativeCompletionNotifications, useMobileNotificationLifecycle,
 } from '@/features/notifications/mobile-notifications';
+import { notificationToast } from '@/features/notifications/publish-notification';
 import type { NotificationItem } from '@/features/notifications/notification-vm';
 import { sendOsNotification, osNotificationSpec, onOsNotificationAction } from '@/features/notifications/os-notify';
 import { notificationTargetId, resolveNotificationRoute, sessionPathId } from './m-notification-routing';
-import { MNotificationToaster } from './MNotificationToaster';
+import { MNotificationBanners } from './MNotificationToaster';
 
 function useNotificationActions(): void {
   const client = useTRPCClient();
@@ -79,6 +81,7 @@ function useNativeVisibleSession(): void {
 
 export function MNotificationProvider() {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const { setCurrentProject } = useCurrentProject();
   useMobileNotificationLifecycle(useLang());
   useNotificationActions();
@@ -91,10 +94,9 @@ export function MNotificationProvider() {
   }, [navigate, setCurrentProject]);
 
   const isSessionOpen = useVisibleSessionPredicate();
-  const { items, dismiss } = useNotificationFeed({ isSessionOpen, externalDelivery });
-  const activate = useCallback((item: NotificationItem) => {
-    openSession(item.sessionId, item.projectId);
-    dismiss(item.id);
-  }, [dismiss, openSession]);
-  return <MNotificationToaster items={items} onDismiss={dismiss} onActivate={activate} />;
+  const publish = useCallback((item: NotificationItem) => {
+    toast(notificationToast(item, () => openSession(item.sessionId, item.projectId)));
+  }, [openSession, toast]);
+  useNotificationFeed({ isSessionOpen, publish, externalDelivery });
+  return <MNotificationBanners />;
 }

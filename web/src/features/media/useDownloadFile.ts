@@ -14,8 +14,8 @@ import { isMobileShell } from '@/lib/desktop-config';
 //         happened, and a failure was invisible.
 //
 // Mobile native shell is intentionally skipped: Android surfaces its own OS notification
-// (`save_download` / DownloadManager), and the desktop-styled bottom-right toast viewport would
-// overlap the mobile Tab bar. There the plain `downloadFile` runs and the OS notification is the feedback.
+// (`save_download` / DownloadManager), so an in-app bubble would only repeat it. There the plain
+// `downloadFile` runs and the OS notification is the feedback.
 
 export function useDownloadFile(): (relPath: string, name?: string) => void {
   // Optional so a consumer rendered bare in an isolated test (no ToastProvider / LangProvider) still
@@ -50,7 +50,7 @@ export function useDownloadFile(): (relPath: string, name?: string) => void {
               ? L.wbFileSavedTo.replace('{path}', savedPath)
               : fallbackName,
             tone: 'done',
-            // Give the user time to reach the action buttons (Radix pauses the timer on hover/focus).
+            // Give the user time to reach the action buttons (the stack pauses the timer on hover).
             duration: actions ? 10_000 : undefined,
             actions,
           });

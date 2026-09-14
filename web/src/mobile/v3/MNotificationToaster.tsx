@@ -1,20 +1,23 @@
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1q L876-883)
-// Presentational top-banner toaster for the mobile 1q notification. Props-driven (the provider binds
-// the real notification stream); renders the scheme's floating banner (cx avatar + title + meta + time),
-// tappable to activate. Stacks the visible items; reserves the OS status-bar inset at the top.
+// Presentational top-banner toaster for the mobile 1q notification — the mobile rendering of the
+// app's ONE bubble queue (design/Toast), so chat replies, system notices and action feedback all
+// land here instead of in the desktop bottom-right stack. Renders the scheme's floating banner
+// (cx avatar + title + body + time), tappable to activate when the item carries a target.
+// Stacks the visible items; reserves the OS status-bar inset at the top.
 import { relTimeZh } from '@/mobile/ui/format';
 import { MC, MONO } from '@/mobile/ui/kit';
-import { splitVisible } from '@/features/notifications/notification-store';
-import type { NotificationItem } from '@/features/notifications/notification-vm';
+import { splitVisible, useToast, useToastItems, useAutoDismiss, type ToastItem } from '@/design';
 
 export interface MNotificationToasterProps {
-  items: NotificationItem[];
+  items: ToastItem[];
   now?: number;
   onDismiss: (id: string) => void;
-  onActivate: (item: NotificationItem) => void;
 }
 
-export function MNotificationToaster({ items, now = Date.now(), onDismiss, onActivate }: MNotificationToasterProps) {
+/** Mobile rendering of the app's shared bubble queue: the scheme 1q top banner. Same items as the
+ *  desktop `ToastViewport` (chat replies, system notices AND action feedback) — mobile no longer
+ *  inherits the desktop bottom-right stack over its Tab bar. */
+export function MNotificationToaster({ items, now = Date.now(), onDismiss }: MNotificationToasterProps) {
   if (items.length === 0) return null;
   const { visible } = splitVisible(items);
   return (
@@ -32,68 +35,108 @@ export function MNotificationToaster({ items, now = Date.now(), onDismiss, onAct
       }}
     >
       {visible.map((item) => (
-        <div
-          key={item.id}
-          role="button"
-          onClick={() => onActivate(item)}
-          style={{
-            pointerEvents: 'auto',
-            background: 'var(--panel-translucent-bg)',
-            border: '1px solid var(--panel-translucent-border)',
-            borderRadius: 20,
-            boxShadow: 'var(--shadow-toast)',
-            padding: '11px 13px',
-            display: 'flex',
-            gap: 10,
-            alignItems: 'center',
-            cursor: 'pointer',
-          }}
-        >
-          <div
-            aria-label="Cortex"
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 9,
-              background: 'var(--brand-badge-bg)',
-              border: '1px solid var(--brand-badge-border)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flex: 'none',
-            }}
-          >
-            {/* 25c 皮层弧 C (scheme.dc.html §25c) — follows theme */}
-            <svg width={25} height={25} viewBox="0 0 64 64" fill="none" aria-hidden="true">
-              <circle cx={33} cy={32} r={5} fill="var(--brand-badge-core)" />
-              <path d="M42.29 23.64A12.5 12.5 0 1 0 42.29 40.36" stroke="var(--brand-badge-arc)" strokeWidth={5} strokeLinecap="round" />
-              <path d="M48.6 17.95A21 21 0 1 0 48.6 46.05" stroke="var(--brand-badge-arc)" strokeWidth={5} strokeLinecap="round" />
-            </svg>
-          </div>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 650, color: MC.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {item.title}
-            </div>
-            <div style={{ fontSize: 11, color: MC.sub, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {item.meta}
-            </div>
-          </div>
-          <span style={{ font: `400 10px ${MONO}`, color: MC.faint, flex: 'none', alignSelf: 'flex-start' }}>
-            {relTimeZh(item.ts, now) || '现在'}
-          </span>
-          <button
-            type="button"
-            aria-label="Dismiss"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDismiss(item.id);
-            }}
-            style={{ border: 'none', background: 'transparent', color: MC.faint, fontSize: 12, cursor: 'pointer', flex: 'none', padding: '0 2px' }}
-          >
-            ✕
-          </button>
-        </div>
+        <MBanner key={item.id} item={item} now={now} onDismiss={onDismiss} />
       ))}
     </div>
   );
+}
+
+function MBanner({ item, now, onDismiss }: { item: ToastItem; now: number; onDismiss: (id: string) => void }) {
+  const { onMouseEnter, onMouseLeave } = useAutoDismiss(item.id, item.duration, onDismiss);
+  const activate = item.onActivate;
+  return (
+    <div
+      role={activate ? 'button' : 'status'}
+      onTouchStart={onMouseEnter}
+      onTouchEnd={onMouseLeave}
+      onClick={activate ? () => { activate(); onDismiss(item.id); } : undefined}
+      style={{
+        pointerEvents: 'auto',
+        background: 'var(--panel-translucent-bg)',
+        border: '1px solid var(--panel-translucent-border)',
+        borderRadius: 20,
+        boxShadow: 'var(--shadow-toast)',
+        padding: '11px 13px',
+        display: 'flex',
+        gap: 10,
+        alignItems: 'center',
+        cursor: activate ? 'pointer' : 'default',
+      }}
+    >
+      <div
+        aria-label="Cortex"
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: 9,
+          background: 'var(--brand-badge-bg)',
+          border: '1px solid var(--brand-badge-border)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flex: 'none',
+        }}
+      >
+        {/* 25c 皮层弧 C (scheme.dc.html §25c) — follows theme */}
+        <svg width={25} height={25} viewBox="0 0 64 64" fill="none" aria-hidden="true">
+          <circle cx={33} cy={32} r={5} fill="var(--brand-badge-core)" />
+          <path d="M42.29 23.64A12.5 12.5 0 1 0 42.29 40.36" stroke="var(--brand-badge-arc)" strokeWidth={5} strokeLinecap="round" />
+          <path d="M48.6 17.95A21 21 0 1 0 48.6 46.05" stroke="var(--brand-badge-arc)" strokeWidth={5} strokeLinecap="round" />
+        </svg>
+      </div>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 650, color: MC.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {item.title}
+        </div>
+        {item.description ? (
+          <div style={{ fontSize: 11, color: MC.sub, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {item.description}
+          </div>
+        ) : null}
+        {item.actions?.length ? (
+          <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+            {item.actions.map((action, i) => (
+              <button
+                key={i}
+                type="button"
+                aria-label={action.altText ?? action.label}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  action.onClick();
+                  onDismiss(item.id);
+                }}
+                style={{
+                  border: '1px solid var(--panel-translucent-border)', borderRadius: 8,
+                  background: 'transparent', color: MC.ink, fontSize: 11, padding: '3px 8px',
+                }}
+              >
+                {action.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+      <span style={{ font: `400 10px ${MONO}`, color: MC.faint, flex: 'none', alignSelf: 'flex-start' }}>
+        {relTimeZh(item.ts, now) || '现在'}
+      </span>
+      <button
+        type="button"
+        aria-label="Dismiss"
+        onClick={(e) => {
+          e.stopPropagation();
+          onDismiss(item.id);
+        }}
+        style={{ border: 'none', background: 'transparent', color: MC.faint, fontSize: 12, cursor: 'pointer', flex: 'none', padding: '0 2px' }}
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
+/** Mounts the mobile stack from the shared queue. */
+export function MNotificationBanners({ now }: { now?: number }) {
+  const { dismiss } = useToast();
+  const items = useToastItems();
+  return <MNotificationToaster items={items} now={now} onDismiss={dismiss} />;
 }
