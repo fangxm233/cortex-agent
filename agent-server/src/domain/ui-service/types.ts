@@ -143,7 +143,8 @@ export type QueryScope =
   | 'threadTemplates.detail'
   | 'system.daemonStatus'
   | 'system.rateLimitStatus'
-  | 'system.usageStatus';
+  | 'system.usageStatus'
+  | 'system.notices';
 
 // ── Mutate ops ────────────────────────────────────────────────────
 
@@ -2238,6 +2239,24 @@ export interface SystemDaemonStatus {
   lastRestart: { at: string | null; reason: string | null };
 }
 
+// ── system.notices DTO ────────────────────────────────────────────
+
+export type SystemNoticesParams = { limit?: number };
+
+export interface SystemNoticeEntry {
+  id: string;
+  ts: string;
+  level: 'info' | 'warning' | 'error';
+  title?: string;
+  text: string;
+}
+
+export interface SystemNotices {
+  entries: SystemNoticeEntry[];
+  /** Ring buffer capacity, so the UI can label "showing N of cap" honestly. */
+  cap: number;
+}
+
 // ── system.rateLimitStatus DTO ────────────────────────────────────
 
 export interface RateLimitWindowInfo {
@@ -2451,6 +2470,7 @@ export interface QueryParamMap {
   'system.daemonStatus': SystemDaemonStatusParams;
   'system.rateLimitStatus': SystemRateLimitStatusParams;
   'system.usageStatus': SystemUsageStatusParams;
+  'system.notices': SystemNoticesParams;
 }
 
 export interface QueryReturnMap {
@@ -2493,6 +2513,7 @@ export interface QueryReturnMap {
   'system.daemonStatus': SystemDaemonStatus;
   'system.rateLimitStatus': SystemRateLimitStatus;
   'system.usageStatus': SystemUsageStatus;
+  'system.notices': SystemNotices;
 }
 
 export interface MutateArgsMap {

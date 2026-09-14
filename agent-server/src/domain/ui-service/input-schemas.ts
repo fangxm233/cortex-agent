@@ -98,6 +98,8 @@ export const systemRateLimitStatusInput = z.object({});
 
 export const systemUsageStatusInput = z.object({});
 
+export const systemNoticesInput = z.object({ limit: z.number().int().positive().max(50).optional() });
+
 // ── Subscription input schemas ────────────────────────────────────
 // Subscriptions are not part of the query/mutate keyed maps; their input schemas live here too so
 // the AppRouter and the browser (@cortex-agent/ui-contract) share one source of truth (B2-C).
@@ -863,6 +865,7 @@ export const queryInputSchemas = {
   'system.daemonStatus': systemDaemonStatusInput,
   'system.rateLimitStatus': systemRateLimitStatusInput,
   'system.usageStatus': systemUsageStatusInput,
+  'system.notices': systemNoticesInput,
 } satisfies Record<QueryScope, z.ZodType>;
 
 export const mutateInputSchemas = {

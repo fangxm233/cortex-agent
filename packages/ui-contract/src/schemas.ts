@@ -82,6 +82,7 @@ export {
   systemDaemonStatusInput,
   systemRateLimitStatusInput,
   systemUsageStatusInput,
+  systemNoticesInput,
   systemRestartInput,
   systemClearRateLimitInput,
   systemRefreshUsageInput,

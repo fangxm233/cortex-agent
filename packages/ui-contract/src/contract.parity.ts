@@ -84,6 +84,7 @@ import type {
   systemDaemonStatusInput,
   systemRateLimitStatusInput,
   systemUsageStatusInput,
+  systemNoticesInput,
   systemRestartInput,
   systemClearRateLimitInput,
   systemRefreshUsageInput,
@@ -137,6 +138,7 @@ const _threadTemplatesDetail: QueryParity<'threadTemplates.detail', typeof threa
 const _systemDaemonStatus: QueryParity<'system.daemonStatus', typeof systemDaemonStatusInput> = true;
 const _systemRateLimitStatus: QueryParity<'system.rateLimitStatus', typeof systemRateLimitStatusInput> = true;
 const _systemUsageStatus: QueryParity<'system.usageStatus', typeof systemUsageStatusInput> = true;
+const _systemNotices: QueryParity<'system.notices', typeof systemNoticesInput> = true;
 
 // ── Mutate ops ────────────────────────────────────────────────────
 const _projectsCreate: MutateParity<'projects.create', typeof projectsCreateInput> = true;

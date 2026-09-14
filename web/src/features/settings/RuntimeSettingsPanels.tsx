@@ -1,7 +1,8 @@
 import { useEffect, useState, type CSSProperties } from 'react';
-import type { ConfigSnapshot, ConfigSettingEntry } from '@cortex-agent/ui-contract';
-import { CONTROL_HEIGHT, Select } from '@/design';
+import type { ConfigSnapshot, ConfigSettingEntry, SystemNoticeEntry } from '@cortex-agent/ui-contract';
+import { CONTROL_HEIGHT, Select, relativeAge } from '@/design';
 import { useVocab } from '@/i18n';
+import { useNoticeHistory } from '@/features/notifications/useNoticeHistory';
 import { PlatformAvatar, PresencePill } from './SettingsPanels';
 import { SCard, SCardHeader, Toggle } from './settings-ui';
 import {
@@ -182,30 +183,57 @@ function RoutingRow(props: {
   );
 }
 
-function ApprovalReminder() {
-  const L = useVocab();
+const NOTICE_LEVEL_COLOR: Record<SystemNoticeEntry['level'], string> = {
+  info: 'var(--proto-accent)',
+  warning: 'var(--proto-amber)',
+  error: 'var(--pill-failed-fg)',
+};
+
+function NoticeRow({ entry, last }: { entry: SystemNoticeEntry; last: boolean }) {
   return (
-    <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px',
-      background: 'var(--proto-amber-bg)', border: '1px solid var(--proto-amber-border)',
-      borderRadius: 9, maxWidth: 760, boxSizing: 'border-box' }}>
-      <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--proto-amber)', flex: 'none' }} />
-      <span style={{ fontSize: 10.5, color: 'var(--proto-amber-fg)' }}>{L.stApprovalReminderNote}</span>
+    <div style={{ ...ROW, gap: 9, alignItems: 'flex-start', padding: '9px 14px',
+      borderBottom: last ? undefined : ROW.borderBottom }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', flex: 'none', marginTop: 5,
+        background: NOTICE_LEVEL_COLOR[entry.level] }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {entry.title ? (
+          <div style={{ fontSize: 11, fontWeight: 650, color: 'var(--proto-ink)' }}>{entry.title}</div>
+        ) : null}
+        <div style={{ font: `400 10.5px ${MONO}`, color: 'var(--proto-muted-2)', lineHeight: 1.55,
+          marginTop: entry.title ? 1 : 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+          {entry.text}
+        </div>
+      </div>
+      <span style={{ font: `400 9.5px ${MONO}`, color: 'var(--proto-faint)', flex: 'none', marginTop: 2 }}>
+        {relativeAge(entry.ts)}
+      </span>
     </div>
   );
 }
 
+function NoticeNote({ text }: { text: string }) {
+  return (
+    <div style={{ padding: '10px 14px', fontSize: 10.5, color: 'var(--proto-muted-3)' }}>{text}</div>
+  );
+}
+
+/** The system notices the server actually broadcast (same stream the routing card fans out), read
+ *  from its in-memory ring via `system.notices` and kept live by the `system.notice` event. */
 function RecentNotifications() {
   const L = useVocab();
+  const { entries, cap, loading, error } = useNoticeHistory();
+  const right = cap > 0
+    ? L.stRecentNotifRight.replace('{n}', String(cap))
+    : L.stRecentNotifRightUnknown;
   return (
     <SCard style={{ marginTop: 12, maxWidth: 760 }}>
-      <SCardHeader title={L.stRecentNotifications} right={L.stRecentNotifRight} />
-      <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-        <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--proto-line-3)',
-          flex: 'none', marginTop: 5 }} />
-        <span style={{ fontSize: 10.5, color: 'var(--proto-muted-3)', lineHeight: 1.6 }}>
-          {L.stRecentNotifNote}
-        </span>
-      </div>
+      <SCardHeader title={L.stRecentNotifications} right={right} />
+      {error ? <NoticeNote text={L.stRecentNotifError} /> : null}
+      {!error && loading ? <NoticeNote text={L.stRecentNotifLoading} /> : null}
+      {!error && !loading && entries.length === 0 ? <NoticeNote text={L.stRecentNotifEmpty} /> : null}
+      {!error && entries.map((entry, i) => (
+        <NoticeRow key={entry.id} entry={entry} last={i === entries.length - 1} />
+      ))}
     </SCard>
   );
 }
@@ -227,7 +255,6 @@ export function NotificationsPanelView({
       <SCard><SettingsToggleList descriptors={NOTIFY_SETTINGS} settings={settings} pending={pending}
         onToggle={onToggle} threshold={threshold} /></SCard>
       <NotificationRouting snapshot={snapshot} settings={settings} />
-      <ApprovalReminder />
       <RecentNotifications />
     </>
   );

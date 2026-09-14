@@ -44,6 +44,7 @@ import {
   handleSystemDaemonStatus,
   handleSystemRateLimitStatus,
   handleSystemUsageStatus,
+  handleSystemNotices,
 } from './query/system.js';
 import {
   handleConfigSet,
@@ -167,6 +168,7 @@ const queryHandlers: Record<string, QueryHandler> = {
   'system.daemonStatus': (_deps, params) => handleSystemDaemonStatus(params),
   'system.rateLimitStatus': (_deps, params) => handleSystemRateLimitStatus(params),
   'system.usageStatus': (_deps, params) => handleSystemUsageStatus(params),
+  'system.notices': (_deps, params) => handleSystemNotices(params),
 };
 
 const mutateHandlers: Record<string, MutateHandler> = {

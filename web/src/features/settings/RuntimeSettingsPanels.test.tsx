@@ -17,6 +17,19 @@ vi.mock('@/design', async (importOriginal) => {
   };
 });
 
+const noticeHistory = vi.hoisted(() => ({
+  entries: [] as Array<{ id: string; ts: string; level: 'info' | 'warning' | 'error'; title?: string; text: string }>,
+  cap: 50,
+  loading: false,
+  error: false,
+}));
+
+// The panel's notice card reads the server ring through tRPC; these are pure render assertions, so
+// the resource hook is stubbed rather than standing up a TRPCProvider.
+vi.mock('@/features/notifications/useNoticeHistory', () => ({
+  useNoticeHistory: () => noticeHistory,
+}));
+
 import {
   AdvancedPanelView,
   NotificationsPanelView,
@@ -90,6 +103,22 @@ describe('runtime settings panel reads', () => {
     expect(html).toContain('C0123');
     expect(html).toContain('oc_456');
     expect(html).toContain('75s');
+  });
+
+  it('states the empty notice history honestly and lists real notices when the ring has them', () => {
+    noticeHistory.entries = [];
+    expect(renderNotifications()).toContain('No system notices since the server started');
+
+    noticeHistory.entries = [
+      { id: 'sn-2', ts: new Date().toISOString(), level: 'warning', title: 'Disk', text: 'Low free space on /' },
+      { id: 'sn-1', ts: new Date().toISOString(), level: 'info', text: 'Cortex restarted' },
+    ];
+    const html = renderNotifications();
+    expect(html).toContain('Disk');
+    expect(html).toContain('Low free space on /');
+    expect(html).toContain('Cortex restarted');
+    expect(html).toContain('newest 50 kept in memory');
+    noticeHistory.entries = [];
   });
 
   it('renders Advanced settings from the snapshot while DEBUG stays env-backed and read-only', () => {

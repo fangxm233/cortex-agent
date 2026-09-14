@@ -4,6 +4,7 @@ import { STORE_DIR } from '@core/paths.js';
 import { getThrottleState } from '@domain/costs/rate-limit-throttle.js';
 import { getResumeCountsByProvider } from '@domain/costs/resume-registry.js';
 import { usageService } from '@domain/costs/usage-service.js';
+import { listSystemNotices, NOTICE_HISTORY_CAP } from '@domain/system/notice-history.js';
 import type {
   SystemDaemonStatus,
   DaemonProcessInfo,
@@ -12,6 +13,8 @@ import type {
   SystemRateLimitStatusParams,
   SystemUsageStatus,
   SystemUsageStatusParams,
+  SystemNotices,
+  SystemNoticesParams,
 } from '../types.js';
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -151,4 +154,8 @@ export async function handleSystemUsageStatus(
   _params: SystemUsageStatusParams,
 ): Promise<SystemUsageStatus> {
   return usageService.getStatus();
+}
+
+export async function handleSystemNotices(params: SystemNoticesParams): Promise<SystemNotices> {
+  return { entries: listSystemNotices(params.limit), cap: NOTICE_HISTORY_CAP };
 }

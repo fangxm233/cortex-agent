@@ -1,5 +1,6 @@
 import type { PlatformAdapter, RichBlock, ActionElement } from '@platform/index.js';
 import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
+import { recordSystemNotice } from './notice-history.js';
 
 export type SystemNoticeLevel = 'info' | 'warning' | 'error';
 
@@ -20,6 +21,7 @@ export interface SystemNoticeInput {
 /** Publish a `system.notice` event on the shared EventBus (the Web notification-toast source).
  *  No-op when no bus is wired (matches publishSessionMessage). */
 export function publishSystemNotice(p: SystemNoticeInput): void {
+  recordSystemNotice({ level: p.level ?? 'info', text: p.text, ...(p.title !== undefined ? { title: p.title } : {}) });
   jobCtx.bus?.publish({
     type: 'system.notice',
     level: p.level ?? 'info',

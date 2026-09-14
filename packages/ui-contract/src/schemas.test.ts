@@ -24,6 +24,7 @@ test('empty query schemas accept empty input', () => {
   assert.deepEqual(queryInputSchemas['plugins.list'].parse({}), {});
   assert.deepEqual(queryInputSchemas['system.rateLimitStatus'].parse({}), {});
   assert.deepEqual(queryInputSchemas['system.usageStatus'].parse({}), {});
+  assert.deepEqual(queryInputSchemas['system.notices'].parse({}), {});
   assert.deepEqual(mutateInputSchemas['system.refreshUsage'].parse({}), {});
 });
 
