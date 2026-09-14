@@ -68,9 +68,9 @@ function harness() {
 // The verdicts are delivered synchronously; what is still asynchronous is the promise chain each
 // one kicks off (seal, cost, ledger). Poll for the observable status instead of sleeping fixed
 // padding. Returns quietly on timeout — the caller's assertion then fails with its own message.
-async function waitFor(cond: () => boolean, timeoutMs = 2000): Promise<void> {
+async function waitFor(cond: () => boolean | Promise<boolean>, timeoutMs = 2000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
-  while (!cond() && Date.now() < deadline) {
+  while (!(await cond()) && Date.now() < deadline) {
     await new Promise(r => setTimeout(r, 10));
   }
 }
@@ -101,9 +101,15 @@ test('undelivered-only completions hold the status waiting and subscribe to the 
   }));
   await waitFor(() => /Done/i.test(h.lastStatus()));
   assert.match(h.lastStatus(), /Done/i, 'status sealed done after continuation');
-  await costRepo.flush();
-  const rows = (await costRepo.readCosts()).entries
-    .filter(entry => entry.execution_id === h.args.executionId);
+  // The cost row is written AFTER the seal, on the same detached promise chain, so poll for it
+  // rather than assuming the seal implies it.
+  const readRows = async (): Promise<Array<Record<string, any>>> => {
+    await costRepo.flush();
+    return (await costRepo.readCosts()).entries
+      .filter(entry => entry.execution_id === h.args.executionId) as Array<Record<string, any>>;
+  };
+  let rows = await readRows();
+  await waitFor(async () => (rows = await readRows()).length > 0);
   assert.equal(rows.length, 1);
   assert.deepEqual({
     session: rows[0].session_id, input: rows[0].input_tokens,

@@ -10,9 +10,8 @@ import type { Destination, PlatformAdapter, MessageRef, OutputStream } from '@pl
 import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
 import { supersededEdits } from './superseded-edits.js';
 import { acquireTurnMutationLock, type TurnMutationRelease } from './turn-mutation-lock.js';
-import { runRegistry } from '../core/run-registry.js';
 
-import { finalizeLocalExecution, renderTurnStatus, computeElapsed, formatMetricsSuffix, sealStatus, buildSealedStatusActionBlocks } from './status-helpers.js';
+import { renderTurnStatus, computeElapsed, formatMetricsSuffix, sealStatus, buildSealedStatusActionBlocks } from './status-helpers.js';
 import { setSessionAsync } from '@domain/sessions/session.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
@@ -46,7 +45,6 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
   }
 
   const { elapsedStr, elapsedS } = computeElapsed(startTime);
-  finalizeLocalExecution({ executionId, status: 'completed', result, durationS: elapsedS });
   const metrics = formatMetricsSuffix({ costUsd: result?.total_cost_usd ?? null, numTurns: result?.num_turns ?? null });
   const sessionId = result?.sessionId ?? null;
   const stream = (onAssistantMessage as any)?.stream ?? null;
@@ -104,13 +102,11 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
 // --- Agent error handler ---
 
 export async function handleAgentError({ error, channel, adapter, statusMsg, startTime, executionId, sessionName = null, sessionId = null, effectiveSessionId = null, threadAnchorId = null, userMessageTs = null, userMessage = null }: { error: { message: string; cancelled?: boolean; rateLimitProvider?: string }; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; executionId: string | null; sessionName?: string | null; sessionId?: string | null; effectiveSessionId?: string | null; threadAnchorId?: string | null; userMessageTs?: string | null; userMessage?: string | null }): Promise<void> {
-  if (executionId) runRegistry.fail(executionId, error.message);
   const resolvedSessionId = effectiveSessionId || sessionId;
   const { elapsedStr, elapsedS } = computeElapsed(startTime);
 
   if (error?.cancelled && supersededEdits.check(channel)) {
     supersededEdits.clear(channel);
-    finalizeLocalExecution({ executionId, status: 'cancelled', error, durationS: elapsedS });
     const supersededText = renderTurnStatus({ kind: 'superseded' }, { sessionName, sessionId: resolvedSessionId, elapsedStr });
     await sealStatus(adapter, statusMsg, supersededText, buildSealedStatusActionBlocks(supersededText, { channel, sessionName, isDm: true }));
     return;
@@ -120,7 +116,6 @@ export async function handleAgentError({ error, channel, adapter, statusMsg, sta
   if (userMessageTs) await conversationLedger.completeTurn(channel, userMessageTs, { executionId });
 
   if (error?.cancelled) {
-    finalizeLocalExecution({ executionId, status: 'failed', error, durationS: elapsedS });
     const cancelledText = renderTurnStatus({ kind: 'cancelled' }, { sessionName, sessionId: resolvedSessionId, elapsedStr });
     await sealStatus(adapter, statusMsg, cancelledText, buildSealedStatusActionBlocks(cancelledText, { channel, sessionName, isDm: true }));
     return;
@@ -128,11 +123,11 @@ export async function handleAgentError({ error, channel, adapter, statusMsg, sta
 
   // Thrown rate-limit error while the five-hour throttle is active: pause-and-resume instead of
   // failing, mirroring the thread thrown path (domain/threads/runner.ts) and the graceful direct
-  // path (agent-runner handleDefaultAgentResult / edit-retry below). runRegistry.fail already
-  // ran at the top. Only when a userMessage is available (direct/TUI turns) — manager-qa / edit
-  // callers without it fall through to the normal error path.
+  // path (agent-runner handleDefaultAgentResult / edit-retry below). The execution record and the
+  // live-run registry were already closed by the run's own terminal handler (domain/runs/service);
+  // this handler owns the SURFACE. Only when a userMessage is available (direct/TUI turns) —
+  // manager-qa / edit callers without it fall through to the normal error path.
   if (userMessage && isApiRateLimitError(error.message) && isProviderRateLimited(error.rateLimitProvider)) {
-    finalizeLocalExecution({ executionId, status: 'failed', error: { message: 'Rate limited' }, durationS: elapsedS });
     recordDirectResume({ provider: error.rateLimitProvider, channel, trackSessionId: sessionId, userMessage });
     const rateLimitText = renderTurnStatus({ kind: 'rate-limited' }, { sessionName, sessionId: resolvedSessionId, elapsedStr });
     await sealStatus(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));
@@ -140,7 +135,6 @@ export async function handleAgentError({ error, channel, adapter, statusMsg, sta
   }
 
   log.error('Agent error:', error.message);
-  finalizeLocalExecution({ executionId, status: 'failed', error, durationS: elapsedS });
   const errorText = renderTurnStatus({ kind: 'error' }, { sessionName, sessionId: resolvedSessionId, elapsedStr });
   await sealStatus(adapter, statusMsg, errorText, buildSealedStatusActionBlocks(errorText, { channel, sessionName, isDm: true }));
   await maybeNotifyTurnComplete({ adapter, channel, threadAnchorId, sessionName, sessionId: resolvedSessionId, elapsedS, elapsedStr, status: 'failed' });

@@ -50,25 +50,6 @@ export function buildExecutionStatusReport(): string {
   return lines.join('\n');
 }
 
-export function finalizeLocalExecution({ executionId, status, result, error, durationS }: { executionId: string | null; status: string; result?: AgentResult | null; error?: { message: string; cancelled?: boolean } | null; durationS: number }): ExecutionRecord | null {
-  if (!executionId) return null;
-  if (status === 'completed') {
-    return executionRegistry.completeExecution(executionId, {
-      costUsd: result?.total_cost_usd,
-      numTurns: result?.num_turns,
-      durationS,
-      finalOutput: result?.finalOutput || null,
-    });
-  }
-  if (status === 'cancelled') {
-    return executionRegistry.cancelExecution(executionId, { durationS });
-  }
-  return executionRegistry.failExecution(executionId, {
-    durationS,
-    error: error?.message || null,
-  });
-}
-
 /** Report an attempt switch on the status message, from the already-rendered `model/mode` labels.
  *  The run layer reports a fallback as two labels (`RunEvent.run_fallback`); the legacy callback
  *  path below renders the same labels out of the two `AgentConfig`s. */

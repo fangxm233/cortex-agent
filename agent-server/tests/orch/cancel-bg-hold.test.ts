@@ -11,7 +11,7 @@ import './../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.
 import { test, beforeEach } from 'vitest';
 import assert from 'node:assert/strict';
 
-import { cancelBgHolds, cancelSubagentRuns } from '../../src/orchestration/routing/commands/cancel.js';
+import { cancelBgHolds, cancelChannelRuns, cancelSubagentRuns } from '../../src/orchestration/routing/commands/cancel.js';
 import type { RunningExecution } from '../../src/core/run-registry.js';
 import { beginForegroundSession } from '../../src/orchestration/agent-runner.js';
 import { runRegistry } from '../../src/core/run-registry.js';
@@ -80,6 +80,33 @@ test('end-to-end against the real registry: held session is found by channel and
   assert.equal(sealed, 1);
   assert.equal(runRegistry.has('sess-1'), false, 'hold cleared');
   assert.equal(cancelBgHolds('web:live', { killPooled: () => true }), 0, 'second Stop finds nothing');
+});
+
+test('Stop seals the hold even when the held session still has a live execution', async () => {
+  // A run keeps its execution registered for the whole of its background phase, so a held session
+  // normally DOES have a live execution — the hold is installed the moment the turn's reply lands,
+  // not after the run is over. A cancel that only sealed holds for execution-free channels would
+  // therefore kill the backend and leave the Web session reporting "Background" forever.
+  let sealed = 0;
+  let killed = 0;
+  runRegistry.onSessionStatus({ sessionId: 'sess-1', channel: 'web:both', running: true, backgroundRunning: true });
+  const seal = (): void => {
+    sealed++;
+    // The real seal publishes running:false, which flows back through the bus into the registry.
+    runRegistry.onSessionStatus({ sessionId: 'sess-1', channel: 'web:both', running: false, backgroundRunning: false });
+  };
+  runRegistry.setHoldHandles('sess-1', 'web-status-hold', { onSuperseded: seal, onStop: seal });
+  runRegistry.register({
+    threadId: null, channel: 'web:both', agentSlotId: null, executionId: 'exec-both',
+    kill: () => { killed++; return true; }, backend: 'claude', trackSessionId: 'sess-1',
+  });
+
+  const n = await cancelChannelRuns('web:both');
+
+  assert.equal(sealed, 1, 'the hold was sealed');
+  assert.equal(killed >= 1, true, 'the backend was stopped');
+  assert.equal(n, 1, 'one cancellation, not two — a run and its own hold are the same click');
+  assert.equal(runRegistry.has('sess-1'), false, 'hold cleared');
 });
 
 test('new foreground turn releases the old hold before publishing running:true', () => {

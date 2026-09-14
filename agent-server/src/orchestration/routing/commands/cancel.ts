@@ -39,11 +39,12 @@ export interface BgHoldCancelDeps {
 
 /** Stop the web background-task hold(s) on a channel; returns the number stopped.
  *
- *  Why this exists: a bg-held session is logically running (the UI shows Stop) but its execution
- *  has ALREADY been torn down — the web hold is installed after `teardownExecution` removed the
- *  entry from `runRegistry`. So the channel-keyed cancel below found zero executions and
- *  returned 0, and Stop was a silent no-op: the click resolved ok, nothing changed, and the session
- *  stayed "Background" until the grace / max-wait cap fired.
+ *  Why this exists: a bg-held session is logically running (the UI shows Stop), but nothing else
+ *  on the cancel path publishes the `running:false` that ends the hold. Killing the backend is not
+ *  enough and neither is tearing the execution down: the hold's own seal is the only thing that
+ *  releases its busy bracket and tells the Web UI the session is idle. Without it Stop was a
+ *  silent no-op — the click resolved ok, nothing changed, and the session stayed "Background"
+ *  until the grace / max-wait cap fired.
  *
  *  Two things must happen, in this order: kill the pooled backend process that still owns the
  *  background task (otherwise the work runs on and streams a continuation into a session the user
@@ -122,8 +123,13 @@ export async function cancelChannelRuns(channel: string): Promise<number> {
   for (const exec of executions) {
     await cancelLive(exec);
   }
-  const bgHolds = executions.length === 0 ? cancelBgHolds(channel) : 0;
-  const total = executions.length + bgHolds;
+  // Unconditionally, NOT only for a channel with no live execution: a run stays registered for the
+  // whole of its background phase, so a held session normally does have one. Tearing that
+  // execution down kills the backend but publishes nothing to the Web session — only the hold's
+  // own seal does. A channel with no hold costs one empty lookup here.
+  const holds = cancelBgHolds(channel);
+  // A held session and its own live execution are the same cancellation to a user; count it once.
+  const total = executions.length || holds;
   if (total > 0) conduitQueues.delete(channel);
   return total;
 }
