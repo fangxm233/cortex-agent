@@ -1075,6 +1075,7 @@ test('buildClaudeEnv — strips non-auth CLAUDE_CODE_* and preserves an admitted
     assert.equal(env.CLAUDE_CODE_AUTO_CONNECT_IDE, 'false');
     assert.equal(env.CLAUDE_CODE_DISABLE_POLICY_SKILLS, '1');
     assert.equal(env.CLAUDE_CODE_DISABLE_TERMINAL_TITLE, '1');
+    assert.equal(env.CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT, '1830000');
     // We deliberately do NOT disable telemetry/experiment-gates by default.
     assert.equal(env.DISABLE_TELEMETRY, undefined);
     assert.equal(env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC, undefined);
@@ -1084,6 +1085,13 @@ test('buildClaudeEnv — strips non-auth CLAUDE_CODE_* and preserves an admitted
     if (prevOAuthToken === undefined) delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
     else process.env.CLAUDE_CODE_OAUTH_TOKEN = prevOAuthToken;
   }
+});
+
+test('buildClaudeEnv — an MCP call may go silent for the whole shared deadline, not just 30m', () => {
+  // The idle clock is the one that used to abort a delegating turn's `agent` call: its 1800s
+  // default expired while the child was still working and left the run with no waiter.
+  const env = buildClaudeEnv('C1', 'sid-1');
+  assert.equal(env.CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT, env.MCP_TOOL_TIMEOUT);
 });
 
 test('buildClaudeEnv — defaults MCP calls to the shared 30m30s deadline', () => {

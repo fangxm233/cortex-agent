@@ -25,7 +25,9 @@ import type { CortexToolContext } from '../src/domain/mcp/tools/context.js';
 
 const requestLoopbackJson = vi.hoisted(() => vi.fn());
 vi.mock('../src/core/loopback-http.js', () => ({ requestLoopbackJson }));
-const { registerSubagentTools } = await import('../src/domain/mcp/tools/subagent.js');
+const {
+  registerSubagentTools, CLIENT_IDLE_FLOOR_MS, FOREGROUND_DEADLINE_MS, WAIT_REQUEST_TIMEOUT_MS,
+} = await import('../src/domain/mcp/tools/subagent.js');
 
 // --- a minimal McpServer stand-in ---
 
@@ -33,7 +35,7 @@ interface Registered {
   name: string;
   description: string;
   shape: Record<string, z.ZodTypeAny>;
-  handler: (params: any) => Promise<any>;
+  handler: (params: any, extra?: any) => Promise<any>;
 }
 
 function registerTools(
@@ -198,6 +200,85 @@ test('a foreground call starts the run, then polls until it settles', async () =
   assert.equal(start.backend, 'claude');
   assert.deepEqual(waits.map(w => w.action), ['wait', 'wait']);
   assert.deepEqual(waits.map(w => w.runId), ['sa_1', 'sa_1']);
+});
+
+test('the foreground deadline stays a full hop under the shortest client idle timeout', () => {
+  // Whoever hits their deadline first decides how the call ends, and only this side can end it
+  // with a handover. Losing the race is how a still-working child lost its only waiter.
+  assert.ok(FOREGROUND_DEADLINE_MS + WAIT_REQUEST_TIMEOUT_MS < CLIENT_IDLE_FLOOR_MS);
+});
+
+test('each completed hop reports progress, which is what keeps a long call from reading as idle', async () => {
+  requestLoopbackJson
+    .mockResolvedValueOnce(reply({ id: 'sa_p', status: 'running' }))
+    .mockResolvedValueOnce(reply({ id: 'sa_p', status: 'running' }))
+    .mockResolvedValueOnce(reply({ id: 'sa_p', status: 'running' }))
+    .mockResolvedValueOnce(reply({ id: 'sa_p', status: 'completed', text: 'done' }));
+  const sent: any[] = [];
+
+  await registerTools().get('agent')!.handler(
+    { description: 'd', prompt: 'p', subagent_type: 'general-purpose' },
+    { _meta: { progressToken: 7 }, sendNotification: async (n: any) => { sent.push(n); } },
+  );
+
+  // Two `wait` hops came back running; the settling third needs no ping.
+  assert.equal(sent.length, 2);
+  assert.equal(sent[0].method, 'notifications/progress');
+  assert.deepEqual(sent.map(n => n.params.progressToken), [7, 7]);
+  assert.deepEqual(sent.map(n => n.params.progress), [1, 2]);
+  assert.match(sent[0].params.message, /sa_p/);
+});
+
+test('a caller that asked for no progress, or a notification seam that fails, is not an error', async () => {
+  requestLoopbackJson
+    .mockResolvedValueOnce(reply({ id: 'sa_q', status: 'running' }))
+    .mockResolvedValueOnce(reply({ id: 'sa_q', status: 'running' }))
+    .mockResolvedValueOnce(reply({ id: 'sa_q', status: 'completed', text: 'done' }))
+    .mockResolvedValueOnce(reply({ id: 'sa_r', status: 'running' }))
+    .mockResolvedValueOnce(reply({ id: 'sa_r', status: 'running' }))
+    .mockResolvedValueOnce(reply({ id: 'sa_r', status: 'completed', text: 'done' }));
+  const tools = registerTools();
+
+  const noToken = await tools.get('agent')!.handler(
+    { description: 'd', prompt: 'p', subagent_type: 'general-purpose' },
+    { sendNotification: async () => { throw new Error('never asked for'); } },
+  );
+  const throwing = await tools.get('agent')!.handler(
+    { description: 'd', prompt: 'p', subagent_type: 'general-purpose' },
+    { _meta: { progressToken: 'tok' }, sendNotification: () => { throw new Error('transport gone'); } },
+  );
+
+  assert.equal(noToken.content[0].text, 'done');
+  assert.equal(throwing.content[0].text, 'done');
+});
+
+test('a run that outlives the foreground deadline is handed to the background, and said so', async () => {
+  vi.useFakeTimers();
+  try {
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+    requestLoopbackJson.mockImplementation(async (_m: string, _u: string, body: any) => {
+      if (body.action === 'wait') {
+        // Each hop lands a little further out; the second one is past the deadline.
+        vi.setSystemTime(new Date(Date.now() + FOREGROUND_DEADLINE_MS));
+        return reply({ id: 'sa_slow', status: 'running' });
+      }
+      return reply({ id: 'sa_slow', status: 'running' });
+    });
+
+    const result = await registerTools().get('agent')!.handler({
+      description: 'd', prompt: 'p', subagent_type: 'general-purpose',
+    });
+
+    assert.equal(result.isError, undefined);
+    assert.match(result.content[0].text, /runs in the background/);
+    assert.match(result.content[0].text, /delivered to you/);
+    assert.match(result.content[0].text, /agent_stop\("sa_slow"\)/);
+    // The handover is a request, not a hope: the daemon is told before the model is.
+    assert.deepEqual(payloads().map(p => p.action), ['start', 'wait', 'detach']);
+    assert.equal(payloads().at(-1)!.runId, 'sa_slow');
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 test('a background call returns the id at once and never waits', async () => {

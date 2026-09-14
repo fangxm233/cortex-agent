@@ -307,6 +307,12 @@ function setIfPresent(env: NodeJS.ProcessEnv, key: string, value?: string | null
  *  AFTER the CLAUDE_CODE* strip loop. See code.claude.com/docs/en/env-vars. */
 function applyClaudeStartupEnv(env: NodeJS.ProcessEnv): void {
   env.MCP_TOOL_TIMEOUT = String(MCP_INFRASTRUCTURE_TIMEOUT_MS);
+  // Two different clocks, and the second one is the one that used to fire: MCP_TOOL_TIMEOUT bounds
+  // a call in total, while the idle timer bounds how long a call may go SILENT. Its 1800s default
+  // landed under our own 30-minute foreground deadline, so a delegating turn had its `agent` call
+  // aborted out from under it and the child was left with no waiter. Both now share the one
+  // infrastructure deadline.
+  env.CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT = String(MCP_INFRASTRUCTURE_TIMEOUT_MS);
   env.CLAUDE_CODE_DISABLE_AUTO_MEMORY = '1';
   env.DISABLE_AUTOUPDATER = '1';                                  // no npm registry update check at launch
   env.CLAUDE_CODE_DISABLE_OFFICIAL_MARKETPLACE_AUTOINSTALL = '1'; // skip first-run marketplace install

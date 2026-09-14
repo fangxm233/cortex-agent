@@ -10,10 +10,24 @@ import { webhookAuthHeaders, type CortexToolContext } from './context.js';
 
 /** One `wait` hop. Slightly longer than the daemon's own slice so the daemon, not the socket,
  *  decides when a hop ends. */
-const WAIT_REQUEST_TIMEOUT_MS = 40 * 1000;
-/** Outer bound on a foreground `agent` call. Past this the tool returns and names the run id, so
- *  the model can keep working and collect it with `agent_stop`-style follow-up rather than hang. */
-const FOREGROUND_DEADLINE_MS = 30 * 60 * 1000;
+export const WAIT_REQUEST_TIMEOUT_MS = 40 * 1000;
+/**
+ * The shortest idle timeout a client is known to enforce: Claude Code aborts an MCP call that has
+ * gone 1800s without a response or a progress notification. Cortex raises that knob for the
+ * children it spawns itself (`applyClaudeStartupEnv`), but a sidecar cannot count on whichever
+ * client it happens to be talking to.
+ */
+export const CLIENT_IDLE_FLOOR_MS = 30 * 60 * 1000;
+/**
+ * Outer bound on a foreground `agent` call. Past this the tool hands the run to the background and
+ * says so, rather than hanging.
+ *
+ * It MUST stay strictly under {@link CLIENT_IDLE_FLOOR_MS}, by more than one wait hop: whoever hits
+ * their deadline first decides how the call ends, and only this side can end it with a handover.
+ * When the client wins, its abort takes away the run's only waiter and the daemon is left to
+ * adopt — or, before that path existed, to kill — a run that was still working.
+ */
+export const FOREGROUND_DEADLINE_MS = 25 * 60 * 1000;
 
 /** Build the agent shape from the host's live catalog. The descriptions name the real roles and
  *  models this sidecar can reach; an empty catalog reproduces the shipped static strings. */
@@ -78,26 +92,78 @@ async function proxySubagent(
   return body.data;
 }
 
+/** Hand a run that outlived the foreground deadline to the background, so the work continues and
+ *  its result is delivered instead of being abandoned with the caller. Best-effort: a daemon that
+ *  refuses the handover leaves the run exactly as it was, and the sweep decides its fate. */
+async function detachRun(ctx: CortexToolContext, runId: string): Promise<void> {
+  try {
+    await proxySubagent(ctx, 'detach', { runId });
+  } catch {
+    // Reported as "running in the background" either way; the daemon's own sweep is the backstop.
+  }
+}
+
 function textResult(text: string, isError = false) {
   return { content: [{ type: 'text' as const, text }], ...(isError ? { isError: true } : {}) };
 }
 
+/**
+ * What a handler learns about the call it is serving. Declared structurally rather than imported:
+ * only two fields matter here, and the tool must keep working against a caller that supplies
+ * neither (the fake server in the tests calls handlers with one argument).
+ */
+interface ToolExtra {
+  _meta?: { progressToken?: string | number };
+  sendNotification?: (notification: {
+    method: 'notifications/progress';
+    params: { progressToken: string | number; progress: number; message?: string };
+  }) => Promise<void> | void;
+}
+
+/**
+ * A progress ping per completed hop, when the caller asked to hear about progress.
+ *
+ * This is the protocol's own answer to a long silent call, and the general form of the fix: a
+ * client that watches progress stops counting the call as idle, whatever its timeout is set to.
+ * Best-effort by construction — no token, no notification seam, or a transport that refuses the
+ * message must never disturb the delegated work.
+ */
+function hopReporter(extra: ToolExtra | undefined, runId: string): (hops: number) => void {
+  const token = extra?._meta?.progressToken;
+  const send = extra?.sendNotification;
+  if (token === undefined || !send) return () => {};
+  return (hops: number): void => {
+    try {
+      void Promise.resolve(send({
+        method: 'notifications/progress',
+        params: { progressToken: token, progress: hops, message: `agent ${runId} still running` },
+      })).catch(() => {});
+    } catch {
+      // A notification seam that throws synchronously is still only a notification.
+    }
+  };
+}
+
 /** Poll the daemon in bounded hops until the run settles or the outer deadline passes. The hops
- *  are also the liveness signal: if this process dies the daemon stops hearing them and abandons
- *  the run rather than letting orphaned children spend tokens. */
-async function awaitRun(ctx: CortexToolContext, runId: string) {
+ *  are also the liveness signal: if this process dies the daemon stops hearing them and adopts
+ *  the run into the background rather than letting it answer into the void. */
+async function awaitRun(ctx: CortexToolContext, runId: string, onHop: (hops: number) => void = () => {}) {
   const deadline = Date.now() + FOREGROUND_DEADLINE_MS;
-  for (;;) {
+  for (let hops = 1; ; hops++) {
     const outcome = await proxySubagent(ctx, 'wait', { runId }, WAIT_REQUEST_TIMEOUT_MS);
     if (outcome.status !== 'running') return outcome;
     if (Date.now() >= deadline) return { ...outcome, timedOut: true };
+    onHop(hops);
   }
 }
 
 function foregroundText(outcome: any, runId: string): { text: string; isError: boolean } {
   if (outcome.timedOut) {
+    const minutes = Math.round(FOREGROUND_DEADLINE_MS / 60_000);
     return {
-      text: `Agent ${runId} is still running after 30 minutes. It keeps going; stop it with agent_stop if it is no longer useful.`,
+      text: `Agent ${runId} passed the ${minutes}-minute foreground limit and now runs in the `
+        + 'background: it keeps going, and its result will be delivered to you when it lands. '
+        + `Stop it with agent_stop("${runId}") if it is no longer useful.`,
       isError: false,
     };
   }
@@ -113,7 +179,7 @@ export function registerSubagentTools(server: McpServer, ctx: CortexToolContext)
     `${SUBAGENT_DESCRIPTION} Each child is isolated: it has its own context, its own role prompt, `
     + 'and no delegation tools of its own, so it cannot spawn further subagents.',
     agentShape,
-    async (params: AgentParams) => {
+    async (params: AgentParams, extra?: ToolExtra) => {
       try {
         const { run_in_background: background, ...toolParams } = params;
         const started = await proxySubagent(ctx, 'start', {
@@ -132,7 +198,8 @@ export function registerSubagentTools(server: McpServer, ctx: CortexToolContext)
             + `when it is ready. Stop it early with agent_stop("${started.id}").`,
           );
         }
-        const outcome = await awaitRun(ctx, started.id);
+        const outcome = await awaitRun(ctx, started.id, hopReporter(extra, started.id));
+        if (outcome.timedOut) await detachRun(ctx, started.id);
         const { text, isError } = foregroundText(outcome, started.id);
         return textResult(text, isError);
       } catch (error) {
