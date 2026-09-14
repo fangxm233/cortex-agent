@@ -83,6 +83,18 @@ module.exports = {
       from: { path: '^src/orchestration/' },
       to: { path: '^src/entry/', ...COMMON_OPTS },
     },
+    {
+      name: 'no-circular',
+      severity: 'warn',
+      comment:
+        'orchestration must have no import cycles. Reported as `warn` for now because one cycle '
+        + 'still exists — agent-runner → manager-qa → thread-callback → agent-runner, which '
+        + 'depcruise reports twice (once more via the longer thread-callback → thread-executor '
+        + 'entry into it). plan/orchestration-turn-refactor.md Phase 3 breaks that edge through '
+        + 'session-gateway.ts and raises this rule to `error`.',
+      from: { path: '^src/orchestration/' },
+      to: { circular: true },
+    },
   ],
   options: {
     doNotFollow: { path: 'node_modules' },
