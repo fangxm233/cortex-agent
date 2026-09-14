@@ -28,7 +28,7 @@ Includes cross-cutting coverage and source-layer test subdirectories.
 | agent-adapter.test.ts | test | adapter dispatch, native tools and event contracts |
 | subagent-attribution.test.ts | test | live child attribution: the pinned parent target and the no-refeed guard |
 | subagent-roles.test.ts | test | role frontmatter, per-backend tool translation, seeding and migration |
-| subagent-runner.test.ts | test | invocation validation, mode semantics, caps and backend precedence |
+| subagent-runner.test.ts | test | invocation validation, mode semantics, caps, backend precedence and child engine-key isolation |
 | subagent-mcp-tool.test.ts | test | the `agent` MCP surface, webhook payloads and the child-is-a-leaf guards |
 | subagent-background.test.ts | test | background session holds, delivery and PI's run_in_background |
 | agent-adapter-todo.test.ts | test | TodoWrite snapshot parsing, degradation and progress rendering |

@@ -1,5 +1,6 @@
 // input:  one resolved task + role, the delegating parent's context, an abort signal
-// output: one SubagentResult, from a nested PI session or a frozen one-shot Claude run
+// output: one SubagentResult, from a nested PI session or a frozen one-shot Claude run that owns
+//         its own pool slot and retires it on settle
 // pos:    Backend dispatch for a single subagent child
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -20,6 +21,7 @@ import {
   type RunAttemptConfig, type ResolvedProfileConfig,
 } from '../profile-manager.js';
 import { startRun } from '../../runs/service.js';
+import { engines } from '../../runs/engines.js';
 import { fromRole } from '../../runs/spec-loader.js';
 import type { RunObserver, RunRequest } from '../../runs/request.js';
 import type { RunEvent } from '../../runs/events.js';
@@ -251,18 +253,29 @@ function claudeChildProfile(config: RunAttemptConfig): ResolvedProfileConfig {
   };
 }
 
+/**
+ * A child's own pool slot, never the parent's. Keying a child on the parent's channel put it on
+ * the slot the parent's interactive session already occupies (`engineKey === channel` there too),
+ * and a child's spec identity always differs — leaf tool surface, role prompt, own allowlist — so
+ * `SessionEngines.acquireClaude` retired the LIVE PARENT to make room, killing it mid-turn 30s
+ * later. Parallel children stomped on each other the same way. The channel stays the prefix so
+ * channel-wide sweeps (`closeByPrefix`) still reach children.
+ */
+function childEngineKey(request: SubagentRunRequest, runId: string): string {
+  return `${request.parent.channel || 'default'}#sub:${runId}`;
+}
+
 /** The request a Claude child runs under. A frozen one-shot role: no session to resume, no
  *  hooks, no ambient rules, no transcript log, and a leaf tool surface. */
 function claudeChildRequest(request: SubagentRunRequest, config: RunAttemptConfig): RunRequest {
   const mcpToolAllowlist = withoutSubagentTools(undefined, CHILD_MCP_BUNDLES);
+  const runId = randomUUID();
   return {
-    runId: randomUUID(),
+    runId,
     session: {
       sessionId: null,
       backendSessionId: null,
-      // A child has no session of its own to pool under; it opens on the parent's channel, which
-      // is what an unset engine key resolved to.
-      engineKey: request.parent.channel || 'default',
+      engineKey: childEngineKey(request, runId),
       sessionName: null,
     },
     profile: claudeChildProfile(config),
@@ -295,11 +308,28 @@ function claudeChildRequest(request: SubagentRunRequest, config: RunAttemptConfi
   };
 }
 
+/**
+ * Retire the child's process once its run is terminal. A child's key is unique to the run, so
+ * nothing will ever acquire it again — without this the finished one-shot session would sit in
+ * the pool holding a live CLI until `IDLE_SESSION_TIMEOUT` (65 min) swept it. `settled`, not
+ * `result`: the background phase, if any, owns the process after the foreground turn.
+ */
+function releaseChildEngine(settled: Promise<unknown>, engineKey: string): void {
+  void settled
+    .catch(() => undefined)
+    .then(() => engines.close(engineKey))
+    .catch((error) => log.warn(
+      `releasing child engine ${engineKey} failed: ${(error as Error).message}`,
+    ));
+}
+
 async function runClaudeSubagent(request: SubagentRunRequest): Promise<SubagentResult> {
   const spec = resolveSpec(request);
   const config = claudeChildConfig(request, spec);
   if (!config.model) throw new Error('A claude subagent needs a model: set one on the task or the role.');
-  const run = startRun(claudeChildRequest(request, config), request.onNotice ? [claudeNoticeObserver(request)] : []);
+  const childRequest = claudeChildRequest(request, config);
+  const run = startRun(childRequest, request.onNotice ? [claudeNoticeObserver(request)] : []);
+  releaseChildEngine(run.settled, childRequest.session.engineKey);
   const onAbort = (): void => { run.cancel('user'); };
   request.signal?.addEventListener('abort', onAbort, { once: true });
   let result: AgentResult;
@@ -389,4 +419,4 @@ function claudeNoticeObserver(request: SubagentRunRequest): RunObserver {
 }
 
 /** Internals exposed for tests only. */
-export const _test = { claudeChildConfig, claudeNoticeObserver };
+export const _test = { claudeChildConfig, claudeChildRequest, claudeNoticeObserver };

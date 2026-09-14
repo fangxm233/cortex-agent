@@ -154,6 +154,49 @@ test('a cross-backend Claude child fails clearly when no Claude profile can supp
   });
 });
 
+// --- child engine key ---
+
+/** The minimum a `claudeChildRequest` reads; everything else is filled by the runner itself. */
+function childRequestInput(channel: string | undefined) {
+  const request = {
+    task: { description: 'd', prompt: 'p', subagent_type: 'explore' },
+    role: { systemPrompt: 'role prompt', tools: null },
+    cwd: '/tmp/work',
+    parent: { backend: 'claude', model: 'parent-model', mode: null, channel },
+  } as any;
+  const config = {
+    model: 'child-model', backend: 'claude', mode: null, provider: null,
+    extraEnv: {}, extraOption: {}, claudeBackend: 'print', thinking: null,
+  } as any;
+  return { request, config };
+}
+
+test('a Claude child never pools on its parent channel key, so the live parent is not retired', () => {
+  const { request, config } = childRequestInput('web:parent');
+  const built = subagentRunnerTest.claudeChildRequest(request, config);
+  // The parent's interactive session pools under `engineKey === channel`. Sharing that key made
+  // `acquireClaude` retire the parent (identities always differ) and SIGTERM it mid-turn.
+  assert.notEqual(built.session.engineKey, 'web:parent');
+  // Still channel-prefixed: `closeByPrefix(channel)` must keep reaching children.
+  assert.ok(built.session.engineKey.startsWith('web:parent'));
+  assert.equal(built.context.channel, 'web:parent');
+});
+
+test('parallel Claude children get one pool slot each instead of evicting one another', () => {
+  const { request, config } = childRequestInput('web:parent');
+  const keys = new Set(
+    [0, 1, 2].map(() => subagentRunnerTest.claudeChildRequest(request, config).session.engineKey),
+  );
+  assert.equal(keys.size, 3);
+});
+
+test('a channel-less parent still yields a unique child key rather than the shared default slot', () => {
+  const { request, config } = childRequestInput(undefined);
+  const built = subagentRunnerTest.claudeChildRequest(request, config);
+  assert.notEqual(built.session.engineKey, 'default');
+  assert.ok(built.session.engineKey.startsWith('default'));
+});
+
 // --- capability gate ---
 
 test('both shipped backends declare the subagent capability, and the gate reads it', () => {
