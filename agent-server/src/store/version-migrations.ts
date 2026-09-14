@@ -511,6 +511,9 @@ export async function runMigrations(opts: MigrationOptions = {}): Promise<void> 
     log.warn(`Could not migrate legacy provider state: ${(error as Error).message}`);
   });
   await migrateSessionHooksToRegistry(dataDir);
+  await removeRetiredDefaultHooks(dataDir).catch((error) => {
+    log.warn(`Could not remove retired default hooks: ${(error as Error).message}`);
+  });
   const versionsFile = path.join(storeDir, 'versions.json');
   const versions = await loadVersionsFrom(versionsFile);
 
@@ -860,5 +863,67 @@ export async function migrateAistatusConfigLocation(
     }
   } catch (err: unknown) {
     log.error(`Failed to migrate aistatus config to ${dstPath}: ${(err as Error).message}`);
+  }
+}
+
+// ── Retired shipped hooks ──────────────────────────────────────
+
+/** The managed assets of hooks Cortex used to ship and no longer does, as `config/hooks` entry
+ *  file → the `id` that entry must still carry to be considered ours. */
+const RETIRED_HOOK_ENTRIES: ReadonlyArray<readonly [string, string]> = [
+  ['03-ask-user-question-hook.json', 'ask-user-question-hook'],
+  ['04-exit-plan-mode-hook.json', 'exit-plan-mode-hook'],
+  ['09-permission-request-auto-allow.json', 'permission-request-auto-allow'],
+];
+
+/** Scripts belonging to a retired entry, deleted alongside it. A retired entry that ran an inline
+ *  `run.command` (the permission auto-allow) has no script and is simply absent here. */
+const RETIRED_HOOK_SCRIPTS = ['ask-user-question-hook.mjs', 'exit-plan-mode-hook.mjs'];
+
+async function removeIfPresent(filePath: string, label: string): Promise<boolean> {
+  try {
+    await fs.unlink(filePath);
+    log.info(`Removed retired ${label}: ${filePath}`);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      log.warn(`Could not remove retired ${label} ${filePath}: ${(error as Error).message}`);
+    }
+    return false;
+  }
+}
+
+/** True when the deployed entry is still the shipped one, so a hand-edited or repurposed file
+ *  under the same name is left alone. */
+async function isShippedRetiredEntry(filePath: string, id: string): Promise<boolean> {
+  try {
+    const parsed: unknown = JSON.parse(await fs.readFile(filePath, 'utf8'));
+    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+      && (parsed as Record<string, unknown>).id === id;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Delete hooks Cortex no longer ships from an existing install.
+ *
+ * All three current members were unreachable by construction rather than merely unused. The
+ * AskUserQuestion / ExitPlanMode bridge hooks matched native tools that headless `-p` strips from
+ * the session whatever `--tools` lists (plan approval and questions now run through the
+ * interaction-bridge MCP tools against the same webhook endpoints), and the PermissionRequest
+ * auto-allow matched an event Claude never emits under the `bypassPermissions` mode every Cortex
+ * spawn runs in. `syncManagedHooks` only adds and upgrades files, so without this the dead entries
+ * would linger in every upgraded registry. Idempotent, and a no-op once the files are gone.
+ */
+export async function removeRetiredDefaultHooks(dataDir: string): Promise<void> {
+  const registryDir = path.join(dataDir, 'config', 'hooks');
+  for (const [file, id] of RETIRED_HOOK_ENTRIES) {
+    const entryPath = path.join(registryDir, file);
+    if (!await isShippedRetiredEntry(entryPath, id)) continue;
+    if (await removeIfPresent(entryPath, 'hook entry')) {
+      const script = RETIRED_HOOK_SCRIPTS.find((name) => id === name.replace(/\.mjs$/, ''));
+      if (script) await removeIfPresent(path.join(dataDir, 'hooks', script), 'hook script');
+    }
   }
 }

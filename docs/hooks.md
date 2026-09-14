@@ -128,9 +128,10 @@ only. To hook the corresponding Claude mount points, declare them natively as
 
 Everything after `cc:` is used verbatim as the Claude settings event name, so
 any Claude Code mount point is reachable without code changes —
-`cc:PermissionRequest` (which the shipped auto-allow hook uses), `cc:SessionEnd`,
-`cc:PreCompact`, `cc:UserPromptSubmit`, `cc:Stop`. These declarations mount on
-the Claude backend only.
+`cc:PermissionRequest`, `cc:SessionEnd`, `cc:PreCompact`, `cc:UserPromptSubmit`,
+`cc:Stop`. These declarations mount on the Claude backend only. Note that Cortex
+spawns Claude with `--permission-mode bypassPermissions`, so `cc:PermissionRequest`
+never fires as things stand.
 
 ### `pi:*` — PI passthrough
 
@@ -201,11 +202,10 @@ matcher group:
     { "matcher": "Edit|Write", "hooks": [
         { "type": "command", "command": "node $CORTEX_HOME/hooks/tasks-yaml-guard.mjs", "timeout": 10 }
     ]},
-    { "matcher": "AskUserQuestion", "hooks": [ ... ] }
+    { "matcher": "Read|Grep", "hooks": [ ... ] }
   ],
   "PostToolUse": [ ... ],
-  "SessionStart": [ ... ],
-  "PermissionRequest": [ ... ]
+  "SessionStart": [ ... ]
 }
 ```
 
@@ -332,21 +332,26 @@ resurrect the old session under the channel; for `session.messageEnd` on the
 channel itself, so the follow-up continues the live conversation and its output
 threads under the reply that triggered it.
 
-## The hook-bridge: blocking tool calls over HTTP
+## The hook-bridge: blocking calls over HTTP
 
-Two tool events need a human in the loop, which the agent process cannot do on
-its own. `ask-user-question-hook.mjs` and `exit-plan-mode-hook.mjs` POST to the
-server's webhook listener (`WEBHOOK_PORT`, default 3001) on
+Two interactions need a human in the loop, which the agent process cannot do on
+its own: asking the user a question, and getting a plan approved. Both POST to
+the server's webhook listener (`WEBHOOK_PORT`, default 3001) on
 `/hook/ask-user-question` and `/hook/exit-plan-mode`, and block on the response.
+
+Agents reach that bridge through the `cortex_ask_user` and `cortex_plan_exit`
+MCP tools, and hook scripts reach it through `cortex-hook-api.mjs` / the
+`cortex-hook ask` CLI (see [Asking the user from a hook](#asking-the-user-from-a-hook)).
+The PreToolUse hooks that used to intercept the native `AskUserQuestion` and
+`ExitPlanMode` tools are retired: headless `-p` removes those tools from the
+session whatever `--tools` lists, so the matchers could never fire.
 
 On the server, `orchestration/routing/hook-bridge.ts` registers a pending
 promise with a 30-minute TTL and publishes `ask-user.requested` or
 `plan.submitted` on the event bus. The subscribers in
 `hook-bridge-subscribers.ts` turn those into interactive Slack messages. When
 the user clicks a button or submits the modal, the interaction handler resolves
-the promise, the HTTP response returns to the waiting hook script, and the
-script writes the answer to stdout — which the agent reads as the tool's
-pre-execution result.
+the promise and the HTTP response returns to the waiting caller.
 
 ## Hook scripts
 
@@ -357,8 +362,6 @@ plain text) to stdout. The scripts shipped with Cortex are:
 | Script | Used by | Purpose |
 |---|---|---|
 | `tasks-yaml-guard.mjs` | `agent:pre-tool`, `Edit\|Write` | Denies edits to `TASKS.yaml` unless the current process holds the project lock |
-| `ask-user-question-hook.mjs` | `agent:pre-tool`, `AskUserQuestion` | Forwards the question to the hook-bridge and blocks until the user answers |
-| `exit-plan-mode-hook.mjs` | `agent:pre-tool`, `ExitPlanMode` | Forwards the plan to the hook-bridge and blocks until it is approved or rejected |
 | `memory-ref-tracker.mjs` | `agent:post-tool`, `Read\|Grep` | Records memory-file accesses to `_meta/access-log.jsonl` |
 | `rules-loader.mjs` | `agent:post-tool`, `Read\|Grep` | Injects scoped rules from `$CORTEX_HOME/rules/` when a matching path is read, once per session per rule |
 | `session-activity-tracker.mjs` | `agent:post-tool`, `Read\|Edit\|Write\|Skill` | Appends activity records to `logs/session-activity/<session_id>.jsonl` |
@@ -367,9 +370,8 @@ plain text) to stdout. The scripts shipped with Cortex are:
 | `new-session-hook.mjs` | `cortex:session.new` | Recalls valuable information from the closing session and writes it to the context files |
 | `post-task-hook.mjs` | Template `onEnd` hooks | Prompts the target agent to compound what it learned and commit |
 
-The `PermissionRequest` auto-allow declaration uses `run.command` rather than a
-script: a one-line `printf` that returns an allow decision for `Edit|Write`.
-Access control for those tools is enforced by the pre-tool guards above.
+A declaration may run an inline `run.command` instead of a script; access control
+for `Edit|Write` is enforced by the pre-tool guards above.
 
 `cortex-hook-api.mjs` in the same directory is not a hook entry — it is a helper
 library that hook scripts import (see below).
@@ -378,7 +380,7 @@ library that hook scripts import (see below).
 
 Any hook can pose an ask-user-question card on the message platform bound to the
 current session — Slack, Feishu, or the Web UI — and block until the user
-answers. The card is the same interactive form the `AskUserQuestion` tool
+answers. The card is the same interactive form the `cortex_ask_user` tool
 produces, and it accepts an optional severity level (`info`, `warning`, or
 `error`, with `warn` as an alias) that renders with the Web UI's notice tones
 and an icon prefix on Slack and Feishu. Without a level the card keeps its
@@ -423,8 +425,7 @@ they share one routing and blocking contract:
   answers: {} }` when the TTL expires. `cortex-hook ask` exits `0` on answers,
   `2` on timeout, and `1` on other errors, so a shell hook can branch on `$?`.
   A hook that asks must set its `run.timeout` above the expected wait and
-  declare `blocking: { "mode": "webhook", "ttlMin": 30 }`, mirroring the
-  shipped `ask-user-question-hook` declaration.
+  declare `blocking: { "mode": "webhook", "ttlMin": 30 }`.
 - **Multiple questions.** `askUser` takes any non-empty question array;
   `cortex-hook ask --payload <file|->` accepts the same array as JSON, e.g.
   `cat questions.json | cortex-hook ask --payload - --session-id <id>`. Cortex

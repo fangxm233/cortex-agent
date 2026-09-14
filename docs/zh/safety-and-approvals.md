@@ -73,32 +73,32 @@ Cortex 将每个智能体操作分类到三个桶中。分类位于根 CORTEX.md
 
 在你的管理私信频道中使用 `/approval` 命令（管理频道如何配置参见 [slack-setup.md](./slack-setup.md)）。`approval` 技能（cortex-system 插件的一部分）读取 PENDING_APPROVALS.md 并展示每个挂起项。回复 `approve 1` 或 `reject 2` 对特定条目进行操作。
 
-对于 ExitPlanMode 工作流，Cortex 呈现一个带有 **Approve** 和 **Provide Feedback** 按钮的交互式 Slack 消息。点击 Approve 通知智能体继续执行计划。点击 Provide Feedback 打开一个模态框，你可以在其中输入拒绝原因——智能体接收该文本并可以修改计划。
+对于计划审批工作流，Cortex 呈现一个带有 **Approve** 和 **Provide Feedback** 按钮的交互式 Slack 消息。点击 Approve 通知智能体继续执行计划。点击 Provide Feedback 打开一个模态框，你可以在其中输入拒绝原因——智能体接收该文本并可以修改计划。
 
 ### 之后发生什么 {#what-happens-after}
 
 - **已批准**：智能体执行排队的操作。PENDING_APPROVALS.md 条目更新为 `状态：已批准`，带时间戳。
 - **已拒绝**：操作不被执行。条目更新为 `状态：已拒绝`。智能体可能提出替代方案。
-- **超时**：hook-bridge 中的挂起请求在 30 分钟后过期。如果你在该窗口内未在 Slack 中响应，智能体的钩子超时并将再次提示。
+- **超时**：hook-bridge 中的挂起请求在 30 分钟后过期。如果你在该窗口内未在 Slack 中响应，智能体的调用超时并将再次提示。
 
 ## Slack 审批流程详解 {#slack-approval-flow-in-detail}
 
 有两种不同的审批路径，取决于触发用户交互的原因。
 
-### 计划审批（ExitPlanMode） {#plan-approval-exitplanmode}
+### 计划审批（`cortex_plan_exit`） {#plan-approval-exitplanmode}
 
-当智能体调用 ExitPlanMode（通常在执行线程期间），流程为：
+当智能体用 `cortex_plan_exit` MCP 工具提交写好的计划时，流程为：
 
-1. 智能体的 PreToolUse 钩子触发，向 `agent-server:3001/hook/exit-plan-mode` 发送 HTTP POST，包含计划内容。
+1. 该工具向 `agent-server:3001/hook/exit-plan-mode` 发送 HTTP POST，包含计划内容。
 2. hook-bridge（`agent-server/src/orchestration/routing/hook-bridge.ts`）在内存 `pendingRequests` 映射中注册请求（30 分钟 TTL），并在事件总线上发布 `plan.submitted` 事件。
 3. hook-bridge 订阅者（`agent-server/src/orchestration/routing/hook-bridge-subscribers.ts`）接收事件，在 `PlanApprovals` 单例中注册计划，并发布带有 Approve 和 Provide Feedback 按钮的交互式 Slack 消息。
 4. 当你点击按钮时，Slack 交互处理程序（`agent-server/src/orchestration/interactions/interaction-handlers.ts`）解析或拒绝计划：
-   - **批准** → 在事件总线上发布 `plan.approved`，解析挂起的 HTTP 请求，智能体的钩子脚本返回成功，允许智能体继续。
+   - **批准** → 在事件总线上发布 `plan.approved` 并解析挂起的 HTTP 请求，工具返回批准结果，智能体继续执行。
    - **拒绝** → 挂起的 HTTP 请求以 `approved: false` 和你的反馈文本解析，智能体接收并可据此修改。
 
-### 用户问题（AskUserQuestion） {#user-questions-askuserquestion}
+### 用户问题（`cortex_ask_user`） {#user-questions-askuserquestion}
 
-当智能体调用 AskUserQuestion（例如，澄清设计选择），流程结构相同但使用不同的事件：
+当智能体调用 `cortex_ask_user`（例如，澄清设计选择），流程结构相同但使用不同的事件：
 
 1. HTTP POST 到 `agent-server:3001/hook/ask-user-question`，带问题定义。
 2. hook-bridge 在事件总线上发布 `ask-user.requested`。

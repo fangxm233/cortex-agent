@@ -87,10 +87,10 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
     await conversationLedger.completeTurn(channel, userMessageTs, { executionId });
   }
 
-  // Plan delivery is owned by the ExitPlanMode PreToolUse hook (hooks/exit-plan-mode-hook.mjs),
-  // which forwards the plan through webhook /hook/exit-plan-mode → sendPlanToSlack.
-  // Re-sending here would duplicate the plan message (and historically could
-  // desync when the hook's mtime-based lookup picked a stale file).
+  // Plan delivery is owned by the cortex_plan_exit MCP tool, which forwards the plan through
+  // webhook /hook/exit-plan-mode → sendPlanToSlack. Re-sending here would duplicate the plan
+  // message (and historically could desync when the retired ExitPlanMode hook's mtime-based
+  // lookup picked a stale file).
 
   await runMessageEndForTurn({
     channel, sessionId: result?.sessionId ?? null, sessionName, executionId,

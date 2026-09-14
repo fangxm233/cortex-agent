@@ -1,7 +1,7 @@
 import * as path from 'path';
 import { getSettings } from '@core/settings.js';
 import { filterHookEntries, loadHookRegistry, type HookEntry, type HookRun } from '../../store/hook-registry.js';
-import { DEFAULT_TOOLS, HOOKS_DIR, HOOK_TIMEOUT_S } from './defaults.js';
+import { DEFAULT_TOOLS, HOOKS_DIR } from './defaults.js';
 
 interface ClaudeCommandHook {
   type: 'command';
@@ -28,18 +28,16 @@ function nodeHook(script: string, timeout?: number): ClaudeCommandHook {
   return hook;
 }
 
-export function buildPreToolUseHooks(toolsList: string[]) {
+/** No interaction entries here: headless `-p` drops AskUserQuestion / EnterPlanMode / ExitPlanMode
+ *  from the tool surface whatever `--tools` says, so a PreToolUse matcher on them could never fire.
+ *  Human-in-the-loop plan approval and questions run through the interaction-bridge MCP tools
+ *  (cortex_plan_exit / cortex_ask_user), which post to the same webhook endpoints. */
+export function buildPreToolUseHooks() {
   const hooks: ClaudeMatcherGroup[] = [
     { matcher: 'Edit|Write', hooks: [
       nodeHook('tasks-yaml-guard.mjs', 10),
     ]},
   ];
-  if (toolsList.includes('AskUserQuestion')) {
-    hooks.push({ matcher: 'AskUserQuestion', hooks: [nodeHook('ask-user-question-hook.mjs', HOOK_TIMEOUT_S)] });
-  }
-  if (toolsList.includes('ExitPlanMode')) {
-    hooks.push({ matcher: 'ExitPlanMode', hooks: [nodeHook('exit-plan-mode-hook.mjs', HOOK_TIMEOUT_S)] });
-  }
   return hooks;
 }
 
@@ -52,26 +50,14 @@ export const POST_TOOL_USE_HOOKS = [
   { matcher: 'Read|Edit', hooks: [nodeHook('cortex-md-injector.mjs')] },
 ];
 
-export const PERMISSION_REQUEST_HOOKS = [
-  {
-    matcher: 'Edit|Write',
-    hooks: [{
-      type: 'command' as const,
-      command: "printf '{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"allow\"}}}'",
-      timeout: 5,
-    }],
-  },
-];
-
 export const SESSION_START_HOOKS = [
   { matcher: 'startup|resume|clear|compact', hooks: [nodeHook('cortex-md-injector.mjs')] },
 ];
 
-function buildLegacyHooksSettings(toolsList: string[]): ClaudeHooksSettings {
+function buildLegacyHooksSettings(): ClaudeHooksSettings {
   return {
-    PreToolUse: buildPreToolUseHooks(toolsList),
+    PreToolUse: buildPreToolUseHooks(),
     PostToolUse: POST_TOOL_USE_HOOKS,
-    PermissionRequest: PERMISSION_REQUEST_HOOKS,
     SessionStart: SESSION_START_HOOKS,
   };
 }
@@ -123,6 +109,6 @@ function compileRegistryHooks(toolsList: string[]): ClaudeHooksSettings {
 
 export function buildHooksSettings(tools: string | null) {
   const toolsList = (tools || DEFAULT_TOOLS).split(',').map((tool) => tool.trim());
-  if (getSettings().hooksLegacy) return buildLegacyHooksSettings(toolsList);
+  if (getSettings().hooksLegacy) return buildLegacyHooksSettings();
   return compileRegistryHooks(toolsList);
 }

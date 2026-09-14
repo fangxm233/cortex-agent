@@ -100,7 +100,7 @@ Use the `/approval` command in your admin DM channel (see
 each pending item. Reply with `approve 1` or `reject 2` to act on specific
 entries.
 
-For the ExitPlanMode workflow specifically, Cortex presents an interactive
+For the plan-approval workflow specifically, Cortex presents an interactive
 Slack message with **Approve** and **Provide Feedback** buttons. Clicking
 Approve signals the agent to proceed with the plan. Clicking Provide Feedback
 opens a modal where you can type your rejection reason — the agent receives
@@ -113,7 +113,7 @@ that text and can revise the plan.
 - **Rejected**: the operation is not executed. The entry is updated to
   `Status: rejected`. The agent may propose an alternative approach.
 - **Timeout**: pending requests in the hook-bridge expire after 30 minutes.
-  If you don't respond in Slack within that window, the agent's hook times out
+  If you don't respond in Slack within that window, the agent's call times out
   and it will prompt again.
 
 ## Slack approval flow in detail
@@ -121,12 +121,12 @@ that text and can revise the plan.
 There are two distinct approval pathways, depending on what triggered the
 user interaction.
 
-### Plan approval (ExitPlanMode)
+### Plan approval (`cortex_plan_exit`)
 
-When the agent calls ExitPlanMode (typically during a thread execution), the
+When the agent submits a written plan with the `cortex_plan_exit` MCP tool, the
 flow is:
 
-1. The agent's PreToolUse hook fires, making an HTTP POST to
+1. The tool makes an HTTP POST to
    `agent-server:3001/hook/exit-plan-mode` with the plan content.
 2. The hook-bridge (`agent-server/src/orchestration/routing/hook-bridge.ts`)
    registers the request in an in-memory `pendingRequests` map with a 30-minute
@@ -138,15 +138,14 @@ flow is:
 4. When you click a button, the Slack interaction handler
    (`agent-server/src/orchestration/interactions/interaction-handlers.ts`)
    resolves or rejects the plan:
-   - **Approve** → publishes `plan.approved` on the event bus, resolves the
-     pending HTTP request, and the agent's hook script returns success, allowing
-     the agent to proceed.
+   - **Approve** → publishes `plan.approved` on the event bus and resolves the
+     pending HTTP request, so the tool returns approval and the agent proceeds.
    - **Reject** → the pending HTTP request resolves with `approved: false` and
      your feedback text, which the agent receives and can use to revise.
 
-### User questions (AskUserQuestion)
+### User questions (`cortex_ask_user`)
 
-When the agent calls AskUserQuestion (e.g., to clarify a design choice), the
+When the agent calls `cortex_ask_user` (e.g., to clarify a design choice), the
 flow is structurally identical but uses different events:
 
 1. HTTP POST to `agent-server:3001/hook/ask-user-question` with question

@@ -86,7 +86,7 @@ Claude 编译器为前三个事件生成设置；后四个只到达 PI。要挂�
 
 ### `cc:*` — Claude Code 原生透传 {#cc-claude-code-passthrough}
 
-`cc:` 之后的部分原样用作 Claude 设置里的事件名，因此不改代码就能触达 Claude Code 的任意挂载点——`cc:PermissionRequest`（随发布的自动放行钩子即用它）、`cc:SessionEnd`、`cc:PreCompact`、`cc:UserPromptSubmit`、`cc:Stop`。这类声明只挂在 Claude 后端。
+`cc:` 之后的部分原样用作 Claude 设置里的事件名，因此不改代码就能触达 Claude Code 的任意挂载点——`cc:PermissionRequest`、`cc:SessionEnd`、`cc:PreCompact`、`cc:UserPromptSubmit`、`cc:Stop`。这类声明只挂在 Claude 后端。注意 Cortex 以 `--permission-mode bypassPermissions` 启动 Claude，因此目前 `cc:PermissionRequest` 不会触发。
 
 ### `pi:*` — PI 原生透传 {#pi-pi-passthrough}
 
@@ -132,11 +132,10 @@ Claude 编译器为前三个事件生成设置；后四个只到达 PI。要挂�
     { "matcher": "Edit|Write", "hooks": [
         { "type": "command", "command": "node $CORTEX_HOME/hooks/tasks-yaml-guard.mjs", "timeout": 10 }
     ]},
-    { "matcher": "AskUserQuestion", "hooks": [ ... ] }
+    { "matcher": "Read|Grep", "hooks": [ ... ] }
   ],
   "PostToolUse": [ ... ],
-  "SessionStart": [ ... ],
-  "PermissionRequest": [ ... ]
+  "SessionStart": [ ... ]
 }
 ```
 
@@ -210,11 +209,13 @@ bus 如何处理 stdout 取决于 `result`：
 
 除了 stdin 上的 JSON payload，会话钩子还会在环境中收到 `CORTEX_HOOK_CHANNEL`、`CORTEX_HOOK_SESSION_ID`、`CORTEX_HOOK_SESSION_NAME`、`CORTEX_HOOK_TRIGGER` 和 `CORTEX_HOOK_EXECUTION_ID`。非空 stdout 会作为一次新的智能体回合注入——对 `session.new`，注入到仍存活的会话上，并使用一个事后关闭的隔离会话键，使这次关闭前的回合不会把旧会话复活到频道槽位上；对 `session.messageEnd`，注入在频道本身上，因此后续回合延续实时对话，其输出也挂在触发它的那条回复之下。
 
-## hook-bridge：经 HTTP 阻塞的工具调用 {#the-hook-bridge-blocking-tool-calls-over-http}
+## hook-bridge：经 HTTP 阻塞的调用 {#the-hook-bridge-blocking-tool-calls-over-http}
 
-有两个工具事件需要人介入，而智能体进程自己做不到。`ask-user-question-hook.mjs` 与 `exit-plan-mode-hook.mjs` 向服务器的 webhook 监听端口（`WEBHOOK_PORT`，默认 3001）POST 到 `/hook/ask-user-question` 和 `/hook/exit-plan-mode`，并阻塞等待响应。
+有两类交互需要人介入，而智能体进程自己做不到：向用户提问，以及让计划获得批准。二者都向服务器的 webhook 监听端口（`WEBHOOK_PORT`，默认 3001）POST 到 `/hook/ask-user-question` 和 `/hook/exit-plan-mode`，并阻塞等待响应。
 
-在服务器侧，`orchestration/routing/hook-bridge.ts` 注册一个带 30 分钟 TTL 的挂起 promise，并在事件总线上发布 `ask-user.requested` 或 `plan.submitted`。`hook-bridge-subscribers.ts` 中的订阅者把它们转成交互式 Slack 消息。当用户点击按钮或提交模态框时，交互处理器解析该 promise，HTTP 响应回到等待中的钩子脚本，脚本把答案写到 stdout——智能体将其读作该工具执行前的结果。
+智能体经 `cortex_ask_user` 与 `cortex_plan_exit` 两个 MCP 工具接入该 bridge；钩子脚本则经 `cortex-hook-api.mjs` 或 `cortex-hook ask` CLI 接入（见[在钩子里向用户提问](#asking-the-user-from-a-hook)）。此前拦截原生 `AskUserQuestion` 与 `ExitPlanMode` 工具的 PreToolUse 钩子已退役：无论 `--tools` 写了什么，无头 `-p` 都会把这些工具从会话中剔除，匹配器永远不会触发。
+
+在服务器侧，`orchestration/routing/hook-bridge.ts` 注册一个带 30 分钟 TTL 的挂起 promise，并在事件总线上发布 `ask-user.requested` 或 `plan.submitted`。`hook-bridge-subscribers.ts` 中的订阅者把它们转成交互式 Slack 消息。当用户点击按钮或提交模态框时，交互处理器解析该 promise，HTTP 响应回到等待中的调用方。
 
 ## 钩子脚本 {#hook-scripts}
 
@@ -223,8 +224,6 @@ bus 如何处理 stdout 取决于 `result`：
 | 脚本 | 使用方 | 用途 |
 |---|---|---|
 | `tasks-yaml-guard.mjs` | `agent:pre-tool`，`Edit\|Write` | 当前进程不持有项目锁时，拒绝对 `TASKS.yaml` 的编辑 |
-| `ask-user-question-hook.mjs` | `agent:pre-tool`，`AskUserQuestion` | 把问题转发给 hook-bridge 并阻塞直到用户回答 |
-| `exit-plan-mode-hook.mjs` | `agent:pre-tool`，`ExitPlanMode` | 把计划转发给 hook-bridge 并阻塞直到批准或拒绝 |
 | `memory-ref-tracker.mjs` | `agent:post-tool`，`Read\|Grep` | 把内存文件访问记录到 `_meta/access-log.jsonl` |
 | `rules-loader.mjs` | `agent:post-tool`，`Read\|Grep` | 读到匹配路径时注入 `$CORTEX_HOME/rules/` 下的限定规则，每条规则每会话一次 |
 | `session-activity-tracker.mjs` | `agent:post-tool`，`Read\|Edit\|Write\|Skill` | 把活动记录追加到 `logs/session-activity/<session_id>.jsonl` |
@@ -233,13 +232,13 @@ bus 如何处理 stdout 取决于 `result`：
 | `new-session-hook.mjs` | `cortex:session.new` | 从即将关闭的会话中回忆有价值的信息并写入上下文文件 |
 | `post-task-hook.mjs` | 模板的 `onEnd` 钩子 | 提示目标智能体沉淀所学并提交 |
 
-`PermissionRequest` 自动放行声明用的是 `run.command` 而非脚本：一行 `printf`，对 `Edit|Write` 返回 allow 决策。这两个工具的访问控制由上面的 pre-tool 守卫负责。
+声明可以用内联的 `run.command` 代替脚本；`Edit|Write` 的访问控制由上面的 pre-tool 守卫负责。
 
 同目录下的 `cortex-hook-api.mjs` 不是钩子入口，而是供钩子脚本 import 的辅助库（见下一节）。
 
 ## 从钩子向用户提问 {#asking-the-user-from-a-hook}
 
-任何钩子都可以在当前会话绑定的消息平台——Slack、飞书或 Web UI——上弹出一张 ask-user-question 卡片，并阻塞等待用户作答。卡片与 `AskUserQuestion` 工具产生的交互表单相同，并接受可选的分级（`info`、`warning`、`error`，`warn` 是别名）：Web UI 复用 ChatNotice 的分级配色，Slack 与飞书在标题前加对应图标。不带分级时卡片保持中性外观。
+任何钩子都可以在当前会话绑定的消息平台——Slack、飞书或 Web UI——上弹出一张 ask-user-question 卡片，并阻塞等待用户作答。卡片与 `cortex_ask_user` 工具产生的交互表单相同，并接受可选的分级（`info`、`warning`、`error`，`warn` 是别名）：Web UI 复用 ChatNotice 的分级配色，Slack 与飞书在标题前加对应图标。不带分级时卡片保持中性外观。
 
 Node 钩子脚本直接 import 与其同目录（`$CORTEX_HOME/hooks/`）的辅助库：
 
@@ -268,7 +267,7 @@ cortex-hook ask --question "磁盘即将写满——清理旧 checkpoint？" \
 两个入口都 POST 到服务器的 `/hook/ask-user-question` webhook，共享同一套路由与阻塞契约：
 
 - **路由。** 显式 `channel` 优先。否则辅助库与 CLI 回退到钩子环境变量：`CORTEX_HOOK_CHANNEL`（会话钩子），然后 `SLACK_CHANNEL`（智能体侧钩子）。只有 `sessionId` 时（`CORTEX_HOOK_SESSION_ID` 或显式传入），服务器会经 session registry 反解出该会话的 channel。`cortex:thread.*` 的 payload 不含 channel，线程钩子须自行传 `channel` 或 `sessionId`。
-- **阻塞。** 服务器在 hook-bridge 中挂起请求，TTL 30 分钟。响应是 `{ answers }`，TTL 到期则是 `{ error: "timeout", answers: {} }`。`cortex-hook ask` 有答案时退出码为 `0`，超时为 `2`，其他错误为 `1`，shell 钩子可按 `$?` 分支。发起提问的钩子应把 `run.timeout` 设得高于预期等待时长，并声明 `blocking: { "mode": "webhook", "ttlMin": 30 }`，与随附的 `ask-user-question-hook` 声明一致。
+- **阻塞。** 服务器在 hook-bridge 中挂起请求，TTL 30 分钟。响应是 `{ answers }`，TTL 到期则是 `{ error: "timeout", answers: {} }`。`cortex-hook ask` 有答案时退出码为 `0`，超时为 `2`，其他错误为 `1`，shell 钩子可按 `$?` 分支。发起提问的钩子应把 `run.timeout` 设得高于预期等待时长，并声明 `blocking: { "mode": "webhook", "ttlMin": 30 }`。
 - **多问题。** `askUser` 接受任意非空问题数组；`cortex-hook ask --payload <file|->` 接受同样的 JSON 数组，例如 `cat questions.json | cortex-hook ask --payload - --session-id <id>`。Cortex 不限制问题数量，但目标平台仍可能拒绝超过其自身限制的 payload。
 - **冒烟测试。** `--dry-run`（CLI）或 `dryRun: true`（辅助库）只记录事件并合成返回，不真正发卡片。
 
