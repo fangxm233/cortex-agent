@@ -108,7 +108,14 @@ export async function createDirectSession(
   // to protect, but it can still name a level the backend does not take or a provider on a claude
   // profile: without the rule those land unchecked and the first turn dies at the CLI. The channel
   // is minted here, so the cross-backend guard has nothing to refuse.
-  if (opts.selection && Object.keys(opts.selection).length > 0) {
+  //
+  // An EMPTY selection is a statement too — "run this profile as declared" — and it has to reach
+  // the rule, because the rule is also what re-seeds `selectionDefault` (what the NEXT new
+  // conversation opens on). Skipping it left a draft that had just been cleared back to its profile
+  // re-opening the next one on the model it had dropped, however many times it was taken back.
+  // `null`/`undefined` is the other thing entirely: a caller with no composer behind it
+  // (sessions.create, an issue's session) states nothing and must not move the seed.
+  if (opts.selection) {
     await applyChannelSelection({
       channel,
       model: opts.selection.model ?? null,

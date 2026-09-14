@@ -607,8 +607,11 @@ export interface SessionsCreateAndSendArgs {
   /** The profile to create the session with. Omitted → system default. */
   profileName?: string;
   /** The model / provider / thinking the draft composer had selected on top of that profile.
-   *  Omitted → the profile's own values. Applied at creation so the first turn already runs what
-   *  the user picked (there is no session to `setSelection` on before this call). */
+   *  Omitted (or empty) → the profile's own values: this call always comes from a composer, so
+   *  "nothing overridden" is a statement ("run the profile as declared"), not silence, and is
+   *  remembered as the engine the next new conversation opens on. Applied at creation so the first
+   *  turn already runs what the user picked (there is no session to `setSelection` on before this
+   *  call). */
   selection?: SessionSelectionOverride;
   /** Opt in to browser control for this session. Omitted → no browser tools are loaded. */
   browser?: { device: string } | null;

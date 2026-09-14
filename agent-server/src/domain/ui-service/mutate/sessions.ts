@@ -180,8 +180,11 @@ export async function handleCreateAndSend(
     projectId: args.projectId,
     profileName: args.profileName ?? null,
     // The draft composer's model/thinking choice, applied at creation so the FIRST turn already
-    // runs it — there is no session to `setSelection` on before this call.
-    selection: args.selection ?? null,
+    // runs it — there is no session to `setSelection` on before this call. A composer that sends
+    // none is stating the empty selection ("follow the profile"), not staying silent: this is the
+    // one create path that always has a composer behind it, and the empty case is exactly the one
+    // that has to re-seed what the NEXT new conversation opens on.
+    selection: args.selection ?? {},
     browser: args.browser ?? null,
     commission: args.commission ?? null,
   });
