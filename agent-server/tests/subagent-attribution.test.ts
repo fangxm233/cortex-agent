@@ -1,7 +1,10 @@
-import { afterEach, test } from 'vitest';
+import { afterEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 
 import { runRegistry } from '../src/core/run-registry.js';
+import { EventBus } from '../src/events/event-bus.js';
+import { ctx as jobCtx } from '../src/domain/scheduling/job-registry.js';
+import { conversationHistory } from '../src/store/conversation-history-repo.js';
 import { parentNoticeSink } from '../src/orchestration/subagent-attribution.js';
 import { _test } from '../src/domain/agents/subagent/runner.js';
 import type { RunEvent } from '../src/domain/runs/events.js';
@@ -41,8 +44,17 @@ function notice(text: string): SubagentNotice {
   };
 }
 
+function endNotice(status: 'completed' | 'failed' | 'killed' = 'completed'): SubagentNotice {
+  return {
+    ref: 'toolu_parent#0', type: 'general-purpose', description: 'd',
+    model: null, backend: 'claude', kind: 'end', status,
+  };
+}
+
 afterEach(() => {
   for (const exec of runRegistry.getAll()) runRegistry.remove(exec.registryKey);
+  jobCtx.bus = null;
+  vi.restoreAllMocks();
 });
 
 test('the sink pushes into the execution it resolved, and follows it across a retry', () => {
@@ -76,6 +88,40 @@ test('the sink goes quiet when its parent turn ends, even if the child is alone 
 
   assert.doesNotThrow(() => sink!(notice('orphaned child work')));
   assert.equal(child.length, 0, 'a child must never be resolved as its own attribution target');
+});
+
+test('a child that settles after its parent turn ended is sealed straight into the transcript', async () => {
+  // The batch's delivery turn — the user-turn boundary that would otherwise close the block —
+  // does not come until the slowest sibling is done, so this child would spin until then.
+  const appended: unknown[] = [];
+  vi.spyOn(conversationHistory, 'appendSubagentEnd').mockImplementation(async (id, opts) => {
+    appended.push({ id, ...opts });
+  });
+  const published: any[] = [];
+  const bus = new EventBus();
+  bus.subscribe('session.message', (event) => { published.push(event); });
+  jobCtx.bus = bus;
+
+  register('exec-parent', PARENT_SESSION);
+  const sink = parentNoticeSink(PARENT_SESSION, CHANNEL);
+  assert.ok(sink);
+  runRegistry.remove('exec-parent');
+
+  // A row in this state is still dropped: it is decoration, and the turn it belonged to is over.
+  sink!(notice('late working note'));
+  assert.equal(appended.length, 0);
+  assert.equal(published.length, 0);
+
+  sink!(endNotice('failed'));
+  assert.equal(appended.length, 1);
+  assert.deepEqual(
+    { ...(appended[0] as any), ts: undefined },
+    { id: PARENT_SESSION, subagentId: 'toolu_parent#0', status: 'failed', ts: undefined },
+  );
+  assert.equal(published.length, 1);
+  assert.equal(published[0].subagentId, 'toolu_parent#0');
+  assert.equal(published[0].subagentEnded, 'failed');
+  assert.equal(published[0].text, '');
 });
 
 test('a child notice observer drops events that already carry subagent attribution', () => {

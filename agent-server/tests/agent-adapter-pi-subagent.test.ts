@@ -220,6 +220,12 @@ async function waitForPrompts(harness: Harness, count: number): Promise<void> {
   });
 }
 
+/** The block key an event belongs to. A row carries it as attribution; `subagent_end` carries it
+ *  directly, since it is a state correction for a block rather than something a child said. */
+function refOf(event: any): string {
+  return event.subagent?.parentToolUseId ?? event.parentToolUseId;
+}
+
 /** The notices the parent collected, put through the parent session's own event stream. This is the
  *  real seam: the Agent tool hands the runtime a notice, the runtime replays it as one raw record. */
 function throughParentStream(notices: SubagentNotice[]) {
@@ -593,6 +599,34 @@ test('a child whose session cannot start is a failed result, and its siblings st
   }
 });
 
+test('a child that never produced a row is still sealed, and the failure is named', async () => {
+  // The case the structural inference could never answer: this child emits nothing at all, so
+  // there is no last row to close the block on. Without its own end its block would keep spinning
+  // until the whole session went idle.
+  const harness = createHarness();
+  harness.failAt.add(0);
+  try {
+    const run = harness.tool.execute('tool-6h', {
+      parallel: [
+        { description: 'Broken', prompt: 'Fail', subagent_type: 'explore' },
+        { description: 'Healthy', prompt: 'Finish', subagent_type: 'explore' },
+      ],
+    }, undefined, undefined, context(harness.root));
+    await waitForPrompts(harness, 1);
+    harness.sessions[0].finish('healthy answer');
+    await run;
+
+    const ends = (throughParentStream(harness.notices) as any[])
+      .filter((event) => event.type === 'subagent_end');
+    assert.deepEqual(
+      new Map(ends.map((event) => [event.parentToolUseId, event.status])),
+      new Map([['tool-6h#0', 'failed'], ['tool-6h#1', 'completed']]),
+    );
+  } finally {
+    harness.cleanup();
+  }
+});
+
 test('parallel and chain reject more than eight tasks', async () => {
   const harness = createHarness();
   const tooMany = Array.from({ length: MAX_SUBAGENT_TASKS + 1 }, (_, index) => ({
@@ -729,23 +763,33 @@ test('a PI subagent\'s tool calls and prose reach the parent stream, attributed 
     await run;
 
     const events = throughParentStream(harness.notices) as any[];
-    assert.deepEqual(events.map((event) => event.type), ['tool_use', 'tool_result', 'assistant_text']);
+    assert.deepEqual(
+      events.map((event) => event.type),
+      ['tool_use', 'tool_result', 'assistant_text', 'subagent_end'],
+    );
+    const rows = events.filter((event) => event.type !== 'subagent_end');
 
     // Every row names the child that produced it. The ref carries the child index because one
     // `agent` call may run up to eight.
-    for (const event of events) {
+    for (const event of rows) {
       assert.equal(event.subagent.parentToolUseId, 'tool-parent#0');
       assert.equal(event.subagent.type, 'explore');
       assert.equal(event.subagent.description, 'Inspect code');
     }
     // Child tool ids are namespaced: two parallel children number their calls independently.
-    assert.equal(events[0].toolUseId, 'tool-parent#0:c1');
-    assert.equal(events[0].name, 'grep');
-    assert.deepEqual(events[0].input, { pattern: 'x' });
-    assert.equal(events[1].content, 'two hits');
-    assert.equal(events[2].text, 'child answer');
+    assert.equal(rows[0].toolUseId, 'tool-parent#0:c1');
+    assert.equal(rows[0].name, 'grep');
+    assert.deepEqual(rows[0].input, { pattern: 'x' });
+    assert.equal(rows[1].content, 'two hits');
+    assert.equal(rows[2].text, 'child answer');
     // The model is the one that ANSWERED, read off the child's own message.
-    assert.equal(events[2].subagent.model, 'child-model');
+    assert.equal(rows[2].subagent.model, 'child-model');
+    // Last of all, the child settling — the one event that seals its block. It is a state
+    // correction, so it carries a block key and a verdict and nothing else.
+    const end = events.at(-1);
+    assert.equal(end.parentToolUseId, 'tool-parent#0');
+    assert.equal(end.status, 'completed');
+    assert.equal(end.subagent, undefined);
   } finally {
     harness.cleanup();
   }
@@ -769,14 +813,17 @@ test('later chain children report substituted runtime prompts once when they sta
     await run;
 
     const events = throughParentStream(harness.notices) as any[];
-    const first = events.filter((event) => event.subagent.parentToolUseId === 'tool-parent#0');
-    const second = events.filter((event) => event.subagent.parentToolUseId === 'tool-parent#1');
+    const first = events.filter((event) => refOf(event) === 'tool-parent#0');
+    const second = events.filter((event) => refOf(event) === 'tool-parent#1');
     assert.equal(
-      first.some((event) => event.subagent.prompt), false,
+      first.some((event) => event.subagent?.prompt), false,
       'the first prompt was already announced on the parent call',
     );
     assert.equal(second[0].subagent.prompt, 'Use RESULT now');
-    assert.equal(second.filter((event) => event.subagent.prompt).length, 1);
+    assert.equal(second.filter((event) => event.subagent?.prompt).length, 1);
+    // Each link of the chain seals as it settles, rather than all of them at the end.
+    assert.deepEqual(first.at(-1).type, 'subagent_end');
+    assert.deepEqual(second.at(-1).type, 'subagent_end');
   } finally {
     harness.cleanup();
   }
@@ -806,14 +853,14 @@ test('parallel children keep separate blocks, keyed by task position not complet
     const events = throughParentStream(harness.notices) as any[];
     const byRef = new Map<string, string[]>();
     for (const event of events) {
-      const list = byRef.get(event.subagent.parentToolUseId) ?? [];
+      const list = byRef.get(refOf(event)) ?? [];
       list.push(event.type);
-      byRef.set(event.subagent.parentToolUseId, list);
+      byRef.set(refOf(event), list);
     }
     assert.deepEqual([...byRef.keys()].sort(), ['tool-parent#0', 'tool-parent#1']);
-    assert.deepEqual(byRef.get('tool-parent#1'), ['tool_use', 'assistant_text']);
-    assert.deepEqual(byRef.get('tool-parent#0'), ['assistant_text']);
-    const descriptions = new Map(events.map((event) => (
+    assert.deepEqual(byRef.get('tool-parent#1'), ['tool_use', 'assistant_text', 'subagent_end']);
+    assert.deepEqual(byRef.get('tool-parent#0'), ['assistant_text', 'subagent_end']);
+    const descriptions = new Map(events.filter((event) => event.subagent).map((event) => (
       [event.subagent.parentToolUseId, event.subagent.description]
     )));
     assert.equal(descriptions.get('tool-parent#0'), 'first');

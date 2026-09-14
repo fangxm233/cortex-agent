@@ -21,8 +21,18 @@ function childToolName(notice: SubagentNotice): string {
  * One forwarded child event → the normalized event it stands for, attributed to the child that
  * produced it. `parentToolUseId` is the notice's `ref` (`${agentCallId}#${childIndex}`), so each
  * child of a parallel batch groups on its own rather than merging into one indistinct block.
+ *
+ * An `end` notice maps to `subagent_end`, the same event the Claude CLI's own task lifecycle
+ * produces — from there a delegated child seals its block exactly like a native one.
  */
 export function subagentNoticeEvents(notice: SubagentNotice): NormalizedEvent[] {
+  // The end is a state correction, not a row: it names the block it seals and carries no
+  // attribution, because there is nothing to attribute — no text, no call, no model.
+  if (notice.kind === 'end') {
+    return notice.status
+      ? [{ type: 'subagent_end', parentToolUseId: notice.ref, status: notice.status }]
+      : [];
+  }
   const subagent: ToolUseSubagent = {
     parentToolUseId: notice.ref,
     type: notice.type || null,

@@ -2,6 +2,10 @@ import type { Backend } from '@core/types/agent-types.js';
 
 export type SubagentMode = 'single' | 'parallel' | 'chain';
 
+/** How a delegated child settled. The same three states the Claude CLI reports for its own native
+ *  subagent tasks, so one `subagent_end` event shape covers both sources. */
+export type SubagentEndStatus = 'completed' | 'failed' | 'killed';
+
 export interface SubagentTask {
   description: string;
   prompt: string;

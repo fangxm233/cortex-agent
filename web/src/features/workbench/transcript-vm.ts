@@ -588,7 +588,11 @@ function msgKey(m: TranscriptMessageWithSpawns): string {
   // Decision ids only — NOT the action logs: a refetched row with new actions must dedupe against
   // the live-tail original (the transcript version is pushed first and wins).
   const decisionIds = m.decisions?.map((d) => d.id).join(',') ?? '';
-  return `${m.type}|${m.ts}|${m.text ?? ''}|${m.toolName ?? ''}|${m.toolInput ?? ''}|${m.toolDevice ?? ''}|${spawnIds}|${m.noticeLevel ?? ''}|${noticeId}|${decisionIds}`;
+  // A reported subagent end carries no text of its own, so two children settling in the same
+  // millisecond would otherwise share one key and the second block would never be sealed. Keyed on
+  // the block it seals; appended rather than folded in, so every ordinary row keeps its old key.
+  const end = m.subagentEnded ? `${m.subagentEnded}|${m.subagentId ?? ''}` : '';
+  return `${m.type}|${m.ts}|${m.text ?? ''}|${m.toolName ?? ''}|${m.toolInput ?? ''}|${m.toolDevice ?? ''}|${spawnIds}|${m.noticeLevel ?? ''}|${noticeId}|${decisionIds}|${end}`;
 }
 
 // Relative-day label matching the prototype divider vocabulary (TODAY / YESTERDAY / "MON D"),
