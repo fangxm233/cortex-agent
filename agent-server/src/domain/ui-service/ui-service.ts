@@ -31,6 +31,7 @@ import { handlePlatformSettingsSet } from './mutate/platform-settings.js';
 import { handleConfigGet } from './query/config.js';
 import { handleAuthFlowState, handleAuthStatus } from './query/auth.js';
 import { handleCustomProvidersList } from './query/custom-providers.js';
+import { handleModelsCatalog } from './query/models.js';
 import { handleHooksList } from './query/hooks.js';
 import { handleMachinesList } from './query/machines.js';
 import { handleMachineDetail } from './query/machine-detail.js';
@@ -153,6 +154,7 @@ const queryHandlers: Record<string, QueryHandler> = {
   'auth.status': (deps, params) => handleAuthStatus(params, deps.getAuthStatus),
   'auth.flowState': (deps, params) => handleAuthFlowState(params, deps.authLogin?.getState),
   'auth.customProviders': (deps, params) => handleCustomProvidersList(deps, params),
+  'models.catalog': (deps, params) => handleModelsCatalog(deps, params),
   'hooks.list': (deps, params) => handleHooksList(deps, params),
   'machines.list': (deps, params) => handleMachinesList(deps, params),
   'machines.detail': (deps, params) => handleMachineDetail(deps, params),

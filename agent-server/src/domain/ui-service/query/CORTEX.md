@@ -17,6 +17,7 @@ Handlers return DTOs only and never change state.
 | approvals.ts | query | lists pending approval entries |
 | auth.ts | query | returns authentication status and Web-owned flow state |
 | custom-providers.ts | query | lists user-defined PI providers without secrets |
+| models.ts | query | unions the model/route catalog a profile can be picked from |
 | issues.ts | query | lists a project's issue entries |
 | notes.ts | query | lists a project's private notes |
 | cost.ts | query | reports the cost summary |

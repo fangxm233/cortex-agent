@@ -84,6 +84,7 @@ import {
   profilesCreateInput,
   profilesUpdateInput,
   profilesRemoveInput,
+  modelsCatalogInput,
   machinesListInput,
   machineDetailInput,
   skillsListInput,
@@ -338,6 +339,14 @@ function profilesRouter(service: UiService) {
   });
 }
 
+// The engine catalog the profile editor picks from. Read-only and host-wide, so it is its own
+// router rather than a field of config.get — see query/models.ts for why the cost is isolated.
+function modelsRouter(service: UiService) {
+  return router({
+    catalog: makeQuery(service, 'models.catalog', modelsCatalogInput),
+  });
+}
+
 function authRouter(service: UiService) {
   return router({
     status: makeQuery(service, 'auth.status', authStatusInput),
@@ -449,6 +458,7 @@ export function createAppRouter(service: UiService) {
     cost: costRouter(service),
     config: configRouter(service),
     profiles: profilesRouter(service),
+    models: modelsRouter(service),
     auth: authRouter(service),
     hooks: hooksRouter(service),
     machines: machinesRouter(service),

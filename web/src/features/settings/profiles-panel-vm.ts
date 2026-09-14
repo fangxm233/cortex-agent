@@ -1,11 +1,13 @@
-// input:  ConfigProfileEntry DTO, profile vocabulary and profiles.* mutation arg types
-// output: shared form transitions, validation copy and mutation args
+// input:  ConfigProfileEntry DTO, the models.catalog snapshot, profile vocabulary and mutation args
+// output: shared form transitions, field choice lists, validation copy and mutation args
 // pos:    View model for desktop and mobile profile editors
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import type { Vocab } from '@/i18n';
 import type {
   ConfigProfileEntry,
+  ModelCatalogRoute,
+  ModelCatalogSnapshot,
   ProfileDraftInput,
   ProfilesCreateArgs,
   ProfilesUpdateArgs,
@@ -49,16 +51,109 @@ export interface ProfileFormState {
   extraOption: ProfileOptionRow[];
 }
 
-/** Applies the same backend-specific thinking cleanup in every profile editor. */
+// ── catalog-backed choices ────────────────────────────────────────────────────────────────────
+//
+// The catalog (models.catalog) turns model / provider / mode from three strings the user has to
+// know into three lists they can pick from. It never NARROWS what may be saved: every list also
+// carries the value already in the draft, the editor keeps a free-text escape, and an endpoint the
+// host cannot enumerate simply yields an empty list. Server-side validation is unchanged.
+
+/** claude's gateway endpoint is a constant of the backend; pi's is the provider it declares. */
+export const CLAUDE_ENDPOINT = 'anthropic';
+
+export function formEndpoint(form: ProfileFormState): string | null {
+  if (form.backend === 'claude') return CLAUDE_ENDPOINT;
+  const provider = form.provider.trim();
+  return provider === '' ? null : provider;
+}
+
+export function findRoute(
+  catalog: ModelCatalogSnapshot | null | undefined,
+  form: ProfileFormState,
+): ModelCatalogRoute | null {
+  const endpoint = formEndpoint(form);
+  if (!catalog || endpoint === null) return null;
+  return catalog.routes.find((route) => route.endpoint === endpoint) ?? null;
+}
+
+/** Keeps a stored value selectable even when the catalog has never heard of it. Applied at render
+ *  time, not in the lists themselves: an EMPTY list has to keep meaning "the catalog knows nothing
+ *  about this field", which is what makes the editor fall back to a plain text box. */
+export function withCurrentValue(options: readonly string[], value: string): string[] {
+  const trimmed = value.trim();
+  return trimmed === '' || options.includes(trimmed) ? [...options] : [...options, trimmed];
+}
+
+export interface ProfileFieldChoices {
+  provider: string[];
+  model: string[];
+  mode: string[];
+  /** The route the draft currently points at, or null when the catalog does not know it. */
+  route: ModelCatalogRoute | null;
+}
+
+/** What the catalog itself offers for the draft, before the current value is folded in. */
+export function profileFieldChoices(
+  catalog: ModelCatalogSnapshot | null | undefined,
+  form: ProfileFormState,
+): ProfileFieldChoices {
+  const route = findRoute(catalog, form);
+  return {
+    provider: (catalog?.routes ?? [])
+      .filter((candidate) => candidate.backend === form.backend)
+      .map((candidate) => candidate.endpoint),
+    model: route?.models ?? [],
+    mode: route?.modes ?? [],
+    route,
+  };
+}
+
+/**
+ * Re-points the draft at another route. A mode that the new endpoint does not declare is replaced
+ * by its first one (gateway.yaml decides which routes exist, so a carried-over mode is the
+ * `400 Unknown mode` bug waiting to happen), and a model the new endpoint cannot serve is cleared
+ * so the field asks to be re-picked. An unknown route changes nothing but the field itself.
+ */
+function reconcileWithRoute(form: ProfileFormState, catalog: CatalogInput): ProfileFormState {
+  const route = findRoute(catalog, form);
+  if (!route) return form;
+  const mode = route.modes.includes(form.mode.trim()) ? form.mode : route.modes[0] ?? '';
+  const model = route.models.length === 0 || route.models.includes(form.model.trim()) ? form.model : '';
+  return { ...form, mode, model };
+}
+
+type CatalogInput = ModelCatalogSnapshot | null | undefined;
+
+/**
+ * Applies the same backend-specific thinking cleanup in every profile editor. With a catalog in
+ * hand it also re-points the draft at the new backend's route: a provider that belongs to the old
+ * backend is dropped rather than carried into a profile that cannot use it.
+ */
 export function transitionProfileBackend(
   form: ProfileFormState,
   backend: ProfileBackend,
+  catalog?: CatalogInput,
 ): ProfileFormState {
-  return {
+  const next: ProfileFormState = {
     ...form,
     backend,
     thinking: THINKING_LEVELS[backend].includes(form.thinking) ? form.thinking : '',
   };
+  if (!catalog) return next;
+  const providers = catalog.routes
+    .filter((route) => route.backend === backend)
+    .map((route) => route.endpoint);
+  const provider = providers.includes(next.provider.trim()) ? next.provider : '';
+  return reconcileWithRoute({ ...next, provider }, catalog);
+}
+
+/** Selecting a provider selects an endpoint: its mode and model lists follow. */
+export function transitionProfileProvider(
+  form: ProfileFormState,
+  provider: string,
+  catalog?: CatalogInput,
+): ProfileFormState {
+  return reconcileWithRoute({ ...form, provider }, catalog);
 }
 
 export function formStateFromEntry(entry: ConfigProfileEntry): ProfileFormState {

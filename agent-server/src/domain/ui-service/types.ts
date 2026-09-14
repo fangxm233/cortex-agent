@@ -131,6 +131,7 @@ export type QueryScope =
   | 'auth.status'
   | 'auth.flowState'
   | 'auth.customProviders'
+  | 'models.catalog'
   | 'hooks.list'
   | 'machines.list'
   | 'machines.detail'
@@ -1381,6 +1382,33 @@ export interface ConfigProfiles {
   profiles: ConfigProfileEntry[];
 }
 
+// models.catalog — what a profile's `model`, `provider` and `mode` may be SELECTED from. It is a
+// union of every source that knows about an endpoint, so it never narrows what profiles.json
+// accepts: the editor keeps a free-text escape for anything the host cannot enumerate.
+export type ModelsCatalogParams = Record<string, never>;
+
+export interface ModelCatalogRoute {
+  /** Gateway endpoint group: 'anthropic' for claude, the PI provider name otherwise. */
+  endpoint: string;
+  backend: Backend;
+  /** PI `--provider`; null for claude, whose provider identity is not a profile field. */
+  provider: string | null;
+  /** Mode names gateway.yaml actually declares for this endpoint, in file order. Never empty: an
+   *  endpoint with no gateway section falls back to the name `discoverEndpoints` would generate. */
+  modes: string[];
+  /** Selectable model ids. Empty means "known route, unknown models" — free text, not an error. */
+  models: string[];
+  /** Where the route was first seen: the built-in Anthropic table, PI's scan of logged-in
+   *  providers, a user-defined provider, or gateway.yaml alone (⇒ likely not logged in). */
+  source: 'builtin' | 'pi' | 'custom' | 'gateway';
+}
+
+export interface ModelCatalogSnapshot {
+  routes: ModelCatalogRoute[];
+  /** True while PI's first model scan is still in flight — the client may refetch shortly. */
+  piPending: boolean;
+}
+
 export interface ConfigMachine {
   name: string;
   cortexPath: string | null;
@@ -2337,6 +2365,7 @@ export interface QueryParamMap {
   'auth.status': AuthStatusParams;
   'auth.flowState': AuthFlowStateParams;
   'auth.customProviders': AuthCustomProvidersParams;
+  'models.catalog': ModelsCatalogParams;
   'hooks.list': HooksListParams;
   'machines.list': MachinesListParams;
   'machines.detail': MachineDetailParams;
@@ -2378,6 +2407,7 @@ export interface QueryReturnMap {
   'auth.status': AuthStatusSnapshot;
   'auth.flowState': LoginFlowState | null;
   'auth.customProviders': CustomProviderView[];
+  'models.catalog': ModelCatalogSnapshot;
   'hooks.list': HooksOverview;
   'machines.list': MachineInfo[];
   'machines.detail': MachineDetail;

@@ -1,11 +1,16 @@
-// input:  config.get/profile mutations, canonical profile VM, query cache and toast feedback
-// output: shared profile facts, editor lifecycle, serialized writes and operation-local pending
+// input:  config.get/models.catalog reads, profile mutations, canonical profile VM and toasts
+// output: shared profile facts, editor lifecycle, field choice catalog and serialized writes
 // pos:    Cross-surface profiles settings controller
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { useRef, useState, type MutableRefObject } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ConfigProfileEntry, ConfigSetArgs, ConfigSnapshot } from '@cortex-agent/ui-contract';
+import type {
+  ConfigProfileEntry,
+  ConfigSetArgs,
+  ConfigSnapshot,
+  ModelCatalogSnapshot,
+} from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';
 import { useVocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
@@ -17,11 +22,16 @@ import {
   isProfileFormDirty,
   isProfileFormValid,
   transitionProfileBackend,
+  transitionProfileProvider,
   validateProfileForm,
   type ProfileBackend,
   type ProfileFormErrors,
   type ProfileFormState,
 } from './profiles-panel-vm';
+
+/** The catalog changes only when a provider is logged in or gateway.yaml is edited. */
+const CATALOG_STALE_MS = 60_000;
+const CATALOG_PENDING_RETRY_MS = 2_500;
 
 export interface ProfileFact {
   profile: ConfigProfileEntry;
@@ -33,6 +43,10 @@ export interface ProfileFact {
 
 export interface ProfilesController {
   snapshot: ConfigSnapshot | undefined;
+  /** What model / provider / mode may be SELECTED from; null until the catalog has been read. */
+  catalog: ModelCatalogSnapshot | null;
+  /** PI's first model scan has not landed yet — the lists may still grow. */
+  catalogPending: boolean;
   loading: boolean;
   error: { message: string } | null;
   profiles: ConfigProfileEntry[];
@@ -41,6 +55,8 @@ export interface ProfilesController {
   draft: ProfileFormState | null;
   creating: boolean;
   editingName: string | null;
+  /** Name the open create-draft was copied from; null for a blank one. */
+  duplicateSource: string | null;
   errors: ProfileFormErrors;
   dirty: boolean;
   confirmingDelete: string | null;
@@ -50,9 +66,11 @@ export interface ProfilesController {
   removePendingName: string | null;
   defaultPendingName: string | null;
   openCreate: () => void;
+  openDuplicate: (name: string) => void;
   openEdit: (name: string) => void;
   changeDraft: (draft: ProfileFormState) => void;
   changeBackend: (backend: ProfileBackend) => void;
+  changeProvider: (provider: string) => void;
   closeDraft: () => void;
   revertDraft: () => void;
   save: () => void;
@@ -77,18 +95,38 @@ function useProfileEditor(profiles: ConfigProfileEntry[], clearDelete: () => voi
   const [editingName, setEditingName] = useState<string | null>(null);
   const [edits, setEdits] = useState<ProfileFormState | null>(null);
   const [createDraft, setCreateDraft] = useState(emptyProfileForm);
+  const [duplicateSource, setDuplicateSource] = useState<string | null>(null);
   const entry = editingName ? profiles.find(profile => profile.name === editingName) ?? null : null;
   const draft = mode === 'create' ? createDraft : mode === 'update' && entry ? edits ?? formStateFromEntry(entry) : null;
-  const close = () => { setMode(null); setEditingName(null); setEdits(null); setCreateDraft(emptyProfileForm()); };
+  const close = () => {
+    setMode(null); setEditingName(null); setEdits(null);
+    setCreateDraft(emptyProfileForm()); setDuplicateSource(null);
+  };
   const openCreate = () => {
-    clearDelete(); setMode('create'); setEditingName(null); setEdits(null); setCreateDraft(emptyProfileForm());
+    clearDelete(); setMode('create'); setEditingName(null); setEdits(null);
+    setCreateDraft(emptyProfileForm()); setDuplicateSource(null);
+  };
+  /**
+   * A create pre-filled from an existing entry — the cheapest way to add the fifth profile that
+   * differs from the fourth in one field. It copies exactly what the editor can express: `extraEnv`
+   * and `fallback[]` are NOT among those (the server only carries them over across an UPDATE of the
+   * same entry), so the editor says so rather than dropping them quietly.
+   */
+  const openDuplicate = (name: string) => {
+    const source = profiles.find(profile => profile.name === name);
+    if (!source) return;
+    clearDelete(); setMode('create'); setEditingName(null); setEdits(null);
+    setCreateDraft({ ...formStateFromEntry(source), name: '' }); setDuplicateSource(name);
   };
   const openEdit = (name: string) => {
     if (!profiles.some(profile => profile.name === name)) return;
-    clearDelete(); setMode('update'); setEditingName(name); setEdits(null);
+    clearDelete(); setMode('update'); setEditingName(name); setEdits(null); setDuplicateSource(null);
   };
   const change = (next: ProfileFormState) => mode === 'create' ? setCreateDraft(next) : setEdits(next);
-  return { mode, editingName, entry, draft, close, openCreate, openEdit, change, revert: () => setEdits(null) };
+  return {
+    mode, editingName, entry, draft, duplicateSource,
+    close, openCreate, openDuplicate, openEdit, change, revert: () => setEdits(null),
+  };
 }
 
 function useProfileWriteEffects(closeDraft: () => void, clearDelete: () => void) {
@@ -145,6 +183,7 @@ function useProfileActions(
   facts: ProfileFact[], editor: ReturnType<typeof useProfileEditor>,
   writes: ReturnType<typeof useProfileWrites>, errors: ProfileFormErrors,
   setConfirmingDelete: (name: string | null) => void, gate: MutableRefObject<boolean>,
+  catalog: ModelCatalogSnapshot | null,
 ) {
   const allowed = (name: string, action: 'canSetDefault' | 'canDelete') =>
     facts.some(fact => fact.profile.name === name && fact[action]);
@@ -167,9 +206,28 @@ function useProfileActions(
     if (allowed(name, 'canDelete')) runProfileWrite(gate, () => writes.remove.mutateAsync({ name }));
   };
   const changeBackend = (backend: ProfileBackend) => {
-    if (editor.draft) editor.change(transitionProfileBackend(editor.draft, backend));
+    if (editor.draft) editor.change(transitionProfileBackend(editor.draft, backend, catalog));
   };
-  return { save, setDefault, requestDelete, confirmDelete, changeBackend };
+  const changeProvider = (provider: string) => {
+    if (editor.draft) editor.change(transitionProfileProvider(editor.draft, provider, catalog));
+  };
+  return { save, setDefault, requestDelete, confirmDelete, changeBackend, changeProvider };
+}
+
+/**
+ * The engine catalog is fetched only while the editor is open: reading PI's models loads its SDK
+ * server-side, a cost the settings list itself must not pay. While PI's first scan is in flight the
+ * server says so and the query retries, so the lists fill in rather than staying short.
+ */
+function useModelCatalog(open: boolean) {
+  const trpc = useTRPC();
+  const query = useQuery({
+    ...trpc.models.catalog.queryOptions({}),
+    enabled: open,
+    staleTime: CATALOG_STALE_MS,
+    refetchInterval: (q) => (q.state.data?.piPending ? CATALOG_PENDING_RETRY_MS : false),
+  });
+  return { catalog: query.data ?? null, pending: query.isLoading || !!query.data?.piPending };
 }
 
 export function useProfilesController(initialSnapshot?: ConfigSnapshot): ProfilesController {
@@ -182,23 +240,30 @@ export function useProfilesController(initialSnapshot?: ConfigSnapshot): Profile
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const writeGate = useRef(false);
   const editor = useProfileEditor(profiles, () => setConfirmingDelete(null));
+  const models = useModelCatalog(editor.draft !== null);
   const writes = useProfileWrites(editor.close, () => setConfirmingDelete(null));
   const errors = editor.draft ? validateProfileForm(editor.draft, {
     mode: editor.mode === 'create' ? 'create' : 'update', existingNames: profiles.map(profile => profile.name),
   }) : {};
   const dirty = !!editor.draft && (editor.mode === 'create' || !!editor.entry && isProfileFormDirty(editor.draft, editor.entry));
-  const actions = useProfileActions(facts, editor, writes, errors, setConfirmingDelete, writeGate);
+  const actions = useProfileActions(
+    facts, editor, writes, errors, setConfirmingDelete, writeGate, models.catalog,
+  );
   return {
     snapshot: config.data, loading: config.isLoading, error: config.error,
+    catalog: models.catalog, catalogPending: models.pending,
     profiles, profileFacts: facts, defaultProfile,
     draft: editor.draft, creating: editor.mode === 'create', editingName: editor.editingName,
+    duplicateSource: editor.duplicateSource,
     errors, dirty, confirmingDelete,
     createPending: writes.create.isPending, updatePending: writes.update.isPending,
     savePending: writes.create.isPending || writes.update.isPending,
     removePendingName: writes.remove.isPending ? writes.remove.variables?.name ?? null : null,
     defaultPendingName: writes.setDefault.isPending ? defaultProfileVariable(writes.setDefault.variables) : null,
-    openCreate: editor.openCreate, openEdit: editor.openEdit, changeDraft: editor.change,
-    changeBackend: actions.changeBackend, closeDraft: editor.close, revertDraft: editor.revert,
+    openCreate: editor.openCreate, openDuplicate: editor.openDuplicate,
+    openEdit: editor.openEdit, changeDraft: editor.change,
+    changeBackend: actions.changeBackend, changeProvider: actions.changeProvider,
+    closeDraft: editor.close, revertDraft: editor.revert,
     save: actions.save, setDefault: actions.setDefault, requestDelete: actions.requestDelete,
     cancelDelete: () => setConfirmingDelete(null), confirmDelete: actions.confirmDelete,
   };

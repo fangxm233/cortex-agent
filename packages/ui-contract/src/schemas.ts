@@ -61,6 +61,7 @@ export {
   authLogoutInput,
   authSyncGatewayInput,
   authCustomProvidersInput,
+  modelsCatalogInput,
   authUpsertCustomProviderInput,
   authRemoveCustomProviderInput,
   hooksListInput,

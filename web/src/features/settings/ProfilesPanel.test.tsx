@@ -1,11 +1,13 @@
-// input:  ProfilesPanelView, controller-derived profile facts/errors and config fixtures
-// output: desktop table, editor gating and delete-guard regressions
+// input:  ProfilesPanelView, controller-derived facts/errors, catalog and config fixtures
+// output: desktop table, editor gating, field-picker and delete-guard regressions
 // pos:    Verifies the independent desktop Profiles view renders its refusals
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import type { ConfigProfileEntry, ConfigSnapshot } from '@cortex-agent/ui-contract';
+import type {
+  ConfigProfileEntry, ConfigSnapshot, ModelCatalogSnapshot,
+} from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
 
 vi.mock('@/design', async importOriginal => ({
@@ -38,6 +40,16 @@ function entry(over: Partial<ConfigProfileEntry> = {}): ConfigProfileEntry {
 
 const SOL = entry({ name: 'sol', model: 'gpt-5', backend: 'pi', mode: 'openai', provider: 'openai', thinking: null });
 
+const CATALOG: ModelCatalogSnapshot = {
+  routes: [
+    { endpoint: 'anthropic', backend: 'claude', provider: null, modes: ['plan'],
+      models: ['claude-opus-5'], source: 'builtin' },
+    { endpoint: 'deepseek', backend: 'pi', provider: 'deepseek', modes: ['deepseek'],
+      models: ['deepseek-v4-flash'], source: 'pi' },
+  ],
+  piPending: false,
+};
+
 function snapshot(profiles: ConfigProfileEntry[], defaultProfile: string | null = 'plan'): ConfigSnapshot {
   return {
     budget: null,
@@ -62,6 +74,9 @@ function render(over: Partial<ProfilesPanelViewProps> = {}): string {
     })),
     onSetDefaultProfile: () => {},
     draft: null,
+    duplicateSource: null,
+    catalog: null,
+    catalogPending: false,
     creating: false,
     editingName: null,
     armedDelete: null,
@@ -70,10 +85,12 @@ function render(over: Partial<ProfilesPanelViewProps> = {}): string {
     savePending: false,
     removePendingName: null,
     onStartCreate: () => {},
+    onStartDuplicate: () => {},
     onStartEdit: () => {},
     onCancelEdit: () => {},
     onDraftChange: () => {},
     onBackendChange: () => {},
+    onProviderChange: () => {},
     onSave: () => {},
     onRevert: () => {},
     onArmDelete: () => {},
@@ -111,6 +128,56 @@ describe('ProfilesPanelView / editor', () => {
     expect(html).toContain('The name cannot be changed');
     expect(html).toContain('data-profile-field="name" disabled=""');
     expect(html).toContain('value="sol"');
+  });
+
+  it('types model / provider / mode when no catalog can offer a list', () => {
+    const html = render({ draft: formStateFromEntry(SOL), editingName: 'sol' });
+    // No catalog ⇒ no dropdown may appear: an endpoint the host cannot enumerate must stay writable.
+    for (const field of ['model', 'provider', 'mode']) {
+      expect(html).toContain(`data-profile-field="${field}" data-profile-choice="custom"`);
+    }
+  });
+
+  it('picks model / provider / mode from the catalog, keeping a custom escape', () => {
+    const html = render({
+      draft: formStateFromEntry(entry({
+        name: 'ds', model: 'deepseek-v4-flash', backend: 'pi', mode: 'deepseek', provider: 'deepseek',
+      })),
+      editingName: 'plan',
+      catalog: CATALOG,
+    });
+    for (const field of ['model', 'provider', 'mode']) {
+      expect(html).toContain(`data-profile-field="${field}" data-profile-choice="select"`);
+    }
+    expect(html).toContain('deepseek-v4-flash');
+    expect(html).toContain('Custom…');
+  });
+
+  it('offers a duplicate per row and states what a copy leaves behind', () => {
+    const rich = entry({ name: 'rich', extraEnvKeys: ['PI_TOKEN'], fallbackCount: 2 });
+    const table = render({ snapshot: snapshot([entry(), rich]) });
+    expect(table.match(/data-action="duplicate"/g)).toHaveLength(2);
+
+    const copying = render({
+      draft: { ...formStateFromEntry(rich), name: '' },
+      creating: true,
+      duplicateSource: 'rich',
+    });
+    expect(copying).toContain('Copied from rich');
+    expect(copying).toContain('extraEnv and fallback are not copied');
+  });
+
+  it('says why a model list is empty instead of showing a bare picker', () => {
+    const pi = render({
+      draft: { ...emptyProfileForm(), name: 'new', backend: 'pi' },
+      creating: true,
+      catalog: CATALOG,
+    });
+    expect(pi).toContain('Pick a provider to list its models');
+    const loading = render({
+      draft: { ...emptyProfileForm(), name: 'new' }, creating: true, catalogPending: true,
+    });
+    expect(loading).toContain('Reading the model catalog…');
   });
 
   it('shows the preserved extraEnv keys and fallback count, never a value', () => {

@@ -63,6 +63,7 @@ import type {
   authLogoutInput,
   authSyncGatewayInput,
   authCustomProvidersInput,
+  modelsCatalogInput,
   authUpsertCustomProviderInput,
   authRemoveCustomProviderInput,
   hooksListInput,
@@ -129,6 +130,7 @@ const _configGet: QueryParity<'config.get', typeof configGetInput> = true;
 const _authStatus: QueryParity<'auth.status', typeof authStatusInput> = true;
 const _authFlowState: QueryParity<'auth.flowState', typeof authFlowStateInput> = true;
 const _authCustomProviders: QueryParity<'auth.customProviders', typeof authCustomProvidersInput> = true;
+const _modelsCatalog: QueryParity<'models.catalog', typeof modelsCatalogInput> = true;
 const _hooksList: QueryParity<'hooks.list', typeof hooksListInput> = true;
 const _machinesList: QueryParity<'machines.list', typeof machinesListInput> = true;
 const _machineDetail: QueryParity<'machines.detail', typeof machineDetailInput> = true;

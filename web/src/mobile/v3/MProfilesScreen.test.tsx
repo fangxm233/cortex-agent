@@ -1,20 +1,30 @@
-// input:  mobile profile editor drafts, controller validation facts and callbacks
-// output: field-local error copy and backend-change delegation regressions
+// input:  mobile profile editor drafts, the engine catalog, validation facts and callbacks
+// output: field-local error copy, catalog pickers and change-delegation regressions
 // pos:    Verifies the independent presentational mobile profile editor
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { LangProvider } from '@/i18n';
+import type { ModelCatalogSnapshot } from '@cortex-agent/ui-contract';
 import {
   emptyProfileForm, validateProfileForm, type ProfileBackend, type ProfileFormState,
 } from '@/features/settings/profiles-panel-vm';
 import { MProfileEditor } from './MProfilesScreen';
 
+const CATALOG: ModelCatalogSnapshot = {
+  routes: [
+    { endpoint: 'deepseek', backend: 'pi', provider: 'deepseek', modes: ['deepseek'],
+      models: ['deepseek-v4-flash'], source: 'pi' },
+  ],
+  piPending: false,
+};
+
 function mount(
   draft: ProfileFormState,
   onChange = vi.fn(),
   onBackendChange = vi.fn<(backend: ProfileBackend) => void>(),
+  over: { catalog?: ModelCatalogSnapshot; onProviderChange?: (provider: string) => void } = {},
 ): ReactTestRenderer {
   let renderer!: ReactTestRenderer;
   act(() => {
@@ -24,8 +34,11 @@ function mount(
           state={{ mode: 'create', draft }}
           errors={validateProfileForm(draft, { mode: 'create', existingNames: [] })}
           pending={false}
+          catalog={over.catalog ?? null}
+          catalogPending={false}
           onChange={onChange}
           onBackendChange={onBackendChange}
+          onProviderChange={over.onProviderChange ?? (() => {})}
           onCancel={() => {}}
           onSave={() => {}}
         />
@@ -33,6 +46,10 @@ function mount(
     );
   });
   return renderer;
+}
+
+function choiceKind(renderer: ReactTestRenderer, field: string): string {
+  return renderer.root.findByProps({ 'data-profile-field': field }).props['data-profile-choice'];
 }
 
 function fieldError(renderer: ReactTestRenderer, field: string): string | undefined {
@@ -70,5 +87,45 @@ describe('MProfileEditor', () => {
     }));
 
     expect(onBackendChange).toHaveBeenCalledWith('pi');
+  });
+});
+
+describe('MProfileEditor / catalog pickers', () => {
+  it('types every catalog-backed field when nothing can be offered', () => {
+    const renderer = mount({ ...emptyProfileForm(), name: 'valid', model: 'private-model' });
+    for (const field of ['model', 'provider', 'mode']) {
+      expect(choiceKind(renderer, field)).toBe('custom');
+    }
+  });
+
+  it('picks from the catalog and routes a provider pick through the shared transition', () => {
+    const onProviderChange = vi.fn<(provider: string) => void>();
+    const draft = { ...emptyProfileForm(), name: 'valid', backend: 'pi' as const, provider: 'deepseek', model: 'deepseek-v4-flash', mode: 'deepseek' };
+    const renderer = mount(draft, vi.fn(), vi.fn(), { catalog: CATALOG, onProviderChange });
+    for (const field of ['model', 'provider', 'mode']) {
+      expect(choiceKind(renderer, field)).toBe('select');
+    }
+
+    act(() => renderer.root.findByProps({ 'data-profile-field': 'provider' }).props.onChange({
+      target: { value: 'deepseek' },
+    }));
+    expect(onProviderChange).toHaveBeenCalledWith('deepseek');
+  });
+
+  it('falls back to a text box when the user asks to type a value the catalog lacks', () => {
+    const onChange = vi.fn();
+    const draft = { ...emptyProfileForm(), name: 'valid', backend: 'pi' as const, provider: 'deepseek', model: 'deepseek-v4-flash', mode: 'deepseek' };
+    const renderer = mount(draft, onChange, vi.fn(), { catalog: CATALOG });
+
+    act(() => renderer.root.findByProps({ 'data-profile-field': 'model' }).props.onChange({
+      target: { value: '\u0000custom' },
+    }));
+    expect(onChange).not.toHaveBeenCalled();
+    expect(choiceKind(renderer, 'model')).toBe('custom');
+
+    act(() => renderer.root.findByProps({ 'data-profile-field': 'model' }).props.onChange({
+      target: { value: 'private-model' },
+    }));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ model: 'private-model' }));
   });
 });

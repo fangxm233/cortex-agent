@@ -78,6 +78,8 @@ export const authFlowStateInput = z.object({
 
 export const authCustomProvidersInput = z.object({});
 
+export const modelsCatalogInput = z.object({});
+
 export const machinesListInput = z.object({});
 
 export const machineDetailInput = z.object({
@@ -826,6 +828,7 @@ export const queryInputSchemas = {
   'auth.status': authStatusInput,
   'auth.flowState': authFlowStateInput,
   'auth.customProviders': authCustomProvidersInput,
+  'models.catalog': modelsCatalogInput,
   'hooks.list': hooksListInput,
   'machines.list': machinesListInput,
   'machines.detail': machineDetailInput,

@@ -1,10 +1,10 @@
-// input:  profile form state and ConfigProfileEntry fixtures
-// output: validation, backend-transition, error-copy, dirty and mutation-args regressions
+// input:  profile form state, ConfigProfileEntry and models.catalog fixtures
+// output: validation, route transitions, choice lists, error copy, dirty and mutation-args regressions
 // pos:    Unit tests for shared desktop/mobile profile form behavior
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { describe, expect, it } from 'vitest';
-import type { ConfigProfileEntry } from '@cortex-agent/ui-contract';
+import type { ConfigProfileEntry, ModelCatalogSnapshot } from '@cortex-agent/ui-contract';
 import {
   buildProfileCreateArgs,
   buildProfileDraft,
@@ -12,12 +12,27 @@ import {
   formStateFromEntry,
   isProfileFormDirty,
   isProfileFormValid,
+  profileFieldChoices,
   profileFieldErrorCopy,
   transitionProfileBackend,
+  transitionProfileProvider,
   usedOptionRows,
   validateProfileForm,
+  withCurrentValue,
   type ProfileFormState,
 } from './profiles-panel-vm';
+
+const CATALOG: ModelCatalogSnapshot = {
+  routes: [
+    { endpoint: 'anthropic', backend: 'claude', provider: null, modes: ['plan', 'api'],
+      models: ['claude-opus-5', 'claude-haiku-4-5'], source: 'builtin' },
+    { endpoint: 'deepseek', backend: 'pi', provider: 'deepseek', modes: ['deepseek'],
+      models: ['deepseek-v4-flash'], source: 'pi' },
+    { endpoint: 'openai-codex', backend: 'pi', provider: 'openai-codex', modes: ['openai-codex'],
+      models: [], source: 'gateway' },
+  ],
+  piPending: false,
+};
 
 function entry(over: Partial<ConfigProfileEntry> = {}): ConfigProfileEntry {
   return {
@@ -202,5 +217,69 @@ describe('buildProfileDraft', () => {
   it('sends claudeBackend only when it is declared', () => {
     expect(buildProfileDraft(form({ claudeBackend: '' })).claudeBackend).toBeUndefined();
     expect(buildProfileDraft(form({ claudeBackend: 'tui' })).claudeBackend).toBe('tui');
+  });
+});
+
+describe('catalog-backed choices', () => {
+  it('offers the routes of the draft backend, and the endpoint decides model and mode', () => {
+    const claude = profileFieldChoices(CATALOG, form({ backend: 'claude' }));
+    expect(claude.provider).toEqual(['anthropic']);
+    expect(claude.model).toEqual(['claude-opus-5', 'claude-haiku-4-5']);
+    expect(claude.mode).toEqual(['plan', 'api']);
+
+    const pi = profileFieldChoices(CATALOG, form({ backend: 'pi', provider: 'deepseek' }));
+    expect(pi.provider).toEqual(['deepseek', 'openai-codex']);
+    expect(pi.model).toEqual(['deepseek-v4-flash']);
+  });
+
+  it('reports an empty list — not the current value — when the catalog knows nothing', () => {
+    // An empty list is what makes the editor fall back to free text, so it must stay empty.
+    expect(profileFieldChoices(null, form({ model: 'private-model' })).model).toEqual([]);
+    expect(profileFieldChoices(CATALOG, form({ backend: 'pi', provider: '' })).model).toEqual([]);
+    expect(profileFieldChoices(CATALOG, form({ backend: 'pi', provider: 'openai-codex' })).route?.source)
+      .toBe('gateway');
+    expect(withCurrentValue([], 'private-model')).toEqual(['private-model']);
+    expect(withCurrentValue(['a'], 'a')).toEqual(['a']);
+    expect(withCurrentValue(['a'], '')).toEqual(['a']);
+  });
+});
+
+describe('transitionProfileProvider', () => {
+  it('re-points mode and model at the endpoint the provider selects', () => {
+    const next = transitionProfileProvider(
+      form({ backend: 'pi', provider: 'openai-codex', mode: 'openai-codex', model: 'gpt-6' }),
+      'deepseek',
+      CATALOG,
+    );
+    expect(next).toMatchObject({ provider: 'deepseek', mode: 'deepseek', model: '' });
+  });
+
+  it('keeps a model the new endpoint can serve, and leaves an unknown endpoint alone', () => {
+    expect(transitionProfileProvider(
+      form({ backend: 'pi', model: 'deepseek-v4-flash', mode: 'deepseek' }), 'deepseek', CATALOG,
+    )).toMatchObject({ model: 'deepseek-v4-flash', mode: 'deepseek' });
+    // A route with no known models cannot judge one: the field is left as typed.
+    expect(transitionProfileProvider(
+      form({ backend: 'pi', model: 'gpt-6', mode: 'nope' }), 'openai-codex', CATALOG,
+    )).toMatchObject({ model: 'gpt-6', mode: 'openai-codex' });
+    expect(transitionProfileProvider(
+      form({ backend: 'pi', model: 'whatever', mode: 'whatever' }), 'self-hosted', CATALOG,
+    )).toMatchObject({ model: 'whatever', mode: 'whatever' });
+  });
+});
+
+describe('transitionProfileBackend with a catalog', () => {
+  it('drops a provider that belongs to the other backend and re-points the route', () => {
+    expect(transitionProfileBackend(
+      form({ backend: 'pi', provider: 'deepseek', mode: 'deepseek', model: 'deepseek-v4-flash' }),
+      'claude',
+      CATALOG,
+    )).toMatchObject({ backend: 'claude', provider: '', mode: 'plan', model: '' });
+  });
+
+  it('without a catalog behaves exactly as before — nothing but the thinking cleanup', () => {
+    expect(transitionProfileBackend(
+      form({ backend: 'pi', provider: 'deepseek', mode: 'deepseek', thinking: 'off' }), 'claude',
+    )).toMatchObject({ backend: 'claude', provider: 'deepseek', mode: 'deepseek', thinking: '' });
   });
 });

@@ -29,6 +29,7 @@ Scopes cover approvals, config, executions, issues, memory, plugins, projects, s
 | query-approvals.test.ts | test | Covers approval queue parsing and listing |
 | query-auth.test.ts | test | Covers login flow metadata and secret isolation |
 | custom-providers.test.ts | test | Covers custom provider list, writes and redaction |
+| query-models.test.ts | test | Covers the engine catalog union, mode fallbacks and piPending |
 | query-config.test.ts | test | Covers redaction and settings source snapshots |
 | query-hooks.test.ts | test | Covers the hook registry read model DTO |
 | query-executions-get.test.ts | test | Covers execution detail lookup |

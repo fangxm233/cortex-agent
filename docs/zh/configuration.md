@@ -169,6 +169,8 @@ $CORTEX_HOME/
 
 位于 `$CORTEX_HOME/config/profiles.json`。定义命名智能体配置，控制每个智能体会话使用的后端、模型和额外配置。可用后端对比参见 [backends.md](./backends.md)。
 
+**设置 → Profiles** 就是这个文件的编辑器。其中 `provider`、`model`、`mode` 由列表选择而非手填：选定 provider 即选定网关 endpoint，其模型（来自已登录后端）与路由（来自 `gateway.yaml`）随之确定。三者都保留 **自定义…** 一项，服务端枚举不出的 endpoint 则直接退回文本框 —— 列表只做提供，不会收窄这个文件本身允许的取值。
+
 ### 模式 {#schema}
 
 ```json

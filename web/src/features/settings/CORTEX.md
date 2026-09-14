@@ -34,12 +34,12 @@ Panels keep their presentation while canonical controllers and VMs in this folde
 | budget-vm.test.ts | test | Tests budget scope, drafts, parsing, payloads and percentage arithmetic |
 | useBudgetWriter.ts | hook | Synchronously serializes budget config.set, returns nullable operations, and invalidates config/cost |
 | useBudgetWriter.test.tsx | test | Tests writer serialization, nullable results, payloads, invalidation and failures |
-| ProfilesPanel.tsx | view | Adapts the shared profile owner to the desktop table, editor and action gates |
-| ProfilesPanel.test.tsx | test | Tests desktop profile permissions, secret safety, controller errors and delete guard |
-| profiles-panel-vm.ts | vm | Shares profile transitions, validation copy and mutation args across desktop/mobile |
-| profiles-panel-vm.test.ts | test | Tests profile transitions, error copy, validation and mutation args |
-| useProfilesController.ts | controller | Owns profile facts/drafts and one synchronous busy gate across all profile writes |
-| useProfilesController.test.tsx | test | Tests profile lifecycle, shared write serialization, operation-local pending and feedback |
+| ProfilesPanel.tsx | view | Adapts the shared profile owner to the desktop table, catalog-backed editor and action gates |
+| ProfilesPanel.test.tsx | test | Tests desktop profile permissions, secret safety, field pickers, controller errors and delete guard |
+| profiles-panel-vm.ts | vm | Shares profile transitions, catalog choice lists, validation copy and mutation args across desktop/mobile |
+| profiles-panel-vm.test.ts | test | Tests profile transitions, catalog choices, error copy, validation and mutation args |
+| useProfilesController.ts | controller | Owns profile facts/drafts, the editor-scoped engine catalog and one synchronous busy gate across all profile writes |
+| useProfilesController.test.tsx | test | Tests profile lifecycle, catalog-driven transitions, shared write serialization, operation-local pending and feedback |
 | HooksPanel.tsx | view | Hook editor with result selection and test runner |
 | HooksPanel.test.tsx | test | Tests hook permissions, validation, delete state and runner errors |
 | hooks-panel-vm.ts | vm | Canonically detects/groups hook namespaces for desktop/mobile, then validates editor mutations |

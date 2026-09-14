@@ -1,5 +1,5 @@
-// input:  mounted profiles controller, config/profile adapters, query cache and toast spy
-// output: facts, editor, validation, serialized writes and operation-local pending regressions
+// input:  mounted profiles controller, config/catalog/profile adapters, query cache and toast spy
+// output: facts, editor, catalog-driven transitions, serialized writes and pending regressions
 // pos:    Shared desktop/mobile profiles controller integration specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -26,8 +26,19 @@ const SNAPSHOT = {
   mcp: null, threadTemplates: { agents: [], templates: [], shells: [] }, hooks: [], env: [], settings: [],
 } as unknown as ConfigSnapshot;
 
+const CATALOG = {
+  routes: [
+    { endpoint: 'anthropic', backend: 'claude', provider: null, modes: ['plan'],
+      models: ['claude-opus-5'], source: 'builtin' },
+    { endpoint: 'deepseek', backend: 'pi', provider: 'deepseek', modes: ['deepseek'],
+      models: ['deepseek-v4-flash'], source: 'pi' },
+  ],
+  piPending: false,
+};
+
 const adapter = vi.hoisted(() => ({
-  config: vi.fn(), set: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn(), toast: vi.fn(),
+  config: vi.fn(), catalog: vi.fn(), set: vi.fn(), create: vi.fn(), update: vi.fn(),
+  remove: vi.fn(), toast: vi.fn(),
 }));
 
 vi.mock('@/lib/trpc', () => ({
@@ -40,6 +51,13 @@ vi.mock('@/lib/trpc', () => ({
       set: { mutationOptions: (options: object) => ({
         ...options, mutationFn: (input: unknown) => adapter.set(input),
       }) },
+    },
+    models: {
+      catalog: {
+        queryOptions: (input: unknown) => ({
+          queryKey: ['models.catalog', input], queryFn: () => adapter.catalog(input),
+        }),
+      },
     },
     profiles: {
       create: { mutationOptions: (options: object) => ({
@@ -97,6 +115,7 @@ beforeEach(() => {
   controller = null;
   vi.clearAllMocks();
   adapter.config.mockResolvedValue(SNAPSHOT);
+  adapter.catalog.mockResolvedValue(CATALOG);
   adapter.set.mockResolvedValue({ section: 'profiles', written: true });
   adapter.create.mockResolvedValue({ name: 'new-pi' });
   adapter.update.mockResolvedValue({ changed: true });
@@ -131,6 +150,45 @@ describe('useProfilesController', () => {
     expect(controller?.dirty).toBe(true);
     act(() => { controller?.revertDraft(); });
     expect(controller?.draft?.model).toBe('gpt-5');
+    mounted.renderer.unmount();
+    mounted.queryClient.clear();
+  });
+
+  it('reads the engine catalog only while the editor is open and re-points the draft with it', async () => {
+    const mounted = await mount();
+    // The settings list alone must not provoke the server-side PI model scan.
+    expect(adapter.catalog).not.toHaveBeenCalled();
+
+    act(() => { controller?.openCreate(); });
+    await vi.waitFor(() => expect(controller?.catalog).toEqual(CATALOG));
+    expect(controller?.catalogPending).toBe(false);
+
+    act(() => { controller?.changeDraft({ ...validCreate(), model: 'gpt-5', mode: 'openai' }); });
+    act(() => { controller?.changeProvider('deepseek'); });
+    // gateway.yaml decides which routes exist: a mode the endpoint never declared is replaced, and
+    // a model it cannot serve is cleared rather than carried into a broken profile.
+    expect(controller?.draft).toMatchObject({ provider: 'deepseek', mode: 'deepseek', model: '' });
+
+    act(() => { controller?.changeBackend('claude'); });
+    expect(controller?.draft).toMatchObject({ backend: 'claude', provider: '', mode: 'plan' });
+    mounted.renderer.unmount();
+    mounted.queryClient.clear();
+  });
+
+  it('duplicates an entry into a blank-named create draft', async () => {
+    const mounted = await mount();
+    act(() => { controller?.openDuplicate('sol'); });
+    expect(controller?.creating).toBe(true);
+    expect(controller?.duplicateSource).toBe('sol');
+    expect(controller?.draft).toMatchObject({
+      name: '', model: 'gpt-5', backend: 'pi', mode: 'openai', provider: 'openai', thinking: 'high',
+    });
+    expect(controller?.errors.name).toBe('name-required');
+
+    act(() => { controller?.openEdit('sol'); });
+    expect(controller?.duplicateSource).toBeNull();
+    act(() => { controller?.openDuplicate('missing'); });
+    expect(controller?.editingName).toBe('sol');
     mounted.renderer.unmount();
     mounted.queryClient.clear();
   });

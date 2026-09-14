@@ -210,6 +210,13 @@ that control which backend, model, and extra configuration each agent session
 uses. For a comparison of available backends, see
 [backends.md](./backends.md).
 
+**Settings → Profiles** edits this file. There, `provider`, `model` and `mode`
+are picked from lists rather than typed: the provider selects a gateway
+endpoint, and its models (from the logged-in backends) and routes (from
+`gateway.yaml`) follow. Each of the three keeps a **Custom…** entry, and falls
+back to a plain text box for an endpoint the server cannot enumerate — the
+lists only offer, they never narrow what this file accepts.
+
 ### Schema
 
 ```json

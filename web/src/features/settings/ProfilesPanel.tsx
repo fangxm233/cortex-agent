@@ -1,10 +1,10 @@
-// input:  shared profiles controller facts/actions, profile error copy and desktop controls
-// output: profile table with desktop-specific action gates and validated CRUD editor
+// input:  shared profiles controller facts/actions, the engine catalog, error copy and controls
+// output: profile table with desktop-specific action gates and a pick-first validated CRUD editor
 // pos:    Desktop Profiles settings view and controller adapter
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
-import type { CSSProperties, ReactNode } from 'react';
-import type { ConfigProfileEntry, ConfigSnapshot } from '@cortex-agent/ui-contract';
+import { useState, type CSSProperties, type ReactNode } from 'react';
+import type { ConfigProfileEntry, ConfigSnapshot, ModelCatalogSnapshot } from '@cortex-agent/ui-contract';
 import { Select } from '@/design';
 import { useVocab } from '@/i18n';
 import {
@@ -20,7 +20,9 @@ import {
   PROFILE_BACKENDS,
   THINKING_LEVELS,
   isProfileFormValid,
+  profileFieldChoices,
   profileFieldErrorCopy,
+  withCurrentValue,
   type ProfileBackend,
   type ProfileFormErrors,
   type ProfileFormState,
@@ -39,6 +41,11 @@ import { useProfilesController, type ProfileFact } from './useProfilesController
 // `extraEnv` values never reach the browser (they are environment injection and may hold a token)
 // and `fallback[]` has no editor — both are shown read-only and carried over untouched by a save.
 //
+// model / provider / mode are PICKED from models.catalog rather than typed, and in that order:
+// the provider selects the endpoint, which decides the other two lists. The catalog only offers —
+// every one of the three keeps a `Custom…` escape and falls back to a plain text box when the host
+// cannot enumerate that endpoint, so nothing profiles.json accepts becomes unwritable here.
+//
 // No optimistic updates: every mutation invalidates config.get and reports through a toast.
 
 const MONO = "'IBM Plex Mono',monospace";
@@ -50,7 +57,7 @@ const TH: CSSProperties = {
   color: 'var(--proto-muted-3)',
 };
 
-const GRID = '84px 1fr 66px 52px 58px 118px';
+const GRID = '84px 1fr 66px 52px 58px 170px';
 
 function RowAction({
   children,
@@ -106,30 +113,125 @@ function Cell({ value, dim }: { value: string | null; dim?: boolean }) {
 
 // ── editor ────────────────────────────────────────────────────────────────────────────────────
 
+/** The three fields the catalog can offer a list for; the rest are fixed sets or free text. */
+type ChoiceField = 'model' | 'provider' | 'mode';
+
+/** Sentinel option value — not a legal profile value (a safe name cannot hold a NUL). */
+const CUSTOM_OPTION = '\u0000custom';
+
+function ProfileChoice({
+  field,
+  label,
+  value,
+  options,
+  emptyLabel,
+  custom,
+  onCustom,
+  onValueChange,
+}: {
+  field: ChoiceField;
+  label: string;
+  value: string;
+  options: readonly string[];
+  /** Label of the "" option. Omitted ⇒ the field has no legal empty value (model). */
+  emptyLabel?: string;
+  custom: boolean;
+  onCustom: (custom: boolean) => void;
+  onValueChange: (value: string) => void;
+}) {
+  const L = useVocab();
+  // Nothing to pick from ⇒ the control IS the text box. An endpoint the host cannot enumerate
+  // (a provider that is not logged in, a scan that failed) must stay writable.
+  if (custom || options.length === 0) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <input
+          data-profile-field={field}
+          data-profile-choice="custom"
+          value={value}
+          onChange={(e) => onValueChange(e.target.value)}
+          style={S_CONTROL_STYLE}
+        />
+        {options.length > 0 ? (
+          <RowAction data-action={`list-${field}`} onClick={() => onCustom(false)}>
+            {L.pfPickFromList}
+          </RowAction>
+        ) : null}
+      </div>
+    );
+  }
+  return (
+    <Select
+      data-profile-field={field}
+      data-profile-choice="select"
+      aria-label={label}
+      value={value}
+      placeholder={emptyLabel ?? L.pfNotDeclared}
+      options={[
+        ...(emptyLabel === undefined ? [] : [{ value: '', label: emptyLabel }]),
+        ...withCurrentValue(options, value).map((option) => ({ value: option, label: option })),
+        { value: CUSTOM_OPTION, label: L.pfCustomValue },
+      ]}
+      onValueChange={(next: string) => (next === CUSTOM_OPTION ? onCustom(true) : onValueChange(next))}
+      style={S_CONTROL_STYLE}
+    />
+  );
+}
+
 function ProfileEditor({
   draft,
   creating,
   entry,
   errors,
+  duplicateSource,
+  catalog,
+  catalogPending,
   onDraftChange,
   onBackendChange,
+  onProviderChange,
 }: {
   draft: ProfileFormState;
   creating: boolean;
   entry: ConfigProfileEntry | null;
   errors: ProfileFormErrors;
+  duplicateSource: string | null;
+  catalog: ModelCatalogSnapshot | null;
+  catalogPending: boolean;
   onDraftChange: (next: ProfileFormState) => void;
   onBackendChange: (backend: ProfileBackend) => void;
+  onProviderChange: (provider: string) => void;
 }) {
   const L = useVocab();
   const set = (patch: Partial<ProfileFormState>) => onDraftChange({ ...draft, ...patch });
   const hint = (field: keyof typeof errors, fallback?: ReactNode) =>
     profileFieldErrorCopy(errors[field], L) ?? fallback;
   const tone = (field: keyof typeof errors) => (errors[field] ? ('danger' as const) : ('muted' as const));
+  // Which fields the user has taken off the list. Editor-local: it is a way of typing, not a value,
+  // so it never reaches the draft, the dirty check or the save.
+  const [custom, setCustom] = useState<Record<ChoiceField, boolean>>({
+    model: false, provider: false, mode: false,
+  });
+  const pickCustom = (field: ChoiceField) => (on: boolean) =>
+    setCustom((previous) => ({ ...previous, [field]: on }));
+  const choices = profileFieldChoices(catalog, draft);
+  // Why a list is short, said where the list is — otherwise an empty dropdown looks like a bug.
+  const listNote = (): ReactNode => {
+    if (catalogPending) return L.pfCatalogPending;
+    if (draft.backend === 'pi' && draft.provider.trim() === '') return L.pfPickProviderFirst;
+    return choices.route?.source === 'gateway' ? L.pfRouteNotLoggedIn : undefined;
+  };
 
   return (
     <>
-      <SSectionLabel>{creating ? L.pfCreateTitle : L.pfEditTitle}</SSectionLabel>
+      <SSectionLabel>
+        {creating ? L.pfCreateTitle : L.pfEditTitle}
+        {duplicateSource === null ? null : ` · ${L.pfDuplicatedFrom} ${duplicateSource}`}
+      </SSectionLabel>
+      {duplicateSource === null ? null : (
+        <div style={{ fontSize: 9.5, lineHeight: 1.7, color: 'var(--proto-faint)' }}>
+          {L.pfDuplicateDropsNote}
+        </div>
+      )}
       <SFieldRow
         label={L.pfFieldName}
         hint={hint('name', creating ? L.pfNameHint : L.pfNoRename)}
@@ -143,14 +245,6 @@ function ProfileEditor({
           style={creating ? S_CONTROL_STYLE : S_CONTROL_DISABLED_STYLE}
         />
       </SFieldRow>
-      <SFieldRow label={L.pfFieldModel} hint={hint('model', L.pfModelHint)} hintTone={tone('model')}>
-        <input
-          data-profile-field="model"
-          value={draft.model}
-          onChange={(e) => set({ model: e.target.value })}
-          style={S_CONTROL_STYLE}
-        />
-      </SFieldRow>
       <SFieldRow label={L.pfFieldBackend}>
         <Select
           data-profile-field="backend"
@@ -161,24 +255,48 @@ function ProfileEditor({
           style={S_CONTROL_STYLE}
         />
       </SFieldRow>
-      <SFieldRow label={L.pfFieldMode} hint={hint('mode', L.pfModeHint)} hintTone={tone('mode')}>
-        <input
-          data-profile-field="mode"
-          value={draft.mode}
-          onChange={(e) => set({ mode: e.target.value })}
-          style={S_CONTROL_STYLE}
-        />
-      </SFieldRow>
+      {/* provider first: it picks the endpoint, and the model and mode lists follow from it. */}
       <SFieldRow
         label={L.pfFieldProvider}
         hint={hint('provider', L.pfProviderHint)}
         hintTone={tone('provider')}
       >
-        <input
-          data-profile-field="provider"
+        <ProfileChoice
+          field="provider"
+          label={L.pfFieldProvider}
           value={draft.provider}
-          onChange={(e) => set({ provider: e.target.value })}
-          style={S_CONTROL_STYLE}
+          options={choices.provider}
+          emptyLabel={L.pfNotDeclared}
+          custom={custom.provider}
+          onCustom={pickCustom('provider')}
+          onValueChange={onProviderChange}
+        />
+      </SFieldRow>
+      <SFieldRow
+        label={L.pfFieldModel}
+        hint={hint('model', listNote() ?? L.pfModelHint)}
+        hintTone={tone('model')}
+      >
+        <ProfileChoice
+          field="model"
+          label={L.pfFieldModel}
+          value={draft.model}
+          options={choices.model}
+          custom={custom.model}
+          onCustom={pickCustom('model')}
+          onValueChange={(model) => set({ model })}
+        />
+      </SFieldRow>
+      <SFieldRow label={L.pfFieldMode} hint={hint('mode', L.pfModeHint)} hintTone={tone('mode')}>
+        <ProfileChoice
+          field="mode"
+          label={L.pfFieldMode}
+          value={draft.mode}
+          options={choices.mode}
+          emptyLabel={L.pfNotDeclared}
+          custom={custom.mode}
+          onCustom={pickCustom('mode')}
+          onValueChange={(mode) => set({ mode })}
         />
       </SFieldRow>
       <SFieldRow label={L.pfFieldThinking} hint={hint('thinking')} hintTone={tone('thinking')}>
@@ -282,6 +400,11 @@ export interface ProfilesPanelViewProps {
   onSetDefaultProfile?: (name: string) => void;
   /** Non-null while an entry is being created or edited. */
   draft: ProfileFormState | null;
+  /** Name the open create-draft was copied from; null for a blank one. */
+  duplicateSource: string | null;
+  /** What model / provider / mode may be picked from; null when the catalog has not been read. */
+  catalog: ModelCatalogSnapshot | null;
+  catalogPending: boolean;
   creating: boolean;
   editingName: string | null;
   /** The row whose delete is armed (deletion takes two clicks, like the hooks panel). */
@@ -291,10 +414,12 @@ export interface ProfilesPanelViewProps {
   savePending: boolean;
   removePendingName: string | null;
   onStartCreate: () => void;
+  onStartDuplicate: (name: string) => void;
   onStartEdit: (name: string) => void;
   onCancelEdit: () => void;
   onDraftChange: (next: ProfileFormState) => void;
   onBackendChange: (backend: ProfileBackend) => void;
+  onProviderChange: (provider: string) => void;
   onSave: () => void;
   onRevert: () => void;
   onArmDelete: (name: string) => void;
@@ -454,6 +579,12 @@ export function ProfilesPanelView(props: ProfilesPanelViewProps) {
                         {L.pfEdit}
                       </RowAction>
                       <RowAction
+                        data-action="duplicate"
+                        onClick={busy ? undefined : () => props.onStartDuplicate(r.name)}
+                      >
+                        {L.pfDuplicate}
+                      </RowAction>
+                      <RowAction
                         data-action="delete"
                         data-delete-blocked={isDefault ? '' : undefined}
                         tone="danger"
@@ -475,12 +606,18 @@ export function ProfilesPanelView(props: ProfilesPanelViewProps) {
         <SCard style={{ marginTop: 12, padding: '4px 14px 12px' }}>
           <div data-profile-editor="" />
           <ProfileEditor
+            // A fresh editor per target: the "typed, not picked" flags belong to one editing session.
+            key={props.creating ? 'create' : props.editingName ?? 'none'}
             draft={props.draft}
             creating={props.creating}
             entry={entry}
             errors={props.errors}
+            duplicateSource={props.duplicateSource}
+            catalog={props.catalog}
+            catalogPending={props.catalogPending}
             onDraftChange={props.onDraftChange}
             onBackendChange={props.onBackendChange}
+            onProviderChange={props.onProviderChange}
           />
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
             {props.dirty ? (
@@ -515,6 +652,9 @@ export function ProfilesPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
       profileFacts={profiles.profileFacts}
       onSetDefaultProfile={profiles.setDefault}
       draft={profiles.draft}
+      duplicateSource={profiles.duplicateSource}
+      catalog={profiles.catalog}
+      catalogPending={profiles.catalogPending}
       creating={profiles.creating}
       editingName={profiles.creating ? null : profiles.editingName}
       armedDelete={profiles.confirmingDelete}
@@ -523,10 +663,12 @@ export function ProfilesPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
       savePending={profiles.savePending}
       removePendingName={profiles.removePendingName}
       onStartCreate={profiles.openCreate}
+      onStartDuplicate={profiles.openDuplicate}
       onStartEdit={profiles.openEdit}
       onCancelEdit={profiles.closeDraft}
       onDraftChange={profiles.changeDraft}
       onBackendChange={profiles.changeBackend}
+      onProviderChange={profiles.changeProvider}
       onSave={profiles.save}
       onRevert={profiles.revertDraft}
       onArmDelete={profiles.requestDelete}
