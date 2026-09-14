@@ -25,11 +25,16 @@ if (shared) {
   try { cpSync(shared, home, { recursive: true }); } catch { /* best-effort */ }
 }
 
-for (const d of ['data', 'config', 'context', path.join('context', 'projects'), 'tmp', path.join('tmp', 'threads')]) {
+for (const d of ['data', 'config', 'context', path.join('context', 'projects'), 'tmp', path.join('tmp', 'threads'), '.claude']) {
   try { mkdirSync(path.join(home, d), { recursive: true }); } catch { /* best-effort */ }
 }
 
 process.env.CORTEX_HOME = home;
+// Same isolation, for the OTHER config root the server reads: without this, anything resolving a
+// Claude user setting (resolveAutoCompactWindow, auth probes) falls through to the developer's real
+// ~/.claude/settings.json, so a machine with `autoCompactWindow` set fails tests that assert
+// reported context windows. Tests that need a populated dir set the variable themselves.
+process.env.CLAUDE_CONFIG_DIR = process.env.CLAUDE_CONFIG_DIR ?? path.join(home, '.claude');
 // Keep the temp dirs the test files allocate themselves inside the run-scoped root too.
 redirectTmpdir();
 // atomicWrite tripwire keys off NODE_TEST_CONTEXT; node:test set it implicitly,
