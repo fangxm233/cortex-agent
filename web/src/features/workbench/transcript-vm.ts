@@ -390,26 +390,26 @@ export function turnCount(transcript: SessionTranscript | undefined | null): num
 }
 
 /**
- * Real CURRENT-turn elapsed = wall-clock span within the last turn only (its opening user message →
- * its last assistant/tool message). The first message of a turn carries the idle gap since the
- * previous turn (the backend's `prevMs` spans turn boundaries), so its `elapsedMs` is excluded — only
- * intra-turn deltas are summed. Returns null when the last turn has no intra-turn elapsed signal
- * (empty / single-message / all-null) so the caller renders an honest `—`.
+ * Real CURRENT-turn elapsed = wall-clock SPAN of the last turn: its opening user message → its last
+ * assistant/tool message, measured from those two timestamps. The cross-turn idle gap is excluded for
+ * free, because the clock starts at this turn's own first message.
+ *
+ * Deliberately a span and NOT a sum of per-message `elapsedMs`: the backend's compact projection folds
+ * every subagent row into a summary and drops that row's delta with it, so a sum silently loses all the
+ * wall-clock the agent spent waiting on its children — a real 74m 37s turn reported as `1h 11m`. A span
+ * cannot lose time.
+ *
+ * Returns null when the last turn yields no span (empty / single message / unparsable ts) so the caller
+ * renders an honest `—`.
  */
 export function currentTurnElapsedMs(transcript: SessionTranscript | undefined | null): number | null {
   if (!transcript || transcript.turns.length === 0) return null;
-  const lastTurn = transcript.turns[transcript.turns.length - 1];
-  let total = 0;
-  let seen = false;
-  // Skip index 0 (the turn-opening user message) — its elapsedMs is the cross-turn idle gap.
-  for (let i = 1; i < lastTurn.messages.length; i++) {
-    const ms = lastTurn.messages[i].elapsedMs;
-    if (ms != null) {
-      total += ms;
-      seen = true;
-    }
-  }
-  return seen ? total : null;
+  const messages = transcript.turns[transcript.turns.length - 1].messages;
+  if (messages.length < 2) return null;
+  const startMs = Date.parse(messages[0].ts);
+  const endMs = Date.parse(messages[messages.length - 1].ts);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return null;
+  return Math.max(0, endMs - startMs);
 }
 
 /**

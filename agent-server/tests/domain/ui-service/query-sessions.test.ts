@@ -234,7 +234,7 @@ test('sessions.list numTurns: running session but no progress yet → null (no s
     executionRegistry: {
       getExecution: () => null, cancelExecution: () => null,
       getAll: () => [
-        { channel: 'C1', thread: null, runtime: { startedAt: '2026-04-01T00:00:00Z' }, metrics: { numTurns: 9 } },
+        { channel: 'C1', session: { sessionId: 's1' }, thread: null, runtime: { startedAt: '2026-04-01T00:00:00Z' }, metrics: { numTurns: 9 } },
       ],
     } as any,
   });
@@ -251,10 +251,10 @@ test('sessions.list numTurns: idle session → last non-thread execution numTurn
     executionRegistry: {
       getExecution: () => null, cancelExecution: () => null,
       getAll: () => [
-        { channel: 'C1', thread: null, runtime: { startedAt: '2026-04-01T00:00:00Z' }, metrics: { numTurns: 2 } },
-        { channel: 'C1', thread: null, runtime: { startedAt: '2026-05-01T00:00:00Z' }, metrics: { numTurns: 7 } },
+        { channel: 'C1', session: { sessionId: 's1' }, thread: null, runtime: { startedAt: '2026-04-01T00:00:00Z' }, metrics: { numTurns: 2 } },
+        { channel: 'C1', session: { sessionId: 's1' }, thread: null, runtime: { startedAt: '2026-05-01T00:00:00Z' }, metrics: { numTurns: 7 } },
         // A thread execution on the same channel must be ignored.
-        { channel: 'C1', thread: { threadId: 'thr_x' }, runtime: { startedAt: '2026-06-01T00:00:00Z' }, metrics: { numTurns: 99 } },
+        { channel: 'C1', session: { sessionId: 's1' }, thread: { threadId: 'thr_x' }, runtime: { startedAt: '2026-06-01T00:00:00Z' }, metrics: { numTurns: 99 } },
       ],
     } as any,
   });
@@ -262,6 +262,70 @@ test('sessions.list numTurns: idle session → last non-thread execution numTurn
   assert.equal(result.find(s => s.sessionId === 's1')!.numTurns, 7, 'latest non-thread run');
   // s3 (channel C3) has no executions → null.
   assert.equal(result.find(s => s.sessionId === 's3')!.numTurns, null);
+});
+
+test('sessions.list numTurns/costUsd: a SUBAGENT run on the parent channel never shadows the session run', async () => {
+  // The observed bug: `agent`-tool children inherit the parent's channel and carry no track identity
+  // (`session.sessionId === null`), and a child always starts AFTER the parent run that spawned it.
+  // Keyed by channel + max(startedAt), the last child won and the card showed ITS turns/cost.
+  const deps = makeDeps({
+    runningExecutions: {
+      getAll: () => [],
+      sessionState: () => ({ running: false, backgroundRunning: false, numTurns: null, executionId: null }),
+    } as any,
+    executionRegistry: {
+      getExecution: () => null, cancelExecution: () => null,
+      getAll: () => [
+        // The session's own long run — started first, finished last.
+        {
+          channel: 'C1', session: { sessionId: 's1' }, thread: null, source: { trigger: 'user' },
+          runtime: { startedAt: '2026-05-01T00:00:00Z' }, metrics: { numTurns: 300, costUsd: 32.51 },
+        },
+        // Two children spawned one minute in — later startedAt, no session identity.
+        {
+          channel: 'C1', session: { sessionId: null }, thread: null, source: { trigger: 'subagent' },
+          runtime: { startedAt: '2026-05-01T00:01:00Z' }, metrics: { numTurns: 47, costUsd: 1.55 },
+        },
+        {
+          channel: 'C1', session: { sessionId: null }, thread: null, source: { trigger: 'subagent' },
+          runtime: { startedAt: '2026-05-01T00:01:30Z' }, metrics: { numTurns: 52, costUsd: 1.95 },
+        },
+      ],
+    } as any,
+  });
+  const s1 = (await handleSessionsList(deps, { projectId: 'proj1' })).find(s => s.sessionId === 's1')!;
+  assert.equal(s1.numTurns, 300, "the session's own run, not its last child");
+  assert.equal(s1.costUsd, 32.51, "the session's own cost, not its last child's");
+});
+
+test('sessions.list numTurns/costUsd: a run belonging to ANOTHER session on the same channel is not attributed', async () => {
+  // Channel recycling (the session-switch case): the stale record keeps the channel, so a
+  // channel-keyed snapshot would hand s1 the NEW session's numbers.
+  const deps = makeDeps({
+    sessionStore: {
+      listByProject: async () => [
+        { ...mockSessions[0] },
+        { ...mockSessions[0], sessionId: 's1-new', name: 'cortex-new', channel: 'C1' },
+      ],
+    } as any,
+    runningExecutions: {
+      getAll: () => [],
+      sessionState: () => ({ running: false, backgroundRunning: false, numTurns: null, executionId: null }),
+    } as any,
+    executionRegistry: {
+      getExecution: () => null, cancelExecution: () => null,
+      getAll: () => [
+        { channel: 'C1', session: { sessionId: 's1' }, thread: null, runtime: { startedAt: '2026-05-01T00:00:00Z' }, metrics: { numTurns: 7, costUsd: 0.42 } },
+        { channel: 'C1', session: { sessionId: 's1-new' }, thread: null, runtime: { startedAt: '2026-06-01T00:00:00Z' }, metrics: { numTurns: 3, costUsd: 0.07 } },
+      ],
+    } as any,
+  });
+  const result = await handleSessionsList(deps, { projectId: 'proj1' });
+  const byId = Object.fromEntries(result.map(s => [s.sessionId, s]));
+  assert.equal(byId['s1'].numTurns, 7);
+  assert.equal(byId['s1'].costUsd, 0.42);
+  assert.equal(byId['s1-new'].numTurns, 3);
+  assert.equal(byId['s1-new'].costUsd, 0.07);
 });
 
 test('sessions.list numTurns: no execution data anywhere → null', async () => {
@@ -278,10 +342,10 @@ test('sessions.list costUsd: idle session → last non-thread execution costUsd 
     executionRegistry: {
       getExecution: () => null, cancelExecution: () => null,
       getAll: () => [
-        { channel: 'C1', thread: null, runtime: { startedAt: '2026-04-01T00:00:00Z' }, metrics: { numTurns: 2, costUsd: 0.11 } },
-        { channel: 'C1', thread: null, runtime: { startedAt: '2026-05-01T00:00:00Z' }, metrics: { numTurns: 7, costUsd: 0.42 } },
+        { channel: 'C1', session: { sessionId: 's1' }, thread: null, runtime: { startedAt: '2026-04-01T00:00:00Z' }, metrics: { numTurns: 2, costUsd: 0.11 } },
+        { channel: 'C1', session: { sessionId: 's1' }, thread: null, runtime: { startedAt: '2026-05-01T00:00:00Z' }, metrics: { numTurns: 7, costUsd: 0.42 } },
         // A thread execution on the same channel must be ignored.
-        { channel: 'C1', thread: { threadId: 'thr_x' }, runtime: { startedAt: '2026-06-01T00:00:00Z' }, metrics: { numTurns: 99, costUsd: 9.99 } },
+        { channel: 'C1', session: { sessionId: 's1' }, thread: { threadId: 'thr_x' }, runtime: { startedAt: '2026-06-01T00:00:00Z' }, metrics: { numTurns: 99, costUsd: 9.99 } },
       ],
     } as any,
   });
@@ -303,7 +367,7 @@ test('sessions.list costUsd: running session → null (no live cost source, no s
     executionRegistry: {
       getExecution: () => null, cancelExecution: () => null,
       getAll: () => [
-        { channel: 'C1', thread: null, runtime: { startedAt: '2026-04-01T00:00:00Z' }, metrics: { numTurns: 9, costUsd: 1.23 } },
+        { channel: 'C1', session: { sessionId: 's1' }, thread: null, runtime: { startedAt: '2026-04-01T00:00:00Z' }, metrics: { numTurns: 9, costUsd: 1.23 } },
       ],
     } as any,
   });
@@ -349,7 +413,7 @@ test('sessions.list bg-held session: numTurns/costUsd fall back to the last comp
     executionRegistry: {
       getExecution: () => null, cancelExecution: () => null,
       getAll: () => [
-        { channel: 'C1', thread: null, runtime: { startedAt: '2026-05-01T00:00:00Z' }, metrics: { numTurns: 7, costUsd: 0.42 } },
+        { channel: 'C1', session: { sessionId: 's1' }, thread: null, runtime: { startedAt: '2026-05-01T00:00:00Z' }, metrics: { numTurns: 7, costUsd: 0.42 } },
       ],
     } as any,
   });

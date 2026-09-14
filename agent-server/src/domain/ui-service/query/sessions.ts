@@ -51,34 +51,43 @@ export async function handleSessionsList(
   }
 
   // Idle snapshot: the last COMPLETED interactive run's turn count AND total cost. One pass over the
-  // execution registry builds channel → latest non-thread execution (by startedAt), carrying both its
-  // numTurns and metrics.costUsd (same run). A running turn never falls back to this (avoids showing
-  // the previous run's count/cost during a fresh turn). costUsd is only known at turn end — there is
-  // no live in-memory cost source — so the running case has no live cost (null).
-  const lastRunByChannel = new Map<string, { startedAt: string; numTurns: number; costUsd: number | null }>();
+  // execution registry builds SESSION ID → latest execution belonging to that session (by startedAt),
+  // carrying both its numTurns and metrics.costUsd (same run). A running turn never falls back to this
+  // (avoids showing the previous run's count/cost during a fresh turn). costUsd is only known at turn
+  // end — there is no live in-memory cost source — so the running case has no live cost (null).
+  //
+  // Keyed by `session.sessionId`, NOT by channel: a subagent run (`source.trigger === 'subagent'`)
+  // inherits its parent's channel while carrying no track identity (`session.sessionId === null`), and
+  // a child always STARTS AFTER the parent run that spawned it. Keying by channel + max(startedAt)
+  // therefore let any subagent shadow the session's own run — the session card reported that child's
+  // turns and cost (e.g. `52 turns · $1.95`) instead of the session's (`300 turns · $32.51`). Keying by
+  // session id drops those children (null id) for free, and also stops a recycled channel from
+  // attributing an older session's run to the session now sitting on that channel.
+  const lastRunBySession = new Map<string, { startedAt: string; numTurns: number; costUsd: number | null }>();
   for (const e of deps.executionRegistry.getAll()) {
-    const channel: string | undefined = e?.channel ?? undefined;
+    const runSessionId: string | undefined = e?.session?.sessionId ?? undefined;
     const numTurns: unknown = e?.metrics?.numTurns;
-    if (!channel || e?.thread?.threadId || typeof numTurns !== 'number') continue;
+    if (!runSessionId || e?.thread?.threadId || typeof numTurns !== 'number') continue;
     const startedAt: string = e?.runtime?.startedAt ?? '';
     const costUsd: unknown = e?.metrics?.costUsd;
-    const prev = lastRunByChannel.get(channel);
+    const prev = lastRunBySession.get(runSessionId);
     if (!prev || startedAt.localeCompare(prev.startedAt) >= 0) {
-      lastRunByChannel.set(channel, { startedAt, numTurns, costUsd: typeof costUsd === 'number' ? costUsd : null });
+      lastRunBySession.set(runSessionId, { startedAt, numTurns, costUsd: typeof costUsd === 'number' ? costUsd : null });
     }
   }
   const resolveNumTurns = (
-    channel: string | undefined,
+    sessionId: string | undefined,
     inTurn: boolean,
     liveNumTurns: number | null,
   ): number | null => {
     if (inTurn) return liveNumTurns;
-    return channel ? (lastRunByChannel.get(channel)?.numTurns ?? null) : null;
+    return sessionId ? (lastRunBySession.get(sessionId)?.numTurns ?? null) : null;
   };
-  // Last run's cost: idle → the latest non-thread run's finalized cost; running → null (no live source).
-  const resolveCost = (channel: string | undefined, running: boolean): number | null => {
+  // Last run's cost: idle → this session's latest non-thread run's finalized cost; running → null
+  // (no live source).
+  const resolveCost = (sessionId: string | undefined, running: boolean): number | null => {
     if (running) return null;
-    return channel ? (lastRunByChannel.get(channel)?.costUsd ?? null) : null;
+    return sessionId ? (lastRunBySession.get(sessionId)?.costUsd ?? null) : null;
   };
 
   const infos = sessions.map((s: any): SessionInfo => {
@@ -128,8 +137,8 @@ export async function handleSessionsList(
       running,
       backgroundRunning: bgHeld,
       awaitingInput,
-      numTurns: resolveNumTurns(s.channel, inTurn, state.numTurns),
-      costUsd: resolveCost(s.channel, inTurn),
+      numTurns: resolveNumTurns(s.sessionId, inTurn, state.numTurns),
+      costUsd: resolveCost(s.sessionId, inTurn),
       // Unread = activity (lastUsedAt, bumped at turn end) after the user's last view
       // (sessions.markRead → lastReadAt). Legacy DIRECT records without lastReadAt → read
       // (no unread flood on first deploy). SCHEDULED runs invert the default: a run the user

@@ -342,26 +342,37 @@ describe('currentTurnElapsedMs', () => {
     type: 'assistant', text: 'x', toolName: null, toolInput: null, ts, elapsedMs,
   });
 
-  it('sums only the LAST turn intra-turn deltas, excluding its opening message gap', () => {
+  const at = (ms: number) => new Date(Date.parse(T) + ms).toISOString();
+
+  it('spans the LAST turn from its opening message to its final row', () => {
     const t = tx([
-      { turnIndex: 0, messages: [mk(T, null), mk(T, 2500)] },
-      // Last turn: index 0 (7500) is the cross-turn idle gap → excluded; 1000 + 500 counted.
-      { turnIndex: 1, messages: [mk(T, 7500), mk(T, 1000), mk(T, 500)] },
+      { turnIndex: 0, messages: [mk(T, null), mk(at(2500), 2500)] },
+      // Last turn opens 7500ms later (the cross-turn idle gap) and then runs for 1500ms.
+      { turnIndex: 1, messages: [mk(at(10_000), 7500), mk(at(11_000), 1000), mk(at(11_500), 500)] },
     ]);
     expect(currentTurnElapsedMs(t)).toBe(1500);
   });
 
   it('does not carry earlier turns into the current-turn clock', () => {
     const t = tx([
-      { turnIndex: 0, messages: [mk(T, null), mk(T, 9999)] },
-      { turnIndex: 1, messages: [mk(T, 3000), mk(T, 400)] },
+      { turnIndex: 0, messages: [mk(T, null), mk(at(9999), 9999)] },
+      { turnIndex: 1, messages: [mk(at(13_000), 3000), mk(at(13_400), 400)] },
     ]);
     expect(currentTurnElapsedMs(t)).toBe(400);
   });
 
-  it('returns null when the last turn has no intra-turn signal (single message / all null)', () => {
+  it('keeps the time folded subagent rows took — a span, never a sum of surviving deltas', () => {
+    // The real bug: the compact projection drops a folded subagent row AND its delta, so the surviving
+    // rows here only account for 20s of a turn that actually ran 5 minutes.
+    const t = tx([
+      { turnIndex: 0, messages: [mk(T, null), mk(at(10_000), 10_000), mk(at(300_000), 10_000)] },
+    ]);
+    expect(currentTurnElapsedMs(t)).toBe(300_000);
+  });
+
+  it('returns null when the last turn yields no span (single message / empty / unparsable ts)', () => {
     expect(currentTurnElapsedMs(tx([{ turnIndex: 0, messages: [mk(T, null)] }]))).toBeNull();
-    expect(currentTurnElapsedMs(tx([{ turnIndex: 0, messages: [mk(T, 5000), mk(T, null)] }]))).toBeNull();
+    expect(currentTurnElapsedMs(tx([{ turnIndex: 0, messages: [mk('not-a-date', 5000), mk(T, 1000)] }]))).toBeNull();
     expect(currentTurnElapsedMs(tx([]))).toBeNull();
     expect(currentTurnElapsedMs(undefined)).toBeNull();
   });
