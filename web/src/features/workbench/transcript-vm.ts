@@ -383,18 +383,6 @@ export function systemOriginSummary(text: string, max = 80): string {
 /** Map a live `session.message` event into a `TranscriptMessage` (same shape the fetched DTO uses).
  *  `elapsedMs` is null for live-tail messages — the backend derives real per-message elapsed at read
  *  time, so it reconciles when the transcript refetches after the stream settles. */
-/**
- * Display form of a subagent's model id.
- *
- * Only two shapes are stripped, both unambiguous: a leading `claude-` vendor prefix and a trailing
- * `-YYYYMMDD` release date. Anything else is shown verbatim — an id we do not recognise is reported
- * as it was reported to us rather than guessed at, since the whole point of the chip is to say
- * which model actually answered.
- */
-export function subagentModelLabel(model: string): string {
-  return model.replace(/^claude-/, '').replace(/-\d{8}$/, '');
-}
-
 const REMOTE_TOOL_NAMES = new Set([
   'remote_bash', 'remote_read', 'remote_write',
   'remote_edit', 'remote_glob', 'remote_grep',

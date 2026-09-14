@@ -97,6 +97,11 @@ describe('selectionChipLabel', () => {
   it('falls back to the profile name when the profile declares no model', () => {
     expect(selectionChipLabel(effectiveSelection([profile({ name: 'bare' })], 'bare', null))).toBe('bare');
   });
+
+  it('drops the claude vendor prefix — the chip has no room for it', () => {
+    expect(selectionChipLabel(effectiveSelection(profiles, 'default', { model: 'claude-opus-5' })))
+      .toBe('opus-5 · high');
+  });
 });
 
 describe('buildSelectionSheet', () => {

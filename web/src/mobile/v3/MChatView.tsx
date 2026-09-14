@@ -21,7 +21,8 @@ import { useToolCallOverflow } from '@/features/workbench/useToolCallOverflow';
 import { ChatNotice } from '@/features/workbench/ChatNotice';
 import { SubagentTranscriptDetail } from '@/features/workbench/SubagentTranscriptDetail';
 import { useVocab } from '@/i18n';
-import { assistantTurnCopyTargets, regenNoteIndexes, subagentModelLabel, systemOriginLabel, systemOriginSummary, type ChatRow } from '@/features/workbench/transcript-vm';
+import { assistantTurnCopyTargets, regenNoteIndexes, systemOriginLabel, systemOriginSummary, type ChatRow } from '@/features/workbench/transcript-vm';
+import { modelLabel } from '@/features/workbench/model-label';
 import { interactionView, emptyAskAnswers } from '@/features/workbench/interaction-vm';
 import { toolChips } from '@/mobile/screens/mobile-session-vm';
 import { MDrillHeader, MMoreButton, MComposer, MBottomSheet, MDot, MC, MONO } from '@/mobile/ui/kit';
@@ -205,7 +206,7 @@ function MSubagentBlock({ row, unit, sessionId }: {
         </span>
         {row.model ? (
           <span style={{ font: `600 9px ${MONO}`, color: 'var(--proto-muted-3)', border: '1px solid var(--proto-line-2)', padding: '1.5px 7px', borderRadius: 5, flex: 'none' }}>
-            {subagentModelLabel(row.model)}
+            {modelLabel(row.model)}
           </span>
         ) : null}
         <span style={{ font: `400 11px ${MONO}`, color: MC.body, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{label}</span>

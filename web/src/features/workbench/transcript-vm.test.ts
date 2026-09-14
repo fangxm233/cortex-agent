@@ -16,7 +16,6 @@ import {
   finalizeAssistantPreview,
   applyDelivered,
   reconcilePendingUserMessages,
-  subagentModelLabel,
   systemOriginSummary,
   toolCallLabel,
   type ChatRow,
@@ -1564,19 +1563,5 @@ describe('buildTranscriptRows — native subagent grouping', () => {
       subagentSpawns,
     };
     expect(liveToMessage(live).subagentSpawns).toEqual(subagentSpawns);
-  });
-});
-
-describe('subagentModelLabel', () => {
-  it('strips only the vendor prefix and the release date', () => {
-    expect(subagentModelLabel('claude-sonnet-4-6-20260101')).toBe('sonnet-4-6');
-    expect(subagentModelLabel('claude-haiku-4-5')).toBe('haiku-4-5');
-  });
-
-  it('shows an unrecognised id verbatim rather than guessing at it', () => {
-    expect(subagentModelLabel('gpt-4o')).toBe('gpt-4o');
-    expect(subagentModelLabel('deepseek-v3')).toBe('deepseek-v3');
-    // 6 digits is not a release date — truncating here would invent a different model name.
-    expect(subagentModelLabel('some-model-202601')).toBe('some-model-202601');
   });
 });

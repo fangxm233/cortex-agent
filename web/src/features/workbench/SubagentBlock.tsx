@@ -1,6 +1,6 @@
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { useVocab } from '@/i18n';
-import { subagentModelLabel } from './transcript-vm';
+import { modelLabel } from './model-label';
 
 const mono = "'IBM Plex Mono',monospace";
 
@@ -107,7 +107,7 @@ export function SubagentBlock({ agentType, description, prompt, model, status, t
           aria-label={status === 'running' ? L.subagentRunning : undefined}
         />
         <span style={typeChipStyle}>{agentType || L.subagentFallbackLabel}</span>
-        {model ? <span style={modelChipStyle}>{subagentModelLabel(model)}</span> : null}
+        {model ? <span style={modelChipStyle}>{modelLabel(model)}</span> : null}
         <span style={descStyle}>{label}</span>
         <span style={metaStyle}>{tools}</span>
       </div>

@@ -131,9 +131,10 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); });
 
 describe('SessionSelector', () => {
-  it('shows the running model and level, not the profile name', () => {
+  it('shows the running model and level, not the profile name — and not the vendor prefix', () => {
     const renderer = mount({ isDraft: false, currentProfile: 'plan', hasHistory: true });
-    expect(JSON.stringify(renderer.toJSON())).toContain('claude-opus-4-8');
+    expect(JSON.stringify(renderer.toJSON())).toContain('opus-4-8');
+    expect(JSON.stringify(renderer.toJSON())).not.toContain('claude-opus-4-8');
     expect(JSON.stringify(renderer.toJSON())).toContain('high');
   });
 

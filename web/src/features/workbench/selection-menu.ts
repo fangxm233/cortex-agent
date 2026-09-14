@@ -1,6 +1,7 @@
 import type {
   ConfigProfileEntry, ModelCatalogRoute, ModelCatalogSnapshot, SessionSelectionOverride,
 } from '@cortex-agent/ui-contract';
+import { modelLabel } from './model-label';
 import { buildProfileOptions, currentBackendOf, type ProfileOption } from './profile-menu';
 import type { SelectionChange } from './selected-session';
 
@@ -207,11 +208,13 @@ export function buildModeOptions(
   return modes.map((mode) => ({ mode, active: mode === current.mode }));
 }
 
-/** Chip text, in one place because desktop and mobile must not disagree about it. `sub` is the part
- *  a narrow chip may drop. */
+/** Chip text, in one place because desktop and mobile must not disagree about it. `main` is the
+ *  model in its short chip form (`claude-opus-5` reads `opus-5`) — a chip is the one place with no
+ *  room for the vendor prefix — falling back to the profile name when the profile names no model of
+ *  its own. `sub` is the part a narrow chip may drop. */
 export function selectionChipParts(selection: EffectiveSelection): { main: string; sub: string | null } {
   return {
-    main: selection.model ?? selection.profileName,
+    main: selection.model ? modelLabel(selection.model) : selection.profileName,
     sub: selection.thinking,
   };
 }

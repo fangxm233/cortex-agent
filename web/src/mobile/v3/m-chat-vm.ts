@@ -3,8 +3,8 @@ import type {
 } from '@cortex-agent/ui-contract';
 import {
   buildModeOptions, buildModelOptions, buildProfileOptions, buildThinkingOptions, clearAllChange,
-  groupModelOptions, modeChange, modelChange, profileChange, selectionRootRows, thinkingChange,
-  visibleModelOptions, visibleProfileOptions,
+  groupModelOptions, modeChange, modelChange, profileChange, selectionChipParts, selectionRootRows,
+  thinkingChange, visibleModelOptions, visibleProfileOptions,
   type EffectiveSelection, type SelectionRootRow,
 } from '@/features/workbench/selection-menu';
 import type { SelectionChange } from '@/features/workbench/selected-session';
@@ -146,9 +146,11 @@ export function effectiveProfileName(
 }
 
 /** Composer engine-chip label: what the next turn will run — the model, and the level if one is set.
- *  Falls back to the profile name for a profile that declares no model of its own. */
+ *  The parts come from the shared `selectionChipParts` so the mobile chip and the desktop one name
+ *  the same run the same way; mobile draws them as one line because it has no room for two. */
 export function selectionChipLabel(selection: EffectiveSelection): string {
-  return [selection.model ?? selection.profileName, selection.thinking].filter(Boolean).join(' · ');
+  const { main, sub } = selectionChipParts(selection);
+  return [main, sub].filter(Boolean).join(' · ');
 }
 
 /** Sub-label for a profile row in the 1p sheet: `model · thinking · backend`
