@@ -1,8 +1,9 @@
 //
-// Plain user messages no longer run as a `templateName:'default'` thread; they run via
-// runConversation, which assembles its prompt with composeUserPrompt (no thread, no
+// Plain user messages no longer run as a `templateName:'default'` thread; they run through a Turn,
+// whose request is assembled by `prepareConversationRequest` with composeUserPrompt (no thread, no
 // artifact, no [ABORT] protocol). These tests pin that assembly so the migration does not
-// silently change every chat turn.
+// silently change every chat turn. (The module they used to import from, `conversation-runner.ts`,
+// was split into `conversation-request.ts` + `turn/turn.ts`; the assertions are unchanged.)
 
 test('the interactive hold gate reads the continuation capability, not the backend name', () => {
   // PI opens no turn of its own after a foreground result, so there is nothing for a hold to hold.
@@ -24,8 +25,10 @@ import { composeUserPrompt, userProfileBlock } from '../src/domain/runs/prompt.j
 import {
   resolveConversationCommission,
   resolveConversationProject,
-  supportsBackgroundContinuation,
-} from '../src/orchestration/conversation-runner.js';
+} from '../src/orchestration/conversation-request.js';
+// The hold gate moved with the hold decision itself: `conversation-runner.ts` is gone and the Turn
+// owns "can this run produce a background continuation" (orchestration/turn/turn.ts).
+import { supportsBackgroundContinuation } from '../src/orchestration/turn/turn.js';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../src/agent-adapter/capabilities.js';
 import type { ActiveCommissionContext, CommissionPromptContext } from '../src/domain/commissions/commission-context.js';
 import type { AgentSlotConfig } from '../src/core/types/thread-types.js';
@@ -49,7 +52,7 @@ function makeAgentConfig(overrides: Partial<AgentSlotConfig> = {}): AgentSlotCon
   } as AgentSlotConfig;
 }
 
-/** The exact composition `runConversation` performs (orchestration/conversation-runner.ts): a
+/** The exact composition a conversation turn performs (orchestration/conversation-request.ts): a
  *  thread-free turn is the agent's template plus the first-turn ambient blocks, nothing else.
  *  Kept here so these tests keep pinning that one call site after P3.3b moved the composition
  *  into domain/runs/prompt.ts. */

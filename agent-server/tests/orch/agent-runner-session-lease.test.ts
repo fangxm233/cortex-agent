@@ -1,6 +1,12 @@
 // input:  AgentRunner execution seam, session lease, and mutation routing
 // output: direct-run lease release coverage for registered and early-failure paths
 // pos:    verifies AgentRunner holds session use until execution registration
+//
+// The seam moved with the turn body: `runConversation` no longer exists, so the two things this
+// file used to fake through it are faked one level down — `prepareConversationRequest` (the request
+// assembly, which runs while the lease is still held) and `startRun` (the backend). The lease
+// contract under test is unchanged: held until the execution is registered, released there, and
+// released by the turn's finally when the turn fails before it.
 
 import '../_test-home.js';
 import { beforeEach, test, vi } from 'vitest';
@@ -12,7 +18,8 @@ import fs from 'node:fs/promises';
 const mockGetSessionAsync = vi.fn();
 const mockSetSessionAsync = vi.fn();
 const mockRegisterNamedSession = vi.fn();
-const mockRunConversation = vi.fn();
+const mockPrepareRequest = vi.fn();
+const mockStartRun = vi.fn();
 
 vi.mock('@domain/sessions/session.js', () => ({
   getSessionAsync: (...args: unknown[]) => mockGetSessionAsync(...args),
@@ -23,10 +30,15 @@ vi.mock('@domain/sessions/session-lifecycle.js', () => ({
   registerNamedSession: (...args: unknown[]) => mockRegisterNamedSession(...args),
 }));
 
-vi.mock('../../src/orchestration/conversation-runner.js', () => ({
-  runConversation: (...args: unknown[]) => mockRunConversation(...args),
+vi.mock('../../src/orchestration/conversation-request.js', () => ({
+  prepareConversationRequest: (...args: unknown[]) => mockPrepareRequest(...args),
 }));
 
+vi.mock('@domain/runs/service.js', () => ({
+  startRun: (...args: unknown[]) => mockStartRun(...args),
+}));
+
+import type { AgentRun } from '../../src/domain/runs/run.js';
 import { AgentRunner } from '../../src/orchestration/agent-runner.js';
 import { SessionRegistryRepo } from '../../src/store/session-registry-repo.js';
 import { sessionStore } from '../../src/store/session-registry-repo.js';
@@ -44,8 +56,35 @@ function ctx(channel: string) {
   };
 }
 
+/** The slice of `AgentRun` a turn touches. `result` is resolved lazily so the test can observe the
+ *  lease at the moment the turn awaits it — i.e. AFTER execution registration. */
+function fakeRun(resultOf: () => Promise<any>): AgentRun {
+  let pending: Promise<any> | null = null;
+  const result = () => (pending ??= resultOf());
+  return {
+    id: 'run-lease', executionId: 'exec-1', status: 'running', phase: 'foreground', numTurns: null,
+    backendSessionId: 'backend-lease', capabilities: new Set(),
+    get result() { return result(); },
+    get settled() { return result(); },
+    steer: async () => 'refused', respondToDialog: () => false, cancel: () => {},
+    subscribe: () => () => {}, backgroundTranscriptOwned: false,
+    claimBackgroundTranscript: () => {}, ingestExternal: () => false,
+  } as unknown as AgentRun;
+}
+
+const FAKE_REQUEST = {
+  request: {
+    runId: 'run-lease', session: { sessionId: 'track-live', backendSessionId: null, engineKey: 'c', sessionName: 'cortex-live' },
+    profile: {} as any, spec: {} as any, prompt: { text: 'hello', attachments: [] },
+    context: { channel: 'c', project: 'proj', trigger: 'user' }, policy: {} as any,
+  } as any,
+  backendPrompt: 'hello',
+};
+
 beforeEach(() => {
   vi.restoreAllMocks();
+  mockPrepareRequest.mockReset();
+  mockStartRun.mockReset();
 });
 
 test('AgentRunner holds session use until onExecutionRegistered then releases it', async () => {
@@ -57,17 +96,18 @@ test('AgentRunner holds session use until onExecutionRegistered then releases it
   const getByIdSpy = vi.spyOn(sessionStore, 'getById').mockImplementation(repo.getById.bind(repo));
   const acquireSpy = vi.spyOn(sessionStore, 'acquireSessionUse').mockImplementation(repo.acquireSessionUse.bind(repo));
   mockGetSessionAsync.mockResolvedValue('track-live');
-  mockRunConversation.mockImplementation(async (opts: any) => {
+  // Request assembly runs while the lease is still held — retention cannot take the session.
+  mockPrepareRequest.mockImplementation(async () => {
     const pendingBefore = await repo.beginDeleteExpired(new Date('2100-01-01T00:00:00.000Z'), []);
     assert.deepEqual(pendingBefore, []);
-    opts.onExecutionRegistered?.();
+    return FAKE_REQUEST;
+  });
+  // The result is awaited after the execution is registered, which is where the lease is dropped.
+  mockStartRun.mockImplementation(() => fakeRun(async () => {
     const pendingAfter = await repo.beginDeleteExpired(new Date('2100-01-01T00:00:00.000Z'), []);
     assert.deepEqual(pendingAfter.map((entry: any) => entry.session.sessionId), ['track-live']);
-    return {
-      result: { total_cost_usd: 0, num_turns: 1, finalOutput: 'ok', pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 0 },
-      executionId: 'exec-1',
-    };
-  });
+    return { total_cost_usd: 0, num_turns: 1, finalOutput: 'ok', pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 0 };
+  }));
 
   const runner = new AgentRunner({ tryInject: async () => false, track: () => {} });
   await (runner as any)._executeReal(ctx('slack:C-live'), () => {}, async () => []);
@@ -76,7 +116,7 @@ test('AgentRunner holds session use until onExecutionRegistered then releases it
   assert.ok(acquireSpy.mock.calls.length >= 1);
 });
 
-test('AgentRunner releases session use when runConversation fails before execution registration', async () => {
+test('AgentRunner releases session use when the turn fails before execution registration', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-runner-lease-fail-'));
   const repo = new SessionRegistryRepo(path.join(root, 'session-registry.jsonl'));
   await repo.registerSession('cortex-fail', {
@@ -85,7 +125,7 @@ test('AgentRunner releases session use when runConversation fails before executi
   vi.spyOn(sessionStore, 'getById').mockImplementation(repo.getById.bind(repo));
   vi.spyOn(sessionStore, 'acquireSessionUse').mockImplementation(repo.acquireSessionUse.bind(repo));
   mockGetSessionAsync.mockResolvedValue('track-fail');
-  mockRunConversation.mockRejectedValue(new Error('boom'));
+  mockPrepareRequest.mockRejectedValue(new Error('boom'));
 
   const runner = new AgentRunner({ tryInject: async () => false, track: () => {} });
   await (runner as any)._executeReal(ctx('slack:C-fail'), () => {}, async () => []);

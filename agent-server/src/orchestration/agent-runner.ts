@@ -1,59 +1,41 @@
-import * as path from 'path';
-import type { Destination, PlatformAdapter, MessageRef, DownloadedFile, IncomingMessage, PlatformFileRef, OutputStream } from '@platform/index.js';
-import { resolveDestinationConduit, SYNTHETIC_CALLBACK_SENDER } from '@platform/types.js';
-import type { AgentResult, ContextUsage, SystemTurnOrigin, TodoSnapshot } from '@core/types/agent-types.js';
-import { renderTodoProgress } from '../agent-adapter/normalize/todo.js';
+// input:  an inbound platform message (or a synthetic one) already routed to a conduit
+// output: that message delivered into a turn — injected into the live one, or queued and then
+//         opened as a new turn through `openTurn`
+// pos:    orchestration — the ADMISSION half of a conversation: the human-answer fallback,
+//         mid-turn injection, the per-channel queue, session find-or-create + lease, and the
+//         session's opted-in browser. Everything from the status message to the seal moved to
+//         `turn/turn.ts` (Phase 1.4); the pre-turn resolution bodies live in `turn/turn-prep.ts`.
+//         The `execute` seam still bypasses the Turn entirely — that is what the tests inject.
+import type { Destination, PlatformAdapter, MessageRef, DownloadedFile, IncomingMessage, PlatformFileRef } from '@platform/index.js';
+import { SYNTHETIC_CALLBACK_SENDER } from '@platform/types.js';
 import { conduitQueues, enqueue } from './conduit-queue.js';
 import { trackPendingTask } from './busy-tracker.js';
 import * as crypto from 'node:crypto';
 import { getSessionAsync, setSessionAsync } from '@domain/sessions/session.js';
 import { sessionStore, effectiveBackendSessionId } from '@store/session-registry-repo.js';
-import type { Session } from '@store/session-registry-repo.js';
-import { conversationLedger } from '@store/conversation-ledger-repo.js';
-import { conversationHistory, summarizeToolInputForHistory } from '@store/conversation-history-repo.js';
-import { pendingInjectionRepo } from '@store/pending-injection-repo.js';
-import type { ToolUseSubagent } from '../agent-adapter/normalize/event-types.js';
-import { getActiveProfile, getDefaultAgent, resolveBackendForChannel } from '@domain/agents/index.js';
-import { resolveProfileConfig } from '@domain/agents/profile-manager.js';
+import { conversationHistory } from '@store/conversation-history-repo.js';
+import { getActiveProfile, resolveBackendForChannel } from '@domain/agents/index.js';
 import { registerNamedSession } from '@domain/sessions/session-lifecycle.js';
-import { handleAgentSuccess, handleAgentError } from './lifecycle.js';
-import { consumePendingTurnSupersession, finishTurnTracking, initTurnTracking } from './turn/turn-tracking.js';
-import { buildUserProcessingMessage, renderTurnStatus, makeFallbackLabelNotifier, makeStreamingMessageCallback, computeElapsed, writeStatus, sealStatus, buildStatusActionBlocks, buildSealedStatusActionBlocks, initStatusBlocks } from './status-helpers.js';
 import { createLogger } from '@core/log.js';
 import { isDebugMode } from '@core/debug-mode.js';
 import { getSettings } from '@core/settings.js';
 import { Icons } from '../core/icons.js';
 import { t } from '../core/i18n.js';
-import { getOutboundQueue } from '@store/outbound-queue.js';
-import { buildDurableHooks } from './durable-helpers.js';
-
-const log = createLogger('agent-runner');
-import { createToolTrace } from '@platform/index.js';
-import { setStreamingCallback, clearStreamingCallback, publishAskUserRequested } from './routing/hook-bridge.js';
-import { publishSessionDebugUpdated, publishSessionMessage, publishSessionMessageDelivered, publishSessionStatus, publishSessionTurn } from './session-events.js';
-import { createTranscriptSink, persistSessionContextUsage, type SessionContextUsagePersistenceDeps } from './transcript-sink.js';
-import { createSessionDeltaStream } from './delta-coalescer.js';
-import { isInjectableMessage, tryInjectIntoLiveTurn, type MidTurnInjectDeps } from './mid-turn-inject.js';
-import { commitPendingInjection } from './pending-injection-recovery.js';
-import { getStreamingCallback } from './routing/hook-bridge.js';
+import { publishSessionDebugUpdated } from './session-events.js';
+import { persistSessionContextUsage, type SessionContextUsagePersistenceDeps } from './transcript-sink.js';
+import { isInjectableMessage, tryInjectIntoLiveTurn } from './mid-turn-inject.js';
 import { runRegistry } from '@core/run-registry.js';
-import { recordDirectResume } from '@domain/runs/observers/resume-recorder.js';
-import { getAgent } from '@domain/threads/index.js';
-import { runConversation } from './conversation-runner.js';
-import type { HeldRun } from './status-renderer.js';
-import type { AgentRun } from '@domain/runs/run.js';
-import type { RunEvent } from '@domain/runs/events.js';
-import type { RunObserver } from '@domain/runs/request.js';
-import { acquireBrowser, releaseBrowser, backendSupportsBrowser, BROWSER_DEVICE_SERVER } from '@platform/browser/managed-browser.js';
-import { acquireDeviceBrowser, releaseDeviceBrowser } from '@domain/remote/device-browser.js';
+import { prepareConversationRequest } from './conversation-request.js';
+import { openTurn, buildInjectDeps, recordHistory } from './turn/turn.js';
+import {
+  acquireSessionUseLease, acquireTurnBrowser, collectTurnFiles, releaseTurnBrowser, type SessionUseLease,
+} from './turn/turn-prep.js';
 import { tryAnswerFromHuman } from './manager-qa.js';
-import { shouldHoldForBg, shouldHoldWebForBg } from './background-hold-gates.js';
-import { holdWebSessionForBackground } from './web-status-renderer.js';
-import type { BackgroundTurnSink } from '../agent-adapter/types.js';
 import { downloadFiles as downloadPlatformFiles } from './routing/file-handler.js';
-import { WORKSPACE_DIR, resolveWorkspaceRelPath } from '@core/utils.js';
+import { WORKSPACE_DIR } from '@core/utils.js';
 import { acquireTurnMutationLock, type TurnMutationRelease } from './turn-mutation-lock.js';
 
+const log = createLogger('agent-runner');
 const TEMP_DIR = WORKSPACE_DIR;
 
 type Enqueuer = (channel: string, fn: () => Promise<void>) => boolean;
@@ -66,84 +48,6 @@ type Executor = (
  *  be queued. Injectable so the routing branch is testable without a live backend. */
 type Injector = (ctx: AgentRunnerCtx, loadPlatformFiles: PlatformFileLoader) => Promise<boolean>;
 
-interface AgentConfig {
-  effectiveMessage: string;
-  profileForRun: string;
-  defaultAgentName: string | null;
-  claudeAgent: string | null;
-  systemPrompt: string | null;
-  outputStyle: string | null;
-  tools: string | null;
-  pluginDirs: string[] | null;
-}
-
-interface AgentCallbacks {
-  /** Attempt switch of the profile's fallback chain, as two `model/mode` labels. */
-  onFallback: (fromLabel: string, toLabel: string) => Promise<void>;
-  onAssistantMsg: ((text: string) => void) & { stream?: OutputStream };
-  onProgress: (progress: any) => void;
-  onToolUse: ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null;
-  /** Latest task list, used to keep the platform status line in step with the agent's plan. */
-  onTodoUpdate: ((snapshot: TodoSnapshot) => void) | null;
-}
-
-interface SessionUseLease {
-  session: Session;
-  release: () => void;
-}
-
-/** The session's backend decides whether a browser can be driven at all; the profile's
- *  `claudeBackend` decides whether it is the print adapter — the only one wired for it. */
-function browserBackendSupported(channel: string, backend: string): boolean {
-  let claudeBackend: string | null = null;
-  try {
-    claudeBackend = resolveProfileConfig(getActiveProfile(channel)).claudeBackend;
-  } catch {
-    // Unknown profile: fall back to the backend alone rather than refusing outright.
-  }
-  return backendSupportsBrowser(backend, claudeBackend);
-}
-
-/** The three writes a turn's opening user message performs. Injectable so the accepted-turn
- *  contract (what is recorded, published and titled) is testable without spawning a backend. */
-export interface AcceptUserMessageDeps {
-  appendUser: (sessionId: string, opts: Parameters<typeof conversationHistory.appendUser>[1]) => void;
-  publishMessage: typeof publishSessionMessage;
-  ensureLabel: (sessionName: string, text: string) => void;
-  now: () => string;
-}
-
-const defaultAcceptUserMessageDeps: AcceptUserMessageDeps = {
-  appendUser: (sessionId, opts) => recordHistory(conversationHistory.appendUser(sessionId, opts)),
-  publishMessage: publishSessionMessage,
-  ensureLabel: (sessionName, text) => { void ensureSessionLabel(sessionName, text); },
-  now: () => new Date().toISOString(),
-};
-
-export function acceptUserMessage(opts: {
-  sessionId: string;
-  channel: string;
-  sessionName: string;
-  text: string;
-  attachments: IncomingMessage['webAttachments'];
-  /** Cortex authored this turn rather than a human — see `SystemTurnOrigin`. */
-  systemOrigin?: SystemTurnOrigin;
-}, deps: AcceptUserMessageDeps = defaultAcceptUserMessageDeps): void {
-  const ts = deps.now();
-  const origin = opts.systemOrigin ? { systemOrigin: opts.systemOrigin } : {};
-  deps.appendUser(opts.sessionId, {
-    text: opts.text, ts, attachments: opts.attachments, ...origin,
-  });
-  deps.publishMessage({
-    sessionId: opts.sessionId, channel: opts.channel, role: 'user',
-    text: opts.text, ts, attachments: opts.attachments, ...origin,
-  });
-  // A callback or a resume signal is not a title. Left to itself this would name a session woken by
-  // a task callback "[Task done] The task you dispatched #…", which is neither what the user asked
-  // for nor recognisable in the rail — so a system-authored turn never claims the label.
-  if (!opts.systemOrigin) deps.ensureLabel(opts.sessionName, opts.text);
-}
-
 export interface AgentRunnerCtx {
   message: IncomingMessage;
   channel: string;
@@ -153,32 +57,6 @@ export interface AgentRunnerCtx {
   userMessage: string;
   agentMessage: string;
   mutationRelease?: TurnMutationRelease;
-}
-
-interface ForegroundSessionDeps {
-  supersedeHolds: (sessionId: string) => unknown;
-  publishRunning: (event: { sessionId: string; channel: string; running: boolean }) => void;
-}
-
-/** A foreground turn supersedes any background-only hold on the same session. Release the old
- * busy bracket before publishing running:true; the reverse order lets the status subscriber erase
- * the hold handles while its guard remains live until the 30-minute cap.
- *
- * SUPERSEDE, never stop. Taking the session over is not a reason to end work that is still
- * running — a backgrounded `agent` run keeps going (and keeps its busy bracket) and only yields
- * its passive status hold. The registry keeps the two verbs apart precisely because this path
- * used to fire a handle that meant "stop the child". */
-export function beginForegroundSession(
-  sessionId: string | null,
-  channel: string,
-  deps: ForegroundSessionDeps = {
-    supersedeHolds: (id) => runRegistry.supersedeHolds(id),
-    publishRunning: publishSessionStatus,
-  },
-): void {
-  if (!sessionId) return;
-  deps.supersedeHolds(sessionId);
-  deps.publishRunning({ sessionId, channel, running: true });
 }
 
 export class AgentRunner {
@@ -288,32 +166,25 @@ export class AgentRunner {
     }
   }
 
+  /**
+   * Resolve what a turn needs but is not part of it — the files, the session record (found or
+   * created) with its use lease, the browser the session opted into — and open the turn.
+   *
+   * `sessionId` here is the STABLE tracking id: sessions.json binds channel → track id (not the
+   * backend id), and everything downstream (publish / history / status / Destination) keys on it.
+   * The backend resume target is resolved separately. A channel with no bound session yet (fresh
+   * Slack/Feishu/etc.) mints + registers + binds a track id up front, unifying it with the web path
+   * (createDirectSession pre-registers) so publish/history always have a stable key.
+   */
   private async _executeReal(
     ctx: AgentRunnerCtx,
     mutationRelease: TurnMutationRelease,
     loadPlatformFiles: PlatformFileLoader,
   ): Promise<void> {
     const { message, channel, adapter, threadAnchorId, userMessage, agentMessage } = ctx;
-    const downloadedFiles = await loadPlatformFiles();
-    // Web-uploaded attachments are already on disk — map to DownloadedFile shape.
-    // The `path` field from upload is the UI-relative `workspace/attachments/...` alias for
-    // WORKSPACE_DIR's contents; resolveWorkspaceRelPath maps it to the real absolute path under
-    // WORKSPACE_DIR (= <DATA_DIR>/tmp). A malformed/escaping path resolves to null and is dropped,
-    // so a broken path is never handed to the agent as a bogus absolute file.
-    const allFiles = [
-      ...downloadedFiles,
-      ...(message.webAttachments ?? []).flatMap((a) => {
-        const localPath = resolveWorkspaceRelPath(a.path);
-        return localPath ? [{ localPath, mimetype: a.mimeType, name: a.name }] : [];
-      }),
-    ];
+    const allFiles = await collectTurnFiles(message, loadPlatformFiles);
     const startTime = Date.now();
     const backend = resolveBackendForChannel(channel);
-    // `sessionId` here is the STABLE tracking id — sessions.json now binds channel → track id (not the
-    // backend id). Everything below (publish/history/status/Destination) keys on it. The backend
-    // resume target is resolved separately as `backendSessionId`. A channel with no bound session yet
-    // (fresh Slack/Feishu/etc.) mints + registers + binds a track id up front, unifying it with the
-    // web path (createDirectSession pre-registers) so publish/history always have a stable key.
     let sessionId = await getSessionAsync(channel);
     let sessionName: string;
     let backendSessionId: string | null;
@@ -352,307 +223,48 @@ export class AgentRunner {
       if (!sessionLease) throw new Error(`Session not found or pending deletion: ${sessionId}`);
       backendSessionId = null; // fresh: the backend self-assigns its id on this first turn
     }
-    const dest: Destination = { type: 'interactive-reply', conduit: channel, sessionId };
-
-    // 1. Orchestration side effects (keep — ledger, status, hook-bridge)
-    const statusText = buildUserProcessingMessage({ startTime, profileName: getActiveProfile(channel), sessionName, sessionId });
-    const blocksTemplate = { channel, sessionName, isDm: true };
-    // Post status message WITHOUT Cancel button initially — Cancel is added once runConversation
-    // creates the execution record (onExecutionStarted), keyed by executionId (no thread).
-    const statusMsg = await adapter.postMessage(dest, {
-      text: statusText,
-      richBlocks: buildSealedStatusActionBlocks(statusText, blocksTemplate),
-    }, threadAnchorId ? { threadId: threadAnchorId } : undefined);
-    const messageTs = message.ref.messageId;
-    const turnTrackingToken = await initTurnTracking(
-      channel, sessionId, backendSessionId, sessionName,
-      messageTs, userMessage || '', statusMsg.messageId,
-      {
-        mutationRelease,
-        onAccepted: () => acceptUserMessage({
-          sessionId, channel, sessionName, text: userMessage || '',
+    const browser = await acquireTurnBrowser({ channel, backend, browser: sessionBrowser });
+    const debugEnabled = isDebugMode();
+    const trackSessionId = sessionId;
+    try {
+      await openTurn({
+        channel, adapter, threadAnchorId,
+        session: { sessionId, sessionName, backendSessionId, projectId, lease: sessionLease },
+        user: {
+          text: userMessage || '',
           attachments: message.webAttachments,
           ...(message.systemOrigin ? { systemOrigin: message.systemOrigin } : {}),
-        }),
-      },
-    );
-    if (consumePendingTurnSupersession(channel, turnTrackingToken)) {
-      finishTurnTracking(channel, turnTrackingToken);
-      return;
-    }
-    const onMessagePosted = (ref: MessageRef) => void conversationLedger.addResponseTs(channel, messageTs, ref.messageId).catch((e) => log.error(e));
-    // 2. Build agent callbacks (streaming, fallback, progress)
-    const callbacks = buildAgentCallbacks(adapter, dest, statusMsg, threadAnchorId, startTime, sessionName, sessionId, onMessagePosted);
-
-    // 3. Build PI interactive-event callbacks (plan approval / ask-user-question routing).
-    //    No threadId — plain user messages are no longer wrapped in a thread.
-    const interactiveCallbacks = buildInteractiveCallbacks(channel, sessionId, null);
-
-    // 4. Run the conversation turn directly (no thread). The Cancel button is attached once the
-    //    execution record exists (execution-scoped cancel), via onExecutionStarted.
-    // Emit the REAL running state for the S4 chat indicator: true now, false in the finally below.
-    beginForegroundSession(sessionId, channel);
-    let capturedExecutionId: string | null = null;
-    // Web background-task hold: when set, the turn ended with a live background task and a
-    // BackgroundTurnSink was registered to stream the spontaneous continuation. The hold owns the
-    // terminal running:false publish, so the finally below must NOT seal the session idle.
-    let webBgHeld = false;
-    // Token-level streaming for the Web chat. Null for every other surface (Slack / Feishu /
-    // Ink-TUI / threads) and when the feature is off, so those paths keep receiving complete
-    // messages only. Lives for the turn; sealed in the finally below.
-    const deltaStream = createSessionDeltaStream({ sessionId, channel });
-    const debugEnabled = isDebugMode();
-    // The transcript sink owns the history+publish copy and is now driven by the run's observer
-    // fan-out instead of a callback bridge. It is the first `RunObserver` handed to
-    // `startRun`; the surface bridges for deltas / progress / dialogs ride the same observer.
-    const sink = createTranscriptSink({
-      sessionId, channel, sessionName, debug: debugEnabled,
-      onAssistantMessage: callbacks.onAssistantMsg,
-      onTodoUpdate: callbacks.onTodoUpdate ?? undefined,
-      flushDelta: (blockId) => deltaStream?.flush(blockId),
-    });
-    const persistToolUse = (
-      name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent,
-    ): void => {
-      sink.onEvent({ type: 'tool_use', toolUseId, name, input, ...(subagent ? { subagent } : {}), phase: 'foreground' });
-    };
-    const persistToolResult = debugEnabled
-      ? (toolUseId: string, content: string, isError: boolean): void => {
-          sink.onEvent({ type: 'tool_result', toolUseId, ok: !isError, content, phase: 'foreground' });
-        }
-      : null;
-    // The authoritative end of one native subagent. Persisted as well as published: it is the only
-    // evidence a later reader has that a subagent which ran BESIDE the main agent is over — the
-    // event ordering in the transcript cannot express that, and a killed child leaves nothing else.
-    // Fires both in-turn (the child finished while its parent turn was still open) and from the
-    // background hold (it finished after the turn ended).
-    const persistSubagentEnd = (
-      parentToolUseId: string, status: 'completed' | 'failed' | 'killed',
-    ): void => {
-      sink.onEvent({ type: 'subagent_end', parentToolUseId, status, phase: 'foreground' });
-    };
-    const persistContext = (usage: ContextUsage): void | Promise<void> =>
-      sink.onEvent({ type: 'context_usage', ...usage, phase: 'foreground' });
-    const persistContinuationContext = (usage: ContextUsage): void => {
-      void Promise.resolve(persistContext(usage)).catch((error) => {
-        log.warn('continuation context persistence failed:', (error as Error).message);
-      });
-    };
-    // The conversation path's one foreground observer. Background-phase events are deliberately
-    // NOT forwarded to the sink: the background surfaces (`status-renderer`, `web-status-renderer`)
-    // own background persistence, so forwarding them here would double-append the transcript.
-    const foregroundObserver: RunObserver = {
-      onEvent(event: RunEvent): void | Promise<void> {
-        switch (event.type) {
-          case 'tool_use':
-            if (event.phase !== 'foreground') return;
-            // Platform tool trace first, then the sink — the order the old composeToolUse bridge had.
-            callbacks.onToolUse?.(event.name, event.input, event.toolUseId, event.subagent);
-            return sink.onEvent(event);
-          case 'assistant_delta':
-            if (event.phase === 'foreground') deltaStream?.onDelta(event.text, event.blockId);
-            return;
-          case 'dialog_request':
-            if (event.kind === 'ask_user') {
-              interactiveCallbacks.onAskUserQuestion({
-                toolUseId: event.dialogId,
-                questions: event.payload as Array<{ question: string; options?: string[]; multi?: boolean }>,
-              });
-            }
-            return;
-          case 'turn_progress':
-            callbacks.onProgress({ num_turns: event.numTurns, total_cost_usd: null, duration_ms: null });
-            // S4 chat: surface the REAL agent-turn count live (snapshot on the running execution +
-            // `session.turn` delta) so the Web composer shows turns that grow as the agent works.
-            emitTurnProgress(
-              {
-                sessionId,
-                channel,
-                executionId: capturedExecutionId,
-                setNumTurns: (n) => { if (capturedExecutionId) runRegistry.setNumTurns(capturedExecutionId, n); },
-                publish: (n) => { if (sessionId) publishSessionTurn({ sessionId, channel, numTurns: n }); },
-              },
-              { num_turns: event.numTurns },
-            );
-            return;
-          case 'run_fallback':
-            // The profile's fallback chain switched attempt. The chat notice is synthesized by the
-            // run (domain/runs/notices.ts) and reaches the sink as assistant_text; this only
-            // updates the platform status message.
-            void callbacks.onFallback(event.from, event.to);
-            return;
-          // The run synthesizes the chat notices for compaction and gateway model fallback and
-          // delivers them as assistant_text, so the sink already has them; these events are the
-          // machine-readable twin, for observers that want the fact rather than the prose.
-          case 'context_compacted':
-          case 'model_fallback':
-          case 'phase':
-          case 'engine_started':
-          case 'foreground_result':
-          case 'background_result':
-          case 'injection_delivered':
-          case 'injection_rejected':
-          case 'error':
-          case 'rate_limit':
-          case 'cost_record':
-          case 'subagent_activity':
-          case 'plan_written':
-          case 'plan_mode_entered':
-          // The run's background watchdog giving up is a lifecycle fact, not transcript content:
-          // the hold observers react to it, the foreground transcript has nothing to record.
-          case 'background_timeout':
-            return;
-          default:
-            // assistant_text / tool_result / todo_update / context_usage / subagent_end
-            if (event.phase === 'background') return;
-            return sink.onEvent(event);
-        }
-      },
-    };
-    // A browser-enabled session holds the shared Chrome for the duration of its turn. Acquiring here
-    // (rather than inside the adapter) keeps the spawn path synchronous and gives us one obvious
-    // place to pair with a release. A browser that cannot start degrades the turn to "no browser
-    // tools" instead of failing it — the session is still worth running.
-    let browserHeld: 'server' | string | null = null;
-    let browserCdpEndpoint: string | null = null;
-    if (sessionBrowser && !browserBackendSupported(channel, backend)) {
-      log.warn(`session opted into the browser but the ${backend} backend cannot use it — skipping`);
-    } else if (sessionBrowser) {
-      const device = sessionBrowser.device;
-      try {
-        // `server` is this host's own Chrome; anything else is a Chrome the device launches for us,
-        // reachable only because the reverse channel maps its debugging port onto a local one. Both
-        // hand back a plain http://127.0.0.1:<port>, so nothing downstream knows the difference.
-        browserCdpEndpoint = device === BROWSER_DEVICE_SERVER
-          ? (await acquireBrowser()).cdpEndpoint
-          : (await acquireDeviceBrowser(device)).cdpEndpoint;
-        browserHeld = device;
-      } catch (error) {
-        log.warn(`browser session requested on "${device}" but Chrome could not start: ${(error as Error).message}`);
-      }
-    }
-    try {
-      const convResult = await runConversation({
-        adapter, channel,
-        browserCdpEndpoint,
-        commissionTools: !!sessionCommissionDraft,
-        commissionMode: !!(sessionCommissionDraft || sessionCommissionId),
-        userMessage: agentMessage,
-        trackSessionId: sessionId,
-        projectId,
-        backendSessionId,
-        sessionName,
-        files: allFiles,
-        startTime,
+        },
+        ledger: { userMessageTs: message.ref.messageId },
         trigger: 'user',
-        onExecutionStarted: async (executionId) => {
-          capturedExecutionId = executionId;
-          const blocksTemplateWithExec = { ...blocksTemplate, executionId };
-          await adapter.updateMessage(statusMsg, {
-            text: statusText,
-            richBlocks: buildStatusActionBlocks(statusText, blocksTemplateWithExec),
-          }).catch(() => {});
-          initStatusBlocks(statusMsg, blocksTemplateWithExec);
-        },
-        onExecutionRegistered: () => {
-          finishTurnTracking(channel, turnTrackingToken);
-          sessionLease?.release();
-          sessionLease = null;
-        },
-        observers: [foregroundObserver],
-        onPromptBuilt: debugEnabled ? (prompt: string) => {
-          recordHistory(
-            conversationHistory.appendUserPrompt(sessionId, { agentMessage: prompt }),
-            () => publishSessionDebugUpdated({ sessionId, channel }),
-          );
-        } : null,
-      });
-      // Background-task continuation: if the turn left background work remaining (running OR
-      // finished-but-unnotified) and the feature is enabled for this interactive channel, keep
-      // the streaming callback alive so the spontaneous continuation turn merges into the same
-      // reply (handleAgentSuccess holds the status and subscribes to the run's background phase).
-      // Otherwise clear the callback as usual.
-      const canSink = convResult.canAwaitBackground;
-      // The engine owns the background phase's own sink and the run fans its events out:
-      // the Slack/Feishu status surface subscribes to the RUN (status-renderer) rather than
-      // registering its own sink, which would clobber the engine's and drop the fan-out to every
-      // other observer.
-      const run = convResult.run;
-      const holdForBg = shouldHoldForBg(convResult.result, channel, canSink);
-      if (!holdForBg) clearStreamingCallback(channel);
-      await handleDefaultAgentResult({
-        result: convResult.result, channel, adapter, statusMsg, startTime, userMessage,
-        executionId: convResult.executionId,
-        sessionName, sessionId, threadAnchorId, messageTs, callbacks, projectId,
-        continuationToolUse: composeToolUse(callbacks.onToolUse, persistToolUse),
-        continuationToolResult: persistToolResult,
-        continuationContextUsage: persistContinuationContext,
-        backgroundRun: holdForBg ? run : null,
-      });
-      // Web background-task hold: the Slack/Feishu status-message hold (above) never fires for a
-      // web: channel. Keep the session marked running+backgroundRunning and stream the spontaneous
-      // continuation as new session messages, instead of dropping it and sealing the session idle.
-      if (sessionId && shouldHoldWebForBg(convResult.result, channel, canSink)) {
-        const sid = sessionId;
-        webBgHeld = holdWebSessionForBackground({
-          result: convResult.result,
-          run,
-          // Stop during the hold: the cancel path finds the hold by channel in this registry and
-          // fires the abort to seal it (see core/run-registry.ts).
-          // This hold owns STATUS, not work: its seal releases the busy bracket and publishes
-          // running:false, so it is the right response to both verbs.
-          registerAbort: (abort) => runRegistry.setHoldHandles(sid, 'web-status-hold', {
-            onSuperseded: abort, onStop: abort,
-          }),
-          track: trackPendingTask,
-          publishStatus: ({ running, backgroundRunning }) => publishSessionStatus({ sessionId: sid, channel, running, backgroundRunning }),
-          // Through the same sink as every other row, tagged `background`: it applies the in-turn
-          // rules (a subagent's prose is persisted WITH its attribution rather than reading as the
-          // agent's own answer arriving a turn late) and, because the phase says background, it
-          // does NOT stream the text to the platform callback — this surface publishes it.
-          publishAssistant: (text, subagent) => {
-            sink.onEvent({
-              type: 'assistant_text', text, phase: 'background', ...(subagent ? { subagent } : {}),
-            });
+        startTime,
+        mutationRelease,
+        // The default agent's spec plus the first-turn ambient blocks — the assembly half of what
+        // `runConversation` used to do inline (conversation-request.ts).
+        prepareRequest: (ids) => prepareConversationRequest({
+          ids: {
+            sessionId: ids.sessionId ?? '',
+            backendSessionId: ids.backendSessionId,
+            sessionName: ids.sessionName ?? '',
+            projectId: ids.projectId,
           },
-          publishTool: persistToolUse,
-          publishToolResult: persistToolResult ?? undefined,
-          publishSubagentEnd: persistSubagentEnd,
-          publishContextUsage: persistContinuationContext,
-          // Notices carry the level/action the plain assistant path drops. The foreground turn's
-          // AttemptNoticeTracker has already retired by now, so without this a continuation that
-          // hits the provider limit is queued for resume with nothing said about it in the chat.
-          publishNotice: (text, noticeLevel, noticeAction) => {
-            sink.onEvent({
-              type: 'assistant_text', text, phase: 'background', noticeLevel,
-              ...(noticeAction ? { noticeAction } : {}),
-            });
-          },
-          onRateLimited: (continuation) => {
-            const provider = continuation.rateLimitProvider ?? convResult.result.rateLimitProvider ?? null;
-            return recordDirectResume({ provider, channel, trackSessionId: sid, userMessage });
-          },
-        });
-      }
-    } catch (error) {
-      clearStreamingCallback(channel);
-      await handleAgentError({
-        error: error as { message: string; cancelled?: boolean },
-        channel, adapter, statusMsg, startTime,
-        executionId: capturedExecutionId,
-        sessionName, sessionId, threadAnchorId, userMessageTs: messageTs, userMessage,
+          channel,
+          userMessage: agentMessage,
+          files: allFiles,
+          trigger: 'user',
+          browserCdpEndpoint: browser.cdpEndpoint,
+          commissionTools: !!sessionCommissionDraft,
+          commissionMode: !!(sessionCommissionDraft || sessionCommissionId),
+          onPromptBuilt: debugEnabled ? (prompt: string) => {
+            recordHistory(
+              conversationHistory.appendUserPrompt(trackSessionId, { agentMessage: prompt }),
+              () => publishSessionDebugUpdated({ sessionId: trackSessionId, channel }),
+            );
+          } : null,
+        }),
       });
     } finally {
-      if (browserHeld === BROWSER_DEVICE_SERVER) releaseBrowser();
-      else if (browserHeld) releaseDeviceBrowser(browserHeld);
-      sessionLease?.release();
-      finishTurnTracking(channel, turnTrackingToken);
-      // The turn is over (successfully, in error, or cancelled): no preview may outlive it.
-      deltaStream?.dispose();
-      // Skip the idle seal when a web bg-hold is active — it owns the terminal running:false
-      // publish once the background work finishes (else the session flips to idle immediately and
-      // the spontaneous continuation is untracked).
-      if (sessionId && !webBgHeld) publishSessionStatus({ sessionId, channel, running: false });
+      releaseTurnBrowser(browser.held);
     }
   }
 }
@@ -665,202 +277,14 @@ export const agentRunner = new AgentRunner();
 // agent-runner tests and importers keep their import path.
 export { persistSessionContextUsage, type SessionContextUsagePersistenceDeps };
 
-/** Dependencies for {@link emitTurnProgress} — side effects injected for testability. */
-export interface TurnProgressDeps {
-  sessionId: string | null;
-  channel: string;
-  executionId: string | null;
-  /** Update the live agent-turn count on the running execution (snapshot for sessions.list). */
-  setNumTurns: (numTurns: number) => void;
-  /** Publish the `session.turn` delta for the live composer. */
-  publish: (numTurns: number) => void;
-}
-
-/**
- * Translate an adapter `turn_progress`/`turn_complete` payload into the S4 chat's live agent-turn
- * signals: update the running execution's numTurns snapshot (when an executionId is known) and
- * publish a `session.turn` delta (when a sessionId is known). No-op unless `num_turns` is a finite
- * number — a progress event without a turn count carries nothing to show. Exposed for unit testing.
- */
-export function emitTurnProgress(deps: TurnProgressDeps, progress: { num_turns?: unknown } | null | undefined): void {
-  const n = progress?.num_turns;
-  if (typeof n !== 'number' || !Number.isFinite(n)) return;
-  if (deps.executionId) deps.setNumTurns(n);
-  if (deps.sessionId) deps.publish(n);
-}
-
-/** Exposed for unit testing. */
-export function resolveDefaultAgent(agentMessage: string, channel?: string): AgentConfig {
-  const defaultAgentName = getDefaultAgent();
-  const defaultAgentDef = defaultAgentName ? getAgent(defaultAgentName) : null;
-  const profileForRun = (defaultAgentDef && defaultAgentDef.profile !== '__active__')
-    ? defaultAgentDef.profile
-    : getActiveProfile(channel);
-  let effectiveMessage = agentMessage;
-  if (defaultAgentDef?.directive) {
-    effectiveMessage = defaultAgentDef.directive + '\n\n' + agentMessage;
-  }
-  return {
-    effectiveMessage, profileForRun, defaultAgentName,
-    claudeAgent: defaultAgentDef?.claudeAgent || null,
-    systemPrompt: defaultAgentDef?.systemPrompt || null,
-    outputStyle: defaultAgentDef?.outputStyle || null,
-    tools: defaultAgentDef?.tools || null,
-    pluginDirs: defaultAgentDef?.pluginDirs || null,
-  };
-}
-
-async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, sessionName, sessionId, threadAnchorId, messageTs, callbacks, projectId, continuationToolUse, continuationToolResult, continuationContextUsage, backgroundRun = null }: {
-  result: AgentResult; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number;
-  userMessage: string; executionId: string | null; sessionName: string; sessionId: string | null;
-  threadAnchorId: string | null; messageTs: string; callbacks: AgentCallbacks; projectId: string;
-  continuationToolUse: ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null;
-  continuationToolResult: ((toolUseId: string, content: string, isError: boolean) => void) | null;
-  continuationContextUsage: ((usage: ContextUsage) => void) | null;
-  backgroundRun?: HeldRun | null;
-}): Promise<void> {
-  if (result?.rateLimited) {
-    // Record the interrupted conversation so it auto-resumes when the rate-limit window
-    // resets (rate-limit-throttle onResume → resume-dispatcher).
-    recordDirectResume({ provider: result.rateLimitProvider, channel, trackSessionId: sessionId, userMessage });
-    const { elapsedStr } = computeElapsed(startTime);
-    const rateLimitText = renderTurnStatus({ kind: 'rate-limited' }, { sessionName, sessionId, elapsedStr });
-    await sealStatus(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));
-    return;
-  }
-  await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, trigger: 'user', sessionName, trackSessionId: sessionId, threadAnchorId, userMessageTs: messageTs, projectId, onAssistantMessage: callbacks.onAssistantMsg, onToolUse: continuationToolUse, onToolResult: continuationToolResult, onContextUsage: continuationContextUsage, backgroundRun });
-}
-
-/**
- * Production side-effect wiring for {@link tryInjectIntoLiveTurn} — the same history / bus /
- * busy-gate seams `_executeReal` uses for an ordinary turn, so an injected message and a queued one
- * land in the transcript identically.
- */
-async function acquireSessionUseLease(sessionId: string): Promise<SessionUseLease | null> {
-  const session = await sessionStore.getById(sessionId);
-  if (!session) return null;
-  const release = await sessionStore.acquireSessionUse(sessionId);
-  if (!release) return null;
-  return { session, release };
-}
-
-function buildInjectDeps(sessionName: string | null, channel: string, adapter: PlatformAdapter): MidTurnInjectDeps {
-  return {
-    getLiveExecutions: (channel) => runRegistry.getByChannel(channel).map((entry) => ({
-      backend: entry.backend,
-      run: entry.run as unknown as AgentRun | undefined,
-    })),
-    getStreamingCallback,
-    appendAssistant: (sessionId, o) => recordHistory(conversationHistory.appendAssistant(sessionId, o)),
-    appendTool: (sessionId, o) => recordHistory(
-      conversationHistory.appendTool(sessionId, o),
-      o.fullInput !== undefined ? () => publishSessionDebugUpdated({ sessionId, channel }) : undefined,
-    ),
-    appendToolResult: (sessionId, o) => recordHistory(
-      conversationHistory.appendToolResult(sessionId, o),
-      () => publishSessionDebugUpdated({ sessionId, channel }),
-    ),
-    publishMessage: publishSessionMessage,
-    publishDelivered: publishSessionMessageDelivered,
-    publishStatus: publishSessionStatus,
-    onContextUsage: (sessionId, usageChannel, usage) => {
-      if (!sessionName) return;
-      void persistSessionContextUsage({
-        sessionName, sessionId, channel: usageChannel, usage,
-      }).catch((error) => log.warn('injected continuation context persistence failed:', (error as Error).message));
-    },
-    persistPending: (record) => pendingInjectionRepo.add(record),
-    commitPending: (record) => commitPendingInjection(record),
-    markPending: (record) => adapter.markQueued({ conduit: record.channel, messageId: record.messageId }),
-    unmarkPending: (record) => adapter.unmarkQueued({ conduit: record.channel, messageId: record.messageId }),
-    track: trackPendingTask,
-    summarizeToolInput: (input) => summarizeToolInputForHistory(input),
-    captureDebug: isDebugMode(),
-    now: () => new Date().toISOString(),
-  };
-}
-
-/** Set a session's display label from its first user message when it has none yet (best-effort,
- *  fire-and-forget). New Slack/inbound sessions already get a label at registration; web sessions are
- *  created label-less (before any message), so this titles them on the first turn — the LeftRail then
- *  shows the message text instead of the opaque `cortex-XXXX` name. */
-async function ensureSessionLabel(sessionName: string, userMessage: string): Promise<void> {
-  const text = userMessage.trim();
-  if (!text) return;
-  try {
-    const rec = await sessionStore.lookupSession(sessionName);
-    if (rec && (!rec.label || rec.label.trim() === '')) {
-      await sessionStore.updateSession(sessionName, { label: text.slice(0, 60) });
-    }
-  } catch { /* best-effort — the label is cosmetic */ }
-}
-
-export async function resolveSessionName(sessionId: string | null, channel: string, userMessage: string, adapter: PlatformAdapter): Promise<string> {
-  if (sessionId) {
-    const existing = await sessionStore.lookupBySessionId(sessionId);
-    if (existing) return existing;
-    const channelProject = await adapter.resolveInboundProject(channel);
-    return registerNamedSession(sessionStore, {
-      sessionId,
-      channel,
-      backend: resolveBackendForChannel(channel),
-      label: userMessage?.substring(0, 60),
-      profileName: getActiveProfile(channel),
-      projectId: channelProject ?? 'general',
-    });
-  }
-  return sessionStore.generateSessionName();
-}
-
-function buildAgentCallbacks(adapter: PlatformAdapter, destination: Destination, statusMsg: MessageRef, threadAnchorId: string | null, startTime: number, sessionName: string, sessionId: string | null, onMessagePosted: (ref: MessageRef) => void): AgentCallbacks {
-  const channel = resolveDestinationConduit(destination);
-  const onFallback = makeFallbackLabelNotifier(statusMsg, adapter);
-  const queue = getOutboundQueue();
-  const durable = queue ? buildDurableHooks(queue) : null;
-  const baseAssistantMsg = makeStreamingMessageCallback(adapter, destination, threadAnchorId, onMessagePosted, durable);
-
-  // Tool trace: when CORTEX_SHOW_TOOL_CALLS is enabled, emit a compact per-tool Slack line
-  // that merges consecutive same-tool calls and splits on different tool / assistant text.
-  const toolTrace = createToolTrace(baseAssistantMsg.stream);
-  const onAssistantMsg: AgentCallbacks['onAssistantMsg'] = toolTrace
-    ? Object.assign((text: string) => { toolTrace.flush(); baseAssistantMsg(text); }, { stream: baseAssistantMsg.stream })
-    : baseAssistantMsg;
-  const onToolUse = toolTrace
-    ? (name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) =>
-        toolTrace.onToolUse(name, input, subagent, toolUseId)
-    : null;
-
-  setStreamingCallback(channel, onAssistantMsg);
-
-  // The status message is the only persistent surface Slack / Feishu / Ink-TUI have (it is already
-  // being edited in place on every turn_progress), so task progress rides it instead of posting
-  // anything new. Both triggers render through one function so the two signals cannot disagree.
-  let lastProgress: { duration_ms?: number | null; num_turns?: number | null } | null = null;
-  let todoProgress = '';
-  const renderStatus = (): void => {
-    writeStatus(adapter, statusMsg, buildUserProcessingMessage({
-      startTime,
-      elapsed_s: lastProgress?.duration_ms != null ? lastProgress.duration_ms / 1000 : null,
-      num_turns: lastProgress?.num_turns ?? null,
-      profileName: getActiveProfile(channel), sessionName, sessionId,
-      todoProgress: todoProgress || null,
-    }));
-  };
-  const onProgress = (progress: any) => {
-    lastProgress = progress ?? null;
-    renderStatus();
-  };
-  const onTodoUpdate = (snapshot: TodoSnapshot) => {
-    const next = renderTodoProgress(snapshot);
-    // Agents re-submit an unchanged list fairly often. Rendering the same line again would spend a
-    // platform message edit for no visible change, so only a real change forces a write; the
-    // ordinary progress cadence covers everything else.
-    if (next === todoProgress) return;
-    todoProgress = next;
-    renderStatus();
-  };
-  return { onFallback, onAssistantMsg, onProgress, onToolUse, onTodoUpdate };
-}
+// Moved under turn/ (they belong to the turn, not to admission). Re-exported so the existing
+// importers keep their import path: entry/app.ts + thread-executor for `buildInteractiveCallbacks`,
+// the agent-runner / subagent / cancel / session-lifecycle tests for the rest.
+export {
+  acceptUserMessage, type AcceptUserMessageDeps, beginForegroundSession,
+  emitTurnProgress, type TurnProgressDeps, buildInteractiveCallbacks,
+} from './turn/turn.js';
+export { resolveDefaultAgent, resolveSessionName } from './turn/turn-prep.js';
 
 function createPlatformFileLoader(ctx: AgentRunnerCtx): PlatformFileLoader {
   let pending: Promise<DownloadedFile[]> | null = null;
@@ -873,46 +297,4 @@ function createPlatformFileLoader(ctx: AgentRunnerCtx): PlatformFileLoader {
 async function downloadFiles(files: PlatformFileRef[] | undefined, hasFiles: boolean, adapter: PlatformAdapter): Promise<DownloadedFile[]> {
   if (!hasFiles || !files) return [];
   return downloadPlatformFiles(files, adapter, TEMP_DIR);
-}
-
-/** Fire-and-forget history append; never let a logging write break the turn. */
-function recordHistory(p: Promise<unknown>, onPersisted?: () => void): void {
-  void p.then(() => onPersisted?.()).catch((e) => log.error('conversation-history write failed:', (e as Error).message));
-}
-
-/** Compose two optional onToolUse callbacks so both fire on each tool_use event. */
-function composeToolUse(
-  a: ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null,
-  b: ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null,
-): ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null {
-  if (!a && !b) return null;
-  if (!a) return b;
-  if (!b) return a;
-  return (name, input, toolUseId, subagent) => {
-    a(name, input, toolUseId, subagent);
-    b(name, input, toolUseId, subagent);
-  };
-}
-
-/** Route generic PI extension dialogs through the shared platform interaction UI. */
-export function buildInteractiveCallbacks(
-  channel: string,
-  sessionId: string | null,
-  threadId: string | null = null,
-) {
-  const onAskUserQuestion = (event: {
-    toolUseId: string;
-    questions: Array<{ question: string; options?: string[]; multi?: boolean }>;
-  }) => {
-    const questions = event.questions.map((question) => ({
-      question: question.question,
-      options: question.options?.map(label => ({ label, description: '' })) ?? [],
-      multiSelect: question.multi ?? false,
-      header: question.question.substring(0, 12),
-    }));
-    publishAskUserRequested(
-      crypto.randomUUID(), channel, sessionId ?? '', questions, event.toolUseId, threadId,
-    );
-  };
-  return { onPlanWritten: () => undefined, onAskUserQuestion, onToolUse: () => undefined };
 }

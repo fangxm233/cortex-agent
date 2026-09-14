@@ -8,26 +8,17 @@ import { getSessionAsync } from '@domain/sessions/session.js';
 import { sessionStore, effectiveBackendSessionId } from '@store/session-registry-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { getActiveProfile } from '@domain/agents/index.js';
-import { startRun } from '@domain/runs/service.js';
-import type { AgentRun } from '@domain/runs/run.js';
-import type { RunObserver, RunRequest } from '@domain/runs/request.js';
+import { resolveRunConfig } from '@domain/runs/config-resolver.js';
 import { continuationRunRequest } from '@domain/runs/builders.js';
-import type { RunEvent } from '@domain/runs/events.js';
-import { recordDirectResume } from '@domain/runs/observers/resume-recorder.js';
 import { normalizeSkillCommandPrefix } from '@domain/memory/skill-scanner.js';
-import { getOutboundQueue } from '@store/outbound-queue.js';
-import { buildDurableHooks } from './durable-helpers.js';
-import { setStreamingCallback, clearStreamingCallback } from './routing/hook-bridge.js';
 import {
-  buildUserProcessingMessage, renderTurnStatus, makeFallbackLabelNotifier, makeStreamingMessageCallback,
-  computeElapsed, writeStatus, sealStatus, buildStatusActionBlocks, buildSealedStatusActionBlocks,
-  initStatusBlocks,
+  buildUserProcessingMessage, writeStatus, buildStatusActionBlocks, initStatusBlocks,
 } from './status-helpers.js';
 import {
-  handleAgentSuccess, handleAgentError, initTurnTracking, finishTurnTracking,
-  consumePendingTurnSupersession, type TurnTrackingToken,
-} from './lifecycle.js';
-import { resolveRunProfile } from './run-profile.js';
+  initTurnTracking, finishTurnTracking, consumePendingTurnSupersession, type TurnTrackingToken,
+} from './turn/turn-tracking.js';
+import { handleAgentError } from './turn/terminal.js';
+import { openTurn, type TurnSessionLease } from './turn/turn.js';
 
 const log = createLogger('edit-retry');
 
@@ -79,83 +70,74 @@ async function executeRetry(channel: string, text: string, adapter: PlatformAdap
   });
 }
 
-export async function runRetryAgent({ channel, text, adapter, statusMsg, startTime, sessionId, backendSessionId, sessionName, projectId, userMessageTs, retryPrefix, onMessagePosted, retryDest, turnTrackingToken }: { channel: string; text: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; sessionId: string | null; backendSessionId: string | null; sessionName: string | null; projectId: string; userMessageTs: string; retryPrefix: string; onMessagePosted: (ref: MessageRef) => void; retryDest: Destination; turnTrackingToken: TurnTrackingToken }): Promise<void> {
+/**
+ * Re-run an edited message as a full turn.
+ *
+ * Everything between the status message and the seal is the Turn's (status progress with the retry
+ * prefix, the transcript sink, the streaming callback, the terminal render, the busy bracket): this
+ * function only resolves the session lease and describes what makes the turn a RETRY. The ledger
+ * turn was already opened by `executeRetry` — it has to be, because the supersession check has to
+ * run before the status message exists — so its token is handed to the Turn rather than re-opened.
+ *
+ * `retryDest` and `onMessagePosted` are still accepted (the signature is pinned by
+ * `tests/orch/lifecycle-session-lease.test.ts` and by `executeRetry`), but the Turn now derives
+ * both: the destination from channel + session id, and the ledger response-ts recorder from
+ * `userMessageTs`. They are byte-identical to what this function used to build.
+ */
+export async function runRetryAgent({ channel, text, adapter, statusMsg, startTime, sessionId, backendSessionId, sessionName, projectId, userMessageTs, retryPrefix, onMessagePosted: _onMessagePosted, retryDest: _retryDest, turnTrackingToken }: { channel: string; text: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; sessionId: string | null; backendSessionId: string | null; sessionName: string | null; projectId: string; userMessageTs: string; retryPrefix: string; onMessagePosted: (ref: MessageRef) => void; retryDest: Destination; turnTrackingToken: TurnTrackingToken }): Promise<void> {
   const agentMessage = normalizeSkillCommandPrefix(text || '');
-  let executionId: string | null = null;
-  let run: AgentRun | null = null;
-  let sessionRelease: (() => void) | null = null;
+  let lease: TurnSessionLease | null = null;
   try {
     if (sessionId) {
-      sessionRelease = await sessionStore.acquireSessionUse(sessionId);
-      if (!sessionRelease) throw new Error(`Session not found or pending deletion: ${sessionId}`);
-    }
-    const retryQueue = getOutboundQueue();
-    const retryDurable = retryQueue ? buildDurableHooks(retryQueue) : null;
-    const onAssistantMsg = makeStreamingMessageCallback(adapter, retryDest, null, onMessagePosted, retryDurable);
-    setStreamingCallback(channel, onAssistantMsg);
-    const progressUpdater = buildRetryProgressUpdater(adapter, channel, statusMsg, retryPrefix, startTime, sessionName, sessionId);
-    const fallbackNotifier = makeFallbackLabelNotifier(statusMsg, adapter);
-    const request: RunRequest = continuationRunRequest({
-      session: {
-        sessionId,
-        backendSessionId,
-        // The pool key is the channel — what an interactive turn's engine is opened under, and not
-        // something to change here (that would re-pool the session the retry is meant to continue).
-        engineKey: channel,
-        sessionName,
-      },
-      profile: resolveRunProfile(getActiveProfile(channel), channel),
-      prompt: agentMessage,
-      channel,
-      project: projectId,
-      trigger: 'edit-retry',
-      // The retry replays a message a human wrote and edited.
-      isUserInitiated: true,
-    });
-    const observer: RunObserver = {
-      onEvent(event: RunEvent): void {
-        switch (event.type) {
-          case 'assistant_text': onAssistantMsg(event.text); return;
-          case 'turn_progress': progressUpdater({ num_turns: event.numTurns, duration_ms: null }); return;
-          case 'run_fallback': void fallbackNotifier(event.from, event.to); return;
-          default: return;
-        }
-      },
-    };
-    run = startRun(request, [observer]);
-    executionId = run.executionId;
-    sessionRelease?.();
-    sessionRelease = null;
-    finishTurnTracking(channel, turnTrackingToken);
-    const result = await run.result;
-    clearStreamingCallback(channel);
-
-    if (result?.rateLimited) {
-      // Record the interrupted edit-retry conversation for auto-resume when the window resets.
-      recordDirectResume({ provider: result.rateLimitProvider, channel, trackSessionId: sessionId, userMessage: text });
-      const { elapsedStr } = computeElapsed(startTime);
-      const rateLimitText = renderTurnStatus({ kind: 'rate-limited' }, { sessionName, sessionId, elapsedStr });
-      await sealStatus(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));
-    } else {
-      await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, userMessage: text, executionId, trigger: 'edit-retry', sessionName, trackSessionId: sessionId, projectId, userMessageTs, onAssistantMessage: onAssistantMsg });
+      const release = await sessionStore.acquireSessionUse(sessionId);
+      if (!release) throw new Error(`Session not found or pending deletion: ${sessionId}`);
+      lease = { release };
     }
   } catch (error) {
-    clearStreamingCallback(channel);
-    await handleAgentError({ error, channel, adapter, statusMsg, startTime, executionId, sessionName, sessionId, effectiveSessionId: run?.backendSessionId ?? null, userMessageTs });
-  } finally {
-    sessionRelease?.();
+    // The lease is taken before the turn opens, so the Turn cannot render its failure — this is the
+    // one terminal render left here, and it is the same one the pre-Turn inline path performed.
+    await handleAgentError({
+      error: error as { message: string; cancelled?: boolean },
+      channel, adapter, statusMsg, startTime, executionId: null,
+      sessionName, sessionId, userMessageTs,
+    });
     finishTurnTracking(channel, turnTrackingToken);
+    return;
   }
-}
-
-function buildRetryProgressUpdater(adapter: PlatformAdapter, channel: string, statusMsg: MessageRef, retryPrefix: string, startTime: number, sessionName: string | null, sessionId: string | null) {
-  return (progress: { duration_ms?: number | null; num_turns?: number | null } | null) => {
-    writeStatus(adapter, statusMsg, retryPrefix + buildUserProcessingMessage({
-      startTime, elapsed_s: progress?.duration_ms != null ? progress.duration_ms / 1000 : null,
-      num_turns: progress?.num_turns ?? null,
-      profileName: getActiveProfile(channel), sessionName, sessionId,
-    }));
-  };
+  await openTurn({
+    channel, adapter, threadAnchorId: null,
+    session: { sessionId, sessionName, backendSessionId, projectId, lease },
+    // RAW text: what the ledger recorded and what an auto-resume would replay.
+    user: { text },
+    ledger: { userMessageTs, token: turnTrackingToken },
+    trigger: 'edit-retry',
+    statusPrefix: retryPrefix,
+    statusMessage: statusMsg,
+    startTime,
+    prepareRequest: async (ids) => {
+      const request = continuationRunRequest({
+        session: {
+          sessionId: ids.sessionId,
+          backendSessionId: ids.backendSessionId,
+          // The pool key is the channel — what an interactive turn's engine is opened under, and not
+          // something to change here (that would re-pool the session the retry is meant to continue).
+          engineKey: channel,
+          sessionName: ids.sessionName,
+        },
+        // Same resolution the retired `resolveRunProfile(getActiveProfile(channel), channel)`
+        // performed: the channel's own profile, kept as an explicit override so an unknown name
+        // still reaches the run (which rejects it after the execution record exists).
+        profile: resolveRunConfig({ channel, override: getActiveProfile(channel) }).profile,
+        prompt: agentMessage,
+        channel,
+        project: ids.projectId,
+        trigger: 'edit-retry',
+        // The retry replays a message a human wrote and edited.
+        isUserInitiated: true,
+      });
+      return { request, backendPrompt: request.prompt.text };
+    },
+  });
 }
 
 function updateRetryPermalinks(adapter: PlatformAdapter, channel: string, userMessageTs: string, statusMsg: MessageRef, supersededTimestamps: string[] | undefined, retryPrefix: string, startTime: number, sessionName: string | null, sessionId: string | null): void {

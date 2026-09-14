@@ -1,3 +1,12 @@
+// The subject moved, not the subject matter: `runConversation` is gone and its run-opening half —
+// the resume-target sink, the execution callbacks, awaiting the result — is now `Turn.run()`. These
+// tests therefore drive `openTurn` with `prepareConversationRequest` as its `prepareRequest`, which
+// is exactly what `agent-runner._executeReal` does. Two consequences for the driving code (the
+// assertions are unchanged):
+//   * a Turn RENDERS a failed turn instead of rethrowing it, so `rejects.toMatchObject({cancelled})`
+//     becomes "the turn finished and sealed its status message";
+//   * a Turn posts its status message and resolves ids before it opens the run, so the live-registry
+//     test holds the attempt open instead of reading after a single microtask.
 import { test, expect, vi } from 'vitest';
 import assert from 'node:assert/strict';
 
@@ -43,7 +52,10 @@ vi.mock('@domain/threads/index.js', async (importOriginal) => {
 });
 
 import type { RunAttempt, StartAttemptInput } from '../../src/domain/runs/attempt.js';
-import { runConversation } from '../../src/orchestration/conversation-runner.js';
+import type { DownloadedFile } from '../../src/platform/types.js';
+import { openTurn } from '../../src/orchestration/turn/turn.js';
+import { prepareConversationRequest } from '../../src/orchestration/conversation-request.js';
+import { MockAdapter } from '../../src/platform/testing.js';
 import { cancelChannelRuns } from '../../src/orchestration/routing/commands/cancel.js';
 import { sessionStore } from '../../src/store/session-registry-repo.js';
 import { getSessionAsync, setSessionAsync } from '../../src/domain/sessions/session.js';
@@ -76,19 +88,56 @@ function makeCancelledAttempt(backendSessionId: string): RunAttempt {
   return makeSyntheticAttempt({ backendSessionId, foreground: promise });
 }
 
-function baseOpts(overrides: Record<string, unknown>) {
-  return {
-    adapter: {} as any,
-    channel: 'slack:C-interrupt',
-    userMessage: 'hello',
-    projectId: 'general',
-    files: [],
-    startTime: Date.now(),
-    ...overrides,
-  } as any;
+/** One plain conversation turn, driven the way `agent-runner._executeReal` drives it. `ledger: null`
+ *  keeps the conversation ledger out of these traces — this file is about the resume target and the
+ *  assembled request, both of which the ledger has no part in. */
+function runTurn(opts: {
+  trackSessionId: string;
+  backendSessionId: string | null;
+  sessionName: string;
+  files?: DownloadedFile[];
+  onPromptBuilt?: (prompt: string) => void;
+}): { done: Promise<void>; adapter: MockAdapter } {
+  const channel = 'slack:C-interrupt';
+  const adapter = new MockAdapter();
+  const done = openTurn({
+    channel,
+    adapter: adapter as any,
+    threadAnchorId: null,
+    session: {
+      sessionId: opts.trackSessionId,
+      sessionName: opts.sessionName,
+      backendSessionId: opts.backendSessionId,
+      projectId: 'general',
+      lease: null,
+    },
+    user: { text: 'hello' },
+    ledger: null,
+    trigger: 'user',
+    prepareRequest: (ids) => prepareConversationRequest({
+      ids: {
+        sessionId: ids.sessionId ?? '',
+        backendSessionId: ids.backendSessionId,
+        sessionName: ids.sessionName ?? '',
+        projectId: ids.projectId,
+      },
+      channel,
+      userMessage: 'hello',
+      files: opts.files ?? [],
+      trigger: 'user',
+      onPromptBuilt: opts.onPromptBuilt ?? null,
+    }),
+  });
+  return { done, adapter };
 }
 
-// ── (1) runConversation persists the backend resume target on settle ────────
+/** The turn ended by rendering its failure: the status message was posted and then sealed. */
+function assertSealedTurn(adapter: MockAdapter): void {
+  assert.equal(adapter.posted.length >= 1, true, 'the turn posted a status message');
+  assert.equal(adapter.updated.length >= 1, true, 'the turn sealed its status message');
+}
+
+// ── (1) a turn persists the backend resume target on settle ────────────────
 
 test('first-turn kill persists the spawn-time backend session id (resume works on the next message)', async () => {
   await sessionStore.registerSession('cortex-int1', {
@@ -96,26 +145,28 @@ test('first-turn kill persists the spawn-time backend session id (resume works o
   });
   mockStartAttempt.mockReturnValueOnce(makeCancelledAttempt('B-claude-1'));
 
-  await expect(runConversation(baseOpts({
+  const turn = runTurn({
     trackSessionId: 'TRACK-1',
     backendSessionId: null, // fresh session — first turn
     sessionName: 'cortex-int1',
-  }))).rejects.toMatchObject({ cancelled: true });
+  });
+  await turn.done;
+  assertSealedTurn(turn.adapter);
 
   const rec = await sessionStore.getById('TRACK-1');
   assert.equal(rec?.backendSessionId, 'B-claude-1');
 });
 
-test('runConversation exposes the exact assembled prompt passed to the agent', async () => {
+test('a turn exposes the exact assembled prompt passed to the agent', async () => {
   let capturedPrompt: string | null = null;
   mockStartAttempt.mockReturnValueOnce(makeCancelledAttempt('B-prompt'));
 
-  await expect(runConversation(baseOpts({
+  await runTurn({
     trackSessionId: 'TRACK-PROMPT',
     backendSessionId: 'B-existing',
     sessionName: 'cortex-prompt',
     onPromptBuilt: (prompt: string) => { capturedPrompt = prompt; },
-  }))).rejects.toMatchObject({ cancelled: true });
+  }).done;
 
   assert.equal(
     capturedPrompt,
@@ -125,17 +176,17 @@ test('runConversation exposes the exact assembled prompt passed to the agent', a
   assert.equal(capturedPrompt, 'hello', 'resumed direct turns send the user text without fresh-session context');
 });
 
-test('runConversation DEBUG prompt includes the image path sent through the adapter', async () => {
+test('a turn\'s DEBUG prompt includes the image path sent through the adapter', async () => {
   let capturedPrompt: string | null = null;
   mockStartAttempt.mockReturnValueOnce(makeCancelledAttempt('B-image-prompt'));
 
-  await expect(runConversation(baseOpts({
+  await runTurn({
     trackSessionId: 'TRACK-IMAGE-PROMPT',
     backendSessionId: 'B-existing',
     sessionName: 'cortex-image-prompt',
     files: [{ localPath: '/tmp/cortex-image.png', mimetype: 'image/png', name: 'cortex-image.png' }],
     onPromptBuilt: (prompt: string) => { capturedPrompt = prompt; },
-  }))).rejects.toMatchObject({ cancelled: true });
+  }).done;
 
   assert.equal(
     capturedPrompt,
@@ -150,11 +201,13 @@ test('interrupt on a RESUMED turn leaves the stored backend session id untouched
   });
   mockStartAttempt.mockReturnValueOnce(makeCancelledAttempt('B-old'));
 
-  await expect(runConversation(baseOpts({
+  const turn = runTurn({
     trackSessionId: 'TRACK-2',
     backendSessionId: 'B-old', // resumed session
     sessionName: 'cortex-int2',
-  }))).rejects.toMatchObject({ cancelled: true });
+  });
+  await turn.done;
+  assertSealedTurn(turn.adapter);
 
   const rec = await sessionStore.getById('TRACK-2');
   assert.equal(rec?.backendSessionId, 'B-old');
@@ -182,19 +235,22 @@ test('cancelChannelRuns keeps the channel bound to the stable track id', async (
   assert.equal(await getSessionAsync('slack:C-keep', backend), 'TRACK-3');
 });
 
-test('runConversation registers both track and backend ids on the live execution handle', async () => {
-  mockStartAttempt.mockReturnValueOnce(makeCancelledAttempt('B-live-1'));
+test('a turn registers both track and backend ids on the live execution handle', async () => {
+  const held = heldAttempt('B-live-1');
+  mockStartAttempt.mockReturnValueOnce(held.attempt);
   const before = new Set(runRegistry.getAll().map((entry) => entry.registryKey));
-  const pending = runConversation(baseOpts({
+  const turn = runTurn({
     trackSessionId: 'TRACK-LIVE',
     backendSessionId: 'B-prev',
     sessionName: 'cortex-live',
-  }));
-  await Promise.resolve();
-  const live = runRegistry.getAll().find((entry) => !before.has(entry.registryKey));
+  });
+  // The attempt is held open, so the entry is still live while it is inspected — the Turn posts a
+  // status message before it opens the run, so a single microtask is no longer enough to see it.
+  const live = await awaitNewRegistryEntry(before);
   assert.equal(live?.trackSessionId, 'TRACK-LIVE');
   assert.equal(live?.backendSessionId, 'B-live-1');
-  await expect(pending).rejects.toMatchObject({ cancelled: true });
+  held.fail();
+  await turn.done;
 });
 
 // ── (3) the resume target reaches disk MID-turn, not only on settle ─────────
@@ -213,13 +269,24 @@ function heldAttempt(backendSessionId: string | null) {
   return { attempt: makeSyntheticAttempt({ backendSessionId, foreground: promise }), fail };
 }
 
-/** `runConversation` resolves profile, project and prompt before it opens the attempt. */
+/** A turn resolves its status message, profile, project and prompt before it opens the attempt. */
 async function awaitAttemptStart(read: () => ((event: any) => void) | null, timeoutMs = 2000) {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     const emit = read();
     if (emit) return emit;
     if (Date.now() > deadline) throw new Error('the run never opened its attempt');
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
+
+/** Poll the live registry: the Turn opens the run several awaits in, not on the next microtask. */
+async function awaitNewRegistryEntry(before: Set<string>, timeoutMs = 2000) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const live = runRegistry.getAll().find((entry) => !before.has(entry.registryKey));
+    if (live) return live;
+    if (Date.now() > deadline) throw new Error('the turn never registered a live run');
     await new Promise((resolve) => setTimeout(resolve, 5));
   }
 }
@@ -242,16 +309,16 @@ test('claude: the spawn-time backend id is stored while the first turn is still 
   const held = heldAttempt('B-mid-claude');
   mockStartAttempt.mockReturnValueOnce(held.attempt);
 
-  const pending = runConversation(baseOpts({
+  const turn = runTurn({
     trackSessionId: 'TRACK-MID1',
     backendSessionId: null, // fresh session — first turn
     sessionName: 'cortex-mid1',
-  }));
+  });
 
   assert.equal(await awaitStoredBackendId('TRACK-MID1'), 'B-mid-claude', 'stored before the turn settles');
 
   held.fail();
-  await expect(pending).rejects.toMatchObject({ cancelled: true });
+  await turn.done;
 });
 
 test('pi: the id announced by engine_started is stored while the first turn is still running', async () => {
@@ -266,17 +333,17 @@ test('pi: the id announced by engine_started is stored while the first turn is s
     return held.attempt;
   });
 
-  const pending = runConversation(baseOpts({
+  const turn = runTurn({
     trackSessionId: 'TRACK-MID2',
     backendSessionId: null,
     sessionName: 'cortex-mid2',
-  }));
+  });
   (await awaitAttemptStart(() => emit))({ type: 'engine_started', backendSessionId: 'B-mid-pi' });
 
   assert.equal(await awaitStoredBackendId('TRACK-MID2'), 'B-mid-pi', 'stored before the turn settles');
 
   held.fail();
-  await expect(pending).rejects.toMatchObject({ cancelled: true });
+  await turn.done;
 });
 
 test('a backend that resets the session mid-turn leaves the NEW id as the resume target', async () => {
@@ -291,15 +358,15 @@ test('a backend that resets the session mid-turn leaves the NEW id as the resume
     return held.attempt;
   });
 
-  const pending = runConversation(baseOpts({
+  const turn = runTurn({
     trackSessionId: 'TRACK-MID3',
     backendSessionId: 'B-gone', // asked to resume a transcript the backend no longer has
     sessionName: 'cortex-mid3',
-  }));
+  });
   (await awaitAttemptStart(() => emit))({ type: 'engine_started', backendSessionId: 'B-restarted' });
 
   held.fail();
-  await expect(pending).rejects.toMatchObject({ cancelled: true });
+  await turn.done;
 
   const rec = await sessionStore.getById('TRACK-MID3');
   assert.equal(rec?.backendSessionId, 'B-restarted', 'the next turn must resume where this one ended');
