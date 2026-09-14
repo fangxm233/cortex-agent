@@ -82,9 +82,22 @@ class ActiveTurns {
     return this.streaming.get(channel) ?? null;
   }
 
-  /** Clear the channel's streaming callback (turn end, or background-hold seal). */
+  /** Clear the channel's streaming callback unconditionally. Low-level: prefer
+   *  `releaseStreamingCallback` from anything that registered a slot of its own. */
   clearStreamingCallback(channel: string): void {
     this.streaming.delete(channel);
+  }
+
+  /** Give up a slot the caller registered (turn end, or background-hold seal), scoped to the
+   *  registered callback exactly as `unregister` is scoped to the registering turn. A hold's seal
+   *  can land AFTER the next turn claimed the channel — supersede fires the old hold's seal from
+   *  inside the new turn's `beginForegroundSession` — and an unscoped delete would then erase the
+   *  successor's slot, silently cutting its streaming, mid-turn injection and interaction reads.
+   *  Returns whether the slot was still the caller's. */
+  releaseStreamingCallback(channel: string, cb: StreamingCallback): boolean {
+    if (this.streaming.get(channel) !== cb) return false;
+    this.streaming.delete(channel);
+    return true;
   }
 
   // ── supersede by edit ────────────────────────────────────────────────────

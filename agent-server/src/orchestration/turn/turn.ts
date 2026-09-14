@@ -416,8 +416,9 @@ export class Turn {
       const canSink = supportsBackgroundContinuation(run);
       const holdKind = shouldHoldForBg(result, channel, canSink);
       // The platform hold keeps the streaming callback alive so the spontaneous continuation merges
-      // into the same reply; its renderer clears the slot when it seals. Everything else clears now.
-      if (holdKind !== 'platform') activeTurns.clearStreamingCallback(channel);
+      // into the same reply; its renderer releases the slot when it seals. Everything else releases
+      // now. Always scoped to THIS turn's callback: a slot someone else registered is not ours.
+      if (holdKind !== 'platform') activeTurns.releaseStreamingCallback(channel, callbacks.onAssistantMsg);
       await handleDefaultAgentResult({
         result, channel, adapter, statusMsg, startTime: this.startTime,
         userMessage: this.input.user.text, executionId: run.executionId,
@@ -427,7 +428,7 @@ export class Turn {
         holdBackground: holdKind === 'platform'
           ? ({ stream, backendSessionId: backendId }) => this.installHold({
             result, run, renderer: platformHoldRenderer({
-              adapter, statusMsg, channel, stream, sessionName,
+              adapter, statusMsg, channel, stream, ownedCallback: callbacks.onAssistantMsg, sessionName,
               sessionId: backendId, trackSessionId: sessionId, startTime: this.startTime,
               baseResult: result, userMessageTs, executionId: run.executionId,
               trigger: this.input.trigger, projectId,
@@ -473,7 +474,7 @@ export class Turn {
         });
       }
     } catch (error) {
-      activeTurns.clearStreamingCallback(channel);
+      activeTurns.releaseStreamingCallback(channel, callbacks.onAssistantMsg);
       await handleAgentError({
         error: error as { message: string; cancelled?: boolean },
         channel, adapter, statusMsg, startTime: this.startTime,

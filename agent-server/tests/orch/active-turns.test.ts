@@ -32,6 +32,23 @@ test('the streaming slot outlives its turn — a background hold keeps streaming
   assert.equal(activeTurns.streamingCallback('web:abc'), cb, 'the hold still owns the reply');
 });
 
+test('releaseStreamingCallback is scoped to the registering callback', () => {
+  const held = (text: string) => { void text; };
+  const successor = (text: string) => { void text; };
+  activeTurns.setStreamingCallback('slack:D1', held);
+
+  // The next turn claimed the channel before the previous turn's background hold sealed.
+  activeTurns.setStreamingCallback('slack:D1', successor);
+  assert.equal(activeTurns.releaseStreamingCallback('slack:D1', held), false,
+    'the old hold no longer owns the slot, so its seal releases nothing');
+  assert.equal(activeTurns.streamingCallback('slack:D1'), successor, 'the successor keeps streaming');
+
+  assert.equal(activeTurns.releaseStreamingCallback('slack:D1', successor), true);
+  assert.equal(activeTurns.streamingCallback('slack:D1'), null);
+  assert.equal(activeTurns.releaseStreamingCallback('slack:D1', successor), false,
+    'releasing an empty slot reports nothing to release');
+});
+
 test('register / unregister is scoped to the registering turn', () => {
   const first = { channel: 'web:abc', sessionId: 's1' };
   const second = { channel: 'web:abc', sessionId: 's1' };

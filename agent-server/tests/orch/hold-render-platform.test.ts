@@ -63,6 +63,7 @@ function harness() {
     track: () => {},
     renderer: platformHoldRenderer({
       adapter: adapter as any, statusMsg: statusMsg as any, channel: args.channel, stream,
+      ownedCallback: onAssistantMessage,
       sessionName: 'cortex-test', sessionId: (result.sessionId as string) ?? null,
       trackSessionId: args.trackSessionId, startTime: Date.now(), baseResult: result as any,
       userMessageTs: null, executionId: args.executionId, trigger: 'user',
@@ -73,7 +74,7 @@ function harness() {
   });
   const lastStatus = () => (adapter.updated.at(-1)?.content?.text ?? '') as string;
   return {
-    adapter, args, contexts, lastStatus, stream, emit, hold,
+    adapter, args, contexts, lastStatus, stream, emit, hold, onAssistantMessage,
     held: () => observer !== null,
     claimedTranscript: () => claimed,
     result: (r: Record<string, unknown>) => emit({ type: 'background_result', result: r as any }),

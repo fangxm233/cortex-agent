@@ -20,7 +20,7 @@ import {
   renderTurnStatus, computeElapsed, formatMetricsSuffix,
   writeStatus, sealStatus, buildSealedStatusActionBlocks,
 } from '../status-helpers.js';
-import { activeTurns } from './active-turns.js';
+import { activeTurns, type StreamingCallback } from './active-turns.js';
 import type { HoldRenderer, HoldTotals, SealedVerdict } from './background-hold.js';
 
 const log = createLogger('hold-render-platform');
@@ -32,6 +32,10 @@ export interface PlatformHoldDeps {
   /** The originating turn's reply stream — continuation prose is appended here so the follow-up
    *  merges into the same message and the turn still reads as one answer. */
   stream: OutputStream;
+  /** The originating turn's own `onAssistantMsg` (the object behind `stream`, which is
+   *  `ownedCallback.stream`). The seal releases the channel's streaming slot only while it is
+   *  still THIS turn's — a hold superseded by the next turn must not cut the successor's. */
+  ownedCallback: StreamingCallback;
   sessionName: string | null;
   /** Backend session id, for the status line's session tag. */
   sessionId: string | null;
@@ -128,13 +132,13 @@ export function platformHoldRenderer(deps: PlatformHoldDeps): HoldRenderer {
             void conversationLedger.completeTurn(channel, deps.userMessageTs, { executionId: deps.executionId })
               .catch((e) => log.error('completeTurn (bg-interrupted) failed:', (e as Error).message));
           }
-          activeTurns.clearStreamingCallback(channel);
+          activeTurns.releaseStreamingCallback(channel, deps.ownedCallback);
           return;
         }
         case 'rate-limited': {
           const rateLimitText = renderTurnStatus({ kind: 'rate-limited' }, { sessionName, sessionId, elapsedStr: fullElapsed, metrics: merged });
           void seal(rateLimitText);
-          activeTurns.clearStreamingCallback(channel);
+          activeTurns.releaseStreamingCallback(channel, deps.ownedCallback);
           return;
         }
         default:
@@ -159,7 +163,7 @@ async function finalize(deps: PlatformHoldDeps, cont: AgentResult | null, metric
     await conversationLedger.completeTurn(channel, deps.userMessageTs, { executionId: deps.executionId })
       .catch((e) => log.error('completeTurn failed:', (e as Error).message));
   }
-  activeTurns.clearStreamingCallback(channel);
+  activeTurns.releaseStreamingCallback(channel, deps.ownedCallback);
   // A grace verdict has no continuation of its own — nothing was reported, so nothing is recorded.
   if (!cont) return;
   await recordBackgroundCost({

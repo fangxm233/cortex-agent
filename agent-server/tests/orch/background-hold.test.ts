@@ -7,6 +7,7 @@ import type { RunEvent } from '../../src/domain/runs/events.js';
 import type { RunObserver } from '../../src/domain/runs/request.js';
 import { ctx as jobCtx } from '../../src/domain/scheduling/job-registry.js';
 import { sessionHolds } from '../../src/core/session-holds.js';
+import { activeTurns } from '../../src/orchestration/turn/active-turns.js';
 import { sessionState } from '../../src/core/session-state.js';
 import { cancelBgHolds } from '../../src/orchestration/routing/commands/cancel.js';
 import {
@@ -140,6 +141,10 @@ async function platformHold(channel = 'slack:D-hold') {
   const adapter = new MockAdapter({ adminChannel: 'admin' });
   const statusMsg = { conduit: channel, messageId: `status-hold-${++statusSeq}` };
   const stream = new MockOutputStream(adapter, { type: 'interactive-reply', conduit: channel, sessionId: '' });
+  // The turn being held registered this channel's streaming slot (turn.ts step 5a) and deliberately
+  // did NOT clear it on the way out — the hold's seal is what releases it.
+  const ownedCallback = Object.assign((_t: string) => {}, { stream });
+  activeTurns.setStreamingCallback(channel, ownedCallback);
   const sessionId = `sess-hold-${statusSeq}`;
   const statuses: Array<{ running: boolean; backgroundRunning?: boolean }> = [];
   const previousBus = jobCtx.bus;
@@ -157,7 +162,7 @@ async function platformHold(channel = 'slack:D-hold') {
     result: { pendingBackgroundTasks: 1, total_cost_usd: 0.02, num_turns: 3 } as any,
     track: () => {},
     renderer: platformHoldRenderer({
-      adapter: adapter as any, statusMsg: statusMsg as any, channel, stream,
+      adapter: adapter as any, statusMsg: statusMsg as any, channel, stream, ownedCallback,
       sessionName: 'cortex-test', sessionId: 'backend-1', trackSessionId: sessionId,
       startTime: Date.now(), baseResult: { total_cost_usd: 0.02, num_turns: 3 } as any,
       userMessageTs: null, executionId: `exec-hold-${statusSeq}`, trigger: 'user',
@@ -165,9 +170,9 @@ async function platformHold(channel = 'slack:D-hold') {
     }),
   });
   return {
-    adapter, channel, sessionId, hold, statuses, emit: held.emit,
+    adapter, channel, sessionId, hold, statuses, emit: held.emit, ownedCallback,
     lastStatus: () => (adapter.updated.at(-1)?.content?.text ?? '') as string,
-    restore: () => { jobCtx.bus = previousBus as never; sessionHolds.clear(); },
+    restore: () => { jobCtx.bus = previousBus as never; sessionHolds.clear(); activeTurns._reset(); },
   };
 }
 
@@ -232,6 +237,48 @@ test('the seal stays quiet while another owner still holds the session', async (
     work.seal();
     assert.deepEqual(h.statuses.at(-1), { running: false, backgroundRunning: false },
       'the last hold standing publishes the idle status');
+  } finally {
+    h.restore();
+  }
+});
+
+
+// --- The streaming slot across a seal (T2.2b). The slot is channel-keyed and outlives the turn
+// that registered it, so a hold's seal must release only the slot it owns: `supersedeHolds` fires
+// the PREVIOUS turn's seal from inside the NEXT turn's `beginForegroundSession`, by which point the
+// successor has already registered its own callback.
+
+test('NEW: a platform hold superseded by the next turn leaves the successor\'s streaming slot alone', async () => {
+  const h = await platformHold('slack:D-hold-supersede');
+  try {
+    assert.equal(activeTurns.streamingCallback(h.channel), h.ownedCallback,
+      'the held turn still owns the slot while it waits');
+
+    // The next user message arrives: its Turn registers its own streaming callback (turn.ts step
+    // 5a) and only then opens the foreground session (step 4), which supersedes the hold.
+    const successor = Object.assign((_t: string) => {}, { stream: {} as never });
+    activeTurns.setStreamingCallback(h.channel, successor);
+    assert.equal(sessionHolds.supersedeHolds(h.sessionId), true, 'the hold heard the takeover');
+
+    await waitFor(() => /interrupted/i.test(h.lastStatus()));
+    assert.match(h.lastStatus(), /interrupted/i, 'the superseded turn\'s status is still sealed honestly');
+    assert.equal(activeTurns.streamingCallback(h.channel), successor,
+      'and the seal did not cut the streaming of the turn that replaced it');
+  } finally {
+    h.restore();
+  }
+});
+
+test('NEW: a platform hold sealing normally releases its own streaming slot', async () => {
+  const h = await platformHold('slack:D-hold-seal-slot');
+  try {
+    assert.equal(activeTurns.streamingCallback(h.channel), h.ownedCallback, 'held, still streaming');
+
+    h.emit({ type: 'background_timeout', reason: 'grace' });
+    await waitFor(() => /Done/i.test(h.lastStatus()));
+    await waitFor(() => activeTurns.streamingCallback(h.channel) === null);
+    assert.equal(activeTurns.streamingCallback(h.channel), null,
+      'nothing replaced the slot, so the seal tears it down exactly as before');
   } finally {
     h.restore();
   }
