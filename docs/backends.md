@@ -55,6 +55,26 @@ The normalization layer (`agent-adapter/normalize/`) translates each backend's
 native event format into `NormalizedEvent`, and `toRunEvent` tags it with the
 run's phase, so the run layer never needs to know which backend is running.
 
+**A run outlives its turn.** Claude opens a turn of its own when a background
+task finishes, so a run has two endings and both are on the same stream. The
+*foreground result* is the answer to the request: it lands as soon as the
+backend finishes the turn, which is what `await run.result` gives a surface —
+the reply is rendered and the status message can go into its waiting state
+while the run is still alive. The *settled result* is the whole run with every
+continuation folded in; it is what the terminal tally, the execution record and
+the cost attribution read. A policy picks which one the caller waits for
+(`RunRequest.policy.background`): an interactive turn holds (`hold`), a thread
+step or dispatched job waits for the merged result (`inline`), and a run that
+cannot produce a continuation ends at the first result (`none`).
+
+The wait itself is bounded, the work is not. `ContinuationPhase`
+(`agent-adapter/continuation-phase.ts`) arms a grace timer for work the backend
+reported finished but never announced (`CORTEX_BG_GRACE_S`, 90s) and a cap for
+work still running (`CORTEX_BG_WAIT_MAX_S`, 30min). The grace period expiring
+ends the run; the cap expiring only ends the *waiting* — a tunnel or a monitor
+that runs for an hour still streams its continuation into the same session when
+it finishes.
+
 ## Feature matrix
 
 Cortex defines eleven capabilities that a backend may support. The

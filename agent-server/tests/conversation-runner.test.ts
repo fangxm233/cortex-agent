@@ -13,7 +13,6 @@ import assert from 'node:assert/strict';
 import { THREAD_PROTOCOL_PREAMBLE } from '../src/domain/threads/prompt-builder.js';
 import { composeUserPrompt, userProfileBlock } from '../src/domain/runs/prompt.js';
 import {
-  registerConversationHandle,
   resolveConversationCommission,
   resolveConversationProject,
 } from '../src/orchestration/conversation-runner.js';
@@ -59,16 +58,6 @@ function conversationPrompt(
     { userContext: userProfileBlock(includeUserContext), project, commission },
   );
 }
-
-test('registration callback fires only after the backend handle is cancellable', () => {
-  const order: string[] = [];
-  registerConversationHandle(
-    { register: () => { order.push('register'); return 'execution-id'; } },
-    {} as never,
-    () => { order.push('release-start-guard'); },
-  );
-  assert.deepEqual(order, ['register', 'release-start-guard']);
-});
 
 test('conversation prompt with the default {{input}} template and empty directive is just the message', () => {
   const prompt = conversationPrompt(makeAgentConfig({ directive: '' }), 'hello world');

@@ -68,8 +68,6 @@ export interface RunningExecution {
   kill: () => boolean;
   startTime: number;
   backend: string;
-  /** Agent process reference used to resolve generic PI extension UI dialogs. */
-  agentProcess?: unknown;
   /** The live `AgentRun` that owns this execution — the mid-turn injection target. */
   run?: SteerableRun;
   /** Stable Cortex track session id used by registry/history/query surfaces. */
@@ -168,7 +166,6 @@ export class RunRegistry {
       kill: exec.kill,
       startTime: Date.now(),
       backend: exec.backend,
-      agentProcess: exec.agentProcess,
       run: exec.run,
       trackSessionId: exec.trackSessionId ?? null,
       backendSessionId: exec.backendSessionId ?? exec.sessionId ?? null,

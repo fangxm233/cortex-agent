@@ -28,7 +28,6 @@ import {
 } from '@domain/commissions/commission-context.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { getSettings } from '@core/settings.js';
-import type { RunningExecutionInput } from '@core/run-registry.js';
 import { startRun } from '@domain/runs/service.js';
 import type { AgentRun } from '@domain/runs/run.js';
 import type { AgentSpec, RunObserver, RunRequest } from '@domain/runs/request.js';
@@ -94,15 +93,6 @@ export interface ConversationResult {
    * hold decision needs. It used to be probed off the process handle; the run answers it now.
    */
   canAwaitBackground: boolean;
-}
-
-export function registerConversationHandle(
-  registry: { register: (registration: RunningExecutionInput) => unknown },
-  registration: RunningExecutionInput,
-  onRegistered?: () => void,
-): void {
-  registry.register(registration);
-  onRegistered?.();
 }
 
 function buildBackendPrompt(prompt: string, files: DownloadedFile[]): string {

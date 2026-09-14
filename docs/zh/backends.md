@@ -24,6 +24,10 @@
 
 此后引擎只发出一条 `RunEvent` 流（`domain/runs/events.ts`）。标准化层（`agent-adapter/normalize/`）把每个后端的原生事件格式翻译成 `NormalizedEvent`，`toRunEvent` 再为它标上运行的阶段，因此运行层永远不需要知道运行的是哪个后端。
 
+**一次运行比它的回合活得更久。** Claude 会在后台任务完成时自己开一个回合，所以一次运行有两个结束，而且都在同一条流上。**前台结果**是对这次请求的回答：后端一把回合跑完它就落定，`await run.result` 拿到的就是它——回复可以立刻渲染，状态消息可以进入"等待中"，而此时运行仍然活着。**settled 结果**是把每一次续跑都合并进来的整次运行，终态记账、执行记录和成本归属读的是它。等哪一个由策略决定（`RunRequest.policy.background`）：交互式回合用 `hold`，线程步骤与派发任务等合并结果（`inline`），不可能产生续跑的运行在第一个结果就结束（`none`）。
+
+有界的是**等待**，不是工作本身。`ContinuationPhase`（`agent-adapter/continuation-phase.ts`）为"已完成但未通知"的工作武装 一个宽限计时器（`CORTEX_BG_GRACE_S`，90 秒），为"仍在运行"的工作武装 一个上限（`CORTEX_BG_WAIT_MAX_S`，30 分钟）。宽限到期会结束这次运行；上限到期只结束**等待**——一个跑了一小时的隧道或监控任务，完成时它的续跑仍然会流进同一个会话。
+
 ## 功能矩阵 {#feature-matrix}
 
 Cortex 定义了后端可能支持的十一种能力。编排层在尝试后端特定操作之前检查这些能力。

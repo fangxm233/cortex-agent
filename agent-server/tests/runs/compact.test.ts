@@ -34,16 +34,18 @@ function profile(overrides: Record<string, unknown> = {}): any {
   };
 }
 
-test('support is limited to PI and Claude print with a matching fixed profile', () => {
+test('support requires a profile whose backend matches the session’s', () => {
   assert.equal(isSessionCompactionSupported({ backend: 'pi', profileName: 'deepseek' }, () => profile()), true);
   assert.equal(isSessionCompactionSupported(
     { backend: 'claude', profileName: 'print' },
     () => profile({ backend: 'claude', claudeBackend: 'print' }),
   ), true);
+  // A profile still configured `claudeBackend: 'tui'` runs the print path — the TUI runtime was
+  // retired (D9) — so it compacts like any other Claude profile.
   assert.equal(isSessionCompactionSupported(
     { backend: 'claude', profileName: 'tui' },
     () => profile({ backend: 'claude', claudeBackend: 'tui' }),
-  ), false);
+  ), true);
   assert.equal(isSessionCompactionSupported(
     { backend: 'pi', profileName: 'wrong' },
     () => profile({ backend: 'claude' }),
@@ -115,13 +117,13 @@ test('compactAgentContext resumes the channel’s pooled session, compacts witho
   }
 });
 
-test('compactAgentContext rejects unsupported mode before acquiring an engine', async () => {
+test('compactAgentContext rejects a profile whose backend is not the session’s, before acquiring an engine', async () => {
   let acquired = false;
   await assert.rejects(
     () => compactAgentContext(
-      { ...REQUEST, backend: 'claude', profileName: 'tui' },
+      { ...REQUEST, backend: 'pi', profileName: 'wrong' },
       {
-        resolveProfile: () => profile({ backend: 'claude', claudeBackend: 'tui' }),
+        resolveProfile: () => profile({ backend: 'claude' }),
         acquireEngine: () => { acquired = true; throw new Error('must not acquire'); },
         configureMode: () => ({}),
         recordCost: async () => {},

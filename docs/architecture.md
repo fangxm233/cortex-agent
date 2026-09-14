@@ -100,7 +100,7 @@ The thickest layer. Contains 23 subdirectories, each encapsulating a domain conc
 
 | Subdirectory | Purpose |
 |-------------|---------|
-| `agents/` | Agent execution facade. `runAgent()` delegates to the backend adapter. Profile resolution, backend detection |
+| `agents/` | Profiles, subagent roles and credentials: what a run may be configured as. Starting one belongs to `runs/` |
 | `runs/` | The run layer: `startRun` and the `AgentRun` ownership object, `RunRequest` profile/spec/prompt resolution, the backend-neutral `RunEvent` stream, and the `SessionEngines` pool |
 | `sessions/` | Session lifecycle. Hook pipeline (onNew, onMessageEnd) with VirtualMessage display and optional agent injection |
 | `tasks/` | Full task system: YAML parsing, dispatch, archiving, pending tracking, lock management, CLI (`cortex-task`), verification |

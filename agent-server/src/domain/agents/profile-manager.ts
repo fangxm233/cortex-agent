@@ -55,8 +55,10 @@ export interface RunAttemptConfig {
   provider: string | null;
   extraEnv: Record<string, string>;
   extraOption: Record<string, string>;
-  /** DR-0012: resolved claude adapter mode. 'print' (default, uses -p + stream-json) or 'tui'
-   *  (interactive Claude under tmux + jsonl tail). Ignored for non-claude backends. */
+  /** Resolved Claude adapter mode. Only 'print' runs: the TUI runtime was retired (D9), so a
+   *  profile still configured `'tui'` is accepted, warned about once by `ClaudeAdapter.open`, and
+   *  run on the print path. Kept on the type because it is still a field of profiles.json and of
+   *  the Web profile editor; nothing downstream branches on it any more. */
   claudeBackend: 'print' | 'tui';
   /** Thinking level (backend-native value). null → nothing is passed to the CLI. */
   thinking: string | null;
@@ -173,9 +175,10 @@ function validateProfileEntry(profile: unknown, label: string, inheritedBackend:
 }
 
 /**
- * Pure resolver: maps a ProfileEntry's claudeBackend field to one of the two valid modes.
- * Defaults to 'print' for any non-'tui' value (including missing field). Used at adapter dispatch
- * time so unknown/legacy values silently fall back to the safe 'print' path.
+ * Pure resolver: maps a ProfileEntry's claudeBackend field to one of the two accepted values.
+ * Defaults to 'print' for any non-'tui' value (including a missing field). Since D9 retired the
+ * TUI runtime this only decides whether the adapter emits its one deprecation warning — both
+ * values run the print path.
  */
 export function resolveClaudeBackend(p: { claudeBackend?: unknown }): 'print' | 'tui' {
   return p.claudeBackend === 'tui' ? 'tui' : 'print';

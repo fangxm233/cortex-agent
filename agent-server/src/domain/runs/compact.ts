@@ -58,9 +58,10 @@ const compactAgentDeps: CompactAgentDeps = {
 };
 
 function supportsCompactProfile(backend: string, profile: ResolvedProfileConfig): boolean {
-  if (profile.backend !== backend) return false;
-  if (backend === 'pi') return true;
-  return backend === 'claude' && profile.claudeBackend !== 'tui';
+  // Both backends compact. The old `claudeBackend !== 'tui'` exclusion is gone with the TUI
+  // runtime (D9): a profile still carrying that value runs the print path, and the print path
+  // compacts.
+  return profile.backend === backend && (backend === 'claude' || backend === 'pi');
 }
 
 export function isSessionCompactionSupported(

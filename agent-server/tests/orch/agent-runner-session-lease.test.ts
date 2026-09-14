@@ -66,7 +66,6 @@ test('AgentRunner holds session use until onExecutionRegistered then releases it
     return {
       result: { total_cost_usd: 0, num_turns: 1, finalOutput: 'ok', pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 0 },
       executionId: 'exec-1',
-      agentProcess: undefined,
     };
   });
 

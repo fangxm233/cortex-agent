@@ -101,7 +101,7 @@ L5  entry/         → 所有层（组合根）
 
 | 子目录 | 用途 |
 |-------------|---------|
-| `agents/` | 智能体执行门面。`runAgent()` 委托给后端适配器。配置解析、后端检测 |
+| `agents/` | profile、子代理角色与凭据：一次运行可以被配置成什么。启动运行属于 `runs/` |
 | `runs/` | 运行层：`startRun` 与 `AgentRun` 所有权对象、`RunRequest` 的 profile/spec/提示解析、后端中立的 `RunEvent` 事件流，以及 `SessionEngines` 池 |
 | `sessions/` | 会话生命周期。钩子管道（onNew、onMessageEnd），带 VirtualMessage 显示和可选的智能体注入 |
 | `tasks/` | 完整任务系统：YAML 解析、调度、归档、等待追踪、锁管理、CLI（`cortex-task`）、验证 |

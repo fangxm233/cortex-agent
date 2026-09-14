@@ -182,10 +182,9 @@ function result(sessionId: string, output = 'done') {
   };
 }
 
-/** Synthetic `RunAttempt` for the orchestration seam. `startAttempt` now takes a `RunRequest`
- *  plus attempt config; the old handle's `sessionId` is the attempt's `backendSessionId` (which
- *  the run records as its resume target) and the request's `session.backendSessionId`.
- *  The retired handle's `agentProcess` field has no counterpart in the run contract. */
+/** Synthetic `RunAttempt` for the orchestration seam: `startAttempt` takes a `RunRequest` plus an
+ *  attempt config, and answers with the attempt's `backendSessionId` — which the run records as
+ *  its resume target and echoes on the next request's `session.backendSessionId`. */
 function attemptHandle(
   value: Record<string, unknown>,
   beforeResolve?: (input: any) => Promise<void>,
