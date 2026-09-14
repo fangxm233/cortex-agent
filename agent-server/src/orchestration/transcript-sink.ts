@@ -21,7 +21,7 @@ import {
   subagentSpawnFromAttribution, subagentSpawnsFromToolCall,
 } from '../agent-adapter/normalize/event-types.js';
 import type { SubagentSpawnRef, ToolUseSubagent } from '../agent-adapter/normalize/event-types.js';
-import type { RunEvent } from '../domain/runs/events.js';
+import type { RunEvent, RunPhase } from '../domain/runs/events.js';
 import type { RunObserver } from '../domain/runs/request.js';
 import type { AgentRun } from '../domain/runs/run.js';
 import {
@@ -165,7 +165,7 @@ export function createTranscriptSink(opts: TranscriptSinkOptions): RunObserver {
   function persistAssistant(
     text: string, blockId: string | undefined,
     noticeLevel: ChatNoticeLevel | undefined, noticeAction: NoticeAction | undefined,
-    subagent: ToolUseSubagent | undefined,
+    subagent: ToolUseSubagent | undefined, phase: RunPhase,
   ): void {
     // Drain this block's preview FIRST: the authoritative message must never be overtaken by
     // a delta still sitting in the coalescer, or the UI would replace the row and then append
@@ -176,7 +176,12 @@ export function createTranscriptSink(opts: TranscriptSinkOptions): RunObserver {
     // A subagent's prose is working notes addressed to its parent, not an answer addressed to
     // the user. Chat platforms get the live counter on the spawning call's trace line instead;
     // the full text stays in the transcript, where it can be grouped.
-    if (!ref) opts.onAssistantMessage?.(text);
+    //
+    // Only the foreground turn streams to the platform callback. A background turn's prose belongs
+    // to whichever surface is holding the turn open (`status-renderer` merges it into the held
+    // reply, `web-status-renderer` publishes it as new session messages); streaming it from here
+    // too would post it twice. The ROW is written either way — that is what this sink is for.
+    if (!ref && phase === 'foreground') opts.onAssistantMessage?.(text);
     if (!text) return;
     const ts = new Date().toISOString();
     recordHistory(deps.appendAssistant(sessionId, {
@@ -218,7 +223,10 @@ export function createTranscriptSink(opts: TranscriptSinkOptions): RunObserver {
           opts.onTodoUpdate?.(event.snapshot);
           return;
         case 'assistant_text':
-          persistAssistant(event.text, event.blockId, event.noticeLevel, event.noticeAction, event.subagent);
+          persistAssistant(
+            event.text, event.blockId, event.noticeLevel, event.noticeAction, event.subagent,
+            event.phase,
+          );
           return;
         case 'context_usage':
           return deps.persistContextUsage({

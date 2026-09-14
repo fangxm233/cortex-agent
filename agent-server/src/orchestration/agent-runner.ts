@@ -17,7 +17,6 @@ import type { Session } from '@store/session-registry-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { conversationHistory, summarizeToolInputForHistory } from '@store/conversation-history-repo.js';
 import { pendingInjectionRepo } from '@store/pending-injection-repo.js';
-import { subagentPayloadFields, subagentRowRef } from './subagent-rows.js';
 import type { ToolUseSubagent } from '../agent-adapter/normalize/event-types.js';
 import { getActiveProfile, getDefaultAgent, resolveBackendForChannel } from '@domain/agents/index.js';
 import { resolveProfileConfig } from '@domain/agents/profile-manager.js';
@@ -587,17 +586,13 @@ export class AgentRunner {
           }),
           track: trackPendingTask,
           publishStatus: ({ running, backgroundRunning }) => publishSessionStatus({ sessionId: sid, channel, running, backgroundRunning }),
+          // Through the same sink as every other row, tagged `background`: it applies the in-turn
+          // rules (a subagent's prose is persisted WITH its attribution rather than reading as the
+          // agent's own answer arriving a turn late) and, because the phase says background, it
+          // does NOT stream the text to the platform callback — this surface publishes it.
           publishAssistant: (text, subagent) => {
-            const ts = new Date().toISOString();
-            // Same rule as the in-turn path: a subagent's prose is persisted WITH its attribution
-            // so the transcript can fold it into that subagent's block, instead of reading as the
-            // agent's own answer arriving out of nowhere one turn late.
-            const ref = subagent ? subagentRowRef(subagent) : undefined;
-            recordHistory(conversationHistory.appendAssistant(sid, {
-              text, ts, ...(ref ? { subagent: ref } : {}),
-            }));
-            publishSessionMessage({
-              sessionId: sid, channel, role: 'assistant', text, ts, ...subagentPayloadFields(ref),
+            sink.onEvent({
+              type: 'assistant_text', text, phase: 'background', ...(subagent ? { subagent } : {}),
             });
           },
           publishTool: persistToolUse,
@@ -608,10 +603,8 @@ export class AgentRunner {
           // AttemptNoticeTracker has already retired by now, so without this a continuation that
           // hits the provider limit is queued for resume with nothing said about it in the chat.
           publishNotice: (text, noticeLevel, noticeAction) => {
-            const ts = new Date().toISOString();
-            recordHistory(conversationHistory.appendAssistant(sid, { text, ts, noticeLevel, noticeAction }));
-            publishSessionMessage({
-              sessionId: sid, channel, role: 'assistant', text, ts, noticeLevel,
+            sink.onEvent({
+              type: 'assistant_text', text, phase: 'background', noticeLevel,
               ...(noticeAction ? { noticeAction } : {}),
             });
           },

@@ -2,6 +2,23 @@
 // output: step rows with remote device and subagent metadata
 // pos:    Thread-step transcript recorder
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+//
+// A SECOND recorder beside `orchestration/transcript-sink.ts`, on purpose. The sink is the one
+// history+publish observer for a run's `RunEvent` stream; this one records a thread STEP, and the
+// three differences are structural, not incidental:
+//
+//   - Ordering. Every append here is chained (`chain = chain.then(append)`), because a step's rows
+//     are read back — by the next step, by the artifact, by a thread reload — the moment the step
+//     returns. The sink is deliberately fire-and-forget: a chat turn must never wait on a log write.
+//   - Shape. It emits a `PersistedTranscriptEvent` to the caller, which publishes it with the
+//     thread's own fields (slot, remote device, subagent spawns, debug-updated). The sink publishes
+//     `session.message` itself.
+//   - A step's prompt is a `recordUser` row, and a prompt is not a RunEvent — nothing on the run's
+//     stream could produce it.
+//
+// Folding them together would mean a sink parameterized by ordering mode, publish shape and row
+// vocabulary — a configuration knob per caller, which is the thing the sink exists to remove. They
+// share their row *vocabulary* through `conversation-history-repo` instead.
 
 import { summarizeToolInputForHistory, toolDeviceForHistory } from '@store/conversation-history-repo.js';
 import { createLogger } from '@core/log.js';

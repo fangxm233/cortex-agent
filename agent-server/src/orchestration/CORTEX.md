@@ -40,7 +40,7 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | superseded-edits.ts | tracker | marks channels superseded by a message edit |
 | thread-callback.ts | callback | Fences child results and resumes current parents |
 | thread-executor.ts | core | routes threads and buffers downloaded user files |
-| transcript-sink.ts | core | single history+publish observer for the RunEvent stream, plus the mid-turn injection ledger that persists/commits injected messages from injection events |
+| transcript-sink.ts | core | single history+publish observer for the RunEvent stream (both phases: a background row is written here too, it just is not streamed to the platform callback), plus the mid-turn injection ledger that persists/commits injected messages from injection events. Thread steps keep their own recorder — see domain/threads/thread-transcript.ts |
 | turn-mutation-lock.ts | guard | grants per-channel mutation leases |
 | turn-notify.ts | notify | applies settings and notifies completed long turns |
 | web-status-renderer.ts | observer | web `session.status` surface for a run's background phase: holds the session live, streams the continuation as session events, owns its rate-limit notice |

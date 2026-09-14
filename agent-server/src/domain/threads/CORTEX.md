@@ -21,7 +21,7 @@ Consumed by the orchestration and UI layers through the index barrel.
 | state-machine.ts | state | drives lifecycle and inherits benchmark evidence |
 | runner.ts | runtime | Builds each step's RunRequest/observers and runs it through startRun |
 | hook-runner.ts | hook | Adapts lifecycle hooks to HookBus; hook agents run through startRun |
-| thread-transcript.ts | record | Records tool devices, step rows and prompts |
+| thread-transcript.ts | record | Records tool devices, step rows and prompts. A deliberate second recorder beside orchestration/transcript-sink.ts — ordered appends, the thread's own publish shape, and a step prompt that is not a RunEvent; the reasons are in its header |
 | tree.ts | tree | resolves ancestry and tracks spawn facts and guards |
 | contract.ts | contract | builds delegation contracts and goal chains |
 | auto-thread.ts | util | decides auto compound and merges final outputs |
