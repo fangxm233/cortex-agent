@@ -1,9 +1,10 @@
 //
-// This is the single in-memory index of "what is live right now":
-//   - running executions (foreground runs, keyed by executionId, indexed by thread/channel)
-//   - background holds (a session whose foreground turn ended but a background task keeps it busy)
-//   - the per-channel streaming callback slot (hook-bridge delegates here)
-//   - sessionState(): the one answer to "is this session busy".
+// The single in-memory index of the executions that are live right now: keyed by executionId,
+// indexed by thread and channel, and the publisher of the agent.* lifecycle events.
+//
+// It answers "what is running", NOT "is this session busy" — background holds live in
+// `session-holds.ts` and the join of the two is `session-state.ts`
+// (plan/orchestration-turn-refactor.md §1.2).
 
 import type { EventBus } from '@events/index.js';
 
@@ -12,34 +13,6 @@ import type { EventBus } from '@events/index.js';
 export interface SteerableMessage {
   text: string;
   attachments?: { mimeType: string; path: string }[];
-}
-
-/**
- * What ends a session's background hold. TWO verbs, because a hold can be ended for two different
- * reasons and the right response is not the same one:
- *
- * - `onSuperseded` — a new FOREGROUND turn took over the session. The hold's passive part (its
- *   "running in the background" status, its busy bracket) is now the new turn's business. Work that
- *   is genuinely still running must NOT be touched: a user typing a second message is not asking to
- *   kill the first message's delegated agents.
- * - `onStop` — the user pressed Stop. End the work too.
- *
- * A hold that owns only status (the Claude background-task continuation hold) points both at the
- * same seal. A hold that owns live work (a backgrounded `agent` run) sets ONLY `onStop`, and its
- * busy bracket deliberately survives preemption so a deferred daemon restart cannot fire while the
- * child is mid-work.
- *
- * This used to be one `() => void` slot per session. Two callers wrote handles with incompatible
- * meanings into it, and `beginForegroundSession` — which fires on every incoming message — read the
- * slot expecting "release". When the slot happened to hold "stop the child", a second user message
- * executed the running agent instead of yielding to it (observed 2026-09-12).
- */
-/** Owner key for handles passed straight to `markBackgroundHeld`. */
-const HOLD_OWNER_INLINE = 'inline';
-
-export interface SessionHoldHandles {
-  onSuperseded?: () => void;
-  onStop?: () => void;
 }
 
 /** The slices of an `AgentRun` the mid-turn injection and dialog-response paths need. The run
@@ -80,29 +53,6 @@ export interface RunningExecution {
 export type RunningExecutionInput =
   Omit<RunningExecution, 'registryKey' | 'startTime' | 'kind'> & { registryKey?: string; kind?: string | null };
 
-/** One session's busy snapshot: the single answer to "is this session busy". */
-export interface SessionState {
-  /** True when a foreground turn is live OR a background task still holds the session. */
-  running: boolean;
-  /** True when the foreground turn is over but a background task still holds the session. */
-  backgroundRunning: boolean;
-  /** Live agent-turn count of the in-flight foreground run; null when absent / not yet reported. */
-  numTurns: number | null;
-  /** Execution id of the live foreground run; null when none. */
-  executionId: string | null;
-}
-
-/** The per-channel `onAssistantMessage` callback the hook bridge forwards streaming text to. */
-export type StreamingCallback = (text: string) => void;
-
-/** A `session.status` event payload, mirrored into the background-hold state. */
-export interface SessionStatusEvent {
-  sessionId: string;
-  channel?: string;
-  running: boolean;
-  backgroundRunning?: boolean;
-}
-
 export class RunRegistry {
   // ── running executions ─────────────────────────────────────────────────
   /** Primary index: key is executionId (or ad-hoc registryKey when executionId is null). */
@@ -113,19 +63,6 @@ export class RunRegistry {
   private byChannel = new Map<string, Set<RunningExecution>>();
   /** EventBus for publishing agent.* lifecycle events. May be set after construction. */
   private _bus: EventBus | null = null;
-
-  // ── background holds ───────────────────────────────────────────────────
-  /** sessionId → channel of a held (foreground-over, background-still-live) session. */
-  private held = new Map<string, string>();
-  /** sessionId → owner key → that owner's hold handles. Keyed per OWNER because one session can be
-   *  held by more than one thing at once (a Claude background-task continuation AND a backgrounded
-   *  `agent` run); a single slot meant whichever registered second silently erased the first, so
-   *  Stop could only ever reach one of them. */
-  private holds = new Map<string, Map<string, SessionHoldHandles>>();
-
-  // ── streaming slot ─────────────────────────────────────────────────────
-  /** channel → active streaming callback (hook-bridge's set/get/clearStreamingCallback delegate here). */
-  private streamingCallbacks = new Map<string, StreamingCallback>();
 
   constructor(bus?: EventBus) {
     if (bus) this._bus = bus;
@@ -229,9 +166,9 @@ export class RunRegistry {
   /**
    * The newest non-thread (interactive) execution for a session. Thread steps run alongside their
    * parent on the same channel and must not make the session itself read as busy — sessions.list
-   * now delegates its running snapshot to `sessionState`, which calls this by session id.
+   * delegates its running snapshot to `sessionState` (core/session-state.ts), which calls this.
    */
-  private getForegroundBySessionId(sessionId: string): RunningExecution | null {
+  getForegroundBySessionId(sessionId: string): RunningExecution | null {
     let best: RunningExecution | null = null;
     for (const entry of this.byKey.values()) {
       if (entry.threadId) continue;
@@ -406,175 +343,6 @@ export class RunRegistry {
         if (set.size === 0) this.byChannel.delete(entry.channel);
       }
     }
-  }
-
-  // ══ background holds ═══════════════════════════════════════════════════
-
-  /**
-   * Mark a session background-held: its foreground turn is over but a background task keeps it
-   * logically running. Optionally records the Stop (seal) handle in one call. Session id is the
-   * key; an absent channel preserves the previously recorded one (status deltas may omit it).
-   */
-  markBackgroundHeld(sessionId: string, channel: string | null = null, handles?: SessionHoldHandles): void {
-    if (!sessionId) return;
-    this.held.set(sessionId, channel ?? this.held.get(sessionId) ?? '');
-    if (handles) this.setHoldHandles(sessionId, HOLD_OWNER_INLINE, handles);
-  }
-
-  /** Clear a session's background hold. No-op for an unheld session.
-   *
-   *  Only STATUS-owning holds end here. A hold that declares `onSuperseded` is saying "my claim on
-   *  this session is its busy status, and a foreground turn may take it from me" — so when the
-   *  status goes, it goes. A hold that declares only `onStop` owns live WORK; its lifetime is its
-   *  work's lifetime and it drops itself through `dropHoldHandles` when that settles. Erasing those
-   *  here is what left Stop with nothing to call for the whole length of a foreground turn. */
-  clearBackgroundHeld(sessionId: string): void {
-    if (!sessionId) return;
-    this.held.delete(sessionId);
-    const byOwner = this.holds.get(sessionId);
-    if (!byOwner) return;
-    for (const [owner, handles] of [...byOwner]) {
-      if (handles.onSuperseded) byOwner.delete(owner);
-    }
-    if (byOwner.size === 0) this.holds.delete(sessionId);
-  }
-
-  /**
-   * Feed every `session.status` event through this (wired to the bus in entry/app.ts).
-   * Held = running:true AND backgroundRunning:true; any other status clears the hold.
-   */
-  onSessionStatus(e: SessionStatusEvent): void {
-    if (!e.sessionId) return;
-    if (e.running && e.backgroundRunning === true) {
-      this.markBackgroundHeld(e.sessionId, e.channel ?? null);
-    } else {
-      this.clearBackgroundHeld(e.sessionId);
-    }
-  }
-
-  /**
-   * True while a command aimed at this channel's pooled engine is unsafe: a live turn or a
-   * background hold on `sessionId` (the engine serves that session), OR any other run registered on
-   * the channel. The channel-wide half is not redundant — the conversation, edit-retry,
-   * auto-compound and subagent paths all open with `engineKey === channel`, so a second run on the
-   * same channel is a second user of the same pooled process.
-   */
-  channelEngineBusy(channel: string, sessionId: string): boolean {
-    return this.hasChannel(channel) || this.sessionState(sessionId).running;
-  }
-
-  /** True while the session's foreground turn is over but a background task still holds it. */
-  has(sessionId: string): boolean {
-    return this.held.has(sessionId);
-  }
-
-  /** Sessions currently held anywhere. */
-  listIds(): string[] {
-    return [...this.held.keys()];
-  }
-
-  /** Sessions currently bg-held on a channel — the reverse lookup the channel-keyed Stop path
-   * needs (`cancelChannelRuns`). Empty for an unheld/unknown channel. */
-  sessionsOnChannel(channel: string): string[] {
-    if (!channel) return [];
-    const out: string[] = [];
-    for (const [sessionId, held] of this.held) if (held === channel) out.push(sessionId);
-    return out;
-  }
-
-  /** Register one owner's hold handles. Re-registering the same owner replaces its own entry and
-   *  leaves every other owner's alone. */
-  setHoldHandles(sessionId: string, owner: string, handles: SessionHoldHandles): void {
-    if (!sessionId || !owner) return;
-    let byOwner = this.holds.get(sessionId);
-    if (!byOwner) this.holds.set(sessionId, byOwner = new Map());
-    byOwner.set(owner, handles);
-  }
-
-  /** Drop one owner's handles (its work settled). Leaves the other owners holding the session. */
-  dropHoldHandles(sessionId: string, owner: string): void {
-    const byOwner = this.holds.get(sessionId);
-    if (!byOwner?.delete(owner)) return;
-    if (byOwner.size === 0) this.holds.delete(sessionId);
-  }
-
-  /** A new foreground turn took the session over: fire every owner's `onSuperseded`, once.
-   *  `onStop` is deliberately KEPT — the work is still running and Stop must still reach it.
-   *  Returns false when nothing was waiting to be superseded. */
-  supersedeHolds(sessionId: string): boolean {
-    const byOwner = this.holds.get(sessionId);
-    if (!byOwner) return false;
-    let fired = false;
-    for (const [owner, handles] of [...byOwner]) {
-      if (!handles.onSuperseded) continue;
-      // Single-fire: drop the callback before invoking, so a seal that publishes its way back
-      // through onSessionStatus cannot re-enter this loop.
-      const fn = handles.onSuperseded;
-      if (handles.onStop) byOwner.set(owner, { onStop: handles.onStop });
-      else byOwner.delete(owner);
-      fired = true;
-      fn();
-    }
-    if (byOwner.size === 0) this.holds.delete(sessionId);
-    return fired;
-  }
-
-  /** The user pressed Stop: fire every owner's `onStop` once and forget the session's handles.
-   *  Returns false when the session has no live hold. */
-  stopHolds(sessionId: string): boolean {
-    const byOwner = this.holds.get(sessionId);
-    if (!byOwner) return false;
-    this.holds.delete(sessionId);
-    let fired = false;
-    for (const handles of byOwner.values()) {
-      const fn = handles.onStop ?? handles.onSuperseded;
-      if (!fn) continue;
-      fired = true;
-      fn();
-    }
-    return fired;
-  }
-
-  /** Empty the background-hold registry (tests). Does not touch running executions. */
-  clear(): void {
-    this.held.clear();
-    this.holds.clear();
-  }
-
-  // ══ session state ══════════════════════════════════════════════════════
-
-  /**
-   * The single answer to "is this session busy": the running execution snapshot (foreground) plus
-   * the background-hold flag. `running` stays true while a background hold is active, matching
-   * sessions.list's `running = inTurn || bgHeld`. Thread executions are excluded from the
-   * foreground lookup (a thread step beside its parent does not make the session itself busy).
-   */
-  sessionState(sessionId: string): SessionState {
-    const exec = this.getForegroundBySessionId(sessionId);
-    const backgroundRunning = this.held.has(sessionId);
-    return {
-      running: !!exec || backgroundRunning,
-      backgroundRunning,
-      numTurns: exec?.numTurns ?? null,
-      executionId: exec?.executionId ?? null,
-    };
-  }
-
-  // ══ streaming slot ═════════════════════════════════════════════════════
-
-  /** Register the active onAssistantMessage callback for a channel. */
-  setStreaming(channel: string, cb: StreamingCallback): void {
-    this.streamingCallbacks.set(channel, cb);
-  }
-
-  /** Get the active streaming callback for a channel, if any. */
-  getStreaming(channel: string): StreamingCallback | null {
-    return this.streamingCallbacks.get(channel) ?? null;
-  }
-
-  /** Clear the streaming callback for a channel (turn end). */
-  clearStreaming(channel: string): void {
-    this.streamingCallbacks.delete(channel);
   }
 }
 

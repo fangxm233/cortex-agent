@@ -41,9 +41,7 @@ import {
   buildUserProcessingMessage, makeFallbackLabelNotifier, makeStreamingMessageCallback,
   writeStatus, buildStatusActionBlocks, buildSealedStatusActionBlocks, initStatusBlocks,
 } from '../status-helpers.js';
-import {
-  setStreamingCallback, clearStreamingCallback, getStreamingCallback, publishAskUserRequested,
-} from '../routing/hook-bridge.js';
+import { publishAskUserRequested } from '../routing/hook-bridge.js';
 import {
   publishSessionDebugUpdated, publishSessionMessage, publishSessionMessageDelivered,
   publishSessionStatus, publishSessionTurn,
@@ -60,6 +58,7 @@ import {
 } from './turn-tracking.js';
 import { handleAgentError, handleDefaultAgentResult } from './terminal.js';
 import { activeTurns } from './active-turns.js';
+import { sessionHolds } from '@core/session-holds.js';
 
 const log = createLogger('turn');
 
@@ -415,7 +414,7 @@ export class Turn {
       //        the status and subscribes to the run's background phase). Otherwise clear it.
       const canSink = supportsBackgroundContinuation(run);
       const holdForBg = shouldHoldForBg(result, channel, canSink);
-      if (!holdForBg) clearStreamingCallback(channel);
+      if (!holdForBg) activeTurns.clearStreamingCallback(channel);
       await handleDefaultAgentResult({
         result, channel, adapter, statusMsg, startTime: this.startTime,
         userMessage: this.input.user.text,
@@ -437,7 +436,7 @@ export class Turn {
         });
       }
     } catch (error) {
-      clearStreamingCallback(channel);
+      activeTurns.clearStreamingCallback(channel);
       await handleAgentError({
         error: error as { message: string; cancelled?: boolean },
         channel, adapter, statusMsg, startTime: this.startTime,
@@ -492,10 +491,10 @@ export class Turn {
       result,
       run,
       // Stop during the hold: the cancel path finds the hold by channel in this registry and
-      // fires the abort to seal it (see core/run-registry.ts).
+      // fires the abort to seal it (see core/session-holds.ts).
       // This hold owns STATUS, not work: its seal releases the busy bracket and publishes
       // running:false, so it is the right response to both verbs.
-      registerAbort: (abort) => runRegistry.setHoldHandles(sessionId, 'web-status-hold', {
+      registerAbort: (abort) => sessionHolds.setHoldHandles(sessionId, 'web-status-hold', {
         onSuperseded: abort, onStop: abort,
       }),
       track: trackPendingTask,
@@ -606,7 +605,7 @@ export function beginForegroundSession(
   sessionId: string | null,
   channel: string,
   deps: ForegroundSessionDeps = {
-    supersedeHolds: (id) => runRegistry.supersedeHolds(id),
+    supersedeHolds: (id) => sessionHolds.supersedeHolds(id),
     publishRunning: publishSessionStatus,
   },
 ): void {
@@ -671,7 +670,7 @@ function buildAgentCallbacks(adapter: PlatformAdapter, destination: Destination,
         toolTrace.onToolUse(name, input, subagent, toolUseId)
     : null;
 
-  setStreamingCallback(channel, onAssistantMsg);
+  activeTurns.setStreamingCallback(channel, onAssistantMsg);
 
   // The status message is the only persistent surface Slack / Feishu / Ink-TUI have (it is already
   // being edited in place on every turn_progress), so task progress rides it instead of posting
@@ -739,7 +738,7 @@ export function buildInjectDeps(sessionName: string | null, channel: string, ada
       backend: entry.backend,
       run: entry.run as unknown as AgentRun | undefined,
     })),
-    getStreamingCallback,
+    getStreamingCallback: (channel) => activeTurns.streamingCallback(channel),
     appendAssistant: (sessionId, o) => recordHistory(conversationHistory.appendAssistant(sessionId, o)),
     appendTool: (sessionId, o) => recordHistory(
       conversationHistory.appendTool(sessionId, o),

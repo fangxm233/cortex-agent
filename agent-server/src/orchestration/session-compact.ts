@@ -1,4 +1,5 @@
 import type { SessionContextUsage } from '@core/types/agent-types.js';
+import { channelEngineBusy } from '@core/session-state.js';
 import { runRegistry } from '@core/run-registry.js';
 import { sessionRepo } from '@store/session-repo.js';
 import {
@@ -41,7 +42,7 @@ export interface CompactSessionDeps {
     updateContextUsage(sessionId: string, usage: SessionContextUsage | null): Promise<void>;
   };
   /** The registry's one answer to "may a command touch this session's pooled engine": see
-   *  `RunRegistry.channelEngineBusy`. */
+   *  `core/session-state.ts`'s `channelEngineBusy`. */
   engineBusy(session: { sessionId: string; channel: string }): boolean;
   queue: {
     has(channel: string): boolean;
@@ -60,7 +61,7 @@ export interface CompactSessionDeps {
 
 const defaultDeps: CompactSessionDeps = {
   sessions: sessionStore,
-  engineBusy: (session) => runRegistry.channelEngineBusy(session.channel, session.sessionId),
+  engineBusy: (session) => channelEngineBusy(session.channel, session.sessionId),
   queue: {
     has: (channel) => conduitQueues.has(channel),
     run: enqueueAndWait,

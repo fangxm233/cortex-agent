@@ -1,6 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { RunRegistry } from '../../src/core/run-registry.js';
+import { SessionHolds } from '../../src/core/session-holds.js';
 
 // The queryable snapshot of the web bg-hold (session.status backgroundRunning delta):
 // mirrors the event stream so sessions.list can restore the state on any client
@@ -8,42 +8,42 @@ import { RunRegistry } from '../../src/core/run-registry.js';
 // said running:true AND backgroundRunning:true; anything else clears.
 
 test('marks a session held on running+backgroundRunning', () => {
-  const t = new RunRegistry();
+  const t = new SessionHolds();
   t.onSessionStatus({ sessionId: 's1', running: true, backgroundRunning: true });
   assert.equal(t.has('s1'), true);
   assert.equal(t.has('s2'), false);
 });
 
 test('clears the hold when running:false lands (seal / max-wait release)', () => {
-  const t = new RunRegistry();
+  const t = new SessionHolds();
   t.onSessionStatus({ sessionId: 's1', running: true, backgroundRunning: true });
   t.onSessionStatus({ sessionId: 's1', running: false, backgroundRunning: false });
   assert.equal(t.has('s1'), false);
 });
 
 test('a plain turn start (running:true, no bg flag) clears the hold — foreground turn supersedes', () => {
-  const t = new RunRegistry();
+  const t = new SessionHolds();
   t.onSessionStatus({ sessionId: 's1', running: true, backgroundRunning: true });
   t.onSessionStatus({ sessionId: 's1', running: true });
   assert.equal(t.has('s1'), false);
 });
 
 test('a plain turn end (running:false, no bg flag) clears the hold', () => {
-  const t = new RunRegistry();
+  const t = new SessionHolds();
   t.onSessionStatus({ sessionId: 's1', running: true, backgroundRunning: true });
   t.onSessionStatus({ sessionId: 's1', running: false });
   assert.equal(t.has('s1'), false);
 });
 
 test('re-arm keeps the session held across chained background work', () => {
-  const t = new RunRegistry();
+  const t = new SessionHolds();
   t.onSessionStatus({ sessionId: 's1', running: true, backgroundRunning: true });
   t.onSessionStatus({ sessionId: 's1', running: true, backgroundRunning: true });
   assert.equal(t.has('s1'), true);
 });
 
 test('sessions are tracked independently', () => {
-  const t = new RunRegistry();
+  const t = new SessionHolds();
   t.onSessionStatus({ sessionId: 's1', running: true, backgroundRunning: true });
   t.onSessionStatus({ sessionId: 's2', running: true, backgroundRunning: true });
   t.onSessionStatus({ sessionId: 's1', running: false });
@@ -52,13 +52,13 @@ test('sessions are tracked independently', () => {
 });
 
 test('events without a sessionId are ignored', () => {
-  const t = new RunRegistry();
+  const t = new SessionHolds();
   t.onSessionStatus({ sessionId: '', running: true, backgroundRunning: true });
   assert.equal(t.has(''), false);
 });
 
 test('clear() empties the registry (test hygiene / restart semantics)', () => {
-  const t = new RunRegistry();
+  const t = new SessionHolds();
   t.onSessionStatus({ sessionId: 's1', running: true, backgroundRunning: true });
   t.clear();
   assert.equal(t.has('s1'), false);
@@ -68,7 +68,7 @@ test('clear() empties the registry (test hygiene / restart semantics)', () => {
 // channel-keyed cancel path must find it here or Stop silently does nothing).
 
 test('records the channel a hold lives on (reverse lookup for the Stop path)', () => {
-  const t = new RunRegistry();
+  const t = new SessionHolds();
   t.onSessionStatus({ sessionId: 's1', channel: 'web:abc', running: true, backgroundRunning: true });
   t.onSessionStatus({ sessionId: 's2', channel: 'web:xyz', running: true, backgroundRunning: true });
   assert.deepEqual(t.sessionsOnChannel('web:abc'), ['s1']);
@@ -78,14 +78,14 @@ test('records the channel a hold lives on (reverse lookup for the Stop path)', (
 });
 
 test('sessionsOnChannel drops the session once the hold is sealed', () => {
-  const t = new RunRegistry();
+  const t = new SessionHolds();
   t.onSessionStatus({ sessionId: 's1', channel: 'web:abc', running: true, backgroundRunning: true });
   t.onSessionStatus({ sessionId: 's1', channel: 'web:abc', running: false, backgroundRunning: false });
   assert.deepEqual(t.sessionsOnChannel('web:abc'), []);
 });
 
 test('stopHolds() fires the registered seal exactly once', () => {
-  const t = new RunRegistry();
+  const t = new SessionHolds();
   let fired = 0;
   const seal = (): void => { fired++; };
   t.onSessionStatus({ sessionId: 's1', channel: 'web:abc', running: true, backgroundRunning: true });
@@ -97,12 +97,12 @@ test('stopHolds() fires the registered seal exactly once', () => {
 });
 
 test('stopHolds() on a session with no hold is a no-op', () => {
-  const t = new RunRegistry();
+  const t = new SessionHolds();
   assert.equal(t.stopHolds('nope'), false);
 });
 
 test('sealing the hold drops its handles (no stale Stop after the hold ends)', () => {
-  const t = new RunRegistry();
+  const t = new SessionHolds();
   let fired = 0;
   const seal = (): void => { fired++; };
   t.onSessionStatus({ sessionId: 's1', channel: 'web:abc', running: true, backgroundRunning: true });
@@ -113,7 +113,7 @@ test('sealing the hold drops its handles (no stale Stop after the hold ends)', (
 });
 
 test('clear() drops hold handles too', () => {
-  const t = new RunRegistry();
+  const t = new SessionHolds();
   const boom = (): never => { throw new Error('must not fire'); };
   t.onSessionStatus({ sessionId: 's1', channel: 'web:abc', running: true, backgroundRunning: true });
   t.setHoldHandles('s1', 'web-status-hold', { onSuperseded: boom, onStop: boom });

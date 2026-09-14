@@ -1,5 +1,6 @@
 import { createLogger } from '@core/log.js';
 import type { SystemTurnOrigin } from '@core/types/agent-types.js';
+import { sessionHolds } from '@core/session-holds.js';
 import { runRegistry } from '@core/run-registry.js';
 import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
 import type { SubagentToolResult } from '@core/agents/subagent/orchestrate.js';
@@ -61,7 +62,7 @@ export function holdSessionForBackgroundRun(
   const assert = (): void => {
     if (!sessionId || !channel) return;
     publishSessionStatus({ sessionId, channel, running: true, backgroundRunning: true });
-    runRegistry.setHoldHandles(sessionId, holdOwner, { onStop: () => { stopSubagentRun(view.id); } });
+    sessionHolds.setHoldHandles(sessionId, holdOwner, { onStop: () => { stopSubagentRun(view.id); } });
   };
 
   // Re-assert the STATUS on the foreground turn's own `running:false`, which is published while
@@ -82,7 +83,7 @@ export function holdSessionForBackgroundRun(
     if (released) return;
     released = true;
     subscription?.unsubscribe();
-    if (sessionId) runRegistry.dropHoldHandles(sessionId, holdOwner);
+    if (sessionId) sessionHolds.dropHoldHandles(sessionId, holdOwner);
     trackPendingTask(-1);
     // Only seal the session idle if nothing else is running on it — the common case is a
     // background run that outlived nothing at all, with the parent's turn still in flight.

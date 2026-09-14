@@ -11,7 +11,7 @@ import type { CostSummary } from '@domain/costs/cost-tracker.js';
 import type { ProviderUsage } from '@domain/costs/usage-store.js';
 export type { ProviderUsage, UsageBilling, UsageFreshness, UsageWindow } from '@domain/costs/usage-store.js';
 import type { EventBus } from '@events/index.js';
-import type { RunRegistry } from '@core/run-registry.js';
+import type { SessionStateReader } from '@core/session-state.js';
 import type {
   ProviderRateLimitPolicyOverride,
   ProviderRateLimits,
@@ -2905,7 +2905,9 @@ export interface UiServiceDeps {
     stopTail(executionId: string): void;
     refCount(executionId: string): number;
   };
-  runningExecutions: RunRegistry;
+  /** The one busy answer (core/session-state.ts): sessions.list joins on it rather than
+   *  re-deriving "running" from the executions index and the hold registry separately. */
+  runningExecutions: SessionStateReader;
   costSummary: (projectId?: string | null) => Promise<CostSummary>;
   /**
    * Registry of connected cortex-client devices (from remote/client-manager) plus the

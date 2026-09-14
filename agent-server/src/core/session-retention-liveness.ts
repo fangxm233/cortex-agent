@@ -1,11 +1,12 @@
 import type { RetentionLivenessSnapshot } from '@domain/sessions/session-retention.js';
 import type { RunRegistry } from './run-registry.js';
+import type { SessionHolds } from './session-holds.js';
 import type { InteractionRecords } from '@orch/interactions/interaction-records.js';
 import type { ThreadRecord } from './types/thread-types.js';
 
 export interface SessionRetentionLivenessDeps {
   runningExecutions: Pick<RunRegistry, 'getAll'>;
-  bgHeldSessions?: Pick<RunRegistry, 'listIds'>;
+  bgHeldSessions?: Pick<SessionHolds, 'listIds'>;
   interactionRecords?: Pick<InteractionRecords, 'pendingSessionIds'>;
   pendingDirectResumeSessionIds?: Iterable<string>;
   threads?: Iterable<Pick<ThreadRecord, 'status' | 'agents' | 'steps'>>;

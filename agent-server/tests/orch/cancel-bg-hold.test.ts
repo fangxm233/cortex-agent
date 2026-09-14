@@ -11,8 +11,9 @@ import { cancelBgHolds, cancelChannelRuns, cancelSubagentRuns } from '../../src/
 import type { RunningExecution } from '../../src/core/run-registry.js';
 import { beginForegroundSession } from '../../src/orchestration/agent-runner.js';
 import { runRegistry } from '../../src/core/run-registry.js';
+import { sessionHolds } from '../../src/core/session-holds.js';
 
-beforeEach(() => runRegistry.clear());
+beforeEach(() => sessionHolds.clear());
 
 test('no hold on the channel → 0, and nothing is killed', () => {
   const kills: string[] = [];
@@ -63,18 +64,18 @@ test('a kill failure still seals the hold (never leave the UI stuck running)', (
 
 test('end-to-end against the real registry: held session is found by channel and sealed', () => {
   let sealed = 0;
-  runRegistry.onSessionStatus({ sessionId: 'sess-1', channel: 'web:live', running: true, backgroundRunning: true });
+  sessionHolds.onSessionStatus({ sessionId: 'sess-1', channel: 'web:live', running: true, backgroundRunning: true });
   const seal = (): void => {
     sealed++;
     // The real seal publishes running:false, which flows back through the bus into the registry.
-    runRegistry.onSessionStatus({ sessionId: 'sess-1', channel: 'web:live', running: false, backgroundRunning: false });
+    sessionHolds.onSessionStatus({ sessionId: 'sess-1', channel: 'web:live', running: false, backgroundRunning: false });
   };
-  runRegistry.setHoldHandles('sess-1', 'web-status-hold', { onSuperseded: seal, onStop: seal });
+  sessionHolds.setHoldHandles('sess-1', 'web-status-hold', { onSuperseded: seal, onStop: seal });
 
   const n = cancelBgHolds('web:live', { killPooled: () => true });
   assert.equal(n, 1);
   assert.equal(sealed, 1);
-  assert.equal(runRegistry.has('sess-1'), false, 'hold cleared');
+  assert.equal(sessionHolds.has('sess-1'), false, 'hold cleared');
   assert.equal(cancelBgHolds('web:live', { killPooled: () => true }), 0, 'second Stop finds nothing');
 });
 
@@ -85,13 +86,13 @@ test('Stop seals the hold even when the held session still has a live execution'
   // therefore kill the backend and leave the Web session reporting "Background" forever.
   let sealed = 0;
   let killed = 0;
-  runRegistry.onSessionStatus({ sessionId: 'sess-1', channel: 'web:both', running: true, backgroundRunning: true });
+  sessionHolds.onSessionStatus({ sessionId: 'sess-1', channel: 'web:both', running: true, backgroundRunning: true });
   const seal = (): void => {
     sealed++;
     // The real seal publishes running:false, which flows back through the bus into the registry.
-    runRegistry.onSessionStatus({ sessionId: 'sess-1', channel: 'web:both', running: false, backgroundRunning: false });
+    sessionHolds.onSessionStatus({ sessionId: 'sess-1', channel: 'web:both', running: false, backgroundRunning: false });
   };
-  runRegistry.setHoldHandles('sess-1', 'web-status-hold', { onSuperseded: seal, onStop: seal });
+  sessionHolds.setHoldHandles('sess-1', 'web-status-hold', { onSuperseded: seal, onStop: seal });
   runRegistry.register({
     threadId: null, channel: 'web:both', agentSlotId: null, executionId: 'exec-both',
     kill: () => { killed++; return true; }, backend: 'claude', trackSessionId: 'sess-1',
@@ -102,32 +103,32 @@ test('Stop seals the hold even when the held session still has a live execution'
   assert.equal(sealed, 1, 'the hold was sealed');
   assert.equal(killed >= 1, true, 'the backend was stopped');
   assert.equal(n, 1, 'one cancellation, not two — a run and its own hold are the same click');
-  assert.equal(runRegistry.has('sess-1'), false, 'hold cleared');
+  assert.equal(sessionHolds.has('sess-1'), false, 'hold cleared');
 });
 
 test('new foreground turn releases the old hold before publishing running:true', () => {
   const order: string[] = [];
-  runRegistry.onSessionStatus({
+  sessionHolds.onSessionStatus({
     sessionId: 'sess-1', channel: 'web:live', running: true, backgroundRunning: true,
   });
   const seal = (): void => {
     order.push('release-old-hold');
-    runRegistry.onSessionStatus({
+    sessionHolds.onSessionStatus({
       sessionId: 'sess-1', channel: 'web:live', running: false, backgroundRunning: false,
     });
   };
-  runRegistry.setHoldHandles('sess-1', 'web-status-hold', { onSuperseded: seal, onStop: seal });
+  sessionHolds.setHoldHandles('sess-1', 'web-status-hold', { onSuperseded: seal, onStop: seal });
 
   beginForegroundSession('sess-1', 'web:live', {
-    supersedeHolds: (sessionId) => runRegistry.supersedeHolds(sessionId),
+    supersedeHolds: (sessionId) => sessionHolds.supersedeHolds(sessionId),
     publishRunning: () => order.push('publish-running'),
   });
 
   assert.deepEqual(order, ['release-old-hold', 'publish-running']);
-  assert.equal(runRegistry.has('sess-1'), false, 'superseded hold no longer owns busy state');
+  assert.equal(sessionHolds.has('sess-1'), false, 'superseded hold no longer owns busy state');
 
   beginForegroundSession('sess-1', 'web:live', {
-    supersedeHolds: (sessionId) => runRegistry.supersedeHolds(sessionId),
+    supersedeHolds: (sessionId) => sessionHolds.supersedeHolds(sessionId),
     publishRunning: () => order.push('publish-running-again'),
   });
   assert.deepEqual(order, ['release-old-hold', 'publish-running', 'publish-running-again'],

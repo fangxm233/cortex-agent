@@ -1,5 +1,5 @@
 import { createLogger } from '@core/log.js';
-import { runRegistry } from '@core/run-registry.js';
+import { activeTurns } from '../turn/active-turns.js';
 import type { EventBus } from '@events/index.js';
 import type { ChatNoticeLevel } from '@core/types/agent-types.js';
 
@@ -126,19 +126,24 @@ setInterval(() => cleanupStale(), 5 * 60 * 1000).unref();
 
 // --- Per-channel streaming context (for thread-aware hook messages) ---
 
-/** Register the active onAssistantMessage callback for a channel (called by app.ts before runAgent). */
+// T2.1: the slot itself moved to `turn/active-turns.ts` (it is per-channel turn state, not an
+// execution index). These three stay as thin wrappers because `status-renderer.ts`,
+// `hook-bridge-subscribers.ts` and `interactions/interaction-handlers.ts` still import them;
+// Phase 4 points those at `activeTurns` and deletes these.
+
+/** Register the active onAssistantMessage callback for a channel (called by the Turn). */
 function setStreamingCallback(channel: string, cb: (text: string) => void) {
-  runRegistry.setStreaming(channel, cb);
+  activeTurns.setStreamingCallback(channel, cb);
 }
 
-/** Clear the streaming callback when the turn ends (called by app.ts after runAgent). */
+/** Clear the streaming callback when the turn ends (or a background hold seals). */
 function clearStreamingCallback(channel: string) {
-  runRegistry.clearStreaming(channel);
+  activeTurns.clearStreamingCallback(channel);
 }
 
 /** Get the active streaming callback for a channel, if any. */
 function getStreamingCallback(channel: string): ((text: string) => void) | null {
-  return runRegistry.getStreaming(channel);
+  return activeTurns.streamingCallback(channel);
 }
 
 /**

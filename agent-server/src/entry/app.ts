@@ -61,6 +61,8 @@ import { ensureMcpConfig, shouldSyncManagedStartupAssets } from './startup-helpe
 import { createLogger } from '@core/log.js';
 import { captureAuthTokensForRuntime, ensureAuthTokens } from '@core/auth.js';
 import { runRegistry } from '@core/run-registry.js';
+import { sessionHolds } from '@core/session-holds.js';
+import { sessionStates } from '@core/session-state.js';
 import { getSettings, onSettingsChange } from '@core/settings.js';
 import { sessionTodos } from '@core/session-todos.js';
 import { buildSessionRetentionLiveness } from '@core/session-retention-liveness.js';
@@ -162,7 +164,7 @@ const log = createLogger('app');
 function retentionLiveness(): RetentionLivenessSnapshot {
   return buildSessionRetentionLiveness({
     runningExecutions: runRegistry,
-    bgHeldSessions: runRegistry,
+    bgHeldSessions: sessionHolds,
     interactionRecords,
     pendingDirectResumeSessionIds: pendingDirectTrackSessionIds(),
     threads: threadStore.getAll(),
@@ -306,7 +308,7 @@ setOnStale((requestId, channel) => {
 runRegistry.setBus(bus);   // S6-A: wire lifecycle events
 // Web bg-hold snapshot: mirror every session.status event into the bg-held registry so
 // sessions.list can serve the held state as a queryable snapshot (snapshot + delta).
-bus.subscribe('session.status', (e) => runRegistry.onSessionStatus(e));
+bus.subscribe('session.status', (e) => sessionHolds.onSessionStatus(e));
 planApprovals.setBus(bus);  // S6-A: wire plan.approved events
 busyTracker.setBus(bus);    // S6-C: wire busy/idle IPC through event bus
 taskMutator.setBus(bus);    // c39d: wire task lifecycle events
@@ -533,7 +535,7 @@ process.on('SIGTERM', async () => {
     executionRegistry,
     executionLogTailer,
     approvalsPath: path.join(CONTEXT_DIR, 'PENDING_APPROVALS.md'),
-    runningExecutions: runRegistry,
+    runningExecutions: sessionStates,
     costSummary: getCostSummary,
     conversationHistory,
     pendingInjections: pendingInjectionRepo,

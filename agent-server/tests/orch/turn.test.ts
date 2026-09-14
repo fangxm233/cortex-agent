@@ -25,7 +25,7 @@ import { openTurn, type TurnInput } from '../../src/orchestration/turn/turn.js';
 import { activeTurns } from '../../src/orchestration/turn/active-turns.js';
 import { ctx as jobCtx } from '../../src/domain/scheduling/job-registry.js';
 import { conversationLedger } from '../../src/store/conversation-ledger-repo.js';
-import { runRegistry } from '../../src/core/run-registry.js';
+import { sessionHolds } from '../../src/core/session-holds.js';
 import { MockAdapter } from '../../src/platform/testing.js';
 
 function agentResult(partial: Partial<AgentResult> = {}): AgentResult {
@@ -182,7 +182,7 @@ test('when a background hold takes over, openTurn resolves and publishes no runn
     'running:true, then the hold’s running+background — and no idle seal',
   );
   // The hold owns the seal. Firing it (what Stop does) is what ends the session.
-  runRegistry.stopHolds(sessionId);
+  sessionHolds.stopHolds(sessionId);
   assert.deepEqual(h.statuses.at(-1), { running: false, backgroundRunning: false });
 });
 

@@ -10,8 +10,7 @@ import { deleteSessionAsync } from '@domain/sessions/session.js';
 import { resolveBackendForChannel } from '@domain/agents/index.js';
 import type { RunRegistry } from '../../core/run-registry.js';
 import { conduitQueues } from '../conduit-queue.js';
-import { supersededEdits } from '../superseded-edits.js';
-import { isTurnTrackingPending, markPendingTurnSuperseded, waitForTurnTracking } from '../lifecycle.js';
+import { activeTurns } from '../turn/active-turns.js';
 import { acquireTurnMutationLock } from '../turn-mutation-lock.js';
 
 const log = createLogger('edit-handler');
@@ -98,10 +97,10 @@ interface ProcessEditArgs {
 }
 
 async function processEdit(args: ProcessEditArgs): Promise<void> {
-  const snapshotPending = args.deps.isTurnTrackingPending ?? isTurnTrackingPending;
+  const snapshotPending = args.deps.isTurnTrackingPending ?? ((c: string) => activeTurns.trackingPending(c));
   if (snapshotPending(args.channel)) {
-    (args.deps.markPendingTurnSuperseded ?? markPendingTurnSuperseded)(args.channel);
-    await (args.deps.waitForTurnTracking ?? waitForTurnTracking)(args.channel);
+    (args.deps.markPendingTurnSuperseded ?? ((c: string) => activeTurns.markTrackingSuperseded(c)))(args.channel);
+    await (args.deps.waitForTurnTracking ?? ((c: string) => activeTurns.waitForTracking(c)))(args.channel);
   }
   const releaseMutation = await acquireTurnMutationLock(args.channel);
   try {
@@ -213,7 +212,7 @@ async function restoreEditedSession(
 
 function stopActiveEdit(channel: string, activeAgents: RunRegistry): void {
   if (!activeAgents.hasChannel(channel)) return;
-  supersededEdits.mark(channel);
+  activeTurns.markSuperseded(channel, 'edit');
   activeAgents.supersedeByChannel(channel, 'edit');
   conduitQueues.delete(channel);
   log.info('Killed active process for edit retry');

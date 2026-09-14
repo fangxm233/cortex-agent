@@ -5,6 +5,7 @@ import type { Destination, PlatformAdapter } from '@platform/index.js';
 import type { CommandResult } from './command-context.js';
 import type { CommandActionRouter } from '@orch/interactions/command-action-router.js';
 import { runRegistry, type RunningExecution } from '../../../core/run-registry.js';
+import { sessionHolds } from '../../../core/session-holds.js';
 import { engines } from '@domain/runs/engines.js';
 import { stopSubagentRunsForSession } from '@domain/agents/subagent/registry.js';
 import { conduitQueues } from '../../conduit-queue.js';
@@ -52,9 +53,9 @@ export interface BgHoldCancelDeps {
  *  the adapter only delivers its interrupted-notification when work is still pending, so a hold
  *  installed for finished-but-unnotified work would never be sealed by it. */
 export function cancelBgHolds(channel: string, deps: BgHoldCancelDeps = {}): number {
-  const heldSessions = deps.heldSessions ?? ((c: string) => runRegistry.sessionsOnChannel(c));
+  const heldSessions = deps.heldSessions ?? ((c: string) => sessionHolds.sessionsOnChannel(c));
   const killPooled = deps.killPooled ?? ((c: string) => engines.kill(c));
-  const stopHolds = deps.stopHolds ?? ((s: string) => runRegistry.stopHolds(s));
+  const stopHolds = deps.stopHolds ?? ((s: string) => sessionHolds.stopHolds(s));
 
   const held = heldSessions(channel);
   if (held.length === 0) return 0;
@@ -87,7 +88,7 @@ export interface SubagentCancelDeps {
  *  both of which are already counted. */
 export function cancelSubagentRuns(channel: string, deps: SubagentCancelDeps = {}): number {
   const liveExecutions = deps.liveExecutions ?? ((c: string) => runRegistry.getByChannel(c));
-  const heldSessions = deps.heldSessions ?? ((c: string) => runRegistry.sessionsOnChannel(c));
+  const heldSessions = deps.heldSessions ?? ((c: string) => sessionHolds.sessionsOnChannel(c));
   const stopForSession = deps.stopForSession ?? stopSubagentRunsForSession;
 
   const sessionIds = new Set<string>();
