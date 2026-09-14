@@ -5,6 +5,7 @@
 
 import type { IncomingMessage, PlatformAdapter } from '@platform/index.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
+import type { SystemTurnOrigin } from '@core/types/agent-types.js';
 import { agentRunner, type AgentRunnerCtx } from './agent-runner.js';
 import type { TurnMutationRelease } from './turn-mutation-lock.js';
 
@@ -16,11 +17,13 @@ export function buildWebUserMessage(
   channel: string,
   text: string,
   attachments?: AttachmentMeta[],
+  systemOrigin?: SystemTurnOrigin,
 ): IncomingMessage {
   return {
     ref: { conduit: channel, messageId: `web_${Date.now()}` },
     text,
     senderId: WEB_UI_SENDER,
+    ...(systemOrigin ? { systemOrigin } : {}),
     isBot: false,
     kind: 'user',
     raw: { source: 'web-ui' },
@@ -39,9 +42,12 @@ export function sendWebUserMessage(opts: {
   attachments?: AttachmentMeta[];
   adapter: PlatformAdapter;
   mutationRelease?: TurnMutationRelease;
+  /** Set when Cortex, not the human, authored this turn (a backgrounded `agent` run reporting its
+   *  result). The seam is shared with genuinely typed web messages, which pass nothing here. */
+  systemOrigin?: SystemTurnOrigin;
   route?: (ctx: AgentRunnerCtx) => Promise<void>;
 }): void {
-  const message = buildWebUserMessage(opts.channel, opts.text, opts.attachments);
+  const message = buildWebUserMessage(opts.channel, opts.text, opts.attachments, opts.systemOrigin);
   const route = opts.route ?? ((ctx: AgentRunnerCtx) => agentRunner.route(ctx));
   void route({
     message,

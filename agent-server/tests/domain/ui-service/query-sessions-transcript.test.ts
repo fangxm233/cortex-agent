@@ -54,6 +54,45 @@ test('sessions.transcript exposes debug metadata and derives large-tool warnings
   assert.ok(!('overCharacterThreshold' in history.events[1].debug!), 'derived warning is not persisted');
 });
 
+test('sessions.transcript reports the system origin on user rows and nowhere else', async () => {
+  const history: SessionHistory = {
+    sessionId: 'sess-origin',
+    events: [
+      { type: 'user', text: 'go', ts: '2026-07-07T00:00:00.000Z', turnIndex: 0 },
+      { type: 'assistant', text: 'ok', ts: '2026-07-07T00:00:01.000Z', turnIndex: 0 },
+      {
+        type: 'user', text: '[Task done] #ab12', ts: '2026-07-07T00:00:02.000Z', turnIndex: 1,
+        systemOrigin: 'task-callback',
+      },
+    ],
+  } as SessionHistory;
+
+  const transcript = await handleSessionsTranscript(makeDeps(history), { sessionId: 'sess-origin' });
+  const [human, assistant] = transcript.turns[0].messages;
+  assert.equal('systemOrigin' in human, false, 'a typed turn carries no tag');
+  assert.equal('systemOrigin' in assistant, false, 'the field is user-only');
+  assert.equal(transcript.turns[1].messages[0].systemOrigin, 'task-callback');
+});
+
+test('sessions.transcript carries the system origin on a pending (not yet read) row', async () => {
+  const deps = {
+    conversationHistory: { getHistory: async () => null },
+    pendingInjections: {
+      listBySession: async () => [
+        { id: 'pin-1', text: 'typed while busy', createdAt: '2026-07-07T00:00:00.000Z' },
+        {
+          id: 'pin-2', text: '[Background agent bg-1 — probe]', createdAt: '2026-07-07T00:00:01.000Z',
+          systemOrigin: 'agent-result' as const,
+        },
+      ],
+    },
+  } as unknown as UiServiceDeps;
+
+  const transcript = await handleSessionsTranscript(deps, { sessionId: 'sess-pending' });
+  assert.equal('systemOrigin' in transcript.pendingUserMessages![0], false);
+  assert.equal(transcript.pendingUserMessages![1].systemOrigin, 'agent-result');
+});
+
 test('sessions.debugDetails fetches one full tool payload only while DEBUG is enabled', async (t) => {
   const previous = process.env.DEBUG;
   t.onTestFinished(() => {

@@ -5,7 +5,7 @@
 
 import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
 import type { AttachmentMeta, DecisionItem } from '@domain/ui-service/types.js';
-import type { ChatNoticeLevel, NoticeAction, SessionContextUsage, TodoSnapshot } from '@core/types/agent-types.js';
+import type { ChatNoticeLevel, NoticeAction, SessionContextUsage, SystemTurnOrigin, TodoSnapshot } from '@core/types/agent-types.js';
 import type { SubagentSpawnRef } from '../agent-adapter/normalize/event-types.js';
 
 export interface SessionMessagePayload {
@@ -13,6 +13,10 @@ export interface SessionMessagePayload {
   channel: string;
   role: 'user' | 'assistant' | 'tool';
   text: string;
+  /** User messages only: Cortex authored this turn (resume signal, task/thread callback, subtask
+   *  question, backgrounded agent result) rather than a human. Chat surfaces render it as a hint
+   *  instead of a user bubble. Absent = human. */
+  systemOrigin?: SystemTurnOrigin;
   toolName?: string;
   toolInput?: string;
   toolDevice?: string;
@@ -91,6 +95,7 @@ export function publishSessionMessage(p: SessionMessagePayload): void {
     channel: p.channel,
     role: p.role,
     text: p.text,
+    ...(p.systemOrigin !== undefined ? { systemOrigin: p.systemOrigin } : {}),
     ...(p.toolName !== undefined ? { toolName: p.toolName } : {}),
     ...(p.toolInput !== undefined ? { toolInput: p.toolInput } : {}),
     ...(p.toolDevice !== undefined ? { toolDevice: p.toolDevice } : {}),

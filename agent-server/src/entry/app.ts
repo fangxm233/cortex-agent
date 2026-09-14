@@ -840,7 +840,7 @@ process.on('SIGTERM', async () => {
 
   // A backgrounded `agent` run reports back as an ordinary user turn, the same seam a non-blocking
   // cortex_ask_user answer uses. Bound here because only the composition root holds the adapter.
-  setSubagentTurnSender(({ channel, text }) => sendWebUserMessage({ channel, text, adapter }));
+  setSubagentTurnSender(({ channel, text, systemOrigin }) => sendWebUserMessage({ channel, text, systemOrigin, adapter }));
   // The same seam for PI's in-process `agent`: registering a background run reaches the delivery
   // route above, so the adapter declares the port (D10) and the composition root fills it.
   setPiBackgroundSubagentBridge({ startBackgroundSubagent, stopBackgroundSubagent });

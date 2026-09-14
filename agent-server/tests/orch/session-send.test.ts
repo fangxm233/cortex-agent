@@ -11,6 +11,29 @@ test('buildWebUserMessage builds a GENUINE user turn (senderId != synthetic call
   assert.equal(m.ref.conduit, 'C123');
   assert.notEqual(m.senderId, SYNTHETIC_CALLBACK_SENDER);
   assert.equal(m.senderId, WEB_UI_SENDER);
+  assert.equal('systemOrigin' in m, false, 'a typed web message is authored by the human');
+});
+
+test('buildWebUserMessage carries a system origin when Cortex authored the turn', () => {
+  const m = buildWebUserMessage('C123', '[Background agent bg-1 — probe]\n\ndone', undefined, 'agent-result');
+  // Still a genuine user turn for routing (it must fold into the live turn like a typed message);
+  // the tag only changes how a chat surface draws it.
+  assert.equal(m.senderId, WEB_UI_SENDER);
+  assert.equal(m.systemOrigin, 'agent-result');
+});
+
+test('sendWebUserMessage forwards the system origin onto the routed message', async () => {
+  const calls: any[] = [];
+  sendWebUserMessage({
+    channel: 'C123',
+    text: 'delivered',
+    adapter: { name: 'mock' } as any,
+    systemOrigin: 'agent-result',
+    route: async (ctx) => { calls.push(ctx); },
+  });
+  await Promise.resolve();
+
+  assert.equal(calls[0].message.systemOrigin, 'agent-result');
 });
 
 test('sendWebUserMessage routes a genuine user message with the right ctx (fire-and-forget)', async () => {

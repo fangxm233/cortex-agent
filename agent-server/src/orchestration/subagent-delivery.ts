@@ -4,6 +4,7 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { createLogger } from '@core/log.js';
+import type { SystemTurnOrigin } from '@core/types/agent-types.js';
 import { runRegistry } from '@core/run-registry.js';
 import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
 import type { SubagentToolResult } from '@core/agents/subagent/orchestrate.js';
@@ -23,7 +24,9 @@ const log = createLogger('subagent-delivery');
  * the result is logged and dropped rather than queued: a turn that arrives hours later out of
  * context is worse than none.
  */
-export type SubagentTurnSender = (opts: { channel: string; text: string }) => void;
+export type SubagentTurnSender = (
+  opts: { channel: string; text: string; systemOrigin: SystemTurnOrigin },
+) => void;
 
 let sendTurn: SubagentTurnSender | null = null;
 
@@ -152,7 +155,7 @@ export function deliverBackgroundSubagentResult(
     return;
   }
   try {
-    sendTurn({ channel, text: deliveryText(view, result) });
+    sendTurn({ channel, text: deliveryText(view, result), systemOrigin: 'agent-result' });
   } catch (error) {
     log.error(`Background agent ${view.id} delivery failed: ${(error as Error).message}`);
   }

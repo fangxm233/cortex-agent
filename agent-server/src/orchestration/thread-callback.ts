@@ -23,6 +23,7 @@ import type { ThreadRecord, RunThreadOptions } from '@core/types/thread-types.js
 import type { PlatformAdapter } from '@platform/index.js';
 import type { IncomingMessage, Destination } from '@platform/index.js';
 import { SYNTHETIC_CALLBACK_SENDER } from '@platform/types.js';
+import type { SystemTurnOrigin } from '@core/types/agent-types.js';
 
 const log = createLogger('thread-callback');
 
@@ -520,21 +521,26 @@ type WakeFn = (channel: string, notice: string) => void | Promise<void>;
  *  session still exists. */
 /** Message shape wakeSession routes. Exported so the guard side (agent-runner's human-backstop
  *  skip) and tests can stay in sync with the exact synthetic shape by construction. */
-export function buildSyntheticWakeMessage(channel: string, notice: string, tag: string): IncomingMessage {
+export function buildSyntheticWakeMessage(
+  channel: string, notice: string, tag: string, systemOrigin: SystemTurnOrigin = 'task-callback',
+): IncomingMessage {
   return {
     ref: { conduit: channel, messageId: `cb_${tag}_${Date.now()}` },
     text: notice,
     senderId: SYNTHETIC_CALLBACK_SENDER,
+    systemOrigin,
     isBot: false,
     kind: 'user',
     raw: { source: 'task-callback', tag },
   };
 }
 
-export async function wakeSession(channel: string, notice: string, tag: string): Promise<void> {
+export async function wakeSession(
+  channel: string, notice: string, tag: string, systemOrigin: SystemTurnOrigin = 'task-callback',
+): Promise<void> {
   const adapter = jobCtx.adapter;
   if (!adapter) { log.error(`no adapter; cannot wake session on ${channel} (${tag})`); return; }
-  const message = buildSyntheticWakeMessage(channel, notice, tag);
+  const message = buildSyntheticWakeMessage(channel, notice, tag, systemOrigin);
   log.info(`waking session on ${channel} for ${tag}`);
   await agentRunner.route({
     message, channel, adapter, threadAnchorId: null, hasFiles: false, userMessage: notice, agentMessage: notice,
@@ -821,7 +827,7 @@ export async function fireThreadCallback(threadId: string): Promise<void> {
   const notice = buildNotice(threadId);
 
   if (m.parentChannel) {
-    await wakeSession(m.parentChannel, notice, `thr_${threadId}`);
+    await wakeSession(m.parentChannel, notice, `thr_${threadId}`, 'thread-callback');
     return;
   }
 

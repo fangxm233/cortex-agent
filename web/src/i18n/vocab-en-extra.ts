@@ -272,6 +272,13 @@ export const enExtra = {
   authLoginStart: 'Start login',
   authLoginAgain: 'Log in again',
   noticeRateLimitAutoResume: 'Rate limited — this chat will resume automatically when the limit resets.',
+  // System-authored user turns rendered as a hint row instead of a user bubble.
+  chatSystemOriginResume: 'Auto-resumed',
+  chatSystemOriginTaskCallback: 'Task callback',
+  chatSystemOriginThreadCallback: 'Thread callback',
+  chatSystemOriginSubtaskQuestion: 'Subtask question',
+  chatSystemOriginAgentResult: 'Background agent result',
+  chatSystemOriginGeneric: 'System message',
   noticeCancelResume: "Don't resume",
   noticeCancelResumeDone: 'Resume cancelled',
   authLoginSubmit: 'Submit',

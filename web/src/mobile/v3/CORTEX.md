@@ -9,7 +9,7 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 | m-chat-attachments.ts | hook | Adapts mobile draft persistence to the neutral attachment controller |
 | MChatInlineThreadCard.tsx | view | Binds the selected session's live inline thread stepper |
 | MChatScreen.optimistic.test.tsx | test | Tests status, optimistic sends and slash feedback |
-| MChatView.tsx | view | Contains sticky chat headers and Session ID overlay |
+| MChatView.tsx | view | Contains sticky chat headers, the row stream (system-authored turns as hint rows) and the Session ID overlay |
 | MChatView.types.ts | types | Shares functional chat and sheet contracts |
 | MChatMessageActions.tsx | view | Renders success-only shared copy, long-press and edit actions |
 | MChatAttachments.tsx | view | Renders transcript cards and queued/progress/retry/remove composer chips |

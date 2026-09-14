@@ -430,6 +430,33 @@ test('lazy platform files join Web attachments for backend injection without cha
   assert.match(r.persisted[0].agentMessage, new RegExp(platformPath));
 });
 
+test('a backgrounded agent result carries its system origin onto the record and the provisional row', async () => {
+  const run = fakeRun();
+  const r = recorder({}, run);
+
+  assert.equal(await tryInjectIntoLiveTurn(r.deps, {
+    ...baseCtx,
+    text: '[Background agent bg-1 — check the logs]\n\nnothing on fire',
+    systemOrigin: 'agent-result',
+  }), true);
+
+  // Both halves must carry it: the durable record is what a reload/other device reads, and the
+  // provisional publish is what the open chat draws while the model has not read the message yet.
+  // Without the second one the full result would flash as a user bubble and then collapse.
+  assert.equal(r.persisted[0].systemOrigin, 'agent-result');
+  assert.equal(r.published[0].systemOrigin, 'agent-result');
+});
+
+test('a message the human typed carries no system origin at all', async () => {
+  const run = fakeRun();
+  const r = recorder({}, run);
+
+  assert.equal(await tryInjectIntoLiveTurn(r.deps, baseCtx), true);
+
+  assert.equal('systemOrigin' in r.persisted[0], false, 'absent, not undefined — it is persisted');
+  assert.equal(r.published[0].systemOrigin, undefined);
+});
+
 // --- Fold-in, seen from orchestration ---
 
 test('fold-in ack: commits the message and releases the busy gate', async () => {

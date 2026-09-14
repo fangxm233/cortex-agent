@@ -4,8 +4,9 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLang } from '@/i18n';
+import { useLang, useVocab } from '@/i18n';
 import type { ChatRow } from './transcript-vm';
+import type { SystemTurnOrigin } from '@cortex-agent/ui-contract';
 import { ChatNavRail } from './ChatNavRail';
 import { buildNavMarks, sameNavRows, visibleNavRows } from './chat-nav';
 import { ToolCallsRow } from './ToolCallsRow';
@@ -20,7 +21,7 @@ import { DeskAskCard, DeskPlanCard, D_INT_COPY } from './InteractionCards';
 import { DecisionCardGroup } from './DecisionCards';
 import type { DecisionItem } from '@cortex-agent/ui-contract';
 import { PlanReadOverlay } from './PlanReadOverlay';
-import { rewindStats, regenNoteIndexes, messageTimeLabel, assistantTurnCopyTargets } from './transcript-vm';
+import { rewindStats, regenNoteIndexes, messageTimeLabel, assistantTurnCopyTargets, systemOriginLabel, systemOriginSummary } from './transcript-vm';
 import { useRevealedText } from './useRevealedText';
 import { DebugDetailsModal, DebugInspectButton, type DebugDetail } from './DebugDetailsModal';
 import { M_EDIT_COPY, MessageActions, EditBox, RewindNote, RewindTail, EditedBadge, RegenNote, type MEditCopy } from './MessageEdit';
@@ -176,6 +177,70 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
   );
 }
 
+/**
+ * A turn Cortex wrote, not the human: a resume signal, a task or thread callback, a subtask's
+ * question, a backgrounded agent's result.
+ *
+ * The model reads these as user turns and must — but drawing them as a user bubble puts words in
+ * the reader's mouth and buries the actual conversation under machine prose. So the row states the
+ * FACT (what produced it, one clipped line of what it said) and nothing else: no copy, no edit, no
+ * rewind — there is no human message here to restore. The complete text remains reachable through
+ * the `{ }` inspector, which the server only populates while DEBUG is on.
+ */
+function SystemHintRow({ origin, text, ts, pending, debug }: {
+  origin: SystemTurnOrigin;
+  text: string;
+  ts?: string;
+  /** Injected into the running turn but not read by the model yet — dims, like a pending bubble. */
+  pending?: boolean;
+  debug?: { agentMessage: string };
+}): JSX.Element {
+  const L = useVocab();
+  const [debugDetail, setDebugDetail] = useState<DebugDetail | null>(null);
+  const summary = systemOriginSummary(text);
+  const timeLabel = messageTimeLabel(ts);
+  return (
+    <div
+      className="group"
+      data-system-origin={origin}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+        padding: '4px 2px', opacity: pending ? 0.55 : 1,
+        animation: 'cxmsg .34s cubic-bezier(.22,1,.36,1) both',
+      }}
+    >
+      <span
+        aria-hidden="true"
+        style={{ width: 3, alignSelf: 'stretch', minHeight: 14, borderRadius: 2, background: 'var(--proto-line)', flex: 'none' }}
+      />
+      <span style={{ font: `600 10px ${mono}`, letterSpacing: '.04em', color: 'var(--proto-muted)', flex: 'none' }}>
+        {systemOriginLabel(origin, L)}
+      </span>
+      {summary && (
+        <span
+          title={summary}
+          style={{ fontSize: 11.5, color: 'var(--proto-faint)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+        >
+          {summary}
+        </span>
+      )}
+      <span style={{ flex: 1 }} />
+      {timeLabel && (
+        <span className="opacity-0 transition-opacity group-hover:opacity-100" style={{ font: `400 10px ${mono}`, color: 'var(--proto-faint)', whiteSpace: 'nowrap', flex: 'none' }}>
+          {timeLabel}
+        </span>
+      )}
+      {debug && (
+        <DebugInspectButton
+          compact
+          onClick={(event) => { event.stopPropagation(); setDebugDetail({ kind: 'user', agentMessage: debug.agentMessage }); }}
+        />
+      )}
+      <DebugDetailsModal detail={debugDetail} onClose={() => setDebugDetail(null)} />
+    </div>
+  );
+}
+
 function TurnCopyAction({ text, copy }: { text?: string; copy?: MEditCopy }): JSX.Element | null {
   if (!text || !copy) return null;
   return (
@@ -320,6 +385,9 @@ function Row({ row, interactionActions, editCopy, assistantCopyText, onStartEdit
     case 'divider':
       return <Divider text={row.text} />;
     case 'user':
+      if (row.systemOrigin) {
+        return <SystemHintRow origin={row.systemOrigin} text={row.text} ts={row.ts} pending={row.pending} debug={row.debug} />;
+      }
       return <UserBubble text={row.text} attachments={row.attachments} ts={row.ts} edited={row.edited} editCopy={editCopy} onStartEdit={onStartEdit} editDisabled={editDisabled} pending={row.pending} debug={row.debug} anchor={anchor} />;
     case 'tools':
       return (
@@ -404,7 +472,7 @@ export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy =
   const assistantCopies = turnCopy ? assistantTurnCopyTargets(rows) : new Map<number, string>();
 
   const editingRow = editingIdx != null ? rows[editingIdx] : null;
-  const editingValid = !!edit && !!editingRow && editingRow.kind === 'user' && editingRow.turnIndex !== undefined;
+  const editingValid = !!edit && !!editingRow && editingRow.kind === 'user' && !editingRow.systemOrigin && editingRow.turnIndex !== undefined;
   const stats = editingValid ? rewindStats(rows, editingIdx!) : null;
 
   const rowKey = (row: ChatRow, i: number): string | number => {
@@ -414,7 +482,8 @@ export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy =
     return i;
   };
 
-  const anchorOf = (row: ChatRow, i: number): number | undefined => (anchors && row.kind === 'user' ? i : undefined);
+  // Anchors mirror the nav rail's marks, which skip system-authored rows — see buildNavMarks.
+  const anchorOf = (row: ChatRow, i: number): number | undefined => (anchors && row.kind === 'user' && !row.systemOrigin ? i : undefined);
 
   if (editingValid) {
     const er = editingRow as Extract<ChatRow, { kind: 'user' }>;
@@ -457,7 +526,7 @@ export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy =
           editCopy={editCopy}
           assistantCopyText={assistantCopies.get(i)}
           regen={regenIdx.has(i)}
-          onStartEdit={edit && row.kind === 'user' && row.turnIndex !== undefined ? () => setEditingIdx(i) : undefined}
+          onStartEdit={edit && row.kind === 'user' && !row.systemOrigin && row.turnIndex !== undefined ? () => setEditingIdx(i) : undefined}
           editDisabled={edit?.running || edit?.busy}
           streamKey={streamKey}
           anchor={anchorOf(row, i)}

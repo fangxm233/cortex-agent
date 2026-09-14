@@ -6,6 +6,7 @@
 import path from 'node:path';
 import { JsonRepository } from '@core/json-repository.js';
 import { STORE_DIR } from '@core/paths.js';
+import type { SystemTurnOrigin } from '@core/types/agent-types.js';
 
 export interface PendingAttachment {
   name: string;
@@ -26,6 +27,10 @@ export interface PendingInjectionRecord {
   text: string;
   attachments?: PendingAttachment[];
   agentMessage?: string;
+  /** Cortex authored this turn (a backgrounded agent's result, say) rather than a human. Carried
+   *  here so the provisional row the UI shows before delivery already renders as a system hint —
+   *  without it the full text would flash as a user bubble until the commit re-keyed the row. */
+  systemOrigin?: SystemTurnOrigin;
   createdAt: string;
 }
 

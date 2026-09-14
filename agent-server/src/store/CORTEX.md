@@ -14,7 +14,7 @@ Also manages schedules, provider state, migrations, hooks, and plugin sync.
 | conversation-ledger-repo.ts | store | Turn to message mapping per conduit |
 | conversation-history-reader.ts | parser | Parses history with remote tool device metadata |
 | conversation-display-projection.ts | projection | Projects compact titles, summaries and details |
-| conversation-history-repo.ts | store | Stores transcripts, tool devices, caches and DEBUG details |
+| conversation-history-repo.ts | store | Stores transcripts, tool devices, system-authored turn origins, caches and DEBUG details |
 | retention-candidate-repo.ts | store | Persists two-sweep orphan cleanup candidates |
 | pending-injection-repo.ts | store | Injected messages not yet consumed |
 | execution-repo.ts | store | Execution record persistence |

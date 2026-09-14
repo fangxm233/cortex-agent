@@ -24,6 +24,16 @@ describe('buildNavMarks', () => {
     expect(marks.map((m) => m.title)).toEqual(['first', 'second']);
   });
 
+  it('skips system-authored turns — the rail indexes prompts, not callbacks', () => {
+    const marks = buildNavMarks([
+      user('first'),
+      user('[Task done] #ab12 is complete.', { systemOrigin: 'task-callback' }),
+      user('second'),
+    ]);
+    expect(marks.map((m) => m.title)).toEqual(['first', 'second']);
+    expect(marks.map((m) => m.row)).toEqual([0, 2]);
+  });
+
   it('splits the first line off as the title and keeps three body lines', () => {
     const mark = buildNavMarks([user('title\n\nbody one\nbody two\nbody three\nbody four')])[0];
     expect(mark.title).toBe('title');

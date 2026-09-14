@@ -47,7 +47,10 @@ function clip(line: string, max: number): { text: string; cut: boolean } {
 export function buildNavMarks(rows: ChatRow[]): NavMark[] {
   const marks: NavMark[] = [];
   rows.forEach((row, index) => {
-    if (row.kind !== 'user') return;
+    // A system-authored turn is not a prompt: the rail indexes what the HUMAN asked for, and a
+    // tick for a resume signal or a task callback would make the conversation look longer than it
+    // is and jump the reader to a row they never wrote.
+    if (row.kind !== 'user' || row.systemOrigin) return;
     const attachments: NavMarkAttachment[] = (row.attachments ?? []).map((a) => ({ name: a.name, type: a.type }));
     const lines = row.text.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
     const first = lines[0] ?? attachments[0]?.name ?? '';

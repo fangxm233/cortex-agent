@@ -197,6 +197,7 @@ async function resumeDirect(entry: Extract<ResumeEntry, { kind: 'direct' }>, ada
     ref: { conduit: entry.channel, messageId: `resume_${Date.now()}` },
     text: notice,
     senderId: SYNTHETIC_CALLBACK_SENDER,
+    systemOrigin: 'resume',
     isBot: false,
     kind: 'user',
     raw: { source: 'rate-limit-resume', originalMessage: entry.userMessage },

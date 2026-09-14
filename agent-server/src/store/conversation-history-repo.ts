@@ -19,7 +19,7 @@ import {
   readHistoryAccumulator,
   readHistoryStream,
 } from './conversation-history-reader.js';
-import type { ChatNoticeLevel, NoticeAction } from '@core/types/agent-types.js';
+import type { ChatNoticeLevel, NoticeAction, SystemTurnOrigin } from '@core/types/agent-types.js';
 import { parseTodoSnapshot, renderTodoProgress } from '../agent-adapter/normalize/todo.js';
 import type { SubagentSpawnRef } from '../agent-adapter/normalize/event-types.js';
 
@@ -102,6 +102,10 @@ export interface HistoryEvent {
   type: HistoryEventType;
   /** user / assistant message text (omitted for tool events). */
   text?: string;
+  /** User events only: this turn was authored by Cortex (resume signal, task/thread callback,
+   *  subtask question, backgrounded agent result), not typed by a human. Absent = human, which is
+   *  what every row written before this field existed reads as. */
+  systemOrigin?: SystemTurnOrigin;
   /** Semantic chat notice styling for system-authored assistant messages. */
   noticeLevel?: ChatNoticeLevel;
   /** Control offered by that notice; persisted so it survives a transcript reload. */
@@ -166,6 +170,8 @@ export interface RawEvent {
   /** edit-marker lines only. */
   originalTs?: string;
   text?: string;
+  /** user lines only: Cortex authored this turn rather than a human (see HistoryEvent). */
+  systemOrigin?: SystemTurnOrigin;
   noticeLevel?: ChatNoticeLevel;
   noticeAction?: NoticeAction;
   toolName?: string;
@@ -563,7 +569,7 @@ export class ConversationHistoryRepo {
   /** Append a user message — starts a new turn (turn boundaries are derived on read).
    *  An optional `ts` override lets the caller share a single timestamp with the
    *  EventBus event so the web UI's content-based de-dup produces identical keys. */
-  appendUser(sessionId: string, opts: { text: string; ts?: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' | 'view' }[]; agentMessage?: string; sourceId?: string }): Promise<void> {
+  appendUser(sessionId: string, opts: { text: string; ts?: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' | 'view' }[]; agentMessage?: string; sourceId?: string; systemOrigin?: SystemTurnOrigin }): Promise<void> {
     return this.append(sessionId, {
       type: 'user',
       text: opts.text,
@@ -571,6 +577,7 @@ export class ConversationHistoryRepo {
       attachments: opts.attachments,
       agentMessage: opts.agentMessage,
       sourceId: opts.sourceId,
+      systemOrigin: opts.systemOrigin,
     });
   }
 

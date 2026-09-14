@@ -116,6 +116,7 @@ function pushUser(state: ParseState, ev: RawEvent): void {
     ts: ev.ts,
     turnIndex: state.turnIndex,
     attachments: ev.attachments,
+    ...(ev.systemOrigin !== undefined ? { systemOrigin: ev.systemOrigin } : {}),
     ...(state.pendingEdit ? { edited: state.pendingEdit } : {}),
     ...(ev.agentMessage !== undefined ? { debug: { agentMessage: ev.agentMessage } } : {}),
   };

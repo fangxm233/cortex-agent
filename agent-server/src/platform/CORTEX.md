@@ -7,7 +7,7 @@ Concrete SDK integrations live in adapters/.
 |---|---|---|
 | index.ts | entry | Exports platform APIs, synthetic callback identity, and live update helpers |
 | adapter.ts | interface | Defines adapter lifecycle and live updates |
-| types.ts | types | Message, block, and modal type definitions |
+| types.ts | types | Message, block, and modal type definitions, incl. the system-authored turn tag on IncomingMessage |
 | output-stream.ts | interface | Defines streams and prompt-display capability |
 | output-stream-chunk.ts | util | Splits long text into postable chunks |
 | output-stream-helpers.ts | util | Posts a single message via a temporary stream |

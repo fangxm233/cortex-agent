@@ -26,7 +26,7 @@ import { useToolCallOverflow } from '@/features/workbench/useToolCallOverflow';
 import { ChatNotice } from '@/features/workbench/ChatNotice';
 import { SubagentTranscriptDetail } from '@/features/workbench/SubagentTranscriptDetail';
 import { useVocab } from '@/i18n';
-import { assistantTurnCopyTargets, regenNoteIndexes, subagentModelLabel, type ChatRow } from '@/features/workbench/transcript-vm';
+import { assistantTurnCopyTargets, regenNoteIndexes, subagentModelLabel, systemOriginLabel, systemOriginSummary, type ChatRow } from '@/features/workbench/transcript-vm';
 import { interactionView, emptyAskAnswers } from '@/features/workbench/interaction-vm';
 import { toolChips } from '@/mobile/screens/mobile-session-vm';
 import { MDrillHeader, MMoreButton, MComposer, MBottomSheet, MDot, MC, MONO } from '@/mobile/ui/kit';
@@ -312,6 +312,37 @@ function MInteractionRow({ row, interactions }: { row: Extract<ChatRow, { kind: 
   );
 }
 
+/**
+ * A turn Cortex wrote rather than the human — resume signal, task/thread callback, subtask
+ * question, backgrounded agent result. Same rule as the desktop stream: state what produced it and
+ * one clipped line of what it said, never a user bubble. No long-press menu either: there is no
+ * human message here to copy or rewind to. The full text stays in the transcript record; mobile
+ * has no DEBUG inspector, so the desktop chat is where it is read.
+ */
+function MSystemHintRow({ row }: { row: Extract<ChatRow, { kind: 'user' }> }): JSX.Element {
+  const L = useVocab();
+  const summary = systemOriginSummary(row.text);
+  return (
+    <div
+      data-system-origin={row.systemOrigin}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 7, padding: '2px 0',
+        opacity: row.pending ? 0.55 : 1,
+      }}
+    >
+      <span aria-hidden="true" style={{ width: 3, alignSelf: 'stretch', minHeight: 13, borderRadius: 2, background: MC.divider, flexShrink: 0 }} />
+      <span style={{ font: `600 9.5px ${MONO}`, letterSpacing: '.04em', color: MC.muted, flexShrink: 0 }}>
+        {systemOriginLabel(row.systemOrigin!, L)}
+      </span>
+      {summary && (
+        <span style={{ fontSize: 11, color: MC.faint, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {summary}
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function MChatStream({ rows, toolCallsUnit, copyLabel, copiedLabel, interactions, editCopy, editing, onLongPress, onShowOriginal, streamKey }: {
   rows: ChatRow[];
   toolCallsUnit: string;
@@ -339,7 +370,7 @@ export function MChatStream({ rows, toolCallsUnit, copyLabel, copiedLabel, inter
         const dimmed = editingIdx != null && i > editingIdx;
         const isEditingRow = editingIdx === i;
         // Long-press affordance (复制 / 编辑消息) is user-messages-only — agent messages carry no copy.
-        const canHold = !!editCopy && !!onLongPress && editingIdx == null && row.kind === 'user';
+        const canHold = !!editCopy && !!onLongPress && editingIdx == null && row.kind === 'user' && !row.systemOrigin;
         const hold = canHold ? longPressHandlers((anchorTop) => onLongPress!(i, anchorTop)) : null;
         return (
         <Fragment key={row.kind === 'interaction' && row.detail ? `int-${row.detail.id}` : i}>
@@ -350,7 +381,12 @@ export function MChatStream({ rows, toolCallsUnit, copyLabel, copiedLabel, inter
               <div style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
             </div>
           )}
-          {row.kind === 'user' && (
+          {row.kind === 'user' && row.systemOrigin && (
+            <div style={dimmed ? { opacity: 0.35, pointerEvents: 'none' } : undefined}>
+              <MSystemHintRow row={row} />
+            </div>
+          )}
+          {row.kind === 'user' && !row.systemOrigin && (
             <>
               {row.attachments && row.attachments.length > 0 && <AttachmentGroup attachments={row.attachments} />}
               <div style={{ alignSelf: 'flex-end', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, maxWidth: '82%', ...(dimmed ? { opacity: 0.35, pointerEvents: 'none' as const } : {}) }}>

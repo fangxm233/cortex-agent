@@ -5,7 +5,7 @@
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { AgentRunner, resolveDefaultAgent, emitTurnProgress, persistSessionContextUsage } from '../../src/orchestration/agent-runner.js';
+import { AgentRunner, acceptUserMessage, resolveDefaultAgent, emitTurnProgress, persistSessionContextUsage } from '../../src/orchestration/agent-runner.js';
 import { conduitQueues, enqueue } from '../../src/orchestration/conduit-queue.js';
 import { MockAdapter } from '../../src/platform/testing.js';
 import { loadConfig } from '../../src/domain/threads/template-loader.js';
@@ -55,6 +55,53 @@ test('persistSessionContextUsage writes before publishing the same timestamped s
   assert.deepEqual(published, {
     sessionId: 's-context', channel: 'web:context', ...stored,
   });
+});
+
+// ── acceptUserMessage: what a turn's opening message records, publishes and titles ───────────
+
+function acceptRecorder() {
+  const appended: any[] = [];
+  const published: any[] = [];
+  const labelled: string[] = [];
+  return {
+    appended, published, labelled,
+    deps: {
+      appendUser: (sessionId: string, opts: any) => appended.push({ sessionId, ...opts }),
+      publishMessage: (event: any) => published.push(event),
+      ensureLabel: (_name: string, text: string) => labelled.push(text),
+      now: () => '2026-09-14T00:00:00.000Z',
+    },
+  };
+}
+
+test('acceptUserMessage records a typed turn, publishes it and titles the session from it', () => {
+  const r = acceptRecorder();
+  acceptUserMessage({
+    sessionId: 's1', channel: 'web:s1', sessionName: 'cortex-aaaa',
+    text: 'run the probe', attachments: undefined,
+  }, r.deps as any);
+
+  assert.equal(r.appended[0].text, 'run the probe');
+  assert.equal('systemOrigin' in r.appended[0], false);
+  assert.equal(r.published[0].role, 'user');
+  assert.equal(r.published[0].systemOrigin, undefined);
+  assert.deepEqual(r.labelled, ['run the probe']);
+  assert.equal(r.appended[0].ts, r.published[0].ts, 'one ts, so the live row and the record dedupe');
+});
+
+test('acceptUserMessage tags a system-authored turn and never lets it title the session', () => {
+  const r = acceptRecorder();
+  acceptUserMessage({
+    sessionId: 's1', channel: 'web:s1', sessionName: 'cortex-aaaa',
+    text: '<system-reminder>\n[Task done] #ab12 is complete.\n</system-reminder>',
+    attachments: undefined, systemOrigin: 'task-callback',
+  }, r.deps as any);
+
+  assert.equal(r.appended[0].systemOrigin, 'task-callback');
+  assert.equal(r.published[0].systemOrigin, 'task-callback');
+  // A session woken by a callback would otherwise be named "[Task done] The task you dispatched…",
+  // which is neither what the user asked for nor recognisable in the rail.
+  assert.deepEqual(r.labelled, []);
 });
 
 // ── emitTurnProgress: real agent-turn delta for the S4 chat composer ─────────

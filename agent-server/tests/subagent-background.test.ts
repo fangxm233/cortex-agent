@@ -30,7 +30,7 @@ const SESSION = 'sess-bg';
 const CHANNEL = 'web:7';
 
 let bus: EventBus;
-let delivered: Array<{ channel: string; text: string }>;
+let delivered: Array<{ channel: string; text: string; systemOrigin?: string }>;
 /** The busy tracker signals the supervisor over IPC. Under Vitest's fork pool `process.send` is
  *  the worker's own channel, and an unrecognised frame kills the run — so it is muted here. */
 let originalSend: typeof process.send;
@@ -278,6 +278,11 @@ test('delivery reports the outcome rather than instructing the model what to do 
     view({ id: 'sa_3', status: 'failed', error: 'boom' }), null, CHANNEL,
   );
   assert.match(delivered[2].text, /Failed: boom/);
+});
+
+test('delivery is tagged as system-authored so the chat shows a hint, not a user bubble', () => {
+  deliverBackgroundSubagentResult(view({ id: 'sa_4', status: 'completed' }), toolResult('out'), CHANNEL);
+  assert.equal(delivered[0].systemOrigin, 'agent-result');
 });
 
 test('delivery with nowhere to go is dropped, not queued for hours later', () => {

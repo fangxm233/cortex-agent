@@ -26,6 +26,7 @@ export interface PendingInjectionCommitDeps {
       attachments?: PendingInjectionRecord['attachments'];
       agentMessage?: string;
       sourceId: string;
+      systemOrigin?: PendingInjectionRecord['systemOrigin'];
     }): Promise<void>;
   };
   ledger: {
@@ -87,6 +88,7 @@ async function ensureHistoryRow(
     attachments: record.attachments,
     agentMessage: record.agentMessage,
     sourceId: record.id,
+    systemOrigin: record.systemOrigin,
   });
 }
 

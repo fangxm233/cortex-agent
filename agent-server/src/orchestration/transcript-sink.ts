@@ -453,6 +453,9 @@ async function persistAndSurface(
     sessionId: entry.record.sessionId, channel: entry.record.channel, role: 'user',
     text: entry.record.text, ts: entry.ts, attachments: entry.record.attachments,
     pending: true, pendingId: entry.record.id,
+    // Carried onto the provisional row too: without it a backgrounded agent's result would flash
+    // as a full user bubble for as long as the model takes to read it, then collapse to a hint.
+    ...(entry.record.systemOrigin ? { systemOrigin: entry.record.systemOrigin } : {}),
   });
   entry.activate();
 }

@@ -101,6 +101,25 @@ test('records user + assistant + tool events grouped by turn (derived on read)',
   assert.equal(h!.events[2].text, 'hi there');
 });
 
+test('a system-authored user turn round-trips its origin; a human turn carries none', async () => {
+  const repo = new ConversationHistoryRepo();
+  const sid = 'sess-system-origin';
+  await repo.appendUser(sid, { text: 'what is left to do?' });
+  await repo.appendUser(sid, {
+    text: '<system-reminder>\n[Task done] #ab12 is complete.\n</system-reminder>',
+    systemOrigin: 'task-callback',
+  });
+
+  const h = await repo.getHistory(sid);
+  assert.ok(h);
+  // Absent — not null, not 'human'. A row written before the field existed reads exactly like a
+  // human row, which is what makes this backward compatible with every transcript on disk.
+  assert.equal(h!.events[0].systemOrigin, undefined);
+  assert.equal(h!.events[1].systemOrigin, 'task-callback');
+  assert.equal(h!.events[1].type, 'user', 'still a user turn — the model must read it as one');
+  assert.deepEqual(h!.events.map((e) => e.turnIndex), [0, 1], 'and it still opens its own turn');
+});
+
 test('assistant message can carry file attachments (agent-sent files, 20a)', async () => {
   const repo = new ConversationHistoryRepo();
   const sid = 'sess-att';

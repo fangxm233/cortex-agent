@@ -9,7 +9,7 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | agent-view-send.ts | chat | delivers agent-rendered HTML views with size and height limits |
 | agent-decision-send.ts | chat | records agent-announced decisions on Web chat transcripts |
 | outputs-store.ts | core | shared workspace outputs placement and filename discipline |
-| agent-runner.ts | core | Routes turns with transcript tool metadata |
+| agent-runner.ts | core | Routes turns with transcript tool metadata; acceptUserMessage records/publishes the opening user row and withholds the session label from system-authored turns |
 | background-hold-gates.ts | helper | decides whether a turn's background phase is held, and by which surface (Slack/Feishu vs web) |
 | busy-tracker.ts | tracker | counts active LLM runs and signals busy state |
 | conduit-queue.ts | queue | serializes work per conduit |
@@ -35,7 +35,7 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | subagent-webhook.ts | entry | serves start / wait / stop / list for the `agent` MCP tool |
 | session-rewind.ts | chat | restores and pins snapshots before Web resend |
 | session-retention-controller.ts | timer | serializes startup and periodic retention sweeps |
-| session-send.ts | chat | forwards admitted Web user turns |
+| session-send.ts | chat | forwards admitted Web user turns, optionally tagged as system-authored |
 | status-helpers.ts | helper | builds settings-aware status messages; scheduled auto-compound follow-ups run through startRun |
 | status-renderer.ts | observer | Slack/Feishu status surface for a run's background phase: waiting/done/rate-limited/interrupted/cap, plus the continuation's cost row |
 | superseded-edits.ts | tracker | marks channels superseded by a message edit |

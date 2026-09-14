@@ -104,6 +104,8 @@ test('direct entry routes a synthetic system-reminder message', async () => {
   assert.equal(ctx.hasFiles, false);
   assert.equal(ctx.message.kind, 'user');
   assert.equal(ctx.message.senderId, SYNTHETIC_CALLBACK_SENDER);
+  // Tagged so the chat shows a one-line hint instead of putting the reminder in the user's mouth.
+  assert.equal(ctx.message.systemOrigin, 'resume');
   assert.ok(ctx.message.text.includes('<system-reminder>'));
   assert.equal(ctx.message.ref.conduit, 'C1');
 });

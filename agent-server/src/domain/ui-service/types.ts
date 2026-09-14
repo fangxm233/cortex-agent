@@ -23,6 +23,7 @@ import type {
   ChatNoticeLevel,
   NoticeAction,
   SessionContextUsage,
+  SystemTurnOrigin,
   TodoSnapshot,
 } from '@core/types/agent-types.js';
 export type {
@@ -30,6 +31,7 @@ export type {
   ChatNoticeLevel,
   NoticeAction,
   SessionContextUsage,
+  SystemTurnOrigin,
   TodoItem,
   TodoSnapshot,
   TodoStatus,
@@ -963,6 +965,10 @@ export interface TranscriptMessage {
   toolInput: string | null;
   /** Remote execution target (remote tool events only). */
   toolDevice?: string;
+  /** User rows only: Cortex authored this turn — a resume signal, a task/thread callback, a
+   *  subtask's question, a backgrounded agent's result — rather than a human typing it. Chat
+   *  surfaces render it as a one-line hint instead of a user bubble. Absent = human. */
+  systemOrigin?: SystemTurnOrigin;
   /** Sensitive lossless data. Present only in responses produced while server DEBUG is enabled. */
   debug?: TranscriptDebugDetails;
   /** Semantic chat-notice styling for system-authored assistant messages. */
@@ -1020,6 +1026,8 @@ export interface PendingTranscriptUserMessage {
   text: string;
   ts: string;
   attachments?: AttachmentMeta[];
+  /** Same signal as `TranscriptMessage.systemOrigin`, on a row that is not committed yet. */
+  systemOrigin?: SystemTurnOrigin;
 }
 
 export interface TranscriptSubagentSummary {
@@ -2605,6 +2613,7 @@ export interface UiServiceDeps {
       text: string;
       createdAt: string;
       attachments?: AttachmentMeta[];
+      systemOrigin?: SystemTurnOrigin;
     }[]>;
   };
   /**

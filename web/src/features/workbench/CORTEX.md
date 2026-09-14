@@ -37,10 +37,10 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | CenterChat.tsx | view | Hosts chat state and pane-wide file drops |
 | scheduled-chat.ts | vm | Cadence label and next-run delta helpers |
 | ChatHeader.tsx | view | Session title, command, browser, notes and session menu |
-| MessageStream.tsx | view | Renders transcript rows, controls, scroll pinning, prompt anchors and the published pane width |
+| MessageStream.tsx | view | Renders transcript rows, controls, scroll pinning, prompt anchors and the published pane width; draws a system-authored turn as a hint row instead of a user bubble |
 | ChatNavRail.tsx | view | Left-edge tick rail that magnifies under the pointer, previews a prompt and jumps to it |
 | ChatNavRail.test.tsx | test | Tests rail visibility, visible-turn lighting, magnification, preview and jump wiring |
-| chat-nav.ts | vm | Builds one nav mark per prompt, the turns on screen and the rail's tick geometry |
+| chat-nav.ts | vm | Builds one nav mark per human prompt, the turns on screen and the rail's tick geometry |
 | chat-nav.test.ts | test | Tests mark extraction, visible-turn selection, pointer falloff and step clamping |
 | MessageAttachmentCards.tsx | view | Renders user and agent attachment, media, file and HTML-view cards |
 | DecisionCards.tsx | view | Gates decision response actions behind in-place expansion |
@@ -52,9 +52,10 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | ChatMarkdown.test.tsx | test | Tests formula parsing, opt-in behavior, table widening and untrusted-input safety |
 | ChatNotice.tsx | view | Localized semantic notices with optional actions |
 | ChatNotice.test.tsx | test | Tests semantic roles, action gating and safe auth activation |
+| system-hint-row.test.tsx | test | Tests how a system-authored turn renders on desktop and mobile: hint row, no copy/edit, DEBUG-gated full text |
 | MessageEdit.tsx | view | Bare message actions with success-only clipboard feedback, edit box and rewind |
 | chat-content.ts | types | Defines workbench tool-call types and the local shortcut catalog |
-| transcript-vm.ts | vm | Builds device-aware compact transcript rows |
+| transcript-vm.ts | vm | Builds device-aware compact transcript rows, plus the system-authored turn label and one-line summary |
 | transcript-vm.test.ts | test | Tests remote labels, rows, tails and decisions |
 | ToolCallsRow.tsx | view | Expands tool chips with row-scoped debug actions |
 | SubagentBlock.tsx | view | Shows rounded sticky agent headers and tool counts |

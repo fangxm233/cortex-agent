@@ -111,6 +111,7 @@ export type {
   AuthNoticeAction,
   ChatNoticeLevel,
   NoticeAction,
+  SystemTurnOrigin,
   SessionContextUsage,
   TodoItem,
   TodoSnapshot,

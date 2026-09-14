@@ -272,6 +272,13 @@ export const zhExtra = {
   authLoginStart: '开始登录',
   authLoginAgain: '重新登录',
   noticeRateLimitAutoResume: '触发限流，解除后此对话将自动续跑。',
+  // 系统注入的 user turn —— 渲染成一行 hint，而不是用户气泡。
+  chatSystemOriginResume: '限流解除，已自动继续',
+  chatSystemOriginTaskCallback: '任务回调',
+  chatSystemOriginThreadCallback: '线程回调',
+  chatSystemOriginSubtaskQuestion: '子任务提问',
+  chatSystemOriginAgentResult: '后台 agent 结果',
+  chatSystemOriginGeneric: '系统消息',
   noticeCancelResume: '取消',
   noticeCancelResumeDone: '已取消续跑',
   authLoginSubmit: '提交',

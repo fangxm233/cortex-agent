@@ -8,6 +8,7 @@ import type {
   DecisionItem,
   NoticeAction,
   SessionTranscript,
+  SystemTurnOrigin,
   TranscriptInteractionDetail,
   TranscriptMessage,
   TranscriptSubagentSummary,
@@ -40,6 +41,8 @@ export interface LiveSessionMessage {
   sessionId: string;
   role: 'user' | 'assistant' | 'tool';
   text: string;
+  /** User messages only: Cortex authored this turn rather than a human. */
+  systemOrigin?: SystemTurnOrigin;
   toolName?: string;
   toolInput?: string;
   toolDevice?: string;
@@ -168,6 +171,8 @@ export interface PendingUserMessage {
   ts: string;
   text: string;
   attachments?: Attachment[];
+  /** Cortex authored this turn — it renders as a system hint even while still unread. */
+  systemOrigin?: SystemTurnOrigin;
 }
 
 /** A `session.message.delivered` payload. */
@@ -207,6 +212,7 @@ export function applyDelivered(
       text: entry.text,
       ts: ev.committedTs || entry.ts,
       attachments: entry.attachments,
+      ...(entry.systemOrigin ? { systemOrigin: entry.systemOrigin } : {}),
     },
   };
 }
@@ -264,7 +270,11 @@ export type ChatRow =
   // until the transcript reconciles). `edited` backs the「已编辑」badge + original-message card;
   // `ts` backs its HH:MM stamp. `pending` marks a message written to the backend but not yet read
   // by the model: it renders in dimmed ink, pinned below everything the agent is currently saying.
-  | { kind: 'user'; text: string; attachments?: Attachment[]; turnIndex?: number; ts?: string; edited?: { originalText: string; originalTs: string }; pending?: boolean; debug?: { agentMessage: string } }
+  // `systemOrigin` marks a turn Cortex authored rather than the human (a resume signal, a task or
+  // thread callback, a subtask's question, a backgrounded agent's result). Such a row is NOT a
+  // user bubble: the stream renders it as a one-line hint, it offers no copy/edit/rewind (there is
+  // no human message to rewind to) and it raises no nav-rail mark.
+  | { kind: 'user'; text: string; attachments?: Attachment[]; turnIndex?: number; ts?: string; edited?: { originalText: string; originalTs: string }; pending?: boolean; systemOrigin?: SystemTurnOrigin; debug?: { agentMessage: string } }
   | { kind: 'tools'; count: number; calls: { kind: string; input: string; debug?: DebugToolDetail }[] }
   // `attachments` carries agent-sent files (20a) — rendered as left-aligned file cards under the text.
   // `preview` marks the ONE row that is the block being written right now (the token-level
@@ -334,6 +344,46 @@ export interface BuildOpts {
 
 const SCHEDULED_PREFIX = '[Scheduled Task]';
 
+// ── System-authored user turns ──────────────────────────────────────────────────────────────────
+//
+// Cortex steers work back into a session by routing a synthetic user message: a resume signal
+// after a rate limit, a task or thread completion callback, a subtask's question, a backgrounded
+// agent's result. The model must read those as user turns — but the reader must not, and showing
+// them as a user bubble claims the human said something they never said. They render as one quiet
+// hint line instead; the full text stays available through the DEBUG inspector.
+
+const SYSTEM_REMINDER_LINE = /^<\/?system-reminder>$/i;
+
+/** Localized name of what produced this turn. An unknown value (newer server, older client) falls
+ *  back to the generic label rather than printing a raw enum at the reader. */
+export function systemOriginLabel(origin: SystemTurnOrigin, L: Vocab): string {
+  switch (origin) {
+    case 'resume': return L.chatSystemOriginResume;
+    case 'task-callback': return L.chatSystemOriginTaskCallback;
+    case 'thread-callback': return L.chatSystemOriginThreadCallback;
+    case 'subtask-question': return L.chatSystemOriginSubtaskQuestion;
+    case 'agent-result': return L.chatSystemOriginAgentResult;
+    default: return L.chatSystemOriginGeneric;
+  }
+}
+
+/**
+ * One line of the notice worth showing beside its label.
+ *
+ * These texts are wrapped in a `<system-reminder>` envelope the reader has no use for, so the
+ * envelope lines are dropped and the first line of real prose is taken. Clipped rather than
+ * wrapped: the row is a hint, and a hint that grows to six lines is just the bubble again.
+ * Returns '' when there is nothing but the envelope — the label alone then carries the row.
+ */
+export function systemOriginSummary(text: string, max = 80): string {
+  const line = (text ?? '')
+    .split('\n')
+    .map((l) => l.trim())
+    .find((l) => l.length > 0 && !SYSTEM_REMINDER_LINE.test(l));
+  if (!line) return '';
+  return line.length > max ? `${line.slice(0, max - 1)}…` : line;
+}
+
 /** Map a live `session.message` event into a `TranscriptMessage` (same shape the fetched DTO uses).
  *  `elapsedMs` is null for live-tail messages — the backend derives real per-message elapsed at read
  *  time, so it reconciles when the transcript refetches after the stream settles. */
@@ -372,6 +422,7 @@ export function liveToMessage(m: LiveSessionMessage): TranscriptMessageWithSpawn
     ts: m.ts,
     elapsedMs: null,
     attachments: m.attachments,
+    ...(m.systemOrigin ? { systemOrigin: m.systemOrigin } : {}),
     ...(m.decisions?.length ? { decisions: m.decisions } : {}),
     ...(m.noticeLevel ? { noticeLevel: m.noticeLevel } : {}),
     ...(m.noticeAction ? { noticeAction: m.noticeAction } : {}),
@@ -787,6 +838,7 @@ export function buildTranscriptRows(
         : raw;
       sink.rows.push({
         kind: 'user', text, attachments: (m as any).attachments,
+        ...((m as any).systemOrigin ? { systemOrigin: (m as any).systemOrigin } : {}),
         ...(m.turnIndex !== undefined ? { turnIndex: m.turnIndex } : {}),
         ...(m.ts ? { ts: m.ts } : {}),
         ...((m as any).edited !== undefined ? { edited: (m as any).edited } : {}),
@@ -847,7 +899,10 @@ export function buildTranscriptRows(
   // Last of all: the messages the model has not read yet. Everything above them — including the
   // block being written right now — was produced without them, so they cannot sit any higher.
   for (const p of opts.pendingUser ?? []) {
-    rows.push({ kind: 'user', text: p.text, attachments: p.attachments, ts: p.ts, pending: true });
+    rows.push({
+      kind: 'user', text: p.text, attachments: p.attachments, ts: p.ts, pending: true,
+      ...(p.systemOrigin ? { systemOrigin: p.systemOrigin } : {}),
+    });
   }
 
   return rows;

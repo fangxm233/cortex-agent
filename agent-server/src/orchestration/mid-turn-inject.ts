@@ -17,6 +17,7 @@
 import { randomUUID } from 'node:crypto';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../agent-adapter/capabilities.js';
 import type { Backend, UserMessage } from '../agent-adapter/types.js';
+import type { SystemTurnOrigin } from '@core/types/agent-types.js';
 import { buildPrompt as buildAgentPrompt } from '../agent-adapter/normalize/prompt-builder.js';
 import { SYNTHETIC_CALLBACK_SENDER } from '@platform/types.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
@@ -48,6 +49,10 @@ export interface MidTurnInjectCtx {
   profileName?: string | null;
   text: string;
   senderId: string;
+  /** Set when Cortex authored this turn rather than a human (see `SystemTurnOrigin`). Only
+   *  `agent-result` reaches this path today — `SYNTHETIC_CALLBACK_SENDER` messages are refused by
+   *  `isInjectableMessage` and take the queue instead. */
+  systemOrigin?: SystemTurnOrigin;
   /** The inbound platform message id — the ledger turn's key. */
   messageId: string;
   attachments?: AttachmentMeta[];
@@ -97,6 +102,7 @@ function buildPendingRecord(
     profileName: ctx.profileName ?? null,
     text: ctx.text,
     attachments: ctx.attachments,
+    ...(ctx.systemOrigin ? { systemOrigin: ctx.systemOrigin } : {}),
     ...(deps.captureDebug ? { agentMessage: buildAgentPrompt(message.text, message.attachments ?? []) } : {}),
     createdAt: ts,
   };

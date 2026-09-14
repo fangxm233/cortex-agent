@@ -1,5 +1,5 @@
 // input:  nothing (leaf type-only module)
-// output: Agent results, auth actions, and exact usage types
+// output: Agent results, auth actions, system-turn origins, and exact usage types
 // pos:    Shared type definitions for agent execution and messages
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -9,6 +9,36 @@
 export type Backend = 'claude' | 'pi';
 
 export type ChatNoticeLevel = 'info' | 'warning' | 'error';
+
+/**
+ * A user turn the SYSTEM authored, not a human.
+ *
+ * Several mechanisms steer work back into a session by routing a synthetic user message: the
+ * provider-recovery resume signal, task/thread completion callbacks, a subtask escalating a
+ * question to its manager, and a backgrounded `agent` run reporting its answer. The backend has
+ * always treated these as ordinary user turns (that IS how the model must read them), but a chat
+ * surface has no way to tell them apart from something the human typed.
+ *
+ * This tag is that signal, and nothing more: it changes no routing, no prompt, no history
+ * semantics. ABSENT MEANS HUMAN — every message written before this field existed, and every real
+ * typed message, carries no tag, so no migration is needed and no honest user turn is ever
+ * mistaken for a system one.
+ *
+ * Deliberately NOT tagged: a non-blocking `cortex_ask_user` answer (the human typed that text, it
+ * merely arrives out of band) and the `[Scheduled Task]` fire prompt (the user wrote that
+ * instruction; the UI already has its own presentation for it).
+ */
+export type SystemTurnOrigin =
+  /** Provider rate limit / outage cleared — continuation signal for the interrupted turn. */
+  | 'resume'
+  /** A dispatched task reached a terminal state (completed or blocked). */
+  | 'task-callback'
+  /** A child thread finished and reported back to its parent session. */
+  | 'thread-callback'
+  /** A subtask escalated a question to the manager session (`ask_manager`). */
+  | 'subtask-question'
+  /** A backgrounded `agent` run delivered its result. */
+  | 'agent-result';
 
 export interface AuthNoticeAction {
   kind: 'auth-login';

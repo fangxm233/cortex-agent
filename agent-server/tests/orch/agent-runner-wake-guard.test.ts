@@ -107,4 +107,9 @@ test('buildSyntheticWakeMessage carries the shared synthetic sender id (guard/sh
   assert.equal(msg.text, 'notice text');
   assert.equal(msg.ref.conduit, 'C-x');
   assert.match(msg.ref.messageId, /tag1/);
+  // Defaults to the commonest wake (a task callback); the thread and manager-question paths pass
+  // their own so the chat hint can name what actually woke the session.
+  assert.equal(msg.systemOrigin, 'task-callback');
+  assert.equal(buildSyntheticWakeMessage('C-x', 'n', 't', 'thread-callback').systemOrigin, 'thread-callback');
+  assert.equal(buildSyntheticWakeMessage('C-x', 'n', 't', 'subtask-question').systemOrigin, 'subtask-question');
 });

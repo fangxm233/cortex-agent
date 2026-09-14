@@ -21,6 +21,7 @@ import {
   applyDelivered,
   reconcilePendingUserMessages,
   subagentModelLabel,
+  systemOriginSummary,
   toolCallLabel,
   type ChatRow,
   type LiveSessionMessage,
@@ -951,6 +952,74 @@ describe('buildTranscriptRows — pending user rows are pinned to the bottom', (
       { kind: 'user', text: 'stop', attachments: undefined, ts: '2026-07-07T07:42:06.000Z' },
       { kind: 'assistant', text: 'TEXT-INTERRUPTED', streaming: false, attachments: undefined },
     ]);
+  });
+});
+
+// ── system-authored user turns (resume / callbacks / background agent results) ──
+
+describe('system-authored user turns', () => {
+  const withOrigin = tx([
+    {
+      turnIndex: 0,
+      messages: [
+        { type: 'user', text: 'kick off the task', toolName: null, toolInput: null, ts: T, elapsedMs: null },
+        { type: 'assistant', text: 'dispatched', toolName: null, toolInput: null, ts: T, elapsedMs: 10 },
+      ],
+    },
+    {
+      turnIndex: 1,
+      messages: [
+        {
+          type: 'user', text: '<system-reminder>\n[Task done] #ab12 is complete.\n</system-reminder>',
+          toolName: null, toolInput: null, ts: T, elapsedMs: null, systemOrigin: 'task-callback',
+        },
+      ],
+    },
+  ]);
+
+  it('marks the row so the stream can draw a hint instead of a user bubble', () => {
+    const rows = buildTranscriptRows(withOrigin, []);
+    const users = rows.filter((r): r is Extract<ChatRow, { kind: 'user' }> => r.kind === 'user');
+    expect(users[0].systemOrigin).toBeUndefined();
+    expect(users[1].systemOrigin).toBe('task-callback');
+    // It is still a real turn with a rewind anchor of its own — the row's presentation changes,
+    // the transcript's structure does not.
+    expect(users[1].turnIndex).toBe(1);
+  });
+
+  it('carries the mark onto a pending row, so a folded-in result never flashes as a bubble', () => {
+    const rows = buildTranscriptRows(withOrigin, [], {
+      pendingUser: [{ ts: 'T1', text: '[Background agent bg-1 — probe]', systemOrigin: 'agent-result' }],
+    });
+    const last = rows[rows.length - 1];
+    expect(last.kind === 'user' && last.systemOrigin).toBe('agent-result');
+    expect(last.kind === 'user' && last.pending).toBe(true);
+  });
+
+  it('carries the mark through the live tail', () => {
+    const tail: LiveSessionMessage[] = [
+      { sessionId: 's1', role: 'user', text: 'resume', ts: '2026-07-07T07:43:00.000Z', systemOrigin: 'resume' },
+    ];
+    const rows = buildTranscriptRows(withOrigin, tail);
+    const last = rows[rows.length - 1];
+    expect(last.kind === 'user' && last.systemOrigin).toBe('resume');
+  });
+});
+
+describe('systemOriginSummary', () => {
+  it('drops the system-reminder envelope and keeps the first line of real prose', () => {
+    expect(systemOriginSummary('<system-reminder>\n[Task done] #ab12 is complete.\nRun cortex-task show.\n</system-reminder>'))
+      .toBe('[Task done] #ab12 is complete.');
+  });
+
+  it('clips a long line rather than letting the hint grow back into a bubble', () => {
+    expect(systemOriginSummary('x'.repeat(200))).toHaveLength(80);
+    expect(systemOriginSummary('x'.repeat(200)).endsWith('…')).toBe(true);
+  });
+
+  it('returns nothing when there is only an envelope — the label then carries the row', () => {
+    expect(systemOriginSummary('<system-reminder>\n\n</system-reminder>')).toBe('');
+    expect(systemOriginSummary('')).toBe('');
   });
 });
 

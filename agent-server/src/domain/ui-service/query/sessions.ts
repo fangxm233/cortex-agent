@@ -205,6 +205,7 @@ async function pendingUserSnapshot(
     text: record.text,
     ts: record.createdAt,
     ...(record.attachments ? { attachments: record.attachments } : {}),
+    ...(record.systemOrigin ? { systemOrigin: record.systemOrigin } : {}),
   }));
 }
 
@@ -258,6 +259,7 @@ function messageFromEvent(
     ts: event.ts,
     elapsedMs,
     ...((event.type === 'user' || event.type === 'assistant') && event.attachments !== undefined ? { attachments: event.attachments } : {}),
+    ...(event.type === 'user' && event.systemOrigin !== undefined ? { systemOrigin: event.systemOrigin } : {}),
     ...(event.type === 'assistant' && event.decisions !== undefined ? { decisions: event.decisions } : {}),
     ...(event.type === 'assistant' && event.noticeLevel !== undefined ? { noticeLevel: event.noticeLevel } : {}),
     ...(event.type === 'assistant' && event.noticeAction !== undefined ? { noticeAction: event.noticeAction } : {}),

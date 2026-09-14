@@ -82,7 +82,7 @@ function defaultReadTask(project: string | null, taskId: string): TaskLite | nul
 }
 
 async function defaultWakeOriginSession(channel: string, notice: string): Promise<void> {
-  await wakeSession(channel, notice, `askmgr_${Date.now().toString(36)}`);
+  await wakeSession(channel, notice, `askmgr_${Date.now().toString(36)}`, 'subtask-question');
 }
 
 function questionFromFact(

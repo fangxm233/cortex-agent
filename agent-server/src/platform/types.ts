@@ -1,7 +1,9 @@
-// input:  nothing (pure types module)
+// input:  the shared system-turn origin vocabulary
 // output: Platform-independent message/block/modal type family
 // pos:    Type foundation of the Platform abstraction
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
+import type { SystemTurnOrigin } from '@core/types/agent-types.js';
 
 // --- Message Identity ---
 
@@ -30,6 +32,11 @@ export interface IncomingMessage {
   ref: MessageRef;
   text: string;
   senderId: string;
+  /** Set when this "user" turn was authored by Cortex itself (a resume signal, a task/thread
+   *  callback, a subtask question, a backgrounded agent's result) rather than typed by a human.
+   *  Purely a presentation signal — routing, prompt and history semantics are unchanged.
+   *  Absent on every human message, which is why no history migration is needed. */
+  systemOrigin?: SystemTurnOrigin;
   isBot: boolean;
   files?: PlatformFileRef[];
   attachments?: IncomingAttachment[];

@@ -6,7 +6,7 @@
 import * as path from 'path';
 import type { Destination, PlatformAdapter, MessageRef, DownloadedFile, IncomingMessage, PlatformFileRef, OutputStream } from '@platform/index.js';
 import { resolveDestinationConduit, SYNTHETIC_CALLBACK_SENDER } from '@platform/types.js';
-import type { AgentResult, ContextUsage, TodoSnapshot } from '@core/types/agent-types.js';
+import type { AgentResult, ContextUsage, SystemTurnOrigin, TodoSnapshot } from '@core/types/agent-types.js';
 import { renderTodoProgress } from '../agent-adapter/normalize/todo.js';
 import { conduitQueues, enqueue } from './conduit-queue.js';
 import { trackPendingTask } from './busy-tracker.js';
@@ -108,22 +108,44 @@ function browserBackendSupported(channel: string, backend: string): boolean {
   return backendSupportsBrowser(backend, claudeBackend);
 }
 
-function acceptUserMessage(opts: {
+/** The three writes a turn's opening user message performs. Injectable so the accepted-turn
+ *  contract (what is recorded, published and titled) is testable without spawning a backend. */
+export interface AcceptUserMessageDeps {
+  appendUser: (sessionId: string, opts: Parameters<typeof conversationHistory.appendUser>[1]) => void;
+  publishMessage: typeof publishSessionMessage;
+  ensureLabel: (sessionName: string, text: string) => void;
+  now: () => string;
+}
+
+const defaultAcceptUserMessageDeps: AcceptUserMessageDeps = {
+  appendUser: (sessionId, opts) => recordHistory(conversationHistory.appendUser(sessionId, opts)),
+  publishMessage: publishSessionMessage,
+  ensureLabel: (sessionName, text) => { void ensureSessionLabel(sessionName, text); },
+  now: () => new Date().toISOString(),
+};
+
+export function acceptUserMessage(opts: {
   sessionId: string;
   channel: string;
   sessionName: string;
   text: string;
   attachments: IncomingMessage['webAttachments'];
-}): void {
-  const ts = new Date().toISOString();
-  recordHistory(conversationHistory.appendUser(opts.sessionId, {
-    text: opts.text, ts, attachments: opts.attachments,
-  }));
-  publishSessionMessage({
-    sessionId: opts.sessionId, channel: opts.channel, role: 'user',
-    text: opts.text, ts, attachments: opts.attachments,
+  /** Cortex authored this turn rather than a human — see `SystemTurnOrigin`. */
+  systemOrigin?: SystemTurnOrigin;
+}, deps: AcceptUserMessageDeps = defaultAcceptUserMessageDeps): void {
+  const ts = deps.now();
+  const origin = opts.systemOrigin ? { systemOrigin: opts.systemOrigin } : {};
+  deps.appendUser(opts.sessionId, {
+    text: opts.text, ts, attachments: opts.attachments, ...origin,
   });
-  void ensureSessionLabel(opts.sessionName, opts.text);
+  deps.publishMessage({
+    sessionId: opts.sessionId, channel: opts.channel, role: 'user',
+    text: opts.text, ts, attachments: opts.attachments, ...origin,
+  });
+  // A callback or a resume signal is not a title. Left to itself this would name a session woken by
+  // a task callback "[Task done] The task you dispatched #…", which is neither what the user asked
+  // for nor recognisable in the rail — so a system-authored turn never claims the label.
+  if (!opts.systemOrigin) deps.ensureLabel(opts.sessionName, opts.text);
 }
 
 export interface AgentRunnerCtx {
@@ -255,6 +277,7 @@ export class AgentRunner {
         profileName: getActiveProfile(ctx.channel),
         text: ctx.userMessage || '',
         senderId: ctx.message.senderId,
+        ...(ctx.message.systemOrigin ? { systemOrigin: ctx.message.systemOrigin } : {}),
         messageId: ctx.message.ref.messageId,
         attachments: ctx.message.webAttachments,
         prepareBackendAttachments: async () => (await loadPlatformFiles()).map((file) => ({
@@ -353,6 +376,7 @@ export class AgentRunner {
         onAccepted: () => acceptUserMessage({
           sessionId, channel, sessionName, text: userMessage || '',
           attachments: message.webAttachments,
+          ...(message.systemOrigin ? { systemOrigin: message.systemOrigin } : {}),
         }),
       },
     );
