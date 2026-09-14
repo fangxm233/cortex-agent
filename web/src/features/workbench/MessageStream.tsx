@@ -630,6 +630,10 @@ export function MessageStream({ rows, loading, inlineThreadCard, interactionActi
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
+    // …and the ceiling such a block may reach before it has to fold its content: twice the prose
+    // column's own text width. Past two columns of reading width the eye stops tracking the row, so
+    // a table wraps there instead of growing (ChatMarkdown's TableBlock). Constant, hence set once.
+    el.style.setProperty('--chat-table-max-w', `${(COLUMN_W - GUTTER * 2) * 2}px`);
     const publish = (): void => {
       el.style.setProperty('--chat-bleed-w', `${Math.max(0, el.clientWidth - GUTTER * 2)}px`);
     };

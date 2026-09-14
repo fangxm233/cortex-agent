@@ -87,12 +87,18 @@ function CodeBlock({ block }: { block: BlockOf<'code'> }): JSX.Element {
   );
 }
 
+/** Cells wrap only once the table has hit its cap (see `TableBlock`) — until then the table is laid
+ *  out at its max-content width, so a table that fits reads exactly as it did when cells were
+ *  `nowrap`. `anywhere` rather than `break-word` so an unbreakable token (a long path, a hash)
+ *  cannot hold the whole column above the cap and force a scrollbar on its own. */
+const CELL: CSSProperties = { border: '1px solid var(--proto-line)', padding: '4px 8px', overflowWrap: 'anywhere' };
+
 function TableHead({ header }: { header: InlineNode[][] }): JSX.Element {
   return (
     <thead>
       <tr>
         {header.map((cell, index) => (
-          <th key={index} style={{ border: '1px solid var(--proto-line)', padding: '4px 8px', textAlign: 'left', fontWeight: 650, whiteSpace: 'nowrap' }}>
+          <th key={index} style={{ ...CELL, textAlign: 'left', fontWeight: 650 }}>
             <Inline nodes={cell} />
           </th>
         ))}
@@ -107,7 +113,7 @@ function TableBody({ rows }: { rows: InlineNode[][][] }): JSX.Element {
       {rows.map((row, rowIndex) => (
         <tr key={rowIndex}>
           {row.map((cell, cellIndex) => (
-            <td key={cellIndex} style={{ border: '1px solid var(--proto-line)', padding: '4px 8px', whiteSpace: 'nowrap' }}>
+            <td key={cellIndex} style={CELL}>
               <Inline nodes={cell} />
             </td>
           ))}
@@ -117,16 +123,42 @@ function TableBody({ rows }: { rows: InlineNode[][][] }): JSX.Element {
   );
 }
 
+/** Narrowest column a wrapped table stays readable at. Wrapping to fit is an improvement only while
+ *  the columns keep their shape; squeeze a six-column table into a phone and every cell becomes a
+ *  one-word-per-line shred, which reads worse than swiping sideways. So the cap below never falls
+ *  under `columns × MIN_COL_W`: past that count the table stops shrinking and scrolls instead. */
+const MIN_COL_W = 96;
+
+/** Widest a table may grow before its cells start wrapping, in two parts.
+ *
+ *  Reading width — a bled-out transcript table (`wide`) may reach `--chat-table-max-w`, twice the
+ *  prose column, published by the host. A table that lives in a box it cannot break out of (mobile
+ *  bubble, decision card, plan reader) gets `100%` of that box instead: it has nowhere to expand
+ *  into, and a sideways scroll inside a vertically-scrolled feed is worse than a wrapped row.
+ *  Column floor — `MIN_COL_W` per column, so column count, not just box width, decides.
+ *
+ *  Whichever is larger wins; the table takes `min(its own max-content, that)`. Under it nothing
+ *  changes (no wrapping, no scrollbar); over it the cells wrap; over it AND wider than the visible
+ *  box — a many-column table on a narrow pane — the block scrolls, as before. */
+function tableMaxWidth(block: BlockOf<'table'>, wide: boolean): string {
+  const columns = block.rows.reduce((max, row) => Math.max(max, row.length), block.header.length);
+  // 200% is the fallback for a `wide` host that publishes no variable: `width` falls back to 100%
+  // too, so the pair still means "twice the column this table sits in".
+  return `max(${wide ? 'var(--chat-table-max-w, 200%)' : '100%'}, ${columns * MIN_COL_W}px)`;
+}
+
 /** Prose is capped to a readable column, but a table is data: folding it into that column costs
  *  far more than the extra width does. When the host opts in AND publishes `--chat-bleed-w` (the
  *  desktop transcript measures its own pane), the block breaks symmetrically out of the column and
- *  centres the table on the whole pane; anything wider than that still scrolls inside the block.
- *  Without the variable the calc collapses to zero, so every other host keeps the old box. */
+ *  centres the table on the whole pane; anything wider than the cap still scrolls inside the block.
+ *  Without the variable the calc collapses to zero, so every other host keeps the old box.
+ *  `max-content` (not the default shrink-to-fit) is what lets a table outgrow the block and scroll
+ *  rather than silently wrap to the pane; `maxWidth` is then the only thing that makes it wrap. */
 function TableBlock({ block, wide }: { block: BlockOf<'table'>; wide: boolean }): JSX.Element {
   const width = wide ? 'var(--chat-bleed-w, 100%)' : '100%';
   return (
     <div style={{ width, marginLeft: wide ? `calc((100% - ${width}) / 2)` : undefined, overflowX: 'auto' }}>
-      <table style={{ borderCollapse: 'collapse', fontSize: 13, margin: '0 auto' }}>
+      <table style={{ borderCollapse: 'collapse', fontSize: 13, margin: '0 auto', width: 'max-content', maxWidth: tableMaxWidth(block, wide) }}>
         <TableHead header={block.header} />
         <TableBody rows={block.rows} />
       </table>
