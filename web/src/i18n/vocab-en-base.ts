@@ -316,6 +316,18 @@ export const enBase = {
   wbSessionId: 'Session ID',
   wbCortexId: 'Cortex ID',
   wbBackendUuid: 'Backend UUID',
+
+  // ── Session stats (composer status line → modal / mobile sheet) ──
+  wbSessionStats: 'Session stats',
+  wbSessionStatsHint: 'Totals for the whole conversation. Active time and turns count this session\u2019s own runs; cost also includes the subagents they spawned.',
+  wbSessionScope: 'session',
+  wbRunsUnit: 'runs',
+  wbStatRuns: 'Runs',
+  wbStatTurns: 'Agent turns',
+  wbStatActive: 'Active time',
+  wbStatSpan: 'Open since first message',
+  wbStatCost: 'Total cost',
+  wbStatSubagent: 'Of which subagents',
   wbCopy: 'Copy',
   wbCopied: 'Copied',
 

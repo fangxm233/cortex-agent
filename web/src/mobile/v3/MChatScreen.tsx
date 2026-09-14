@@ -24,6 +24,7 @@ import { useMarkSessionRead } from '@/features/workbench/useMarkSessionRead';
 import { useSessionCompact } from '@/features/workbench/useSessionCompact';
 import { browserStartupHint, browserStartupPending } from '@/features/workbench/browser-status';
 import { deriveSessionRunStatus } from '@/features/workbench/session-run-status';
+import { sessionSpanMs, sessionStatsView } from '@/features/workbench/session-stats';
 import { buildProfileOptions, currentBackendOf } from '@/features/workbench/profile-menu';
 import {
   buildSlashSuggestions, resolveSlashInput, runSlashAction, slashFeedbackKey,
@@ -85,7 +86,10 @@ const COPY: { en: MChatCopy; zh: MChatCopy } = {
     composerPh: '输入消息，/ 调用命令',
     toolCallsUnit: '次工具调用',
     menuSessionId: '会话 ID',
+    menuSessionStats: '会话统计',
     sessionIdTitle: '会话 ID',
+    sessionStatsTitle: '会话统计',
+    sessionStatsHint: '整个对话的累计值。工作时长与 turns 只算本会话自己的 run；花费还包含它们派出的子代理。',
     cortexIdLabel: 'Cortex ID',
     backendUuidLabel: '后端 UUID',
     copy: '复制',
@@ -109,7 +113,10 @@ const COPY: { en: MChatCopy; zh: MChatCopy } = {
     composerPh: 'Message, / for commands',
     toolCallsUnit: 'tool calls',
     menuSessionId: 'Session ID',
+    menuSessionStats: 'Session stats',
     sessionIdTitle: 'Session ID',
+    sessionStatsTitle: 'Session stats',
+    sessionStatsHint: 'Totals for the whole conversation. Active time and turns count this session\u2019s own runs; cost also includes the subagents they spawned.',
     cortexIdLabel: 'Cortex ID',
     backendUuidLabel: 'Backend UUID',
     copy: 'Copy',
@@ -375,6 +382,7 @@ export function MChatScreen(): JSX.Element {
   const [text, setText] = useState('');
   const [moreOpen, setMoreOpen] = useState(false);
   const [sessionIdOpen, setSessionIdOpen] = useState(false);
+  const [sessionStatsOpen, setSessionStatsOpen] = useState(false);
   // sec-7: long-press action menu (held row) · 7b edit mode (edited row) · 原消息 sheet.
   const [msgMenuIdx, setMsgMenuIdx] = useState<number | null>(null);
   // Where the held bubble was when the press fired — the 7a overlay floats its copy there.
@@ -634,6 +642,16 @@ export function MChatScreen(): JSX.Element {
   // Shared facts classify foreground/background/idle/fresh; mobile maps its own copy. Interaction
   // remains the highest-priority override, followed by browser startup, then the ordinary run line.
   const cost = active?.costUsd ?? null;
+  // Whole-session totals — the ⋯ menu's「会话统计」sheet. Same vm as desktop; only `summary` goes
+  // unused here, because the mobile header line has no room for a second segment.
+  const sessionStats = useMemo(
+    () => sessionStatsView(active?.totals ?? null, sessionSpanMs(active?.createdAt, active?.lastUsedAt), {
+      scope: vocab.wbSessionScope, turnsUnit: vocab.wbTurnsUnit, runsUnit: vocab.wbRunsUnit,
+      runsLabel: vocab.wbStatRuns, turnsLabel: vocab.wbStatTurns, activeLabel: vocab.wbStatActive,
+      spanLabel: vocab.wbStatSpan, costLabel: vocab.wbStatCost, subagentLabel: vocab.wbStatSubagent,
+    }),
+    [active?.totals, active?.createdAt, active?.lastUsedAt, vocab],
+  );
   const hasRun = !isDraft && turns != null;
   const runStatus = deriveSessionRunStatus({
     running: running || optimistic.pendingUser.length > 0, backgroundRunning, hasRun,
@@ -735,6 +753,10 @@ export function MChatScreen(): JSX.Element {
         sessionIdOpen={sessionIdOpen}
         onSessionIdOpen={() => setSessionIdOpen(true)}
         onSessionIdClose={() => setSessionIdOpen(false)}
+        sessionStatsRows={sessionStats?.rows ?? null}
+        sessionStatsOpen={sessionStatsOpen}
+        onSessionStatsOpen={() => setSessionStatsOpen(true)}
+        onSessionStatsClose={() => setSessionStatsOpen(false)}
         cortexId={active?.name ?? null}
         backendUuid={active?.backendSessionId ?? null}
         inlineThreadCard={

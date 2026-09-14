@@ -27,6 +27,7 @@ export function startRun(request: RunRequest, observers: RunObserver[]): AgentRu
     backend: request.profile.backend,
     billingMode: request.profile.mode || 'api',
     sessionId: request.session.sessionId,
+    ownerSessionId: request.context.ownerSessionId ?? null,
     label: request.prompt.text.substring(0, 60),
     scheduleTaskId: request.context.scheduleTaskId || null,
     threadId: request.context.threadId ?? null,

@@ -54,7 +54,10 @@ const copy: MChatCopy = {
   composerPh: 'composer',
   toolCallsUnit: 'tools',
   menuSessionId: 'session-id',
+  menuSessionStats: 'session-stats',
   sessionIdTitle: 'session-id',
+  sessionStatsTitle: 'session-stats',
+  sessionStatsHint: 'session-stats-hint',
   cortexIdLabel: 'cortex-id',
   backendUuidLabel: 'backend-id',
   copy: 'copy',
@@ -82,6 +85,9 @@ const baseProps = {
   onMoreToggle: () => {},
   onMoreClose: () => {},
   sessionIdOpen: false,
+  sessionStatsOpen: false,
+  onSessionStatsOpen: () => {},
+  onSessionStatsClose: () => {},
   onSessionIdOpen: () => {},
   onSessionIdClose: () => {},
   cortexId: null,
@@ -150,6 +156,29 @@ describe('MChatView stacking', () => {
     const menu = renderer.root.find((node) => node.type === 'div' && node.props.style?.width === 148);
     expect(menu.children).toHaveLength(1);
     expect(menu.children[0]).toMatchObject({ children: ['session-id'] });
+    act(() => renderer.unmount());
+  });
+
+  it('adds the session-stats action once the session has totals to show', () => {
+    // The mobile header status line is already ellipsised at ~10px, so the desktop's second segment
+    // has no room here — the totals live behind this menu instead.
+    const onSessionStatsOpen = vi.fn();
+    let renderer!: ReactTestRenderer;
+    act(() => { renderer = create(
+      <MChatView
+        {...baseProps}
+        moreOpen
+        onSessionStatsOpen={onSessionStatsOpen}
+        sessionStatsRows={[{ key: 'cost', label: 'Total cost', value: '$48.20' }]}
+        status={{ running: false, tone: 'idle', text: 'idle' }}
+        rows={[]}
+      />,
+    ); });
+    const menu = renderer.root.find((node) => node.type === 'div' && node.props.style?.width === 148);
+    expect(menu.children).toHaveLength(2);
+    expect(menu.children[1]).toMatchObject({ children: ['session-stats'] });
+    act(() => (menu.children[1] as any).props.onClick());
+    expect(onSessionStatsOpen).toHaveBeenCalledOnce();
     act(() => renderer.unmount());
   });
 });

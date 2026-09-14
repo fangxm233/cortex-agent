@@ -9,6 +9,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { ExecutionRepo } from '../../src/store/execution-repo.js';
+import { SessionTotalsCarryRepo } from '../../src/store/session-totals-repo.js';
+import { toSessionTotals } from '../../src/store/session-totals.js';
 
 // ── Shared tmp directory ───────────────────────────────────────
 
@@ -24,11 +26,17 @@ afterAll(async () => {
 
 // ── Helpers ────────────────────────────────────────────────────
 
-function createRepo(): ExecutionRepo {
+function createRepo(sessionTotals?: SessionTotalsCarryRepo): ExecutionRepo {
   const filePath = path.join(tmpDir, `executions-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
-  const repo = new ExecutionRepo({ filePath });
+  const repo = new ExecutionRepo({ filePath, sessionTotals });
   repo.load(); // start with empty map
   return repo;
+}
+
+function createCarry(): SessionTotalsCarryRepo {
+  return new SessionTotalsCarryRepo(
+    path.join(tmpDir, `totals-${Date.now()}-${Math.random().toString(36).slice(2)}.json`),
+  );
 }
 
 // ── Group 1: Sync mutate + persist chain survives (Pattern B invariant) ──
@@ -726,6 +734,30 @@ test('archiveTerminal - successive runs append to the archive, never overwrite',
 
   const ids = (await fs.readFile(archivePath, 'utf8')).trim().split('\n').map((l) => JSON.parse(l).id);
   assert.deepEqual(ids, [first.id, second.id]);
+});
+
+test('archiveTerminal - a session keeps its totals after its runs are archived away', async () => {
+  // Without the carry, summing the live registry would quietly SHRINK a long session's cumulative
+  // cost every time a week-old run left it — the number on screen would silently become wrong.
+  const carry = createCarry();
+  const repo = createRepo(carry);
+  const archivePath = path.join(tmpDir, `arch-${Date.now()}-${Math.random().toString(36).slice(2)}.jsonl`);
+
+  const old = repo.startLocalExecution({ kind: 'local', channel: 'C1', project: 'proj', sessionId: 's1' });
+  repo.completeExecution(old.id, { numTurns: 12, costUsd: 4.5, durationS: 60 });
+  backdate(repo, old.id, 8);
+  const child = repo.startLocalExecution({ kind: 'local', channel: 'C1', project: 'proj', ownerSessionId: 's1' });
+  repo.completeExecution(child.id, { numTurns: 5, costUsd: 1.25, durationS: 20 });
+  backdate(repo, child.id, 8);
+
+  assert.equal(await repo.archiveTerminal({ olderThanMs: 7 * DAY_MS, archivePath }), 2);
+
+  const carried = await carry.read();
+  assert.deepEqual(toSessionTotals(carried.sessions['s1']), {
+    runs: 1, turns: 12, activeMs: 60_000, costUsd: 5.75, subagentCostUsd: 1.25,
+  });
+  // The watermark lets the live pass skip anything this carry already owns.
+  assert.ok(carried.carriedThrough && carried.carriedThrough > new Date(Date.now() - 8 * DAY_MS).toISOString());
 });
 
 test('archiveTerminal - nothing eligible is a no-op (no archive file created)', async () => {

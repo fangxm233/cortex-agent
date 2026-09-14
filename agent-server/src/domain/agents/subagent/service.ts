@@ -54,7 +54,9 @@ export function startDaemonSubagentRun(request: DaemonSubagentRequest): Subagent
             // The run id stands in for a tool-call id: the MCP tool never learns the backend's own,
             // so the block key the transcript groups on is minted here instead.
             ref: `${runId}#${index}`,
-            parent: request.parent,
+            // The delegating session rides along so the child's spend can be rolled up into that
+            // session's totals — see SubagentParentContext.sessionId.
+            parent: { ...request.parent, sessionId: request.sessionId },
             signal: childSignal,
             onNotice: request.onNotice,
           });

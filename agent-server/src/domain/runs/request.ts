@@ -41,6 +41,11 @@ export interface RunRequest {
     channel: string;
     project: string;
     trigger: string;
+    /** The session that SPAWNED this run, for a run that is not a session of its own — today only
+     *  an Agent-tool child (`trigger: 'subagent'`), whose `session.sessionId` stays null so the
+     *  last-run resolvers keep ignoring it. Lands on the execution record as
+     *  `session.ownerSessionId` and is read only by the session-totals roll-up. */
+    ownerSessionId?: string | null;
     threadId?: string | null;
     threadDepth?: number | null;
     taskId?: string | null;

@@ -298,6 +298,100 @@ test('sessions.list numTurns/costUsd: a SUBAGENT run on the parent channel never
   assert.equal(s1.costUsd, 32.51, "the session's own cost, not its last child's");
 });
 
+// ── Whole-session totals (SessionInfo.totals) ──
+
+const ENDED = { startedAt: '2026-05-01T00:00:00.000Z', updatedAt: '2026-05-01T00:10:00.000Z', endedAt: '2026-05-01T00:10:00.000Z' };
+
+function registryOf(records: unknown[]) {
+  return { getExecution: () => null, cancelExecution: () => null, getAll: () => records } as any;
+}
+
+test('sessions.list totals: every finished run of the session, not just the last one', async () => {
+  // The reported problem: the status line showed the LAST run (`52 turns · $1.95`) for a session
+  // that had run 13 times. Totals answer the other question.
+  const deps = makeDeps({
+    executionRegistry: registryOf([
+      { channel: 'C1', session: { sessionId: 's1' }, thread: null, runtime: ENDED, metrics: { numTurns: 300, costUsd: 32.5, durationS: 4477 } },
+      { channel: 'C1', session: { sessionId: 's1' }, thread: null, runtime: ENDED, metrics: { numTurns: 12, costUsd: 1.5, durationS: 63 } },
+    ]),
+  });
+  const s1 = (await handleSessionsList(deps, { projectId: 'proj1' })).find(s => s.sessionId === 's1')!;
+  assert.equal(s1.numTurns, 12, 'the last-run snapshot is unchanged');
+  assert.deepEqual(s1.totals, { runs: 2, turns: 312, activeMs: 4540_000, costUsd: 34, subagentCostUsd: null });
+});
+
+test('sessions.list totals: a subagent child contributes its cost to the session that spawned it', async () => {
+  const deps = makeDeps({
+    executionRegistry: registryOf([
+      { channel: 'C1', session: { sessionId: 's1' }, thread: null, source: { trigger: 'user' }, runtime: ENDED, metrics: { numTurns: 300, costUsd: 32.51, durationS: 4477 } },
+      // Children keep sessionId null (so they cannot shadow the last run) and carry ownerSessionId.
+      { channel: 'C1', session: { sessionId: null, ownerSessionId: 's1' }, thread: null, source: { trigger: 'subagent' }, runtime: ENDED, metrics: { numTurns: 52, costUsd: 1.95, durationS: 300 } },
+      { channel: 'C1', session: { sessionId: null, ownerSessionId: 's1' }, thread: null, source: { trigger: 'subagent' }, runtime: ENDED, metrics: { numTurns: 47, costUsd: 1.55, durationS: 250 } },
+    ]),
+  });
+  const s1 = (await handleSessionsList(deps, { projectId: 'proj1' })).find(s => s.sessionId === 's1')!;
+  assert.equal(s1.numTurns, 300, 'the child-shadowing fix still holds');
+  assert.equal(s1.totals!.turns, 300, 'children do not inflate the turn count');
+  assert.equal(s1.totals!.activeMs, 4477_000, 'children run inside the parent turn — no extra time');
+  assert.equal(Number(s1.totals!.costUsd!.toFixed(2)), 36.01);
+  assert.equal(Number(s1.totals!.subagentCostUsd!.toFixed(2)), 3.5);
+});
+
+test('sessions.list totals: the in-flight turn and thread runs are excluded', async () => {
+  const deps = makeDeps({
+    runningExecutions: {
+      getAll: () => [],
+      sessionState: (id: string) => (id === 's1'
+        ? { running: true, backgroundRunning: false, numTurns: 9, executionId: 'exec_live' }
+        : { running: false, backgroundRunning: false, numTurns: null, executionId: null }),
+    } as any,
+    executionRegistry: registryOf([
+      { channel: 'C1', session: { sessionId: 's1' }, thread: null, runtime: ENDED, metrics: { numTurns: 4, costUsd: 1, durationS: 10 } },
+      // The live turn: no endedAt, no final numbers.
+      { channel: 'C1', session: { sessionId: 's1' }, thread: null, runtime: { startedAt: '2026-06-01T00:00:00.000Z', updatedAt: '2026-06-01T00:01:00.000Z', endedAt: null }, metrics: { numTurns: 9, costUsd: null, durationS: null } },
+      { channel: 'C1', session: { sessionId: 's1' }, thread: { threadId: 'thr_x' }, runtime: ENDED, metrics: { numTurns: 99, costUsd: 50, durationS: 999 } },
+    ]),
+  });
+  const s1 = (await handleSessionsList(deps, { projectId: 'proj1' })).find(s => s.sessionId === 's1')!;
+  assert.equal(s1.numTurns, 9, 'the live count still drives the last-run snapshot');
+  assert.deepEqual(s1.totals, { runs: 1, turns: 4, activeMs: 10_000, costUsd: 1, subagentCostUsd: null });
+});
+
+test('sessions.list totals: archived runs come back from the carry, and are not counted twice', async () => {
+  // The archive sweep removes week-old records from the registry. The carry holds their numbers and
+  // a watermark; anything still live but older than that watermark has already been carried.
+  const { STORE_DIR } = await import('../../../src/core/paths.js');
+  const { sessionTotalsCarry } = await import('../../../src/store/session-totals-repo.js');
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  await fs.mkdir(STORE_DIR, { recursive: true });
+  await fs.writeFile(path.join(STORE_DIR, 'session-totals.json'), JSON.stringify({
+    carriedThrough: '2026-05-15T00:00:00.000Z',
+    sessions: { s1: { runs: 3, turns: 40, activeMs: 300_000, cost: 9, costSamples: 3, subCost: 1, subSamples: 1 } },
+  }), 'utf8');
+  sessionTotalsCarry.invalidate();
+
+  const deps = makeDeps({
+    executionRegistry: registryOf([
+      // Already inside the carry (ended before the watermark) — must not be added again.
+      { channel: 'C1', session: { sessionId: 's1' }, thread: null, runtime: { startedAt: '2026-05-01T00:00:00.000Z', updatedAt: ENDED.endedAt, endedAt: '2026-05-01T00:10:00.000Z' }, metrics: { numTurns: 999, costUsd: 999, durationS: 999 } },
+      // After the watermark — still the live pass's business.
+      { channel: 'C1', session: { sessionId: 's1' }, thread: null, runtime: { startedAt: '2026-06-01T00:00:00.000Z', updatedAt: '2026-06-01T00:01:00.000Z', endedAt: '2026-06-01T00:01:00.000Z' }, metrics: { numTurns: 5, costUsd: 2, durationS: 40 } },
+    ]),
+  });
+  const s1 = (await handleSessionsList(deps, { projectId: 'proj1' })).find(s => s.sessionId === 's1')!;
+  assert.deepEqual(s1.totals, { runs: 4, turns: 45, activeMs: 340_000, costUsd: 12, subagentCostUsd: 1 });
+
+  await fs.rm(path.join(STORE_DIR, 'session-totals.json'), { force: true });
+  sessionTotalsCarry.invalidate();
+});
+
+test('sessions.list totals: a session that never finished a run has none', async () => {
+  const deps = makeDeps({ executionRegistry: registryOf([]) });
+  const s1 = (await handleSessionsList(deps, { projectId: 'proj1' })).find(s => s.sessionId === 's1')!;
+  assert.equal(s1.totals, null);
+});
+
 test('sessions.list numTurns/costUsd: a run belonging to ANOTHER session on the same channel is not attributed', async () => {
   // Channel recycling (the session-switch case): the stale record keeps the channel, so a
   // channel-keyed snapshot would hand s1 the NEW session's numbers.

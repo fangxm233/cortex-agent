@@ -15,6 +15,7 @@ import { ConversationLedgerRepo } from '../../../src/store/conversation-ledger-r
 import { ConversationHistoryRepo } from '../../../src/store/conversation-history-repo.js';
 import { RetentionCandidateRepo } from '../../../src/store/retention-candidate-repo.js';
 import { runSessionRetentionSweep } from '../../../src/domain/sessions/session-retention.js';
+import { SessionTotalsCarryRepo } from '../../../src/store/session-totals-repo.js';
 import { buildSessionRetentionLiveness } from '../../../src/core/session-retention-liveness.js';
 
 function registerOpts(id: string, extra: Record<string, unknown> = {}) {
@@ -171,6 +172,37 @@ test('retention sweep ignores untrusted Claude ledger backup paths outside the c
   assert.equal(result.registryCommitted, 1);
   await assert.doesNotReject(() => fs.stat(outside));
   await assert.doesNotReject(() => fs.lstat(symlink));
+});
+
+test('retention sweep drops a deleted session\'s carried totals, and leaves surviving ones alone', async () => {
+  // The carry is keyed by session id and is written only by the archive sweep, so nothing else
+  // would ever remove an entry — without this it outlives every session it describes.
+  const h = await makeHarness();
+  await h.registry.registerSession('cortex-gone', registerOpts('track-gone'));
+  await h.registry.updateSession('cortex-gone', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
+
+  const totals = new SessionTotalsCarryRepo(path.join(h.root, 'session-totals.json'));
+  await totals.fold([
+    { session: { sessionId: 'track-gone' }, thread: null, runtime: { startedAt: '', updatedAt: '', endedAt: '2020-01-01T00:00:00.000Z' }, metrics: { numTurns: 4, costUsd: 1, durationS: 10 } },
+    { session: { sessionId: 'track-kept' }, thread: null, runtime: { startedAt: '', updatedAt: '', endedAt: '2020-01-01T00:00:00.000Z' }, metrics: { numTurns: 9, costUsd: 3, durationS: 30 } },
+  ], '2020-02-01T00:00:00.000Z');
+
+  const result = await runSessionRetentionSweep({
+    retentionDays: 30,
+    now: () => Date.parse('2026-08-01T00:00:00.000Z'),
+    registry: h.registry, sessionRepo: h.bindings, ledgerRepo: h.ledger, historyRepo: h.history,
+    candidateRepo: h.candidates,
+    sessionTotals: totals,
+    liveness: { protectedTrackSessionIds: [], protectedBackendSessionIds: [], activeClaudeCapturePaths: [], activeClaudeCapturePairs: [] },
+    paths: { historyDir: h.historyDir, piSessionsDir: h.piDir, claudeCaptureDir: h.captureDir, claudeProjectDir: h.claudeProjectDir },
+    syncClaudeUserCleanupPeriodDays: async () => ({ filePath: '/tmp/settings.json', changed: false }),
+  });
+
+  assert.equal(result.registryCommitted, 1);
+  const carried = await totals.read();
+  assert.equal(carried.sessions['track-gone'], undefined, 'the deleted session leaves no carry behind');
+  assert.equal(carried.sessions['track-kept']?.turns, 9, 'other sessions are untouched');
+  assert.equal(carried.carriedThrough, '2020-02-01T00:00:00.000Z', 'the watermark is not disturbed');
 });
 
 test('retention sweep preserves invalid registry dates, syncs Claude helper, and protects active capture pairs', async () => {

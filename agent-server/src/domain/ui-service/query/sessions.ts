@@ -1,5 +1,5 @@
 // input:  session/history/run stores, tool metadata, DEBUG policy
-// output: session snapshots, transcripts, subagent detail, DEBUG
+// output: session snapshots (incl. whole-session totals), transcripts, subagent detail, DEBUG
 // pos:    Authoritative query boundary for session transcripts
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -19,6 +19,11 @@ import type {
   SessionsPendingInteraction,
 } from '../types.js';
 import { effectiveBackendSessionId } from '@store/session-registry-repo.js';
+import { sessionTotalsCarry } from '@store/session-totals-repo.js';
+import {
+  addTotalsAcc, emptyTotalsAcc, foldExecution, toSessionTotals,
+  type SessionTotalsAcc,
+} from '@store/session-totals.js';
 import type { HistoryEvent } from '@store/conversation-history-repo.js';
 import { projectCompactHistory, projectSubagentHistory } from '@store/conversation-display-projection.js';
 import { isDebugMode, isDebugToolOverWarningThreshold } from '@core/debug-mode.js';
@@ -63,8 +68,17 @@ export async function handleSessionsList(
   // turns and cost (e.g. `52 turns · $1.95`) instead of the session's (`300 turns · $32.51`). Keying by
   // session id drops those children (null id) for free, and also stops a recycled channel from
   // attributing an older session's run to the session now sitting on that channel.
+  //
+  // The SAME pass also rolls up whole-session totals (`SessionInfo.totals`) — the cumulative
+  // counterpart of the last-run numbers above. The two answer different questions and neither
+  // replaces the other: the last run is "what did that answer cost", the totals are "what has this
+  // conversation cost". Folding rules live in @store/session-totals.js; the archive carry read
+  // below supplies the runs that have already left this registry.
+  const carry = await sessionTotalsCarry.read().catch(() => null);
+  const totalsBySession = new Map<string, SessionTotalsAcc>();
   const lastRunBySession = new Map<string, { startedAt: string; numTurns: number; costUsd: number | null }>();
   for (const e of deps.executionRegistry.getAll()) {
+    foldExecution(totalsBySession, e, carry?.carriedThrough ?? null);
     const runSessionId: string | undefined = e?.session?.sessionId ?? undefined;
     const numTurns: unknown = e?.metrics?.numTurns;
     if (!runSessionId || e?.thread?.threadId || typeof numTurns !== 'number') continue;
@@ -74,6 +88,10 @@ export async function handleSessionsList(
     if (!prev || startedAt.localeCompare(prev.startedAt) >= 0) {
       lastRunBySession.set(runSessionId, { startedAt, numTurns, costUsd: typeof costUsd === 'number' ? costUsd : null });
     }
+  }
+  for (const [sessionId, carried] of Object.entries<SessionTotalsAcc>(carry?.sessions ?? {})) {
+    const live = totalsBySession.get(sessionId);
+    totalsBySession.set(sessionId, addTotalsAcc(live ?? emptyTotalsAcc(), carried));
   }
   const resolveNumTurns = (
     sessionId: string | undefined,
@@ -139,6 +157,9 @@ export async function handleSessionsList(
       awaitingInput,
       numTurns: resolveNumTurns(s.sessionId, inTurn, state.numTurns),
       costUsd: resolveCost(s.sessionId, inTurn),
+      // Cumulative over every finished run this session has had (plus its Agent-tool children's
+      // spend). Unaffected by `running`: an in-flight turn is simply not in it yet.
+      totals: toSessionTotals(totalsBySession.get(s.sessionId)),
       // Unread = activity (lastUsedAt, bumped at turn end) after the user's last view
       // (sessions.markRead → lastReadAt). Legacy DIRECT records without lastReadAt → read
       // (no unread flood on first deploy). SCHEDULED runs invert the default: a run the user

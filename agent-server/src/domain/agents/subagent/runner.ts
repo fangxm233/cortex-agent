@@ -46,6 +46,11 @@ export interface SubagentParentContext {
   channel?: string;
   project?: string;
   cwd?: string;
+  /** The delegating session's TRACK id (`CORTEX_SESSION_ID`). A child is not that session — its own
+   *  `session.sessionId` stays null — but the money it spends belongs to that conversation, so this
+   *  rides along as the execution record's `ownerSessionId` for the session-totals roll-up. Absent
+   *  when the parent has no session identity (a PI cross-backend child, a fixture). */
+  sessionId?: string | null;
   /** The parent session's environment, inherited by a nested `pi` child. */
   env?: NodeJS.ProcessEnv;
 }
@@ -287,6 +292,10 @@ function claudeChildRequest(request: SubagentRunRequest, config: RunAttemptConfi
       channel: request.parent.channel ?? '',
       project: request.parent.project ?? 'general',
       trigger: 'subagent',
+      // Attribution only: `session.sessionId` above stays null (the child is not the session), so
+      // every last-run resolver keeps ignoring this record while its cost still lands on the
+      // conversation that paid for it.
+      ownerSessionId: request.parent.sessionId ?? null,
       executionKind: 'local',
       isUserInitiated: false,
       commissionMode: false,

@@ -18,6 +18,8 @@ Also manages schedules, provider state, migrations, hooks, and plugin sync.
 | retention-candidate-repo.ts | store | Persists two-sweep orphan cleanup candidates |
 | pending-injection-repo.ts | store | Injected messages not yet consumed |
 | execution-repo.ts | store | Execution record persistence |
+| session-totals.ts | vm | The one fold rule turning executions into per-session runs, turns, time and cost |
+| session-totals-repo.ts | store | Carries archived executions' totals plus the watermark that keeps carry and live disjoint |
 | project-dir-repo.ts | store | Project to code directory mapping |
 | project-notes-repo.ts | store | Persists private project notes with stable metadata in Markdown |
 | schedule-repo.ts | store | Scheduled-task persistence |

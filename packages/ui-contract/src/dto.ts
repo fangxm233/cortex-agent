@@ -113,6 +113,7 @@ export type {
   NoticeAction,
   SystemTurnOrigin,
   SessionContextUsage,
+  SessionTotals,
   TodoItem,
   TodoSnapshot,
   TodoStatus,

@@ -13,7 +13,8 @@ Shared semantics stay in features/design while mobile retains distinct visual co
 | MChatView.types.ts | types | Shares functional chat and sheet contracts |
 | MChatMessageActions.tsx | view | Renders success-only shared copy, long-press and edit actions |
 | MChatAttachments.tsx | view | Renders transcript cards and queued/progress/retry/remove composer chips |
-| MChatSheets.tsx | view | Renders Session ID menu plus chat sheets |
+| MChatSheets.tsx | view | Renders the Session ID / session-stats menu plus chat sheets |
+| MChatSheets.test.tsx | test | Tests the session-stats sheet rows and the overflow menu's totals entry |
 | MChatComposerPresentation.tsx | view | Renders composer modes, tools, slash and plus menus |
 | MChatView.test.tsx | test | Tests chat stacking, overflow, Todo and interactions |
 | m-chat-vm.ts | vm | Maps run facts with canonical USD labels and builds chat rows/profile/menu placement |

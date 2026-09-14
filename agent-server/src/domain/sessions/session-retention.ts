@@ -1,4 +1,4 @@
-// input:  registry/session stores, filesystem paths, liveness snapshot
+// input:  registry/session/totals stores, filesystem paths, liveness snapshot
 // output: runSessionRetentionSweep and retention DTOs
 // pos:    Session retention coordinator shared by startup and periodic sweeps
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -12,6 +12,7 @@ import type { SessionRepo } from '@store/session-repo.js';
 import type { ConversationLedgerRepo } from '@store/conversation-ledger-repo.js';
 import type { ConversationHistoryRepo } from '@store/conversation-history-repo.js';
 import type { RetentionCandidateRepo } from '@store/retention-candidate-repo.js';
+import { sessionTotalsCarry, type SessionTotalsCarryRepo } from '@store/session-totals-repo.js';
 import type { ClaudeUserSettingsSyncResult } from '@domain/auth/claude-user-settings.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -39,6 +40,9 @@ export interface SessionRetentionDeps {
   sessionRepo: Pick<SessionRepo, 'deleteManyBySessionIds' | 'deleteExceptSessionIds'>;
   ledgerRepo: Pick<ConversationLedgerRepo, 'listBySessionIds' | 'clearBySessionIds' | 'deleteExceptSessionIds'>;
   historyRepo: Pick<ConversationHistoryRepo, 'clearBySessionIds'>;
+  /** Per-session cumulative stats carried over from archived executions. Optional so existing
+   *  callers and fixtures keep working; absent ⇒ the carry is simply not pruned. */
+  sessionTotals?: Pick<SessionTotalsCarryRepo, 'forget'>;
   candidateRepo: Pick<RetentionCandidateRepo, 'mark' | 'isConfirmed' | 'clear' | 'clearCategory'>;
   liveness: RetentionLivenessSnapshot;
   paths: SessionRetentionPaths;
@@ -205,6 +209,8 @@ async function cleanupPendingDelete(deps: SessionRetentionDeps, entry: PendingDe
   await deps.sessionRepo.deleteManyBySessionIds([session.sessionId]);
   await deps.ledgerRepo.clearBySessionIds([session.sessionId]);
   await deps.historyRepo.clearBySessionIds([session.sessionId]);
+  // Otherwise the carry would outlive every session it describes and grow without bound.
+  await (deps.sessionTotals ?? sessionTotalsCarry).forget([session.sessionId]);
   if (backendId && session.backend === 'pi') {
     await deleteFiles(await collectPiBundleFiles(deps.paths.piSessionsDir, backendId));
   }

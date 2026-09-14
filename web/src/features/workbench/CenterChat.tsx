@@ -1,4 +1,4 @@
-// input:  session snapshots, file drops and shortcut actions
+// input:  session snapshots and lifetime, file drops and shortcut actions
 // output: chat with a pane-wide attachment target and composer
 // pos:    Workbench conversation pane orchestration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -16,6 +16,7 @@ import { invalidateActiveSubagentTranscriptQueries, useSessionMessageLiveSync } 
 import { useInteractionActions } from './useInteractionActions';
 import { useMarkSessionRead } from './useMarkSessionRead';
 import { buildTranscriptRows, turnCount, resolveTurns, currentTurnElapsedMs, formatElapsed, formatDividerFromVocab } from './transcript-vm';
+import { sessionSpanMs } from './session-stats';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useSelectedSession } from './SelectedSessionProvider';
 import { useOptimisticUserMessages } from './useOptimisticUserMessages';
@@ -153,6 +154,12 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
   // Running-line elapsed = the CURRENT turn's runtime only (last turn's intra-turn span), not the
   // whole-session accumulated time — a fresh turn's clock starts from its own user message.
   const elapsed = useMemo(() => formatElapsed(currentTurnElapsedMs(transcriptQuery.data)), [transcriptQuery.data]);
+  // Whole-session wall-clock lifetime, which the totals DTO deliberately does not carry: it is a
+  // property of the session record (createdAt → lastUsedAt), not of its runs.
+  const sessionSpan = useMemo(
+    () => sessionSpanMs(active?.createdAt, active?.lastUsedAt),
+    [active?.createdAt, active?.lastUsedAt],
+  );
   // A session "has history" once it carries at least one turn — the switch rule uses this to allow
   // only same-backend profile switches on a live conversation. Live streaming counts too.
   const hasHistory = turns > 0 || liveTail.length > 0;
@@ -238,6 +245,8 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
           turns={agentTurns}
           cost={active?.costUsd ?? null}
           elapsed={elapsed}
+          totals={active?.totals ?? null}
+          sessionSpanMs={sessionSpan}
           isDraft={isDraft}
           currentProfile={active?.profileName ?? null}
           sessionBrowser={active?.browser ?? null}

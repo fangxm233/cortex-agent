@@ -1,9 +1,9 @@
-// input:  Session state, chat drop target, attachments and drafts
-// output: Composer with uploads, run status and slash feedback
+// input:  Session state and totals, chat drop target, attachments and drafts
+// output: Composer with uploads, run status, session totals and slash feedback
 // pos:    Workbench message input and turn-control surface
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import {
-  useRef, useState, useCallback, useEffect, useLayoutEffect,
+  useRef, useState, useCallback, useEffect, useLayoutEffect, useMemo,
   type ReactNode, type RefObject,
 } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -24,6 +24,8 @@ import {
   draftStorageKey, loadDraft, saveDraft, clearDraft, mergeRestoredDraft, type ComposerDraft,
 } from './composer-draft';
 import { ComposerStatusLine } from './ComposerStatusLine';
+import { SessionStatsModal } from './SessionStatsModal';
+import { sessionStatsView } from './session-stats';
 import { ComposerSendFailure } from './ComposerSendFailure';
 import { ComposerAttachmentChip } from './ComposerAttachmentChip';
 import { browserStartupHint, browserStartupPending } from './browser-status';
@@ -35,7 +37,7 @@ import {
 import { commissionRequestOf, useCommissionEnabled } from './CommissionOptIn';
 import { SessionProfileSelectorView, useSessionProfileSelection } from './SessionProfileSelector';
 import type { ContextCompactAction } from './ContextUsageControl';
-import type { TodoSnapshot } from '@cortex-agent/ui-contract';
+import type { SessionTotals, TodoSnapshot } from '@cortex-agent/ui-contract';
 import { runOptimisticMutation, type OptimisticUserMessage } from './optimistic-message';
 import { deriveSessionRunStatus } from './session-run-status';
 import { DraftProjectSelector } from './DraftProjectSelector';
@@ -63,6 +65,8 @@ export function Composer({
   turns,
   cost,
   elapsed,
+  totals = null,
+  sessionSpanMs: spanMs = null,
   isDraft = false,
   sessionBrowser = null,
   sessionCommission = null,
@@ -95,6 +99,12 @@ export function Composer({
   /** Last run's total cost in USD (SessionInfo.costUsd snapshot); null while running / never-ran → —. */
   cost: number | null;
   elapsed: string;
+  /** WHOLE-SESSION totals (SessionInfo.totals). The three fields above describe the current/last
+   *  run only; this is the cumulative counterpart rendered as the status line's second segment.
+   *  Null on a session that has never finished a run — the segment is then absent entirely. */
+  totals?: SessionTotals | null;
+  /** Wall-clock lifetime of the session, for the detail modal's "open since" row. */
+  sessionSpanMs?: number | null;
   isDraft?: boolean;
   /** Browser control an EXISTING session was created with. Read-only — fixed at spawn. */
   sessionBrowser?: { device: string } | null;
@@ -146,6 +156,7 @@ export function Composer({
   const [composer, setComposer] = useState('');
   const [sendError, setSendError] = useState<string | null>(null);
   const [slashErrorKey, setSlashErrorKey] = useState<ReturnType<typeof slashFeedbackKey>>(null);
+  const [statsOpen, setStatsOpen] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const localDropTargetRef = useRef<HTMLDivElement>(null);
@@ -257,6 +268,16 @@ export function Composer({
       : L.wbIdle;
   const statusMetrics = [runStatusLabel, elapsed, turnsText, ...(runStatus.showCost ? [costText] : [])];
   const runStatusText = runStatus.showMetrics ? statusMetrics.join(' · ') : runStatusLabel;
+  // Second segment: the same three quantities for the WHOLE session. Independent of runStatus —
+  // totals are finalized numbers, so they stay on screen (and stay still) while a turn runs.
+  const sessionStats = useMemo(
+    () => sessionStatsView(totals, spanMs, {
+      scope: L.wbSessionScope, turnsUnit: L.wbTurnsUnit, runsUnit: L.wbRunsUnit,
+      runsLabel: L.wbStatRuns, turnsLabel: L.wbStatTurns, activeLabel: L.wbStatActive,
+      spanLabel: L.wbStatSpan, costLabel: L.wbStatCost, subagentLabel: L.wbStatSubagent,
+    }),
+    [totals, spanMs, L],
+  );
   const statusBrowserDevice = sessionBrowser?.device ?? browserDevice;
   const browserStarting = browserStartupPending({
     running: runStatus.active,
@@ -699,7 +720,12 @@ export function Composer({
             text={browserStarting && statusBrowserDevice
               ? browserStartupHint(statusBrowserDevice, L.wbBrowserStarting)
               : runStatusText}
+            sessionText={sessionStats?.summary}
+            onOpenSessionStats={sessionStats ? () => setStatsOpen(true) : undefined}
           />
+        )}
+        {statsOpen && sessionStats && (
+          <SessionStatsModal rows={sessionStats.rows} onClose={() => setStatsOpen(false)} />
         )}
       </div>
     </div>

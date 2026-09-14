@@ -316,6 +316,18 @@ export const zhBase = {
   wbSessionId: '会话 ID',
   wbCortexId: 'Cortex ID',
   wbBackendUuid: '后端 UUID',
+
+  // ── 会话统计（状态行第二段 → modal / 移动端 sheet）──
+  wbSessionStats: '会话统计',
+  wbSessionStatsHint: '整个对话的累计值。工作时长与 turns 只算本会话自己的 run；花费还包含它们派出的子代理。',
+  wbSessionScope: '会话',
+  wbRunsUnit: '次',
+  wbStatRuns: '运行次数',
+  wbStatTurns: 'Agent turns',
+  wbStatActive: '工作时长',
+  wbStatSpan: '首条消息至今',
+  wbStatCost: '总花费',
+  wbStatSubagent: '其中子代理',
   wbCopy: '复制',
   wbCopied: '已复制',
 

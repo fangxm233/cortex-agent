@@ -1,4 +1,4 @@
-// input:  Session ids, choices, context usage, copy, and shared clipboard feedback
+// input:  Session ids, session totals, choices, context usage, copy, and shared clipboard feedback
 // output: Single-action chat menu and bottom-sheet presentations
 // pos:    Mobile chat sheet presentation seam
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -6,17 +6,25 @@
 import type { SessionContextUsage } from '@cortex-agent/ui-contract';
 import { ContextCompactFooter, ContextUsageDetails, contextUsageTitle, type ContextCompactAction } from '@/features/workbench/ContextUsageControl';
 import { buildSessionIdRows } from '@/features/workbench/session-id';
+import type { SessionStatsRow } from '@/features/workbench/session-stats';
 import { MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
 import type { ProfileSheetItem } from './m-chat-vm';
 import type { BrowserSheetItem, CommissionSheetItem, MChatCopy } from './MChatView.types';
 import { useClipboardFeedback } from '@/design/useClipboardFeedback';
 
-export function MoreMenu({ copy, onClose, onSessionId }: {
+export function MoreMenu({ copy, onClose, onSessionId, onSessionStats }: {
   copy: MChatCopy;
   onClose: () => void;
   onSessionId: () => void;
+  /** Absent until the session has finished a run — there is nothing to total up before that. */
+  onSessionStats?: () => void;
 }): JSX.Element {
-  const items = [{ label: copy.menuSessionId, onTap: onSessionId }];
+  // The header status line is ~10px mono and already ellipsised, so the desktop's second segment
+  // does not fit there: on mobile the whole-session totals live behind this menu instead.
+  const items = [
+    { label: copy.menuSessionId, onTap: onSessionId },
+    ...(onSessionStats ? [{ label: copy.menuSessionStats, onTap: onSessionStats }] : []),
+  ];
   return (
     <><div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 5 }} /><div style={{ position: 'absolute', top: 'calc(52px + env(safe-area-inset-top))', right: 14, width: 148, background: 'var(--panel-translucent-bg)', border: '1px solid var(--panel-translucent-border)', borderRadius: 13, boxShadow: 'var(--shadow-menu-strong)', overflow: 'hidden', zIndex: 6 }}>
       {items.map((item, index) => <div key={item.label} onClick={item.onTap} style={{ padding: '11px 14px', fontSize: 13, color: MC.ink, borderBottom: index < items.length - 1 ? '1px solid var(--proto-line-2)' : undefined, cursor: 'pointer' }}>{item.label}</div>)}
@@ -58,6 +66,33 @@ export function SessionIdSheet({ copy, cortexId, backendUuid, onClose }: {
     <MBottomSheet onClose={onClose}>
       <div style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em', padding: '0 2px 12px' }}>{copy.sessionIdTitle}</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>{rows.map((row) => <SessionIdRow key={row.key} row={row} copy={copy} copied={copiedKey === row.key} onCopy={() => doCopy(row.key, row.value)} />)}</div>
+    </MBottomSheet>
+  );
+}
+
+export function SessionStatsSheet({ copy, rows, onClose }: {
+  copy: MChatCopy;
+  rows: SessionStatsRow[];
+  onClose: () => void;
+}): JSX.Element {
+  return (
+    <MBottomSheet onClose={onClose}>
+      <div data-mobile-session-stats-sheet="true">
+        <div style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em', padding: '0 2px 12px' }}>{copy.sessionStatsTitle}</div>
+        <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 13, padding: '4px 13px' }}>
+          {rows.map((row, index) => (
+            <div
+              key={row.key}
+              data-session-stats-row={row.key}
+              style={{ display: 'flex', alignItems: 'baseline', gap: 12, padding: '10px 0', borderBottom: index < rows.length - 1 ? `1px solid ${MC.hairline}` : undefined }}
+            >
+              <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: MC.body }}>{row.label}</span>
+              <span style={{ flex: 'none', font: `600 12.5px ${MONO}`, color: MC.ink }}>{row.value}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{ fontSize: 11, lineHeight: 1.55, color: MC.muted, padding: '10px 2px 0' }}>{copy.sessionStatsHint}</div>
+      </div>
     </MBottomSheet>
   );
 }

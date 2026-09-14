@@ -1,4 +1,4 @@
-// input:  Mobile chat rows, interaction models, composer state, and sheet actions
+// input:  Mobile chat rows, interaction models, composer state, session totals, and sheet actions
 // output: Shared public contracts for the mobile chat presentation modules
 // pos:    Mobile chat presentation type boundary
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -9,6 +9,7 @@ import type { SlashSuggestion } from '@/features/workbench/composer-slash';
 import type { ContextCompactAction } from '@/features/workbench/ContextUsageControl';
 import type { AskAnswerState, AskCardModel, PlanCardModel } from '@/features/workbench/interaction-vm';
 import type { ChatRow } from '@/features/workbench/transcript-vm';
+import type { SessionStatsRow } from '@/features/workbench/session-stats';
 import type { TodoRailLanguage } from '@/features/workbench/TodoRail';
 import type { MIntCopy } from './MInteractionCards';
 import type { ChatHeaderStatus, PendingAttachmentVM, ProfileSheetItem } from './m-chat-vm';
@@ -17,7 +18,10 @@ export interface MChatCopy {
   composerPh: string;
   toolCallsUnit: string;
   menuSessionId: string;
+  menuSessionStats: string;
   sessionIdTitle: string;
+  sessionStatsTitle: string;
+  sessionStatsHint: string;
   cortexIdLabel: string;
   backendUuidLabel: string;
   copy: string;
@@ -111,6 +115,11 @@ export interface MChatViewProps {
   sessionIdOpen: boolean;
   onSessionIdOpen: () => void;
   onSessionIdClose: () => void;
+  /** Whole-session totals rows, already formatted. Absent ⇒ the ⋯ menu hides the entry. */
+  sessionStatsRows?: SessionStatsRow[] | null;
+  sessionStatsOpen: boolean;
+  onSessionStatsOpen: () => void;
+  onSessionStatsClose: () => void;
   cortexId: string | null;
   backendUuid: string | null;
   inlineThreadCard?: ReactNode;

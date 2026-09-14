@@ -11,6 +11,7 @@ import { JsonRepository } from '@core/json-repository.js';
 import { createLogger } from '@core/log.js';
 import { AsyncMutex } from '@core/async-mutex.js';
 import { STORE_DIR } from '@core/paths.js';
+import { sessionTotalsCarry } from './session-totals-repo.js';
 
 const log = createLogger('execution-repo');
 
@@ -44,7 +45,17 @@ export interface ExecutionRecord {
   source: { trigger: string };
   backend: string;
   billingMode: string;
-  session: { sessionId: string | null };
+  /** The session this run IS. Null for runs that carry no track identity — Agent-tool children
+   *  most of all (see `ownerSessionId`). */
+  session: {
+    sessionId: string | null;
+    /** The session this run was spawned BY, when it is not that session itself. Set on
+     *  Agent-tool children, whose `sessionId` must stay null (a child is not the session, and
+     *  the last-run resolvers key on `sessionId` — see query/sessions.ts). Read only by the
+     *  session-totals roll-up, which needs a child's spend to land on the conversation that
+     *  paid for it. Absent on every record written before this field existed. */
+    ownerSessionId?: string | null;
+  };
   thread: { threadId: string | null; agentSlotId: string | null } | null;
   dispatch: DispatchInfo | null;
   scheduleTaskId: string | null;
@@ -61,6 +72,9 @@ type ExecutionsData = Record<string, ExecutionRecord>;
 interface ExecutionRepoOptions {
   /** Optional file path override. Defaults to $CORTEX_EXECUTIONS_FILE or DATA_DIR/executions.json */
   filePath?: string;
+  /** Where archived records' numbers are preserved. Injectable so a test can archive into its own
+   *  carry file instead of the process-wide one. Defaults to the `sessionTotalsCarry` singleton. */
+  sessionTotals?: Pick<typeof sessionTotalsCarry, 'fold'>;
 }
 
 function getExecutionsFile(override?: string): string {
@@ -77,9 +91,9 @@ function buildExecutionId(kind: string): string {
   return `exec_${kind}_${stamp}_${rand}`;
 }
 
-function createBaseRecord({ kind, channel, project, trigger, backend, billingMode, sessionId, label, scheduleTaskId, threadId, agentSlotId }: {
+function createBaseRecord({ kind, channel, project, trigger, backend, billingMode, sessionId, ownerSessionId, label, scheduleTaskId, threadId, agentSlotId }: {
   kind: string; channel?: string | null; project?: string; trigger?: string;
-  backend?: string; billingMode?: string; sessionId?: string | null;
+  backend?: string; billingMode?: string; sessionId?: string | null; ownerSessionId?: string | null;
   label?: string | null; scheduleTaskId?: string | null;
   threadId?: string | null; agentSlotId?: string | null;
 }): ExecutionRecord {
@@ -93,7 +107,7 @@ function createBaseRecord({ kind, channel, project, trigger, backend, billingMod
     source: { trigger: trigger || kind },
     backend: backend || 'claude',
     billingMode: billingMode || 'api',
-    session: { sessionId: sessionId || null },
+    session: { sessionId: sessionId || null, ...(ownerSessionId ? { ownerSessionId } : {}) },
     thread: (threadId || agentSlotId) ? { threadId: threadId || null, agentSlotId: agentSlotId || null } : null,
     dispatch: null,
     scheduleTaskId: scheduleTaskId || null,
@@ -148,6 +162,8 @@ class ExecutionRepo {
   private repo: JsonRepository<ExecutionsData>;
 
   public readonly filePath: string;
+  /** Archive-time destination for the numbers of records this repo is about to forget. */
+  private readonly sessionTotals: Pick<typeof sessionTotalsCarry, 'fold'>;
 
   private mutex = new AsyncMutex();
   /** Promise chain for fire-and-forget persists, guarded by this.mutex. */
@@ -157,6 +173,7 @@ class ExecutionRepo {
 
   constructor(opts?: ExecutionRepoOptions) {
     this.filePath = getExecutionsFile(opts?.filePath);
+    this.sessionTotals = opts?.sessionTotals ?? sessionTotalsCarry;
     this.repo = new JsonRepository<ExecutionsData>({
       filePath: this.filePath,
       defaultValue: () => ({}),
@@ -243,13 +260,13 @@ class ExecutionRepo {
     return next;
   }
 
-  startLocalExecution({ kind = 'local', channel, project, trigger, backend, billingMode, sessionId, label, scheduleTaskId, threadId = null, agentSlotId = null }: {
+  startLocalExecution({ kind = 'local', channel, project, trigger, backend, billingMode, sessionId, ownerSessionId = null, label, scheduleTaskId, threadId = null, agentSlotId = null }: {
     kind?: string; channel?: string | null; project?: string; trigger?: string;
-    backend?: string; billingMode?: string; sessionId?: string | null;
+    backend?: string; billingMode?: string; sessionId?: string | null; ownerSessionId?: string | null;
     label?: string | null; scheduleTaskId?: string | null;
     threadId?: string | null; agentSlotId?: string | null;
   }): ExecutionRecord {
-    const record = createBaseRecord({ kind, channel, project, trigger, backend, billingMode, sessionId, label, scheduleTaskId, threadId, agentSlotId });
+    const record = createBaseRecord({ kind, channel, project, trigger, backend, billingMode, sessionId, ownerSessionId, label, scheduleTaskId, threadId, agentSlotId });
     this.map.set(record.id, record);
     this.queuePersist();
     return record;
@@ -470,7 +487,14 @@ class ExecutionRepo {
 
   /** Move terminal records older than `olderThanMs` into an append-only JSONL archive.
    *  Append-then-delete ordering: a crash between the two steps can duplicate archive lines
-   *  but never loses a record. Returns the number of archived records. */
+   *  but never loses a record. Returns the number of archived records.
+   *
+   *  Before the delete, each record is folded into the session-totals carry: a session's
+   *  cumulative numbers are summed from the live registry, so a record leaving it would silently
+   *  shrink that session's totals. Folding here — once, at the only place records are ever
+   *  removed — keeps carry + live an exact partition. The fold runs before the archive append so a
+   *  crash cannot double-count: the carry's watermark moves with the fold, and the totals query
+   *  ignores live records older than it. */
   async archiveTerminal({ olderThanMs = 7 * 24 * 60 * 60 * 1000, archivePath }: {
     olderThanMs?: number; archivePath?: string;
   } = {}): Promise<number> {
@@ -479,6 +503,7 @@ class ExecutionRepo {
       const cutoffIso = new Date(Date.now() - olderThanMs).toISOString();
       const eligible = this.selectArchivable(cutoffIso);
       if (eligible.length === 0) return 0;
+      await this.sessionTotals.fold(eligible, cutoffIso);
       const target = archivePath || this.defaultArchivePath();
       await mkdir(path.dirname(target), { recursive: true });
       await appendFile(target, eligible.map((r) => JSON.stringify(r)).join('\n') + '\n', 'utf8');

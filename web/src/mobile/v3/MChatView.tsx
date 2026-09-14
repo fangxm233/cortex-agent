@@ -37,11 +37,11 @@ import { AssistantTurnCopyAction, longPressHandlers, MsgActionMenu } from './MCh
 import {
   AttachMenu, BrowserChip, CommissionChip, ComposerAbove, ComposerLeading, ComposerTools, MobileSlashMenu,
 } from './MChatComposerPresentation';
-import { BrowserSheet, CommissionSheet, ContextUsageSheet, MoreMenu, ProfileSheet, SessionIdSheet } from './MChatSheets';
+import { BrowserSheet, CommissionSheet, ContextUsageSheet, MoreMenu, ProfileSheet, SessionIdSheet, SessionStatsSheet } from './MChatSheets';
 import type { ChatHeaderStatus } from './m-chat-vm';
 import type { MChatEditCopy, MChatInteractions, MChatViewProps, MEditMode } from './MChatView.types';
 
-export { BrowserSheet, CommissionSheet, ContextUsageSheet, MoreMenu, ProfileSheet, SessionIdSheet } from './MChatSheets';
+export { BrowserSheet, CommissionSheet, ContextUsageSheet, MoreMenu, ProfileSheet, SessionIdSheet, SessionStatsSheet } from './MChatSheets';
 export { AttachMenu } from './MChatComposerPresentation';
 export { EditBar, MsgActionMenu } from './MChatMessageActions';
 export type {
@@ -81,7 +81,7 @@ function MChatStatusLine({ status }: MChatHeaderProps): JSX.Element {
   );
 }
 
-// The ⋯ menu exposes the functional Session ID sheet only.
+// The ⋯ menu exposes the Session ID sheet plus, once the session has run, its whole-session stats.
 // ── collapsed/expandable tool-call row (scheme 1b L146; tap to expand) ─────────
 const MOBILE_TOOL_GAP = 6;
 const mobileToolChipStyle = {
@@ -654,7 +654,16 @@ export function MChatView(props: MChatViewProps): JSX.Element {
             props.onMoreClose();
             props.onSessionIdOpen();
           }}
+          onSessionStats={props.sessionStatsRows?.length
+            ? () => {
+              props.onMoreClose();
+              props.onSessionStatsOpen();
+            }
+            : undefined}
         />
+      )}
+      {props.sessionStatsOpen && props.sessionStatsRows?.length && (
+        <SessionStatsSheet copy={copy} rows={props.sessionStatsRows} onClose={props.onSessionStatsClose} />
       )}
       {props.sessionIdOpen && (
         <SessionIdSheet

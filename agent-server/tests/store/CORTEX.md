@@ -9,6 +9,7 @@ and the persisted registries for sessions, tasks, schedules, providers and costs
 | conversation-ledger-repo.test.ts | test | Covers bulk clearing by tracked session ids |
 | cost-repo.test.ts | test | Covers cost entry writes, pruning and budget |
 | execution-repo.test.ts | test | Covers lifecycle, concurrency, recovery and archival |
+| session-totals.test.ts | test | Covers the totals fold rule, subagent attribution and the exactly-once archive carry |
 | hook-registry.test.ts | test | Covers schema, sources, loading and filtering |
 | hook-sync.test.ts | test | Covers managed asset sync and I/O diagnostics |
 | hook-writer.test.ts | test | Covers create, edit, remove and toggle guards |

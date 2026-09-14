@@ -190,6 +190,22 @@ test('parallel Claude children get one pool slot each instead of evicting one an
   assert.equal(keys.size, 3);
 });
 
+test('a Claude child carries its owner session for cost attribution, but claims no session of its own', () => {
+  const { request, config } = childRequestInput('web:parent');
+  request.parent.sessionId = 'track-s1';
+  const built = subagentRunnerTest.claudeChildRequest(request, config);
+  // The child is NOT the session: keeping `sessionId` null is what stops it from shadowing the
+  // parent's run in the last-run resolvers (the `0268cbfd` fix).
+  assert.equal(built.session.sessionId, null);
+  // …while its spend still lands on the conversation that paid for it.
+  assert.equal(built.context.ownerSessionId, 'track-s1');
+});
+
+test('a child of a session-less parent carries no owner link rather than a fabricated one', () => {
+  const { request, config } = childRequestInput('web:parent');
+  assert.equal(subagentRunnerTest.claudeChildRequest(request, config).context.ownerSessionId, null);
+});
+
 test('a channel-less parent still yields a unique child key rather than the shared default slot', () => {
   const { request, config } = childRequestInput(undefined);
   const built = subagentRunnerTest.claudeChildRequest(request, config);
@@ -381,6 +397,22 @@ test('each child gets its own attribution ref, keyed on the run id and its index
   });
   const refs = runSubagent.mock.calls.map(([req]: any[]) => req.ref).sort();
   assert.deepEqual(refs, [`${view.id}#0`, `${view.id}#1`]);
+});
+
+test('the delegating session rides along on every child\'s parent context', async () => {
+  // Only the daemon entry knows which session asked; the runner reads it off `parent` to attribute
+  // the child's cost. Without this hand-off the child bills to nobody.
+  writeRole('general-purpose');
+  runSubagent.mockImplementation(async (req: any) => ok(req.task.description));
+  await startAndSettle({
+    params: { parallel: [task({ description: 'a' }), task({ description: 'b' })] },
+    background: false,
+    cwd: '/tmp',
+    parent: parentIsClaude,
+    sessionId: 'track-s1',
+  });
+  const owners = runSubagent.mock.calls.map(([req]: any[]) => req.parent.sessionId);
+  assert.deepEqual(owners, ['track-s1', 'track-s1']);
 });
 
 test('an unknown role is refused before anything is registered — no half-run fan-out', () => {

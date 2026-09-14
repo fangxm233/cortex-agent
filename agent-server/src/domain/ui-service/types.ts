@@ -49,6 +49,8 @@ import type {
 import type { HookApplyTime, HookMountTarget } from '@domain/hooks/hook-view.js';
 export type { HookApplyTime, HookMountTarget } from '@domain/hooks/hook-view.js';
 import type { Session } from '@store/session-registry-repo.js';
+import type { SessionTotals } from '@store/session-totals.js';
+export type { SessionTotals } from '@store/session-totals.js';
 import type { ScheduleTask, ScheduleTarget } from '@store/schedule-repo.js';
 import type { CommissionRecord } from '@store/commission-repo.js';
 import type { LogLocation } from '@domain/executions/log-tailer.js';
@@ -875,6 +877,12 @@ export interface SessionInfo {
    *  when the session never ran. Snapshot-only (no live delta event); refreshed when sessions.list
    *  refetches on a turn-end status edge. */
   costUsd: number | null;
+  /** WHOLE-SESSION cumulative stats — the counterpart of `numTurns`/`costUsd` above, which describe
+   *  only the last run. Null when the session has never finished a run. Carries its own semantics
+   *  (see SessionTotals): time and turns count the session's own runs, cost also includes the
+   *  Agent-tool children those runs spawned. Optional for rolling compatibility with older servers.
+   *  Snapshot-only, like `costUsd`: refreshed when sessions.list refetches on a turn-end edge. */
+  totals?: SessionTotals | null;
   /** Unread: the session had activity (lastUsedAt, bumped at turn end) AFTER the user last viewed
    *  it (`sessions.markRead` → registry lastReadAt). Legacy records with no lastReadAt are treated
    *  as read (no unread flood on first deploy). */

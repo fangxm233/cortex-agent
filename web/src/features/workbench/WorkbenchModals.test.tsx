@@ -42,12 +42,14 @@ vi.mock('@/i18n', () => ({
     wbBackendUuid: 'Backend UUID', wbSessionId: 'Session ID', wbCopied: 'Copied',
     wbCopy: 'Copy', wbSchedPausedPill: 'paused', wbSchedNextRun: 'next {d}',
     wbSchedManage: 'manage ↗', wbAllRuns: '{n} runs', wbSchedRunListHint: 'Select a run',
+    wbSessionStats: 'Session stats', wbSessionStatsHint: 'Totals for the whole conversation.',
   }),
 }));
 
 import { NewProjectModal } from './NewProjectModal';
 import { RunListModal } from './RunListModal';
 import { SessionIdModal } from './SessionIdModal';
+import { SessionStatsModal } from './SessionStatsModal';
 
 function render(node: React.ReactElement): ReactTestRenderer {
   let tree!: ReactTestRenderer;
@@ -108,6 +110,31 @@ describe('SessionIdModal shared shell', () => {
     const copy = tree.root.findAllByType('span').find((node) => node.children.includes('Copy'))!;
     act(() => copy.props.onClick());
     expect(harness.copyCalls).toEqual([['cortex-7', 'cortexId']]);
+  });
+});
+
+describe('SessionStatsModal shared shell', () => {
+  it('lists every totals row and closes through the shared shell', () => {
+    const onClose = vi.fn();
+    const rows = [
+      { key: 'runs' as const, label: 'Runs', value: '13 runs' },
+      { key: 'turns' as const, label: 'Agent turns', value: '512 turns' },
+      { key: 'active' as const, label: 'Active time', value: '3h 12m' },
+      { key: 'span' as const, label: 'Open since first message', value: '1m 30s' },
+      { key: 'cost' as const, label: 'Total cost', value: '$48.20' },
+      { key: 'subagent' as const, label: 'Of which subagents', value: '$7.54' },
+    ];
+    const tree = render(<SessionStatsModal rows={rows} onClose={onClose} />);
+
+    expect(harness.modalProps).toMatchObject({ chrome: 'bare', open: true, showClose: false });
+    expect(harness.modalProps.contentDataAttributes).toEqual({ 'data-modal': 'session-stats' });
+    const rendered = tree.root.findAll((node) => !!node.props['data-session-stats-row'])
+      .map((node) => node.props['data-session-stats-row']);
+    expect(rendered).toEqual(['runs', 'turns', 'active', 'span', 'cost', 'subagent']);
+    expect(JSON.stringify(tree.toJSON())).toContain('$7.54');
+
+    act(() => harness.modalProps.onOpenChange(false));
+    expect(onClose).toHaveBeenCalledOnce();
   });
 });
 

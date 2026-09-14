@@ -88,7 +88,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | browser-status.ts | model | Phrases browser takeover and turn-start hints |
 | browser-status.test.ts | test | Tests takeover and startup hint states |
 | ComposerActionRow.test.tsx | test | Tests ＋-menu actions, browser page/capsule and slash menu |
-| ComposerStatusLine.tsx | view | Status line of running/idle meta below the composer |
+| ComposerStatusLine.tsx | view | Status line below the composer: run meta plus the same-colour whole-session totals segment |
 | composer-draft.ts | util | Persists, restores and prefills drafts |
 | composer-draft.test.ts | test | Tests draft keys, parsing and send restoration |
 | optimistic-message.ts | vm | Reconciles neutral attachment-bearing local sends with source-aware message evidence |
@@ -117,6 +117,9 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | useSessionsLiveSync.test.tsx | test | Tests rail-wide session snapshot refresh |
 | useMarkSessionRead.ts | hook | Marks the visible session read |
 | SessionIdModal.tsx | view | Shows session identifiers in an accessible bare dialog with success-only shared copy feedback |
+| SessionStatsModal.tsx | view | Spells out the whole-session totals in an accessible bare dialog |
+| session-stats.ts | vm | Formats SessionInfo.totals into the status-line summary and the detail rows |
+| session-stats.test.ts | test | Tests the summary line, detail rows, unknown-vs-zero cost and session span |
 | session-id.ts | vm | Builds identifier rows with a dash fallback |
 | PaneToggle.tsx | view | Chevron button collapsing either side pane, mirrored per side |
 | RightPanel.tsx | view | Animates scoped work tabs or notes and adapts the shared machine roster count |
