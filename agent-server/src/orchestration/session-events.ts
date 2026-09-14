@@ -190,7 +190,7 @@ export function publishSessionRewound(p: { sessionId: string; channel: string; t
  *
  *  `backgroundRunning` (optional): the turn's foreground work finished but a background task
  *  (run_in_background Bash / background subagent) is still running and may spontaneously re-invoke
- *  the model. The web hold (web-status-renderer.ts) keeps `running:true, backgroundRunning:true` for the
+ *  the model. The web hold (turn/background-hold.ts) keeps `running:true, backgroundRunning:true` for the
  *  whole wait so the session is NOT prematurely marked idle, then publishes `running:false` once the
  *  background work finishes. Omitted (undefined) on the normal turn-start / turn-end edges. */
 export function publishSessionStatus(p: { sessionId: string; channel: string; running: boolean; backgroundRunning?: boolean }): void {

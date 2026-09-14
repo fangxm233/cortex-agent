@@ -124,6 +124,18 @@ export class SessionHolds {
     byOwner.set(owner, handles);
   }
 
+  /** True while some owner still holds this session — `exceptOwner` excluded. Read-only, and
+   *  deliberately not `has()`: that one answers the status question (`held`, fed by the bus), this
+   *  one answers "is anyone ELSE still holding this session", which is what a seal asks before it
+   *  publishes running:false (`turn/background-hold.ts`). A hold that is still standing at its own
+   *  cap (max-wait) must not veto its own idle publish, hence the exception. */
+  hasHoldHandles(sessionId: string, exceptOwner?: string): boolean {
+    const byOwner = this.holds.get(sessionId);
+    if (!byOwner) return false;
+    for (const owner of byOwner.keys()) if (owner !== exceptOwner) return true;
+    return false;
+  }
+
   /** Drop one owner's handles (its work settled). Leaves the other owners holding the session. */
   dropHoldHandles(sessionId: string, owner: string): void {
     const byOwner = this.holds.get(sessionId);

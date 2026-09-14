@@ -5,7 +5,7 @@
 //         the SSE subscription queues and the browser see a bounded event rate no matter how chatty
 //         a backend is.
 
-import { isWebChannel } from './background-hold-gates.js';
+import { isWebChannel } from './turn/background-hold.js';
 import { isStreamDeltasEnabled } from '../agent-adapter/claude/spawn-args.js';
 import { publishSessionMessageDelta } from './session-events.js';
 

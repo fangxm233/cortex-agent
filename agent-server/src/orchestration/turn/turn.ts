@@ -26,13 +26,12 @@ import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { pendingInjectionRepo } from '@store/pending-injection-repo.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { getOutboundQueue } from '@store/outbound-queue.js';
-import { getActiveProfile } from '@domain/agents/index.js';
+import { getActiveProfile, resolveBackendForChannel } from '@domain/agents/index.js';
 import { startRun } from '@domain/runs/service.js';
 import type { AgentRun } from '@domain/runs/run.js';
 import type { RunEvent } from '@domain/runs/events.js';
 import type { RunObserver } from '@domain/runs/request.js';
 import { runRegistry } from '@core/run-registry.js';
-import { recordDirectResume } from '@domain/runs/observers/resume-recorder.js';
 import type { PreparedRequest } from '../conversation-request.js';
 import { createResumeTargetSink } from '../resume-target-sink.js';
 import { trackPendingTask } from '../busy-tracker.js';
@@ -50,8 +49,11 @@ import { createTranscriptSink, persistSessionContextUsage } from '../transcript-
 import { createSessionDeltaStream } from '../delta-coalescer.js';
 import { tryInjectIntoLiveTurn, type MidTurnInjectDeps } from '../mid-turn-inject.js';
 import { commitPendingInjection } from '../pending-injection-recovery.js';
-import { shouldHoldForBg, shouldHoldWebForBg } from '../background-hold-gates.js';
-import { holdWebSessionForBackground } from '../web-status-renderer.js';
+import {
+  holdBackgroundContinuation, shouldHoldForBg, type HoldRenderer,
+} from './background-hold.js';
+import { platformHoldRenderer } from './hold-render-platform.js';
+import { webHoldRenderer } from './hold-render-web.js';
 import type { TurnMutationRelease } from '../turn-mutation-lock.js';
 import {
   consumePendingTurnSupersession, finishTurnTracking, initTurnTracking, type TurnTrackingToken,
@@ -156,9 +158,10 @@ export class Turn {
   private executionId: string | null = null;
   /** Set once `startRun` returns; read by the error path for the backend's own session id. */
   private currentRun: AgentRun | null = null;
-  /** The turn ended with a live background task and a web hold took the session over. The hold
-   *  owns the terminal running:false publish, so the finally must NOT seal the session idle. */
-  private webBgHeld = false;
+  /** The turn ended with a live background task and a hold took the session over (either
+   *  surface). The hold owns the terminal running:false publish, so the finally must NOT seal the
+   *  session idle. */
+  private bgHeld = false;
 
   constructor(input: TurnInput) {
     this.input = input;
@@ -283,9 +286,8 @@ export class Turn {
       });
     };
     // 5e. The conversation path's one foreground observer. Background-phase events are deliberately
-    //     NOT forwarded to the sink: the background surfaces (`status-renderer`,
-    //     `web-status-renderer`) own background persistence, so forwarding them here would
-    //     double-append the transcript.
+    //     NOT forwarded to the sink: the background hold's renderer owns background persistence
+    //     (`turn/background-hold.ts`), so forwarding them here would double-append the transcript.
     const foregroundObserver: RunObserver = {
       onEvent: (event: RunEvent): void | Promise<void> => {
         switch (event.type) {
@@ -407,32 +409,67 @@ export class Turn {
         await resumeTarget?.drain();
       }
 
-      // 10/11. Terminal + background hold. Background-task continuation: if the turn left
-      //        background work remaining (running OR finished-but-unnotified) and the feature is
-      //        enabled for this interactive channel, keep the streaming callback alive so the
-      //        spontaneous continuation turn merges into the same reply (handleAgentSuccess holds
-      //        the status and subscribes to the run's background phase). Otherwise clear it.
+      // 10/11. Terminal + background hold. If the turn left background work remaining (running OR
+      //        finished-but-unnotified) and the feature is enabled for this channel, the turn is
+      //        not over: one hold lifecycle takes the session (`turn/background-hold.ts`), and the
+      //        channel decides only which renderer it is handed.
       const canSink = supportsBackgroundContinuation(run);
-      const holdForBg = shouldHoldForBg(result, channel, canSink);
-      if (!holdForBg) activeTurns.clearStreamingCallback(channel);
+      const holdKind = shouldHoldForBg(result, channel, canSink);
+      // The platform hold keeps the streaming callback alive so the spontaneous continuation merges
+      // into the same reply; its renderer clears the slot when it seals. Everything else clears now.
+      if (holdKind !== 'platform') activeTurns.clearStreamingCallback(channel);
       await handleDefaultAgentResult({
         result, channel, adapter, statusMsg, startTime: this.startTime,
-        userMessage: this.input.user.text,
-        executionId: run.executionId, trigger: this.input.trigger,
-        sessionName, sessionId, threadAnchorId, messageTs: userMessageTs,
-        callbacks, projectId,
-        continuationToolUse: composeToolUse(callbacks.onToolUse, persistToolUse),
-        continuationToolResult: persistToolResult,
-        continuationContextUsage: persistContinuationContext,
-        backgroundRun: holdForBg ? run : null,
+        userMessage: this.input.user.text, executionId: run.executionId,
+        sessionName, sessionId, threadAnchorId, messageTs: userMessageTs, callbacks,
+        // The platform hold REPLACES the seal, so it can only be installed from inside the terminal
+        // handler — after the ask-user questions were sent, and with the reply stream it built.
+        holdBackground: holdKind === 'platform'
+          ? ({ stream, backendSessionId: backendId }) => this.installHold({
+            result, run, renderer: platformHoldRenderer({
+              adapter, statusMsg, channel, stream, sessionName,
+              sessionId: backendId, trackSessionId: sessionId, startTime: this.startTime,
+              baseResult: result, userMessageTs, executionId: run.executionId,
+              trigger: this.input.trigger, projectId,
+              // Continuation cost is attributed to the session's bound project (threaded from the
+              // caller), NOT re-derived from the message text.
+              backend: resolveBackendForChannel(channel),
+              onToolUse: composeToolUse(callbacks.onToolUse, persistToolUse),
+              onToolResult: persistToolResult,
+              onContextUsage: persistContinuationContext,
+            }),
+          })
+          : null,
       });
-      // Web background-task hold: the Slack/Feishu status-message hold (above) never fires for a
-      // web: channel. Keep the session marked running+backgroundRunning and stream the spontaneous
-      // continuation as new session messages, instead of dropping it and sealing the session idle.
-      if (sessionId && shouldHoldWebForBg(result, channel, canSink)) {
-        this.webBgHeld = this.holdForWeb({
-          result, run, sessionId, channel,
-          sink, persistToolUse, persistToolResult, persistSubagentEnd, persistContinuationContext,
+      // The web hold: the same lifecycle, rendered as session events instead of a status message.
+      // It installs AFTER the terminal render rather than in place of it — the turn's reply is
+      // already published and the continuation streams as new messages.
+      if (holdKind === 'web' && sessionId) {
+        await this.installHold({
+          result, run, renderer: webHoldRenderer({
+            // Through the same sink as every other row, tagged `background`: it applies the in-turn
+            // rules (a subagent's prose is persisted WITH its attribution rather than reading as
+            // the agent's own answer arriving a turn late) and, because the phase says background,
+            // it does NOT stream the text to the platform callback — this surface publishes it.
+            publishAssistant: (text, subagent) => {
+              sink.onEvent({
+                type: 'assistant_text', text, phase: 'background', ...(subagent ? { subagent } : {}),
+              });
+            },
+            publishTool: persistToolUse,
+            publishToolResult: persistToolResult ?? undefined,
+            publishSubagentEnd: persistSubagentEnd,
+            publishContextUsage: persistContinuationContext,
+            // Notices carry the level/action the plain assistant path drops. The foreground turn's
+            // AttemptNoticeTracker has already retired by now, so without this a continuation that
+            // hits the provider limit is queued for resume with nothing said about it in the chat.
+            publishNotice: (text, noticeLevel, noticeAction) => {
+              sink.onEvent({
+                type: 'assistant_text', text, phase: 'background', noticeLevel,
+                ...(noticeAction ? { noticeAction } : {}),
+              });
+            },
+          }),
         });
       }
     } catch (error) {
@@ -451,10 +488,11 @@ export class Turn {
       // The turn is over (successfully, in error, or cancelled): no preview may outlive it.
       deltaStream?.dispose();
       activeTurns.unregister(channel, this);
-      // Skip the idle seal when a web bg-hold is active — it owns the terminal running:false
-      // publish once the background work finishes (else the session flips to idle immediately and
-      // the spontaneous continuation is untracked).
-      if (sessionId && !this.webBgHeld) publishSessionStatus({ sessionId, channel, running: false });
+      // Skip the idle seal when a bg-hold is active — it owns the terminal running:false publish
+      // once the background work finishes (else the session flips to idle immediately and the
+      // spontaneous continuation is untracked). True for BOTH surfaces since T2.2: the Slack hold
+      // used to seal the session idle here while its own status message still said "waiting".
+      if (sessionId && !this.bgHeld) publishSessionStatus({ sessionId, channel, running: false });
     }
   }
 
@@ -473,59 +511,25 @@ export class Turn {
     lease.release();
   }
 
-  /** The web surface's hold, kept together so `run()` reads as the 12 steps. */
-  private holdForWeb(args: {
+  /** Install the turn's background hold. Both surfaces take the same lifecycle — busy bracket,
+   *  `SessionHolds` registration with Stop/supersede pointed at the seal, running:true/false and
+   *  the run subscription (`turn/background-hold.ts`) — and differ only in the renderer they were
+   *  handed. Records the take-over so the finally leaves running:false to the hold. */
+  private async installHold(args: {
     result: AgentResult;
     run: AgentRun;
-    sessionId: string;
-    channel: string;
-    sink: RunObserver;
-    persistToolUse: (name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void;
-    persistToolResult: ((toolUseId: string, content: string, isError: boolean) => void) | null;
-    persistSubagentEnd: (parentToolUseId: string, status: 'completed' | 'failed' | 'killed') => void;
-    persistContinuationContext: (usage: ContextUsage) => void;
-  }): boolean {
-    const { result, run, sessionId, channel, sink } = args;
-    const userMessage = this.input.user.text;
-    return holdWebSessionForBackground({
-      result,
-      run,
-      // Stop during the hold: the cancel path finds the hold by channel in this registry and
-      // fires the abort to seal it (see core/session-holds.ts).
-      // This hold owns STATUS, not work: its seal releases the busy bracket and publishes
-      // running:false, so it is the right response to both verbs.
-      registerAbort: (abort) => sessionHolds.setHoldHandles(sessionId, 'web-status-hold', {
-        onSuperseded: abort, onStop: abort,
-      }),
-      track: trackPendingTask,
-      publishStatus: ({ running, backgroundRunning }) => publishSessionStatus({ sessionId, channel, running, backgroundRunning }),
-      // Through the same sink as every other row, tagged `background`: it applies the in-turn
-      // rules (a subagent's prose is persisted WITH its attribution rather than reading as the
-      // agent's own answer arriving a turn late) and, because the phase says background, it
-      // does NOT stream the text to the platform callback — this surface publishes it.
-      publishAssistant: (text, subagent) => {
-        sink.onEvent({
-          type: 'assistant_text', text, phase: 'background', ...(subagent ? { subagent } : {}),
-        });
-      },
-      publishTool: args.persistToolUse,
-      publishToolResult: args.persistToolResult ?? undefined,
-      publishSubagentEnd: args.persistSubagentEnd,
-      publishContextUsage: args.persistContinuationContext,
-      // Notices carry the level/action the plain assistant path drops. The foreground turn's
-      // AttemptNoticeTracker has already retired by now, so without this a continuation that
-      // hits the provider limit is queued for resume with nothing said about it in the chat.
-      publishNotice: (text, noticeLevel, noticeAction) => {
-        sink.onEvent({
-          type: 'assistant_text', text, phase: 'background', noticeLevel,
-          ...(noticeAction ? { noticeAction } : {}),
-        });
-      },
-      onRateLimited: (continuation) => {
-        const provider = continuation.rateLimitProvider ?? result.rateLimitProvider ?? null;
-        return recordDirectResume({ provider, channel, trackSessionId: sessionId, userMessage });
-      },
+    renderer: HoldRenderer;
+  }): Promise<boolean> {
+    const hold = await holdBackgroundContinuation({
+      run: args.run, result: args.result, channel: this.channel,
+      sessionId: this.sessionId, userMessage: this.input.user.text,
+      // A run keeps its execution registered for the whole of its background phase, so the hold's
+      // own run must not veto its own idle publish.
+      executionId: args.run.executionId,
+      renderer: args.renderer,
     });
+    if (hold) this.bgHeld = true;
+    return !!hold;
   }
 }
 

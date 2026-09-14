@@ -9,8 +9,7 @@
 import { createLogger } from '@core/log.js';
 import { t } from '../../core/i18n.js';
 import type { Destination, PlatformAdapter, MessageRef, OutputStream } from '@platform/index.js';
-import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
-import type { ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
+import type { AgentResult } from '@core/types/agent-types.js';
 import { supersededEdits } from '../superseded-edits.js';
 
 import { renderTurnStatus, computeElapsed, formatMetricsSuffix, sealStatus, buildSealedStatusActionBlocks } from '../status-helpers.js';
@@ -22,7 +21,6 @@ import * as askUserQuestion from '../interactions/ask-user-question.js';
 import { getActiveProfile, resolveBackendForChannel } from '@domain/agents/index.js';
 
 import { maybeNotifyTurnComplete } from '../turn-notify.js';
-import { holdBackgroundStatus, type HeldRun } from '../status-renderer.js';
 import { recordDirectResume } from '@domain/runs/observers/resume-recorder.js';
 import { isApiRateLimitError } from '@domain/agents/config.js';
 import { isProviderRateLimited } from '@domain/costs/rate-limit-throttle.js';
@@ -30,9 +28,26 @@ import { getOutboundQueue } from '@store/outbound-queue.js';
 import { durablePost } from '../durable-helpers.js';
 
 const log = createLogger('lifecycle');
+
+/**
+ * Install the Turn's background hold instead of sealing the status.
+ *
+ * The hold itself (which surface renders it, how long it lasts, when running:false is published)
+ * belongs to the Turn — `turn/background-hold.ts`. What stays here is only the question this
+ * handler is the only one able to answer: whether the turn ended in a state that MAY be held, i.e.
+ * with a reply stream to merge a continuation into and no user question pending. Returns true when
+ * the hold took the turn over, in which case this handler renders nothing more.
+ */
+export type BackgroundHoldInstaller = (ctx: {
+  /** The originating turn's reply stream — the continuation merges into it. */
+  stream: OutputStream;
+  /** The BACKEND session id this turn reported, for the held status line's session tag. */
+  backendSessionId: string | null;
+}) => Promise<boolean>;
+
 // --- Agent success handler ---
 
-export async function handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, trigger = 'user', sessionName = null, trackSessionId = null, threadAnchorId = null, userMessageTs = null, projectId = 'general', onAssistantMessage = null, onToolUse = null, onToolResult = null, onContextUsage = null, backgroundRun = null }: { result: AgentResult; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; userMessage: string; executionId: string | null; trigger?: string; sessionName?: string | null; trackSessionId?: string | null; threadAnchorId?: string | null; userMessageTs?: string | null; projectId?: string; onAssistantMessage?: ((text: string) => void) | null; onToolUse?: ((name: string, input: any, toolUseId: string) => void) | null; onToolResult?: ((toolUseId: string, content: string, isError: boolean) => void) | null; onContextUsage?: ((usage: ContextUsage) => void) | null; backgroundRun?: HeldRun | null }): Promise<void> {
+export async function handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, executionId, sessionName = null, threadAnchorId = null, userMessageTs = null, onAssistantMessage = null, holdBackground = null }: { result: AgentResult; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; executionId: string | null; sessionName?: string | null; threadAnchorId?: string | null; userMessageTs?: string | null; onAssistantMessage?: ((text: string) => void) | null; holdBackground?: BackgroundHoldInstaller | null }): Promise<void> {
   // Decoupling: `result.sessionId` is the BACKEND's own session id (Claude self-generated / PI
   // bootstrap id), not the tracking id. Store it as the resume target on the STABLE track record
   // (keyed by sessionName) — do NOT rebind the channel or the registry key to it. The channel stays
@@ -52,23 +67,15 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
   // Background-task continuation: background work remains — either still running
   // (pendingBackgroundTasks) or finished-but-unnotified (undeliveredBackgroundTasks; CC may
   // deliver the notification seconds later, or never — 2026-07-10 investigation). Hold the status
-  // in a "waiting" state instead of sealing, and let `status-renderer` subscribe to the run: its
+  // in a "waiting" state instead of sealing, and let the hold subscribe to the run: its
   // continuation merges into this reply and seals the status then, and the run's own grace (F5) /
   // max-wait (F6) bounds seal it if no continuation ever arrives. Only when no user questions are
   // pending and the assistant reply stream is available to merge into.
   const pendingBg = result?.pendingBackgroundTasks ?? 0;
   const undeliveredBg = result?.undeliveredBackgroundTasks ?? 0;
-  if (backgroundRun && stream && askCount === 0 && pendingBg + undeliveredBg > 0) {
-    await holdBackgroundStatus({
-      run: backgroundRun, adapter, statusMsg, channel, stream,
-      sessionName, sessionId, trackSessionId, startTime, baseResult: result,
-      userMessage, userMessageTs, executionId, trigger, projectId,
-      // Continuation cost is attributed to the session's bound project (threaded from the caller),
-      // NOT re-derived from the message text.
-      backend: resolveBackendForChannel(channel),
-      onToolUse, onToolResult, onContextUsage,
-    });
-    return; // status held; finalization deferred to the continuation turn / the run's watchdog
+  if (holdBackground && stream && askCount === 0 && pendingBg + undeliveredBg > 0) {
+    // status held; finalization deferred to the continuation turn / the run's watchdog
+    if (await holdBackground({ stream, backendSessionId: sessionId })) return;
   }
 
   const statusText = renderTurnStatus(
@@ -206,20 +213,19 @@ export async function persistErrorSession(args: {
  * Split the terminal result the way the direct conversation path always has: a rate-limited turn
  * records its auto-resume and seals with the rate-limit line WITHOUT completing the ledger turn;
  * everything else goes through {@link handleAgentSuccess}. Moved here from `agent-runner.ts`
- * (Phase 1.4) with the caller's `trigger` now threaded through — the three surfaces that open a
- * Turn pass `'user'`, `'edit-retry'` and `'ask-user-question'` respectively.
+ * (Phase 1.4).
+ *
+ * What left this signature in T2.2 — `trigger`, `projectId`, `trackSessionId` and the three
+ * continuation callbacks — belonged to the background hold, which the Turn now builds and hands
+ * down as one closure. This path decides only whether the turn MAY be held, never how.
  */
-export async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, trigger, sessionName, sessionId, threadAnchorId, messageTs, callbacks, projectId, continuationToolUse, continuationToolResult, continuationContextUsage, backgroundRun = null }: {
+export async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, sessionName, sessionId, threadAnchorId, messageTs, callbacks, holdBackground = null }: {
   result: AgentResult; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number;
-  userMessage: string; executionId: string | null; trigger: string; sessionName: string | null; sessionId: string | null;
+  userMessage: string; executionId: string | null; sessionName: string | null; sessionId: string | null;
   threadAnchorId: string | null; messageTs: string | null;
   /** Only the assistant stream is read here; the full `AgentCallbacks` shape stays in `turn.ts`. */
   callbacks: { onAssistantMsg: ((text: string) => void) & { stream?: OutputStream } };
-  projectId: string;
-  continuationToolUse: ((name: string, input: any, toolUseId: string, subagent?: ToolUseSubagent) => void) | null;
-  continuationToolResult: ((toolUseId: string, content: string, isError: boolean) => void) | null;
-  continuationContextUsage: ((usage: ContextUsage) => void) | null;
-  backgroundRun?: HeldRun | null;
+  holdBackground?: BackgroundHoldInstaller | null;
 }): Promise<void> {
   if (result?.rateLimited) {
     // Record the interrupted conversation so it auto-resumes when the rate-limit window
@@ -230,5 +236,5 @@ export async function handleDefaultAgentResult({ result, channel, adapter, statu
     await sealStatus(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));
     return;
   }
-  await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, trigger, sessionName, trackSessionId: sessionId, threadAnchorId, userMessageTs: messageTs, projectId, onAssistantMessage: callbacks.onAssistantMsg, onToolUse: continuationToolUse, onToolResult: continuationToolResult, onContextUsage: continuationContextUsage, backgroundRun });
+  await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, executionId, sessionName, threadAnchorId, userMessageTs: messageTs, onAssistantMessage: callbacks.onAssistantMsg, holdBackground });
 }

@@ -58,7 +58,6 @@ export const SHARED_POOL_FILES: string[] = [
   'tests/feishu-client.test.ts',
   'tests/feishu-user-mode.test.ts',
   'tests/memory-index-regen.test.ts',
-  'tests/orch/web-status-renderer.test.ts',
   'tests/platform/app-update.test.ts',
   'tests/platform/tui-protocol.test.ts',
   'tests/platform/tui-transcript.test.ts',

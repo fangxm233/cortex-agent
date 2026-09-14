@@ -1,11 +1,19 @@
+// The Slack/Feishu rendering of a held turn. Migrated from `lifecycle-bg-hold.test.ts` when the
+// hold moved out of `handleAgentSuccess` (T2.2): the five verdict assertions below are unchanged,
+// only the way they are driven is — `holdBackgroundContinuation` + `platformHoldRenderer` instead
+// of the terminal handler, which now only decides that the turn MAY be held.
 import '../_test-home.js'; // MUST be first — isolates store singletons
-import { test } from 'vitest';
+import { beforeEach, test } from 'vitest';
 import assert from 'node:assert/strict';
-import { handleAgentSuccess } from '../../src/orchestration/lifecycle.js';
+import { holdBackgroundContinuation } from '../../src/orchestration/turn/background-hold.js';
+import { platformHoldRenderer } from '../../src/orchestration/turn/hold-render-platform.js';
+import { sessionHolds } from '../../src/core/session-holds.js';
 import { MockAdapter, MockOutputStream } from '../../src/platform/testing.js';
 import type { RunEvent } from '../../src/domain/runs/events.js';
 import type { RunObserver } from '../../src/domain/runs/request.js';
 import { costRepo } from '../../src/domain/costs/cost-tracker.js';
+
+beforeEach(() => sessionHolds.clear());
 
 function baseResult(overrides: Record<string, unknown> = {}) {
   return {
@@ -42,17 +50,30 @@ function harness() {
   };
   const contexts: number[] = [];
   const args = {
-    channel: 'slack:D1', adapter: adapter as any, statusMsg: statusMsg as any,
-    startTime: Date.now(), userMessage: 'run it in background', executionId: `exec-bg-${statusSeq}`,
-    trigger: 'user', sessionName: 'cortex-test', trackSessionId: `session-bg-${statusSeq}`,
-    projectId: 'cortex-self', threadAnchorId: null, userMessageTs: null,
-    onAssistantMessage: onAssistantMessage as any, onToolUse: null,
-    onContextUsage: (usage: { contextWindow: number }) => contexts.push(usage.contextWindow),
-    backgroundRun,
+    channel: 'slack:D1', executionId: `exec-bg-${statusSeq}`,
+    trackSessionId: `session-bg-${statusSeq}`,
   };
+  /** Open the hold the way the Turn does: one lifecycle, this surface's renderer. */
+  const hold = (result: Record<string, unknown>) => holdBackgroundContinuation({
+    run: backgroundRun, result: result as any, channel: args.channel,
+    sessionId: args.trackSessionId, userMessage: 'run it in background',
+    executionId: args.executionId,
+    // The busy bracket itself is `background-hold.test.ts`'s; muted here so the status rendering
+    // does not signal the supervisor over IPC.
+    track: () => {},
+    renderer: platformHoldRenderer({
+      adapter: adapter as any, statusMsg: statusMsg as any, channel: args.channel, stream,
+      sessionName: 'cortex-test', sessionId: (result.sessionId as string) ?? null,
+      trackSessionId: args.trackSessionId, startTime: Date.now(), baseResult: result as any,
+      userMessageTs: null, executionId: args.executionId, trigger: 'user',
+      projectId: 'cortex-self', backend: 'claude',
+      onToolUse: null, onToolResult: null,
+      onContextUsage: (usage: { contextWindow: number }) => contexts.push(usage.contextWindow),
+    }),
+  });
   const lastStatus = () => (adapter.updated.at(-1)?.content?.text ?? '') as string;
   return {
-    adapter, args, contexts, lastStatus, stream, emit,
+    adapter, args, contexts, lastStatus, stream, emit, hold,
     held: () => observer !== null,
     claimedTranscript: () => claimed,
     result: (r: Record<string, unknown>) => emit({ type: 'background_result', result: r as any }),
@@ -74,7 +95,7 @@ async function waitFor(cond: () => boolean | Promise<boolean>, timeoutMs = 2000)
 test('undelivered-only completions hold the status waiting and subscribe to the run; continuation completes → sealed done', async () => {
   const h = harness();
 
-  await handleAgentSuccess({ ...h.args, result: baseResult({ pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 1 }) } as any);
+  await h.hold(baseResult({ pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 1 }));
 
   assert.ok(h.held(), 'hold subscribed to the run for an undelivered-only result');
   assert.ok(h.claimedTranscript(), 'the hold claims the background transcript so nothing double-writes it');
@@ -83,7 +104,7 @@ test('undelivered-only completions hold the status waiting and subscribe to the 
     type: 'context_usage', phase: 'background',
     usedTokens: 500, contextWindow: 1_000_000, percent: 0.05, accuracy: 'exact',
   });
-  assert.deepEqual(h.contexts, [1_000_000], 'continuation context reaches the lifecycle callback');
+  assert.deepEqual(h.contexts, [1_000_000], 'continuation context reaches the turn\'s persistence callback');
 
   // The (late) notification arrives and the continuation turn completes.
   h.result(baseResult({
@@ -119,7 +140,7 @@ test('undelivered-only completions hold the status waiting and subscribe to the 
 
 test('background prose merges into the originating reply; a subagent\'s notes and foreground events do not', async () => {
   const h = harness();
-  await handleAgentSuccess({ ...h.args, result: baseResult({ pendingBackgroundTasks: 1 }) } as any);
+  await h.hold(baseResult({ pendingBackgroundTasks: 1 }));
 
   h.emit({ type: 'assistant_text', phase: 'background', text: 'the build finished' });
   h.emit({ type: 'assistant_text', phase: 'background', text: 'inner working notes', subagent: { id: 's1', name: 'explore' } as any });
@@ -134,7 +155,7 @@ test('background prose merges into the originating reply; a subagent\'s notes an
 test('grace watchdog: no notification within grace → auto-finalized (status sealed, no hang)', async () => {
   const h = harness();
 
-  await handleAgentSuccess({ ...h.args, result: baseResult({ pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 1 }) } as any);
+  await h.hold(baseResult({ pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 1 }));
   assert.match(h.lastStatus(), /Background task running/i, 'initially waiting');
 
   h.grace();
@@ -145,7 +166,7 @@ test('grace watchdog: no notification within grace → auto-finalized (status se
 test('interrupted continuation (process death) → sealed with interruption note, not done', async () => {
   const h = harness();
 
-  await handleAgentSuccess({ ...h.args, result: baseResult({ pendingBackgroundTasks: 1 }) } as any);
+  await h.hold(baseResult({ pendingBackgroundTasks: 1 }));
   assert.ok(h.held(), 'hold subscribed for a running task');
   assert.match(h.lastStatus(), /Background task running/i);
 
@@ -158,7 +179,7 @@ test('interrupted continuation (process death) → sealed with interruption note
 test('max-wait cap: long-running task exceeds cap → status sealed as still-running, subscription kept for late merge', async () => {
   const h = harness();
 
-  await handleAgentSuccess({ ...h.args, result: baseResult({ pendingBackgroundTasks: 1 }) } as any);
+  await h.hold(baseResult({ pendingBackgroundTasks: 1 }));
   assert.ok(h.held(), 'hold subscribed');
 
   h.maxWait();

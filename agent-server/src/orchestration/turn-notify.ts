@@ -5,7 +5,7 @@ import { t } from '../core/i18n.js';
 import { buildSessionTag } from '../core/status-format.js';
 import type { Destination, PlatformAdapter } from '@platform/index.js';
 import { getOutboundQueue, durablePost } from '@store/outbound-queue.js';
-import { isInteractiveChannel } from './background-hold-gates.js';
+import { isInteractiveChannel } from './turn/background-hold.js';
 
 const log = createLogger('turn-notify');
 

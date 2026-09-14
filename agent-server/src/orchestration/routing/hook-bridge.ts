@@ -127,18 +127,14 @@ setInterval(() => cleanupStale(), 5 * 60 * 1000).unref();
 // --- Per-channel streaming context (for thread-aware hook messages) ---
 
 // T2.1: the slot itself moved to `turn/active-turns.ts` (it is per-channel turn state, not an
-// execution index). These three stay as thin wrappers because `status-renderer.ts`,
-// `hook-bridge-subscribers.ts` and `interactions/interaction-handlers.ts` still import them;
-// Phase 4 points those at `activeTurns` and deletes these.
+// execution index). These stay as thin wrappers because `hook-bridge-subscribers.ts` and
+// `interactions/interaction-handlers.ts` still import `getStreamingCallback`; Phase 4 points those
+// at `activeTurns` and deletes these. `clearStreamingCallback` left with `status-renderer.ts`
+// (T2.2) — the background hold's renderer calls `activeTurns` directly.
 
 /** Register the active onAssistantMessage callback for a channel (called by the Turn). */
 function setStreamingCallback(channel: string, cb: (text: string) => void) {
   activeTurns.setStreamingCallback(channel, cb);
-}
-
-/** Clear the streaming callback when the turn ends (or a background hold seals). */
-function clearStreamingCallback(channel: string) {
-  activeTurns.clearStreamingCallback(channel);
 }
 
 /** Get the active streaming callback for a channel, if any. */
@@ -174,4 +170,4 @@ function publishAskUserRequested(requestId: string, channel: string, sessionId: 
   _bus.publish({ type: 'ask-user.requested', requestId, channel, sessionId, threadId: threadId ?? null, questions, extensionUiId });
 }
 
-export { initHookBridge, setQuestionNotify, setPlanNotify, registerAskQuestion, registerPlanApproval, resolveRequest, setOnStale, cleanupStale, setStreamingCallback, clearStreamingCallback, getStreamingCallback, publishPlanSubmitted, publishAskUserRequested };
+export { initHookBridge, setQuestionNotify, setPlanNotify, registerAskQuestion, registerPlanApproval, resolveRequest, setOnStale, cleanupStale, setStreamingCallback, getStreamingCallback, publishPlanSubmitted, publishAskUserRequested };

@@ -177,8 +177,8 @@ export function createTranscriptSink(opts: TranscriptSinkOptions): RunObserver {
     // the full text stays in the transcript, where it can be grouped.
     //
     // Only the foreground turn streams to the platform callback. A background turn's prose belongs
-    // to whichever surface is holding the turn open (`status-renderer` merges it into the held
-    // reply, `web-status-renderer` publishes it as new session messages); streaming it from here
+    // to whichever surface is holding the turn open (the platform hold merges it into the held
+    // reply, the web one publishes it as new session messages); streaming it from here
     // too would post it twice. The ROW is written either way — that is what this sink is for.
     if (!ref && phase === 'foreground') opts.onAssistantMessage?.(text);
     if (!text) return;

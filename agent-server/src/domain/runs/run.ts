@@ -59,7 +59,7 @@ export interface AgentRun {
   cancel(reason: 'user' | 'supersede' | 'shutdown'): void;
   subscribe(observer: RunObserver): () => void;
   /**
-   * True once a background surface (`status-renderer` / `web-status-renderer`) has claimed the
+   * True once a background surface (`turn/hold-render-platform` / `hold-render-web`) has claimed the
    * background turn's rows. Only one consumer may write them — the engine binds exactly one
    * background-turn sink — and this flag keeps that guarantee now that several observers can watch
    * the same run.
