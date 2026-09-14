@@ -3,7 +3,9 @@ import { ContextCompactFooter, ContextUsageDetails, contextUsageTitle, type Cont
 import { buildSessionIdRows } from '@/features/workbench/session-id';
 import type { SessionStatsRow } from '@/features/workbench/session-stats';
 import { MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
-import type { SelectionSheetRow, SelectionSheetSection } from './m-chat-vm';
+import { useState, type ReactNode } from 'react';
+import type { SelectionRootRow } from '@/features/workbench/selection-menu';
+import type { SelectionSheetRow, SelectionSheetSection, SelectionSheetVM } from './m-chat-vm';
 import type { BrowserSheetItem, CommissionSheetItem, MChatCopy } from './MChatView.types';
 import { useClipboardFeedback } from '@/design/useClipboardFeedback';
 
@@ -118,52 +120,116 @@ function SelectionRow({ row, last, copy, onPick }: {
   return (
     <div
       data-selection-row={row.id}
-      data-disabled={row.disabled ? 'true' : undefined}
-      onClick={() => { if (!row.disabled) onPick(row); }}
-      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 13px', borderBottom: last ? undefined : '1px solid var(--proto-line-soft)', cursor: row.disabled ? 'default' : 'pointer', opacity: row.disabled ? 0.42 : 1 }}
+      onClick={() => onPick(row)}
+      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 13px', borderBottom: last ? undefined : '1px solid var(--proto-line-soft)', cursor: 'pointer' }}
     >
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
           <span style={{ font: `600 13px ${MONO}`, color: MC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.label}</span>
           {row.current && <span style={{ fontSize: 9.5, fontWeight: 600, padding: '1.5px 7px', borderRadius: 999, background: MC.runBg, color: MC.run, flex: 'none' }}>{copy.profileCurrent}</span>}
         </div>
-        {(row.hint ?? row.sub) && <div style={{ font: `400 10px ${MONO}`, color: MC.muted, marginTop: 3 }}>{row.hint ?? row.sub}</div>}
+        {row.sub && <div style={{ font: `400 10px ${MONO}`, color: MC.muted, marginTop: 3 }}>{row.sub}</div>}
       </div>
       {row.current && <span style={{ fontSize: 15, fontWeight: 700, color: MC.run, flex: 'none' }}>✓</span>}
     </div>
   );
 }
 
-/** The engine sheet: profile first (it is the base), then the model and thinking overrides on top.
- *  The rows come from `buildSelectionSheet`, which is the desktop menu's arithmetic — this file only
+/** A collapsed override on the root: what it is, the value in force, and a dot when that value is
+ *  the session's own choice rather than the profile's. */
+function SelectionDrillRow({ row, last, onOpen }: {
+  row: SelectionRootRow;
+  last: boolean;
+  onOpen: () => void;
+}): JSX.Element {
+  return (
+    <div
+      data-selection-pane={row.key}
+      onClick={onOpen}
+      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 13px', borderBottom: last ? undefined : '1px solid var(--proto-line-soft)', cursor: 'pointer' }}
+    >
+      <span style={{ fontSize: 13, color: MC.body, flex: 'none' }}>{row.label}</span>
+      <span style={{ marginLeft: 'auto', minWidth: 0, font: `600 12.5px ${MONO}`, color: row.overridden ? MC.run : MC.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.value}</span>
+      {row.overridden && <span style={{ fontSize: 13, color: MC.run, flex: 'none' }}>•</span>}
+      <span style={{ fontSize: 15, color: MC.faint, flex: 'none' }}>›</span>
+    </div>
+  );
+}
+
+function SheetCard({ children }: { children: ReactNode }): JSX.Element {
+  return <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 13, overflow: 'hidden' }}>{children}</div>;
+}
+
+function SheetNote({ text }: { text: string }): JSX.Element {
+  return <div style={{ font: `400 9.5px ${MONO}`, color: MC.faint, lineHeight: 1.5, padding: '7px 4px 0' }}>{text}</div>;
+}
+
+function SectionRows({ section, copy, onPick }: {
+  section: SelectionSheetSection;
+  copy: MChatCopy;
+  onPick: (row: SelectionSheetRow) => void;
+}): JSX.Element {
+  return (
+    <SheetCard>
+      {section.rows.map((row, index) => (
+        <SelectionRow key={row.id} row={row} last={index === section.rows.length - 1} copy={copy} onPick={onPick} />
+      ))}
+    </SheetCard>
+  );
+}
+
+/** The engine sheet, two levels deep. The ROOT is the profile list plus one collapsed row per
+ *  override; each of those opens a pane of its own. A pick inside a pane returns to the root with
+ *  the sheet still open — model and level are usually chosen together — while naming a profile is
+ *  the wholesale move (it drops the overrides too), so that one closes the sheet.
+ *  The rows come from `buildSelectionSheet`, which is the desktop menu's arithmetic; this file only
  *  draws them. */
-export function SelectionSheet({ sections, copy, pending, onClose, onPick }: {
-  sections: SelectionSheetSection[];
+export function SelectionSheet({ vm, copy, pending, onClose, onPick }: {
+  vm: SelectionSheetVM;
   copy: MChatCopy;
   /** PI is configured but has not reported its models yet. */
   pending?: boolean;
   onClose: () => void;
   onPick: (row: SelectionSheetRow) => void;
 }): JSX.Element {
+  const [pane, setPane] = useState<SelectionRootRow['key'] | null>(null);
+  const section = pane ? vm.sections.find((entry) => entry.key === pane) ?? null : null;
+  const back = (): void => setPane(null);
+
   return (
-    <MBottomSheet onClose={onClose}>
-      <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 10px' }}><span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>{copy.profileTitle}</span><span style={{ marginLeft: 'auto', font: `400 9.5px ${MONO}`, color: MC.faint }}>{copy.profileSubtitle}</span></div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
-        {sections.map((section) => (
-          <div key={section.key}>
-            <div style={{ font: `600 9.5px ${MONO}`, letterSpacing: '.05em', textTransform: 'uppercase', color: MC.muted, padding: '0 2px 5px' }}>{section.title}</div>
-            <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 13, overflow: 'hidden' }}>
-              {section.rows.map((row, index) => (
-                <SelectionRow key={row.id} row={row} last={index === section.rows.length - 1} copy={copy} onPick={onPick} />
-              ))}
-            </div>
-            {section.key === 'model' && pending && (
-              <div style={{ font: `400 9.5px ${MONO}`, color: MC.faint, padding: '7px 4px 0' }}>{copy.selectionPending}</div>
-            )}
+    <MBottomSheet onClose={onClose} onBack={section ? back : undefined}>
+      {section ? (
+        <>
+          <div onClick={back} data-selection-back="true" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 2px 12px', cursor: 'pointer' }}>
+            <span style={{ fontSize: 17, fontWeight: 700, color: MC.run }}>‹</span>
+            <span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>{section.title}</span>
           </div>
-        ))}
-      </div>
-      <div style={{ font: `400 9.5px ${MONO}`, color: MC.faint, padding: '9px 4px 0' }}>{copy.profileFooter}</div>
+          <SectionRows section={section} copy={copy} onPick={(row) => { back(); onPick(row); }} />
+          {section.key === 'model' && pending && <SheetNote text={copy.selectionPending} />}
+          {section.footer && <SheetNote text={section.footer} />}
+        </>
+      ) : (
+        <>
+          <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 10px' }}><span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>{copy.profileTitle}</span><span style={{ marginLeft: 'auto', font: `400 9.5px ${MONO}`, color: MC.faint }}>{copy.profileSubtitle}</span></div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
+            {vm.sections[0] && (
+              <div>
+                <SectionRows section={vm.sections[0]} copy={copy} onPick={(row) => { onClose(); onPick(row); }} />
+                {vm.sections[0].footer && <SheetNote text={vm.sections[0].footer} />}
+              </div>
+            )}
+            <SheetCard>
+              {vm.rootRows.map((row, index) => (
+                <SelectionDrillRow key={row.key} row={row} last={index === vm.rootRows.length - 1 && !vm.clearRow} onOpen={() => setPane(row.key)} />
+              ))}
+              {vm.clearRow && (
+                <SelectionRow row={vm.clearRow} last copy={copy} onPick={(row) => { onClose(); onPick(row); }} />
+              )}
+            </SheetCard>
+          </div>
+          <SheetNote text={copy.profileFooter} />
+        </>
+      )}
     </MBottomSheet>
   );
 }

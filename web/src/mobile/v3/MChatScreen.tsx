@@ -107,8 +107,10 @@ const COPY: { en: MChatCopy; zh: MChatCopy } = {
     selectionThinking: '思考强度',
     selectionMode: '计费路由',
     selectionFollow: '跟随 profile',
-    selectionCrossBackend: '需要新建会话（当前对话运行在不同的后端上）',
-    selectionNoProfile: '本机没有运行该后端的 profile',
+    selectionFollowAll: '全部跟随 profile',
+    selectionHiddenModels: '另有 {n} 个模型在 {backend} 后端，需新建会话才能用',
+    selectionHiddenProfiles: '另有 {n} 个 profile 在 {backend} 后端，需新建会话才能用',
+    selectionHiddenNoProfile: '另有 {n} 个模型还没有能跑它的 profile',
     selectionPending: '正在加载模型…',
     lineUnit: '行',
     charUnit: '字',
@@ -141,8 +143,10 @@ const COPY: { en: MChatCopy; zh: MChatCopy } = {
     selectionThinking: 'thinking',
     selectionMode: 'route',
     selectionFollow: 'follow profile',
-    selectionCrossBackend: 'needs a new session (this conversation runs on a different backend)',
-    selectionNoProfile: 'no profile on this host runs that backend',
+    selectionFollowAll: 'follow the profile for everything',
+    selectionHiddenModels: '{n} more models run on {backend} — start a new conversation to use them',
+    selectionHiddenProfiles: '{n} more profiles run on {backend} — start a new conversation to use them',
+    selectionHiddenNoProfile: '{n} more models are waiting for a profile that runs their backend',
     selectionPending: 'loading models…',
     lineUnit: 'lines',
     charUnit: 'chars',
@@ -658,8 +662,9 @@ export function MChatScreen(): JSX.Element {
     });
   };
 
+  // The sheet owns its own dismissal now — a pick inside a pane returns to its root and stays open,
+  // a profile pick closes it — so this only sends what was chosen.
   function onPickSelection(row: SelectionSheetRow): void {
-    setSelectionOpen(false);
     applySelection(row.change, row.label);
   }
 
@@ -877,7 +882,7 @@ export function MChatScreen(): JSX.Element {
         selectionSheet={
           selectionOpen
             ? {
-              sections: buildSelectionSheet({
+              vm: buildSelectionSheet({
                 profiles,
                 catalog: catalogQuery.data,
                 effective,
@@ -890,8 +895,10 @@ export function MChatScreen(): JSX.Element {
                   thinking: copy.selectionThinking,
                   mode: copy.selectionMode,
                   followProfile: copy.selectionFollow,
-                  crossBackend: copy.selectionCrossBackend,
-                  noProfile: copy.selectionNoProfile,
+                  followAll: copy.selectionFollowAll,
+                  hiddenModels: copy.selectionHiddenModels,
+                  hiddenProfiles: copy.selectionHiddenProfiles,
+                  hiddenNoProfile: copy.selectionHiddenNoProfile,
                 },
               }),
               pending: catalogQuery.isLoading || (catalogQuery.data?.piPending ?? false),

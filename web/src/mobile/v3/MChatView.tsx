@@ -707,7 +707,7 @@ export function MChatView(props: MChatViewProps): JSX.Element {
         />
       )}
       {props.selectionSheet && (
-        <SelectionSheet sections={props.selectionSheet.sections} pending={props.selectionSheet.pending} copy={copy} onClose={props.selectionSheet.onClose} onPick={props.selectionSheet.onPick} />
+        <SelectionSheet vm={props.selectionSheet.vm} pending={props.selectionSheet.pending} copy={copy} onClose={props.selectionSheet.onClose} onPick={props.selectionSheet.onPick} />
       )}
       {props.contextUsageOpen && (props.contextUsageSupported || props.contextUsage != null) ? (
         <ContextUsageSheet

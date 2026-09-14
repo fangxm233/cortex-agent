@@ -526,11 +526,12 @@ function openSelection(renderer: ReactTestRenderer) {
   return view(renderer).props.selectionSheet;
 }
 
-/** Picking closes the sheet, so each tap opens it again — which is what a user does too. */
+/** The sheet's own navigation is MChatSheets' business; from the screen's side a tap is just the row
+ *  it hands back, wherever that row was drawn. */
 function tap(renderer: ReactTestRenderer, rowId: string): void {
   const sheet = openSelection(renderer);
-  const row = sheet.sections.flatMap((section: any) => section.rows).find((r: any) => r.id === rowId);
-  if (!row) throw new Error(`no such row: ${rowId} in ${JSON.stringify(sheet.sections.flatMap((s: any) => s.rows.map((r: any) => r.id)))}`);
+  const row = sheet.vm.sections.flatMap((section: any) => section.rows).find((r: any) => r.id === rowId);
+  if (!row) throw new Error(`no such row: ${rowId} in ${JSON.stringify(sheet.vm.sections.flatMap((s: any) => s.rows.map((r: any) => r.id)))}`);
   act(() => { sheet.onPick(row); });
 }
 
@@ -555,7 +556,7 @@ describe('mobile engine picker', () => {
     });
   });
 
-  it('a live conversation cannot cross backends from the sheet', () => {
+  it('a live conversation is not offered the other backend at all', () => {
     harness.transcripts.s1 = {
       sessionId: 's1',
       turns: [{ messages: [{ type: 'user', text: 'earlier', createdAt: '2026-05-01T00:00:00Z' }] }],
@@ -563,11 +564,11 @@ describe('mobile engine picker', () => {
     };
     mounted = mountChat();
     const sheet = openSelection(mounted);
-    const pi = sheet.sections
-      .flatMap((section: any) => section.rows)
-      .find((row: any) => row.id === 'model:pi:zai:glm-5');
-    expect(pi).toMatchObject({ disabled: true, change: null });
-    act(() => { sheet.onPick(pi); });
+    const rows = sheet.vm.sections.flatMap((section: any) => section.rows);
+    expect(rows.find((row: any) => row.id === 'model:pi:zai:glm-5')).toBeUndefined();
+    // Not silently: the model section says how many were held back, and why.
+    const models = sheet.vm.sections.find((section: any) => section.key === 'model');
+    expect(models.footer).toContain('pi');
     expect(harness.setSelectionMutate).not.toHaveBeenCalled();
   });
 

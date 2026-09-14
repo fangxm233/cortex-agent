@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import type { ConfigProfileEntry, ModelCatalogSnapshot } from '@cortex-agent/ui-contract';
 import {
-  buildModelOptions, buildProfileOptions, buildThinkingOptions, effectiveSelection, groupModelOptions,
-  modelChange, profileChange, profileForModel, thinkingChange,
+  buildModelOptions, buildProfileOptions, buildThinkingOptions, clearAllChange, effectiveSelection,
+  groupModelOptions, modelChange, profileChange, profileForModel, selectionRootRows, thinkingChange,
+  visibleModelOptions, visibleProfileOptions,
 } from './selection-menu';
 
 function profile(over: Partial<ConfigProfileEntry> & Pick<ConfigProfileEntry, 'name'>): ConfigProfileEntry {
@@ -120,6 +121,81 @@ describe('buildModelOptions', () => {
 
   it('is empty, not broken, before the catalog arrives', () => {
     expect(buildModelOptions(null, profiles, claudeNow, { hasHistory: false, defaultProfile: null })).toEqual([]);
+  });
+});
+
+// What the rule above decides is pickable, this decides is DRAWN: a row nobody can click is not
+// drawn at all, and the count that replaces it carries the reason.
+describe('visibleModelOptions', () => {
+  const claudeNow = effectiveSelection(profiles, 'opus', null);
+
+  it('holds back the other backend in a live conversation, and says which one', () => {
+    const visible = visibleModelOptions(
+      buildModelOptions(catalog, profiles, claudeNow, { hasHistory: true, defaultProfile: 'opus' }),
+    );
+    expect(visible.options.map((option) => option.id)).toEqual(['claude-opus-5', 'claude-sonnet-5']);
+    expect(visible).toMatchObject({ hiddenCrossBackend: 3, hiddenBackend: 'pi', hiddenNoProfile: 0 });
+  });
+
+  it('holds nothing back for a draft — it may still choose its backend', () => {
+    const visible = visibleModelOptions(
+      buildModelOptions(catalog, profiles, claudeNow, { hasHistory: false, defaultProfile: 'opus' }),
+    );
+    expect(visible.options).toHaveLength(5);
+    expect(visible).toMatchObject({ hiddenCrossBackend: 0, hiddenBackend: null, hiddenNoProfile: 0 });
+  });
+
+  it('counts a backend this host cannot run at all separately — a new conversation would not help', () => {
+    const claudeOnly = profiles.filter((entry) => (entry.backend ?? 'claude') === 'claude');
+    const visible = visibleModelOptions(
+      buildModelOptions(catalog, claudeOnly, claudeNow, { hasHistory: false, defaultProfile: 'opus' }),
+    );
+    expect(visible.options.map((option) => option.id)).toEqual(['claude-opus-5', 'claude-sonnet-5']);
+    expect(visible).toMatchObject({ hiddenCrossBackend: 0, hiddenNoProfile: 3 });
+  });
+});
+
+describe('visibleProfileOptions', () => {
+  it('drops the profiles a live conversation cannot move to, and counts them', () => {
+    const options = buildProfileOptions(profiles, 'opus', { currentBackend: 'claude', hasHistory: true });
+    expect(visibleProfileOptions(options)).toMatchObject({ hidden: 2, hiddenBackend: 'pi' });
+    expect(visibleProfileOptions(options).options.map((option) => option.name)).toEqual(['opus', 'sonnet']);
+  });
+
+  it('leaves the whole list of a draft alone', () => {
+    const options = buildProfileOptions(profiles, 'opus', { currentBackend: 'claude', hasHistory: false });
+    expect(visibleProfileOptions(options)).toMatchObject({ hidden: 0, hiddenBackend: null });
+  });
+});
+
+describe('selectionRootRows', () => {
+  const copy = { model: 'model', thinking: 'thinking', mode: 'route' };
+
+  it('shows the value in force, and whether the session chose it', () => {
+    const current = effectiveSelection(profiles, 'opus', { model: 'claude-sonnet-5' });
+    expect(selectionRootRows(current, copy, { hasThinking: true, hasModes: true })).toEqual([
+      { key: 'model', label: 'model', value: 'claude-sonnet-5', overridden: true },
+      { key: 'thinking', label: 'thinking', value: 'xhigh', overridden: false },
+      { key: 'mode', label: 'route', value: 'plan', overridden: false },
+    ]);
+  });
+
+  it('has no row for a choice the session cannot make, and a dash for one nothing declares', () => {
+    const current = effectiveSelection(profiles, 'sonnet', null);
+    const rows = selectionRootRows(current, copy, { hasThinking: true, hasModes: false });
+    expect(rows.map((row) => row.key)).toEqual(['model', 'thinking']);
+    expect(rows[1].value).toBe('—');
+  });
+});
+
+describe('clearAllChange', () => {
+  it('states an empty selection, which is how the server reads "follow the profile again"', () => {
+    expect(clearAllChange(effectiveSelection(profiles, 'opus', { thinking: 'low' })))
+      .toEqual({ selection: {} });
+  });
+
+  it('is nothing to do when the profile is already running as declared', () => {
+    expect(clearAllChange(effectiveSelection(profiles, 'opus', null))).toBeNull();
   });
 });
 

@@ -2,8 +2,10 @@ import type {
   ConfigProfileEntry, ModelCatalogSnapshot, SessionSelectionOverride, SessionTranscript,
 } from '@cortex-agent/ui-contract';
 import {
-  buildModeOptions, buildModelOptions, buildProfileOptions, buildThinkingOptions, groupModelOptions,
-  modeChange, modelChange, profileChange, thinkingChange, type EffectiveSelection,
+  buildModeOptions, buildModelOptions, buildProfileOptions, buildThinkingOptions, clearAllChange,
+  groupModelOptions, modeChange, modelChange, profileChange, selectionRootRows, thinkingChange,
+  visibleModelOptions, visibleProfileOptions,
+  type EffectiveSelection, type SelectionRootRow,
 } from '@/features/workbench/selection-menu';
 import type { SelectionChange } from '@/features/workbench/selected-session';
 import {
@@ -157,15 +159,13 @@ export function profileSub(p: ConfigProfileEntry): string {
 
 export interface SelectionSheetRow {
   /** Stable identity, also the test hook: `profile:<name>`, `model:<backend>:<provider>:<id>`,
-   *  `model:follow`, `thinking:<level>`, `thinking:follow`, `mode:<mode>`, `mode:follow`. */
+   *  `model:follow`, `thinking:<level>`, `thinking:follow`, `mode:<mode>`, `mode:follow`,
+   *  `selection:clear`. */
   id: string;
   label: string;
   sub: string | null;
   current: boolean;
-  disabled: boolean;
-  /** Why a disabled row cannot be picked, in the caller's language. */
-  hint: string | null;
-  /** What to send if it is tapped. Null means the tap is a no-op (already running, or disabled). */
+  /** What to send if it is tapped. Null means the tap is a no-op (it is already running). */
   change: SelectionChange | null;
 }
 
@@ -173,6 +173,17 @@ export interface SelectionSheetSection {
   key: 'profile' | 'model' | 'thinking' | 'mode';
   title: string;
   rows: SelectionSheetRow[];
+  /** One line accounting for the rows that were NOT drawn, when any were held back. */
+  footer?: string;
+}
+
+/** What the sheet shows at its root and behind each drill row. `sections[0]` is always the profile
+ *  list — the root's own list — and the rest are the panes `rootRows` open. */
+export interface SelectionSheetVM {
+  sections: SelectionSheetSection[];
+  rootRows: SelectionRootRow[];
+  /** The root's "hand everything back to the profile" row; absent when nothing is overridden. */
+  clearRow: SelectionSheetRow | null;
 }
 
 export interface SelectionSheetCopy {
@@ -182,14 +193,30 @@ export interface SelectionSheetCopy {
   /** Heading of the billing-route section — only shown when the endpoint declares more than one. */
   mode: string;
   followProfile: string;
-  crossBackend: string;
-  noProfile: string;
+  followAll: string;
+  /** `{n}` / `{backend}` templates for what the picker held back. */
+  hiddenModels: string;
+  hiddenProfiles: string;
+  hiddenNoProfile: string;
+}
+
+/** The one line that replaces the rows the picker held back. */
+function hiddenNote(template: string, count: number, backend?: string | null): string | null {
+  if (count === 0) return null;
+  return template.replace('{n}', String(count)).replace('{backend}', backend ?? '');
+}
+
+function joinNotes(...notes: Array<string | null>): string | undefined {
+  const kept = notes.filter((note): note is string => note !== null);
+  return kept.length > 0 ? kept.join(' · ') : undefined;
 }
 
 /**
- * The 1p engine sheet: PROFILE (the base — backend, route, fallback chain), then MODEL, THINKING and
- * — where the endpoint bills more than one way — ROUTE, as overrides on top of it, each with a
- * "follow the profile" row so a choice can be taken back.
+ * The 1p engine sheet, in two levels: the ROOT is the profile list (a profile is the base — backend,
+ * route, fallback chain — and switching one is the common move) plus one collapsed row per override,
+ * each showing the value in force. Those rows open a pane: MODEL, THINKING and — where the endpoint
+ * bills more than one way — ROUTE, each with a "follow the profile" row so a choice can be taken
+ * back. Nothing unpickable is drawn; a footer says how many rows were held back and why.
  * Every row carries the change it produces, so the screen never re-derives the rule — it is the same
  * shared arithmetic the desktop menu runs (features/workbench/selection-menu).
  */
@@ -201,43 +228,38 @@ export function buildSelectionSheet(input: {
   hasHistory: boolean;
   defaultProfile: string | null;
   copy: SelectionSheetCopy;
-}): SelectionSheetSection[] {
+}): SelectionSheetVM {
   const { profiles, catalog, effective, override, hasHistory, defaultProfile, copy } = input;
   const profileEntry = profiles.find((entry) => entry.name === effective.profileName) ?? null;
 
-  const profileOptions = buildProfileOptions(profiles, effective.profileName, {
+  const profileOptions = visibleProfileOptions(buildProfileOptions(profiles, effective.profileName, {
     currentBackend: effective.backend, hasHistory,
-  });
-  const profileRows: SelectionSheetRow[] = profileOptions.map((option) => ({
+  }));
+  const profileRows: SelectionSheetRow[] = profileOptions.options.map((option) => ({
     id: `profile:${option.name}`,
     label: option.name,
     sub: option.sub,
     current: option.active,
-    disabled: option.disabled,
-    hint: option.disabled ? copy.crossBackend : null,
-    change: profileChange(profileOptions, effective, option.name),
+    change: profileChange(profileOptions.options, effective, option.name),
   }));
 
-  const modelOptions = buildModelOptions(catalog, profiles, effective, { hasHistory, defaultProfile });
+  const modelOptions = visibleModelOptions(
+    buildModelOptions(catalog, profiles, effective, { hasHistory, defaultProfile }),
+  );
   const modelRows: SelectionSheetRow[] = [{
     id: 'model:follow',
     label: copy.followProfile,
     sub: profileEntry?.model ?? null,
     current: !effective.modelOverridden,
-    disabled: false,
-    hint: null,
     change: modelChange(effective, override, null),
   }];
-  for (const group of groupModelOptions(modelOptions, effective.backend)) {
+  for (const group of groupModelOptions(modelOptions.options, effective.backend)) {
     for (const option of group.options) {
       modelRows.push({
         id: `model:${option.backend}:${option.provider ?? ''}:${option.id}`,
         label: option.id,
         sub: group.group,
         current: option.active,
-        disabled: option.disabled,
-        hint: option.disabledReason === 'cross-backend' ? copy.crossBackend
-          : option.disabledReason === 'no-profile' ? copy.noProfile : null,
         change: modelChange(effective, override, option),
       });
     }
@@ -250,8 +272,6 @@ export function buildSelectionSheet(input: {
       label: copy.followProfile,
       sub: profileEntry?.thinking ?? null,
       current: !effective.thinkingOverridden,
-      disabled: false,
-      hint: null,
       change: thinkingChange(effective, override, null),
     },
     ...thinkingOptions.map((option): SelectionSheetRow => ({
@@ -259,8 +279,6 @@ export function buildSelectionSheet(input: {
       label: option.level,
       sub: null,
       current: option.active,
-      disabled: false,
-      hint: null,
       change: thinkingChange(effective, override, option.level),
     })),
   ];
@@ -272,8 +290,6 @@ export function buildSelectionSheet(input: {
       label: copy.followProfile,
       sub: profileEntry?.mode ?? null,
       current: !effective.modeOverridden,
-      disabled: false,
-      hint: null,
       change: modeChange(effective, override, null),
     },
     ...modeOptions.map((option): SelectionSheetRow => ({
@@ -281,22 +297,39 @@ export function buildSelectionSheet(input: {
       label: option.mode,
       sub: null,
       current: option.active,
-      disabled: false,
-      hint: null,
       change: modeChange(effective, override, option.mode),
     })),
   ];
 
-  return [
-    { key: 'profile', title: copy.profile, rows: profileRows },
-    { key: 'model', title: copy.model, rows: modelRows },
-    ...(thinkingRows.length > 0
-      ? [{ key: 'thinking' as const, title: copy.thinking, rows: thinkingRows }]
-      : []),
-    ...(modeRows.length > 0
-      ? [{ key: 'mode' as const, title: copy.mode, rows: modeRows }]
-      : []),
-  ];
+  const profileFooter = joinNotes(
+    hiddenNote(copy.hiddenProfiles, profileOptions.hidden, profileOptions.hiddenBackend),
+  );
+  const modelFooter = joinNotes(
+    hiddenNote(copy.hiddenModels, modelOptions.hiddenCrossBackend, modelOptions.hiddenBackend),
+    hiddenNote(copy.hiddenNoProfile, modelOptions.hiddenNoProfile),
+  );
+  const clear = clearAllChange(effective);
+
+  return {
+    sections: [
+      { key: 'profile', title: copy.profile, rows: profileRows, ...(profileFooter ? { footer: profileFooter } : {}) },
+      { key: 'model', title: copy.model, rows: modelRows, ...(modelFooter ? { footer: modelFooter } : {}) },
+      ...(thinkingRows.length > 0
+        ? [{ key: 'thinking' as const, title: copy.thinking, rows: thinkingRows }]
+        : []),
+      ...(modeRows.length > 0
+        ? [{ key: 'mode' as const, title: copy.mode, rows: modeRows }]
+        : []),
+    ],
+    rootRows: selectionRootRows(
+      effective,
+      { model: copy.model, thinking: copy.thinking, mode: copy.mode },
+      { hasThinking: thinkingRows.length > 0, hasModes: modeRows.length > 0 },
+    ),
+    clearRow: clear
+      ? { id: 'selection:clear', label: copy.followAll, sub: null, current: false, change: clear }
+      : null,
+  };
 }
 
 // ── 7a long-press action overlay placement ──

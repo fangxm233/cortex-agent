@@ -116,8 +116,10 @@ describe('buildSelectionSheet', () => {
   };
   const copy = {
     profile: 'Profile', model: 'model', thinking: 'thinking', mode: 'route',
-    followProfile: 'follow profile', crossBackend: 'needs a new session',
-    noProfile: 'no profile for that backend',
+    followProfile: 'follow profile', followAll: 'follow the profile for everything',
+    hiddenModels: '{n} more models run on {backend}',
+    hiddenProfiles: '{n} more profiles run on {backend}',
+    hiddenNoProfile: '{n} more models have no profile',
   };
   const sheet = (over: Partial<Parameters<typeof buildSelectionSheet>[0]> = {}) => buildSelectionSheet({
     profiles,
@@ -131,7 +133,24 @@ describe('buildSelectionSheet', () => {
   });
 
   it('reads profile first, then the overrides on top of it', () => {
-    expect(sheet().map((section) => section.key)).toEqual(['profile', 'model', 'thinking', 'mode']);
+    expect(sheet().sections.map((section) => section.key)).toEqual(['profile', 'model', 'thinking', 'mode']);
+  });
+
+  it('collapses every override into a root row showing the value in force', () => {
+    expect(sheet().rootRows).toEqual([
+      { key: 'model', label: 'model', value: 'sonnet-4.5', overridden: false },
+      { key: 'thinking', label: 'thinking', value: 'high', overridden: false },
+      { key: 'mode', label: 'route', value: '—', overridden: false },
+    ]);
+  });
+
+  it('marks a root row the session chose for itself', () => {
+    const rows = sheet({
+      effective: effectiveSelection(profiles, 'default', { model: 'haiku-4' }),
+      override: { model: 'haiku-4' },
+    }).rootRows;
+    expect(rows[0]).toMatchObject({ key: 'model', value: 'haiku-4', overridden: true });
+    expect(rows[1]).toMatchObject({ key: 'thinking', overridden: false });
   });
 
   it('drops the route section when the endpoint bills only one way', () => {
@@ -139,12 +158,13 @@ describe('buildSelectionSheet', () => {
       ...catalog,
       routes: catalog.routes.map((route) => ({ ...route, modes: [route.modes[0]] })),
     };
-    expect(sheet({ catalog: oneLane }).map((section) => section.key))
-      .toEqual(['profile', 'model', 'thinking']);
+    const built = sheet({ catalog: oneLane });
+    expect(built.sections.map((section) => section.key)).toEqual(['profile', 'model', 'thinking']);
+    expect(built.rootRows.map((row) => row.key)).toEqual(['model', 'thinking']);
   });
 
   it('every section can be taken back to the profile, and says what that means', () => {
-    const sections = sheet();
+    const { sections } = sheet();
     const follow = sections[1].rows[0];
     expect(follow).toMatchObject({ id: 'model:follow', sub: 'sonnet-4.5', current: true });
     // Nothing is overridden, so there is nothing to take back.
@@ -152,30 +172,56 @@ describe('buildSelectionSheet', () => {
     expect(sections[2].rows[0]).toMatchObject({ id: 'thinking:follow', sub: 'high', current: true });
   });
 
+  it('offers to hand every override back at once, and only then', () => {
+    expect(sheet().clearRow).toBeNull();
+    expect(sheet({
+      effective: effectiveSelection(profiles, 'default', { model: 'haiku-4' }),
+      override: { model: 'haiku-4' },
+    }).clearRow).toMatchObject({ id: 'selection:clear', change: { selection: {} } });
+  });
+
   it('marks what is running now', () => {
-    const sections = sheet();
+    const { sections } = sheet();
     expect(sections[0].rows.find((row) => row.current)?.label).toBe('default');
     expect(sections[1].rows.find((row) => row.current && row.id !== 'model:follow')?.label).toBe('sonnet-4.5');
     expect(sections[2].rows.find((row) => row.current && row.id !== 'thinking:follow')?.label).toBe('high');
   });
 
   it('carries the change each row produces, restating the whole selection', () => {
-    const sections = sheet({ effective: effectiveSelection(profiles, 'default', { thinking: 'low' }), override: { thinking: 'low' } });
+    const { sections } = sheet({ effective: effectiveSelection(profiles, 'default', { thinking: 'low' }), override: { thinking: 'low' } });
     const haiku = sections[1].rows.find((row) => row.label === 'haiku-4')!;
     expect(haiku.change).toEqual({ selection: { thinking: 'low', model: 'haiku-4' } });
     const takeBack = sections[2].rows[0];
     expect(takeBack.change).toEqual({ selection: {} });
   });
 
-  it('a live conversation cannot cross backends, and the row says why', () => {
-    const sections = sheet({ hasHistory: true });
-    const pi = sections[1].rows.find((row) => row.label === 'opus-4.5')!;
-    expect(pi).toMatchObject({ disabled: true, hint: 'needs a new session', change: null });
-    expect(sections[0].rows.find((row) => row.label === 'deep')).toMatchObject({ disabled: true });
+  it('a live conversation is not offered the other backend at all — the footer accounts for it', () => {
+    const { sections } = sheet({ hasHistory: true });
+    expect(sections[1].rows.find((row) => row.label === 'opus-4.5')).toBeUndefined();
+    expect(sections[1].footer).toBe('1 more models run on pi');
+    expect(sections[0].rows.find((row) => row.label === 'deep')).toBeUndefined();
+    expect(sections[0].footer).toBe('1 more profiles run on pi');
+  });
+
+  it('a draft may still cross backends, so nothing is held back', () => {
+    const { sections } = sheet();
+    expect(sections[1].rows.find((row) => row.label === 'opus-4.5')).toBeDefined();
+    expect(sections[1].footer).toBeUndefined();
+    expect(sections[0].footer).toBeUndefined();
+  });
+
+  it('hides a model no profile on this host can run, with a reason of its own', () => {
+    const claudeOnly = profiles.filter((entry) => entry.backend !== 'pi');
+    const { sections } = sheet({
+      profiles: claudeOnly,
+      effective: effectiveSelection(claudeOnly, 'default', null),
+    });
+    expect(sections[1].rows.find((row) => row.label === 'opus-4.5')).toBeUndefined();
+    expect(sections[1].footer).toBe('1 more models have no profile');
   });
 
   it('offers no thinking section before the catalog arrives', () => {
-    const sections = sheet({ catalog: null });
+    const { sections } = sheet({ catalog: null });
     expect(sections.map((section) => section.key)).toEqual(['profile', 'model']);
     expect(sections[1].rows.map((row) => row.id)).toEqual(['model:follow']);
   });

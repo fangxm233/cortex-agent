@@ -8,7 +8,7 @@ import type { SessionStatsRow } from '@/features/workbench/session-stats';
 import type { TodoRailLanguage } from '@/features/workbench/TodoRail';
 import type { MIntCopy } from './MInteractionCards';
 import type {
-  ChatHeaderStatus, PendingAttachmentVM, SelectionSheetRow, SelectionSheetSection,
+  ChatHeaderStatus, PendingAttachmentVM, SelectionSheetRow, SelectionSheetVM,
 } from './m-chat-vm';
 
 export interface MChatCopy {
@@ -40,8 +40,12 @@ export interface MChatCopy {
   /** Heading of the billing-route section (anthropic `plan` vs `api`). */
   selectionMode: string;
   selectionFollow: string;
-  selectionCrossBackend: string;
-  selectionNoProfile: string;
+  /** Root row that hands every override back to the profile at once. */
+  selectionFollowAll: string;
+  /** `{n}` / `{backend}` templates accounting for the rows the picker held back. */
+  selectionHiddenModels: string;
+  selectionHiddenProfiles: string;
+  selectionHiddenNoProfile: string;
   selectionPending: string;
   lineUnit: string;
   charUnit: string;
@@ -180,7 +184,7 @@ export interface MChatViewProps {
   onLibrary: () => void;
   onFile: () => void;
   selectionSheet?: {
-    sections: SelectionSheetSection[];
+    vm: SelectionSheetVM;
     pending: boolean;
     onClose: () => void;
     onPick: (row: SelectionSheetRow) => void;

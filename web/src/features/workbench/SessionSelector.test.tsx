@@ -93,13 +93,31 @@ function mount(props: {
   );
 }
 
-function pick(renderer: ReactTestRenderer, row: string): void {
+function open(renderer: ReactTestRenderer): void {
   act(() => {
     renderer.root.findByProps({ 'data-chip': 'selection' }).props.onClick({ stopPropagation: vi.fn() });
   });
+}
+
+/** The menu is two levels deep now: everything but the profile list lives behind a drill row, so a
+ *  model / thinking / route row is reached the way a user reaches it. */
+function drill(renderer: ReactTestRenderer, pane: string): void {
+  act(() => {
+    renderer.root.findByProps({ 'data-selection-pane': pane }).props.onClick({ stopPropagation: vi.fn() });
+  });
+}
+
+function click(renderer: ReactTestRenderer, row: string): void {
   act(() => {
     renderer.root.findByProps({ 'data-selection-row': row }).props.onClick({ stopPropagation: vi.fn() });
   });
+}
+
+function pick(renderer: ReactTestRenderer, row: string): void {
+  open(renderer);
+  const pane = row.split(':')[0];
+  if (pane === 'model' || pane === 'thinking' || pane === 'mode') drill(renderer, pane);
+  click(renderer, row);
 }
 
 beforeEach(() => {
@@ -122,11 +140,19 @@ describe('SessionSelector', () => {
   it('keeps menu-option clicks from re-toggling the containing chip', () => {
     const renderer = mount({ isDraft: false, currentProfile: 'plan', hasHistory: false });
     const stopPropagation = vi.fn();
-    act(() => {
-      renderer.root.findByProps({ 'data-chip': 'selection' }).props.onClick({ stopPropagation: vi.fn() });
-    });
+    open(renderer);
     act(() => {
       renderer.root.findByProps({ 'data-selection-row': 'profile:execute' }).props.onClick({ stopPropagation });
+    });
+    expect(stopPropagation).toHaveBeenCalledOnce();
+  });
+
+  it('keeps a drill row from re-toggling the chip either', () => {
+    const renderer = mount({ isDraft: false, currentProfile: 'plan', hasHistory: false });
+    const stopPropagation = vi.fn();
+    open(renderer);
+    act(() => {
+      renderer.root.findByProps({ 'data-selection-pane': 'model' }).props.onClick({ stopPropagation });
     });
     expect(stopPropagation).toHaveBeenCalledOnce();
   });
@@ -167,15 +193,82 @@ describe('SessionSelector', () => {
     });
   });
 
-  it('a live conversation cannot pick the other backend at all', () => {
+  it('a live conversation is not offered the other backend at all', () => {
     const renderer = mount({ isDraft: false, currentProfile: 'plan', hasHistory: true });
-    act(() => {
-      renderer.root.findByProps({ 'data-chip': 'selection' }).props.onClick({ stopPropagation: vi.fn() });
+    open(renderer);
+    // The profile that runs it is gone from the root, too.
+    expect(renderer.root.findAllByProps({ 'data-selection-row': 'profile:gpt-execute' })).toHaveLength(0);
+    drill(renderer, 'model');
+    expect(renderer.root.findAllByProps({ 'data-selection-row': 'model:pi:openai-codex:gpt-5.4' }))
+      .toHaveLength(0);
+    // Held back, not hidden away: the pane says how many and on which backend.
+    expect(JSON.stringify(renderer.toJSON())).toContain('pi');
+  });
+
+  it('a draft may still cross backends, so nothing is held back', () => {
+    const renderer = mount({ isDraft: true, currentProfile: null, hasHistory: false });
+    open(renderer);
+    expect(renderer.root.findAllByProps({ 'data-selection-row': 'profile:gpt-execute' })).toHaveLength(1);
+    drill(renderer, 'model');
+    expect(renderer.root.findAllByProps({ 'data-selection-row': 'model:pi:openai-codex:gpt-5.4' }))
+      .toHaveLength(1);
+  });
+
+  it('shows the engine in force on the root, without opening anything', () => {
+    const renderer = mount({
+      isDraft: false, currentProfile: 'plan', hasHistory: true, currentOverride: { thinking: 'low' },
     });
-    const row = renderer.root.findByProps({ 'data-selection-row': 'model:pi:openai-codex:gpt-5.4' });
-    expect(row.props['data-disabled']).toBe('true');
-    act(() => row.props.onClick({ stopPropagation: vi.fn() }));
-    expect(harness.setSelection).not.toHaveBeenCalled();
+    open(renderer);
+    expect(renderer.root.findAllByProps({ 'data-selection-pane': 'thinking' })).toHaveLength(1);
+    // The root is showing the level itself (the pane that lists levels is not open) …
+    const html = JSON.stringify(renderer.toJSON());
+    expect(html).toContain('low');
+    // … and marks it as the session's own choice rather than the profile's.
+    expect(html).toContain('•');
+  });
+
+  it('a pane pick returns to the root instead of closing, so the next facet is one click away', () => {
+    const renderer = mount({ isDraft: false, currentProfile: 'plan', hasHistory: true });
+    pick(renderer, 'model:claude::claude-sonnet-4-6');
+    expect(renderer.root.findAllByProps({ 'data-menu': 'selection' })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-selection-row': 'profile:execute' })).toHaveLength(1);
+  });
+
+  it('Escape retreats one level before it closes the picker', () => {
+    const listeners = vi.fn();
+    vi.stubGlobal('window', { addEventListener: listeners, removeEventListener: vi.fn() });
+    const renderer = mount({ isDraft: false, currentProfile: 'plan', hasHistory: true });
+    open(renderer);
+    drill(renderer, 'model');
+    const escape = (): void => {
+      const calls = listeners.mock.calls.filter(([type]) => type === 'keydown');
+      const onKey = calls[calls.length - 1][1] as (event: { key: string }) => void;
+      act(() => onKey({ key: 'Escape' }));
+    };
+    escape();
+    // Back at the root, still open.
+    expect(renderer.root.findAllByProps({ 'data-selection-row': 'profile:execute' })).toHaveLength(1);
+    escape();
+    expect(renderer.root.findAllByProps({ 'data-menu': 'selection' })).toHaveLength(0);
+  });
+
+  it('a profile pick closes the menu — it replaces the whole engine', () => {
+    const renderer = mount({ isDraft: false, currentProfile: 'plan', hasHistory: true });
+    pick(renderer, 'profile:execute');
+    expect(renderer.root.findAllByProps({ 'data-menu': 'selection' })).toHaveLength(0);
+  });
+
+  it('hands every override back at once, and offers to only when there is one', () => {
+    const plain = mount({ isDraft: false, currentProfile: 'plan', hasHistory: true });
+    open(plain);
+    expect(plain.root.findAllByProps({ 'data-selection-row': 'selection:clear' })).toHaveLength(0);
+
+    const renderer = mount({
+      isDraft: false, currentProfile: 'plan', hasHistory: true,
+      currentOverride: { model: 'claude-sonnet-4-6', thinking: 'low' },
+    });
+    pick(renderer, 'selection:clear');
+    expect(harness.setSelection).toHaveBeenCalledWith({ sessionId: 's1', selection: {} });
   });
 
   it('"follow profile" takes back only the model, leaving the chosen level in place', () => {

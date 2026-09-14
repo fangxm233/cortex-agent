@@ -298,3 +298,97 @@ export function modeChange(
   if (mode === current.mode) return null;
   return { selection: restate(override, { mode }) };
 }
+
+// ── What the picker actually SHOWS ──────────────────────────────────────────────────────────────
+// The rule above decides what is pickable; this decides what is drawn. A row nobody can click is
+// noise — a live PI conversation has no use for 17 greyed-out claude models — so an unpickable
+// option is dropped and the count is reported instead, for the one footer line that says why.
+
+export interface VisibleModelOptions {
+  /** Only the options a click would actually change something with. */
+  options: ModelOption[];
+  /** Hidden because a live conversation may not change backend — a new conversation could. */
+  hiddenCrossBackend: number;
+  /** The backend those hidden models run on. Only two backends exist, and "cross-backend" means
+   *  "not the current one", so they all share it; the first one answers for the group. */
+  hiddenBackend: string | null;
+  /** Hidden because this host has no profile for that backend at all — a new conversation would not
+   *  help either; a profile has to be made first. */
+  hiddenNoProfile: number;
+}
+
+export function visibleModelOptions(options: ModelOption[]): VisibleModelOptions {
+  const crossBackend = options.filter((option) => option.disabledReason === 'cross-backend');
+  return {
+    options: options.filter((option) => !option.disabled),
+    hiddenCrossBackend: crossBackend.length,
+    hiddenBackend: crossBackend[0]?.backend ?? null,
+    hiddenNoProfile: options.filter((option) => option.disabledReason === 'no-profile').length,
+  };
+}
+
+/** The same rule for the profile list: a profile the conversation cannot move to is not drawn. */
+export function visibleProfileOptions(options: ProfileOption[]): {
+  options: ProfileOption[];
+  hidden: number;
+  hiddenBackend: string | null;
+} {
+  const hidden = options.filter((option) => option.disabled);
+  return {
+    options: options.filter((option) => !option.disabled),
+    hidden: hidden.length,
+    hiddenBackend: hidden[0]?.backend ?? null,
+  };
+}
+
+/** One collapsed override on the picker's root: what it is, what it is currently worth, and whether
+ *  that value is the session's own choice or just what the profile says. */
+export interface SelectionRootRow {
+  key: 'model' | 'thinking' | 'mode';
+  label: string;
+  value: string;
+  overridden: boolean;
+}
+
+const NO_VALUE = '—';
+
+/**
+ * The root's collapsed rows — the effective value, never "follow profile", so the next turn's engine
+ * reads off the root without opening anything. A level or route the session cannot choose at all
+ * (the backend reports no ladder, the endpoint bills one way) has no row, the same condition that
+ * used to drop the whole section.
+ */
+export function selectionRootRows(
+  current: EffectiveSelection,
+  copy: { model: string; thinking: string; mode: string },
+  opts: { hasThinking: boolean; hasModes: boolean },
+): SelectionRootRow[] {
+  return [
+    {
+      key: 'model' as const,
+      label: copy.model,
+      value: current.model ?? NO_VALUE,
+      overridden: current.modelOverridden,
+    },
+    ...(opts.hasThinking ? [{
+      key: 'thinking' as const,
+      label: copy.thinking,
+      value: current.thinking ?? NO_VALUE,
+      overridden: current.thinkingOverridden,
+    }] : []),
+    ...(opts.hasModes ? [{
+      key: 'mode' as const,
+      label: copy.mode,
+      value: current.mode ?? NO_VALUE,
+      overridden: current.modeOverridden,
+    }] : []),
+  ];
+}
+
+/** Hand every override back to the profile in one move. `{}` states a selection that carries no
+ *  field, which is exactly how the server reads "all of it follows the profile again". Null when
+ *  there is nothing to take back. */
+export function clearAllChange(current: EffectiveSelection): SelectionChange | null {
+  if (!current.modelOverridden && !current.thinkingOverridden && !current.modeOverridden) return null;
+  return { selection: {} };
+}
