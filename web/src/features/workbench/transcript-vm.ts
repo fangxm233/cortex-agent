@@ -544,7 +544,19 @@ export function regenNoteIndexes(rows: ChatRow[]): Set<number> {
   return out;
 }
 
-/** Whole-turn assistant text, keyed by the final substantive row in that turn. */
+/**
+ * Whole-turn assistant text, keyed by the final substantive row in that turn.
+ *
+ * A turn ends at the next HUMAN message only. System-authored user rows (a background agent's
+ * result, a task callback, a resume signal — see systemOriginLabel) are the machine steering itself
+ * and read as one quiet hint line, so ending the turn there stranded the copy button mid-answer:
+ * the reader saw prose, a copy icon, then the hint line and more tool calls under it. The reply
+ * between two human messages is one thing to copy, and its button belongs at the bottom of it.
+ *
+ * The key is always a row that renders the action — assistant / tools / notice / interaction /
+ * subagent. Divider and user rows (system-origin included) carry no copy affordance, so landing the
+ * key on one would hide the button entirely.
+ */
 export function assistantTurnCopyTargets(rows: ChatRow[]): Map<number, string> {
   const targets = new Map<number, string>();
   let texts: string[] = [];
@@ -557,7 +569,7 @@ export function assistantTurnCopyTargets(rows: ChatRow[]): Map<number, string> {
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     if (row.kind === 'user') {
-      flush();
+      if (!row.systemOrigin) flush();
       continue;
     }
     if (row.kind === 'assistant' && row.text.length > 0) texts.push(row.text);

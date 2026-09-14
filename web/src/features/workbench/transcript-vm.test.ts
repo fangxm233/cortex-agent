@@ -66,6 +66,23 @@ describe('assistantTurnCopyTargets', () => {
     expect([...assistantTurnCopyTargets(rows)]).toEqual([[3, 'main answer']]);
   });
 
+  it('carries the turn past a system-authored user row so the button lands at the bottom', () => {
+    const rows: ChatRow[] = [
+      { kind: 'user', text: 'question' },
+      { kind: 'assistant', text: 'running it in the background', streaming: false },
+      { kind: 'user', text: '<system-reminder>agent done</system-reminder>', systemOrigin: 'agent-result' },
+      { kind: 'notice', level: 'info', text: 'Background agent result' },
+      { kind: 'tools', count: 2, calls: [{ kind: 'bash', input: 'git diff' }] },
+      { kind: 'user', text: 'next human message' },
+      { kind: 'assistant', text: 'new turn', streaming: false },
+    ];
+
+    expect([...assistantTurnCopyTargets(rows)]).toEqual([
+      [4, 'running it in the background'],
+      [6, 'new turn'],
+    ]);
+  });
+
   it('ignores empty assistant text and turns without assistant text', () => {
     const rows: ChatRow[] = [
       { kind: 'assistant', text: '', streaming: false },
