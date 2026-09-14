@@ -1,5 +1,4 @@
 import * as path from 'node:path';
-import { randomUUID } from 'node:crypto';
 import { emitCortexEvent, type HookEmitResult } from '@core/hook-bus.js';
 import { createLogger } from '@core/log.js';
 import { HOOKS_DIR } from '@core/paths.js';
@@ -9,7 +8,7 @@ import { resolveBackendForChannel } from '@domain/agents/index.js';
 import { resolveProfileConfig, type ResolvedProfileConfig } from '@domain/agents/profile-manager.js';
 import { startRun } from '@domain/runs/service.js';
 import type { RunObserver, RunRequest } from '@domain/runs/request.js';
-import { bareSpec } from '@domain/runs/spec-loader.js';
+import { continuationRunRequest } from '@domain/runs/builders.js';
 import type { RunEvent } from '@domain/runs/events.js';
 import { engines } from '@domain/runs/engines.js';
 import { getSessionAsync } from '@domain/sessions/session.js';
@@ -161,8 +160,7 @@ export async function runHookInjection(
   const inject = spec.inject;
   if (!inject) return;
   try {
-    const request: RunRequest = {
-      runId: randomUUID(),
+    const request: RunRequest = continuationRunRequest({
       session: {
         // The injected turn resumes the OLD backend session; there is no separate Cortex track id
         // for it, so both fields carry the same id.
@@ -176,31 +174,11 @@ export async function runHookInjection(
         sessionName: null,
       },
       profile: hookInjectionProfile(inject.profileName, spec.ctx.channel),
-      spec: bareSpec(),
-      prompt: { text: output, attachments: [] },
-      context: {
-        channel: spec.ctx.channel,
-        project: 'general',
-        trigger: inject.trigger ?? `hook:${spec.name}`,
-        executionKind: 'local',
-        isUserInitiated: false,
-        commissionMode: false,
-        commissionTools: false,
-        scheduleTaskId: null,
-      },
-      policy: {
-        // Legacy `awaitBackground` was undefined with no threadId -> no inline wait.
-        background: 'none',
-        recordCost: true,
-        hooks: true,
-        loadRules: true,
-        mcpComposition: 'direct',
-        browserCdpEndpoint: null,
-        // Claude writes a per-turn transcript file unless told not to; only a frozen subagent
-        // child opts out. `captureTranscriptLogs` defaults to ON, so this must stay true.
-        captureTranscripts: true,
-      },
-    };
+      prompt: output,
+      channel: spec.ctx.channel,
+      project: 'general',
+      trigger: inject.trigger ?? `hook:${spec.name}`,
+    });
     const observer: RunObserver = {
       onEvent(event: RunEvent): void {
         if (event.type === 'assistant_text') stream.emitText(event.text);

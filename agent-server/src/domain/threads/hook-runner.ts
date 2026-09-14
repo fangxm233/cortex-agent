@@ -1,5 +1,4 @@
 import { readFileSync } from 'fs';
-import { randomUUID } from 'node:crypto';
 import { threadStore } from '@store/thread-repo.js';
 import { getSessionKey, recordStepResult, resolveTargetResumeId } from './index.js';
 import { getActiveProfile } from '../agents/index.js';
@@ -14,8 +13,8 @@ import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
 import { Icons } from '../../core/icons.js';
 import { startRun } from '@domain/runs/service.js';
-import type { AgentSpec, RunObserver, RunRequest } from '@domain/runs/request.js';
-import { bareSpec } from '@domain/runs/spec-loader.js';
+import type { RunObserver, RunRequest } from '@domain/runs/request.js';
+import { continuationRunRequest } from '@domain/runs/builders.js';
 import type { RunEvent } from '@domain/runs/events.js';
 import type {
   ThreadHookConfig,
@@ -161,11 +160,9 @@ async function runHookAgent(
   const sessionName = isTargetMode ? null : await sessionStore.generateSessionName();
   const stepStartTime = new Date().toISOString();
 
-  // A hook turn declares no MCP composition, which resolves to 'direct'.
-  const spec: AgentSpec = bareSpec();
-
-  const request: RunRequest = {
-    runId: randomUUID(),
+  // A hook turn is a continuation run (bareSpec — no agent identity; no MCP composition declared,
+  // which resolves to 'direct'), plus the thread coordinates and the thread-step background policy.
+  const hookBase = continuationRunRequest({
     session: {
       sessionId: trackSessionId,
       backendSessionId: sessionId,
@@ -176,36 +173,28 @@ async function runHookAgent(
     // D5: the profile (and the backend/mode inside it) is resolved in one place. An unknown
     // name still reaches the run, which rejects it after the execution record is open.
     profile: resolveRunConfig({ channel: opts.channel, override: profileName }).profile,
-    spec,
-    prompt: { text: prompt, attachments: [] },
+    prompt,
+    channel: opts.channel,
+    project: thread.projectId,
+    // One trigger for the execution record AND for cost attribution. The pre-refactor path used
+    // 'thread-hook' for the record and the thread's own trigger for cost; both read this field.
+    trigger: meta?.trigger || 'thread-hook',
+    executionKind,
+    scheduleTaskId: meta?.scheduleTaskId ?? null,
+  });
+  const request: RunRequest = {
+    ...hookBase,
     context: {
-      channel: opts.channel,
-      project: thread.projectId,
-      // One trigger for the execution record AND for cost attribution. The pre-refactor path used
-      // 'thread-hook' for the record and the thread's own trigger for cost; both read this field.
-      trigger: meta?.trigger || 'thread-hook',
+      ...hookBase.context,
       threadId: thread.id,
       threadDepth: meta?.depth ?? 0,
       taskId: meta?.taskId ?? null,
       taskProject: meta?.taskProject ?? null,
       taskGeneration: meta?.dispatchGeneration ?? null,
-      scheduleTaskId: meta?.scheduleTaskId ?? null,
-      executionKind,
-      isUserInitiated: false,
-      commissionMode: false,
-      commissionTools: false,
     },
-    policy: {
-      background: hookBackgroundPolicy(),
-      recordCost: true,
-      hooks: true,
-      loadRules: true,
-      mcpComposition: 'direct',
-      browserCdpEndpoint: null,
-      // Claude writes a per-turn transcript file unless told not to; only a frozen subagent
-      // child opts out. `captureTranscriptLogs` defaults to ON, so this must stay true.
-      captureTranscripts: true,
-    },
+    // The hook turn carries a threadId, so it waits inline like a thread step (settings-gated);
+    // every other policy field is the shared continuation one.
+    policy: { ...hookBase.policy, background: hookBackgroundPolicy() },
   };
 
   const run = startRun(request, [{

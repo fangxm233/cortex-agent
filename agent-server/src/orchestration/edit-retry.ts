@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { createLogger } from '@core/log.js';
 import { Icons } from '../core/icons.js';
 import { t } from '../core/i18n.js';
@@ -12,7 +11,7 @@ import { getActiveProfile } from '@domain/agents/index.js';
 import { startRun } from '@domain/runs/service.js';
 import type { AgentRun } from '@domain/runs/run.js';
 import type { RunObserver, RunRequest } from '@domain/runs/request.js';
-import { bareSpec } from '@domain/runs/spec-loader.js';
+import { continuationRunRequest } from '@domain/runs/builders.js';
 import type { RunEvent } from '@domain/runs/events.js';
 import { recordDirectResume } from '@domain/runs/observers/resume-recorder.js';
 import { normalizeSkillCommandPrefix } from '@domain/memory/skill-scanner.js';
@@ -96,8 +95,7 @@ export async function runRetryAgent({ channel, text, adapter, statusMsg, startTi
     setStreamingCallback(channel, onAssistantMsg);
     const progressUpdater = buildRetryProgressUpdater(adapter, channel, statusMsg, retryPrefix, startTime, sessionName, sessionId);
     const fallbackNotifier = makeFallbackLabelNotifier(statusMsg, adapter);
-    const request: RunRequest = {
-      runId: randomUUID(),
+    const request: RunRequest = continuationRunRequest({
       session: {
         sessionId,
         backendSessionId,
@@ -107,31 +105,13 @@ export async function runRetryAgent({ channel, text, adapter, statusMsg, startTi
         sessionName,
       },
       profile: resolveRunProfile(getActiveProfile(channel), channel),
-      spec: bareSpec(),
-      prompt: { text: agentMessage, attachments: [] },
-      context: {
-        channel,
-        project: projectId,
-        trigger: 'edit-retry',
-        executionKind: 'local',
-        isUserInitiated: true,
-        commissionMode: false,
-        commissionTools: false,
-        scheduleTaskId: null,
-      },
-      policy: {
-        // Legacy `awaitBackground` was undefined with no threadId -> no inline wait.
-        background: 'none',
-        recordCost: true,
-        hooks: true,
-        loadRules: true,
-        mcpComposition: 'direct',
-        browserCdpEndpoint: null,
-        // Claude writes a per-turn transcript file unless told not to; only a frozen subagent
-        // child opts out. `captureTranscriptLogs` defaults to ON, so this must stay true.
-        captureTranscripts: true,
-      },
-    };
+      prompt: agentMessage,
+      channel,
+      project: projectId,
+      trigger: 'edit-retry',
+      // The retry replays a message a human wrote and edited.
+      isUserInitiated: true,
+    });
     const observer: RunObserver = {
       onEvent(event: RunEvent): void {
         switch (event.type) {

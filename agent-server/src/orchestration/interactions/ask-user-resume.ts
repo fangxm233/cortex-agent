@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { createLogger } from '@core/log.js';
 import { Icons } from '../../core/icons.js';
 import { t } from '../../core/i18n.js';
@@ -7,7 +6,7 @@ import { sessionStore, effectiveBackendSessionId } from '@store/session-registry
 import { startRun } from '@domain/runs/service.js';
 import type { AgentRun } from '@domain/runs/run.js';
 import type { RunObserver, RunRequest } from '@domain/runs/request.js';
-import { bareSpec } from '@domain/runs/spec-loader.js';
+import { continuationRunRequest } from '@domain/runs/builders.js';
 import type { RunEvent } from '@domain/runs/events.js';
 import { getOutboundQueue } from '@store/outbound-queue.js';
 import { buildDurableHooks } from '../durable-helpers.js';
@@ -46,8 +45,7 @@ export async function resumeAskUserQuestionGroup({ adapter, group, responseText 
     const askQueue = getOutboundQueue();
     const askDurable = askQueue ? buildDurableHooks(askQueue) : null;
     const onAssistantMsg = makeStreamingMessageCallback(adapter, askDest, null, null, askDurable);
-    const request: RunRequest = {
-      runId: randomUUID(),
+    const askBase = continuationRunRequest({
       session: {
         sessionId: group.sessionId,
         backendSessionId: askBackendSessionId,
@@ -57,32 +55,21 @@ export async function resumeAskUserQuestionGroup({ adapter, group, responseText 
         sessionName: askSessionName,
       },
       profile: resolveRunProfile(null, group.channel),
-      spec: bareSpec(),
-      prompt: { text: responseText, attachments: [] },
+      prompt: responseText,
+      channel: group.channel,
+      project: askProjectId,
+      trigger: 'ask-user-question',
+    });
+    const request: RunRequest = {
+      ...askBase,
       context: {
-        channel: group.channel,
-        project: askProjectId,
-        trigger: 'ask-user-question',
-        // The pre-refactor resume passed no threadId and never waited for background work inline.
-        // Both are load-bearing: a threadId lands in CORTEX_THREAD_ID and switches the run's
-        // inline background wait on, which would make the resume turn block on background tasks.
+        ...askBase.context,
+        // The pre-refactor resume passed an explicit null threadId and never waited for background
+        // work inline. Both are load-bearing: a threadId lands in CORTEX_THREAD_ID and switches the
+        // run's inline background wait on, which would make the resume turn block on background
+        // tasks. Spelled out here (rather than left off) to keep the field set byte-identical to
+        // the literal this replaced.
         threadId: null,
-        executionKind: 'local',
-        isUserInitiated: false,
-        commissionMode: false,
-        commissionTools: false,
-        scheduleTaskId: null,
-      },
-      policy: {
-        background: 'none',
-        recordCost: true,
-        hooks: true,
-        loadRules: true,
-        mcpComposition: 'direct',
-        browserCdpEndpoint: null,
-        // Claude writes a per-turn transcript file unless told not to; only a frozen subagent
-        // child opts out. `captureTranscriptLogs` defaults to ON, so this must stay true.
-        captureTranscripts: true,
       },
     };
     const observer: RunObserver = {
