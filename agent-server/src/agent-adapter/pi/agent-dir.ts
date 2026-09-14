@@ -1,5 +1,5 @@
 // input:  host PI auth file, PI path defaults, the shared role registry
-// output: PI auth mirroring, shared-role seeding and transport pinning
+// output: PI auth mirroring, shared-role seeding, transport pinning and compaction headroom
 // pos:    Managed PI agent directory configuration
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -157,6 +157,37 @@ export function ensureQuotaVisibleTransport(opts?: EnsureTransportOpts): void {
     writeFileSync(settingsPath, `${JSON.stringify({ ...current, transport: 'sse' }, null, 2)}\n`);
   } catch (err) {
     log.warn(`Failed to pin PI transport in ${settingsPath}: ${(err as Error).message}`);
+  }
+}
+
+/**
+ * Mirror Cortex's `piCompactReserveTokens` into the private agent dir's settings.json.
+ *
+ * PI derives every compaction decision from `compaction.reserveTokens`: it compacts once the
+ * context passes `contextWindow - reserveTokens`, both between turns and — since 0.84.4 — inside a
+ * running turn at a tool-batch boundary. A larger reserve therefore compacts earlier and leaves
+ * more working headroom in a long tool-driven turn. `SettingsManager` exposes no setter for the
+ * value (only `setCompactionEnabled`), so the settings file is the only way to set it.
+ *
+ * Written per session creation, so a changed setting reaches new PI sessions without a restart;
+ * sessions already pooled keep the reserve they were built with. Sibling compaction keys PI or the
+ * user set (`enabled`, `keepRecentTokens`) are preserved, and only this private dir is touched.
+ */
+export function ensureCompactionReserve(reserveTokens: number, opts?: EnsureTransportOpts): void {
+  const settingsPath = path.join(opts?.agentDir ?? PI_AGENT_DIR, 'settings.json');
+  const current = readSettings(settingsPath);
+  const existing = current['compaction'];
+  const compaction = existing && typeof existing === 'object' && !Array.isArray(existing)
+    ? existing as Record<string, unknown>
+    : {};
+  if (compaction['reserveTokens'] === reserveTokens) return;
+  try {
+    writeFileSync(
+      settingsPath,
+      `${JSON.stringify({ ...current, compaction: { ...compaction, reserveTokens } }, null, 2)}\n`,
+    );
+  } catch (err) {
+    log.warn(`Failed to set PI compaction reserve in ${settingsPath}: ${(err as Error).message}`);
   }
 }
 

@@ -8,7 +8,6 @@ Adds Cortex MCP tools, hooks, subagents, shims, and web tools as inline extensio
 | adapter.ts | adapter | Stateless PI EngineAdapter: spec identity, session open, usage and transcript registry |
 | engine.ts | adapter | PIEngineSession over one PISession: one RunEvent stream per run |
 | pi-session.ts | core | One pooled in-process PI session: turns, steering, compaction, lifecycle |
-| context-guard.ts | core | PI's missing mid-turn context check: compacts at a tool-batch boundary, inside a running turn |
 | runtime.ts | core | Creates and owns the PI SDK session runtime behind a PISession |
 | child-session.ts | core | Builds the nested in-memory PI sessions subagents run on |
 | extensions.ts | core | Assembles Cortex's inline PI extensions for one session |
@@ -16,7 +15,7 @@ Adds Cortex MCP tools, hooks, subagents, shims, and web tools as inline extensio
 | session-options.ts | core | Resolves spawn configuration into PI session inputs, CORTEX_* env and identity |
 | session-support.ts | core | PI session timers, queues, and turn types |
 | defaults.ts | config | PI agent and session path defaults |
-| agent-dir.ts | config | manages the private PI agent directory |
+| agent-dir.ts | config | manages the private PI agent directory, incl. PI's transport and compaction reserve |
 | discovery.ts | core | refreshes the host provider/model-pair cache from the SDK model scan |
 | session-files.ts | core | Resolves an isolated PI transcript path |
 | providers-config.ts | config | writes routed PI catalogs with frozen compatibility |

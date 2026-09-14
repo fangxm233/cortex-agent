@@ -11,9 +11,11 @@ import type {
   Theme,
 } from '@earendil-works/pi-coding-agent';
 import { createLogger } from '@core/log.js';
+import { getSettings } from '@core/settings.js';
 import { loadPiSdk, type PiSdkModule } from '@core/pi-sdk.js';
 import type { CodexQuotaReading } from '@core/codex-quota.js';
 import type { PiSessionRequest } from './session-options.js';
+import { ensureCompactionReserve } from './agent-dir.js';
 import { createPiUiContext } from './ui-context.js';
 import { createCortexExtensions } from './extensions.js';
 import type { PiSubagentBridge } from './subagent-bridge.js';
@@ -125,6 +127,9 @@ function runtimeFactory(
   extensions: InlineExtension[],
 ): CreateAgentSessionRuntimeFactory {
   return async ({ cwd, agentDir, sessionManager, sessionStartEvent }) => {
+    // Before the manager reads the file: PI has no setter for the compaction reserve, so the
+    // current Cortex setting has to be on disk by the time SettingsManager.create() parses it.
+    ensureCompactionReserve(getSettings().piCompactReserveTokens, { agentDir });
     const settingsManager = sdk.SettingsManager.create(cwd, agentDir, {
       projectTrusted: projectTrusted(sdk, cwd, agentDir),
     });

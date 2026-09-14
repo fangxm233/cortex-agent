@@ -40,7 +40,7 @@ const settings: ConfigSettingEntry[] = [
   { key: 'disableUserContext', value: true, source: 'env' },
   { key: 'serverUpdateDisable', value: false, source: 'default' },
   { key: 'sessionRetentionDays', value: 30, source: 'env' },
-  { key: 'piMidTurnCompactPercent', value: 88, source: 'default' },
+  { key: 'piCompactReserveTokens', value: 16_384, source: 'default' },
   { key: 'taskDispatchMaxConcurrent', value: 6, source: 'file' },
   { key: 'taskDispatchEnabled', value: false, source: 'file' },
   { key: 'taskDispatchIntervalMs', value: 30_000, source: 'file' },
@@ -124,8 +124,8 @@ describe('runtime settings panel reads', () => {
     expect(html).toContain('data-duration-unit="taskArchiveIntervalMs"');
     expect(html).toContain('data-select-value="hr"');
     expect(html).toContain('data-env-key="DEBUG" data-env-present="true" data-writable="false"');
-    expect(html).toContain('data-setting-key="piMidTurnCompactPercent" data-setting-value="88"');
-    expect(html).toContain('data-number-input="piMidTurnCompactPercent"');
+    expect(html).toContain('data-setting-key="piCompactReserveTokens" data-setting-value="16384"');
+    expect(html).toContain('data-number-input="piCompactReserveTokens"');
   });
 
   it('keeps migrated controls missing and inert when the optional settings snapshot is absent', () => {
@@ -200,20 +200,20 @@ describe('runtime settings panel reads', () => {
         </LangProvider>,
       );
     });
-    const input = renderer!.root.findByProps({ 'data-number-input': 'piMidTurnCompactPercent' });
-    const save = () => renderer!.root.findByProps({ 'data-number-save': 'piMidTurnCompactPercent' });
+    const input = renderer!.root.findByProps({ 'data-number-input': 'piCompactReserveTokens' });
+    const save = () => renderer!.root.findByProps({ 'data-number-save': 'piCompactReserveTokens' });
     expect(save().props.disabled).toBe(true);
 
-    act(() => { input.props.onChange({ target: { value: '0' } }); });
+    act(() => { input.props.onChange({ target: { value: '32768' } }); });
     expect(save().props.disabled).toBe(false);
 
-    act(() => { input.props.onChange({ target: { value: '49' } }); });
+    act(() => { input.props.onChange({ target: { value: '1023' } }); });
     expect(save().props.disabled).toBe(true);
-    expect(save().props.title).toContain('0, 50–99');
+    expect(save().props.title).toContain('1024–131072');
 
-    act(() => { input.props.onChange({ target: { value: '92' } }); });
+    act(() => { input.props.onChange({ target: { value: '32768' } }); });
     act(() => { save().props.onClick(); });
-    expect(onSet).toHaveBeenCalledWith('piMidTurnCompactPercent', 92);
+    expect(onSet).toHaveBeenCalledWith('piCompactReserveTokens', 32_768);
   });
 });
 

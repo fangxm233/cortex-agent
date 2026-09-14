@@ -55,7 +55,7 @@ export interface Settings {
   memoryIndexRegenEnabled: boolean;
   memoryIndexRegenIntervalMs: number;
   sessionRetentionDays: number;
-  piMidTurnCompactPercent: number;
+  piCompactReserveTokens: number;
   uiCorsOrigins: string[];
   adminChannel: string | null;
   feishuAdminChannel: string | null;
@@ -92,24 +92,31 @@ function validateJobInterval(value: number): string | null {
   return null;
 }
 
+/**
+ * PI compaction headroom, in tokens. PI compacts once the context passes
+ * `contextWindow - reserveTokens`, so a bigger reserve compacts earlier. The ceiling keeps the
+ * reserve below every context window Cortex routes to: a reserve at or above the window would make
+ * `shouldCompact` true on an empty context and compact on every turn.
+ */
+export const MIN_PI_COMPACT_RESERVE_TOKENS = 1_024;
+export const MAX_PI_COMPACT_RESERVE_TOKENS = 131_072;
+
+function validatePiCompactReserveTokens(value: number): string | null {
+  if (!Number.isInteger(value)) return 'must be a whole number of tokens';
+  if (value < MIN_PI_COMPACT_RESERVE_TOKENS) {
+    return `must be at least ${MIN_PI_COMPACT_RESERVE_TOKENS} tokens`;
+  }
+  if (value > MAX_PI_COMPACT_RESERVE_TOKENS) {
+    return `must be at most ${MAX_PI_COMPACT_RESERVE_TOKENS} tokens`;
+  }
+  return null;
+}
+
 function validateSessionRetentionDays(value: number): string | null {
   if (!Number.isSafeInteger(value)) return 'must be a safe integer number of days';
   if (value < 1) return 'must be at least 1 day';
   if (value > MAX_SESSION_RETENTION_DAYS) {
     return `must be at most ${MAX_SESSION_RETENTION_DAYS} days`;
-  }
-  return null;
-}
-
-/** Mid-turn compaction trigger: 0 disables it, otherwise a whole percent of the context window. */
-export const MIN_MIDTURN_COMPACT_PERCENT = 50;
-export const MAX_MIDTURN_COMPACT_PERCENT = 99;
-
-function validateMidTurnCompactPercent(value: number): string | null {
-  if (value === 0) return null;
-  if (!Number.isInteger(value)) return 'must be a whole percent';
-  if (value < MIN_MIDTURN_COMPACT_PERCENT || value > MAX_MIDTURN_COMPACT_PERCENT) {
-    return `must be 0 (off) or between ${MIN_MIDTURN_COMPACT_PERCENT} and ${MAX_MIDTURN_COMPACT_PERCENT}`;
   }
   return null;
 }
@@ -324,16 +331,18 @@ export const SETTINGS_SPEC = {
     default: 30,
     validate: validateSessionRetentionDays,
   },
-  // PI only: the Claude CLI compacts inside a turn on its own, PI checks only between turns.
-  piMidTurnCompactPercent: {
-    envVar: 'CORTEX_PI_MIDTURN_COMPACT_PERCENT',
+  // PI only: PI's own compaction headroom, mirrored into its private settings.json. PI compacts —
+  // between turns and, since 0.84.4, mid-turn at a tool-batch boundary — once the context passes
+  // `contextWindow - reserveTokens`. Claude needs no equivalent: the CLI sets its own.
+  piCompactReserveTokens: {
+    envVar: 'CORTEX_PI_COMPACT_RESERVE_TOKENS',
     type: 'number',
-    default: 88,
+    default: 16_384,
     legacyParse: (raw: string) => {
       const value = Number.parseInt(raw.trim(), 10);
-      return Number.isFinite(value) ? value : 88;
+      return Number.isFinite(value) ? value : 16_384;
     },
-    validate: validateMidTurnCompactPercent,
+    validate: validatePiCompactReserveTokens,
   },
   uiCorsOrigins: {
     envVar: 'CORTEX_UI_CORS_ORIGINS',

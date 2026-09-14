@@ -35,14 +35,6 @@ export interface FakeRuntimeOptions {
   /** Keep every prompt() pending in `heldPrompts` until the test settles it (mirrors PI, whose
    *  prompt() resolves only when the run is over). */
   holdPrompts?: boolean;
-  /** Expose the surface the mid-turn context guard drives; omitted ⇒ the session runs unguarded. */
-  contextGuard?: {
-    /** Context occupancy reported by getContextUsage(); null mirrors "unknown after a compaction". */
-    percent?: number | null;
-    contextWindow?: number;
-    /** PI's own compaction switch. */
-    compactionEnabled?: boolean;
-  };
 }
 
 export interface HeldPrompt {
@@ -62,39 +54,6 @@ const DEFAULT_STATS: SessionStats = {
   tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
   cost: 0,
 };
-
-/**
- * The members `installPiContextGuard` drives, as a PI session would expose them: a mutable
- * `prepareNextTurnWithContext`, the compaction switch, a context reading and PI's internal
- * auto-compaction. Cast on the way out because a real `Agent` cannot be faked field for field.
- */
-function guardSurface(
-  runtime: FakeRuntime,
-  options: NonNullable<FakeRuntimeOptions['contextGuard']>,
-): Partial<PiAgentSessionLike> {
-  const compacted = [{ role: 'user' }, { role: 'toolResult' }];
-  return {
-    agent: {
-      prepareNextTurnWithContext: undefined,
-      state: { messages: [{ role: 'user' }, { role: 'assistant' }, { role: 'toolResult' }] },
-    },
-    settingsManager: {
-      getCompactionSettings: () => ({ enabled: options.compactionEnabled !== false }),
-    },
-    isCompacting: false,
-    getContextUsage: () => ({
-      tokens: 1_000,
-      contextWindow: options.contextWindow ?? 200_000,
-      percent: options.percent === undefined ? null : options.percent,
-    }),
-    _runAutoCompaction: async (reason: string, willRetry: boolean) => {
-      runtime.autoCompactions.push({ reason, willRetry });
-      (runtime.session as unknown as { agent: { state: { messages: unknown[] } } })
-        .agent.state.messages = compacted;
-      return true;
-    },
-  } as unknown as Partial<PiAgentSessionLike>;
-}
 
 /**
  * One fake PI runtime. Every call the session makes is recorded; a test drives the session by
@@ -124,8 +83,6 @@ export class FakeRuntime implements PiRuntimeHandle {
   private readonly holdPrompts: boolean;
   /** Ids a respondToUi() call should refuse (simulating a dialog that is no longer waiting). */
   readonly unknownUiIds = new Set<string>();
-  /** Mid-turn compactions PI would have run, in call order. Empty unless `contextGuard` is set. */
-  readonly autoCompactions: { reason: string; willRetry: boolean }[] = [];
   private readonly callWaiters: { kind: FakeSessionCall['kind']; resolve: (call: FakeSessionCall) => void }[] = [];
 
   constructor(request: PiSessionRequest, callbacks: PiRuntimeCallbacks, options: FakeRuntimeOptions = {}) {
@@ -163,7 +120,6 @@ export class FakeRuntime implements PiRuntimeHandle {
         return self.compactResult;
       },
       getSessionStats: () => ({ ...self.stats, sessionFile: self.sessionFile ?? undefined, sessionId: self.sessionId }),
-      ...(options.contextGuard ? guardSurface(self, options.contextGuard) : {}),
     };
   }
 

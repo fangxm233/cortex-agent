@@ -14,6 +14,7 @@ import {
   ensureAuthVisible,
   ensurePIAgentRoles,
   ensureQuotaVisibleTransport,
+  ensureCompactionReserve,
   buildProviderOverrides,
 } from '../src/agent-adapter/pi/agent-dir.js';
 
@@ -415,6 +416,51 @@ test('ensureQuotaVisibleTransport: recovers from an unreadable settings file', (
     fs.writeFileSync(file, '{ not json');
     ensureQuotaVisibleTransport({ agentDir: dir });
     assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf-8')), { transport: 'sse' });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ─── ensureCompactionReserve: PI's own compaction headroom ──
+
+test('ensureCompactionReserve: writes the reserve PI reads off its settings file', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-pi-settings-'));
+  try {
+    ensureCompactionReserve(32_768, { agentDir: dir });
+    const settings = JSON.parse(fs.readFileSync(path.join(dir, 'settings.json'), 'utf-8'));
+    assert.deepEqual(settings.compaction, { reserveTokens: 32_768 });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('ensureCompactionReserve: keeps sibling compaction keys and unrelated settings', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-pi-settings-'));
+  try {
+    const file = path.join(dir, 'settings.json');
+    fs.writeFileSync(file, JSON.stringify({
+      transport: 'sse',
+      compaction: { enabled: true, keepRecentTokens: 20_000, reserveTokens: 16_384 },
+    }));
+    ensureCompactionReserve(65_536, { agentDir: dir });
+    const settings = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    assert.deepEqual(settings, {
+      transport: 'sse',
+      compaction: { enabled: true, keepRecentTokens: 20_000, reserveTokens: 65_536 },
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('ensureCompactionReserve: leaves the file untouched when the reserve already matches', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-pi-settings-'));
+  try {
+    const file = path.join(dir, 'settings.json');
+    fs.writeFileSync(file, JSON.stringify({ compaction: { reserveTokens: 16_384 } }));
+    const before = fs.statSync(file).mtimeMs;
+    ensureCompactionReserve(16_384, { agentDir: dir });
+    assert.equal(fs.statSync(file).mtimeMs, before);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

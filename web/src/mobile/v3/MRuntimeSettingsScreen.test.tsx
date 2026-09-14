@@ -52,7 +52,7 @@ const snapshot: ConfigSnapshot = {
     { key: 'disableUserContext', value: true, source: 'env' },
     { key: 'serverUpdateDisable', value: false, source: 'default' },
     { key: 'sessionRetentionDays', value: 30, source: 'file' },
-    { key: 'piMidTurnCompactPercent', value: 88, source: 'default' },
+    { key: 'piCompactReserveTokens', value: 16_384, source: 'default' },
     { key: 'taskDispatchMaxConcurrent', value: 6, source: 'file' },
     { key: 'taskDispatchEnabled', value: true, source: 'file' },
     { key: 'taskDispatchIntervalMs', value: 30_000, source: 'file' },
@@ -106,17 +106,17 @@ describe('mobile runtime Advanced settings', () => {
     expect(adapter.onSet).toHaveBeenCalledWith('sessionRetentionDays', 45);
   });
 
-  it('writes the PI mid-turn percent, taking 0 as off and refusing a value under the range', () => {
+  it('writes the PI compaction reserve and refuses a value under the range', () => {
     const renderer = mountAdvanced();
-    const row = renderer.root.findByProps({ 'data-settings-row': 'piMidTurnCompactPercent' });
+    const row = renderer.root.findByProps({ 'data-settings-row': 'piCompactReserveTokens' });
     const input = row.findByType('input');
 
-    act(() => input.props.onChange({ target: { value: '49' } }));
+    act(() => input.props.onChange({ target: { value: '1023' } }));
     expect(row.findByType('button').props.disabled).toBe(true);
 
-    act(() => input.props.onChange({ target: { value: '0' } }));
+    act(() => input.props.onChange({ target: { value: '32768' } }));
     expect(row.findByType('button').props.disabled).toBe(false);
     act(() => row.findByType('button').props.onClick());
-    expect(adapter.onSet).toHaveBeenCalledWith('piMidTurnCompactPercent', 0);
+    expect(adapter.onSet).toHaveBeenCalledWith('piCompactReserveTokens', 32_768);
   });
 });

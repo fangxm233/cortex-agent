@@ -7,9 +7,9 @@ import type { ConfigEnvEntry, ConfigSettingEntry } from '@cortex-agent/ui-contra
 import type { Vocab } from '@/i18n';
 
 export const MAX_SESSION_RETENTION_DAYS = Math.floor(Number.MAX_SAFE_INTEGER / 86_400_000);
-/** PI mid-turn compaction trigger bounds; 0 (off) is accepted on top of them. Mirrors settings-spec. */
-export const MIN_MIDTURN_COMPACT_PERCENT = 50;
-export const MAX_MIDTURN_COMPACT_PERCENT = 99;
+/** PI compaction headroom bounds, in tokens. Mirrors settings-spec. */
+export const MIN_PI_COMPACT_RESERVE_TOKENS = 1_024;
+export const MAX_PI_COMPACT_RESERVE_TOKENS = 131_072;
 
 // Pure helpers for the redacted .env view (Platform / Notifications / Advanced panels).
 // SECURITY: config.get NEVER returns a .env value — only { key, present, masked }. These helpers
@@ -98,7 +98,7 @@ export const WRITABLE_INTERVAL_SETTING_KEYS = [
   'taskArchiveIntervalMs',
   'memoryIndexRegenIntervalMs',
 ] as const;
-export const WRITABLE_NUMBER_SETTING_KEYS = ['sessionRetentionDays', 'piMidTurnCompactPercent'] as const;
+export const WRITABLE_NUMBER_SETTING_KEYS = ['sessionRetentionDays', 'piCompactReserveTokens'] as const;
 export const WRITABLE_SETTING_KEYS = [
   ...WRITABLE_BOOLEAN_SETTING_KEYS,
   ...WRITABLE_INTERVAL_SETTING_KEYS,
@@ -192,13 +192,12 @@ export const ADVANCED_NUMBER_SETTINGS: NumberSettingDescriptor[] = [
     max: MAX_SESSION_RETENTION_DAYS,
   },
   {
-    setting: 'piMidTurnCompactPercent',
-    titleKey: 'stAdvPiCompactTitle',
-    descKey: 'stAdvPiCompactDesc',
-    invalidKey: 'stAdvPiCompactInvalid',
-    min: MIN_MIDTURN_COMPACT_PERCENT,
-    max: MAX_MIDTURN_COMPACT_PERCENT,
-    zeroMeansOff: true,
+    setting: 'piCompactReserveTokens',
+    titleKey: 'stAdvPiReserveTitle',
+    descKey: 'stAdvPiReserveDesc',
+    invalidKey: 'stAdvPiReserveInvalid',
+    min: MIN_PI_COMPACT_RESERVE_TOKENS,
+    max: MAX_PI_COMPACT_RESERVE_TOKENS,
   },
 ];
 

@@ -330,7 +330,7 @@ valid settings. Either way the reason is logged. Unknown keys are ignored.
 | `memoryIndexRegenEnabled` | boolean | `true` | Run the built-in experiment/knowledge/pattern index rebuild. Switching from `false` to `true` runs it immediately | — |
 | `memoryIndexRegenIntervalMs` | number | `86400000` | Interval between memory-index rebuilds, in integer milliseconds | — |
 | `sessionRetentionDays` | number | `30` | Whole safe-integer retention window in days (valid range `1` through `104249991`). The retention coordinator runs once at daemon startup, every 6 hours, and again after a hot-reload change; it prunes expired session-registry entries, orphan `conversation-history`, orphan PI transcript bundles, orphan Claude capture logs, and syncs Claude user `cleanupPeriodDays`, while skipping active sessions/captures | — |
-| `piMidTurnCompactPercent` | number | `88` | PI backend only: compact the session context *inside* a running turn once occupancy reaches this percent of the model's context window. `0` disables it; otherwise a whole percent from `50` through `99`. PI's own compaction check runs only between turns, so without this a long tool-driven turn can only be rescued by a provider context-overflow error. The check happens at a tool-batch boundary and PI's own compaction runs there, so the turn continues uninterrupted | `CORTEX_PI_MIDTURN_COMPACT_PERCENT` |
+| `piCompactReserveTokens` | number | `16384` | PI backend only: the context headroom PI keeps in reserve, in tokens. PI compacts once the context passes `contextWindow - reserveTokens` — both between turns and, since PI 0.84.4, *inside* a running turn at a tool-batch boundary — so a larger reserve compacts earlier and leaves more working room in a long tool-driven turn. A whole number from `1024` through `131072`. Cortex mirrors it into the private PI agent dir's `settings.json`, which is the only way in: PI exposes no setter for it | `CORTEX_PI_COMPACT_RESERVE_TOKENS` |
 | `uiCorsOrigins` | string[] | `[]` | Origins that receive CORS headers from the Web UI HTTP host. See [desktop-app.md](./desktop-app.md) | `CORTEX_UI_CORS_ORIGINS` (comma-separated) |
 | `adminChannel` | string \| null | `null` | Slack channel for system notices (startup, rate-limit, disk alerts). The first DM to the bot is auto-detected and persisted here | `SLACK_ADMIN_CHANNEL`, then `CORTEX_ADMIN_CHANNEL` |
 | `feishuAdminChannel` | string \| null | `null` | Feishu admin `chat_id` (`oc_...`) for the same notices. Independent of `adminChannel` — Slack channel ids are not usable on Feishu | `FEISHU_ADMIN_CHANNEL` |
@@ -339,7 +339,7 @@ The Web workbench writes a subset of these from **Settings → Notifications**
 (`turnNotify`, `autoResume`, `notifyCompaction`), **Settings → Advanced**
 (`eventLog`, `diskMonitor`, `showToolCalls`, `disableUserContext`,
 `serverUpdateDisable`, `commissionEnabled`, `sessionRetentionDays`,
-`piMidTurnCompactPercent`, and the
+`piCompactReserveTokens`, and the
 built-in job switches and intervals), and the desktop/mobile **Usage** screens (`providerRateLimits`).
 Every other key is edited by hand in the file.
 
@@ -371,9 +371,11 @@ effect after an active run finishes.
 Advanced**. The desktop Web UI writes it through the same
 `config.set { section: 'settings' }` path as the boolean runtime toggles, and
 the client enforces the same upper bound the server validates.
-`piMidTurnCompactPercent` sits in the same card and takes the same path; the
-client accepts `0` (off) or `50`–`99`, exactly what the server validates. It
-applies to pooled PI sessions on the next check, so no restart is needed.
+`piCompactReserveTokens` sits in the same card and takes the same path; the
+client accepts `1024`–`131072`, exactly what the server validates. Cortex writes
+it into PI's private `settings.json` when a PI session is created, so a new value
+reaches the next PI session without a restart — sessions already pooled keep the
+reserve they were built with.
 
 The retention coordinator has five housekeeping surfaces on that clock: live
 session-registry expiry (via `delete-intent` then `delete-commit`), orphan
