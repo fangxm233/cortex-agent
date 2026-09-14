@@ -220,6 +220,13 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
           flex: 1,
           minHeight: 0,
           display: 'grid',
+          // The implicit `auto` column takes its minimum from the items' min-content width, and both
+          // items cap at the 756px prose column — so on a window narrower than 340+756+400 the grid
+          // refused to shrink with the pane and the transcript + composer were painted 96px OVER the
+          // right panel (the pane does not clip, and a block background paints before sibling text).
+          // An explicit `minmax(0, 1fr)` column lets the chat narrow with its pane; wide blocks then
+          // scroll inside themselves, which is what `pre`/table already do.
+          gridTemplateColumns: 'minmax(0, 1fr)',
           gridTemplateRows: preFirstMessage
             ? 'minmax(0, 1fr) auto minmax(0, 1fr)'
             : 'minmax(0, 1fr) auto minmax(0, 0fr)',

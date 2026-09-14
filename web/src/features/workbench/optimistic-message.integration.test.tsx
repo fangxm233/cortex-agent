@@ -293,6 +293,10 @@ describe('mounted optimistic sender wiring', () => {
 
     const activeLayout = mounted.root.findByProps({ 'data-chat-phase': 'active' });
     expect(activeLayout.props.style.gridTemplateRows).toBe('minmax(0, 1fr) auto minmax(0, 0fr)');
+    // The column must stay explicitly floor-less: an implicit `auto` column sizes to the items'
+    // min-content (both cap at the 756px prose column), so on a window below 340+756+400 the
+    // transcript and composer stop shrinking with the pane and bleed over the right panel.
+    expect(activeLayout.props.style.gridTemplateColumns).toBe('minmax(0, 1fr)');
     expect(renderedUsers(mounted)).toEqual(['start here']);
     expect(JSON.stringify(mounted.toJSON())).toContain('Running');
 
