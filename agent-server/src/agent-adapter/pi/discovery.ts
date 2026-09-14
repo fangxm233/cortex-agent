@@ -9,14 +9,28 @@ const log = createLogger('pi-adapter');
 
 export const PI_PROVIDER_CACHE_TTL_MS = 5 * 60_000;
 export const PI_PROVIDER_RETRY_MS = 30_000;
+/** How long a caller that actually needs the list (a model picker) waits for a cold scan. Loading
+ *  the PI SDK is seconds of module work; beyond this the caller takes the empty answer and asks
+ *  again rather than holding a UI request open — `piPending` tells it the list is still short. */
+export const PI_PROVIDER_ENSURE_TIMEOUT_MS = 12_000;
 
 type ModelScan = () => Promise<PiDiscoveredModel[]>;
+
+/** An unref'd timer: a pending wait must never be the reason a process stays alive. */
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    timer.unref?.();
+  });
+}
 
 export interface PIProviderDiscovery {
   getProviders(): string[];
   getModels(): PiDiscoveredModel[];
   /** The cached pairs with no refresh side effect — see {@link CachedPIProviderDiscovery.peekModels}. */
   peekModels(): PiDiscoveredModel[];
+  /** The pairs, waiting for a cold scan — see {@link CachedPIProviderDiscovery.ensureModels}. */
+  ensureModels(timeoutMs?: number): Promise<PiDiscoveredModel[]>;
   refresh(): void;
 }
 
@@ -68,6 +82,26 @@ class CachedPIProviderDiscovery implements PIProviderDiscovery {
    */
   peekModels(): PiDiscoveredModel[] {
     return this.models.map((model) => ({ ...model }));
+  }
+
+  /**
+   * The snapshot, waiting for a scan only when there is nothing to show.
+   *
+   * For callers whose whole purpose IS the list (the Web model picker): an empty answer is useless
+   * to them, so a cold cache is worth waiting on — but a warm one is returned at once, with the
+   * usual background refresh, because a picker showing five-minute-old models is right often enough
+   * that no user should watch a spinner for it. The wait is bounded: a scan that hangs must not
+   * hold a UI request open, and the caller can ask again.
+   */
+  async ensureModels(timeoutMs: number = PI_PROVIDER_ENSURE_TIMEOUT_MS): Promise<PiDiscoveredModel[]> {
+    if (this.models.length > 0) return this.getModels();
+    // A scan that just failed set `nextRefreshAt` to now + retryMs precisely so the next caller
+    // does not pay for the same failure again. Honour it: an empty answer straight away beats
+    // holding a UI request open on a scan we already know is failing.
+    if (!this.inFlight && this.now() >= this.nextRefreshAt) this.startRefresh();
+    const pending = this.inFlight;
+    if (pending) await Promise.race([pending, delay(timeoutMs)]);
+    return this.peekModels();
   }
 
   refresh(): void {

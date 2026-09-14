@@ -73,10 +73,25 @@ const MODE_NAME_RE = /^[a-zA-Z0-9_-]+$/;
 const PROVIDER_NAME_RE = /^[a-zA-Z0-9_-]+$/;
 const ENV_KEY_RE = /^[A-Z_][A-Z0-9_]*$/;
 const VALID_BACKENDS: ReadonlySet<string> = new Set(['claude', 'pi']);
-const THINKING_LEVELS_BY_BACKEND: Record<Backend, Set<string>> = {
-  claude: new Set(['low', 'medium', 'high', 'xhigh', 'max']),
-  pi: new Set(['off', 'minimal', 'low', 'medium', 'high', 'xhigh']),
+/** The one table of legal thinking levels per backend. Exported so the selection path (a composer
+ *  picking a level for a session) and the Web catalog validate against the SAME set the profile
+ *  validator enforces — two tables would drift the moment a backend gained a level. Ordered
+ *  low → high because the UI renders them in this order. */
+export const THINKING_LEVELS_BY_BACKEND: Record<Backend, readonly string[]> = {
+  claude: ['low', 'medium', 'high', 'xhigh', 'max'],
+  pi: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'],
 };
+
+const THINKING_LEVEL_SETS: Record<Backend, Set<string>> = {
+  claude: new Set(THINKING_LEVELS_BY_BACKEND.claude),
+  pi: new Set(THINKING_LEVELS_BY_BACKEND.pi),
+};
+
+/** Is `level` a value this backend accepts? The selection path's gate, the profile validator's
+ *  rule — one predicate. */
+export function isValidThinkingLevel(backend: Backend, level: string): boolean {
+  return THINKING_LEVEL_SETS[backend]?.has(level) ?? false;
+}
 
 function loadProfilesFile(): ProfilesFile {
   try {
@@ -163,8 +178,8 @@ function validateProfileEntry(profile: unknown, label: string, inheritedBackend:
     if (!levels) {
       throw new Error(`${label} declares thinking but backend '${effectiveBackend}' does not support it`);
     }
-    if (typeof p.thinking !== 'string' || !levels.has(p.thinking)) {
-      throw new Error(`${label} has invalid thinking: ${String(p.thinking)} (backend '${effectiveBackend}' expects one of: ${[...levels].join(', ')})`);
+    if (typeof p.thinking !== 'string' || !isValidThinkingLevel(effectiveBackend, p.thinking)) {
+      throw new Error(`${label} has invalid thinking: ${String(p.thinking)} (backend '${effectiveBackend}' expects one of: ${levels.join(', ')})`);
     }
   }
   validateMaxOutputTokens(p.maxOutputTokens, effectiveBackend, label);
@@ -256,6 +271,36 @@ export function getDefaultProfileForBackend(backend: Backend): string | null {
     if ((profile.backend ?? 'claude') === backend) return name;
   }
   return null;
+}
+
+/**
+ * The first profile declared for a (backend, provider) pair, if the home has one.
+ *
+ * Used when a selection moves to a provider the current profile does not use: that provider's own
+ * profile already states the gateway route (and the rest of the routing) the user configured for
+ * it, so borrowing from it beats guessing. Declaration order decides among several, the same
+ * preference signal `getDefaultProfileForBackend` reads.
+ */
+export function findProfileForProvider(backend: Backend, provider: string): ResolvedProfile | null {
+  let file: ProfilesFile;
+  try { file = loadProfilesFile(); } catch { return null; }
+  for (const [name, profile] of Object.entries(file.profiles)) {
+    if ((profile.backend ?? 'claude') !== backend) continue;
+    if ((profile.provider ?? null) !== provider) continue;
+    return { name, ...profile };
+  }
+  return null;
+}
+
+/**
+ * The gateway route a selection on `provider` should run under.
+ *
+ * A profile already using that provider is authoritative; without one, `cortex init` names each PI
+ * endpoint after its provider (`mode = endpoint = provider`, see core/gateway-generator.ts), so the
+ * provider name is the route the generated gateway.yaml holds.
+ */
+export function resolveModeForProvider(backend: Backend, provider: string): string {
+  return findProfileForProvider(backend, provider)?.mode || provider;
 }
 
 function getProfile(name: string | null): ResolvedProfile | null {

@@ -7,7 +7,9 @@ import type { ChatRow } from '@/features/workbench/transcript-vm';
 import type { SessionStatsRow } from '@/features/workbench/session-stats';
 import type { TodoRailLanguage } from '@/features/workbench/TodoRail';
 import type { MIntCopy } from './MInteractionCards';
-import type { ChatHeaderStatus, PendingAttachmentVM, ProfileSheetItem } from './m-chat-vm';
+import type {
+  ChatHeaderStatus, PendingAttachmentVM, SelectionSheetRow, SelectionSheetSection,
+} from './m-chat-vm';
 
 export interface MChatCopy {
   composerPh: string;
@@ -32,6 +34,15 @@ export interface MChatCopy {
   profileSubtitle: string;
   profileCurrent: string;
   profileFooter: string;
+  /** Section headings and the "follow the profile" row of the engine sheet. */
+  selectionModel: string;
+  selectionThinking: string;
+  /** Heading of the billing-route section (anthropic `plan` vs `api`). */
+  selectionMode: string;
+  selectionFollow: string;
+  selectionCrossBackend: string;
+  selectionNoProfile: string;
+  selectionPending: string;
   lineUnit: string;
   charUnit: string;
 }
@@ -140,8 +151,9 @@ export interface MChatViewProps {
   composerPlaceholder?: string;
   onStop?: () => void;
   stopEnabled?: boolean;
-  profileChipLabel: string;
-  onOpenProfile: () => void;
+  /** What the next turn will run — model · thinking, not the profile name. */
+  selectionChipLabel: string;
+  onOpenSelection: () => void;
   browserDevice?: string | null;
   onOpenBrowser?: () => void;
   browserSheet?: { items: BrowserSheetItem[]; title: string; onClose: () => void; onPick: (device: string | null) => void };
@@ -167,5 +179,10 @@ export interface MChatViewProps {
   onCamera: () => void;
   onLibrary: () => void;
   onFile: () => void;
-  profileSheet?: { items: ProfileSheetItem[]; onClose: () => void; onPick: (name: string) => void };
+  selectionSheet?: {
+    sections: SelectionSheetSection[];
+    pending: boolean;
+    onClose: () => void;
+    onPick: (row: SelectionSheetRow) => void;
+  };
 }

@@ -1,12 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import type { ConfigProfileEntry, SessionTranscript } from '@cortex-agent/ui-contract';
+import type { ConfigProfileEntry, ModelCatalogSnapshot, SessionTranscript } from '@cortex-agent/ui-contract';
+import { effectiveSelection } from '@/features/workbench/selection-menu';
 import { deriveSessionRunStatus } from '@/features/workbench/session-run-status';
 import {
   chatHeaderStatus,
   interactionHeaderStatus,
   effectiveProfileName,
-  profileChipLabel,
-  buildProfileSheetItems,
+  selectionChipLabel,
+  buildSelectionSheet,
   buildMobileChatRows,
 } from './m-chat-vm';
 
@@ -85,18 +86,98 @@ describe('effectiveProfileName', () => {
   });
 });
 
-describe('profileChipLabel', () => {
-  it('shows only the profile name in the composer selector', () => {
-    expect(profileChipLabel('default')).toBe('default');
+describe('selectionChipLabel', () => {
+  it('shows what the next turn runs — the model, and the level when one is set', () => {
+    expect(selectionChipLabel(effectiveSelection(profiles, 'default', null))).toBe('sonnet-4.5 · high');
+    expect(selectionChipLabel(effectiveSelection(profiles, 'cheap', null))).toBe('haiku-4');
+    expect(selectionChipLabel(effectiveSelection(profiles, 'default', { model: 'opus-4.9' })))
+      .toBe('opus-4.9 · high');
+  });
+
+  it('falls back to the profile name when the profile declares no model', () => {
+    expect(selectionChipLabel(effectiveSelection([profile({ name: 'bare' })], 'bare', null))).toBe('bare');
   });
 });
 
-describe('buildProfileSheetItems', () => {
-  it('marks the current profile', () => {
-    const items = buildProfileSheetItems(profiles, 'cheap');
-    expect(items.map((i) => i.name)).toEqual(['default', 'cheap', 'deep']);
-    expect(items.find((i) => i.current)?.name).toBe('cheap');
-    expect(items.filter((i) => i.current)).toHaveLength(1);
+describe('buildSelectionSheet', () => {
+  const catalog: ModelCatalogSnapshot = {
+    routes: [
+      {
+        endpoint: 'anthropic', backend: 'claude', provider: null, modes: ['plan', 'api'],
+        models: ['sonnet-4.5', 'haiku-4'], source: 'builtin', modelThinking: {},
+      },
+      {
+        endpoint: 'deepseek', backend: 'pi', provider: 'deepseek', modes: ['deepseek'],
+        models: ['opus-4.5'], source: 'pi', modelThinking: {},
+      },
+    ],
+    thinkingLevels: { claude: ['low', 'high'], pi: ['off', 'high'] },
+    piPending: false,
+  };
+  const copy = {
+    profile: 'Profile', model: 'model', thinking: 'thinking', mode: 'route',
+    followProfile: 'follow profile', crossBackend: 'needs a new session',
+    noProfile: 'no profile for that backend',
+  };
+  const sheet = (over: Partial<Parameters<typeof buildSelectionSheet>[0]> = {}) => buildSelectionSheet({
+    profiles,
+    catalog,
+    effective: effectiveSelection(profiles, 'default', null),
+    override: null,
+    hasHistory: false,
+    defaultProfile: 'default',
+    copy,
+    ...over,
+  });
+
+  it('reads profile first, then the overrides on top of it', () => {
+    expect(sheet().map((section) => section.key)).toEqual(['profile', 'model', 'thinking', 'mode']);
+  });
+
+  it('drops the route section when the endpoint bills only one way', () => {
+    const oneLane: ModelCatalogSnapshot = {
+      ...catalog,
+      routes: catalog.routes.map((route) => ({ ...route, modes: [route.modes[0]] })),
+    };
+    expect(sheet({ catalog: oneLane }).map((section) => section.key))
+      .toEqual(['profile', 'model', 'thinking']);
+  });
+
+  it('every section can be taken back to the profile, and says what that means', () => {
+    const sections = sheet();
+    const follow = sections[1].rows[0];
+    expect(follow).toMatchObject({ id: 'model:follow', sub: 'sonnet-4.5', current: true });
+    // Nothing is overridden, so there is nothing to take back.
+    expect(follow.change).toBeNull();
+    expect(sections[2].rows[0]).toMatchObject({ id: 'thinking:follow', sub: 'high', current: true });
+  });
+
+  it('marks what is running now', () => {
+    const sections = sheet();
+    expect(sections[0].rows.find((row) => row.current)?.label).toBe('default');
+    expect(sections[1].rows.find((row) => row.current && row.id !== 'model:follow')?.label).toBe('sonnet-4.5');
+    expect(sections[2].rows.find((row) => row.current && row.id !== 'thinking:follow')?.label).toBe('high');
+  });
+
+  it('carries the change each row produces, restating the whole selection', () => {
+    const sections = sheet({ effective: effectiveSelection(profiles, 'default', { thinking: 'low' }), override: { thinking: 'low' } });
+    const haiku = sections[1].rows.find((row) => row.label === 'haiku-4')!;
+    expect(haiku.change).toEqual({ selection: { thinking: 'low', model: 'haiku-4' } });
+    const takeBack = sections[2].rows[0];
+    expect(takeBack.change).toEqual({ selection: {} });
+  });
+
+  it('a live conversation cannot cross backends, and the row says why', () => {
+    const sections = sheet({ hasHistory: true });
+    const pi = sections[1].rows.find((row) => row.label === 'opus-4.5')!;
+    expect(pi).toMatchObject({ disabled: true, hint: 'needs a new session', change: null });
+    expect(sections[0].rows.find((row) => row.label === 'deep')).toMatchObject({ disabled: true });
+  });
+
+  it('offers no thinking section before the catalog arrives', () => {
+    const sections = sheet({ catalog: null });
+    expect(sections.map((section) => section.key)).toEqual(['profile', 'model']);
+    expect(sections[1].rows.map((row) => row.id)).toEqual(['model:follow']);
   });
 });
 

@@ -71,7 +71,7 @@ function renderRow(
             commission={commission}
             onAttach={onAttach}
             onCommands={onCommands}
-            profileControl={<span data-chip="profile">profile · plan</span>}
+            selectionControl={<span data-chip="selection">claude-opus-5 · high</span>}
             sendControl={<button type="button" data-action="send" />}
           />
         </LangProvider>

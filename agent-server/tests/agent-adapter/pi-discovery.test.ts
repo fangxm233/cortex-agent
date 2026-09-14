@@ -245,3 +245,45 @@ test('expired cache serves the stale model snapshot while one refresh is in flig
   await flushRefresh();
   assert.deepEqual(discovery.getModels(), [{ provider: 'deepseek', model: 'deepseek-chat' }]);
 });
+
+test('ensureModels waits out a cold scan, then serves the warm cache without waiting again', async () => {
+  const pending = deferred<PiDiscoveredModel[]>();
+  let scans = 0;
+  const discovery = createPIProviderDiscovery({
+    scan: () => {
+      scans += 1;
+      return scans === 1 ? pending.promise : Promise.resolve([{ provider: 'zai', model: 'glm-5' }]);
+    },
+  });
+
+  const cold = discovery.ensureModels(1_000);
+  pending.resolve([{ provider: 'deepseek', model: 'deepseek-v4-flash' }]);
+  assert.deepEqual(await cold, [{ provider: 'deepseek', model: 'deepseek-v4-flash' }]);
+  assert.equal(scans, 1);
+
+  // Warm: the snapshot is returned at once (the TTL has not passed, so no refresh is even kicked).
+  assert.deepEqual(await discovery.ensureModels(1_000), [{ provider: 'deepseek', model: 'deepseek-v4-flash' }]);
+  assert.equal(scans, 1);
+});
+
+test('ensureModels gives up on a hanging scan and returns what it has', async () => {
+  const never = deferred<PiDiscoveredModel[]>();
+  const discovery = createPIProviderDiscovery({ scan: () => never.promise });
+  assert.deepEqual(await discovery.ensureModels(5), [], 'a hung scan must not hold the caller');
+  never.resolve([]);
+});
+
+test('ensureModels reuses an in-flight scan rather than starting a second one', async () => {
+  const pending = deferred<PiDiscoveredModel[]>();
+  let scans = 0;
+  const discovery = createPIProviderDiscovery({
+    scan: () => { scans += 1; return pending.promise; },
+  });
+
+  discovery.getModels();            // kicks the first scan
+  await flushRefresh();
+  const waiting = discovery.ensureModels(1_000);
+  pending.resolve([{ provider: 'anthropic', model: 'claude-opus-5' }]);
+  assert.deepEqual(await waiting, [{ provider: 'anthropic', model: 'claude-opus-5' }]);
+  assert.equal(scans, 1);
+});

@@ -1,6 +1,7 @@
-import { getActiveProfile, getChannelModelOverride, resolveModeEnv, type ModeEnv } from '../agents/config.js';
+import type { ChannelOverride } from '../agents/agent-state.js';
+import { getActiveProfile, getChannelOverride, resolveModeEnv, type ModeEnv } from '../agents/config.js';
 import {
-  getDefaultProfileName, resolveProfileConfig,
+  getDefaultProfileName, resolveModeForProvider, resolveProfileConfig,
   type ResolvedProfileConfig, type RunAttemptConfig,
 } from '../agents/profile-manager.js';
 
@@ -22,7 +23,12 @@ export interface ResolvedRunConfig {
   profileName: string;
   /** Always usable. Synthetic when `resolved` is false — see `resolved`. */
   profile: ResolvedProfileConfig;
-  /** `!model` for this channel, to be layered on top of `profile.model`. null is the normal case. */
+  /** The channel's selection (model / provider / thinking) to be layered on top of `profile`.
+   *  null is the normal case: the channel runs its profile as declared. */
+  override: ChannelOverride | null;
+  /** `!model` for this channel, to be layered on top of `profile.model`. null is the normal case.
+   *  Kept as its own field because the model is the one override with a display of its own
+   *  (`!model` prints "profile says X, this channel was told Y"). */
   modelOverride: string | null;
   /** False when `profileName` names no profile in profiles.json. The caller still gets a profile
    *  so it can open an execution record with a truthful backend, and still has the bad name to
@@ -94,14 +100,18 @@ function borrowedIdentity(query: RunConfigQuery): { backend: ResolvedProfileConf
  */
 export function resolveRunConfig(query: RunConfigQuery = {}): ResolvedRunConfig {
   const profileName = resolveProfileName(query);
-  const modelOverride = getChannelModelOverride(query.channel);
+  const override = getChannelOverride(query.channel);
+  const modelOverride = override?.model ?? null;
   try {
-    return { profileName, profile: resolveProfileConfig(profileName), modelOverride, resolved: true };
+    return {
+      profileName, profile: resolveProfileConfig(profileName), override, modelOverride, resolved: true,
+    };
   } catch {
     const { backend, mode } = borrowedIdentity(query);
     return {
       profileName,
       profile: syntheticProfile(profileName, backend, mode),
+      override,
       modelOverride,
       resolved: false,
     };
@@ -131,15 +141,54 @@ export function resolveRunBackend(query: RunConfigQuery = {}): ResolvedProfileCo
   return resolveRunConfig(query).profile.backend;
 }
 
+/** The extraOption flag that would out-rank an explicitly chosen thinking level, per backend.
+ *  Both adapters let extraOption win (claude appends it after `--effort`, PI reads
+ *  `extraOption['--thinking']` in preference to the spec), so a profile carrying one would make the
+ *  user's choice silently do nothing. */
+const THINKING_FLAG_BY_BACKEND = { claude: '--effort', pi: '--thinking' } as const;
+
 /**
- * The profile a run actually executes: the resolved profile with the channel's `!model` override
- * applied to its primary model.
+ * The profile a run actually executes: the resolved profile with the channel's selection
+ * (model / provider / thinking) applied to its primary attempt.
+ *
+ * What each field does:
+ * - `model` — replaces the primary model (this is `!model`, unchanged).
+ * - `mode` — which gateway route of the SAME endpoint bills the turn (anthropic `plan` vs `api`).
+ * - `provider` — PI only. It selects both the request protocol and the gateway endpoint, so the
+ *   route is re-derived with it (overriding any `mode` above), and the profile's `maxOutputTokens`
+ *   is dropped: that cap was stated for the profile's own model and says nothing about the one now
+ *   selected.
+ * - `thinking` — replaces the level AND removes the profile's own thinking flag from extraOption,
+ *   which both adapters would otherwise let win over the selection.
  *
  * The fallback chain is deliberately untouched. It is the profile's stated recovery path for when
  * the primary model is unavailable, not a second model choice the user made — overriding it too
- * would mean a `!model` on a rate-limited channel silently disabled the profile's own escape.
+ * would mean a selection on a rate-limited channel silently disabled the profile's own escape.
  */
 export function effectiveProfile(config: ResolvedRunConfig): ResolvedProfileConfig {
-  if (!config.modelOverride) return config.profile;
-  return { ...config.profile, model: config.modelOverride };
+  const override = config.override;
+  if (!override || Object.keys(override).length === 0) return config.profile;
+
+  const profile = { ...config.profile };
+  if (override.model) profile.model = override.model;
+  // The route is chosen WITHIN the profile's endpoint (same credentials, same provider), so it is
+  // applied before the provider branch below — which re-derives the route when the endpoint itself
+  // moves and therefore has the last word.
+  if (override.mode) profile.mode = override.mode;
+  // A claude profile has no provider to select — the write path rejects one, and a stale value
+  // from an older state file is ignored here rather than re-labelling the run's rate-limit identity.
+  if (profile.backend === 'pi' && override.provider && override.provider !== config.profile.provider) {
+    profile.provider = override.provider;
+    profile.mode = resolveModeForProvider(profile.backend, override.provider);
+    profile.maxOutputTokens = null;
+  }
+  if (override.thinking) {
+    profile.thinking = override.thinking;
+    const flag: string | undefined = THINKING_FLAG_BY_BACKEND[profile.backend];
+    if (flag && flag in profile.extraOption) {
+      profile.extraOption = { ...profile.extraOption };
+      delete profile.extraOption[flag];
+    }
+  }
+  return profile;
 }

@@ -471,14 +471,15 @@ function ComposerPlusMenu({ browser, commission, onAttach, onCommands }: {
  * profile, context ring and the send/stop cluster sit right, so every affordance shares one row and
  * the input above keeps the card's full width.
  */
-export function ComposerActionRow({ browser, commission, onAttach, onCommands, profileControl, contextControl, sendControl }: {
+export function ComposerActionRow({ browser, commission, onAttach, onCommands, selectionControl, contextControl, sendControl }: {
   /** null hides the browser row entirely — a live session that never opted in has nothing to show. */
   browser: ComposerBrowserControl | null;
   /** null hides the commission row — a live session outside the mode has nothing to show. */
   commission: ComposerCommissionControl | null;
   onAttach: () => void;
   onCommands: () => void;
-  profileControl: ReactNode;
+  /** The engine chip (profile + model + thinking). */
+  selectionControl: ReactNode;
   contextControl?: ReactNode;
   sendControl: ReactNode;
 }): JSX.Element {
@@ -488,7 +489,7 @@ export function ComposerActionRow({ browser, commission, onAttach, onCommands, p
       {browser && <ComposerBrowserChip browser={browser} />}
       {commission && <ComposerCommissionChip commission={commission} />}
       <span style={{ marginLeft: 'auto' }} />
-      {profileControl}
+      {selectionControl}
       {contextControl}
       {sendControl}
     </div>

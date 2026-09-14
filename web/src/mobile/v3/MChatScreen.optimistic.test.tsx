@@ -11,7 +11,7 @@ const harness = vi.hoisted(() => ({
   sendMutateAsync: vi.fn(),
   createAndSendMutateAsync: vi.fn(),
   cancelMutate: vi.fn(),
-  setProfileMutate: vi.fn(),
+  setSelectionMutate: vi.fn(),
   compact: vi.fn(),
   sendPending: false,
   createAndSendPending: false,
@@ -37,10 +37,28 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
           profiles: {
             defaultProfile: 'plan',
             profiles: [
-              { name: 'plan', model: 'opus', backend: 'claude' },
+              { name: 'plan', model: 'opus', backend: 'claude', thinking: 'high' },
               { name: 'execute', model: 'sonnet', backend: 'claude' },
+              { name: 'ds', model: 'glm-5', backend: 'pi', provider: 'zai' },
             ],
           },
+        },
+        isPending: false,
+      };
+      if (options.__kind === 'models.catalog') return {
+        data: {
+          routes: [
+            {
+              endpoint: 'anthropic', backend: 'claude', provider: null, modes: ['plan', 'api'],
+              models: ['opus', 'sonnet'], source: 'builtin', modelThinking: {},
+            },
+            {
+              endpoint: 'zai', backend: 'pi', provider: 'zai', modes: ['zai'],
+              models: ['glm-5'], source: 'pi', modelThinking: {},
+            },
+          ],
+          thinkingLevels: { claude: ['low', 'high'], pi: ['off', 'high'] },
+          piPending: false,
         },
         isPending: false,
       };
@@ -54,7 +72,7 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
         return { mutateAsync: harness.createAndSendMutateAsync, isPending: harness.createAndSendPending };
       }
       if (options.__kind === 'sessions.cancel') return { mutate: harness.cancelMutate, isPending: false };
-      if (options.__kind === 'sessions.setProfile') return { mutate: harness.setProfileMutate, isPending: false };
+      if (options.__kind === 'sessions.setSelection') return { mutate: harness.setSelectionMutate, isPending: false };
       return { mutate: vi.fn(), isPending: false };
     },
     useQueryClient: () => ({ invalidateQueries: harness.invalidateQueries }),
@@ -74,11 +92,12 @@ vi.mock('@/lib/trpc', () => ({
         transcript: query('sessions.transcript'),
         send: mutation('sessions.send'),
         createAndSend: mutation('sessions.createAndSend'),
-        setProfile: mutation('sessions.setProfile'),
+        setSelection: mutation('sessions.setSelection'),
         cancel: mutation('sessions.cancel'),
         rewind: mutation('sessions.rewind'),
       },
       config: { get: query('config.get') },
+      models: { catalog: query('models.catalog') },
       threads: { list: query('threads.list'), get: query('threads.get') },
       schedules: { list: query('schedules.list') },
       commissions: { list: query('commissions.list'), get: query('commissions.get') },
@@ -147,6 +166,9 @@ vi.mock('./MChatView', async () => {
         'data-status-running': props.status.running,
         'data-status-tone': props.status.tone,
         'data-send-enabled': props.sendEnabled,
+        selectionChipLabel: props.selectionChipLabel,
+        onOpenSelection: props.onOpenSelection,
+        selectionSheet: props.selectionSheet,
       },
       props.rows
         .filter((row: { kind: string }) => row.kind === 'user')
@@ -160,7 +182,7 @@ import { MChatScreen } from './MChatScreen';
 const SESSION = {
   sessionId: 's1', name: 'Session', label: null, running: false, backgroundRunning: false,
   contextUsage: null, contextCompactionSupported: false, backendSessionId: null,
-  profileName: 'default', numTurns: null, costUsd: null,
+  profileName: 'plan', numTurns: null, costUsd: null,
 };
 
 function emptyTranscript(sessionId: string) {
@@ -219,7 +241,7 @@ beforeEach(() => {
   harness.sendMutateAsync.mockReset();
   harness.createAndSendMutateAsync.mockReset();
   harness.cancelMutate.mockReset();
-  harness.setProfileMutate.mockReset();
+  harness.setSelectionMutate.mockReset();
   harness.compact.mockReset();
   harness.sendPending = false;
   harness.createAndSendPending = false;
@@ -365,7 +387,7 @@ describe('mobile UI slash shortcuts', () => {
     mounted = mountChat();
 
     typeAndSend(mounted, '/profile execute');
-    expect(harness.setProfileMutate.mock.calls[0][0]).toEqual({ sessionId: 's1', profileName: 'execute' });
+    expect(harness.setSelectionMutate.mock.calls[0][0]).toEqual({ sessionId: 's1', profileName: 'execute' });
     typeAndSend(mounted, '/settings');
     expect(harness.navigate).toHaveBeenCalledWith('/m/settings');
     expect(harness.sendMutateAsync).not.toHaveBeenCalled();
@@ -378,7 +400,7 @@ describe('mobile UI slash shortcuts', () => {
     mounted = mountChat();
 
     typeAndSend(mounted, '/profile execute');
-    expect(harness.setProfileMutate).not.toHaveBeenCalled();
+    expect(harness.setSelectionMutate).not.toHaveBeenCalled();
     typeAndSend(mounted, 'first turn');
 
     expect(harness.createAndSendMutateAsync.mock.calls[0][0].profileName).toBe('execute');
@@ -491,5 +513,78 @@ describe('mobile optimistic sender wiring', () => {
     expect(renderedUsers(mounted)).toEqual(['accepted before HTTP failure']);
     expect(view(mounted).props['data-composer-value']).toBe('');
     expect(view(mounted).props['data-system-lines']).not.toContain('late HTTP failure');
+  });
+});
+
+// ── the composer's engine picker (1p sheet) ─────────────────────────────────────────────────────
+// The sheet's arithmetic is m-chat-vm's (buildSelectionSheet, itself the desktop menu's); what is
+// pinned here is the screen's half: which selection reaches `sessions.setSelection`, and that a
+// draft keeps it locally until the session exists.
+
+function openSelection(renderer: ReactTestRenderer) {
+  act(() => { view(renderer).props.onOpenSelection(); });
+  return view(renderer).props.selectionSheet;
+}
+
+/** Picking closes the sheet, so each tap opens it again — which is what a user does too. */
+function tap(renderer: ReactTestRenderer, rowId: string): void {
+  const sheet = openSelection(renderer);
+  const row = sheet.sections.flatMap((section: any) => section.rows).find((r: any) => r.id === rowId);
+  if (!row) throw new Error(`no such row: ${rowId} in ${JSON.stringify(sheet.sections.flatMap((s: any) => s.rows.map((r: any) => r.id)))}`);
+  act(() => { sheet.onPick(row); });
+}
+
+describe('mobile engine picker', () => {
+  it('the chip shows what the next turn runs, not the profile name', () => {
+    mounted = mountChat();
+    expect(view(mounted).props.selectionChipLabel).toBe('opus · high');
+  });
+
+  it('sends the whole selection, so an unstated field follows the profile again', () => {
+    mounted = mountChat();
+    tap(mounted, 'model:claude::sonnet');
+    expect(harness.setSelectionMutate.mock.calls[0][0]).toEqual({
+      sessionId: 's1', selection: { model: 'sonnet' },
+    });
+
+    // The override only reaches the screen through sessions.list, so the second pick restates from
+    // the same base — what matters is that thinking is carried, not dropped silently.
+    tap(mounted, 'thinking:low');
+    expect(harness.setSelectionMutate.mock.calls[1][0]).toEqual({
+      sessionId: 's1', selection: { thinking: 'low' },
+    });
+  });
+
+  it('a live conversation cannot cross backends from the sheet', () => {
+    harness.transcripts.s1 = {
+      sessionId: 's1',
+      turns: [{ messages: [{ type: 'user', text: 'earlier', createdAt: '2026-05-01T00:00:00Z' }] }],
+      pendingUserMessages: [],
+    };
+    mounted = mountChat();
+    const sheet = openSelection(mounted);
+    const pi = sheet.sections
+      .flatMap((section: any) => section.rows)
+      .find((row: any) => row.id === 'model:pi:zai:glm-5');
+    expect(pi).toMatchObject({ disabled: true, change: null });
+    act(() => { sheet.onPick(pi); });
+    expect(harness.setSelectionMutate).not.toHaveBeenCalled();
+  });
+
+  it('a draft keeps its choice locally and carries it into the created session', () => {
+    harness.routeParam = 'new';
+    harness.sessions = [];
+    harness.createAndSendMutateAsync.mockReturnValue(new Promise(() => {}));
+    mounted = mountChat();
+
+    tap(mounted, 'model:pi:zai:glm-5');
+    expect(harness.setSelectionMutate).not.toHaveBeenCalled();
+    expect(view(mounted).props.selectionChipLabel).toBe('glm-5');
+
+    typeAndSend(mounted, 'first turn');
+    expect(harness.createAndSendMutateAsync.mock.calls[0][0]).toMatchObject({
+      profileName: 'ds',
+      selection: { model: 'glm-5', provider: 'zai' },
+    });
   });
 });

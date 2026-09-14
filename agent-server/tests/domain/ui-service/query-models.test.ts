@@ -9,7 +9,7 @@ const DEPS = {} as UiServiceDeps;
 
 function readers(overrides: Partial<ModelsCatalogReaders> = {}): ModelsCatalogReaders {
   return {
-    piModels: () => [],
+    piModels: async () => [],
     piPeek: () => [{ provider: 'deepseek', model: 'deepseek-v4-flash' }],
     customProviders: () => [],
     gatewayModes: () => ({}),
@@ -49,7 +49,7 @@ test('gateway.yaml owns the mode list of an endpoint it declares', async () => {
 
 test('PI pairs group into one route per provider and dedupe', async () => {
   const snapshot = await handleModelsCatalog(DEPS, {}, readers({
-    piModels: () => [
+    piModels: async () => [
       { provider: 'deepseek', model: 'deepseek-v4-flash' },
       { provider: 'deepseek', model: 'deepseek-v4' },
       { provider: 'deepseek', model: 'deepseek-v4-flash' },
@@ -84,7 +84,7 @@ test('a custom provider contributes its declared models without any PI scan', as
 
 test('sources union rather than override: a later source only adds models', async () => {
   const snapshot = await handleModelsCatalog(DEPS, {}, readers({
-    piModels: () => [{ provider: 'my-vllm', model: 'Model-27B' }],
+    piModels: async () => [{ provider: 'my-vllm', model: 'Model-27B' }],
     customProviders: () => ([{
       name: 'my-vllm',
       api: 'anthropic-messages',
@@ -106,4 +106,21 @@ test('piPending reports an unwarmed PI cache, independent of what the scan retur
   assert.equal(pending.piPending, true);
   const warm = await handleModelsCatalog(DEPS, {}, readers());
   assert.equal(warm.piPending, false);
+});
+
+test('a PI model\'s own thinking ladder rides along; the backend ladders are served once', async () => {
+  const snapshot = await handleModelsCatalog(DEPS, {}, readers({
+    piModels: async () => [
+      { provider: 'deepseek', model: 'deepseek-v4', thinkingLevels: ['off', 'low', 'high'] },
+      // A model whose scan could not tell: absent from the map, so the picker offers the whole
+      // backend ladder rather than hiding levels PI would have honoured.
+      { provider: 'deepseek', model: 'deepseek-v4-flash' },
+    ],
+  }));
+  const deepseek = routeOf(snapshot.routes, 'deepseek');
+  assert.deepEqual(deepseek.modelThinking, { 'deepseek-v4': ['off', 'low', 'high'] });
+  assert.equal('deepseek-v4-flash' in deepseek.modelThinking, false);
+  assert.ok(snapshot.thinkingLevels.claude.includes('max'));
+  assert.ok(snapshot.thinkingLevels.pi.includes('xhigh'));
+  assert.deepEqual(routeOf(snapshot.routes, 'anthropic').modelThinking, {});
 });

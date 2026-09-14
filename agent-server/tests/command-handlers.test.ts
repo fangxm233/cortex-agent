@@ -7,12 +7,12 @@ import * as os from 'os';
 
 import { registerCommands as createCommandDispatcher } from '../src/orchestration/routing/commands/index.js';
 import { CommandActionRouter } from '../src/orchestration/interactions/command-action-router.js';
-import { handleBackendCmd, handleModelCmd } from '../src/orchestration/routing/commands/mode.js';
+import { handleBackendCmd, handleModelCmd, handleThinkingCmd } from '../src/orchestration/routing/commands/mode.js';
 import { handleBudgetCmd } from '../src/orchestration/routing/commands/cost.js';
 import { formatUsageReport } from '../src/orchestration/routing/commands/usage.js';
 import type { ProviderUsage } from '../src/domain/costs/usage-store.js';
 import { projectStore } from '../src/domain/projects/index.js';
-import { clearChannelProfile, setChannelModelOverride } from '../src/domain/agents/config.js';
+import { clearChannelProfile, setChannelModelOverride, setChannelThinkingOverride } from '../src/domain/agents/config.js';
 import { resolveRunConfig } from '../src/domain/runs/config-resolver.js';
 import { getDefaultProfileName } from '../src/domain/agents/profile-manager.js';
 import { costRepo } from '../src/store/cost-repo.js';
@@ -182,6 +182,54 @@ test('!model sets, reports and resets a channel-scoped override', async (t) => {
   const reset = new MockAdapter();
   await handleModelCmd('C-model', reset, '!model reset');
   assert.equal(resolveRunConfig({ channel: 'C-model' }).modelOverride, null);
+});
+
+test('!thinking sets, reports and resets a channel-scoped level', async (t) => {
+  t.onTestFinished(() => setChannelModelOverride('C-think', null));
+
+  const show = new MockAdapter();
+  await handleThinkingCmd('C-think', show, '!thinking');
+  assert.match(show.posted[0].content.text, /default|默认/, 'the profile declares no level of its own');
+
+  const set = new MockAdapter();
+  await handleThinkingCmd('C-think', set, '!thinking xhigh');
+  assert.equal(resolveRunConfig({ channel: 'C-think' }).override?.thinking, 'xhigh');
+  assert.equal(resolveRunConfig({ channel: 'C-elsewhere' }).override, null);
+
+  const reset = new MockAdapter();
+  await handleThinkingCmd('C-think', reset, '!thinking reset');
+  assert.equal(resolveRunConfig({ channel: 'C-think' }).override, null);
+});
+
+test('!thinking refuses a level the channel\'s backend does not take', async (t) => {
+  t.onTestFinished(() => setChannelModelOverride('C-think-bad', null));
+
+  const adapter = new MockAdapter();
+  // 'off' is a pi level; this channel runs claude, whose CLI would die on it.
+  await handleThinkingCmd('C-think-bad', adapter, '!thinking off');
+  assert.equal(resolveRunConfig({ channel: 'C-think-bad' }).override, null);
+
+  const bogus = new MockAdapter();
+  await handleThinkingCmd('C-think-bad', bogus, '!thinking ludicrous');
+  assert.match(bogus.posted[0].content.text, /xhigh/, 'the refusal names the levels that do work');
+  assert.equal(resolveRunConfig({ channel: 'C-think-bad' }).override, null);
+});
+
+test('!thinking leaves a model chosen separately alone', async (t) => {
+  t.onTestFinished(() => {
+    setChannelModelOverride('C-think-model', null);
+    setChannelThinkingOverride('C-think-model', null);
+  });
+  setChannelModelOverride('C-think-model', 'haiku-test');
+
+  await handleThinkingCmd('C-think-model', new MockAdapter(), '!thinking high');
+  assert.deepEqual(resolveRunConfig({ channel: 'C-think-model' }).override, {
+    model: 'haiku-test', thinking: 'high',
+  });
+
+  await handleThinkingCmd('C-think-model', new MockAdapter(), '!thinking reset');
+  assert.equal(resolveRunConfig({ channel: 'C-think-model' }).modelOverride, 'haiku-test',
+    'clearing the level is not a licence to drop the model too');
 });
 
 test('!cost <project> filters report to the requested project scope', async (t) => {

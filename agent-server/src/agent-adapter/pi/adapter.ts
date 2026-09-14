@@ -44,6 +44,7 @@ const NO_PROVIDER_DISCOVERY: PIProviderDiscovery = {
   getProviders: () => [],
   getModels: () => [],
   peekModels: () => [],
+  ensureModels: async () => [],
   refresh: () => {},
 };
 

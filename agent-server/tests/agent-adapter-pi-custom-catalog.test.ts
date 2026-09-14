@@ -80,7 +80,7 @@ test('open: a custom provider from the user catalog reaches the opened PI catalo
     const adapter = new PIAdapter(
       stub.spawn,
       pathJoin(dir, 'sessions'),
-      { getProviders: () => ['anthropic'], refresh: () => {}, getModels: () => [], peekModels: () => [] },
+      { getProviders: () => ['anthropic'], refresh: () => {}, getModels: () => [], peekModels: () => [], ensureModels: async () => [] },
       { agentDir, userModelsPath },
     );
 
@@ -116,7 +116,7 @@ test('open: a discovered custom provider is completed even when another provider
     const adapter = new PIAdapter(
       stub.spawn,
       pathJoin(dir, 'sessions'),
-      { getProviders: () => ['anthropic', 'my-vllm'], refresh: () => {}, getModels: () => [], peekModels: () => [] },
+      { getProviders: () => ['anthropic', 'my-vllm'], refresh: () => {}, getModels: () => [], peekModels: () => [], ensureModels: async () => [] },
       { agentDir, userModelsPath },
     );
 
@@ -146,7 +146,7 @@ test('open: an absent user catalog leaves built-in routing untouched', () => {
     const adapter = new PIAdapter(
       stub.spawn,
       pathJoin(dir, 'sessions'),
-      { getProviders: () => ['anthropic'], refresh: () => {}, getModels: () => [], peekModels: () => [] },
+      { getProviders: () => ['anthropic'], refresh: () => {}, getModels: () => [], peekModels: () => [], ensureModels: async () => [] },
       { agentDir, userModelsPath: pathJoin(dir, 'missing.json') },
     );
 
@@ -175,7 +175,7 @@ test('open: DeepSeek child preserves the admitted cap after a model-store refres
     const adapter = new PIAdapter(
       stub.spawn,
       pathJoin(dir, 'sessions'),
-      { getProviders: () => ['deepseek'], refresh: () => {}, getModels: () => [], peekModels: () => [] },
+      { getProviders: () => ['deepseek'], refresh: () => {}, getModels: () => [], peekModels: () => [], ensureModels: async () => [] },
       { agentDir },
     );
     const openSession = (sessionKey: string) => piPool(adapter).open(engineSpecFixture({

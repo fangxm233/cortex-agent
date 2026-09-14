@@ -11,7 +11,7 @@ import {
 } from './composer-slash';
 import { formatCost } from './right-panel-vm';
 import { useSelectedSession } from './SelectedSessionProvider';
-import { DRAFT_SENTINEL } from './selected-session';
+import { DRAFT_SENTINEL, EMPTY_DRAFT_SELECTION, type DraftSelection } from './selected-session';
 import {
   attachmentSendAllowed, completedAttachmentMetas, type AttachmentMeta,
 } from '@/features/attachments/types';
@@ -31,9 +31,9 @@ import {
   type ComposerBrowserControl, type ComposerCommissionControl,
 } from './ComposerActionRow';
 import { commissionRequestOf, useCommissionEnabled } from './CommissionOptIn';
-import { SessionProfileSelectorView, useSessionProfileSelection } from './SessionProfileSelector';
+import { SessionSelectorView, useSessionSelection } from './SessionSelector';
 import type { ContextCompactAction } from './ContextUsageControl';
-import type { SessionTotals, TodoSnapshot } from '@cortex-agent/ui-contract';
+import type { SessionSelectionOverride, SessionTotals, TodoSnapshot } from '@cortex-agent/ui-contract';
 import { runOptimisticMutation, type OptimisticUserMessage } from './optimistic-message';
 import { deriveSessionRunStatus } from './session-run-status';
 import { DraftProjectSelector } from './DraftProjectSelector';
@@ -67,8 +67,9 @@ export function Composer({
   sessionBrowser = null,
   sessionCommission = null,
   currentProfile,
+  currentOverride = null,
   hasHistory,
-  draftProfile = null,
+  draftSelection = EMPTY_DRAFT_SELECTION,
   draftReloadToken = 0,
   projectId = 'general',
   prepareOptimistic,
@@ -108,8 +109,11 @@ export function Composer({
    *  the commission title once one has landed; a session still drilling has no title yet. */
   sessionCommission?: { value: string; label: string | null } | null;
   currentProfile: string | null;
+  /** The session's model/thinking choice on top of that profile, from its sessions.list row. */
+  currentOverride?: SessionSelectionOverride | null;
   hasHistory: boolean;
-  draftProfile?: string | null;
+  /** The draft's engine choice (profile + model/provider/thinking), carried into createAndSend. */
+  draftSelection?: DraftSelection;
   draftReloadToken?: number;
   projectId?: string;
   prepareOptimistic: (text: string, attachments?: AttachmentMeta[]) => OptimisticUserMessage;
@@ -135,7 +139,9 @@ export function Composer({
   const lang = useLang();
   const queryClient = useQueryClient();
   const { selectCreatedSession, setSelectedSession } = useSelectedSession();
-  const profileSelection = useSessionProfileSelection({ sessionId, currentProfile, hasHistory, isDraft });
+  const engineSelection = useSessionSelection({
+    sessionId, currentProfile, currentOverride, hasHistory, isDraft,
+  });
   // Draft-only: the browser tool set is fixed when the agent process spawns, so this is a
   // creation-time choice, not a session setting.
   const [browserDevice, setBrowserDevice] = useState<string | null>(null);
@@ -282,7 +288,7 @@ export function Composer({
     turnProgressStarted,
   });
 
-  const slashProfiles = profileSelection.options.map((option) => ({
+  const slashProfiles = engineSelection.profileOptions.map((option) => ({
     name: option.name, detail: option.sub, disabled: option.disabled,
   }));
   const slashAvailability = {
@@ -362,7 +368,9 @@ export function Composer({
       message,
       mutate: () => isDraft
         ? createAndSendMut.mutateAsync({
-            projectId, profileName: draftProfile ?? undefined, text,
+            projectId, profileName: draftSelection.profileName ?? undefined,
+            ...(draftSelection.override ? { selection: draftSelection.override } : {}),
+            text,
             ...(browserDevice ? { browser: { device: browserDevice } } : {}),
             ...(commissionEnabled && commissionRequestOf(commissionChoice)
               ? { commission: commissionRequestOf(commissionChoice) } : {}),
@@ -402,7 +410,7 @@ export function Composer({
     onNew: () => setSelectedSession(DRAFT_SENTINEL),
     onCancel: () => { if (running) doStop(); },
     onCompact: () => compactAction?.onCompact(),
-    onProfile: profileSelection.pick,
+    onProfile: engineSelection.pickProfile,
     onSettings: onOpenSettings,
   };
 
@@ -587,7 +595,7 @@ export function Composer({
                       : null}
                   onAttach={() => fileInputRef.current?.click()}
                   onCommands={() => { setComposer('/'); setSlashOpen(true); }}
-                  profileControl={<SessionProfileSelectorView selection={profileSelection} />}
+                  selectionControl={<SessionSelectorView selection={engineSelection} />}
                   contextControl={contextControl}
                   sendControl={(
                     <span style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>

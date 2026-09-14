@@ -3,7 +3,7 @@
 // design §8.3 — the mobile palette is not in the light `proto.*` token set. Pure + presentational:
 // every field is a prop, no tRPC. The container (MChatScreen) owns data + mutations + live sync.
 // Interaction cards (6a plan / 5b ask / 4a-c sealed) live in MInteractionCards. The composer is a
-// unified card: full-width input on top, one toolbar row below (＋ menu left; profile chip, context
+// unified card: full-width input on top, one toolbar row below (＋ menu left; engine chip, context
 // ring and Send/Stop right). Browser opt-in and local slash commands fold into the ＋ menu.
 // Collapsed tool calls share Desktop width measurement and end hidden items with numeric +N.
 //
@@ -32,11 +32,11 @@ import { AssistantTurnCopyAction, longPressHandlers, MsgActionMenu } from './MCh
 import {
   AttachMenu, BrowserChip, CommissionChip, ComposerAbove, ComposerLeading, ComposerTools, MobileSlashMenu,
 } from './MChatComposerPresentation';
-import { BrowserSheet, CommissionSheet, ContextUsageSheet, MoreMenu, ProfileSheet, SessionIdSheet, SessionStatsSheet } from './MChatSheets';
+import { BrowserSheet, CommissionSheet, ContextUsageSheet, MoreMenu, SelectionSheet, SessionIdSheet, SessionStatsSheet } from './MChatSheets';
 import type { ChatHeaderStatus } from './m-chat-vm';
 import type { MChatEditCopy, MChatInteractions, MChatViewProps, MEditMode } from './MChatView.types';
 
-export { BrowserSheet, CommissionSheet, ContextUsageSheet, MoreMenu, ProfileSheet, SessionIdSheet, SessionStatsSheet } from './MChatSheets';
+export { BrowserSheet, CommissionSheet, ContextUsageSheet, MoreMenu, SelectionSheet, SessionIdSheet, SessionStatsSheet } from './MChatSheets';
 export { AttachMenu } from './MChatComposerPresentation';
 export { EditBar, MsgActionMenu } from './MChatMessageActions';
 export type {
@@ -706,8 +706,8 @@ export function MChatView(props: MChatViewProps): JSX.Element {
           onPick={props.commissionSheet.onPick}
         />
       )}
-      {props.profileSheet && (
-        <ProfileSheet items={props.profileSheet.items} copy={copy} onClose={props.profileSheet.onClose} onPick={props.profileSheet.onPick} />
+      {props.selectionSheet && (
+        <SelectionSheet sections={props.selectionSheet.sections} pending={props.selectionSheet.pending} copy={copy} onClose={props.selectionSheet.onClose} onPick={props.selectionSheet.onPick} />
       )}
       {props.contextUsageOpen && (props.contextUsageSupported || props.contextUsage != null) ? (
         <ContextUsageSheet

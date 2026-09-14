@@ -9,6 +9,7 @@ export {
   sessionsSendInput,
   sessionsCompactInput,
   sessionsSetProfileInput,
+  sessionsSetSelectionInput,
   threadsListInput,
   threadsGetInput,
   tasksListInput,

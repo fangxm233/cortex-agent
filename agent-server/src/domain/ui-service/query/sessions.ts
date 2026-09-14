@@ -143,6 +143,9 @@ export async function handleSessionsList(
       resumable: s.kind !== 'scheduled',
       label: s.label ?? null,
       profileName: s.profileName ?? null,
+      // The other half of "what will the next turn run": the profile alone would misreport every
+      // session whose model or thinking level the user picked in the composer.
+      selectionOverride: deps.getChannelSelectionOverride?.(s.channel) ?? null,
       browser: s.browser ?? null,
       contextUsage: s.contextUsage ?? null,
       todos: deps.getSessionTodos?.(s.sessionId) ?? null,

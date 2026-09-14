@@ -3,8 +3,8 @@ import type { CommandResult } from './command-context.js';
 import { Icons } from '../../../core/icons.js';
 import { t } from '../../../core/i18n.js';
 import type { CommandActionRouter } from '@orch/interactions/command-action-router.js';
-import { setChannelModelOverride, getActiveProfile, setActiveProfile, clearChannelProfile, getDefaultAgent, setDefaultAgent, switchChannelProfile } from '@domain/agents/index.js';
-import { getDefaultProfileForBackend, getDefaultProfileName, listProfiles, resolveProfile } from '@domain/agents/profile-manager.js';
+import { setChannelModelOverride, setChannelThinkingOverride, getActiveProfile, setActiveProfile, clearChannelProfile, getDefaultAgent, setDefaultAgent, switchChannelProfile } from '@domain/agents/index.js';
+import { getDefaultProfileForBackend, getDefaultProfileName, isValidThinkingLevel, listProfiles, resolveProfile, THINKING_LEVELS_BY_BACKEND } from '@domain/agents/profile-manager.js';
 import { resolveRunConfig } from '@domain/runs/config-resolver.js';
 import type { Backend } from '@core/types/agent-types.js';
 import { getDisplaySkillGroups } from '@domain/memory/skill-scanner.js';
@@ -92,6 +92,56 @@ export async function handleBackendCmd(channel: string, adapter: PlatformAdapter
  * The value is not validated here: which ids a backend accepts is the backend's business, and its
  * own rejection names the problem better than a guess would.
  */
+/**
+ * `!thinking` — show, set or clear THIS CHANNEL's thinking level (the composer picker's chat twin).
+ *
+ * The same channel-scoped override the picker writes, one field over. The level IS validated,
+ * unlike the model: an id the backend does not know is the backend's business to refuse, but an
+ * effort word it does not know is rejected by the CLI before the turn starts, which reads as the
+ * agent dying. Clearing drops only the level.
+ */
+export async function handleThinkingCmd(channel: string, adapter: PlatformAdapter, trimmedMessage: string): Promise<void> {
+  const args = trimmedMessage.split(/\s+/).slice(1);
+  const dest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: '' };
+  const config = resolveRunConfig({ channel });
+  const backend = config.profile.backend;
+  const override = config.override?.thinking ?? null;
+  const declared = config.profile.thinking ?? t('cmd.thinking.none');
+
+  if (args.length === 0) {
+    await adapter.postMessage(dest, {
+      text: override
+        ? t('cmd.thinking.overridden', { thinking: override, profile: config.profileName, profileThinking: declared })
+        : t('cmd.thinking.current', { thinking: declared, profile: config.profileName }),
+    });
+    return;
+  }
+
+  const arg = args.join(' ').trim();
+  // 'off' is a real pi level, so it only means "clear" on a backend that has no such rung.
+  if ((arg === 'reset' || arg === 'clear') || (arg === 'off' && !isValidThinkingLevel(backend, 'off'))) {
+    setChannelThinkingOverride(channel, null);
+    await adapter.postMessage(dest, {
+      text: override
+        ? `${Icons.ok} ${t('cmd.thinking.cleared', { profile: config.profileName, thinking: declared })}`
+        : t('cmd.thinking.noOverride', { profile: config.profileName, thinking: declared }),
+    });
+    return;
+  }
+  if (!isValidThinkingLevel(backend, arg)) {
+    await adapter.postMessage(dest, {
+      text: `${Icons.error} ${t('cmd.thinking.invalid', {
+        thinking: arg, backend, levels: THINKING_LEVELS_BY_BACKEND[backend].join(', '),
+      })}`,
+    });
+    return;
+  }
+  setChannelThinkingOverride(channel, arg);
+  await adapter.postMessage(dest, {
+    text: `${Icons.ok} ${t('cmd.thinking.set', { thinking: arg, profile: config.profileName })}`,
+  });
+}
+
 export async function handleModelCmd(channel: string, adapter: PlatformAdapter, trimmedMessage: string): Promise<void> {
   const args = trimmedMessage.split(/\s+/).slice(1);
   const dest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: '' };

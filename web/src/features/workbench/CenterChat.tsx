@@ -50,7 +50,7 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
   const trpc = useTRPC();
   const chatDropTargetRef = useRef<HTMLDivElement>(null);
   const { currentProjectId } = useCurrentProject();
-  const { selectedSessionId, isDraft, draftProfile, draftReloadToken } = useSelectedSession();
+  const { selectedSessionId, isDraft, draftSelection, draftReloadToken } = useSelectedSession();
   // Scoped to the current project (dedupes with the LeftRail / provider query) so the active session
   // is resolved from the same lists the rail shows — direct conversations AND scheduled runs
   // (design 27a-B puts both in the rail, so both must open here).
@@ -245,10 +245,11 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
           sessionSpanMs={sessionSpan}
           isDraft={isDraft}
           currentProfile={active?.profileName ?? null}
+          currentOverride={active?.selectionOverride ?? null}
           sessionBrowser={active?.browser ?? null}
           sessionCommission={sessionCommission}
           hasHistory={hasHistory}
-          draftProfile={draftProfile}
+          draftSelection={draftSelection}
           draftReloadToken={draftReloadToken}
           projectId={currentProjectId ?? 'general'}
           prepareOptimistic={optimistic.prepare}

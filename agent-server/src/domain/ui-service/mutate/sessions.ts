@@ -17,6 +17,8 @@ import type {
   SessionsCancelReturn,
   SessionsSetProfileArgs,
   SessionsSetProfileReturn,
+  SessionsSetSelectionArgs,
+  SessionsSetSelectionReturn,
   SessionsCreateAndSendArgs,
   SessionsCreateAndSendReturn,
   SessionsAnswerQuestionArgs,
@@ -177,6 +179,9 @@ export async function handleCreateAndSend(
   const { sessionId, channel } = await deps.createDirectSession({
     projectId: args.projectId,
     profileName: args.profileName ?? null,
+    // The draft composer's model/thinking choice, applied at creation so the FIRST turn already
+    // runs it — there is no session to `setSelection` on before this call.
+    selection: args.selection ?? null,
     browser: args.browser ?? null,
     commission: args.commission ?? null,
   });
@@ -229,6 +234,81 @@ export async function handleSetProfile(
     };
   }
   return { ok: true, data: { profileName: res.name, backendChanged: res.backendChanged } };
+}
+
+// Change what the session's next turn runs — its profile, its model, its PI provider, its thinking
+// level, or any combination — through the ONE domain rule (`applyChannelSelection`, injected as
+// `applySessionSelection`). The composer's greying-out is a preview of that rule; this is where it
+// is enforced. Refusals map to:
+//   • unknown-profile / provider-not-supported / invalid-thinking → invalid-args
+//   • cross-backend-live-session                                  → conflict (start a new session)
+// A same-backend change keeps the conversation — only the next turn differs.
+export async function handleSetSelection(
+  deps: UiServiceDeps,
+  args: SessionsSetSelectionArgs,
+): Promise<Result<SessionsSetSelectionReturn>> {
+  const session = await deps.sessionStore.getById(args.sessionId);
+  if (!session) {
+    return { ok: false, code: 'not-found', message: `Session not found: ${args.sessionId}` };
+  }
+  if (!deps.applySessionSelection) {
+    return { ok: false, code: 'not-available', message: 'Model selection is not available' };
+  }
+  // Wire shape → domain shape: the client states the whole selection, the domain takes a patch, so
+  // a field the client left out is an explicit "back to the profile's value".
+  const stated = args.selection;
+  const result = await deps.applySessionSelection({
+    channel: session.channel,
+    profileName: args.profileName,
+    ...(stated
+      ? {
+        model: stated.model ?? null, provider: stated.provider ?? null,
+        thinking: stated.thinking ?? null, mode: stated.mode ?? null,
+      }
+      : {}),
+  });
+  if (!result.ok) {
+    if (result.reason === 'cross-backend-live-session') {
+      return {
+        ok: false,
+        code: 'backend-locked', // maps to CONFLICT in the tRPC layer
+        message: `Can't switch to ${result.targetBackend} — this conversation runs on ${result.currentBackend}. Start a new session to change backend.`,
+      };
+    }
+    if (result.reason === 'invalid-thinking') {
+      return {
+        ok: false, code: 'invalid-args',
+        message: `Unsupported thinking level: ${String(args.selection?.thinking)}${result.allowed ? ` (expected one of: ${result.allowed.join(', ')})` : ''}`,
+      };
+    }
+    if (result.reason === 'invalid-mode') {
+      return {
+        ok: false, code: 'invalid-args',
+        message: `This session's gateway has no route "${String(args.selection?.mode)}"`
+          + `${result.allowed ? ` (expected one of: ${result.allowed.join(', ')})` : ''}`,
+      };
+    }
+    if (result.reason === 'provider-not-supported') {
+      return {
+        ok: false, code: 'invalid-args',
+        message: `This session's backend has no provider to select (requested: ${String(args.selection?.provider)})`,
+      };
+    }
+    return { ok: false, code: 'invalid-args', message: `Unknown profile: ${String(args.profileName)}` };
+  }
+  return {
+    ok: true,
+    data: {
+      profileName: result.profileName,
+      backend: result.backend,
+      model: result.model,
+      provider: result.provider,
+      thinking: result.thinking,
+      mode: result.mode,
+      override: result.override,
+      backendChanged: result.backendChanged,
+    },
+  };
 }
 
 // Message edit + rewind (desktop design 23 / mobile 7): resolve session→channel and delegate to
