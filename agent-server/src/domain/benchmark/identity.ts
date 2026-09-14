@@ -4,8 +4,8 @@
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import { createHash } from 'node:crypto';
-import type { McpComposition } from '../../../agent-adapter/types.js';
-import type { ResolvedProfileConfig } from '../../agents/profile-manager.js';
+import type { McpComposition } from '../../agent-adapter/types.js';
+import type { ResolvedProfileConfig } from '../agents/profile-manager.js';
 
 export type IdentityJsonValue =
   | null

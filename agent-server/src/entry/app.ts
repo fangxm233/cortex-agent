@@ -53,7 +53,7 @@ import { conversationHistory } from '@store/conversation-history-repo.js';
 import { pendingInjectionRepo } from '@store/pending-injection-repo.js';
 import { executionRepo } from '@store/execution-repo.js';
 import { getThreadConfigRevision, loadConfig as loadThreadConfig, startConfigWatcher as startThreadConfigWatcher, setAdminNotifier as setConfigNotifier, migrateThreadTemplatesToDir, mergeThreadTemplates } from '@domain/threads/index.js';
-import { initializeProductionAttemptIdentity } from '@domain/runs/observers/production-attempt-identity.js';
+import { initializeProductionAttemptIdentity } from '@domain/benchmark/production-attempt-identity.js';
 import { startMemoryWatcher } from '@domain/memory/watcher.js';
 import { applyAuthEnv } from '@domain/agents/index.js';
 import { createEditHandler } from '@orch/routing/edit-handler.js';

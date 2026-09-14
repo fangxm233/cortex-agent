@@ -9,7 +9,7 @@ import path from 'node:path';
 import { formatError, formatHelp, readStdinSync } from '@core/cli-utils.js';
 import { setProcessLogPolicy } from '@core/log.js';
 import { isMainModule } from '@core/utils.js';
-import { initializeProductionAttemptIdentity } from '@domain/runs/observers/production-attempt-identity.js';
+import { initializeProductionAttemptIdentity } from '@domain/benchmark/production-attempt-identity.js';
 import {
   exportProductionBenchmarkEvidence,
   type ProductionEvidenceExportInput,

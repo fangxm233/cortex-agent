@@ -11,7 +11,7 @@
 // The backends are scripted to settle without a cost record of their own, so each attempt produces
 // exactly the one row under test.
 
-import '../../../_test-home.js';
+import '../../_test-home.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -19,37 +19,37 @@ import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { afterEach, beforeEach, test, vi } from 'vitest';
-import type { AgentProcessSpawner, Backend, EngineSpec } from '../../../../src/agent-adapter/types.js';
-import type { RunEvent } from '../../../../src/agent-adapter/run-events.js';
-import { ClaudeAdapter } from '../../../../src/agent-adapter/claude/adapter.js';
-import { PIAdapter } from '../../../../src/agent-adapter/pi/adapter.js';
-import type { ProductionBenchmarkEvidenceContext } from '../../../../src/core/types/thread-types.js';
+import type { AgentProcessSpawner, Backend, EngineSpec } from '../../../src/agent-adapter/types.js';
+import type { RunEvent } from '../../../src/agent-adapter/run-events.js';
+import { ClaudeAdapter } from '../../../src/agent-adapter/claude/adapter.js';
+import { PIAdapter } from '../../../src/agent-adapter/pi/adapter.js';
+import type { ProductionBenchmarkEvidenceContext } from '../../../src/core/types/thread-types.js';
 import {
   getProductionAttemptIdentity,
   initializeProductionAttemptIdentity,
   resetProductionAttemptIdentity,
-} from '../../../../src/domain/runs/observers/production-attempt-identity.js';
-import { startAttempt } from '../../../../src/domain/runs/attempt.js';
-import { engines, SessionEngines } from '../../../../src/domain/runs/engines.js';
-import type { ResolvedProfileConfig, RunAttemptConfig } from '../../../../src/domain/agents/profile-manager.js';
-import type { RunRequest } from '../../../../src/domain/runs/request.js';
+} from '../../../src/domain/benchmark/production-attempt-identity.js';
+import { startAttempt } from '../../../src/domain/runs/attempt.js';
+import { engines, SessionEngines } from '../../../src/domain/runs/engines.js';
+import type { ResolvedProfileConfig, RunAttemptConfig } from '../../../src/domain/agents/profile-manager.js';
+import type { RunRequest } from '../../../src/domain/runs/request.js';
 import {
   attemptFromFixture, runRequestFixture, type RunRequestFixtureInput,
-} from '../../../run-request-fixture.js';
+} from '../../run-request-fixture.js';
 import {
   makeFakeRuntimeFactory, type FakeRuntimeFactory,
-} from '../../../agent-adapter/pi-fake-runtime.js';
-import { getCostSummary } from '../../../../src/domain/costs/cost-tracker.js';
-import { CostRepo, costRepo } from '../../../../src/store/cost-repo.js';
+} from '../../agent-adapter/pi-fake-runtime.js';
+import { getCostSummary } from '../../../src/domain/costs/cost-tracker.js';
+import { CostRepo, costRepo } from '../../../src/store/cost-repo.js';
 
 /** The internally-created journal sinks, so the suite can perform the close the run layer omits. */
 const journalCapture = vi.hoisted(() => ({
   sinks: [] as Array<{ onClose?: () => void | Promise<void> }>,
 }));
 
-vi.mock('../../../../src/domain/runs/observers/production-attempt-journal.js', async (importOriginal) => {
+vi.mock('../../../src/domain/benchmark/production-attempt-journal.js', async (importOriginal) => {
   const actual = await importOriginal<
-    typeof import('../../../../src/domain/runs/observers/production-attempt-journal.js')
+    typeof import('../../../src/domain/benchmark/production-attempt-journal.js')
   >();
   return {
     ...actual,

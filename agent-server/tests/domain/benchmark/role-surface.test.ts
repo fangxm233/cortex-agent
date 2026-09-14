@@ -8,13 +8,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, it } from 'vitest';
-import { DEFAULT_TOOLS } from '../../../../src/agent-adapter/claude/defaults.js';
-import { buildSpawnArgs } from '../../../../src/agent-adapter/claude/spawn-args.js';
-import type { EngineSpec } from '../../../../src/agent-adapter/types.js';
+import { DEFAULT_TOOLS } from '../../../src/agent-adapter/claude/defaults.js';
+import { buildSpawnArgs } from '../../../src/agent-adapter/claude/spawn-args.js';
+import type { EngineSpec } from '../../../src/agent-adapter/types.js';
 import {
   directoryContentSha256, roleSurfaceFromSpec,
-} from '../../../../src/domain/runs/observers/role-surface.js';
-import { engineSpecFixture } from '../../../engine-spec-fixture.js';
+} from '../../../src/domain/benchmark/role-surface.js';
+import { engineSpecFixture } from '../../engine-spec-fixture.js';
 
 let root = '';
 

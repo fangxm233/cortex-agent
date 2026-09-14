@@ -30,8 +30,8 @@ import { buildEngineSpec } from './engine-spec.js';
 import type { RunRequest } from './request.js';
 import {
   freezeProductionAttemptIdentity, type ProductionAttemptIdentityRecord,
-} from './observers/production-attempt-identity.js';
-import { createProductionAttemptJournalSink } from './observers/production-attempt-journal.js';
+} from '../benchmark/production-attempt-identity.js';
+import { createProductionAttemptJournalSink } from '../benchmark/production-attempt-journal.js';
 
 const log = createLogger('run-attempt');
 

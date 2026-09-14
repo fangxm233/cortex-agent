@@ -20,7 +20,7 @@
 // layer stopped doing it, the index-row assertions below would fail. The failure-injection cases
 // drive a directly-constructed sink instead, so they can make `onEvent`/`onClose` throw on demand.
 
-import '../../../_test-home.js';
+import '../../_test-home.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { EventEmitter } from 'node:events';
@@ -29,36 +29,36 @@ import os from 'node:os';
 import path from 'node:path';
 import { PassThrough } from 'node:stream';
 import { afterEach, beforeEach, test, vi } from 'vitest';
-import { ClaudeAdapter } from '../../../../src/agent-adapter/claude/adapter.js';
-import type { NormalizedEvent } from '../../../../src/agent-adapter/normalize/event-types.js';
-import { PIAdapter } from '../../../../src/agent-adapter/pi/adapter.js';
-import type { AgentProcessSpawner, Backend } from '../../../../src/agent-adapter/types.js';
-import type { ProductionBenchmarkEvidenceContext } from '../../../../src/core/types/thread-types.js';
-import { AGENT_CWD, resolveSpawnCwd } from '../../../../src/core/paths.js';
-import { canonicalJsonSha256 } from '../../../../src/domain/runs/observers/identity.js';
-import { buildEngineSpec } from '../../../../src/domain/runs/engine-spec.js';
+import { ClaudeAdapter } from '../../../src/agent-adapter/claude/adapter.js';
+import type { NormalizedEvent } from '../../../src/agent-adapter/normalize/event-types.js';
+import { PIAdapter } from '../../../src/agent-adapter/pi/adapter.js';
+import type { AgentProcessSpawner, Backend } from '../../../src/agent-adapter/types.js';
+import type { ProductionBenchmarkEvidenceContext } from '../../../src/core/types/thread-types.js';
+import { AGENT_CWD, resolveSpawnCwd } from '../../../src/core/paths.js';
+import { canonicalJsonSha256 } from '../../../src/domain/benchmark/identity.js';
+import { buildEngineSpec } from '../../../src/domain/runs/engine-spec.js';
 import {
   getProductionAttemptIdentity,
   freezeProductionAttemptIdentity,
   initializeProductionAttemptIdentity,
   resetProductionAttemptIdentity,
-} from '../../../../src/domain/runs/observers/production-attempt-identity.js';
+} from '../../../src/domain/benchmark/production-attempt-identity.js';
 import {
   createProductionAttemptJournalSink,
   getProductionAttemptJournal,
   initializeProductionAttemptJournals,
   resetProductionAttemptJournals,
-} from '../../../../src/domain/runs/observers/production-attempt-journal.js';
-import { startAttempt, type RunAttempt } from '../../../../src/domain/runs/attempt.js';
-import { engines, SessionEngines } from '../../../../src/domain/runs/engines.js';
+} from '../../../src/domain/benchmark/production-attempt-journal.js';
+import { startAttempt, type RunAttempt } from '../../../src/domain/runs/attempt.js';
+import { engines, SessionEngines } from '../../../src/domain/runs/engines.js';
 import type {
   ResolvedProfileConfig, RunAttemptConfig,
-} from '../../../../src/domain/agents/profile-manager.js';
-import type { RunRequest } from '../../../../src/domain/runs/request.js';
+} from '../../../src/domain/agents/profile-manager.js';
+import type { RunRequest } from '../../../src/domain/runs/request.js';
 import {
   makeFakeRuntimeFactory, type FakeRuntimeFactory,
-} from '../../../agent-adapter/pi-fake-runtime.js';
-import { runRequestFixture } from '../../../run-request-fixture.js';
+} from '../../agent-adapter/pi-fake-runtime.js';
+import { runRequestFixture } from '../../run-request-fixture.js';
 
 const TRIAL_ROUTE = { ANTHROPIC_BASE_URL: 'http://proxy.invalid/m/trial/anthropic' };
 const SHA = 'a'.repeat(64);

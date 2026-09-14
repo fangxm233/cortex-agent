@@ -10,7 +10,7 @@
 // fake runtime (`pi-fake-runtime.ts`). No engine is faked: the assertions still read the spec the
 // engine was actually opened from and the frozen record the spawn was allowed to happen after.
 
-import '../../../_test-home.js';
+import '../../_test-home.js';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
@@ -18,29 +18,29 @@ import os from 'node:os';
 import path from 'node:path';
 import { PassThrough } from 'node:stream';
 import { afterEach, beforeEach, test, vi } from 'vitest';
-import { ClaudeAdapter } from '../../../../src/agent-adapter/claude/adapter.js';
-import { PIAdapter } from '../../../../src/agent-adapter/pi/adapter.js';
-import type { AgentProcessSpawner, Backend } from '../../../../src/agent-adapter/types.js';
-import type { ProductionBenchmarkEvidenceContext } from '../../../../src/core/types/thread-types.js';
+import { ClaudeAdapter } from '../../../src/agent-adapter/claude/adapter.js';
+import { PIAdapter } from '../../../src/agent-adapter/pi/adapter.js';
+import type { AgentProcessSpawner, Backend } from '../../../src/agent-adapter/types.js';
+import type { ProductionBenchmarkEvidenceContext } from '../../../src/core/types/thread-types.js';
 import {
   computeModelExecutionIdentityHash, computeRoleToolSurfaceHash,
-} from '../../../../src/domain/runs/observers/identity.js';
+} from '../../../src/domain/benchmark/identity.js';
 import {
   getProductionAttemptIdentity,
   initializeProductionAttemptIdentity,
   resetProductionAttemptIdentity,
-} from '../../../../src/domain/runs/observers/production-attempt-identity.js';
-import { roleSurfaceFromSpec } from '../../../../src/domain/runs/observers/role-surface.js';
-import { startAttempt, type RunAttempt } from '../../../../src/domain/runs/attempt.js';
-import { engines, SessionEngines } from '../../../../src/domain/runs/engines.js';
+} from '../../../src/domain/benchmark/production-attempt-identity.js';
+import { roleSurfaceFromSpec } from '../../../src/domain/benchmark/role-surface.js';
+import { startAttempt, type RunAttempt } from '../../../src/domain/runs/attempt.js';
+import { engines, SessionEngines } from '../../../src/domain/runs/engines.js';
 import type {
   ResolvedProfileConfig, RunAttemptConfig,
-} from '../../../../src/domain/agents/profile-manager.js';
-import type { RunRequest } from '../../../../src/domain/runs/request.js';
+} from '../../../src/domain/agents/profile-manager.js';
+import type { RunRequest } from '../../../src/domain/runs/request.js';
 import {
   makeFakeRuntimeFactory, type FakeRuntimeFactory,
-} from '../../../agent-adapter/pi-fake-runtime.js';
-import { runRequestFixture } from '../../../run-request-fixture.js';
+} from '../../agent-adapter/pi-fake-runtime.js';
+import { runRequestFixture } from '../../run-request-fixture.js';
 
 /** The Anthropic route one attempt resolved; only the host of it is ever attested. */
 const PROXY_ROUTE = { ANTHROPIC_BASE_URL: 'http://proxy.invalid' };

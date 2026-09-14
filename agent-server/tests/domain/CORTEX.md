@@ -6,7 +6,7 @@ Domain-layer tests, one folder per business capability of the agent server.
 |---|---|---|
 | runs/ | subdir | run observer tests for production-attempt journals |
 | agents/ | subdir | agent profile resolution and switching |
-| benchmark/ | subdir | benchmark arm and policy compilation |
+| benchmark/ | subdir | production benchmark evidence, identity and journal tests, plus the benchmark arm and policy compilation |
 | auth-logout.test.ts | test | Isolated auth logout ownership, state and privacy |
 | auth-login-service.test.ts | test | Auth selection, notice reuse and cancel fencing |
 | auth-status.test.ts | test | Auth state, CLI authority, capabilities and output |

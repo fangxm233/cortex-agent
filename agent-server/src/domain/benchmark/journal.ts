@@ -5,8 +5,8 @@
 
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
-import type { NormalizedEvent } from '../../../agent-adapter/normalize/event-types.js';
-import type { Backend } from '../../../agent-adapter/types.js';
+import type { NormalizedEvent } from '../../agent-adapter/normalize/event-types.js';
+import type { Backend } from '../../agent-adapter/types.js';
 
 const JOURNAL_SCHEMA = 'cortex-bench-journal/1';
 const READ_BUFFER_BYTES = 64 * 1024;

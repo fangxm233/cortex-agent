@@ -9,34 +9,34 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import type { NormalizedEvent } from '../../../../src/agent-adapter/normalize/event-types.js';
-import type { EngineSpec, Backend } from '../../../../src/agent-adapter/types.js';import type { ThreadRecord } from '../../../../src/core/types/thread-types.js';
-import type { Task } from '../../../../src/core/task-parser.js';
+import type { NormalizedEvent } from '../../../src/agent-adapter/normalize/event-types.js';
+import type { EngineSpec, Backend } from '../../../src/agent-adapter/types.js';import type { ThreadRecord } from '../../../src/core/types/thread-types.js';
+import type { Task } from '../../../src/core/task-parser.js';
 import {
   ProductionAttemptIdentityRepo, type ProductionAttemptIdentityRecord,
-} from '../../../../src/domain/runs/observers/production-attempt-identity.js';
-import { computeRoleToolSurfaceHash } from '../../../../src/domain/runs/observers/identity.js';
+} from '../../../src/domain/benchmark/production-attempt-identity.js';
+import { computeRoleToolSurfaceHash } from '../../../src/domain/benchmark/identity.js';
 import {
   createProductionAttemptJournalSink, getProductionAttemptJournal,
   initializeProductionAttemptJournals, resetProductionAttemptJournals,
   type ProductionAttemptJournalRecord,
-} from '../../../../src/domain/runs/observers/production-attempt-journal.js';
-import { roleSurfaceFromSpec } from '../../../../src/domain/runs/observers/role-surface.js';
-import { engineSpecFixture } from '../../../engine-spec-fixture.js';
-import type { ProxyExport } from '../../../../src/domain/benchmark/accounting-reconciliation.js';
+} from '../../../src/domain/benchmark/production-attempt-journal.js';
+import { roleSurfaceFromSpec } from '../../../src/domain/benchmark/role-surface.js';
+import { engineSpecFixture } from '../../engine-spec-fixture.js';
+import type { ProxyExport } from '../../../src/domain/benchmark/accounting-reconciliation.js';
 import {
   exportProductionBenchmarkEvidence,
   type ProductionEvidenceExportInput,
   type ProductionEvidenceExportResult,
   type ProductionEvidenceSources,
-} from '../../../../src/domain/benchmark/production-evidence-export.js';
-import type { CompositeManifest } from '../../../../src/domain/benchmark/composite-manifest.js';
-import type { CostEntry } from '../../../../src/domain/costs/cost-tracker.js';
+} from '../../../src/domain/benchmark/production-evidence-export.js';
+import type { CompositeManifest } from '../../../src/domain/benchmark/composite-manifest.js';
+import type { CostEntry } from '../../../src/domain/costs/cost-tracker.js';
 import {
   readProductionTopologyFacts, recordProductionTopologyFact,
   type ProductionTopologyFact,
-} from '../../../../src/domain/tasks/production-topology-ledger.js';
-import type { ExecutionRecord } from '../../../../src/store/execution-repo.js';
+} from '../../../src/domain/tasks/production-topology-ledger.js';
+import type { ExecutionRecord } from '../../../src/store/execution-repo.js';
 
 const HASH = 'a'.repeat(64);
 const BUNDLE_HASH = 'b'.repeat(64);

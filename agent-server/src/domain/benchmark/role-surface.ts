@@ -6,9 +6,9 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { DEFAULT_TOOLS } from '../../../agent-adapter/claude/defaults.js';
-import { buildHooksSettings } from '../../../agent-adapter/claude/hooks-builder.js';
-import type { EngineSpec } from '../../../agent-adapter/types.js';
+import { DEFAULT_TOOLS } from '../../agent-adapter/claude/defaults.js';
+import { buildHooksSettings } from '../../agent-adapter/claude/hooks-builder.js';
+import type { EngineSpec } from '../../agent-adapter/types.js';
 import {
   canonicalJsonSha256, type IdentityJsonValue, type PluginDirIdentityInput,
   type RoleToolSurfaceInput, type SkillIdentityInput,

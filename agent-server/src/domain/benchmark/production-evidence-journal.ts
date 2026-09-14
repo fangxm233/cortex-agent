@@ -8,9 +8,9 @@ import fs from 'node:fs';
 
 import type {
   SourceJournalEvent, SourceJournalHeader,
-} from '../runs/observers/atif.js';
-import type { ProductionAttemptIdentityRecord } from '../runs/observers/production-attempt-identity.js';
-import type { ProductionAttemptJournalRecord } from '../runs/observers/production-attempt-journal.js';
+} from './atif.js';
+import type { ProductionAttemptIdentityRecord } from './production-attempt-identity.js';
+import type { ProductionAttemptJournalRecord } from './production-attempt-journal.js';
 
 export interface ParsedProductionJournal {
   readonly bytes: Buffer;

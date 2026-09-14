@@ -64,8 +64,8 @@ function collector(): { observer: RunObserver; events: RunEvent[] } {
 
 test('evidence-enabled preflight rate limit creates no attempt evidence and keeps the refusal result', async (t) => {
   const rl = await home.initThrottle(['plan']);
-  const identity = await import('../src/domain/runs/observers/production-attempt-identity.js');
-  const journals = await import('../src/domain/runs/observers/production-attempt-journal.js');
+  const identity = await import('../src/domain/benchmark/production-attempt-identity.js');
+  const journals = await import('../src/domain/benchmark/production-attempt-journal.js');
   const root = mkdtempSync(path.join(os.tmpdir(), 'run-preflight-evidence-'));
   const identityStorePath = path.join(root, 'data', 'benchmark-attempt-identities.jsonl');
   const journalStorePath = path.join(root, 'data', 'benchmark-attempt-journals.jsonl');

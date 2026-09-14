@@ -7,7 +7,7 @@ Consumed by orchestration and platform surfaces.
 |---|---|---|
 | agents/ | subdir | Backend, model and profile selection per channel |
 | auth/ | subdir | Tracks provider auth, lifecycle, and notices |
-| benchmark/ | subdir | Production benchmark evidence projection |
+| benchmark/ | subdir | Production benchmark evidence: the identity/journal schema the run's journal sink feeds, and the projection/export that publishes it |
 | commissions/ | subdir | Commission (long-task) paths and decision projection |
 | costs/ | subdir | Spend, provider usage, budgets and rate-limit throttle |
 | executions/ | subdir | Lifecycle and live output of dispatched runs |
