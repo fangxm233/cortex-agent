@@ -147,19 +147,26 @@ function ExpandedToolCalls({ count, calls, unit, onCollapse }: {
 /**
  * One native subagent's work, folded away by default.
  *
- * Mobile renders a FLATTENED view — the subagent's tool calls as one collapsed run plus its prose —
- * rather than recursing through the row renderer the way the desktop block does. The mobile stream
- * is a single inline JSX map with no recursive entry point, and a flattened block carries the same
- * information at this width.
+ * Mobile renders a FLAT view — tool runs and prose, no nesting — but in TRANSCRIPT ORDER: each
+ * `tools` row keeps its own collapsed run, sitting between the prose blocks it ran between, exactly
+ * as the desktop block shows it. Merging every call into one run at the top (what this did before)
+ * made a long subagent read as a single tool row followed by orphaned notes, because the reader
+ * could no longer tell which calls belonged to which step. Rows the mobile block has no form for
+ * (nested subagents, notices, interactions) are still skipped.
  */
 function MSubagentRows({ rows, unit }: { rows: ChatRow[]; unit: string }): JSX.Element {
-  const calls = rows.flatMap((row) => row.kind === 'tools' ? row.calls : []);
-  const texts = rows.flatMap((row) => row.kind === 'assistant' && row.text ? [row.text] : []);
-  return <>{calls.length > 0 && <ToolCallsRow count={calls.length} calls={calls} unit={unit} />}
-    {texts.map((text, index) => <div key={index} style={{ fontSize: 12.5, lineHeight: 1.6,
-      color: MC.body, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
-      <ChatMarkdown text={text} />
-    </div>)}</>;
+  return <>{rows.map((row, index) => {
+    if (row.kind === 'tools' && row.count > 0) {
+      return <ToolCallsRow key={index} count={row.count} calls={row.calls} unit={unit} />;
+    }
+    if (row.kind === 'assistant' && row.text) {
+      return <div key={index} style={{ fontSize: 12.5, lineHeight: 1.6,
+        color: MC.body, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
+        <ChatMarkdown text={row.text} />
+      </div>;
+    }
+    return null;
+  })}</>;
 }
 
 function MSubagentDetail({ row, unit, sessionId }: {

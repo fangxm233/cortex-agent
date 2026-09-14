@@ -424,6 +424,36 @@ describe('MChatStream subagent prompt', () => {
     expect(rendered).toContain('child output');
   });
 
+  it('keeps the subagent body in transcript order — a tool run per step, not one merged run', () => {
+    const rows: ChatRow[] = [{
+      kind: 'subagent', id: 'tu_a', agentType: 'explore', description: 'Inspect mobile',
+      prompt: null, model: null, status: 'done', toolCount: 3, children: [
+        { kind: 'assistant', text: 'first note', streaming: false },
+        { kind: 'tools', count: 2, calls: [{ kind: 'Read', input: 'a.ts' }, { kind: 'Bash', input: 'ls' }] },
+        { kind: 'assistant', text: 'second note', streaming: false },
+        { kind: 'tools', count: 1, calls: [{ kind: 'Write', input: 'b.ts' }] },
+      ],
+    }];
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        <LangProvider>
+          <MChatStream rows={rows} toolCallsUnit="tools" copyLabel="copy" copiedLabel="copied" />
+        </LangProvider>,
+      );
+    });
+    act(() => renderer.root.findByProps({ role: 'button' }).props.onClick());
+
+    const text = (node: any): string => typeof node === 'string' ? node
+      : Array.isArray(node) ? node.map(text).join('')
+      : node?.children ? text(node.children) : '';
+    const rendered = text(renderer.toJSON());
+    const order = ['first note', '2 tools', 'second note', '1 tools']
+      .map((needle) => rendered.indexOf(needle));
+    expect(order.every((at) => at >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+  });
+
   it('loads lazy detail only after expand and keeps the mobile body to tools plus assistant prose', () => {
     const rows: ChatRow[] = [{
       kind: 'subagent', id: 'tu_lazy', agentType: 'explore', description: 'Inspect mobile',
