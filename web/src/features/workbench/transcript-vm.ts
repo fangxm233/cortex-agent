@@ -711,9 +711,27 @@ export function buildTranscriptRows(
     flushTools(top);
     for (const b of blocks.values()) flushTools(b.sink);
   };
-  /** A batch of subagents is over the moment the main agent acts again — the model cannot speak or
-   *  call another tool until every Task it issued has returned. The spawning calls themselves are
-   *  excluded by the caller, since a second Task in the same batch must not close the first. */
+  /**
+   * A batch of subagents is over the moment the main agent acts again — the model cannot speak or
+   * call another tool until every Task it issued has returned. The spawning calls themselves are
+   * excluded by the caller, since a second Task in the same batch must not close the first.
+   *
+   * That premise holds for a blocking batch and fails for a backgrounded one, which by design runs
+   * ALONGSIDE the main agent. `liveOpen` is the evidence that separates them: rows the fetched
+   * transcript does not have yet mean this child is demonstrably still working, whatever the main
+   * agent just did. Such a block is left to the two authorities that can actually end it — the
+   * backend's reported end, and the sweep for a session that is no longer live. The cost is a
+   * native Task whose end went missing (a resume that lost its `task_started`) reading as running
+   * until its turn is over, instead of until the next main-agent row.
+   */
+  const closeBlocksTheMainAgentOutran = (): void => {
+    for (const b of blocks.values()) {
+      if (b.liveOpen && !b.ended) continue;
+      b.row.status = 'done';
+    }
+  };
+  /** The end-of-transcript sweep, which answers to a different fact: an idle session has nothing
+   *  running in it, however recently a child was producing rows. */
   const closeOpenBlocks = (): void => {
     for (const b of blocks.values()) b.row.status = 'done';
   };
@@ -807,7 +825,7 @@ export function buildTranscriptRows(
       continue;
     }
     const block = m.subagentId ? openBlock(m, m.subagentId) : null;
-    if (!block) closeOpenBlocks();
+    if (!block) closeBlocksTheMainAgentOutran();
     const sink = block ? block.sink : top;
     if (m.type === 'tool') {
       if (block && !block.summary) block.row.toolCount += 1;

@@ -1259,6 +1259,51 @@ describe('buildTranscriptRows — native subagent grouping', () => {
     expect(blocks[0].toolCount).toBe(2);
   });
 
+  it('does not let the main agent\'s next row close a background child that is still producing', () => {
+    // The blocking-batch premise behind that sweep — the model cannot act until every Task it
+    // issued returned — is exactly what `run_in_background` breaks. Live rows the fetched
+    // transcript does not have yet are the proof, and they must outrank the main agent's row even
+    // when that row is the most recent thing in the session.
+    const rows = buildTranscriptRows(
+      tx([{ turnIndex: 0, messages: [
+        msg({ type: 'user', text: 'go' }),
+        msg({ type: 'tool', toolName: 'Task', toolInput: 'survey', subagentId: 'tu_bg' }),
+      ] }]),
+      [
+        {
+          sessionId: 's1', role: 'tool', text: '', toolName: 'Grep', toolInput: 'x',
+          subagentId: 'tu_bg', ts: '2026-08-01T01:00:00.000Z',
+        },
+        {
+          sessionId: 's1', role: 'tool', text: '', toolName: 'Bash', toolInput: 'main-agent work',
+          ts: '2026-08-01T01:00:01.000Z',
+        },
+      ],
+      { running: true },
+    );
+
+    const block = rows.find((r) => r.kind === 'subagent') as Extract<ChatRow, { kind: 'subagent' }>;
+    expect(block.status).toBe('running');
+  });
+
+  it('still closes a background child\'s block once the session itself goes idle', () => {
+    // The other authority: whatever the child last looked like, an idle session is running nothing.
+    const rows = buildTranscriptRows(
+      tx([{ turnIndex: 0, messages: [
+        msg({ type: 'user', text: 'go' }),
+        msg({ type: 'tool', toolName: 'Task', toolInput: 'survey', subagentId: 'tu_bg' }),
+      ] }]),
+      [{
+        sessionId: 's1', role: 'tool', text: '', toolName: 'Grep', toolInput: 'x',
+        subagentId: 'tu_bg', ts: '2026-08-01T01:00:00.000Z',
+      }],
+      { running: false },
+    );
+
+    const block = rows.find((r) => r.kind === 'subagent') as Extract<ChatRow, { kind: 'subagent' }>;
+    expect(block.status).toBe('done');
+  });
+
   it('folds a subagent\'s work into a block anchored at the spawning call', () => {
     const rows = buildTranscriptRows(
       tx([{ turnIndex: 0, messages: [
