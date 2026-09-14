@@ -486,15 +486,24 @@ function managedServerUrl(reg: MachineEntry): string | undefined {
   return `ws://127.0.0.1:${reg.clientReversePort ?? clientManagerPort}`;
 }
 
+/**
+ * Kill whatever still listens on the tunnel's loopback port on a Windows host. Windows OpenSSH
+ * neither tears the forward listener down with the session nor refuses a duplicate bind, so a
+ * dead tunnel can keep answering the cortex-client while a healthy one sits next to it unused.
+ */
+function windowsFreePortCommand(port: number): string {
+  return 'powershell -NoProfile -Command "Get-NetTCPConnection -State Listen -LocalPort '
+    + `${port} -ErrorAction SilentlyContinue | `
+    + 'ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }"';
+}
+
 function tunnelSpec(device: string, reg: MachineEntry): SshTunnelSpec | null {
   if (reg.clientConnection !== 'ssh-reverse') return null;
   if (!reg.ssh || clientManagerPort === null) throw new Error(`SSH reverse route is not ready for ${device}`);
-  return {
-    device,
-    host: reg.ssh,
-    remotePort: reg.clientReversePort ?? clientManagerPort,
-    serverPort: clientManagerPort,
-  };
+  const remotePort = reg.clientReversePort ?? clientManagerPort;
+  const spec: SshTunnelSpec = { device, host: reg.ssh, remotePort, serverPort: clientManagerPort };
+  if (reg.win) spec.freeRemotePortCommand = windowsFreePortCommand(remotePort);
+  return spec;
 }
 
 async function ensureManagedRoute(device: string, reg: MachineEntry): Promise<void> {

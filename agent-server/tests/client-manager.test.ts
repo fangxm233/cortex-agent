@@ -413,6 +413,30 @@ test('SSH-routed client waits for its tunnel and launches with the loopback URL'
   assert.equal(clientPids.get('worker'), 4321);
 });
 
+test('a Windows SSH-routed client asks the tunnel to free its remote port first', async (t) => {
+  const port = await findEphemeralPort();
+  const ensure = vi.fn().mockResolvedValue(undefined);
+  _setTunnelSupervisorForTesting({ ensure, stopAll: vi.fn().mockResolvedValue(undefined), resume: vi.fn() });
+  _setMachineRegistryProviderForTesting(() => ({
+    worker: {
+      cortexPath: 'C:\\Users\\worker', gpuCount: 0, win: true, ssh: 'user@worker',
+      clientConnection: 'ssh-reverse', clientReversePort: 13002,
+    },
+  }));
+  _setSshExecForTesting(vi.fn(async (_host: string, command: string) => (
+    command.includes('tasklist') ? '' : '4321'
+  )));
+  startClientManager(port);
+  t.onTestFinished(async () => { await stopClientManager(); _testReset(); });
+
+  await startRemoteClient('worker');
+
+  // Windows OpenSSH orphans the forward listener, so the tunnel must evict it before binding.
+  const spec = ensure.mock.calls[0][0];
+  assert.match(spec.freeRemotePortCommand, /Get-NetTCPConnection -State Listen -LocalPort 13002/);
+  assert.match(spec.freeRemotePortCommand, /Stop-Process -Id \$_\.OwningProcess -Force/);
+});
+
 test('startAllRemoteClients keeps recovery armed until a launched client connects', async (t) => {
   t.onTestFinished(() => _testReset());
   _setMachineRegistryProviderForTesting(() => ({

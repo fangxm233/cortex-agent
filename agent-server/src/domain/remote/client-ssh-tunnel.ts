@@ -12,6 +12,15 @@ export interface SshTunnelSpec {
   host: string;
   remotePort: number;
   serverPort: number;
+  /**
+   * Optional remote shell command run immediately before each `ssh -R` spawn, to release
+   * `remotePort` on the far side. Needed on Windows: OpenSSH there leaves the forward listener
+   * behind in an orphaned `sshd -z` child when our side of the tunnel dies, and it lets a second
+   * sshd bind the same loopback port instead of failing. The cortex-client then reconnects into
+   * the dead listener and the device stays offline even though a healthy tunnel exists. POSIX
+   * sshd frees the port with the session, so leave this unset there.
+   */
+  freeRemotePortCommand?: string;
 }
 
 type TunnelState = 'stopped' | 'starting' | 'running' | 'backoff' | 'stopping';
@@ -69,12 +78,24 @@ export function buildSshTunnelArgs(spec: SshTunnelSpec, controlPath: string): st
   ];
 }
 
+// Compares where the tunnel points, which is what cannot change under a live supervisor.
+// `freeRemotePortCommand` is deliberately excluded: it is derived from the ports compared here
+// plus the host's OS, so treating it as a route change would only fire on a `win` flag edit —
+// and wedging a device permanently over that is a worse failure than using a stale command.
 function sameSpec(a: SshTunnelSpec, b: SshTunnelSpec): boolean {
   return a.host === b.host && a.remotePort === b.remotePort && a.serverPort === b.serverPort;
 }
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** A failure retrying cannot fix. The retry chain stops on it instead of logging forever. */
+class PermanentTunnelError extends Error {}
+
+function hasLiveChild(record: TunnelRecord): boolean {
+  const child = record.child;
+  return !!child && child.exitCode === null && child.signalCode === null;
 }
 
 export class SshTunnelSupervisor {
@@ -112,9 +133,12 @@ export class SshTunnelSupervisor {
     if (this.stopping) return Promise.reject(new Error('SSH tunnel supervisor is stopping'));
     const record = this.getOrCreate(spec);
     if (!sameSpec(record.spec, spec)) {
-      return Promise.reject(new Error(`SSH tunnel route changed for ${spec.device}; restart the server`));
+      return Promise.reject(new PermanentTunnelError(`SSH tunnel route changed for ${spec.device}; restart the server`));
     }
-    if (record.state === 'running') return Promise.resolve();
+    // Trust 'running' only while the child that earned it is still alive. A state machine that
+    // believes in a tunnel it no longer owns answers every later ensure() with resolve(), and the
+    // device never comes back — so re-derive liveness from the process instead.
+    if (record.state === 'running' && hasLiveChild(record)) return Promise.resolve();
     if (record.ensurePromise) return record.ensurePromise;
     record.ensurePromise = this.start(record).finally(() => { record.ensurePromise = null; });
     return record.ensurePromise;
@@ -156,17 +180,36 @@ export class SshTunnelSupervisor {
     }
   }
 
+  private async freeRemotePort(record: TunnelRecord): Promise<void> {
+    const command = record.spec.freeRemotePortCommand;
+    if (!command) return;
+    try {
+      await this.execSsh(['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5', record.spec.host, command], 15_000);
+    } catch (error) {
+      // Best effort: a reachable-but-uncooperative host should still get a tunnel attempt, and an
+      // unreachable one fails loudly a moment later on the spawn itself.
+      log.warn(`${record.spec.device}: could not free remote port ${record.spec.remotePort}: ${(error as Error).message}`);
+    }
+  }
+
   private async start(record: TunnelRecord): Promise<void> {
     const generation = ++record.generation;
     record.state = 'starting';
     record.lastError = null;
     await this.closeStaleMaster(record);
+    await this.freeRemotePort(record);
     if (!this.isCurrent(record, generation) || this.stopping) throw new Error('SSH tunnel start cancelled');
     const child = this.spawnSsh(buildSshTunnelArgs(record.spec, this.controlPath(record.spec)));
     record.child = child;
     this.attachChild(record, child, generation);
     await this.waitUntilReady(record, generation);
-    if (!this.isCurrent(record, generation)) throw record.lastError ?? new Error('SSH tunnel start superseded');
+    // `-O check` can succeed in the same tick the child dies of a rejected forward, so the
+    // readiness probe alone does not prove we still own a tunnel. Confirm the child we spawned is
+    // still the record's child before declaring 'running' — otherwise we would overwrite the
+    // 'backoff' that fail() just set and strand the retry that came with it.
+    if (!this.isCurrent(record, generation) || record.child !== child) {
+      throw record.lastError ?? new Error('SSH tunnel start superseded');
+    }
     record.state = 'running';
     record.attempt = 0;
     log.info(`SSH reverse tunnel ready for ${record.spec.device} on remote port ${record.spec.remotePort}`);
@@ -197,7 +240,9 @@ export class SshTunnelSupervisor {
   }
 
   private isCurrent(record: TunnelRecord, generation: number): boolean {
-    return record.generation === generation && record.state !== 'stopping' && record.state !== 'stopped';
+    // 'backoff' counts as superseded: fail() has already disowned the child and armed a retry, so
+    // an in-flight start() must abort rather than race that retry back to 'running'.
+    return record.generation === generation && (record.state === 'starting' || record.state === 'running');
   }
 
   private fail(record: TunnelRecord, child: ChildProcess | null, generation: number, error: Error): void {
@@ -212,6 +257,7 @@ export class SshTunnelSupervisor {
 
   private scheduleRetry(record: TunnelRecord): void {
     if (this.stopping || record.retryTimer) return;
+    if (record.state === 'stopping' || record.state === 'stopped') return;
     const wait = Math.min(this.retryBaseMs * (2 ** record.attempt), this.retryMaxMs);
     record.attempt += 1;
     record.retryTimer = setTimeout(() => {
@@ -219,6 +265,10 @@ export class SshTunnelSupervisor {
       if (this.stopping) return;
       void this.ensure(record.spec).catch((error) => {
         log.warn(`${record.spec.device}: tunnel retry failed: ${(error as Error).message}`);
+        // Not every rejection routes through fail() — a start() that aborts as superseded throws
+        // without arming anything. Re-arm here or that one rejection ends the retry chain and the
+        // device is offline until the next server restart.
+        if (!(error instanceof PermanentTunnelError)) this.scheduleRetry(record);
       });
     }, wait);
   }
