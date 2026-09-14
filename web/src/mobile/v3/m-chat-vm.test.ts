@@ -180,6 +180,15 @@ describe('buildSelectionSheet', () => {
     }).clearRow).toMatchObject({ id: 'selection:clear', change: { selection: {} } });
   });
 
+  it('the ticked profile row takes the overrides back, and is inert without them', () => {
+    const overridden = sheet({
+      effective: effectiveSelection(profiles, 'default', { model: 'haiku-4' }),
+      override: { model: 'haiku-4' },
+    }).sections[0].rows.find((row) => row.current)!;
+    expect(overridden).toMatchObject({ current: true, change: { profileName: 'default' } });
+    expect(sheet().sections[0].rows.find((row) => row.current)?.change).toBeNull();
+  });
+
   it('marks what is running now', () => {
     const { sections } = sheet();
     expect(sections[0].rows.find((row) => row.current)?.label).toBe('default');

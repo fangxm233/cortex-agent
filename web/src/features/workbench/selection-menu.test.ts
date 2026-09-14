@@ -286,8 +286,17 @@ describe('the change a pick produces', () => {
   it('a profile row carries no selection — the server drops the old one', () => {
     const profileOptions = buildProfileOptions(profiles, 'opus', { currentBackend: 'claude', hasHistory: false });
     expect(profileChange(profileOptions, now, 'sonnet')).toEqual({ profileName: 'sonnet' });
-    expect(profileChange(profileOptions, now, 'opus')).toBeNull();
     const live = buildProfileOptions(profiles, 'opus', { currentBackend: 'claude', hasHistory: true });
     expect(profileChange(live, now, 'ds')).toBeNull();
+  });
+
+  it('the profile already running is still a way to say "run it as declared"', () => {
+    const profileOptions = buildProfileOptions(profiles, 'opus', { currentBackend: 'claude', hasHistory: false });
+    // `now` runs opus with a model and a level on top: the ticked row is where a user takes those
+    // back, and it means the same thing picking any other profile means.
+    expect(profileChange(profileOptions, now, 'opus')).toEqual({ profileName: 'opus' });
+    // Nothing on top of it — the row has nothing left to do.
+    const plain = effectiveSelection(profiles, 'opus', null);
+    expect(profileChange(profileOptions, plain, 'opus')).toBeNull();
   });
 });

@@ -235,16 +235,29 @@ function restate(
   return next;
 }
 
+/** Is anything in force that the profile itself does not say? The picker's "there is something to
+ *  take back" test — shared by the clear row and by the row of the profile already running. */
+export function isOverridden(current: EffectiveSelection): boolean {
+  return current.modelOverridden || current.thinkingOverridden || current.modeOverridden;
+}
+
 /** The change picking a profile row produces, or null when there is nothing to do. Deliberately
  *  carries no selection: naming a profile means "run it as declared", and the server drops the
- *  session's earlier overrides for exactly that reason. */
+ *  session's earlier overrides for exactly that reason.
+ *
+ *  Picking the profile the session is ALREADY on is that same statement, so it stays actionable for
+ *  as long as something sits on top of it: the ticked row is where a user goes to say "never mind,
+ *  just run opus". Refusing it there made the picker contradict the rule it previews — moving away
+ *  and back dropped the overrides, tapping the row did nothing at all — and left the clear row as
+ *  the only way to say it. With nothing overridden there is genuinely nothing left to do. */
 export function profileChange(
   options: ProfileOption[],
   current: EffectiveSelection,
   name: string,
 ): SelectionChange | null {
   const option = options.find((candidate) => candidate.name === name);
-  if (!option || option.disabled || name === current.profileName) return null;
+  if (!option || option.disabled) return null;
+  if (name === current.profileName && !isOverridden(current)) return null;
   return { profileName: name };
 }
 
@@ -389,6 +402,6 @@ export function selectionRootRows(
  *  field, which is exactly how the server reads "all of it follows the profile again". Null when
  *  there is nothing to take back. */
 export function clearAllChange(current: EffectiveSelection): SelectionChange | null {
-  if (!current.modelOverridden && !current.thinkingOverridden && !current.modeOverridden) return null;
+  if (!isOverridden(current)) return null;
   return { selection: {} };
 }
