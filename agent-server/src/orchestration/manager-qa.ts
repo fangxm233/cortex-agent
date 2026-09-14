@@ -3,6 +3,10 @@ import { scanAllTasks } from '@core/task-parser.js';
 import { isTerminalStatus } from '@domain/threads/tree.js';
 import { resumeManagerForQuestion } from './thread-callback.js';
 import { deliverToSession } from './session-gateway.js';
+import {
+  arm, disarm, setHumanAnswerRehydrator, tryConsume, _testResetHumanAnswerBackstop,
+  type HumanAnswerHandler,
+} from './human-answer-backstop.js';
 import { createLogger } from '@core/log.js';
 import {
   consumeProductionTopologyAnswer,
@@ -26,17 +30,49 @@ interface PendingQuestion {
   answer: string | null;
   answerFactId: string | null;
   createdAt: number;
+  /** The handler this question armed on `channel`, kept as its disarm token (never persisted).
+   *  null when it never armed anything — a manager-targeted question, or one already disarmed. */
+  armedHandler: HumanAnswerHandler | null;
 }
 
 /** Central in-memory question store (daemon process). questionId → question. */
 const questions = new Map<string, PendingQuestion>();
-/** channel → questionId, for routing a human's free-text reply back to the right pending ask. */
-const channelIndex = new Map<string, string>();
 
+/**
+ * Arm the DR-0016 backstop on this question's channel: the next HUMAN message there is its answer
+ * rather than a new turn. The interception itself lives in `human-answer-backstop` (a leaf, so the
+ * routing entry can import it without importing this module) — here we only say what "consumed"
+ * means. There is no `channel → questionId` index any more: the registry is keyed by channel and
+ * the handler closure carries the questionId.
+ */
+function armHumanBackstop(question: PendingQuestion): void {
+  const channel = question.channel;
+  if (!channel) return;
+  const questionId = question.questionId;
+  const handler: HumanAnswerHandler = (text: string): boolean => {
+    const rec = questions.get(questionId);
+    if (!rec || !rec.awaitingHuman) { disarm(channel, handler); return false; }
+    if (rec.answer !== null) { disarmHumanBackstop(rec); return false; }
+    rec.answer = text ?? '';
+    try { recordAnswerFact(rec, null); } catch (error) {
+      rec.answer = null;
+      log.error(`human manager-Q&A persistence failed: ${(error as Error).message}`);
+      return false;
+    }
+    disarmHumanBackstop(rec);
+    log.info(`ask_manager: human answered ${questionId} on ${channel}`);
+    return true;
+  };
+  question.armedHandler = handler;
+  arm(channel, handler);
+}
+
+/** Identity-guarded: answering an OLD question must not disarm the NEWER one that has since armed
+ *  the same channel (the handler is the token — a replaced arm no longer matches). */
 function disarmHumanBackstop(question: PendingQuestion): void {
-  if (question.channel && channelIndex.get(question.channel) === question.questionId) {
-    channelIndex.delete(question.channel);
-  }
+  if (!question.channel || !question.armedHandler) return;
+  disarm(question.channel, question.armedHandler);
+  question.armedHandler = null;
 }
 
 let hydrated = false;
@@ -44,14 +80,14 @@ let hydrated = false;
 /** Test hook: clear all in-memory Q&A state without reloading durable history. */
 export function _testResetManagerQa(): void {
   questions.clear();
-  channelIndex.clear();
+  _testResetHumanAnswerBackstop();
   hydrated = true;
 }
 
 /** Test hook: model a daemon restart by dropping memory and enabling durable reload. */
 export function _testSimulateManagerQaRestart(): void {
   questions.clear();
-  channelIndex.clear();
+  _testResetHumanAnswerBackstop();
   hydrated = false;
 }
 
@@ -91,7 +127,7 @@ function questionFromFact(
     fromTaskId: fact.asker_task_id, managerThreadId: fact.manager_thread_id,
     channel: fact.origin_channel, awaitingHuman: fact.manager_thread_id === null,
     project: fact.project, question: fact.question, answer: null, answerFactId: null,
-    createdAt: Date.parse(fact.occurred_at),
+    createdAt: Date.parse(fact.occurred_at), armedHandler: null,
   };
 }
 
@@ -116,10 +152,10 @@ function ensureQaHydrated(): void {
       if (fact.kind === 'question') questions.set(fact.question_id, questionFromFact(fact));
       else if (fact.kind === 'answer') applyAnswerFact(fact);
     }
+    // Re-arm every still-open human escalation: after a restart the backstop's memory is empty
+    // but the question on disk is still waiting, and the human has no idea a daemon died.
     for (const question of questions.values()) {
-      if (question.awaitingHuman && question.channel && question.answer === null) {
-        channelIndex.set(question.channel, question.questionId);
-      }
+      if (question.awaitingHuman && question.answer === null) armHumanBackstop(question);
     }
     hydrated = true;
   } catch (error) {
@@ -250,7 +286,7 @@ function pendingQuestion(
     fromTaskId: thread.metadata?.taskId ?? null, managerThreadId, channel,
     awaitingHuman: managerThreadId === null,
     project: thread.metadata?.taskProject ?? thread.projectId,
-    question, answer: null, answerFactId: null, createdAt: Date.now(),
+    question, answer: null, answerFactId: null, createdAt: Date.now(), armedHandler: null,
   };
 }
 
@@ -282,7 +318,7 @@ function askOrigin(
   const record = pendingQuestion(thread, question, null, channel);
   const error = persistQuestion(record);
   if (error) return { ok: false, error };
-  channelIndex.set(channel, record.questionId);
+  armHumanBackstop(record);
   const wake = deps.wakeOriginSession ?? defaultWakeOriginSession;
   Promise.resolve(wake(channel, buildOriginSessionNotice(record))).catch((wakeError: Error) =>
     log.error(`ask_manager origin-wake on ${channel}: ${wakeError.message}`));
@@ -359,24 +395,16 @@ export function getAnswer(questionId: string): { found: boolean; answered: boole
 }
 
 /** Interactive hook: if `channel` has a pending human-escalated question, consume this message as
- *  its answer and return true (the caller should then short-circuit normal turn handling). */
+ *  its answer and return true (the caller should then short-circuit normal turn handling).
+ *
+ *  Kept as the named entry for callers that already import this module (tests, and anything that
+ *  wants the durable reload guaranteed); the interception itself is the channel registry. */
 export function tryAnswerFromHuman(channel: string, text: string): boolean {
   ensureQaHydrated();
-  const qid = channelIndex.get(channel);
-  if (!qid) return false;
-  const rec = questions.get(qid);
-  if (!rec || !rec.awaitingHuman) { channelIndex.delete(channel); return false; }
-  if (rec.answer !== null) {
-    disarmHumanBackstop(rec);
-    return false;
-  }
-  rec.answer = text ?? '';
-  try { recordAnswerFact(rec, null); } catch (error) {
-    rec.answer = null;
-    log.error(`human manager-Q&A persistence failed: ${(error as Error).message}`);
-    return false;
-  }
-  disarmHumanBackstop(rec);
-  log.info(`ask_manager: human answered ${qid} on ${channel}`);
-  return true;
+  return tryConsume(channel, text);
 }
+
+// The conversation entry (`AgentRunner._routeWithAdmission`) calls `tryConsume` directly and cannot
+// import this module, so it cannot trigger the lazy reload above. Hand the reload to the registry
+// so a restart's first human reply still lands on the question it belongs to.
+setHumanAnswerRehydrator(ensureQaHydrated);

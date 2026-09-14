@@ -1,13 +1,13 @@
 // input:  an inbound platform message (or a synthetic one) already routed to a conduit
 // output: that message delivered into a turn — injected into the live one, or queued and then
 //         opened as a new turn through `openTurn`
-// pos:    orchestration — the ADMISSION half of a conversation: mid-turn injection, the
-//         per-channel queue, session find-or-create + lease, and the session's opted-in browser.
-//         (The DR-0016 human-answer backstop is a ROUTING decision and lives one level up, in
-//         `orchestrator.ts`.) Everything from the status message to the seal moved to
+// pos:    orchestration — the ADMISSION half of a conversation: the human-answer backstop,
+//         mid-turn injection, the per-channel queue, session find-or-create + lease, and the
+//         session's opted-in browser. Everything from the status message to the seal moved to
 //         `turn/turn.ts` (Phase 1.4); the pre-turn resolution bodies live in `turn/turn-prep.ts`.
 //         The `execute` seam still bypasses the Turn entirely — that is what the tests inject.
-import type { PlatformAdapter, MessageRef, DownloadedFile, IncomingMessage, PlatformFileRef } from '@platform/index.js';
+import type { Destination, PlatformAdapter, MessageRef, DownloadedFile, IncomingMessage, PlatformFileRef } from '@platform/index.js';
+import { SYNTHETIC_CALLBACK_SENDER } from '@platform/types.js';
 import { conduitQueues, enqueue } from './conduit-queue.js';
 import { trackPendingTask } from './busy-tracker.js';
 import * as crypto from 'node:crypto';
@@ -19,6 +19,8 @@ import { registerNamedSession } from '@domain/sessions/session-lifecycle.js';
 import { createLogger } from '@core/log.js';
 import { isDebugMode } from '@core/debug-mode.js';
 import { getSettings } from '@core/settings.js';
+import { Icons } from '../core/icons.js';
+import { t } from '../core/i18n.js';
 import { publishSessionDebugUpdated } from './session-events.js';
 import { persistSessionContextUsage, type SessionContextUsagePersistenceDeps } from './transcript-sink.js';
 import { isInjectableMessage, tryInjectIntoLiveTurn } from './mid-turn-inject.js';
@@ -28,6 +30,7 @@ import { openTurn, buildInjectDeps, recordHistory } from './turn/turn.js';
 import {
   acquireSessionUseLease, acquireTurnBrowser, collectTurnFiles, releaseTurnBrowser, type SessionUseLease,
 } from './turn/turn-prep.js';
+import { tryConsume as tryHumanAnswerBackstop } from './human-answer-backstop.js';
 import { downloadFiles as downloadPlatformFiles } from './routing/file-handler.js';
 import { WORKSPACE_DIR } from '@core/utils.js';
 import { acquireTurnMutationLock, type TurnMutationRelease } from './turn-mutation-lock.js';
@@ -87,6 +90,22 @@ export class AgentRunner {
     loadPlatformFiles: PlatformFileLoader,
   ): Promise<boolean> {
     const { message, channel, adapter } = ctx;
+    // DR-0016 top-level fallback: if this channel has a pending human-escalated subtask question,
+    // consume this message as the answer and short-circuit normal turn handling. Scope is narrow —
+    // the backstop is disarmed unless this exact channel is awaiting a human reply, and it is armed
+    // by manager-qa through a leaf registry (this module must not import manager-qa: that closes an
+    // import cycle back through thread-callback/session-gateway).
+    // It sits on route() so that EVERY entry into a session passes it — an inbound platform
+    // message, the web chat box (ui-service → deliverToSession), a resume, a callback.
+    // Synthetic wake/callback messages (deliverToSession's callback origins) are exempt: askManager
+    // arms this backstop and then wakes the origin session THROUGH route(), so without the
+    // exemption the backstop consumed the question notice itself as "the human's answer"
+    // (2026-07-05 self-consumption bug).
+    if (message.senderId !== SYNTHETIC_CALLBACK_SENDER && tryHumanAnswerBackstop(channel, ctx.userMessage || '')) {
+      const dest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: '' };
+      await adapter.postMessage(dest, { text: `${Icons.ok} ${t('subtask.replyDelivered')}` }).catch(() => {});
+      return false;
+    }
     // A plain user message arriving while this channel already has a live turn is delivered INTO
     // that turn (backend stdin) rather than waiting behind it, when the backend can take it. The
     // injection path then owns the message end-to-end — its own surfacing, delivery ack and busy

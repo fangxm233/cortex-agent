@@ -1,19 +1,23 @@
-// input:  Orchestrator.handleMessage + manager-qa top-of-tree escalation + the gateway wake shape
-// output: regression tests — synthetic wake notices must NOT be consumed by the human-answer backstop
+// input:  AgentRunner.route + manager-qa top-of-tree escalation + the gateway's delivery shapes
+// output: regression tests — the DR-0016 human-answer backstop sits on the ONE entry every message
+//         takes, and synthetic wake notices must NOT be consumed by it
 // pos:    2026-07-05 bug: askManager (top of tree) armed the channel backstop, then the origin-session
-//         wake routed the question notice through the same entry, whose tryAnswerFromHuman consumed
+//         wake routed the question notice through agentRunner.route, whose backstop check consumed
 //         the notice itself as "the human's answer" — the question echoed back to the asker and never
 //         reached the origin session or the human.
-//         The backstop lives on the ROUTING decision (Orchestrator) rather than inside AgentRunner
-//         as of Phase 3 of plan/orchestration-turn-refactor.md; these tests moved with it (they
-//         were tests/orch/agent-runner-wake-guard.test.ts).
+//         The check is armed by manager-qa through the `human-answer-backstop` leaf registry and
+//         read in `AgentRunner._routeWithAdmission`, so EVERY entry passes it: an inbound platform
+//         message, the web chat box (ui-service → deliverToSession), a resume, a callback. Phase 3
+//         of plan/orchestration-turn-refactor.md briefly moved it up to `Orchestrator` — that lost
+//         the web chat box, which is exactly the path the third test here pins down.
 
 import '../_test-home.js'; // MUST be first — isolates store singletons
 import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
+import { AgentRunner, type AgentRunnerCtx } from '../../src/orchestration/agent-runner.js';
 import { Orchestrator, type OrchMessageContext } from '../../src/orchestration/orchestrator.js';
 import { askManager, getAnswer, _testResetManagerQa } from '../../src/orchestration/manager-qa.js';
-import { buildDeliveryMessage } from '../../src/orchestration/session-gateway.js';
+import { buildDeliveryMessage, deliverToSession } from '../../src/orchestration/session-gateway.js';
 import { threadStore } from '../../src/store/thread-repo.js';
 import { MockAdapter } from '../../src/platform/testing.js';
 import type { ThreadRecord, ThreadStatus } from '../../src/core/types/thread-types.js';
@@ -57,7 +61,7 @@ async function armTopOfTreeQuestion(channel: string): Promise<string> {
   return res.ok ? res.questionId : '';
 }
 
-function routeCtx(channel: string, message: Record<string, unknown>): OrchMessageContext {
+function routeCtx(channel: string, message: Record<string, unknown>) {
   return {
     message: { ref: { conduit: channel, messageId: `M${seq++}` }, isBot: false, kind: 'user', raw: null, ...message },
     channel,
@@ -66,22 +70,14 @@ function routeCtx(channel: string, message: Record<string, unknown>): OrchMessag
     hasFiles: false,
     userMessage: String(message.text ?? ''),
     agentMessage: String(message.text ?? ''),
-    threadAddMatch: null,
-    threadStartMatch: null,
-    existingThread: null,
-    isActiveThread: false,
-  } as OrchMessageContext;
+  };
 }
 
-/** Orchestrator with both branches spied, so "was it short-circuited" is directly observable. */
-function makeOrchestrator() {
-  const routed: string[] = [];
-  const threaded: string[] = [];
-  const orch = new Orchestrator({
-    agentRunner: { async route(ctx: any) { routed.push(ctx.channel); } },
-    threadExecutor: { async route(ctx: any) { threaded.push(ctx.channel); } },
-  });
-  return { orch, routed, threaded };
+/** AgentRunner with the queue seam spied, so "was it short-circuited" is directly observable. */
+function makeRunner() {
+  const enqueued: string[] = [];
+  const runner = new AgentRunner({ enqueue: (ch) => { enqueued.push(ch); return false; }, track: () => {} });
+  return { runner, enqueued };
 }
 
 test('synthetic wake notice is NOT consumed as the human answer (proceeds to a normal agent turn)', async () => {
@@ -89,18 +85,18 @@ test('synthetic wake notice is NOT consumed as the human answer (proceeds to a n
   const channel = `wg-ch-${seq++}`;
   const qid = await armTopOfTreeQuestion(channel);
 
-  const { orch, routed } = makeOrchestrator();
+  const { runner, enqueued } = makeRunner();
 
   // Exactly what the origin-session wake delivers for the escalation notice.
   const notice = buildDeliveryMessage({
     channel, text: '[Subtask question — #TOP1] Which reviewer strategy: A or B?',
     origin: 'subtask-question', tag: 'manager-qa',
   });
-  await orch.handleMessage(routeCtx(channel, notice as unknown as Record<string, unknown>));
+  await runner.route(routeCtx(channel, notice as unknown as Record<string, unknown>) as any);
 
   const got = getAnswer(qid);
   assert.equal(got.answered, false, 'the wake notice must not answer the question it delivers');
-  assert.deepEqual(routed, [channel], 'the notice proceeds to normal turn handling (origin agent gets to read it)');
+  assert.deepEqual(enqueued, [channel], 'the notice proceeds to normal turn handling (origin agent gets to read it)');
 });
 
 test('a real human reply on the armed channel IS consumed as the answer (backstop preserved)', async () => {
@@ -108,28 +104,60 @@ test('a real human reply on the armed channel IS consumed as the answer (backsto
   const channel = `wg-ch-${seq++}`;
   const qid = await armTopOfTreeQuestion(channel);
 
-  const { orch, routed } = makeOrchestrator();
+  const { runner, enqueued } = makeRunner();
 
-  await orch.handleMessage(routeCtx(channel, { text: 'Use strategy B.', senderId: 'U-human-1' }));
+  await runner.route(routeCtx(channel, { text: 'Use strategy B.', senderId: 'U-human-1' }) as any);
 
   const got = getAnswer(qid);
   assert.equal(got.answered, true, 'human reply captured by the backstop');
   assert.equal(got.answer, 'Use strategy B.');
-  assert.deepEqual(routed, [], 'consumed reply short-circuits normal turn handling');
+  assert.deepEqual(enqueued, [], 'consumed reply short-circuits normal turn handling');
 });
 
-test('a message addressed to a live thread never reaches the backstop', async () => {
+test('a human answer typed in the WEB chat box is consumed too (deliverToSession → route)', async () => {
+  _testResetManagerQa();
+  const channel = `wg-web-${seq++}`;
+  const qid = await armTopOfTreeQuestion(channel);
+
+  const { runner, enqueued } = makeRunner();
+
+  // The web path: ui-service hands the text to the gateway, which builds a `web-user` delivery and
+  // routes it. The escalation channel really can be a `web:…` conduit — findEscalationChannel
+  // returns the task's origin_channel, and a task dispatched from the web UI carries exactly that.
+  await deliverToSession({
+    channel, text: 'Use strategy B.', origin: 'web-user',
+    adapter: new MockAdapter() as any,
+    route: (ctx: AgentRunnerCtx) => runner.route(ctx),
+  });
+
+  const got = getAnswer(qid);
+  assert.equal(got.answered, true, 'a web-typed reply is a human reply');
+  assert.equal(got.answer, 'Use strategy B.');
+  assert.deepEqual(enqueued, [], 'consumed reply short-circuits normal turn handling');
+});
+
+test('a message addressed to a live thread never reaches the agent entry (so never the backstop)', async () => {
   _testResetManagerQa();
   const channel = `wg-ch-${seq++}`;
   const qid = await armTopOfTreeQuestion(channel);
 
-  const { orch, routed, threaded } = makeOrchestrator();
-
-  const ctx = routeCtx(channel, { text: 'Use strategy B.', senderId: 'U-human-1' });
-  await orch.handleMessage({ ...ctx, isActiveThread: true, existingThread: { id: 'thr-x' } });
+  // The backstop lives inside agentRunner.route; the thread branch routes elsewhere, so this is
+  // an Orchestrator-level assertion — a message owned by a live thread never gets that far.
+  const routed: string[] = [];
+  const threaded: string[] = [];
+  const orch = new Orchestrator({
+    agentRunner: { async route(ctx: any) { routed.push(ctx.channel); } },
+    threadExecutor: { async route(ctx: any) { threaded.push(ctx.channel); } },
+  });
+  const ctx = {
+    ...routeCtx(channel, { text: 'Use strategy B.', senderId: 'U-human-1' }),
+    threadAddMatch: null, threadStartMatch: null,
+    existingThread: { id: 'thr-x' }, isActiveThread: true,
+  } as unknown as OrchMessageContext;
+  await orch.handleMessage(ctx);
 
   assert.deepEqual(threaded, [channel], 'the thread branch owns it');
-  assert.deepEqual(routed, []);
+  assert.deepEqual(routed, [], 'the agent entry (and its backstop) is never reached');
   assert.equal(getAnswer(qid).answered, false, 'a thread turn was never a candidate answer');
 });
 
