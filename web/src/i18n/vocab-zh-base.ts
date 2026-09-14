@@ -701,7 +701,8 @@ export const zhBase = {
 
   // ── Appearance / language control ──
   stLangLabel: '语言',
-  stLangHint: '工作台的界面语言。即时生效，并保存在本设备上。',
+  stLangHint: '一个语言开关，管两头：这个界面，以及 Cortex 在对话里写的内容 —— 自动压缩提示、命令回执、状态行。即时生效，保存在服务端。',
+  stLangEnvPinned: '当前被 CORTEX_LANG 环境变量固定：在这里改会立即生效，但服务端重启后仍以环境变量为准。',
   stLangEnglish: 'English',
   stLangChinese: '中文',
 

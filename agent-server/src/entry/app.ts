@@ -379,6 +379,9 @@ const dispatchCommand = registerCommands({
   getExecutionStatusReport: buildExecutionStatusReport,
   compactSessionByChannel: compactActiveSessionContext,
   commandRouter,
+  // `!lang` and the Web appearance toggle write the same knob; this lets a chat-side switch reach
+  // every open SPA, which re-reads config.get on the event instead of holding a stale toggle.
+  onLangChanged: () => bus.publish({ type: 'config.changed', section: 'preferences' }),
 });
 
 // DR-0013: wire Slack update prompt BEFORE bindToAdapter (router has no unregister API)

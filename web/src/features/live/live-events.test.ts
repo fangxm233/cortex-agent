@@ -7,7 +7,7 @@ import {
   applyConnState,
   dispatchLiveEvent,
   initialConnAccum,
-  isProfileConfigChanged,
+  isConfigSnapshotChanged,
   matchesLiveEvent,
   ASSISTANT_DELTA_EVENTS,
   COMMISSION_LIVE_EVENTS,
@@ -75,11 +75,13 @@ describe('CONFIG_LIVE_EVENTS', () => {
     expect(LIVE_EVENT_TYPES).toContain('config.changed');
   });
 
-  it('recognizes only a profiles config change as a profile refresh hint', () => {
-    expect(isProfileConfigChanged(ev('config.changed', { section: 'profiles' }))).toBe(true);
-    expect(isProfileConfigChanged(ev('config.changed', { section: 'budget' }))).toBe(false);
-    expect(isProfileConfigChanged(ev('system.notice', { section: 'profiles' }))).toBe(false);
-    expect(isProfileConfigChanged(ev('config.changed'))).toBe(false);
+  it('recognizes only the sections config.get actually reports', () => {
+    expect(isConfigSnapshotChanged(ev('config.changed', { section: 'profiles' }))).toBe(true);
+    // the language lives in the same snapshot, so a !lang switch must invalidate it too
+    expect(isConfigSnapshotChanged(ev('config.changed', { section: 'preferences' }))).toBe(true);
+    expect(isConfigSnapshotChanged(ev('config.changed', { section: 'budget' }))).toBe(false);
+    expect(isConfigSnapshotChanged(ev('system.notice', { section: 'profiles' }))).toBe(false);
+    expect(isConfigSnapshotChanged(ev('config.changed'))).toBe(false);
   });
 });
 

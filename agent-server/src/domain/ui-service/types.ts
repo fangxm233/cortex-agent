@@ -691,7 +691,10 @@ export interface ConfigSetBudgetArgs {
 export type ConfigSetArgs =
   | ConfigSetBudgetArgs
   | { section: 'profiles'; value: ProfilesValue }
-  | { section: 'settings'; value: SettingsValue };
+  | { section: 'settings'; value: SettingsValue }
+  // The display language: config/preferences.json, not settings.json, because writing it also
+  // switches the live server locale. See ConfigSnapshot.lang.
+  | { section: 'preferences'; value: { lang: 'en' | 'zh' } };
 
 // profiles.* — CRUD over the `profiles` map of profiles.json. `config.set {section:'profiles'}`
 // still owns the ONE other write (re-pointing defaultProfile) and is untouched by these ops.
@@ -1526,6 +1529,20 @@ export interface ConfigSnapshot {
   env: ConfigEnvEntry[];
   /** Always emitted by current servers; optional while clients and servers roll independently. */
   settings?: ConfigSettingEntry[];
+  /**
+   * The ONE language knob: it is what every server-side t() string renders in AND what the Web UI
+   * picks its vocabulary from. `value` is the live process locale (what Cortex is speaking right
+   * now), not merely what is on disk — a !lang switch is reflected before any restart.
+   * Optional while clients and servers roll independently: an older server omits it and the SPA
+   * falls back to its local cache.
+   */
+  lang?: ConfigLang;
+}
+
+export interface ConfigLang {
+  value: 'en' | 'zh';
+  /** Where that value came from — 'env' means CORTEX_LANG re-wins on the next restart. */
+  source: 'env' | 'file' | 'default';
 }
 
 // ── machines.list DTO (plan §12 A item 1) ────────────────────────────────────
@@ -2237,7 +2254,7 @@ export interface ExecutionsCancelReturn {
 
 export interface ConfigSetReturn {
   written: true;
-  section: 'budget' | 'profiles' | 'settings';
+  section: 'budget' | 'profiles' | 'settings' | 'preferences';
 }
 
 export interface ConfigSetProviderRateLimitPolicyReturn {

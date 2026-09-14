@@ -1,12 +1,13 @@
-// input:  appearance preferences, localized copy, mobile UI primitives
+// input:  appearance preferences, language provenance, localized copy, mobile UI primitives
 // output: mobile appearance drill-in with language, theme, color, and motion
-// pos:    Presentational mobile appearance view
+// pos:    Presentational mobile appearance view. Everything here is device-local EXCEPT the
+//         language, which is one server setting shared with what Cortex writes in chat.
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 // @ds-adherence-ignore -- mobile v3 raw px/font by design §8.3 (matches MSettingsView row metrics)
 import type { CSSProperties, ReactNode } from 'react';
 import { MScreen, MDrillHeader, MScrollBody, MC, MONO } from '@/mobile/ui/kit';
-import type { Lang } from '@/i18n';
+import type { Lang, LangSource } from '@/i18n';
 import {
   AccentPicker,
   PaletteControls,
@@ -23,6 +24,10 @@ import {
 export interface MAppearanceCopy {
   title: string;
   language: string;
+  /** Says the switch also changes the language Cortex writes in — not just this UI. */
+  languageHint: string;
+  /** Shown instead of the plain hint when CORTEX_LANG pins the language server-side. */
+  languageEnvPinned: string;
   theme: string;
   themeLight: string;
   themeDark: string;
@@ -66,6 +71,7 @@ function rowStyle(divider: boolean): CSSProperties {
 }
 
 const TITLE: CSSProperties = { fontSize: 14, fontWeight: 600, color: MC.ink };
+const HINT: CSSProperties = { fontSize: 11, color: MC.muted, marginTop: 3, lineHeight: 1.45, paddingRight: 8 };
 
 function SegmentItem<T extends string>({ id, label, active, onChange }: {
   id: T;
@@ -103,8 +109,9 @@ function Segmented<T extends string>({ value, options, onChange, ariaLabel }: {
 }
 
 /** Label on the left, segmented control on the right — the row shape shared by every simple choice. */
-function ChoiceRow<T extends string>({ title, divider, ...segment }: {
+function ChoiceRow<T extends string>({ title, hint, divider, ...segment }: {
   title: string;
+  hint?: string;
   divider: boolean;
   value: T;
   options: readonly { id: T; label: string }[];
@@ -115,6 +122,7 @@ function ChoiceRow<T extends string>({ title, divider, ...segment }: {
     <div style={rowStyle(divider)}>
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={TITLE}>{title}</div>
+        {hint ? <div style={HINT} data-choice-hint>{hint}</div> : null}
       </div>
       <Segmented {...segment} />
     </div>
@@ -145,6 +153,7 @@ function AccentRow({ copy, hue, onChange }: {
 export function MAppearanceView({
   copy,
   lang,
+  langSource,
   onSetLang,
   theme,
   onSetTheme,
@@ -163,6 +172,8 @@ export function MAppearanceView({
 }: {
   copy: MAppearanceCopy;
   lang: Lang;
+  /** 'env' means CORTEX_LANG re-wins on the next server restart; anything else is a real choice. */
+  langSource?: LangSource;
   onSetLang: (lang: Lang) => void;
   theme: Theme;
   onSetTheme: (theme: Theme) => void;
@@ -194,6 +205,7 @@ export function MAppearanceView({
         <Card>
           <ChoiceRow
             divider title={copy.language} ariaLabel={copy.language} value={lang}
+            hint={langSource === 'env' ? copy.languageEnvPinned : copy.languageHint}
             options={[{ id: 'en', label: 'EN' }, { id: 'zh', label: '中' }] as const}
             onChange={onSetLang}
           />

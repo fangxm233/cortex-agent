@@ -8,7 +8,7 @@ Also holds operator display preferences and the admin system broadcast seam.
 | doctor.ts | core | checks runtime exports, auth state and system health |
 | github-release.ts | client | fetches release notes for a version |
 | install-cli.ts | cli | installs the latest Cortex release |
-| preferences.ts | config | reads and writes operator display language |
+| preferences.ts | config | owns the ONE display-language knob: reads/writes it, reports its provenance, and applies it live (applyLang) |
 | server-update-check.ts | core | checks settings-gated server package updates |
 | system-notice.ts | core | Publishes Web notices and actionable admin broadcasts |
 | update-prompt.ts | types | update prompt interface and choice type |

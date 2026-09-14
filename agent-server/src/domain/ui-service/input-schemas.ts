@@ -492,6 +492,14 @@ export const configSetInput = z.discriminatedUnion('section', [
     section: z.literal('settings'),
     value: settingsValueInput,
   }),
+  // The language knob lives in config/preferences.json, not settings.json, and writing it also
+  // switches the live server locale — so it is its own section rather than a settings key.
+  z.object({
+    section: z.literal('preferences'),
+    value: z.object({
+      lang: z.enum(['en', 'zh']),
+    }),
+  }),
 ]);
 
 export const configSetProviderRateLimitPolicyInput = z.object({

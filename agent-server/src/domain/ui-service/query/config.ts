@@ -1,5 +1,5 @@
-// input:  config root, platform settings and hook registry
-// output: config snapshot with redacted platform fields
+// input:  config root, platform settings, hook registry, live locale and its source
+// output: config snapshot with redacted platform fields and the active UI/server language
 // pos:    Config snapshot reader
 // >>> Once updated, update this header and parent CORTEX.md <<<
 
@@ -8,10 +8,13 @@ import { readPlatformSettings } from '../platform-settings.js';
 import path from 'node:path';
 import { CONFIG_DIR } from '@core/paths.js';
 import { getSettingsSnapshot, resolveSettingsSnapshot } from '@core/settings.js';
+import { getLocale } from '@core/i18n.js';
+import { langSource } from '@domain/system/preferences.js';
 import { loadMountedHookSummaries } from '@store/hook-registry.js';
 import type {
   UiServiceDeps,
   ConfigGetParams,
+  ConfigLang,
   ConfigSnapshot,
   ConfigBudget,
   ConfigProfiles,
@@ -171,6 +174,7 @@ async function readSettings(configDir: string): Promise<ConfigSettingEntry[]> {
 export async function readConfigSnapshot(
   configDir: string,
   liveSettings?: ConfigSettingEntry[],
+  lang?: ConfigLang,
 ): Promise<ConfigSnapshot> {
   const tt = path.join(configDir, 'thread-templates');
   const hooks = loadMountedHookSummaries(path.join(configDir, 'hooks'), path.join(tt, 'templates'));
@@ -191,9 +195,13 @@ export async function readConfigSnapshot(
     platforms: await readPlatformSettings(path.join(configDir, '.env')),
     budget: parseBudget(budget), profiles: parseProfiles(profiles), machines: parseMachines(machines),
     mcp: parseMcp(mcp), threadTemplates, hooks, env, settings,
+    ...(lang ? { lang } : {}),
   };
 }
 
 export async function handleConfigGet(_deps: UiServiceDeps, _params: ConfigGetParams): Promise<ConfigSnapshot> {
-  return readConfigSnapshot(CONFIG_DIR, getSettingsSnapshot());
+  // `value` is the LIVE process locale, not the file: a `!lang` switch takes effect without a
+  // restart, and the UI must follow what Cortex is actually speaking. `source` is read from disk
+  // and the environment, and is the only thing that can say "CORTEX_LANG will win again at boot".
+  return readConfigSnapshot(CONFIG_DIR, getSettingsSnapshot(), { value: getLocale(), source: langSource() });
 }

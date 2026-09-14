@@ -118,10 +118,18 @@ export const LIVE_EVENT_TYPES: readonly string[] = [
   ...COMMISSION_LIVE_EVENTS,
 ];
 
-/** True only for the structured hint emitted after profiles.json reloads successfully. */
-export function isProfileConfigChanged(ev: LiveEvent): boolean {
+/**
+ * True for a `config.changed` whose section is one `config.get` actually reports, i.e. one that
+ * makes the cached snapshot stale:
+ *   - `profiles`    — profiles.json reloaded successfully.
+ *   - `preferences` — the display language was switched (from `!lang` or another open surface);
+ *                     the SPA reads its own vocabulary out of that snapshot, so it must refetch.
+ * Any other section is a write the snapshot does not carry — invalidating on it would be noise.
+ */
+export function isConfigSnapshotChanged(ev: LiveEvent): boolean {
   if (ev.type !== 'config.changed' || !ev.payload || typeof ev.payload !== 'object') return false;
-  return (ev.payload as { section?: unknown }).section === 'profiles';
+  const section = (ev.payload as { section?: unknown }).section;
+  return section === 'profiles' || section === 'preferences';
 }
 
 /** The event's session id, when it carries one. */

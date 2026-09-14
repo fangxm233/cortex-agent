@@ -5,7 +5,7 @@
 
 import { createLogger } from '@core/log.js';
 import { Icons } from '../../../core/icons.js';
-import { t } from '../../../core/i18n.js';
+import { t, type Locale } from '../../../core/i18n.js';
 import type { Destination, PlatformAdapter } from '@platform/index.js';
 import type { CommandResult } from './command-context.js';
 import type { CommandActionRouter } from '@orch/interactions/command-action-router.js';
@@ -26,7 +26,7 @@ import { createDevicesHandler } from './device.js';
 import { handleTailCmd } from './tail.js';
 import { handleSendFileCmd } from './sendfile.js';
 import { handleDispatchCmd } from './dispatch.js';
-import { handleLangCmd } from './lang.js';
+import { createLangHandler } from './lang.js';
 import { handleRestartCmd } from './restart.js';
 import { createLoginHandler } from './login.js';
 import { createUsageHandler, type UsageCommandService } from './usage.js';
@@ -43,6 +43,8 @@ export interface CommandDeps {
   getAuthStatus?: (() => Promise<AuthStatusSnapshot>) | null;
   authLogin?: AuthLoginService;
   usageService?: UsageCommandService;
+  /** Notified after `!lang` switches the language, so open Web UIs can re-read config.get. */
+  onLangChanged?: (loc: Locale) => void;
 }
 
 type Handler = (channel: string, adapter: PlatformAdapter, trimmedMessage: string, threadAnchorId?: string | null) => Promise<CommandResult | void>;
@@ -116,6 +118,7 @@ function createHandlerSet(deps: CommandDeps) {
       authLogin: deps.authLogin,
       router,
     }),
+    lang: createLangHandler(deps.onLangChanged),
   };
 }
 
@@ -141,7 +144,7 @@ function createExactCommands(h: HandlerSet): Record<string, Handler> {
     '!thread': (ch, ad, msg) => handleThreadCmd(ch, ad, msg),
     '!agent': (ch, ad, msg) => h.agent(ch, ad, msg),
     '!orient': (ch, ad) => handleOrientCmd(ch, ad),
-    '!lang': (ch, ad, msg) => handleLangCmd(ch, ad, msg),
+    '!lang': (ch, ad, msg) => h.lang(ch, ad, msg),
     '!login': (ch, ad, msg) => h.login(ch, ad, msg),
     '!restart': (ch, ad, msg) => handleRestartCmd(ch, ad, msg),
   };
@@ -169,7 +172,7 @@ function createPrefixCommands(h: HandlerSet): PrefixHandler[] {
     { prefix: '!agent', handler: h.agent },
     { prefix: '!sendFile', handler: handleSendFileCmd },
     { prefix: '!dispatch', handler: handleDispatchCmd as Handler },
-    { prefix: '!lang', handler: handleLangCmd },
+    { prefix: '!lang', handler: h.lang },
     { prefix: '!login ', handler: (ch, ad, msg) => h.login(ch, ad, msg) },
   ];
 }

@@ -1,3 +1,8 @@
+// input:  bilingual vocab tables, viewport width, cached language choice
+// output: Lang type, vocab picker, and the local-storage CACHE of the server language
+// pos:    Language resolution helpers. The language itself is owned by the server
+//         (config/preferences.json); see LangProvider.
+// >>> If I am updated, update my header comment and CORTEX.md <<<
 import { en, zh, type Vocab } from './vocab';
 
 export type Lang = 'en' | 'zh';
@@ -14,12 +19,20 @@ export function pickVocab(lang: Lang): Vocab {
   return lang === 'zh' ? zh : en;
 }
 
-// ── Language selection (user toggle, persisted — no longer viewport-driven) ──
+// ── Language selection ───────────────────────────────────────────────────────
+// The language is ONE server-side setting (config/preferences.json → `lang`), because it decides
+// both this SPA's vocabulary AND the language Cortex speaks in the conversation — auto-compaction
+// notices, `!` command replies, status lines all render through the server's `t()`. Two independent
+// knobs is how you end up with an English UI printing "上下文已自动压缩。".
+//
+// Local storage is therefore a CACHE, not the source of truth: it only supplies the first paint
+// (and keeps the toggle usable while the server is unreachable — the connect/login flow renders
+// before any authenticated query can succeed). `config.get` overwrites it as soon as it lands.
 export const LANG_STORAGE_KEY = 'cortex.lang';
 export const DEFAULT_LANG: Lang = 'en';
 
-/** The persisted language choice, else the browser preference, else the default. Pure over its
- *  inputs so it is testable without a DOM. */
+/** The cached language, else the browser preference, else the default. Pure over its inputs so it
+ *  is testable without a DOM. Only ever a first-paint guess — the server's value wins. */
 export function resolveInitialLang(stored: string | null, navigatorLang?: string): Lang {
   if (stored === 'en' || stored === 'zh') return stored;
   if (navigatorLang && navigatorLang.toLowerCase().startsWith('zh')) return 'zh';

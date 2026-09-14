@@ -1,5 +1,5 @@
 // input:  isolated config home plus config schemas and handlers
-// output: budget, profile, runtime-settings, and per-window-policy mutation tests
+// output: budget, profile, runtime-settings, language, and per-window-policy mutation tests
 // pos:    Regression coverage for config.set writes and validation
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -22,6 +22,8 @@ import {
 import { createUiService } from '../../../src/domain/ui-service/ui-service.js';
 import { createAppRouter } from '../../../src/domain/ui-service/app-router.js';
 import { CONFIG_DIR } from '../../../src/core/paths.js';
+import { getLocale, setLocale } from '../../../src/core/i18n.js';
+import { loadLang, _testSetPreferencesFile } from '../../../src/domain/system/preferences.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 
 function makeMinimalDeps(): UiServiceDeps {
@@ -401,4 +403,55 @@ test('config.setProviderRateLimitPolicy is reachable via the facade and app rout
     'openai-codex': { windows: [{ type: 'codex_primary', enabled: false }] },
     anthropic: { windows: [{ type: 'model_scoped', label: 'Sonnet', enabled: false, threshold: 0.88 }] },
   });
+});
+
+// ── display language ────────────────────────────────────────────────
+// The language is NOT a settings.json key: it lives in config/preferences.json and writing it also
+// switches the live server locale, so the very next compaction notice or command reply speaks the
+// new language. The published event is what lets other open surfaces follow instead of holding a
+// stale toggle.
+
+function depsCapturingEvents(sink: unknown[]): UiServiceDeps {
+  const deps = makeMinimalDeps();
+  deps.bus = { subscribe: () => ({ unsubscribe: () => {} }), publish: (e: unknown) => { sink.push(e); } } as any;
+  return deps;
+}
+
+test('handleConfigSet preferences persists the language, switches the live locale, and announces it', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'cfg-prefs-'));
+  _testSetPreferencesFile(path.join(dir, 'preferences.json'));
+  setLocale('en');
+  try {
+    const published: unknown[] = [];
+    const result = await handleConfigSet(depsCapturingEvents(published), {
+      section: 'preferences', value: { lang: 'zh' },
+    });
+    assert.deepEqual(result, { ok: true, data: { written: true, section: 'preferences' } });
+    assert.equal(loadLang(), 'zh', 'persisted to preferences.json');
+    assert.equal(getLocale(), 'zh', 'live locale switched without a restart');
+    assert.deepEqual(published, [{ type: 'config.changed', section: 'preferences' }]);
+    // the language does NOT leak into settings.json
+    const settings = JSON.parse(await fs.readFile(path.join(CONFIG_DIR, 'settings.json'), 'utf8').catch(() => '{}'));
+    assert.equal((settings as Record<string, unknown>).lang, undefined);
+  } finally {
+    setLocale('en');
+  }
+});
+
+test('handleConfigSet rejects an unsupported language without touching the locale', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'cfg-prefs-bad-'));
+  _testSetPreferencesFile(path.join(dir, 'preferences.json'));
+  setLocale('en');
+  try {
+    const published: unknown[] = [];
+    const result = await handleConfigSet(depsCapturingEvents(published), {
+      section: 'preferences', value: { lang: 'fr' } as any,
+    });
+    assert.equal(result.ok, false);
+    assert.equal((result as { code: string }).code, 'invalid-args');
+    assert.equal(getLocale(), 'en');
+    assert.deepEqual(published, []);
+  } finally {
+    setLocale('en');
+  }
 });

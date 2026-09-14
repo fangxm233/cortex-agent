@@ -1,10 +1,11 @@
-// input:  Local language/theme/palette providers and settings cards
+// input:  Language (server-owned) plus device-local theme/palette providers and settings cards
 // output: Desktop appearance settings panel
-// pos:    Device-local desktop appearance controls
+// pos:    Desktop appearance controls. Everything here is device-local EXCEPT the language, which
+//         is one server setting shared with the conversation Cortex writes in.
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import type { ReactNode } from 'react';
-import { useVocab, useLang, useSetLang, type Lang } from '@/i18n';
+import { useVocab, useLang, useSetLang, useLangSource, type Lang } from '@/i18n';
 import {
   AccentPicker,
   PaletteControls,
@@ -92,6 +93,7 @@ function AppearanceCards() {
   const setTheme = useSetTheme();
   const lang = useLang();
   const setLang = useSetLang();
+  const langSource = useLangSource();
   const accentHue = useAccentHue();
   const setAccentHue = useSetAccentHue();
   const accentIntensity = useAccentIntensity();
@@ -123,7 +125,12 @@ function AppearanceCards() {
   return (
     <>
       <SCard style={{ padding: '14px 16px' }}>
-        <SettingRow title={L.stLangLabel} hint={L.stLangHint} control={<Segmented<Lang> value={lang} options={[{ id: 'en', label: L.stLangEnglish }, { id: 'zh', label: L.stLangChinese }]} onChange={setLang} dataAttr="data-lang-option" />} />
+        <SettingRow
+          title={L.stLangLabel}
+          // CORTEX_LANG re-wins at boot, so say so rather than let the toggle look authoritative.
+          hint={langSource === 'env' ? `${L.stLangHint} ${L.stLangEnvPinned}` : L.stLangHint}
+          control={<Segmented<Lang> value={lang} options={[{ id: 'en', label: L.stLangEnglish }, { id: 'zh', label: L.stLangChinese }]} onChange={setLang} dataAttr="data-lang-option" />}
+        />
       </SCard>
       <SCard style={cardStyle}>
         <SettingRow title={L.stThemeLabel} hint={L.stThemeHint} control={<Segmented<Theme> value={theme} options={[{ id: 'light', label: L.stThemeLight }, { id: 'dark', label: L.stThemeDark }, { id: 'system', label: L.stThemeSystem }]} onChange={setTheme} dataAttr="data-theme-option" />} />

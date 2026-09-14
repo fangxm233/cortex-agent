@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { TRPCProvider, createTrpcClient } from '@/lib/trpc';
 import { readDesktopConfig, isNativeShell } from '@/lib/desktop-config';
 import { TooltipProvider, ToastProvider } from '@/design';
-import { LangProvider } from '@/i18n';
+import { LangProvider, LangServerSync } from '@/i18n';
 import { ThemeProvider } from '@/theme';
 import { LoginFlowProvider } from '@/features/auth/LoginFlowProvider';
 
@@ -87,7 +87,12 @@ export function Providers({ children }: { children: ReactNode }) {
         <ThemeProvider>
           <TooltipProvider>
             <ToastProvider>
-              <LangProvider><LoginFlowProvider>{children}</LoginFlowProvider></LangProvider>
+              <LangProvider>
+                {/* Makes the server's one language knob the source of truth for this SPA's
+                    vocabulary; must sit inside both LangProvider and the tRPC/query providers. */}
+                <LangServerSync />
+                <LoginFlowProvider>{children}</LoginFlowProvider>
+              </LangProvider>
             </ToastProvider>
           </TooltipProvider>
         </ThemeProvider>

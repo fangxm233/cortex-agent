@@ -226,6 +226,7 @@ export type {
   ConfigMcp,
   ConfigThreadTemplates,
   ConfigEnvEntry,
+  ConfigLang,
   MemoryTree,
   MemoryFileEntry,
   MemoryDirEntry,

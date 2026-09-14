@@ -10,7 +10,7 @@ import {
   applyConnState,
   dispatchLiveEvent,
   initialConnAccum,
-  isProfileConfigChanged,
+  isConfigSnapshotChanged,
   LIVE_EVENT_TYPES,
   type ConnAccum,
   type LiveEvent,
@@ -77,7 +77,7 @@ export function LiveEventsProvider({ children }: { children: ReactNode }): JSX.E
         onData: (raw: unknown) => {
           const ev = raw as LiveEvent;
           if (!ev || typeof ev.type !== 'string') return;
-          if (isProfileConfigChanged(ev)) {
+          if (isConfigSnapshotChanged(ev)) {
             void queryClient.invalidateQueries(configQueryFilter);
           }
           // Snapshot: a handler may register/unregister listeners while we fan out.

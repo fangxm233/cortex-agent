@@ -1,10 +1,10 @@
-// input:  appearance providers, language state, and navigation
-// output: mobile appearance drill-in bound to the device-local theme state
+// input:  appearance providers, language state + provenance, and navigation
+// output: mobile appearance drill-in bound to device-local theme state and the server language
 // pos:    Mobile appearance routing container
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { useNavigate } from 'react-router-dom';
-import { useLang, useSetLang } from '@/i18n';
+import { useLang, useLangSource, useSetLang } from '@/i18n';
 import {
   useAccentHue, useSetAccentHue,
   useAccentIntensity, useSetAccentIntensity,
@@ -20,6 +20,8 @@ const COPY: { en: MAppearanceCopy; zh: MAppearanceCopy } = {
   en: {
     title: 'Appearance',
     language: 'Language',
+    languageHint: 'Also the language Cortex writes in — compaction notices, command replies. Saved on the server.',
+    languageEnvPinned: 'Pinned by CORTEX_LANG: a change applies now but the variable wins again after a server restart.',
     theme: 'Theme', themeLight: 'Light', themeDark: 'Dark', themeSystem: 'System',
     palette: {
       presets: 'Presets', custom: 'custom', reset: 'Reset',
@@ -40,6 +42,8 @@ const COPY: { en: MAppearanceCopy; zh: MAppearanceCopy } = {
   zh: {
     title: '外观',
     language: '语言',
+    languageHint: '同时决定 Cortex 在对话里写的语言 —— 压缩提示、命令回执。保存在服务端。',
+    languageEnvPinned: '被 CORTEX_LANG 固定：改动立即生效，但服务端重启后仍以环境变量为准。',
     theme: '主题', themeLight: '浅色', themeDark: '深色', themeSystem: '跟随系统',
     palette: {
       presets: '预设', custom: '自定义', reset: '恢复默认',
@@ -62,6 +66,7 @@ const COPY: { en: MAppearanceCopy; zh: MAppearanceCopy } = {
 export function MAppearanceScreen() {
   const navigate = useNavigate();
   const lang = useLang();
+  const langSource = useLangSource();
   const setLang = useSetLang();
   const theme = useTheme();
   const setTheme = useSetTheme();
@@ -80,6 +85,7 @@ export function MAppearanceScreen() {
     <MAppearanceView
       copy={pickCopy(lang, COPY)}
       lang={lang}
+      langSource={langSource}
       onSetLang={setLang}
       theme={theme}
       onSetTheme={setTheme}

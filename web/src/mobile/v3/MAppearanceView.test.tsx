@@ -10,6 +10,7 @@ import { MAppearanceView, type MAppearanceCopy } from './MAppearanceView';
 
 const copy: MAppearanceCopy = {
   title: 'Appearance', language: 'Language',
+  languageHint: 'Also what Cortex writes in.', languageEnvPinned: 'Pinned by CORTEX_LANG.',
   theme: 'Theme', themeLight: 'Light', themeDark: 'Dark', themeSystem: 'System',
   palette: {
     presets: 'Presets', custom: 'Custom', reset: 'Reset',

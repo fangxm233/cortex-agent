@@ -1,5 +1,5 @@
-// input:  config schemas, CONFIG_DIR, and runtime settings API
-// output: validated budget, profile, settings, and per-window provider policy writes
+// input:  config schemas, CONFIG_DIR, runtime settings API, and the display-language knob
+// output: validated budget, profile, settings, language, and per-window provider policy writes
 // pos:    Mutation handlers for writable config sections and provider policies
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -8,6 +8,7 @@ import fs from 'node:fs/promises';
 import { CONFIG_DIR } from '@core/paths.js';
 import { atomicWrite } from '@core/atomic-write.js';
 import { setProviderRateLimitPolicy, updateSettings } from '@core/settings.js';
+import { applyLang } from '@domain/system/preferences.js';
 import { costRepo } from '@store/cost-repo.js';
 import {
   configSetInput,
@@ -102,7 +103,7 @@ export async function writeDefaultProfile(configDir: string, defaultProfile: str
 }
 
 export async function handleConfigSet(
-  _deps: UiServiceDeps,
+  deps: UiServiceDeps,
   args: ConfigSetArgs,
 ): Promise<Result<ConfigSetReturn>> {
   // Validate first (invalid-args → BAD_REQUEST), so a genuine write/IO failure below is not
@@ -122,6 +123,15 @@ export async function handleConfigSet(
     if (parsed.data.section === 'profiles') {
       await writeDefaultProfile(CONFIG_DIR, parsed.data.value.defaultProfile);
       return { ok: true, data: { written: true, section: 'profiles' } };
+    }
+    if (parsed.data.section === 'preferences') {
+      // One knob, two effects: preferences.json is rewritten AND the live locale switches, so the
+      // very next server-side t() (a compaction notice, a command reply) speaks the new language.
+      // The event lets other open surfaces re-read config.get instead of holding a stale toggle.
+      applyLang(parsed.data.value.lang, () => {
+        deps.bus.publish({ type: 'config.changed', section: 'preferences' });
+      });
+      return { ok: true, data: { written: true, section: 'preferences' } };
     }
     await updateSettings(parsed.data.value);
     return { ok: true, data: { written: true, section: 'settings' } };

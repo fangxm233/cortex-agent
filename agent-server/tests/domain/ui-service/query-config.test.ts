@@ -1,5 +1,5 @@
 // input:  isolated config fixtures, env, UI config query handlers
-// output: config redaction and settings provenance tests
+// output: config redaction, settings provenance, and display-language tests
 // pos:    Regression coverage for the config.get snapshot
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -272,4 +272,21 @@ test('readConfigSnapshot returns empty hooks for malformed registry JSON', async
   assert.deepEqual(snap.hooks, []);
   assert.match(error.mock.calls.flat().join('\n'), /broken\.json/);
   error.mockRestore();
+});
+
+// ── display language ────────────────────────────────────────────────
+// `lang` is what the Web UI picks its vocabulary from AND what every server-side t() renders in.
+// It is passed in rather than read off the configDir: the live process locale (post-!lang) is the
+// honest answer, and readConfigSnapshot must stay hermetic over its directory argument.
+
+test('readConfigSnapshot omits lang when the caller does not supply one', async () => {
+  const { configDir } = await makeFixture();
+  const snap = await readConfigSnapshot(configDir);
+  assert.equal(snap.lang, undefined);
+});
+
+test('readConfigSnapshot passes the supplied language through with its provenance', async () => {
+  const { configDir } = await makeFixture();
+  const snap = await readConfigSnapshot(configDir, undefined, { value: 'zh', source: 'env' });
+  assert.deepEqual(snap.lang, { value: 'zh', source: 'env' });
 });

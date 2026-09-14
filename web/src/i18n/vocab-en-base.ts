@@ -701,7 +701,8 @@ export const enBase = {
 
   // ── Appearance / language control ──
   stLangLabel: 'Language',
-  stLangHint: 'Interface language for the workbench. Applies instantly and is saved on this device.',
+  stLangHint: 'One language for everything: this interface AND what Cortex writes in the conversation — auto-compaction notices, command replies, status lines. Applies instantly, saved on the server.',
+  stLangEnvPinned: 'Pinned by the CORTEX_LANG environment variable — a change here applies now but the variable wins again after a server restart.',
   stLangEnglish: 'English',
   stLangChinese: '中文',
 
