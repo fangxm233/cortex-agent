@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 import { EventBus } from '../src/events/event-bus.js';
-import { runRegistry } from '../src/core/run-registry.js';
+import { sessionHolds } from '../src/core/session-holds.js';
 import { busyTracker } from '../src/orchestration/busy-tracker.js';
-import { ctx as jobCtx } from '../src/domain/scheduling/job-registry.js';
-import { setSubagentTurnSender } from '../src/orchestration/subagent-delivery.js';
+import { setOrchestrationRuntime } from '../src/orchestration/runtime.js';
 import {
   _resetAdoptedRuns, adoptForegroundRun, settleAdoptedRun,
 } from '../src/orchestration/subagent-adopt.js';
@@ -16,6 +15,26 @@ import {
 import { emptyUsage } from '@core/agents/subagent/usage.js';
 import type { SubagentToolResult } from '@core/agents/subagent/orchestrate.js';
 import type { Invocation } from '@core/agents/subagent/types.js';
+
+/** Delivery capture. `subagent-delivery` hands a settled run to the session gateway, so the seam
+ *  intercepted here is the gateway itself — the same one subagent-background.test.ts mocks. The
+ *  real `buildDeliveryMessage` still runs, so the origin → senderId/systemOrigin mapping is
+ *  exercised rather than stubbed. */
+const gateway = vi.hoisted(() => ({
+  delivered: [] as Array<{ channel: string; text: string; systemOrigin?: string }>,
+}));
+vi.mock('../src/orchestration/session-gateway.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/orchestration/session-gateway.js')>();
+  return {
+    ...actual,
+    deliverToSessionDetached: (opts: Parameters<typeof actual.deliverToSessionDetached>[0]) => {
+      const message = actual.buildDeliveryMessage(opts);
+      gateway.delivered.push({
+        channel: opts.channel, text: message.text, systemOrigin: message.systemOrigin,
+      });
+    },
+  };
+});
 
 const SESSION = 'sess-adopt';
 const CHANNEL = 'web:9';
@@ -95,24 +114,23 @@ beforeEach(() => {
   clock = Date.now();
   vi.setSystemTime(new Date(clock));
   bus = new EventBus();
-  jobCtx.bus = bus;
+  setOrchestrationRuntime({ bus });
   busyTracker.setBus(bus);
-  runRegistry.clear();
+  sessionHolds.clear();
   _resetSubagentRuns();
   _resetAdoptedRuns();
-  bus.subscribe('session.status', (event: any) => { runRegistry.onSessionStatus(event); });
-  delivered = [];
-  setSubagentTurnSender(opts => { delivered.push(opts); });
+  bus.subscribe('session.status', (event: any) => { sessionHolds.onSessionStatus(event); });
+  gateway.delivered.length = 0;
+  delivered = gateway.delivered;
 });
 
 afterEach(() => {
   process.send = originalSend;
   vi.useRealTimers();
-  setSubagentTurnSender(null);
   _resetSubagentRuns();
   _resetAdoptedRuns();
-  runRegistry.clear();
-  jobCtx.bus = null;
+  sessionHolds.clear();
+  setOrchestrationRuntime({ bus: null });
 });
 
 // --- the sweep ---
@@ -127,7 +145,7 @@ test('a foreground run nobody waited on is adopted into the background, not stop
   assert.equal(after.status, 'running', 'the work outlives the caller that walked away');
   assert.equal(after.background, true);
   assert.equal(busyTracker.count, before + 1, 'held, so a deferred restart cannot kill it');
-  assert.ok(runRegistry.has(SESSION), 'the session is Stop-able again');
+  assert.ok(sessionHolds.has(SESSION), 'the session is Stop-able again');
   // Through a wait, not a bare read: a stop only signals the abort and settles a tick later.
   assert.equal((await waitForSubagentRun(run.id, 25))!.view.status, 'running');
 });
@@ -256,7 +274,7 @@ test('settling a run that was never adopted is a no-op', () => {
 test('agent_stop still reaches an adopted run, through the hold\'s Stop handle', async () => {
   const { run } = startForeground();
   sweepAfterAbandonWindow();
-  assert.equal(runRegistry.stopHolds(SESSION), true);
+  assert.equal(sessionHolds.stopHolds(SESSION), true);
   const outcome = await waitForSubagentRun(run.id, 1000);
   assert.equal(outcome!.view.status, 'stopped');
   await vi.waitFor(() => assert.match(delivered.at(-1)!.text, /Stopped before it finished/));
@@ -288,7 +306,7 @@ test('detach adopts a foreground run on the spot, without waiting out the sweep'
   assert.equal(detached!.background, true);
   assert.equal(detached!.status, 'running');
   assert.equal(busyTracker.count, before + 1);
-  assert.ok(runRegistry.has(SESSION));
+  assert.ok(sessionHolds.has(SESSION));
 });
 
 test('detach is idempotent, and answers null only for a run that does not exist', () => {
