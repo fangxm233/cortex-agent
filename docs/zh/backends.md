@@ -64,6 +64,8 @@ PI 在 Cortex 服务器进程内运行。引擎（`@earendil-works/pi-coding-age
 
 **会话。** 每个 Cortex 会话跑在一个 PI SDK `AgentSession` 上。`session-options.ts` 把 spawn 配置解析成 session request，`runtime.ts` 据此构建会话：为工作目录创建 `SettingsManager`，创建从 Cortex 私有 PI agent 目录读取 `auth.json` 与 `models.json` 的 `ModelRuntime`，再依次调用 `createAgentSessionServices` 与 `createAgentSessionFromServices`。会话按 session key 池化并跨回合复用。当 spawn identity 改变时池中会话会被退休——模型、工具面或 MCP 集合的变化无法应用到一个活着的会话上——空闲超时或显式关闭时同样退休。`pi-session.ts` 负责回合循环、通过 SDK steer 路径的回合中插话、compaction，以及把活会话重新指向另一份 transcript。恢复既可以给出 session id，也可以给出 transcript 路径；`session-files.ts` 负责由 id 找到对应文件。Transcript 写在 `$CORTEX_HOME/logs/sessions-pi/` 下。
 
+**Turn 内压缩。** PI 只在 turn 之间检查压缩阈值——agent loop 结束后、新 prompt 提交前，以及 context overflow 报错时——所以一个工具密集的长 turn 内部完全没有检查。`context-guard.ts` 补上了这一环：它包住会话自己的每轮回调，一旦上下文占用越过 `piMidTurnCompactPercent`（默认 88，`0` 关闭），就在下一个工具批次边界调用 PI 自己的压缩，并把重建后的上下文交回 loop。全程不做 abort，turn 继续运行，对 Cortex 而言仍是同一个 turn。Claude 不需要这些：CLI 自己就会在 turn 内压缩。
+
 **Cortex 的粘合层。** Cortex 附加的一切都是按会话在 `extensions.ts` 中装配的 inline PI extension：
 
 - **MCP 桥接**（`mcp-bridge.ts`）——把按 composition 限定的 Cortex 工具 bundle 以进程内方式经一对内存 MCP transport 提供出来，并绑定到专为该会话构建的 tool context。被指派的 plugin MCP server 与 browser MCP 仍各自保有独立的 stdio 子进程或远程连接。

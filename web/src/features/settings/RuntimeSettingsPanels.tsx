@@ -20,6 +20,8 @@ import {
   hasAnyKey,
   indexEnv,
   indexSettings,
+  numberSettingRangeLabel,
+  numberSettingValid,
   parseWholeNumber,
   type BuiltinJobSettingDescriptor,
   type DurationDraft,
@@ -28,7 +30,6 @@ import {
   type SettingsIndex,
   type WritableBooleanSettingKey,
   type WritableSettingKey,
-  MAX_SESSION_RETENTION_DAYS,
 } from './platform-env';
 import {
   useRuntimeSettingWrite,
@@ -313,7 +314,7 @@ function NumberSettingRow(props: {
     setDraft(current === null ? '' : String(current));
   }, [current]);
   const nextValue = parseWholeNumber(draft);
-  const withinRange = nextValue !== null && nextValue >= 1 && nextValue <= MAX_SESSION_RETENTION_DAYS;
+  const withinRange = numberSettingValid(props.descriptor, nextValue);
   const canSave = current !== null && withinRange && nextValue !== current && !props.pending;
   return (
     <div data-setting-key={props.descriptor.setting}
@@ -326,8 +327,8 @@ function NumberSettingRow(props: {
       <input
         data-number-input={props.descriptor.setting}
         type="number"
-        min={1}
-        max={MAX_SESSION_RETENTION_DAYS}
+        min={props.descriptor.zeroMeansOff ? 0 : props.descriptor.min}
+        max={props.descriptor.max}
         step={1}
         value={draft}
         style={NUMBER_INPUT}
@@ -338,7 +339,9 @@ function NumberSettingRow(props: {
         type="button"
         disabled={!canSave}
         style={DURATION_BUTTON}
-        title={!withinRange ? `${L.stAdvRetentionInvalid} (1–${MAX_SESSION_RETENTION_DAYS})` : undefined}
+        title={!withinRange
+          ? `${L[props.descriptor.invalidKey]} (${numberSettingRangeLabel(props.descriptor)})`
+          : undefined}
         onClick={() => { if (withinRange) props.onSet(props.descriptor.setting, nextValue); }}
       >
         {L.stBuiltinSave}

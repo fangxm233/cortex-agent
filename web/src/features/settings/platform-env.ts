@@ -7,6 +7,9 @@ import type { ConfigEnvEntry, ConfigSettingEntry } from '@cortex-agent/ui-contra
 import type { Vocab } from '@/i18n';
 
 export const MAX_SESSION_RETENTION_DAYS = Math.floor(Number.MAX_SAFE_INTEGER / 86_400_000);
+/** PI mid-turn compaction trigger bounds; 0 (off) is accepted on top of them. Mirrors settings-spec. */
+export const MIN_MIDTURN_COMPACT_PERCENT = 50;
+export const MAX_MIDTURN_COMPACT_PERCENT = 99;
 
 // Pure helpers for the redacted .env view (Platform / Notifications / Advanced panels).
 // SECURITY: config.get NEVER returns a .env value — only { key, present, masked }. These helpers
@@ -95,7 +98,7 @@ export const WRITABLE_INTERVAL_SETTING_KEYS = [
   'taskArchiveIntervalMs',
   'memoryIndexRegenIntervalMs',
 ] as const;
-export const WRITABLE_NUMBER_SETTING_KEYS = ['sessionRetentionDays'] as const;
+export const WRITABLE_NUMBER_SETTING_KEYS = ['sessionRetentionDays', 'piMidTurnCompactPercent'] as const;
 export const WRITABLE_SETTING_KEYS = [
   ...WRITABLE_BOOLEAN_SETTING_KEYS,
   ...WRITABLE_INTERVAL_SETTING_KEYS,
@@ -170,6 +173,13 @@ export interface NumberSettingDescriptor {
   setting: WritableNumberSettingKey;
   titleKey: keyof Vocab;
   descKey: keyof Vocab;
+  /** Message shown when the draft is outside the accepted range. */
+  invalidKey: keyof Vocab;
+  /** Inclusive bounds of the accepted range, mirroring the server's own setting validator. */
+  min: number;
+  max: number;
+  /** 0 is accepted as "off" on top of the range (the range itself never includes it). */
+  zeroMeansOff?: boolean;
 }
 
 export const ADVANCED_NUMBER_SETTINGS: NumberSettingDescriptor[] = [
@@ -177,8 +187,36 @@ export const ADVANCED_NUMBER_SETTINGS: NumberSettingDescriptor[] = [
     setting: 'sessionRetentionDays',
     titleKey: 'stAdvRetentionTitle',
     descKey: 'stAdvRetentionDesc',
+    invalidKey: 'stAdvRetentionInvalid',
+    min: 1,
+    max: MAX_SESSION_RETENTION_DAYS,
+  },
+  {
+    setting: 'piMidTurnCompactPercent',
+    titleKey: 'stAdvPiCompactTitle',
+    descKey: 'stAdvPiCompactDesc',
+    invalidKey: 'stAdvPiCompactInvalid',
+    min: MIN_MIDTURN_COMPACT_PERCENT,
+    max: MAX_MIDTURN_COMPACT_PERCENT,
+    zeroMeansOff: true,
   },
 ];
+
+/** A draft this descriptor accepts: inside the range, or exactly 0 when 0 means "off". */
+export function numberSettingValid(
+  descriptor: NumberSettingDescriptor,
+  value: number | null,
+): value is number {
+  if (value === null) return false;
+  if (descriptor.zeroMeansOff && value === 0) return true;
+  return value >= descriptor.min && value <= descriptor.max;
+}
+
+/** Range hint appended to the invalid message, e.g. "50–99" or "0, 50–99". */
+export function numberSettingRangeLabel(descriptor: NumberSettingDescriptor): string {
+  const range = `${descriptor.min}–${descriptor.max}`;
+  return descriptor.zeroMeansOff ? `0, ${range}` : range;
+}
 
 export type DurationUnit = 'sec' | 'min' | 'hr';
 export interface DurationDraft { value: number; unit: DurationUnit }

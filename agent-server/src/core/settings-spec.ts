@@ -55,6 +55,7 @@ export interface Settings {
   memoryIndexRegenEnabled: boolean;
   memoryIndexRegenIntervalMs: number;
   sessionRetentionDays: number;
+  piMidTurnCompactPercent: number;
   uiCorsOrigins: string[];
   adminChannel: string | null;
   feishuAdminChannel: string | null;
@@ -96,6 +97,19 @@ function validateSessionRetentionDays(value: number): string | null {
   if (value < 1) return 'must be at least 1 day';
   if (value > MAX_SESSION_RETENTION_DAYS) {
     return `must be at most ${MAX_SESSION_RETENTION_DAYS} days`;
+  }
+  return null;
+}
+
+/** Mid-turn compaction trigger: 0 disables it, otherwise a whole percent of the context window. */
+export const MIN_MIDTURN_COMPACT_PERCENT = 50;
+export const MAX_MIDTURN_COMPACT_PERCENT = 99;
+
+function validateMidTurnCompactPercent(value: number): string | null {
+  if (value === 0) return null;
+  if (!Number.isInteger(value)) return 'must be a whole percent';
+  if (value < MIN_MIDTURN_COMPACT_PERCENT || value > MAX_MIDTURN_COMPACT_PERCENT) {
+    return `must be 0 (off) or between ${MIN_MIDTURN_COMPACT_PERCENT} and ${MAX_MIDTURN_COMPACT_PERCENT}`;
   }
   return null;
 }
@@ -306,6 +320,17 @@ export const SETTINGS_SPEC = {
     type: 'number',
     default: 30,
     validate: validateSessionRetentionDays,
+  },
+  // PI only: the Claude CLI compacts inside a turn on its own, PI checks only between turns.
+  piMidTurnCompactPercent: {
+    envVar: 'CORTEX_PI_MIDTURN_COMPACT_PERCENT',
+    type: 'number',
+    default: 88,
+    legacyParse: (raw: string) => {
+      const value = Number.parseInt(raw.trim(), 10);
+      return Number.isFinite(value) ? value : 88;
+    },
+    validate: validateMidTurnCompactPercent,
   },
   uiCorsOrigins: {
     envVar: 'CORTEX_UI_CORS_ORIGINS',

@@ -30,6 +30,8 @@ Agent adapter tests: Claude and PI streams normalized into shared events, plus s
 | pi-discovery.test.ts | test | forced PI provider refresh and retry policy |
 | pi-engine.test.ts | test | PI EngineSession parity with spawn(): events, result, steer acks, run-scoped cancel |
 | pi-fake-runtime.ts | helper | in-memory PI runtime double for adapter and session tests |
+| pi-context-guard.test.ts | test | PI mid-turn compaction decisions, replacement context and degradation when the SDK stops exposing them |
+| pi-mid-turn-compaction.test.ts | test | the guard on a live PI session: it compacts mid-turn and the run still sees one turn |
 | pi-mid-turn-inject.test.ts | test | PI switch guard and mid-turn steering: RunEvent injection_delivered/injection_rejected on the engine seam |
 | pi-run-phases.test.ts | test | PI run phases: steer form per loop state, deferred turn_complete, refusal acks, session_started placement |
 | pi-usage.test.ts | test | PI cached Codex usage without provider traffic |

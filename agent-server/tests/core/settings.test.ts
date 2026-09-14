@@ -39,6 +39,7 @@ const ENV_NAMES = [
   'CORTEX_THREAD_MAX_DEPTH',
   'CORTEX_TASK_ARTIFACT_TEMPLATES',
   'TASK_DISPATCH_MAX_CONCURRENT',
+  'CORTEX_PI_MIDTURN_COMPACT_PERCENT',
   'CORTEX_UI_CORS_ORIGINS',
   'SLACK_ADMIN_CHANNEL',
   'CORTEX_ADMIN_CHANNEL',
@@ -334,6 +335,19 @@ describe.sequential('core settings', () => {
     assert.doesNotThrow(() => resolveSettingsSnapshot({ sessionRetentionDays: maxDays }));
     for (const value of [0, -1, 1.5, Number.MAX_SAFE_INTEGER, maxDays + 1]) {
       assert.throws(() => resolveSettingsSnapshot({ sessionRetentionDays: value }));
+    }
+  });
+
+  test('piMidTurnCompactPercent defaults to 88 and accepts only 0 or a whole 50-99 percent', () => {
+    const midTurn = SETTINGS_SPEC.piMidTurnCompactPercent as SettingSpecEntry<number>;
+    assert.equal(midTurn.default, 88);
+    assert.equal(midTurn.envVar, 'CORTEX_PI_MIDTURN_COMPACT_PERCENT');
+    assert.equal(midTurn.type, 'number');
+    for (const value of [0, 50, 88, 99]) {
+      assert.doesNotThrow(() => resolveSettingsSnapshot({ piMidTurnCompactPercent: value }));
+    }
+    for (const value of [-1, 1, 49, 88.5, 100]) {
+      assert.throws(() => resolveSettingsSnapshot({ piMidTurnCompactPercent: value }));
     }
   });
 

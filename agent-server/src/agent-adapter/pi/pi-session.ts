@@ -1,10 +1,11 @@
 // input:  PiSessionRequest, a PiRuntimeFactory, the transcript path registry
 // output: PISession: one pooled in-process PI session serving Cortex turns
-// pos:    Turn, steering, compaction and lifecycle state over a PI runtime handle
+// pos:    Turn, steering, compaction (incl. the mid-turn guard) and lifecycle over a PI runtime handle
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as path from 'node:path';
 import { createLogger } from '@core/log.js';
+import { getSettings } from '@core/settings.js';
 import type { AgentResult } from '@core/types/agent-types.js';
 import type { CodexQuotaReading } from '@core/codex-quota.js';
 import type { PiSubagentBridge } from './subagent-bridge.js';
@@ -18,6 +19,7 @@ import {
 } from './event-parser.js';
 import type { PiSessionRequest } from './session-options.js';
 import type { PiRawEvent, PiRuntimeFactory, PiRuntimeHandle } from './runtime.js';
+import { installPiContextGuard, type GuardSessionLike, type PiContextGuard } from './context-guard.js';
 import {
   EventQueue,
   PISteeringQueue,
@@ -150,6 +152,8 @@ export class PISession {
   private loopState: 'idle' | 'starting' | 'running' = 'idle';
   private compacting = false;
   private lastContextSampleAt = 0;
+  /** Mid-turn context check; null when this PI build does not expose what it drives. */
+  private contextGuard: PiContextGuard | null = null;
 
   constructor(opts: PISessionOptions) {
     this.sessionKey = opts.request.sessionKey;
@@ -183,6 +187,7 @@ export class PISession {
       throw new Error('PI session closed while starting');
     }
     this.handle = handle;
+    this.installContextGuard(handle);
     this.announceSession(handle.session.sessionId, handle.session.sessionFile ?? null);
   }
 
@@ -190,6 +195,8 @@ export class PISession {
   private fail(error: Error): void {
     if (!this.alive) return;
     this.alive = false;
+    this.contextGuard?.dispose();
+    this.contextGuard = null;
     this.clearTimers();
     this.steering.abandon();
     this.steering.clearSink();
@@ -210,6 +217,32 @@ export class PISession {
     this.emitNormalizedEvent(sessionFile
       ? { type: 'session_started', sessionId, sessionFile }
       : { type: 'session_started', sessionId });
+  }
+
+  /**
+   * Install the mid-turn context check on the live PI session. PI itself only tests its compaction
+   * threshold between turns, so without this a long tool-driven Cortex turn can only be rescued by
+   * the provider's overflow error. The trigger percent is read per check, so the setting applies to
+   * pooled sessions without recycling them; 0 leaves PI's own behaviour untouched.
+   */
+  private installContextGuard(handle: PiRuntimeHandle): void {
+    const session = handle.session as unknown as GuardSessionLike;
+    if (!session?.agent) return;
+    this.contextGuard = installPiContextGuard(session, {
+      label: `PI session ${this.sessionKey}`,
+      percent: () => getSettings().piMidTurnCompactPercent,
+      onCompacted: ({ percentBefore, ok }) => {
+        if (ok) {
+          log.info(
+            `PI session ${this.sessionKey}: mid-turn compaction done (was ${percentBefore.toFixed(1)}%)`,
+          );
+        } else {
+          log.warn(
+            `PI session ${this.sessionKey}: mid-turn compaction did not run (was ${percentBefore.toFixed(1)}%)`,
+          );
+        }
+      },
+    });
   }
 
   /**
@@ -632,6 +665,7 @@ export class PISession {
     // Turn-scoped counter on a session-scoped parser state: without this reset a pooled session's
     // second turn would start its progress heartbeat at the first turn's final count.
     this.parserState.turnProgressCount = 0;
+    this.contextGuard?.resetTurn();
     this.pendingTurn = {
       resolve,
       reject,
@@ -664,6 +698,8 @@ export class PISession {
     this.clearTimers();
     if (!this.alive) return;
     this.alive = false;
+    this.contextGuard?.dispose();
+    this.contextGuard = null;
     this.steering.abandon();
     this.steering.clearSink();
     this.rejectPendingTurn(new Error('PI session closed before turn_complete'));

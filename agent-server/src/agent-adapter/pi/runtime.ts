@@ -24,10 +24,12 @@ const log = createLogger('pi-runtime');
 /** One record off the PI session's event stream (or a UI request the host raised on its behalf). */
 export type PiRawEvent = Record<string, unknown> & { type: string };
 
-/** The slice of PI's AgentSession a PISession drives. Narrow so tests can fake it. */
+/** The slice of PI's AgentSession a PISession drives. Narrow so tests can fake it.
+ *  The mid-turn context guard's members are optional: a fake without them simply runs unguarded,
+ *  and so does a PI build that stopped exposing them. */
 export type PiAgentSessionLike = Pick<
   AgentSession, 'sessionId' | 'sessionFile' | 'isStreaming' | 'prompt' | 'steer' | 'abort' | 'compact' | 'getSessionStats'
->;
+> & Partial<Pick<AgentSession, 'agent' | 'settingsManager' | 'getContextUsage' | 'isCompacting'>>;
 
 export interface PiRuntimeHandle {
   readonly session: PiAgentSessionLike;

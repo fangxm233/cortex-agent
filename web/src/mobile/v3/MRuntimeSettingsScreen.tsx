@@ -13,7 +13,7 @@ import { MC } from '@/mobile/ui/kit';
 import { MNativeNotificationsCard } from './MNativeNotificationsCard';
 import {
   ADVANCED_FLAGS, ADVANCED_NUMBER_SETTINGS, BUILTIN_JOB_SETTINGS, NOTIFY_SETTINGS,
-  MAX_SESSION_RETENTION_DAYS, durationDraftFromMs, durationDraftToMs, getSetting,
+  durationDraftFromMs, durationDraftToMs, getSetting, numberSettingValid,
   hasAnyKey, indexEnv, indexSettings, parseWholeNumber, type AdvancedFlag,
   type BuiltinJobSettingDescriptor, type NumberSettingDescriptor,
   type SettingToggleDescriptor, type SettingsIndex,
@@ -77,12 +77,13 @@ function NumberSettingRow(props: {
   const [draft, setDraft] = useState(current === null ? '' : String(current));
   useEffect(() => setDraft(current === null ? '' : String(current)), [current]);
   const value = parseWholeNumber(draft);
-  const valid = value !== null && value >= 1 && value <= MAX_SESSION_RETENTION_DAYS;
+  const valid = numberSettingValid(props.descriptor, value);
   return <MSettingsRow dataKey={props.descriptor.setting} title={L[props.descriptor.titleKey]}
     sub={L[props.descriptor.descKey]} trailing={
     <div style={{ display: 'flex', gap: 6, alignItems: 'center', width: 132 }}>
       <input type="number" value={draft} onChange={(event) => setDraft(event.target.value)}
-        style={{ width: 56, minWidth: 0 }} />
+        min={props.descriptor.zeroMeansOff ? 0 : props.descriptor.min} max={props.descriptor.max}
+        step={1} style={{ width: 56, minWidth: 0 }} />
       <MSettingsButton disabled={current === null || !valid || value === current || props.write.pending}
         onClick={() => { if (valid) props.write.onSet(props.descriptor.setting, value); }}>{L.stBuiltinSave}</MSettingsButton>
     </div>} />;

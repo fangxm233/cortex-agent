@@ -147,6 +147,15 @@ re-pointing a live session at another transcript. Resume names a session id or a
 transcript path; `session-files.ts` maps the id to its file. Transcripts are
 written under `$CORTEX_HOME/logs/sessions-pi/`.
 
+**Mid-turn compaction.** PI tests its compaction threshold only between turns —
+after its agent loop ends, before a new prompt, and on a context-overflow error —
+so one long tool-driven Cortex turn has no check at all inside it. `context-guard.ts`
+adds one: it wraps the session's own per-turn hook, and once context occupancy
+crosses `piMidTurnCompactPercent` (default 88, `0` disables) it runs PI's own
+compaction at the next tool-batch boundary and hands the loop the rebuilt context.
+Nothing is aborted, so the turn keeps running and stays a single Cortex turn.
+Claude needs none of this: the CLI compacts inside a turn by itself.
+
 **Cortex's glue.** Everything Cortex adds is a set of inline PI extensions
 assembled per session in `extensions.ts`:
 
