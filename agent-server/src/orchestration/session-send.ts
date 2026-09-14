@@ -1,12 +1,15 @@
+// Transitional shim over `session-gateway.ts`. The synthetic-message construction moved there
+// (one builder for all seven delivery origins); what is left here is the old `web-user` façade,
+// kept for one phase so its callers and tests can migrate independently. Deleted in Phase 4 of
+// plan/orchestration-turn-refactor.md.
 import type { IncomingMessage, PlatformAdapter } from '@platform/index.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
 import type { SystemTurnOrigin } from '@core/types/agent-types.js';
-import { agentRunner, type AgentRunnerCtx } from './agent-runner.js';
+import type { AgentRunnerCtx } from './agent-runner.js';
+import { buildDeliveryMessage, deliverToSession, WEB_UI_SENDER } from './session-gateway.js';
 import type { TurnMutationRelease } from './turn-mutation-lock.js';
 
-/** Sender id for web-originated user turns. Distinct from SYNTHETIC_CALLBACK_SENDER so the message
- *  flows through route as a real user message (not a self-consumed callback). */
-export const WEB_UI_SENDER = 'cortex-web-ui';
+export { WEB_UI_SENDER };
 
 export function buildWebUserMessage(
   channel: string,
@@ -14,16 +17,7 @@ export function buildWebUserMessage(
   attachments?: AttachmentMeta[],
   systemOrigin?: SystemTurnOrigin,
 ): IncomingMessage {
-  return {
-    ref: { conduit: channel, messageId: `web_${Date.now()}` },
-    text,
-    senderId: WEB_UI_SENDER,
-    ...(systemOrigin ? { systemOrigin } : {}),
-    isBot: false,
-    kind: 'user',
-    raw: { source: 'web-ui' },
-    webAttachments: attachments,
-  };
+  return buildDeliveryMessage({ channel, text, origin: 'web-user', attachments, systemOrigin });
 }
 
 /**
@@ -42,16 +36,5 @@ export function sendWebUserMessage(opts: {
   systemOrigin?: SystemTurnOrigin;
   route?: (ctx: AgentRunnerCtx) => Promise<void>;
 }): void {
-  const message = buildWebUserMessage(opts.channel, opts.text, opts.attachments, opts.systemOrigin);
-  const route = opts.route ?? ((ctx: AgentRunnerCtx) => agentRunner.route(ctx));
-  void route({
-    message,
-    channel: opts.channel,
-    adapter: opts.adapter,
-    threadAnchorId: null,
-    hasFiles: false,
-    userMessage: opts.text,
-    agentMessage: opts.text,
-    mutationRelease: opts.mutationRelease,
-  }).catch(() => { /* fire-and-forget */ });
+  void deliverToSession({ ...opts, origin: 'web-user' }).catch(() => { /* fire-and-forget */ });
 }

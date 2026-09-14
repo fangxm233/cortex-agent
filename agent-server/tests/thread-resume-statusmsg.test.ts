@@ -3,7 +3,7 @@ import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import { threadStore } from '../src/store/thread-repo.js';
 import { buildResumeOptions } from '../src/orchestration/thread-callback.js';
-import { ctx as jobCtx } from '../src/domain/scheduling/job-registry.js';
+import { setOrchestrationRuntime } from '../src/orchestration/runtime.js';
 import { MockAdapter } from '../src/platform/testing.js';
 import type { ThreadRecord, ThreadStatus } from '../src/core/types/thread-types.js';
 
@@ -13,7 +13,7 @@ let seq = 0;
 afterAll(async () => {
   for (const id of createdThreadIds) await threadStore.delete(id);
   await threadStore.flush();
-  jobCtx.adapter = null;
+  setOrchestrationRuntime({ adapter: null });
 });
 
 function makeThread(over: Partial<ThreadRecord> = {}): ThreadRecord {
@@ -35,7 +35,7 @@ function makeThread(over: Partial<ThreadRecord> = {}): ThreadRecord {
 }
 
 test('buildResumeOptions restores statusMsg without rebuilding dispatch hooks', () => {
-  jobCtx.adapter = new MockAdapter();
+  setOrchestrationRuntime({ adapter: new MockAdapter() });
   const t = makeThread({
     metadata: {
       trigger: 'task-dispatch',
@@ -51,7 +51,7 @@ test('buildResumeOptions restores statusMsg without rebuilding dispatch hooks', 
 });
 
 test('buildResumeOptions leaves statusMsg null when no statusMsgRef was persisted', () => {
-  jobCtx.adapter = new MockAdapter();
+  setOrchestrationRuntime({ adapter: new MockAdapter() });
   const t = makeThread({ metadata: { trigger: 'task-dispatch' } });
   const opts = buildResumeOptions(t);
   assert.ok(opts, 'expected options to be built');
@@ -59,7 +59,7 @@ test('buildResumeOptions leaves statusMsg null when no statusMsgRef was persiste
 });
 
 test('buildResumeOptions returns null without an adapter', () => {
-  jobCtx.adapter = null;
+  setOrchestrationRuntime({ adapter: null });
   const t = makeThread();
   assert.equal(buildResumeOptions(t), null);
 });

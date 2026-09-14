@@ -55,7 +55,7 @@ import type { Destination, MessageContent, MessageRef, PostMessageOpts } from '.
 import type { AgentRun } from '../../src/domain/runs/run.js';
 import { AgentRunner } from '../../src/orchestration/agent-runner.js';
 import { markPendingTurnSuperseded } from '../../src/orchestration/lifecycle.js';
-import { ctx as jobCtx } from '../../src/domain/scheduling/job-registry.js';
+import { getOrchestrationRuntime, setOrchestrationRuntime } from '../../src/orchestration/runtime.js';
 import { conversationLedger } from '../../src/store/conversation-ledger-repo.js';
 import { sessionStore } from '../../src/store/session-registry-repo.js';
 import { setSessionAsync } from '../../src/domain/sessions/session.js';
@@ -157,7 +157,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  jobCtx.bus = restoreBus as never;
+  setOrchestrationRuntime({ bus: restoreBus as never });
   if (restoreDebug === undefined) delete process.env.DEBUG;
   else process.env.DEBUG = restoreDebug;
   vi.restoreAllMocks();
@@ -173,8 +173,8 @@ async function runTurn(testCase: TurnCase): Promise<Trace> {
   });
   await setSessionAsync(channel, trackSessionId);
 
-  restoreBus = jobCtx.bus;
-  jobCtx.bus = {
+  restoreBus = getOrchestrationRuntime().bus;
+  setOrchestrationRuntime({ bus: {
     publish: (event: { type: string; role?: string; running?: boolean; backgroundRunning?: boolean }) => {
       if (event.type === 'session.message') {
         trace.push(`session.message(${event.role})`);
@@ -188,7 +188,7 @@ async function runTurn(testCase: TurnCase): Promise<Trace> {
       trace.push(event.type);
     },
     subscribe: () => ({ unsubscribe() {} }),
-  } as never;
+  } as never });
 
   // Ledger writes are stubbed rather than exercised: this suite characterizes WHEN the ledger is
   // called relative to everything else, not what it persists (tests/orch/turn-tracking.test.ts

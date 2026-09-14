@@ -1,15 +1,15 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { EventBus } from '../../src/events/event-bus.js';
-import { ctx as jobCtx } from '../../src/domain/scheduling/job-registry.js';
+import { getOrchestrationRuntime, setOrchestrationRuntime } from '../../src/orchestration/runtime.js';
 import { publishSessionContextUsage, publishSessionDebugUpdated, publishSessionMessage, publishSessionMessageDelta, publishSessionMessageDelivered } from '../../src/orchestration/session-events.js';
 
 test('publishSessionContextUsage emits the complete timestamped snapshot', () => {
   const bus = new EventBus();
   const seen: any[] = [];
   bus.subscribe('session.context-usage', (event) => { seen.push(event); });
-  const prev = jobCtx.bus;
-  jobCtx.bus = bus;
+  const prev = getOrchestrationRuntime().bus;
+  setOrchestrationRuntime({ bus });
   try {
     publishSessionContextUsage({
       sessionId: 'sess-context', channel: 'web:context', usedTokens: 60000,
@@ -17,7 +17,7 @@ test('publishSessionContextUsage emits the complete timestamped snapshot', () =>
       updatedAt: '2026-07-27T12:00:00.000Z',
     });
   } finally {
-    jobCtx.bus = prev;
+    setOrchestrationRuntime({ bus: prev });
   }
 
   assert.equal(seen.length, 1);
@@ -33,12 +33,12 @@ test('publishSessionDebugUpdated emits a content-free transcript refresh hint', 
   const bus = new EventBus();
   const seen: any[] = [];
   bus.subscribe('session.debug.updated', (event) => { seen.push(event); });
-  const prev = jobCtx.bus;
-  jobCtx.bus = bus;
+  const prev = getOrchestrationRuntime().bus;
+  setOrchestrationRuntime({ bus });
   try {
     publishSessionDebugUpdated({ sessionId: 'sess-debug', channel: 'web:debug' });
   } finally {
-    jobCtx.bus = prev;
+    setOrchestrationRuntime({ bus: prev });
   }
 
   assert.equal(seen.length, 1);
@@ -53,8 +53,8 @@ test('publishSessionMessage emits a session.message event on the shared bus', ()
   const seen: any[] = [];
   bus.subscribe('session.message', (e) => { seen.push(e); });
 
-  const prev = jobCtx.bus;
-  jobCtx.bus = bus;
+  const prev = getOrchestrationRuntime().bus;
+  setOrchestrationRuntime({ bus });
   try {
     publishSessionMessage({ sessionId: 'sess-1', channel: 'C1', role: 'assistant', text: 'hi there' });
     publishSessionMessage({
@@ -62,7 +62,7 @@ test('publishSessionMessage emits a session.message event on the shared bus', ()
       toolName: 'remote_read', toolInput: 'x.ts', toolDevice: 'lab2',
     });
   } finally {
-    jobCtx.bus = prev;
+    setOrchestrationRuntime({ bus: prev });
   }
 
   assert.equal(seen.length, 2);
@@ -82,8 +82,8 @@ test('publishSessionMessage carries an optional notice level', () => {
   const seen: any[] = [];
   bus.subscribe('session.message', (event) => { seen.push(event); });
 
-  const prev = jobCtx.bus;
-  jobCtx.bus = bus;
+  const prev = getOrchestrationRuntime().bus;
+  setOrchestrationRuntime({ bus });
   try {
     publishSessionMessage({
       sessionId: 'sess-notice',
@@ -93,7 +93,7 @@ test('publishSessionMessage carries an optional notice level', () => {
       noticeLevel: 'info',
     });
   } finally {
-    jobCtx.bus = prev;
+    setOrchestrationRuntime({ bus: prev });
   }
 
   assert.equal(seen[0].noticeLevel, 'info');
@@ -102,8 +102,8 @@ test('publishSessionMessage carries an optional notice level', () => {
 test('publishSessionMessage forwards a notice action to the live stream', () => {
   const seen: any[] = [];
   const bus = { publish: (e: any) => seen.push(e) } as any;
-  const prev = jobCtx.bus;
-  jobCtx.bus = bus;
+  const prev = getOrchestrationRuntime().bus;
+  setOrchestrationRuntime({ bus });
   try {
     publishSessionMessage({
       sessionId: 'sess-action',
@@ -114,19 +114,19 @@ test('publishSessionMessage forwards a notice action to the live stream', () => 
       noticeAction: { kind: 'cancel-resume' },
     });
   } finally {
-    jobCtx.bus = prev;
+    setOrchestrationRuntime({ bus: prev });
   }
 
   assert.deepEqual(seen[0].noticeAction, { kind: 'cancel-resume' });
 });
 
 test('publishSessionMessage is a no-op when no bus is wired', () => {
-  const prev = jobCtx.bus;
-  jobCtx.bus = null;
+  const prev = getOrchestrationRuntime().bus;
+  setOrchestrationRuntime({ bus: null });
   try {
     assert.doesNotThrow(() => publishSessionMessage({ sessionId: 's', channel: 'c', role: 'user', text: 'x' }));
   } finally {
-    jobCtx.bus = prev;
+    setOrchestrationRuntime({ bus: prev });
   }
 });
 
@@ -135,13 +135,13 @@ test('publishSessionMessage carries the blockId that ties it to its streamed del
   const seen: any[] = [];
   bus.subscribe('session.message', (e) => { seen.push(e); });
 
-  const prev = jobCtx.bus;
-  jobCtx.bus = bus;
+  const prev = getOrchestrationRuntime().bus;
+  setOrchestrationRuntime({ bus });
   try {
     publishSessionMessage({ sessionId: 's1', channel: 'web:c', role: 'assistant', text: 'full', blockId: 'msg_A:1' });
     publishSessionMessage({ sessionId: 's1', channel: 'web:c', role: 'assistant', text: 'unstreamed' });
   } finally {
-    jobCtx.bus = prev;
+    setOrchestrationRuntime({ bus: prev });
   }
 
   assert.equal(seen[0].blockId, 'msg_A:1');
@@ -153,13 +153,13 @@ test('publishSessionMessage marks a message the model has not read yet with a st
   const seen: any[] = [];
   bus.subscribe('session.message', (e) => { seen.push(e); });
 
-  const prev = jobCtx.bus;
-  jobCtx.bus = bus;
+  const prev = getOrchestrationRuntime().bus;
+  setOrchestrationRuntime({ bus });
   try {
     publishSessionMessage({ sessionId: 's1', channel: 'web:c', role: 'user', text: 'stop', ts: 'T1', pending: true, pendingId: 'pin-1' });
     publishSessionMessage({ sessionId: 's1', channel: 'web:c', role: 'user', text: 'ordinary' });
   } finally {
-    jobCtx.bus = prev;
+    setOrchestrationRuntime({ bus: prev });
   }
 
   assert.equal(seen[0].pending, true);
@@ -173,12 +173,12 @@ test('publishSessionMessageDelivered carries stable pending identity and both ro
   const seen: any[] = [];
   bus.subscribe('session.message.delivered', (e) => { seen.push(e); });
 
-  const prev = jobCtx.bus;
-  jobCtx.bus = bus;
+  const prev = getOrchestrationRuntime().bus;
+  setOrchestrationRuntime({ bus });
   try {
     publishSessionMessageDelivered({ sessionId: 's1', channel: 'web:c', pendingId: 'pin-1', messageTs: 'T-write', committedTs: 'T-read' });
   } finally {
-    jobCtx.bus = prev;
+    setOrchestrationRuntime({ bus: prev });
   }
 
   assert.equal(seen.length, 1);
@@ -193,13 +193,13 @@ test('publishSessionMessageDelta emits a session.message.delta event', () => {
   const seen: any[] = [];
   bus.subscribe('session.message.delta', (e) => { seen.push(e); });
 
-  const prev = jobCtx.bus;
-  jobCtx.bus = bus;
+  const prev = getOrchestrationRuntime().bus;
+  setOrchestrationRuntime({ bus });
   try {
     publishSessionMessageDelta({ sessionId: 's1', channel: 'web:c', blockId: 'msg_A:1', text: 'Tea ', seq: 0 });
     publishSessionMessageDelta({ sessionId: 's1', channel: 'web:c', blockId: 'msg_A:1', text: 'is a leaf.', seq: 1 });
   } finally {
-    jobCtx.bus = prev;
+    setOrchestrationRuntime({ bus: prev });
   }
 
   assert.equal(seen.length, 2);
@@ -214,11 +214,11 @@ test('publishSessionMessageDelta emits a session.message.delta event', () => {
 });
 
 test('publishSessionMessageDelta is a no-op when no bus is wired', () => {
-  const prev = jobCtx.bus;
-  jobCtx.bus = null;
+  const prev = getOrchestrationRuntime().bus;
+  setOrchestrationRuntime({ bus: null });
   try {
     assert.doesNotThrow(() => publishSessionMessageDelta({ sessionId: 's', channel: 'c', blockId: 'b', text: 'x', seq: 0 }));
   } finally {
-    jobCtx.bus = prev;
+    setOrchestrationRuntime({ bus: prev });
   }
 });

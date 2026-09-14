@@ -13,12 +13,19 @@ import { sendPlanToSlack } from '@orch/interactions/plan-handler.js';
 import type { PlanApprovals } from '@orch/interactions/plan-approvals.js';
 import { interactionRecords as defaultInteractionRecords, type InteractionRecords } from '@orch/interactions/interaction-records.js';
 import { resolveRequest as resolveHookRequest, getStreamingCallback } from './hook-bridge.js';
-import { sendWebUserMessage } from '../session-send.js';
+import { deliverToSessionDetached } from '../session-gateway.js';
 
 const log = createLogger('hook-bridge');
 
-/** Delivery seam for a non-blocking ask's answer; production binds it to the web-user-turn sender. */
+/** Delivery seam for a non-blocking ask's answer; production binds it to the session gateway. */
 export type UserMessageSender = (opts: { channel: string; text: string; adapter: PlatformAdapter }) => void;
+
+/** The production sender: one `deliverToSession` with the `ask-user-answer` origin. Keeps today's
+ *  shape exactly — a web sender id (so the answer can still fold into the live turn) and no
+ *  `systemOrigin` (the human really did author it). */
+const deliverAskUserAnswer: UserMessageSender = ({ channel, text, adapter }) => {
+  deliverToSessionDetached({ channel, text, origin: 'ask-user-answer', adapter });
+};
 
 /**
  * Non-blocking ask (`cortex_ask_user blocking:false`): the tool call already returned, so the
@@ -41,7 +48,7 @@ export function registerHookBridgeSubscribers(
   adapter: PlatformAdapter,
   planApprovals: PlanApprovals,
   interactions: InteractionRecords = defaultInteractionRecords,
-  sendUserMessage: UserMessageSender = sendWebUserMessage,
+  sendUserMessage: UserMessageSender = deliverAskUserAnswer,
 ): void {
   bus.subscribe('ask-user.requested', async (e) => {
     const ev = e as Extract<CortexEvent, { type: 'ask-user.requested' }>;

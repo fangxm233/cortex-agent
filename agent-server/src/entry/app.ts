@@ -120,8 +120,8 @@ import { ensurePIAgentDirs } from '../agent-adapter/pi/agent-dir.js';
 import { initOutboundQueue, getOutboundQueue } from '@store/outbound-queue.js';
 import { createUiService } from '@domain/ui-service/index.js';
 import { activeClaudeCaptureRegistry } from '../agent-adapter/claude/active-capture-registry.js';
-import { sendWebUserMessage } from '../orchestration/session-send.js';
-import { setSubagentTurnSender } from '@orch/subagent-delivery.js';
+import { deliverToSessionDetached } from '@orch/session-gateway.js';
+import { setOrchestrationRuntime } from '@orch/runtime.js';
 import { startBackgroundSubagent, stopBackgroundSubagent } from '@orch/pi-background-subagent.js';
 import { setPiBackgroundSubagentBridge } from '@domain/runs/adapters.js';
 import { resolveRunConfig } from '@domain/runs/config-resolver.js';
@@ -326,6 +326,11 @@ startMachineRegistryWatcher();
 
 // --- Create platform adapter (replaces direct Slack App instantiation) ---
 const adapter: PlatformAdapter = createHotReloadingAdapter();
+// The one orchestration seam: orchestration reaches outward through an adapter and a bus it
+// cannot construct, and is entered from places (a webhook, a scheduled job, a background run
+// settling hours later) that hold neither. Everything under `orchestration/` reads them from
+// here; `jobCtx.adapter/bus` below stays, but only for `domain/scheduling`'s own jobs.
+setOrchestrationRuntime({ adapter, bus });
 registerResumeWakeOnAgentSettle(bus, adapter);
 
 // Wire EventBus + injected dependencies into the TUI gateway before start() so it can
@@ -541,7 +546,7 @@ process.on('SIGTERM', async () => {
     pendingInjections: pendingInjectionRepo,
     // S4 chat send: inject a genuine user turn into a session via the orchestration send path.
     // Injected here (entry layer) so the ui-service domain never imports orchestration.
-    sendSessionMessage: ({ channel, text, attachments }) => sendWebUserMessage({ channel, text, attachments, adapter }),
+    sendSessionMessage: ({ channel, text, attachments }) => deliverToSessionDetached({ channel, text, attachments, origin: 'web-user' }),
     // Machines screen: join static config (getMachineRegistry) + live WebSocket state (getOnlineDevices/
     // isDeviceOnline). Injected here (entry layer) so the ui-service domain never imports remote/.
     clientRegistry: {
@@ -845,9 +850,6 @@ process.on('SIGTERM', async () => {
   // S13: register hook-bridge event subscribers (bodies extracted to orch/routing/hook-bridge-subscribers.ts)
   registerHookBridgeSubscribers(bus, adapter, planApprovals);
 
-  // A backgrounded `agent` run reports back as an ordinary user turn, the same seam a non-blocking
-  // cortex_ask_user answer uses. Bound here because only the composition root holds the adapter.
-  setSubagentTurnSender(({ channel, text, systemOrigin }) => sendWebUserMessage({ channel, text, systemOrigin, adapter }));
   // The same seam for PI's in-process `agent`: registering a background run reaches the delivery
   // route above, so the adapter declares the port (D10) and the composition root fills it.
   setPiBackgroundSubagentBridge({ startBackgroundSubagent, stopBackgroundSubagent });

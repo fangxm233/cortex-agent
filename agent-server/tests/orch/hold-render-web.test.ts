@@ -16,7 +16,7 @@ vi.mock('@domain/runs/observers/resume-recorder.js', async (importOriginal) => (
 import { holdBackgroundContinuation } from '../../src/orchestration/turn/background-hold.js';
 import { webHoldRenderer } from '../../src/orchestration/turn/hold-render-web.js';
 import { sessionHolds } from '../../src/core/session-holds.js';
-import { ctx as jobCtx } from '../../src/domain/scheduling/job-registry.js';
+import { getOrchestrationRuntime, setOrchestrationRuntime } from '../../src/orchestration/runtime.js';
 import type { RunEvent } from '../../src/domain/runs/events.js';
 import type { RunObserver } from '../../src/domain/runs/request.js';
 
@@ -38,13 +38,13 @@ function makeHarness() {
   const sessionId = `web-sess-${++sessionSeq}`;
   const channel = 'web:cortex-hold';
   // `session.status` is what the Web UI actually consumes; the hold publishes it through the bus.
-  jobCtx.bus = {
+  setOrchestrationRuntime({ bus: {
     publish: (event: any) => {
       if (event.type !== 'session.status') return;
       statuses.push({ running: event.running, backgroundRunning: event.backgroundRunning });
     },
     subscribe: () => ({ unsubscribe() {} }),
-  } as never;
+  } as never });
   mockRecordDirectResume.mockImplementation((...args: unknown[]) => {
     rateLimits.push(args[0]);
     return resumable;

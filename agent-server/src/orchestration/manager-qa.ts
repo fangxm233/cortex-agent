@@ -1,7 +1,8 @@
 import { threadStore } from '@store/thread-repo.js';
 import { scanAllTasks } from '@core/task-parser.js';
 import { isTerminalStatus } from '@domain/threads/tree.js';
-import { resumeManagerForQuestion, wakeSession } from './thread-callback.js';
+import { resumeManagerForQuestion } from './thread-callback.js';
+import { deliverToSession } from './session-gateway.js';
 import { createLogger } from '@core/log.js';
 import {
   consumeProductionTopologyAnswer,
@@ -62,8 +63,8 @@ export interface ManagerQaDeps {
   readTask?: (project: string | null, taskId: string) => TaskLite | null;
   /** Resume a waiting manager so it can answer (defaults to resumeManagerForQuestion). */
   resume?: (managerThreadId: string) => void;
-  /** Wake the origin agent session at the top of the tree, handing it the question (defaults to the
-   *  shared wakeSession → agentRunner.route). Injected in tests to avoid spawning a real turn. */
+  /** Wake the origin agent session at the top of the tree, handing it the question (defaults to
+   *  the shared session gateway). Injected in tests to avoid spawning a real turn. */
   wakeOriginSession?: (channel: string, notice: string) => void | Promise<void>;
 }
 
@@ -77,7 +78,9 @@ function defaultReadTask(project: string | null, taskId: string): TaskLite | nul
 }
 
 async function defaultWakeOriginSession(channel: string, notice: string): Promise<void> {
-  await wakeSession(channel, notice, `askmgr_${Date.now().toString(36)}`, 'subtask-question');
+  await deliverToSession({
+    channel, text: notice, origin: 'subtask-question', tag: `askmgr_${Date.now().toString(36)}`,
+  });
 }
 
 function questionFromFact(

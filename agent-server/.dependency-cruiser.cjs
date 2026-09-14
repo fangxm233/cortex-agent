@@ -85,13 +85,13 @@ module.exports = {
     },
     {
       name: 'no-circular',
-      severity: 'warn',
+      severity: 'error',
       comment:
-        'orchestration must have no import cycles. Reported as `warn` for now because one cycle '
-        + 'still exists — agent-runner → manager-qa → thread-callback → agent-runner, which '
-        + 'depcruise reports twice (once more via the longer thread-callback → thread-executor '
-        + 'entry into it). plan/orchestration-turn-refactor.md Phase 3 breaks that edge through '
-        + 'session-gateway.ts and raises this rule to `error`.',
+        'orchestration must have no import cycles. The one that existed — agent-runner → '
+        + 'manager-qa → thread-callback → agent-runner — is broken by session-gateway.ts, which '
+        + 'imports agent-runner and is imported BY thread-callback / manager-qa, never the other '
+        + 'way round. Keep that direction: everything that wants to open a turn calls the '
+        + 'gateway; the gateway is the only orchestration module the runner may not know about.',
       from: { path: '^src/orchestration/' },
       to: { circular: true },
     },

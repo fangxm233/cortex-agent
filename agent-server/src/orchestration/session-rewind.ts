@@ -8,7 +8,7 @@ import { sessionStore, effectiveBackendSessionId, type Session } from '@store/se
 import * as sessionBackup from '@domain/sessions/session-backup.js';
 import { resolveBackendForChannel } from '@domain/agents/index.js';
 import { publishSessionRewound } from './session-events.js';
-import { sendWebUserMessage } from './session-send.js';
+import { deliverToSessionDetached } from './session-gateway.js';
 import { activeTurns } from './turn/active-turns.js';
 import { tryAcquireTurnMutationLock } from './turn-mutation-lock.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
@@ -67,7 +67,7 @@ function defaultDeps(): RewindDeps {
     // Backend-neutral: every backend pools its subprocess, and a live one would keep the
     // pre-rewind history in memory and ignore the rolled-back transcript on disk.
     closePooledSession: (channel) => { void engines.close(channel); },
-    send: sendWebUserMessage,
+    send: (opts) => deliverToSessionDetached({ ...opts, origin: 'web-user' }),
     publishRewound: publishSessionRewound,
   };
 }

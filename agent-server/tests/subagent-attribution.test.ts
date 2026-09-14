@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { runRegistry } from '../src/core/run-registry.js';
 import { EventBus } from '../src/events/event-bus.js';
-import { ctx as jobCtx } from '../src/domain/scheduling/job-registry.js';
+import { getOrchestrationRuntime, setOrchestrationRuntime } from '../src/orchestration/runtime.js';
 import { conversationHistory } from '../src/store/conversation-history-repo.js';
 import { parentNoticeSink } from '../src/orchestration/subagent-attribution.js';
 import { _test } from '../src/domain/agents/subagent/runner.js';
@@ -53,7 +53,7 @@ function endNotice(status: 'completed' | 'failed' | 'killed' = 'completed'): Sub
 
 afterEach(() => {
   for (const exec of runRegistry.getAll()) runRegistry.remove(exec.registryKey);
-  jobCtx.bus = null;
+  setOrchestrationRuntime({ bus: null });
   vi.restoreAllMocks();
 });
 
@@ -100,7 +100,7 @@ test('a child that settles after its parent turn ended is sealed straight into t
   const published: any[] = [];
   const bus = new EventBus();
   bus.subscribe('session.message', (event) => { published.push(event); });
-  jobCtx.bus = bus;
+  setOrchestrationRuntime({ bus });
 
   register('exec-parent', PARENT_SESSION);
   const sink = parentNoticeSink(PARENT_SESSION, CHANNEL);

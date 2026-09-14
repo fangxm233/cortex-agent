@@ -1,4 +1,4 @@
-import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
+import { orchestrationBus } from './runtime.js';
 import type { AttachmentMeta, DecisionItem } from '@domain/ui-service/types.js';
 import type { ChatNoticeLevel, NoticeAction, SessionContextUsage, SystemTurnOrigin, TodoSnapshot } from '@core/types/agent-types.js';
 import type { SubagentSpawnRef } from '../agent-adapter/normalize/event-types.js';
@@ -59,7 +59,7 @@ export interface SessionMessagePayload {
 export function publishSessionContextUsage(
   p: { sessionId: string; channel: string } & SessionContextUsage,
 ): void {
-  jobCtx.bus?.publish({ type: 'session.context-usage', ...p });
+  orchestrationBus()?.publish({ type: 'session.context-usage', ...p });
 }
 
 /** Publish the task-list delta. The snapshot is complete (TodoWrite is replace-all), so a client
@@ -67,7 +67,7 @@ export function publishSessionContextUsage(
 export function publishSessionTodos(
   p: { sessionId: string; channel: string; snapshot: TodoSnapshot },
 ): void {
-  jobCtx.bus?.publish({ type: 'session.todos', ...p });
+  orchestrationBus()?.publish({ type: 'session.todos', ...p });
 }
 
 export function publishSessionContextCompacted(p: {
@@ -76,15 +76,15 @@ export function publishSessionContextCompacted(p: {
   status: 'compacted';
   contextUsage: SessionContextUsage | null;
 }): void {
-  jobCtx.bus?.publish({ type: 'session.context-compacted', ...p });
+  orchestrationBus()?.publish({ type: 'session.context-compacted', ...p });
 }
 
 export function publishSessionDebugUpdated(p: { sessionId: string; channel: string }): void {
-  jobCtx.bus?.publish({ type: 'session.debug.updated', sessionId: p.sessionId, channel: p.channel });
+  orchestrationBus()?.publish({ type: 'session.debug.updated', sessionId: p.sessionId, channel: p.channel });
 }
 
 export function publishSessionMessage(p: SessionMessagePayload): void {
-  jobCtx.bus?.publish({
+  orchestrationBus()?.publish({
     type: 'session.message',
     sessionId: p.sessionId,
     channel: p.channel,
@@ -125,7 +125,7 @@ export function publishSessionMessageDelta(p: {
   /** 0-based, per blockId; lets a client notice it missed one. */
   seq: number;
 }): void {
-  jobCtx.bus?.publish({
+  orchestrationBus()?.publish({
     type: 'session.message.delta',
     sessionId: p.sessionId,
     channel: p.channel,
@@ -144,7 +144,7 @@ export function publishSessionMessageDelta(p: {
  *  returns, so the live row and the fetched row dedupe as one. Published by mid-turn-inject.ts.
  *  No-op when no bus is wired. */
 export function publishSessionMessageDelivered(p: { sessionId: string; channel: string; pendingId: string; messageTs: string; committedTs: string }): void {
-  jobCtx.bus?.publish({
+  orchestrationBus()?.publish({
     type: 'session.message.delivered',
     sessionId: p.sessionId,
     channel: p.channel,
@@ -161,7 +161,7 @@ export function publishSessionMessageDelivered(p: { sessionId: string; channel: 
  *  Web chat subscribes to this (scoped by sessionId) as the delta over the `SessionInfo.numTurns`
  *  snapshot (snapshot + delta, mirroring `session.status`). No-op when no bus is wired. */
 export function publishSessionTurn(p: { sessionId: string; channel: string; numTurns: number }): void {
-  jobCtx.bus?.publish({
+  orchestrationBus()?.publish({
     type: 'session.turn',
     sessionId: p.sessionId,
     channel: p.channel,
@@ -174,7 +174,7 @@ export function publishSessionTurn(p: { sessionId: string; channel: string; numT
  *  tails (which may hold now-superseded messages) and refetch the transcript. Published by
  *  session-rewind.ts before the edited message is re-sent. No-op when no bus is wired. */
 export function publishSessionRewound(p: { sessionId: string; channel: string; turnIndex: number }): void {
-  jobCtx.bus?.publish({
+  orchestrationBus()?.publish({
     type: 'session.rewound',
     sessionId: p.sessionId,
     channel: p.channel,
@@ -194,7 +194,7 @@ export function publishSessionRewound(p: { sessionId: string; channel: string; t
  *  whole wait so the session is NOT prematurely marked idle, then publishes `running:false` once the
  *  background work finishes. Omitted (undefined) on the normal turn-start / turn-end edges. */
 export function publishSessionStatus(p: { sessionId: string; channel: string; running: boolean; backgroundRunning?: boolean }): void {
-  jobCtx.bus?.publish({
+  orchestrationBus()?.publish({
     type: 'session.status',
     sessionId: p.sessionId,
     channel: p.channel,

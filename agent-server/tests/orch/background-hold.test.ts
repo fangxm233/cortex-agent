@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { MockAdapter, MockOutputStream } from '../../src/platform/testing.js';
 import type { RunEvent } from '../../src/domain/runs/events.js';
 import type { RunObserver } from '../../src/domain/runs/request.js';
-import { ctx as jobCtx } from '../../src/domain/scheduling/job-registry.js';
+import { getOrchestrationRuntime, setOrchestrationRuntime } from '../../src/orchestration/runtime.js';
 import { sessionHolds } from '../../src/core/session-holds.js';
 import { activeTurns } from '../../src/orchestration/turn/active-turns.js';
 import { sessionState } from '../../src/core/session-state.js';
@@ -147,15 +147,15 @@ async function platformHold(channel = 'slack:D-hold') {
   activeTurns.setStreamingCallback(channel, ownedCallback);
   const sessionId = `sess-hold-${statusSeq}`;
   const statuses: Array<{ running: boolean; backgroundRunning?: boolean }> = [];
-  const previousBus = jobCtx.bus;
-  jobCtx.bus = {
+  const previousBus = getOrchestrationRuntime().bus;
+  setOrchestrationRuntime({ bus: {
     publish: (event: any) => {
       if (event.type !== 'session.status') return;
       statuses.push({ running: event.running, backgroundRunning: event.backgroundRunning });
       sessionHolds.onSessionStatus(event);
     },
     subscribe: () => ({ unsubscribe() {} }),
-  } as never;
+  } as never });
   const held = fakeHeldRun();
   const hold = await holdBackgroundContinuation({
     run: held.run, channel, sessionId, userMessage: 'run it in background',
@@ -172,7 +172,7 @@ async function platformHold(channel = 'slack:D-hold') {
   return {
     adapter, channel, sessionId, hold, statuses, emit: held.emit, ownedCallback,
     lastStatus: () => (adapter.updated.at(-1)?.content?.text ?? '') as string,
-    restore: () => { jobCtx.bus = previousBus as never; sessionHolds.clear(); activeTurns._reset(); },
+    restore: () => { setOrchestrationRuntime({ bus: previousBus as never }); sessionHolds.clear(); activeTurns._reset(); },
   };
 }
 

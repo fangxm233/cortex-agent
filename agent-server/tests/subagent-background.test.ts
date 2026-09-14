@@ -6,11 +6,10 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 import { EventBus } from '../src/events/event-bus.js';
 import { sessionHolds } from '../src/core/session-holds.js';
 import { busyTracker } from '../src/orchestration/busy-tracker.js';
-import { ctx as jobCtx } from '../src/domain/scheduling/job-registry.js';
+import { setOrchestrationRuntime } from '../src/orchestration/runtime.js';
 import { publishSessionStatus } from '../src/orchestration/session-events.js';
 import {
-  deliverBackgroundSubagentResult, holdSessionForBackgroundRun, setSubagentTurnSender,
-  startBackgroundSubagentRun,
+  deliverBackgroundSubagentResult, holdSessionForBackgroundRun, startBackgroundSubagentRun,
 } from '../src/orchestration/subagent-delivery.js';
 import {
   _resetSubagentRuns, startSubagentRun, waitForSubagentRun,
@@ -20,6 +19,28 @@ import { emptyUsage } from '@core/agents/subagent/usage.js';
 import type { SubagentToolResult } from '@core/agents/subagent/orchestrate.js';
 import type { SubagentRunStatus } from '../src/domain/agents/subagent/registry.js';
 import type { Invocation } from '@core/agents/subagent/types.js';
+
+/** Delivery capture. `setSubagentTurnSender` is gone — subagent-delivery now calls the session
+ *  gateway directly — so the seam intercepted here is the gateway itself. The real
+ *  `buildDeliveryMessage` still runs, so the origin → senderId/systemOrigin mapping is exercised
+ *  rather than stubbed, and every assertion below reads the same fields it always did. */
+const gateway = vi.hoisted(() => ({
+  delivered: [] as Array<{ channel: string; text: string; systemOrigin?: string }>,
+  throws: false,
+}));
+vi.mock('../src/orchestration/session-gateway.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/orchestration/session-gateway.js')>();
+  return {
+    ...actual,
+    deliverToSessionDetached: (opts: Parameters<typeof actual.deliverToSessionDetached>[0]) => {
+      if (gateway.throws) throw new Error('adapter gone');
+      const message = actual.buildDeliveryMessage(opts);
+      gateway.delivered.push({
+        channel: opts.channel, text: message.text, systemOrigin: message.systemOrigin,
+      });
+    },
+  };
+});
 
 const SESSION = 'sess-bg';
 const CHANNEL = 'web:7';
@@ -59,7 +80,7 @@ beforeEach(() => {
   originalSend = process.send;
   (process as { send?: unknown }).send = undefined;
   bus = new EventBus();
-  jobCtx.bus = bus;
+  setOrchestrationRuntime({ bus });
   busyTracker.setBus(bus);
   sessionHolds.clear();
   _resetSubagentRuns();
@@ -70,16 +91,17 @@ beforeEach(() => {
     }
     sessionHolds.onSessionStatus(event);
   });
-  delivered = [];
-  setSubagentTurnSender(opts => { delivered.push(opts); });
+  gateway.throws = false;
+  gateway.delivered.length = 0;
+  delivered = gateway.delivered;
 });
 
 afterEach(() => {
   process.send = originalSend;
-  setSubagentTurnSender(null);
+  gateway.throws = false;
   _resetSubagentRuns();
   sessionHolds.clear();
-  jobCtx.bus = null;
+  setOrchestrationRuntime({ bus: null });
 });
 
 function view(overrides: Partial<Parameters<typeof holdSessionForBackgroundRun>[0]> = {}) {
@@ -282,13 +304,11 @@ test('delivery is tagged as system-authored so the chat shows a hint, not a user
 
 test('delivery with nowhere to go is dropped, not queued for hours later', () => {
   deliverBackgroundSubagentResult(view(), toolResult('out'), undefined);
-  setSubagentTurnSender(null);
-  deliverBackgroundSubagentResult(view(), toolResult('out'), CHANNEL);
   assert.equal(delivered.length, 0);
 });
 
 test('a sender that throws does not take the settle hook down with it', () => {
-  setSubagentTurnSender(() => { throw new Error('adapter gone'); });
+  gateway.throws = true;
   assert.doesNotThrow(() => deliverBackgroundSubagentResult(view(), toolResult('out'), CHANNEL));
 });
 

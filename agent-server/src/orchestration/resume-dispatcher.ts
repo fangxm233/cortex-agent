@@ -1,10 +1,11 @@
-import { SYNTHETIC_CALLBACK_SENDER, type PlatformAdapter, type IncomingMessage } from '@platform/index.js';
+import type { PlatformAdapter } from '@platform/index.js';
 import { getSettings } from '@core/settings.js';
 import type { EventBus } from '@events/index.js';
 import type { ThreadRecord, RunThreadOptions } from '@core/types/thread-types.js';
 import { recordResume, takeReadyResumes, type ResumeEntry } from '@domain/costs/resume-registry.js';
 import { getThrottleState } from '@domain/costs/rate-limit-throttle.js';
 import { agentRunner } from './agent-runner.js';
+import { deliverToSession } from './session-gateway.js';
 import { resumeRateLimitedThread } from '@domain/threads/runner.js';
 import { buildResumeOptions, sealSuspendedStatusMsg, fireThreadCallback, closeResumedTaskLoop } from './thread-callback.js';
 import { trackPendingTask } from './busy-tracker.js';
@@ -188,15 +189,6 @@ function guardSkipReason(entry: ResumeEntry, deps: ResumeDeps): ResumeSkip | nul
 
 async function resumeDirect(entry: Extract<ResumeEntry, { kind: 'direct' }>, adapter: PlatformAdapter, deps: ResumeDeps): Promise<void> {
   const notice = buildResumeReminder();
-  const message: IncomingMessage = {
-    ref: { conduit: entry.channel, messageId: `resume_${Date.now()}` },
-    text: notice,
-    senderId: SYNTHETIC_CALLBACK_SENDER,
-    systemOrigin: 'resume',
-    isBot: false,
-    kind: 'user',
-    raw: { source: 'rate-limit-resume', originalMessage: entry.userMessage },
-  };
   log.info(`Resuming direct session on ${entry.channel}`);
   const release = entry.trackSessionId ? await deps.acquireSessionUse(entry.trackSessionId) : null;
   if (entry.trackSessionId && !release) {
@@ -204,7 +196,11 @@ async function resumeDirect(entry: Extract<ResumeEntry, { kind: 'direct' }>, ada
     return;
   }
   try {
-    await deps.route({ message, channel: entry.channel, adapter, threadAnchorId: null, hasFiles: false, userMessage: notice, agentMessage: notice });
+    await deliverToSession({
+      channel: entry.channel, text: notice, origin: 'resume',
+      raw: { originalMessage: entry.userMessage },
+      adapter, route: deps.route,
+    });
   } finally {
     release?.();
   }

@@ -23,7 +23,7 @@ import type { RunObserver } from '../../src/domain/runs/request.js';
 import { Capability } from '../../src/agent-adapter/capabilities.js';
 import { openTurn, type TurnInput } from '../../src/orchestration/turn/turn.js';
 import { activeTurns } from '../../src/orchestration/turn/active-turns.js';
-import { ctx as jobCtx } from '../../src/domain/scheduling/job-registry.js';
+import { getOrchestrationRuntime, setOrchestrationRuntime } from '../../src/orchestration/runtime.js';
 import { conversationLedger } from '../../src/store/conversation-ledger-repo.js';
 import { sessionHolds } from '../../src/core/session-holds.js';
 import { MockAdapter } from '../../src/platform/testing.js';
@@ -76,7 +76,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  jobCtx.bus = restoreBus as never;
+  setOrchestrationRuntime({ bus: restoreBus as never });
   if (restoreDebug === undefined) delete process.env.DEBUG;
   else process.env.DEBUG = restoreDebug;
   vi.restoreAllMocks();
@@ -84,15 +84,15 @@ afterEach(() => {
 
 function harness(): Harness {
   const h: Harness = { adapter: new MockAdapter(), statuses: [], observers: [], leaseReleases: 0 };
-  restoreBus = jobCtx.bus;
-  jobCtx.bus = {
+  restoreBus = getOrchestrationRuntime().bus;
+  setOrchestrationRuntime({ bus: {
     publish: (event: any) => {
       if (event.type === 'session.status') {
         h.statuses.push({ running: event.running, backgroundRunning: event.backgroundRunning });
       }
     },
     subscribe: () => ({ unsubscribe() {} }),
-  } as never;
+  } as never });
   return h;
 }
 

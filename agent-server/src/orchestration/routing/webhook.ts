@@ -13,7 +13,7 @@ import { normalizeAskLevel } from '@platform/index.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { validateCommissionFinalize, finalizeCommission } from '@domain/commissions/commission-finalize.js';
 import { getCurrentPlanFilePath } from '../../agent-adapter/claude/event-parser.js';
-import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
+import { orchestrationAdapter, orchestrationBus } from '../runtime.js';
 import { createThread, cancelThread, readArtifact, listTemplates, listAgents, checkSpawnGuards, getRootThreadId, registerChildSpawn, buildThreadTree, getTreeThreads, buildContractPrompt, buildMissionChain, isArtifactUnchangedSinceStepStart } from '@domain/threads/index.js';
 import { runThreadDetached } from '../thread-executor.js';
 import { buildThreadSummary } from '@domain/threads/runner.js';
@@ -351,7 +351,8 @@ function createWebhookHandler(_options: {
             if (curDepth >= maxDepth) {
               return reply({ success: false, error: `max thread depth (${maxDepth}) reached — cannot spawn nested thread at depth ${curDepth}` });
             }
-            if (!jobCtx.adapter) {
+            const adapter = orchestrationAdapter();
+            if (!adapter) {
               return reply({ success: false, error: 'no platform adapter available (daemon not fully initialized)' });
             }
             // Tree resource guards (DR-0014): width / node count / budget. A rejection is a
@@ -441,9 +442,9 @@ function createWebhookHandler(_options: {
               const label = template || agent;
               const startText = `${Icons.processing} Starting thread (${template ? label : `agent:${label}`})...`;
               try {
-                statusMsg = await jobCtx.adapter.postMessage(dest, { text: startText });
+                statusMsg = await adapter.postMessage(dest, { text: startText });
                 const blocksTemplate = { channel, sessionName: null, isDm: false, threadId: thread.id };
-                await jobCtx.adapter.updateMessage(statusMsg, {
+                await adapter.updateMessage(statusMsg, {
                   text: startText,
                   richBlocks: buildStatusActionBlocks(startText, blocksTemplate),
                 }).catch(() => {});
@@ -457,7 +458,7 @@ function createWebhookHandler(_options: {
             }
 
             const runOpts: RunThreadOptions = {
-              adapter: jobCtx.adapter,
+              adapter,
               channel,
               destination: dest,
               threadAnchorId: statusMsg ? statusMsg.messageId : null,
@@ -480,13 +481,13 @@ function createWebhookHandler(_options: {
                     const n = (t.metadata?.waitingOn?.length ?? 0) + (t.metadata?.waitingOnTasks?.length ?? 0);
                     // Persist the ref so the post-resume settle can refresh this message.
                     void threadStore.mutate(t.id, (r) => { (r.metadata ??= {}).statusMsgRef = statusMsg; }).catch(() => {});
-                    void jobCtx.adapter!.updateMessage(statusMsg, {
+                    void adapter.updateMessage(statusMsg, {
                       text: `${Icons.processing} Thread suspended — waiting on ${n} child(ren)`,
                     }).catch(() => {});
                   } else if (t) {
                     const totalNumTurns = t.steps.reduce((s, st) => s + (st.numTurns || 0), 0);
                     const summaryText = buildThreadSummary({ thread: t, totalCostUsd: t.totalCostUsd, totalNumTurns, finalOutput: null, lastAgentResult: null, executionId: null, stopReason: null });
-                    void jobCtx.adapter!.updateMessage(statusMsg, {
+                    void adapter.updateMessage(statusMsg, {
                       text: summaryText,
                       richBlocks: buildSealedStatusActionBlocks(summaryText, { channel, sessionName: null, isDm: false, threadId: t.id }),
                     }).catch(() => {});
@@ -704,7 +705,7 @@ function createWebhookHandler(_options: {
           const approved = (result as { approved?: boolean } | undefined)?.approved === true;
           const finalized = commissionArgs && approved ? await finalizeCommission(commissionArgs) : null;
           if (finalized && finalized.ok === true) {
-            jobCtx.bus?.publish({ type: 'commission.updated', commissionId: finalized.commissionId, projectId: finalized.projectId });
+            orchestrationBus()?.publish({ type: 'commission.updated', commissionId: finalized.commissionId, projectId: finalized.projectId });
           }
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify(finalized ? { ...result, commission: finalized } : result));

@@ -1,31 +1,13 @@
 import { createLogger } from '@core/log.js';
-import type { SystemTurnOrigin } from '@core/types/agent-types.js';
-import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
 import type { SubagentToolResult } from '@core/agents/subagent/orchestrate.js';
 import {
   stopSubagentRun, type StartSubagentRunOptions, type SubagentRunView,
 } from '@domain/agents/subagent/registry.js';
 import { holdSession } from './turn/background-hold.js';
+import { deliverToSessionDetached } from './session-gateway.js';
+import { orchestrationBus } from './runtime.js';
 
 const log = createLogger('subagent-delivery');
-
-/**
- * Delivers a finished background run to its session as an ordinary user turn.
- *
- * Bound at the composition root, because the turn seam needs a PlatformAdapter and this module is
- * reached from a webhook that has none. Unset — in a test, or before the daemon finishes wiring —
- * the result is logged and dropped rather than queued: a turn that arrives hours later out of
- * context is worse than none.
- */
-export type SubagentTurnSender = (
-  opts: { channel: string; text: string; systemOrigin: SystemTurnOrigin },
-) => void;
-
-let sendTurn: SubagentTurnSender | null = null;
-
-export function setSubagentTurnSender(sender: SubagentTurnSender | null): void {
-  sendTurn = sender;
-}
 
 /**
  * Keep a session alive for the length of a background run.
@@ -66,7 +48,7 @@ export function holdSessionForBackgroundRun(
   // outlives the status on its own (it owns work, not status) — re-registering it is a no-op for
   // the same owner. Ignores our own release (the hold is already sealed by then).
   const subscription = sessionId && channel
-    ? jobCtx.bus?.subscribe('session.status', (event) => {
+    ? orchestrationBus()?.subscribe('session.status', (event) => {
       const status = event as { sessionId?: string; running?: boolean };
       if (hold.released || status.sessionId !== sessionId || status.running !== false) return;
       hold.reassert();
@@ -126,19 +108,21 @@ function deliveryText(view: SubagentRunView, result: SubagentToolResult | null):
 /**
  * Hand a finished background run back to the session that started it.
  *
- * Delivery is one `route()` call, not two code paths: that seam already folds a message into a
- * live turn when one is running and opens a fresh one when the session is idle — the same
+ * Delivery is one `deliverToSession()` call, not two code paths: that seam already folds a message
+ * into a live turn when one is running and opens a fresh one when the session is idle — the same
  * behaviour a typed message gets, and the same seam a non-blocking `cortex_ask_user` answer uses.
+ * It is also why the `agent-result` origin keeps a web sender id rather than the synthetic one:
+ * `isInjectableMessage` refuses synthetic senders, so tagging it synthetic would cost the fold.
  */
 export function deliverBackgroundSubagentResult(
   view: SubagentRunView, result: SubagentToolResult | null, channel: string | undefined,
 ): void {
-  if (!channel || !sendTurn) {
-    log.warn(`Background agent ${view.id} finished with nowhere to deliver (channel=${channel ?? 'none'})`);
+  if (!channel) {
+    log.warn(`Background agent ${view.id} finished with nowhere to deliver (channel=none)`);
     return;
   }
   try {
-    sendTurn({ channel, text: deliveryText(view, result), systemOrigin: 'agent-result' });
+    deliverToSessionDetached({ channel, text: deliveryText(view, result), origin: 'agent-result' });
   } catch (error) {
     log.error(`Background agent ${view.id} delivery failed: ${(error as Error).message}`);
   }

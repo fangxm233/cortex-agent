@@ -1,7 +1,7 @@
 import { threadStore } from '@store/thread-repo.js';
-import { agentRunner } from './agent-runner.js';
+import { deliverToSession, type DeliveryOrigin } from './session-gateway.js';
 import { getOutboundQueue, durablePost } from '@store/outbound-queue.js';
-import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
+import { orchestrationAdapter, orchestrationBus } from './runtime.js';
 import { resumeThread } from '@domain/threads/runner.js';
 import { sealThreadStatus } from './status-helpers.js';
 import { isTerminalStatus } from '@domain/threads/tree.js';
@@ -16,9 +16,7 @@ import { withTaskFileMutationLockAsync } from '@domain/tasks/system/task-lifecyc
 import { isTaskArtifactTemplate } from '@domain/threads/index.js';
 import type { ThreadRecord, RunThreadOptions } from '@core/types/thread-types.js';
 import type { PlatformAdapter } from '@platform/index.js';
-import type { IncomingMessage, Destination } from '@platform/index.js';
-import { SYNTHETIC_CALLBACK_SENDER } from '@platform/types.js';
-import type { SystemTurnOrigin } from '@core/types/agent-types.js';
+import type { Destination } from '@platform/index.js';
 
 const log = createLogger('thread-callback');
 
@@ -76,7 +74,7 @@ export function buildChildResultNotice(child: ThreadRecord): string {
 
 /** Durable notice to a project's report channel (falls back to a direct post without a queue). */
 async function postProjectNoticeTo(projectId: string, trigger: string, text: string): Promise<void> {
-  const adapter = jobCtx.adapter;
+  const adapter = orchestrationAdapter();
   if (!adapter) { log.error(`no adapter; cannot post project notice for ${projectId}`); return; }
   const dest: Destination = { type: 'project-report', projectId, trigger, sessionId: '' };
   const queue = getOutboundQueue();
@@ -96,7 +94,7 @@ async function postProjectNotice(t: ThreadRecord, text: string): Promise<void> {
  *  Restore the persisted status message so resumed updates target the original message.
  *  Lifecycle hooks are resolved by the HookBus from the thread's persisted metadata. */
 export function buildResumeOptions(parent: ThreadRecord): RunThreadOptions | null {
-  const adapter = jobCtx.adapter;
+  const adapter = orchestrationAdapter();
   if (!adapter) return null;
   const m = parent.metadata;
   const dest: Destination = m?.resumeDest === 'interactive-reply'
@@ -122,7 +120,7 @@ export async function sealSuspendedStatusMsg(threadId: string, adapter?: Platfor
   const t = threadStore.get(threadId);
   const ref = t?.metadata?.statusMsgRef;
   if (!t || !ref) return;
-  const a = adapter ?? jobCtx.adapter;
+  const a = adapter ?? orchestrationAdapter();
   if (!a) return;
   const totalNumTurns = t.steps.reduce((acc, st) => acc + (st.numTurns || 0), 0);
   // Background seal: buildThreadSummary text, no interactive action blocks (no live user to click).
@@ -509,37 +507,21 @@ export async function notifyTaskParentThreads(
 
 type WakeFn = (channel: string, notice: string) => void | Promise<void>;
 
-/** Wake (or create) the session on a channel by routing a synthetic user message — the same
- *  mechanism the interactive thread-parent path uses. Shared by thread completion (fireThreadCallback),
- *  task completion (notifyTaskOriginSession), and top-of-tree ask_manager escalation (manager-qa).
- *  agentRunner.route find-or-creates the channel's session, so this works whether or not a live
- *  session still exists. */
-/** Message shape wakeSession routes. Exported so the guard side (agent-runner's human-backstop
- *  skip) and tests can stay in sync with the exact synthetic shape by construction. */
-export function buildSyntheticWakeMessage(
-  channel: string, notice: string, tag: string, systemOrigin: SystemTurnOrigin = 'task-callback',
-): IncomingMessage {
-  return {
-    ref: { conduit: channel, messageId: `cb_${tag}_${Date.now()}` },
-    text: notice,
-    senderId: SYNTHETIC_CALLBACK_SENDER,
-    systemOrigin,
-    isBot: false,
-    kind: 'user',
-    raw: { source: 'task-callback', tag },
-  };
-}
+/** The delivery origins a wake can carry — the chat hint names what woke the session. */
+type WakeOrigin = Extract<DeliveryOrigin, 'task-callback' | 'thread-callback' | 'subtask-question'>;
 
+/** Wake (or create) the session on a channel by delivering the notice as a user turn — the same
+ *  mechanism the interactive thread-parent path uses. Shared by thread completion
+ *  (fireThreadCallback) and task completion (notifyTaskOriginSession); top-of-tree ask_manager
+ *  escalation (manager-qa) calls the gateway directly. `deliverToSession` → `agentRunner.route`
+ *  find-or-creates the channel's session, so this works whether or not a live session still
+ *  exists, and it is where the synthetic message shape now lives (session-gateway.ts). */
 export async function wakeSession(
-  channel: string, notice: string, tag: string, systemOrigin: SystemTurnOrigin = 'task-callback',
+  channel: string, notice: string, tag: string,
+  origin: WakeOrigin = 'task-callback',
 ): Promise<void> {
-  const adapter = jobCtx.adapter;
-  if (!adapter) { log.error(`no adapter; cannot wake session on ${channel} (${tag})`); return; }
-  const message = buildSyntheticWakeMessage(channel, notice, tag, systemOrigin);
   log.info(`waking session on ${channel} for ${tag}`);
-  await agentRunner.route({
-    message, channel, adapter, threadAnchorId: null, hasFiles: false, userMessage: notice, agentMessage: notice,
-  });
+  await deliverToSession({ channel, text: notice, origin, tag });
 }
 
 /** Origin-session notice: a task created by an interactive session/agent finished — concise,
@@ -666,7 +648,7 @@ export async function closeResumedTaskLoop(
   if (m?.trigger !== 'task-dispatch' || !m?.taskId) return; // only dispatch threads close a task loop
   const task = readTaskFromDisk(m.taskProject || t.projectId, m.taskId);
   if (!task) return;
-  const publish = deps.publish ?? ((e) => jobCtx.bus?.publish(e));
+  const publish = deps.publish ?? ((e) => orchestrationBus()?.publish(e));
   if (task.status === 'done') {
     publish({
       type: 'task.completed', taskId: m.taskId,

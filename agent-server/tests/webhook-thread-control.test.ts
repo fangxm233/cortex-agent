@@ -13,7 +13,7 @@ vi.mock('../src/orchestration/thread-executor.js', () => ({
 import { CONFIG_DIR } from '../src/core/paths.js';
 import { threadStore } from '../src/store/thread-repo.js';
 import { loadConfig } from '../src/domain/threads/template-loader.js';
-import { ctx as jobCtx } from '../src/domain/scheduling/job-registry.js';
+import { setOrchestrationRuntime } from '../src/orchestration/runtime.js';
 import { createWebhookHandler } from '../src/orchestration/routing/webhook.js';
 import type {
   ProductionBenchmarkEvidenceContext, ThreadRecord, ThreadStatus,
@@ -48,14 +48,14 @@ beforeAll(() => {
     }));
   }
   loadConfig();
-  jobCtx.adapter = {
+  setOrchestrationRuntime({ adapter: {
     postMessage: vi.fn().mockResolvedValue(null),
     updateMessage: vi.fn().mockResolvedValue(undefined),
-  } as any;
+  } as any });
 });
 
 afterAll(async () => {
-  jobCtx.adapter = null;
+  setOrchestrationRuntime({ adapter: null });
   for (const id of createdThreadIds) await threadStore.delete(id);
   await threadStore.flush();
 });
