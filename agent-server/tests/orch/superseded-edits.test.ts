@@ -1,10 +1,18 @@
-// input:  orch/superseded-edits.ts
+// input:  turn/active-turns.ts — the `edit` supersede flag
 // output: regression tests — mark/check/clear lifecycle + edit-cancel race [S6-B]
-// pos:    verifies SupersededEdits state transitions and idempotent clear
+// pos:    verifies the edit-supersede state transitions and idempotent clear. The flag used to live
+//         in `orchestration/superseded-edits.ts`; it is per-channel turn state, so `ActiveTurns`
+//         owns it (T2.1) and the facade was deleted in T4.1 — the assertions are unchanged.
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { supersededEdits } from '../../src/orchestration/superseded-edits.js';
+import { activeTurns } from '../../src/orchestration/turn/active-turns.js';
+
+const supersededEdits = {
+  mark: (channel: string) => activeTurns.markSuperseded(channel, 'edit'),
+  check: (channel: string) => activeTurns.isSuperseded(channel, 'edit'),
+  clear: (channel: string) => activeTurns.clearSuperseded(channel, 'edit'),
+};
 
 // Each test uses a unique channel to avoid cross-test state bleed.
 let _seq = 0;

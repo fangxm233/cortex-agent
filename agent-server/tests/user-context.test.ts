@@ -39,7 +39,7 @@ function makeAgentConfig(overrides: Partial<AgentSlotConfig> = {}): AgentSlotCon
   } as AgentSlotConfig;
 }
 
-/** The exact composition `runConversation` performs (orchestration/conversation-runner.ts): a
+/** The exact composition a chat turn performs (orchestration/conversation-request.ts): a
  *  thread-free turn is the agent's template plus the first-turn ambient blocks, nothing else.
  *  Kept here so these tests keep pinning that one call site after P3.3b moved the composition
  *  into domain/runs/prompt.ts. */

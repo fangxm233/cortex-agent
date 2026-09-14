@@ -12,7 +12,8 @@ import * as askUserQuestion from '@orch/interactions/ask-user-question.js';
 import { sendPlanToSlack } from '@orch/interactions/plan-handler.js';
 import type { PlanApprovals } from '@orch/interactions/plan-approvals.js';
 import { interactionRecords as defaultInteractionRecords, type InteractionRecords } from '@orch/interactions/interaction-records.js';
-import { resolveRequest as resolveHookRequest, getStreamingCallback } from './hook-bridge.js';
+import { resolveRequest as resolveHookRequest } from './hook-bridge.js';
+import { activeTurns } from '../turn/active-turns.js';
 import { deliverToSessionDetached } from '../session-gateway.js';
 
 const log = createLogger('hook-bridge');
@@ -96,14 +97,14 @@ export function registerHookBridgeSubscribers(
       // capabilities can't distinguish channels).
       if (ev.channel.startsWith('feishu:')) {
         // Flush any pending streamed text so the form lands after it, in order.
-        const fstream = (getStreamingCallback(ev.channel) as any)?.stream as OutputStream | undefined;
+        const fstream = (activeTurns.streamingCallback(ev.channel) as any)?.stream as OutputStream | undefined;
         await fstream?.flush?.().catch(() => {});
         await adapter.openModal(ev.channel, askUserQuestion.buildQuestionModalDefinition(group));
         return;
       }
 
       // streamingCb is fetched only to extract the stream reference — not invoked directly for AskUser
-      const streamingCb = getStreamingCallback(ev.channel);
+      const streamingCb = activeTurns.streamingCallback(ev.channel);
       const stream = (streamingCb as any)?.stream as OutputStream | undefined;
       const levelIcon = askLevelIcon(ev.level ?? null);
       const text = `${levelIcon ? `${levelIcon} ` : ''}Questions (${group.questions.length})`;
@@ -146,7 +147,7 @@ export function registerHookBridgeSubscribers(
         return;
       }
 
-      const streamingCb = getStreamingCallback(ev.channel);
+      const streamingCb = activeTurns.streamingCallback(ev.channel);
       const stream = (streamingCb as any)?.stream as OutputStream | undefined;
       const planDest: Destination = { type: 'interactive-reply', conduit: ev.channel, sessionId: ev.sessionId ?? '' };
       if (streamingCb && ev.planContent) {

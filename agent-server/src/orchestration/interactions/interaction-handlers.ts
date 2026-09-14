@@ -5,7 +5,7 @@ import type { EventBus } from '@events/index.js';
 import { trackPendingTask } from '../busy-tracker.js';
 import { enqueue } from '../conduit-queue.js';
 import * as askUserQuestion from './ask-user-question.js';
-import { getStreamingCallback } from '../routing/hook-bridge.js';
+import { activeTurns } from '../turn/active-turns.js';
 import { resumeAskUserQuestionGroup } from './ask-user-resume.js';
 import { planApprovals } from './plan-approvals.js';
 import { runRegistry } from '../../core/run-registry.js';
@@ -194,7 +194,7 @@ function registerExitPlanModeHandlers(adapter: PlatformAdapter): void {
     if (!deliverPlanResponse(requestId, pending, false, feedback)) return;
     planApprovals.reject(requestId);
     const feedbackText = `${Icons.edit} ${t('interaction.planFeedbackSent', { feedback })}`;
-    const streamingCb = getStreamingCallback(pending.channel);
+    const streamingCb = activeTurns.streamingCallback(pending.channel);
     const feedbackDest: Destination = { type: 'interactive-reply', conduit: pending.channel, sessionId: '' };
     if (streamingCb) {
       streamingCb(feedbackText);

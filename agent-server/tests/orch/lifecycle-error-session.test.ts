@@ -2,7 +2,7 @@ import '../_test-home.js'; // MUST be first — isolates store singletons
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
-import { handleAgentError } from '../../src/orchestration/lifecycle.js';
+import { handleAgentError } from '../../src/orchestration/turn/terminal.js';
 import { sessionStore } from '../../src/store/session-registry-repo.js';
 import { getSessionAsync, setSessionAsync } from '../../src/domain/sessions/session.js';
 import { resolveBackendForChannel } from '../../src/domain/agents/index.js';

@@ -5,7 +5,7 @@
 // pos:    Pure helper for the M5 Ink client. Status frames are identified upstream by their
 //          `actions` rich-block; this parses their text into the bits the user wants shown.
 //
-// Source formats (src/core/status-format.ts + orchestration/lifecycle.ts):
+// Source formats (src/core/status-format.ts + orchestration/turn/terminal.ts):
 //   processing: "⏳ Processing | <name> · `<uuid>` | <profile> | ⏱️ <dur>[ | 🔁 <n> turns]"
 //   done/error: "✅ Done | <name> · `<uuid>` | (<dur> · <n> turns · $<cost>)"
 // Parsing is defensive: any missing field is simply omitted.

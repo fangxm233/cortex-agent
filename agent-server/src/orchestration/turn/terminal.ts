@@ -1,16 +1,14 @@
 // input:  a turn's terminal result or error
 // output: the success/failure finalization of a turn — the status seal, the ledger's turn
 //         completion, the error body, and the hand-off to the background-status hold
-// pos:    orchestration/turn — moved here verbatim from `lifecycle.ts` (Phase 1.4) so the Turn
-//         object owns its own terminal rendering. `lifecycle.ts` re-exports the two entry points:
-//         `tests/orch/lifecycle-*.test.ts` and the surfaces that end a turn without a Turn
-//         (edit-handler, session-rewind) still import them from there. Phase 4 turns them into
-//         private methods of `Turn`.
+// pos:    orchestration/turn — the terminal rendering the Turn object owns (moved here verbatim
+//         from the retired `lifecycle.ts` in Phase 1.4). The two entry points are also called
+//         directly by the surfaces that end a turn without a Turn (edit-handler, session-rewind).
 import { createLogger } from '@core/log.js';
 import { t } from '../../core/i18n.js';
 import type { Destination, PlatformAdapter, MessageRef, OutputStream } from '@platform/index.js';
 import type { AgentResult } from '@core/types/agent-types.js';
-import { supersededEdits } from '../superseded-edits.js';
+import { activeTurns } from './active-turns.js';
 
 import { renderTurnStatus, computeElapsed, formatMetricsSuffix, sealStatus, buildSealedStatusActionBlocks } from '../status-helpers.js';
 import { setSessionAsync } from '@domain/sessions/session.js';
@@ -116,8 +114,8 @@ export async function handleAgentError({ error, channel, adapter, statusMsg, sta
   const resolvedSessionId = effectiveSessionId || sessionId;
   const { elapsedStr, elapsedS } = computeElapsed(startTime);
 
-  if (error?.cancelled && supersededEdits.check(channel)) {
-    supersededEdits.clear(channel);
+  if (error?.cancelled && activeTurns.isSuperseded(channel, 'edit')) {
+    activeTurns.clearSuperseded(channel, 'edit');
     const supersededText = renderTurnStatus({ kind: 'superseded' }, { sessionName, sessionId: resolvedSessionId, elapsedStr });
     await sealStatus(adapter, statusMsg, supersededText, buildSealedStatusActionBlocks(supersededText, { channel, sessionName, isDm: true }));
     return;

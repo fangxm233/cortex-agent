@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { handleSendSession } from '../../src/domain/ui-service/mutate/sessions.js';
 import { AgentRunner } from '../../src/orchestration/agent-runner.js';
 import { rewindWebSession, type RewindDeps } from '../../src/orchestration/session-rewind.js';
-import { sendWebUserMessage } from '../../src/orchestration/session-send.js';
+import { deliverToSessionDetached } from '../../src/orchestration/session-gateway.js';
 import { tryAcquireTurnMutationLock } from '../../src/orchestration/turn-mutation-lock.js';
 import { MockAdapter } from '../../src/platform/testing.js';
 
@@ -72,8 +72,8 @@ function acceptSend(channel: string, text: string, adapter: MockAdapter, runner:
   return handleSendSession({
     sessionStore: { getById: async () => ({ channel }), touchForUse: async () => true },
     sendSessionMessage: (opts: { channel: string; text: string }) => {
-      sendWebUserMessage({
-        channel: opts.channel, text: opts.text, adapter,
+      deliverToSessionDetached({
+        channel: opts.channel, text: opts.text, adapter, origin: 'web-user',
         route: (ctx) => runner.route(ctx),
       });
     },
@@ -131,8 +131,8 @@ test('a rewind transfers its admission to the edited resend ahead of waiting sen
       },
     },
     send: (opts) => {
-      sendWebUserMessage({
-        channel: opts.channel, text: opts.text, adapter,
+      deliverToSessionDetached({
+        channel: opts.channel, text: opts.text, adapter, origin: 'web-user',
         mutationRelease: opts.mutationRelease,
         route: (ctx) => runner.route(ctx),
       });

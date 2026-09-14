@@ -43,7 +43,9 @@ The foundation layer. Contains only pure TypeScript with no runtime dependencies
 | `cli-utils.ts` | `formatHelp`, `formatError`, `readStdinSync`, `cliError` — shared CLI formatting |
 | `status-format.ts` | Pure formatting: `computeElapsed`, `formatMetricsSuffix`, `buildSessionTag`, `buildUserProcessingMessage` |
 | `task-parser.ts` | Task interface definition, YAML parsing/serialization with kebab↔snake_case key mapping, `scanAllTasks`, `scanAvailableTasks`, `filterTasks`, `getTaskStats` |
-| `run-registry.ts` | `RunRegistry` — the single in-memory index of live runs and background holds. Answers `sessionState(sessionId)` and publishes `agent.*` lifecycle events to the EventBus |
+| `run-registry.ts` | `RunRegistry` — the single in-memory index of the executions that are live right now, keyed by executionId and indexed by thread and channel. Publishes the `agent.*` lifecycle events to the EventBus |
+| `session-holds.ts` | `SessionHolds` — the other half of "is this session busy": a turn that ended while background work continues, with per-owner handles, supersede and stop |
+| `session-state.ts` | `sessionState(sessionId)` / `channelEngineBusy()` — the one join of live executions and holds, and the only place that answers whether a session is busy |
 | `types/agent-types.ts` | `AgentResult`, `AgentHandle`, `AgentProgress`, `AskUserQuestionInfo` |
 | `types/thread-types.ts` | Full thread type family: `ThreadRecord`, `AgentDefinition`, `ThreadTemplate`, `TransitionRule`, `HookConfig`, `RunThreadOptions`, `AgentStep`, and more |
 | `config-generator.ts` | Config file initialization for new installs |
@@ -101,7 +103,7 @@ The thickest layer. Contains 23 subdirectories, each encapsulating a domain conc
 | Subdirectory | Purpose |
 |-------------|---------|
 | `agents/` | Profiles, subagent roles and credentials: what a run may be configured as. Starting one belongs to `runs/` |
-| `runs/` | The run layer: `startRun` and the `AgentRun` ownership object, `RunRequest` profile/spec/prompt resolution, the backend-neutral `RunEvent` stream, and the `SessionEngines` pool |
+| `runs/` | The run layer: `startRun` and the `AgentRun` ownership object, `RunRequest` profile/spec/prompt resolution and its shared builders (`builders.ts`), the backend-neutral `RunEvent` stream, and the `SessionEngines` pool |
 | `sessions/` | Session lifecycle. Hook pipeline (onNew, onMessageEnd) with VirtualMessage display and optional agent injection |
 | `tasks/` | Full task system: YAML parsing, dispatch, archiving, pending tracking, lock management, CLI (`cortex-task`), verification |
 | `executions/` | Thin re-export over `store/execution-repo.ts` with lock-release side effect: every terminal transition auto-releases task locks |
@@ -122,11 +124,21 @@ layer) is detailed in [hooks.md](./hooks.md).
 |------|---------|
 | `channel-queue.ts` | Per-channel serial Promise queue. Ensures only one agent runs per channel at a time |
 | `orchestrator.ts` | Two-branch decision tree: if `!thread` command → `ThreadExecutor`, else → `AgentRunner` (default single-agent path) |
-| `agent-runner.ts` | Default-agent execution path. Creates a `default` thread pre-execution, runs it, manages streaming and interactive callbacks |
+| `agent-runner.ts` | Admission for the default-agent path: routing, mid-turn injection, queueing, and the session/lease/browser resolution a turn needs. The turn body itself belongs to `turn/turn.ts` |
+| `session-gateway.ts` | `deliverToSession()` — the one door into a conversation turn for everything that is not an inbound platform message (web sends, agent results, resumes, thread/task callbacks) |
+| `runtime.ts` | The `PlatformAdapter` + `EventBus` orchestration holds, injected once by the composition root |
+| `conversation-request.ts` | `prepareConversationRequest()` — assembles a plain chat turn's `RunRequest`: agent spec plus the first-turn ambient blocks |
+| `turn/turn.ts` | `Turn` / `openTurn()` — the single owner of one conversation turn: status message, ledger turn tracking, session lease, `startRun`, observer fan-out, terminal render, the `running:true/false` bracket |
+| `turn/turn-prep.ts` | What a caller resolves before `openTurn`: the turn's files, its session record and use lease, the browser endpoint the session opted into |
+| `turn/terminal.ts` | A turn's terminal rendering: status seal, the ledger's turn completion, the error body, error-session persistence |
+| `turn/turn-tracking.ts` | The ledger half of a turn's bookkeeping: begin, snapshot, accept, and the supersede-while-pending window |
+| `turn/active-turns.ts` | Per-channel turn state: which `Turn` is live, the streaming callback it registered, the edit-supersede flag |
+| `turn/background-hold.ts` | One hold lifecycle for "the turn is over but the session is not": busy bracket, `SessionHolds` registration, run subscription, six terminal verdicts |
+| `turn/hold-render-platform.ts` | The Slack/Feishu rendering of a held turn — the status line while the background phase runs, and its seal |
+| `turn/hold-render-web.ts` | The web rendering of a held turn — the continuation's prose, tools and notices on the session event stream |
 | `thread-executor.ts` | Thread routing: handles `!thread start`, `!thread add`, thread continuation, user message buffering during running steps |
 | `busy-tracker.ts` | Tracks active LLM count, sends IPC `busy`/`idle` to parent daemon process |
-| `lifecycle.ts` | Agent success/error handling, edit retry, AskUserQuestion resume, turn tracking |
-| `superseded-edits.ts` | Message edit supersede markers |
+| `human-answer-backstop.ts` | Leaf registry of channels waiting on a human's free-text reply, consulted by every entry into a session so the answer is consumed instead of opening a turn |
 | `dispatch-reconciler.ts` | Background timer for stale dispatch cleanup |
 | `routing/message-router.ts` | Slack message entry point. Parses `!thread` commands, normalizes skill commands, delegates to orchestrator |
 | `routing/commands/` | 14 `!command` handlers: `cancel`, `channel`, `cost`, `device`, `dispatch`, `mode`, `nvtop`, `orient`, `schedule`, `sendfile`, `session`, `status`, `tail`, `task`, `thread` |

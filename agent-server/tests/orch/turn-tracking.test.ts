@@ -7,7 +7,7 @@ import {
   initTurnTracking,
   isTurnTrackingPending,
   markPendingTurnSuperseded,
-} from '../../src/orchestration/lifecycle.js';
+} from '../../src/orchestration/turn/turn-tracking.js';
 import {
   acquireTurnMutationLock,
   tryAcquireTurnMutationLock,

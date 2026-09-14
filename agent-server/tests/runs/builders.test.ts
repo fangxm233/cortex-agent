@@ -194,7 +194,11 @@ describe('continuationRunRequest — ask-user-resume', () => {
   });
 });
 
-// --- 3. orchestration/status-helpers.ts (runAutoCompoundForScheduledTask) ---
+// --- 3. the auto-compound shape (was orchestration/status-helpers.ts) ---
+// T4.1 deleted `runAutoCompoundForScheduledTask`: it had no caller anywhere in src/ (dead since the
+// initial import). The literal below is kept as a pure builder case — it is the only coverage of a
+// continuation whose session id doubles as its backend resume target and whose profile is resolved
+// from a profile name rather than a channel.
 
 function legacyAutoCompound(i: {
   baseSessionId: string | null; channel: string; profile: ResolvedProfileConfig;

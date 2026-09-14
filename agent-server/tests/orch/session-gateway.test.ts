@@ -80,6 +80,19 @@ test('delivery routes a fully-formed turn ctx through the runtime adapter', asyn
   assert.equal(routed[0].message.senderId, WEB_UI_SENDER);
 });
 
+test('delivery forwards the origin\'s system origin onto the routed message', async () => {
+  // Migrated from the deleted `session-send.test.ts`, where the wrapper passed the tag explicitly;
+  // the origin now carries it, so the assertion holds through `deliverToSession` unchanged.
+  setOrchestrationRuntime({ adapter: { name: 'mock' } as any });
+  const calls: any[] = [];
+  await deliverToSession({
+    channel: 'C123', text: 'delivered', origin: 'agent-result',
+    route: async (ctx) => { calls.push(ctx); },
+  });
+
+  assert.equal(calls[0].message.systemOrigin, 'agent-result');
+});
+
 test('delivery with nowhere to go is dropped, not queued for hours later', async () => {
   const routed: any[] = [];
   await deliverToSession({

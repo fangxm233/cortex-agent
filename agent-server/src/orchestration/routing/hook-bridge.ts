@@ -1,5 +1,4 @@
 import { createLogger } from '@core/log.js';
-import { activeTurns } from '../turn/active-turns.js';
 import type { EventBus } from '@events/index.js';
 import type { ChatNoticeLevel } from '@core/types/agent-types.js';
 
@@ -24,16 +23,6 @@ let _bus: EventBus | null = null;
 function initHookBridge(bus: EventBus): void {
   _bus = bus;
 }
-
-// --- Deprecated notification callbacks (kept as no-op stubs for one week; removed after 2026-05-09) ---
-
-type QuestionNotify = (requestId: string, channel: string, sessionId: string, questions: any[]) => void;
-type PlanNotify = (requestId: string, channel: string, sessionId: string, planContent: string, toolInput: any) => void;
-
-/** @deprecated no-op since S5; replaced by bus.subscribe('ask-user.requested') in app.ts */
-function setQuestionNotify(_cb: QuestionNotify): void { /* no-op, deprecated */ }
-/** @deprecated no-op since S5; replaced by bus.subscribe('plan.submitted') in app.ts */
-function setPlanNotify(_cb: PlanNotify): void { /* no-op, deprecated */ }
 
 // --- Registration (called by webhook routes, blocks until Slack interaction completes) ---
 
@@ -124,24 +113,6 @@ function cleanupStale(now: number = Date.now()) {
 // Run cleanup every 5 minutes
 setInterval(() => cleanupStale(), 5 * 60 * 1000).unref();
 
-// --- Per-channel streaming context (for thread-aware hook messages) ---
-
-// T2.1: the slot itself moved to `turn/active-turns.ts` (it is per-channel turn state, not an
-// execution index). These stay as thin wrappers because `hook-bridge-subscribers.ts` and
-// `interactions/interaction-handlers.ts` still import `getStreamingCallback`; Phase 4 points those
-// at `activeTurns` and deletes these. `clearStreamingCallback` left with `status-renderer.ts`
-// (T2.2) — the background hold's renderer calls `activeTurns` directly.
-
-/** Register the active onAssistantMessage callback for a channel (called by the Turn). */
-function setStreamingCallback(channel: string, cb: (text: string) => void) {
-  activeTurns.setStreamingCallback(channel, cb);
-}
-
-/** Get the active streaming callback for a channel, if any. */
-function getStreamingCallback(channel: string): ((text: string) => void) | null {
-  return activeTurns.streamingCallback(channel);
-}
-
 /**
  * Publish plan.submitted directly (non-blocking, no pendingRequest).
  * Used by PI backend: the resolution goes through respondToDialog, not resolveRequest.
@@ -170,4 +141,4 @@ function publishAskUserRequested(requestId: string, channel: string, sessionId: 
   _bus.publish({ type: 'ask-user.requested', requestId, channel, sessionId, threadId: threadId ?? null, questions, extensionUiId });
 }
 
-export { initHookBridge, setQuestionNotify, setPlanNotify, registerAskQuestion, registerPlanApproval, resolveRequest, setOnStale, cleanupStale, setStreamingCallback, getStreamingCallback, publishPlanSubmitted, publishAskUserRequested };
+export { initHookBridge, registerAskQuestion, registerPlanApproval, resolveRequest, setOnStale, cleanupStale, publishPlanSubmitted, publishAskUserRequested };

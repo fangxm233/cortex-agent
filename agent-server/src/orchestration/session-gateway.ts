@@ -80,9 +80,6 @@ export interface DeliverToSessionOptions {
   raw?: Record<string, unknown>;
   /** Hand an already-held turn-mutation admission to the turn instead of taking a new one. */
   mutationRelease?: TurnMutationRelease;
-  /** Override the origin's systemOrigin tag. Only the transitional `sendWebUserMessage` wrapper
-   *  uses it; delete with that wrapper (plan Phase 4). */
-  systemOrigin?: SystemTurnOrigin;
   /** Adapter override. Production leaves it unset and takes the one the runtime holds. */
   adapter?: PlatformAdapter;
   /** Route seam for tests (resume-dispatcher and session-rewind inject their own). */
@@ -93,10 +90,9 @@ export interface DeliverToSessionOptions {
 export function buildDeliveryMessage(opts: {
   channel: string; text: string; origin: DeliveryOrigin;
   attachments?: AttachmentMeta[]; tag?: string; raw?: Record<string, unknown>;
-  systemOrigin?: SystemTurnOrigin;
 }): IncomingMessage {
   const spec = ORIGINS[opts.origin];
-  const systemOrigin = opts.systemOrigin ?? spec.systemOrigin;
+  const systemOrigin = spec.systemOrigin;
   const messageId = spec.prefix === 'cb'
     ? `cb_${opts.tag ?? opts.origin}_${Date.now()}`
     : `${spec.prefix}_${Date.now()}`;

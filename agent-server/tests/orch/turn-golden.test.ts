@@ -54,7 +54,7 @@ import type { AgentResult } from '../../src/core/types/agent-types.js';
 import type { Destination, MessageContent, MessageRef, PostMessageOpts } from '../../src/platform/types.js';
 import type { AgentRun } from '../../src/domain/runs/run.js';
 import { AgentRunner } from '../../src/orchestration/agent-runner.js';
-import { markPendingTurnSuperseded } from '../../src/orchestration/lifecycle.js';
+import { markPendingTurnSuperseded } from '../../src/orchestration/turn/turn-tracking.js';
 import { getOrchestrationRuntime, setOrchestrationRuntime } from '../../src/orchestration/runtime.js';
 import { conversationLedger } from '../../src/store/conversation-ledger-repo.js';
 import { sessionStore } from '../../src/store/session-registry-repo.js';

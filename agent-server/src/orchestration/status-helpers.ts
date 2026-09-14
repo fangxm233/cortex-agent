@@ -3,15 +3,8 @@ import { getSettings } from '@core/settings.js';
 import { Icons } from '../core/icons.js';
 import { t } from '../core/i18n.js';
 import type { Destination, PlatformAdapter, MessageRef, IncomingAttachment, RichBlock, ActionElement, OutputStream } from '@platform/index.js';
-import type { AgentResult } from '@core/types/agent-types.js';
 import type { ExecutionRecord } from '@domain/executions/registry.js';
 import * as executionRegistry from '@domain/executions/registry.js';
-import { resolveProfileConfig } from '@domain/agents/profile-manager.js';
-import { startRun } from '@domain/runs/service.js';
-import type { RunObserver, RunRequest } from '@domain/runs/request.js';
-import { continuationRunRequest } from '@domain/runs/builders.js';
-import type { RunEvent } from '@domain/runs/events.js';
-import { shouldAutoRunCompound, combineFinalOutputs } from '@domain/threads/auto-thread.js';
 import { buildThreadSummary } from '@domain/threads/runner.js';
 import type { ThreadRunResult } from '@domain/threads/runner.js';
 import { projectStore } from '@domain/projects/index.js';
@@ -68,45 +61,6 @@ export function makeFallbackNotifier(channel: string, statusMsg: MessageRef | nu
       `${fromConfig.model}/${fromConfig.mode || 'default'}`,
       `${toConfig.model}/${toConfig.mode || 'default'}`,
     );
-  };
-}
-
-export async function runAutoCompoundForScheduledTask({ baseResult, channel, profileName, project, trigger, onAssistantMessage = null }: { baseResult: AgentResult; channel: string; profileName: string | null; project?: string; trigger?: string; onAssistantMessage?: ((text: string) => void) | null }): Promise<AgentResult> {
-  if (!shouldAutoRunCompound(baseResult?.finalOutput)) return baseResult;
-  const compoundTrigger = trigger ? `${trigger}:compound` : 'auto-compound';
-  // The compound follow-up is a fresh local run against the same session. Its backend session id
-  // is the base result's id (no separate Cortex track id exists for it), so both the track and the
-  // backend resume target carry it, and the pool key stays the channel every other interactive
-  // turn opens its engine under.
-  // `background: 'none'` (from DIRECT_RUN_POLICY): with no threadId the background policy resolves
-  // to "do not wait inline" (see shouldAwaitBgInline), so the compound run never holds for
-  // background work.
-  const request: RunRequest = continuationRunRequest({
-    session: {
-      sessionId: baseResult?.sessionId || null,
-      backendSessionId: baseResult?.sessionId || null,
-      engineKey: channel,
-      sessionName: null,
-    },
-    profile: resolveProfileConfig(profileName),
-    prompt: '/compound-simple',
-    channel,
-    project: project ?? 'general',
-    trigger: compoundTrigger,
-  });
-  const observer: RunObserver = {
-    onEvent(event: RunEvent): void {
-      if (event.type === 'assistant_text') onAssistantMessage?.(event.text);
-    },
-  };
-  const run = startRun(request, [observer]);
-  const compoundResult = await run.result;
-  return {
-    ...baseResult,
-    sessionId: compoundResult?.sessionId || baseResult?.sessionId || null,
-    total_cost_usd: (baseResult?.total_cost_usd || 0) + (compoundResult?.total_cost_usd || 0),
-    num_turns: (baseResult?.num_turns || 0) + (compoundResult?.num_turns || 0),
-    finalOutput: combineFinalOutputs(baseResult?.finalOutput, compoundResult?.finalOutput),
   };
 }
 

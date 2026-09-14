@@ -53,10 +53,10 @@ export async function resumeAskUserQuestionGroup({ adapter, group, responseText 
             engineKey: group.channel,
             sessionName: ids.sessionName,
           },
-          // `resolveRunProfile(null, channel)` resolved `resolveProfileConfig(null)`, i.e. the
-          // DEFAULT profile — never the channel's. Spelled out as an explicit override so deleting
-          // run-profile.ts changes no behaviour (see T1.3's report: the plan's §3 change 2 would
-          // make this the channel's profile instead, which is a decision for the reviewer).
+          // The retired `resolveRunProfile(null, channel)` resolved `resolveProfileConfig(null)`,
+          // i.e. the DEFAULT profile — never the channel's. Spelled out as an explicit override so
+          // that module's deletion changed no behaviour (see T1.3's report: the plan's §3 change 2
+          // would make this the channel's profile instead, which is a decision for the reviewer).
           profile: resolveRunConfig({ channel: group.channel, override: getDefaultProfileName() }).profile,
           prompt: responseText,
           channel: group.channel,

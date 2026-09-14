@@ -173,8 +173,8 @@ export async function buildReadyStepPrompt(
  * carries the bootstrap, and which buffered user replies ride along.
  *
  * Thread steps deliberately carry NO user profile and no project/commission block — only
- * thread-free conversation turns do (see conversation-runner). That keeps multi-agent pipelines
- * profile-agnostic.
+ * thread-free conversation turns do (see orchestration/conversation-request.ts). That keeps
+ * multi-agent pipelines profile-agnostic.
  */
 export function buildStepPrompt(
   threadId: string,

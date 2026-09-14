@@ -21,7 +21,8 @@ import * as executionRegistry from '@domain/executions/registry.js';
  *  channel to `exec.sessionId` (the BACKEND CLI's own id) "to preserve the session" — but the
  *  channel is bound to the stable TRACK id, so that rebind pointed it at an id unknown to the
  *  session registry and the next message minted a brand-new session. Backend-resume-target
- *  persistence on an interrupted turn is handled by runConversation's settle hook instead. */
+ *  persistence on an interrupted turn is handled by the Turn's settle-time backstop instead
+ *  (`turn/turn.ts` → `resume-target-sink.ts`). */
 async function cancelLive(exec: RunningExecution): Promise<void> {
   if (exec.threadId) await cancelThreadById(exec.threadId).catch(() => {});
   if (exec.executionId) {

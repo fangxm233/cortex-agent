@@ -1,7 +1,7 @@
 import '../_test-home.js'; // MUST be first — isolates store singletons
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { handleAgentError } from '../../src/orchestration/lifecycle.js';
+import { handleAgentError } from '../../src/orchestration/turn/terminal.js';
 import { initRateLimitThrottle, handleRateLimitEvent, _testReset as throttleReset } from '../../src/domain/costs/rate-limit-throttle.js';
 import { initResumeRegistry, getResumeCount, takeAllResumes, _testReset as resumeReset } from '../../src/domain/costs/resume-registry.js';
 import { MockAdapter } from '../../src/platform/testing.js';

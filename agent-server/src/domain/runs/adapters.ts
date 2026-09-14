@@ -33,7 +33,7 @@ const PI_ADAPTER = new PIAdapter(undefined, DEFAULT_SESSION_DIR, piProviderDisco
     // Late-bound on purpose: registering a background run reaches the delivery route in
     // `orchestration/`, which domain may not import. The composition root registers the real
     // implementation at boot (see `setPiBackgroundSubagentBridge`), the same way
-    // `setSubagentTurnSender` and `registerTaskTreeSubscribers` are bound.
+    // `setOrchestrationRuntime` and `registerTaskTreeSubscribers` are bound.
     startBackgroundSubagent: (request) => (piBackground.start
       ? piBackground.start(request)
       : Promise.reject(new Error('run_in_background is unavailable in this session.'))),

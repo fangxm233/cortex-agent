@@ -279,7 +279,7 @@ export function resolveNextStep(threadId: string): NextStepInfo | null {
 // --- Step session identity (track/backend id decoupling) ---
 
 /** Prepare the slot's session ids for a step about to run, mirroring the direct path's
- *  trackSessionId/backendSessionId split (conversation-runner):
+ *  trackSessionId/backendSessionId split (orchestration/conversation-request.ts + turn/turn.ts):
  *  - `trackSessionId` (slot.sessionId) — stable Cortex id, the conversation-history / UI
  *    transcript key + CORTEX_SESSION_ID. Minted HERE (before the agent spawns) and persisted,
  *    so a RUNNING step is queryable/streamable by the web UI. persistSession slots keep it

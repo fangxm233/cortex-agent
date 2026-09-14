@@ -5,8 +5,10 @@
 // pos:    orchestration/turn — the channel-keyed half of §1.2's busy-state consolidation, the
 //         counterpart of core/session-holds.ts (which is session-keyed). Before T2.1 the same
 //         three facts lived in three places: RunRegistry's streaming slot, `superseded-edits.ts`
-//         and this ledger. `superseded-edits.ts` is now a re-export of the flag kept here and
-//         hook-bridge's set/get/clearStreamingCallback delegate to the slot kept here.
+//         and this ledger. Both of those are gone (T4.1): the edit flag and the streaming slot are
+//         the ones kept here, and their readers — `turn/terminal.ts`, `routing/edit-handler.ts`,
+//         `routing/hook-bridge-subscribers.ts`, `interactions/interaction-handlers.ts` — call this
+//         class directly.
 //
 //         NOT merged: turn-tracking's three module Maps. The supersede-while-pending window they
 //         guard is timing-sensitive (`consumePendingTurnSupersession` runs between ledger begin

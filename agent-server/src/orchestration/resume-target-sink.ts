@@ -4,12 +4,13 @@
 //         sibling: that one records what was said, this one records where to say it next)
 //
 // Why this exists: the resume target used to reach disk only when the turn SETTLED
-// (`runConversation`'s finally, fix 9809d9a3). That covers an error or a Stop, because both settle
-// the run — but not the process dying mid-turn (crash, OOM, `daemon restart --hard`: the SIGTERM
-// handler closes the engines and exits without letting a run settle). A session killed that way in
-// its FIRST turn kept `backendSessionId: null`, so the next message opened a brand-new backend
-// conversation and the transcript already on disk was orphaned — Claude's id is a fresh UUID minted
-// at spawn, derivable from nothing. Turn 2+ was never exposed: turn 1 had written the pointer.
+// (the turn's own finally — `turn/turn.ts` today, `runConversation`'s then; fix 9809d9a3). That
+// covers an error or a Stop, because both settle the run — but not the process dying mid-turn
+// (crash, OOM, `daemon restart --hard`: the SIGTERM handler closes the engines and exits without
+// letting a run settle). A session killed that way in its FIRST turn kept `backendSessionId: null`,
+// so the next message opened a brand-new backend conversation and the transcript already on disk
+// was orphaned — Claude's id is a fresh UUID minted at spawn, derivable from nothing. Turn 2+ was
+// never exposed: turn 1 had written the pointer.
 //
 // So the pointer is written as early as each backend can name it:
 //   - Claude mints `--session-id` at spawn, so the id exists before the first token
@@ -67,7 +68,7 @@ export interface ResumeTargetSink extends RunObserver {
  *
  * Writes are serialized on a promise chain so two announcements in the same turn cannot land out of
  * order, and a failure is logged rather than thrown: a registry write must never be the thing that
- * breaks a turn — the settle-time backstop in `runConversation` gets another chance.
+ * breaks a turn — the settle-time backstop in `turn/turn.ts` gets another chance.
  */
 export function createResumeTargetSink(opts: ResumeTargetSinkOptions): ResumeTargetSink {
   const deps: ResumeTargetSinkDeps = { ...DEFAULT_DEPS, ...opts.deps };
