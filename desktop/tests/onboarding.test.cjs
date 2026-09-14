@@ -237,3 +237,13 @@ test('a natively decorated shell draws no chrome of its own', () => {
   assert.equal(header.getAttribute('data-tauri-drag-region'), null);
   assert.deepEqual(header.children, []);
 });
+test('the title bar grows by the safe-area inset instead of squeezing into it', () => {
+  const rule = readFileSync(join(ui, 'shell.css'), 'utf8').match(/\.app-header \{[^}]*\}/)[0];
+  // box-sizing is border-box and the Android bar is full-bleed under the status bar, so the inset
+  // has to be added to the height: a bare `height: 56px` leaves the inset eating the row and the
+  // brand plus the language toggle end up straddling the bar's bottom border.
+  assert.match(rule, /height: calc\(56px \+ env\(safe-area-inset-top\)\)/);
+  assert.match(rule, /padding-top: env\(safe-area-inset-top\)/);
+  // The plain height stays first as the fallback for a webview without env().
+  assert.ok(rule.indexOf('height: 56px;') < rule.indexOf('height: calc('), 'keep the fallback height');
+});

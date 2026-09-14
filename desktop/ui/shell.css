@@ -1,4 +1,4 @@
-/* input:  shared theme tokens, native setup markup, title-bar caption mode
+/* input:  shared theme tokens, native setup markup, title-bar caption mode, Android safe-area inset
    output: unified connection and installation appearance with an app-drawn title bar
    pos:    Settings-style chrome for native onboarding
    >>> Once updated, update this header and the parent CORTEX.md <<< */
@@ -21,7 +21,11 @@ a { color: var(--proto-accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 svg { flex: none; }
 .app-header {
-  height: 56px; display: flex; align-items: center; gap: 12px;
+  /* box-sizing is border-box, so the inset has to be part of the height: on Android the bar is
+     full-bleed under the status bar and the inset is 30px+, which would otherwise eat the whole
+     row and push the brand and the language toggle across the bar's bottom border. */
+  height: 56px; height: calc(56px + env(safe-area-inset-top));
+  display: flex; align-items: center; gap: 12px;
   background: var(--proto-rail); border-bottom: 1px solid var(--proto-line);
   padding: 0 28px; padding-top: env(safe-area-inset-top);
 }
