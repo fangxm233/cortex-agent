@@ -250,7 +250,9 @@ test('integration: real captured line sequence becomes the background RunEvents 
   assert.match(text, /Background task done: DONE/);
   const continuation = events.filter((e) => 'phase' in e && e.phase === 'background');
   assert.ok(continuation.some((e) => e.type === 'assistant_text'), 'the continuation text is background');
-  assert.ok(continuation.some((e) => e.type === 'background_result'), 'the terminal result is background');
+  // `background_result` is the run's own terminal kind and carries no `phase` tag — the type
+  // itself is the phase, so it is asserted on the whole stream, not the phased subset.
+  assert.ok(events.some((e) => e.type === 'background_result'), 'the terminal result is background');
   const settled = backgroundResults(events);
   assert.equal(settled.length, 1, 'exactly one terminal background result');
   assert.equal(settled[0].result.pendingBackgroundTasks, 0, 'no work left — the surfaces seal');
@@ -403,8 +405,10 @@ test('run: notification observed mid-turn without its own turn yet → result ow
   session.handleLine(RESULT_CONT);
   await run.settled;
   await done;
-  assert.equal(results.length, 2);
-  assert.equal(results[1].result.undeliveredBackgroundTasks, 0, 'nothing owed after turn B');
+  // `backgroundResults` is a filtered snapshot, so it has to be re-read after turn B lands.
+  const allResults = backgroundResults(events);
+  assert.equal(allResults.length, 2);
+  assert.equal(allResults[1].result.undeliveredBackgroundTasks, 0, 'nothing owed after turn B');
 });
 
 test('handleLine: notification folded into the active turn (replay echo) owes nothing at result', (t) => {

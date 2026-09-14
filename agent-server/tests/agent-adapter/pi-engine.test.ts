@@ -54,6 +54,9 @@ test('open().run() yields the phased events, in order, for a scripted PI turn', 
   // including the terminal marker the engine drops.
   assert.deepEqual(raw, [
     { type: 'session_started', sessionId: 'fake-pi-engine-parity', sessionFile: runtime.sessionFile },
+    // The session's default `streamDeltas` keeps the per-token preview event AND the whole
+    // buffered message; both are part of the real wire record the tap forwards.
+    { type: 'assistant_delta', text: 'hello', blockId: 'msg-1' },
     { type: 'assistant_text', text: 'hello', blockId: 'msg-1' },
     { type: 'turn_progress', numTurns: 1 },
     {
@@ -76,6 +79,9 @@ test('open().run() yields the phased events, in order, for a scripted PI turn', 
     planFilePath: null,
     enteredPlanMode: false,
     exitedPlanMode: false,
+    // PI's `buildAgentResult` always writes the key (undefined when the turn asked nothing), and
+    // the strict comparison pins that own property rather than treating an absent key as equal.
+    askUserQuestions: undefined,
     finalOutput: null,
   };
   // The RunEvent stream is the tapped protocol record phased foreground, minus `turn_complete`

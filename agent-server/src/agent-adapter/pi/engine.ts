@@ -134,6 +134,10 @@ export class PIEngineSession implements EngineSession {
     // A failed foreground turn fails the WHOLE run: `settled` has to carry the same rejection, or a
     // terminal tally awaiting it hangs instead of reporting the failure.
     deferred.promise.catch((error) => settled.reject(error));
+    // Same reason as `result` above, for the other promise: a caller that only awaits the
+    // foreground turn (or abandons a retried attempt) must not turn a failure into an unhandled
+    // rejection. A real awaiter still observes it.
+    settled.promise.catch(() => undefined);
     // PI's turn events arrive on a stream of their own while the turn promise settles beside it,
     // so the two ends can land in either order. The run's stream may only be closed once the
     // turn's events have all been forwarded — otherwise a phase that seals early would drop the

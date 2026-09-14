@@ -169,8 +169,11 @@ export class ClaudeEngineSession implements EngineSession {
     // terminal tally awaiting it hangs instead of reporting the failure.
     deferred.promise.catch((error) => settled.reject(error));
     // The caller observes rejection through `EngineRun.result`; this only prevents an unhandled
-    // rejection when a consumer reads `events` without awaiting `result`.
+    // rejection when a consumer reads `events` without awaiting `result`. `settled` needs the same
+    // guard for the same reason: a caller that only awaits the foreground turn (or abandons a
+    // retried attempt) must not turn a failure into an unhandled rejection.
     deferred.promise.catch(() => undefined);
+    settled.promise.catch(() => undefined);
 
     return {
       events: {
