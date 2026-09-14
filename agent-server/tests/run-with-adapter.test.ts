@@ -720,7 +720,7 @@ test('attempt: a hold publishes the foreground result while the background work 
 
 // ── conditional compaction notice ────────────────────────────────────────
 
-test('run: context_compacted notifies only when CORTEX_NOTIFY_COMPACTION=1', async (t) => {
+test('run: context_compacted notifies by default and goes quiet at CORTEX_NOTIFY_COMPACTION=0', async (t) => {
   const prev = process.env.CORTEX_NOTIFY_COMPACTION;
   t.onTestFinished(() => {
     if (prev === undefined) delete process.env.CORTEX_NOTIFY_COMPACTION;
@@ -737,19 +737,19 @@ test('run: context_compacted notifies only when CORTEX_NOTIFY_COMPACTION=1', asy
     processSpawner: (() => ({ process: scriptedClaudeChild(script) })) as never,
   }, CLAUDE);
 
-  // OFF (env unset): no notification.
+  // DEFAULT (env unset): the setting is on out of the box, so the notice appears.
   delete process.env.CORTEX_NOTIFY_COMPACTION;
+  resetSettingsForTests();
+  const byDefault = collector();
+  await openRun(request(), [byDefault.observer]).settled;
+  assert.deepEqual(notices(byDefault.events), [{ text: 'Context auto-compacted.', level: 'info' }]);
+
+  // OFF: the legacy variable is the opt-OUT now; backend trigger/token details stay internal.
+  process.env.CORTEX_NOTIFY_COMPACTION = '0';
   resetSettingsForTests();
   const off = collector();
   await openRun(request(), [off.observer]).settled;
   assert.deepEqual(notices(off.events), [], 'no compaction notice when the flag is off');
-
-  // ON: exactly one concise notification; backend trigger/token details stay internal.
-  process.env.CORTEX_NOTIFY_COMPACTION = '1';
-  resetSettingsForTests();
-  const on = collector();
-  await openRun(request(), [on.observer]).settled;
-  assert.deepEqual(notices(on.events), [{ text: 'Context auto-compacted.', level: 'info' }]);
 });
 
 // ── cost persistence (attempt-level) ─────────────────────────────────────

@@ -133,8 +133,11 @@ export const SETTINGS_SPEC = {
   notifyCompaction: {
     envVar: 'CORTEX_NOTIFY_COMPACTION',
     type: 'boolean',
-    default: false,
-    legacyParse: (raw: string) => raw === '1',
+    // On by default like turnNotify, and parsed with the same polarity: the legacy variable now
+    // turns the notice OFF. Under the old off-by-default reading only `=1` meant on, so a default
+    // of true with that parser would have made `=true` mean off.
+    default: true,
+    legacyParse: (raw: string) => !['0', 'false', 'off', 'no'].includes(raw.trim().toLowerCase()),
   },
   showToolCalls: {
     envVar: 'CORTEX_SHOW_TOOL_CALLS',

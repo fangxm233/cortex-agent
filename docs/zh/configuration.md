@@ -246,7 +246,7 @@ $CORTEX_HOME/
 |---|---|---|---|---|
 | `turnNotify` | boolean | `true` | 当一个耗时较长的回合结束时，向会话发送一条新消息，让你收到推送通知（内联状态是以编辑方式封口为「✓ 完成」，而 Slack 与飞书都不会对消息编辑推送）。成功和失败都会提醒 | `CORTEX_TURN_NOTIFY` |
 | `turnNotifyThresholdS` | number | `60` | 触发上述完成提醒所需的最短回合时长（秒）。更短的回合保持静默 | `CORTEX_TURN_NOTIFY_THRESHOLD_S` |
-| `notifyCompaction` | boolean | `false` | 在 agent 的上下文被压缩（compaction）时向会话发送一条提示。覆盖 Claude Code（print 模式）与 pi 两个后端；提示会注明触发原因，Claude Code 还会附上压缩前的 token 数 | `CORTEX_NOTIFY_COMPACTION` |
+| `notifyCompaction` | boolean | `true` | 在 agent 的上下文被压缩（compaction）时向会话发送一条提示。覆盖 Claude Code（print 模式）与 pi 两个后端 | `CORTEX_NOTIFY_COMPACTION` |
 | `showToolCalls` | boolean | `false` | 在 VirtualMessage 尾部内联渲染工具调用 | `CORTEX_SHOW_TOOL_CALLS` |
 | `statusNewqButton` | boolean | `false` | 在状态消息上显示「New (quiet)」按钮（`=!newq`，跳过 pre-close 钩子） | `CORTEX_STATUS_NEWQ_BUTTON` |
 | `autoResume` | boolean | `true` | 当用量限制窗口重置后，自动继续被该限制中断的对话与线程，并注入一条提示让其从中断处接着做。设为 `false` 可让被中断的工作保持暂停、由人工继续 | `CORTEX_AUTO_RESUME` |
@@ -300,7 +300,7 @@ config 目录被监视。`settings.json` 的变更去抖 300 毫秒后重新读�
 
 ### 旧环境变量与弃用提示 {#legacy-environment-variables-and-deprecation}
 
-表中列出旧环境变量的键会保留该变量作为回退，并按既定语义解析——`CORTEX_EVENT_LOG=off`、`CORTEX_TURN_NOTIFY=0`/`false`/`off`/`no`、`CORTEX_NOTIFY_COMPACTION=1`，两个 `string[]` 键用逗号分隔的列表，等等。优先级始终是：`settings.json` 中的键 → 旧环境变量 → 内置默认值。`adminChannel` 的优先级链是先看 `SLACK_ADMIN_CHANNEL`，再看 `CORTEX_ADMIN_CHANNEL`。
+表中列出旧环境变量的键会保留该变量作为回退，并按既定语义解析——`CORTEX_EVENT_LOG=off`、`CORTEX_TURN_NOTIFY=0`/`false`/`off`/`no`、`CORTEX_NOTIFY_COMPACTION=0`/`false`/`off`/`no`，两个 `string[]` 键用逗号分隔的列表，等等。优先级始终是：`settings.json` 中的键 → 旧环境变量 → 内置默认值。`adminChannel` 的优先级链是先看 `SLACK_ADMIN_CHANNEL`，再看 `CORTEX_ADMIN_CHANNEL`。
 
 当某个旧环境变量第一次实际供值时，守护进程会记录一条弃用警告，指明该变量和它喂给的设置项（`Deprecated env <VAR> supplies settings.<key>; move it to settings.json`）。这层回退只为迁移期的兼容而存在——新的配置应写进 `settings.json`。
 

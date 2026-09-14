@@ -304,7 +304,7 @@ valid settings. Either way the reason is logged. Unknown keys are ignored.
 |---|---|---|---|---|
 | `turnNotify` | boolean | `true` | When a long-running turn finishes, post a fresh message to the conversation so you get a push notification (the inline status seals to "✓ Done" with an edit, which Slack and Feishu do not notify on). Both success and failure are announced | `CORTEX_TURN_NOTIFY` |
 | `turnNotifyThresholdS` | number | `60` | Minimum turn duration, in seconds, before that completion notification is posted. Shorter turns stay quiet | `CORTEX_TURN_NOTIFY_THRESHOLD_S` |
-| `notifyCompaction` | boolean | `false` | Post a chat notice when an agent's context is compacted. Covers the Claude Code (print mode) and pi backends; the notice names the trigger and, for Claude Code, the pre-compaction token count | `CORTEX_NOTIFY_COMPACTION` |
+| `notifyCompaction` | boolean | `true` | Post a chat notice when an agent's context is compacted. Covers the Claude Code (print mode) and pi backends | `CORTEX_NOTIFY_COMPACTION` |
 | `showToolCalls` | boolean | `false` | Inline tool-call rendering in VirtualMessage tails | `CORTEX_SHOW_TOOL_CALLS` |
 | `statusNewqButton` | boolean | `false` | Show the "New (quiet)" button on status messages (`=!newq`, which skips the pre-close hook) | `CORTEX_STATUS_NEWQ_BUTTON` |
 | `autoResume` | boolean | `true` | When a usage-limit window resets, automatically continue the conversations and threads the limit interrupted, injecting a note to pick up where they left off. Set to `false` to leave interrupted work paused for manual continuation | `CORTEX_AUTO_RESUME` |
@@ -412,7 +412,7 @@ loop never starts.)
 
 Keys with a legacy environment variable in the table keep it as a fallback,
 parsed with its established semantics — `CORTEX_EVENT_LOG=off`, `CORTEX_TURN_NOTIFY=0`/`false`/`off`/`no`,
-`CORTEX_NOTIFY_COMPACTION=1`, comma-separated lists for the two `string[]` keys,
+`CORTEX_NOTIFY_COMPACTION=0`/`false`/`off`/`no`, comma-separated lists for the two `string[]` keys,
 and so on. Precedence is always: key in `settings.json` → legacy variable →
 built-in default. For `adminChannel` the original chain is preserved:
 `SLACK_ADMIN_CHANNEL` is consulted before `CORTEX_ADMIN_CHANNEL`.
