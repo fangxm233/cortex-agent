@@ -31,6 +31,7 @@ import { getSettings } from '@core/settings.js';
 import { startRun } from '@domain/runs/service.js';
 import type { AgentRun } from '@domain/runs/run.js';
 import type { AgentSpec, RunObserver, RunRequest } from '@domain/runs/request.js';
+import { createResumeTargetSink } from './resume-target-sink.js';
 import { buildPrompt as buildAgentPrompt } from '../agent-adapter/normalize/prompt-builder.js';
 import { Capability } from '../agent-adapter/capabilities.js';
 
@@ -185,8 +186,8 @@ export async function resolveConversationCommission(
  *
  * The execution record, the live-registry registration and the teardown are owned by `startRun`
  * (plan D8). This function only assembles the fully-resolved `RunRequest`, opens the run with the
- * caller's observers, and persists the backend resume target as soon as the foreground turn
- * settles — success OR interruption.
+ * caller's observers, and keeps the backend resume target on disk from the moment the backend names
+ * itself — not merely when the turn settles, so a process killed mid-turn cannot orphan it.
  */
 export async function runConversation(opts: RunConversationOptions): Promise<ConversationResult> {
   const defaultAgentName = getDefaultAgent() || 'main';
@@ -276,7 +277,21 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
     },
   };
 
-  const run = startRun(request, opts.observers ?? []);
+  // The resume target is written the moment the backend names itself, not when the turn ends: a
+  // process killed mid-turn never settles a run, and a first turn lost that way used to orphan its
+  // transcript (see resume-target-sink.ts). The sink deduplicates, so a resumed turn writes nothing
+  // unless the backend came back on a different session than the one it was asked to resume.
+  let started: AgentRun | null = null;
+  const resumeTarget = createResumeTargetSink({
+    sessionName: opts.sessionName,
+    resumedFrom: opts.backendSessionId,
+    liveBackendSessionId: () => started?.backendSessionId ?? null,
+  });
+  const run = startRun(request, [...(opts.observers ?? []), resumeTarget]);
+  started = run;
+  // Claude mints its `--session-id` at spawn, so the id is already on the run here; PI names itself
+  // a moment later and arrives through the sink's `engine_started`.
+  resumeTarget.persist(run.backendSessionId);
 
   // Same observable points as the hand-rolled path: the execution record exists before the caller
   // awaits the turn, and registration has released the session lease. `startRun` creates and
@@ -288,23 +303,12 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
   try {
     result = await run.result;
   } finally {
-    // Persist the backend resume target as soon as the turn settles — success OR interruption.
-    // The backend id is assigned at spawn (Claude `--session-id`), but was previously only
-    // persisted by handleAgentSuccess, so killing a session's FIRST turn (web Stop / !cancel /
-    // error) lost it and the next message started a brand-new backend session with no context.
-    // The backend writes its transcript incrementally during the interrupted turn, so persisting
-    // the id here lets the next turn `--resume` it (and the adapter's resolveResumeForPrint
-    // self-heals to a create when no transcript was written). Best-effort; success-path
+    // Settle-time backstop for the early write (fix 9809d9a3's original job): an engine that never
+    // announced its id still leaves a resume target behind, and a turn that ended on a different
+    // backend session than it started on records the one the next turn must resume. Success-path
     // handleAgentSuccess still overwrites with the result's authoritative id.
-    // The run's recorded id: seeded from the engine at registration, so it is present even for an
-    // interrupt that happened before the backend ever emitted `session_started`.
-    const backendSessionId = run.backendSessionId;
-    if (isFreshSession && backendSessionId) {
-      await sessionStore.updateSession(opts.sessionName, {
-        backendSessionId,
-        lastUsedAt: new Date().toISOString(),
-      }).catch(() => {});
-    }
+    resumeTarget.persist(run.backendSessionId);
+    await resumeTarget.drain();
   }
 
   return { result, executionId: run.executionId, run, canAwaitBackground: supportsBackgroundContinuation(run) };

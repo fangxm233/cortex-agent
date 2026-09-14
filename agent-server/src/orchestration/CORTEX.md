@@ -24,6 +24,7 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | orchestrator.ts | router | picks the thread or default routing branch |
 | pending-injection-recovery.ts | recovery | commits and recovers pending injected turns |
 | resume-dispatcher.ts | runner | Resumes paused work under runtime settings |
+| resume-target-sink.ts | observer | writes a turn's backend resume target onto the session record as soon as the backend names itself (Claude at spawn, PI at `engine_started`), so a process killed mid-turn cannot orphan a first turn's transcript |
 | run-profile.ts | helper | resolves the profile a follow-up run spawns under, with the legacy unknown-name fallback |
 | session-compact.ts | control | compacts an idle session's context |
 | session-events.ts | events | Publishes session and remote tool metadata |

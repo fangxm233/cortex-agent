@@ -102,6 +102,10 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
 // --- Agent error handler ---
 
 export async function handleAgentError({ error, channel, adapter, statusMsg, startTime, executionId, sessionName = null, sessionId = null, effectiveSessionId = null, threadAnchorId = null, userMessageTs = null, userMessage = null }: { error: { message: string; cancelled?: boolean; rateLimitProvider?: string }; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; executionId: string | null; sessionName?: string | null; sessionId?: string | null; effectiveSessionId?: string | null; threadAnchorId?: string | null; userMessageTs?: string | null; userMessage?: string | null }): Promise<void> {
+  // DISPLAY id: the status line names the backend session when the caller knows it, exactly as the
+  // success path does (`handleAgentSuccess` renders `result.sessionId`). Every IDENTITY decision —
+  // channel binding, registry key, message delivery — uses `sessionId`, the stable track id. The two
+  // are not interchangeable, and conflating them is what this handler used to do.
   const resolvedSessionId = effectiveSessionId || sessionId;
   const { elapsedStr, elapsedS } = computeElapsed(startTime);
 
@@ -112,7 +116,9 @@ export async function handleAgentError({ error, channel, adapter, statusMsg, sta
     return;
   }
 
-  await persistErrorSession(resolvedSessionId, sessionName, channel, adapter);
+  await persistErrorSession({
+    trackSessionId: sessionId, backendSessionId: effectiveSessionId, sessionName, channel, adapter,
+  });
   if (userMessageTs) await conversationLedger.completeTurn(channel, userMessageTs, { executionId });
 
   if (error?.cancelled) {
@@ -138,7 +144,11 @@ export async function handleAgentError({ error, channel, adapter, statusMsg, sta
   const errorText = renderTurnStatus({ kind: 'error' }, { sessionName, sessionId: resolvedSessionId, elapsedStr });
   await sealStatus(adapter, statusMsg, errorText, buildSealedStatusActionBlocks(errorText, { channel, sessionName, isDm: true }));
   await maybeNotifyTurnComplete({ adapter, channel, threadAnchorId, sessionName, sessionId: resolvedSessionId, elapsedS, elapsedStr, status: 'failed' });
-  const errorDest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: resolvedSessionId ?? '' };
+  // Delivery is an identity decision: the TUI gateway routes an interactive-reply by matching this
+  // against a connection's session id, which is the TRACK id. Handing it a backend id matched no
+  // connection, so the error body was dropped on the way to the client (an empty id falls back to a
+  // conduit lookup, which is the right answer for a caller that has no track id to give).
+  const errorDest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: sessionId ?? '' };
   const queue = getOutboundQueue();
   if (queue) {
     await durablePost(queue, adapter, errorDest, { text: t('status.errorBody', { message: error.message }) }, threadAnchorId ? { threadId: threadAnchorId } : undefined);
@@ -147,17 +157,46 @@ export async function handleAgentError({ error, channel, adapter, statusMsg, sta
   }
 }
 
-async function persistErrorSession(resolvedSessionId: string | null, sessionName: string | null, channel: string, adapter: PlatformAdapter): Promise<void> {
-  if (!resolvedSessionId) return;
+/**
+ * Persist what a failed turn knows about its session — with the two ids kept apart.
+ *
+ * The TRACK id owns the session's identity: the channel binding, the ledger's conversation, the
+ * registry key every surface resolves. The BACKEND id is only the CLI's transcript handle, i.e. the
+ * `--resume` target, and belongs in the record's `backendSessionId` field — never as a key.
+ *
+ * This used to take a single conflated id, the backend's preferred, so a caller that passed a
+ * backend id (edit-retry, ask-user-resume) made a failure rebind the channel to it and register a
+ * SECOND record under the session's name keyed by it. The next message resolved that record, found
+ * no resume target on it, and opened a brand-new backend conversation — the same pre-decoupling
+ * leftover that `cancelLive` was cleaned of in fix 9809d9a3, surviving in the error path.
+ */
+async function persistErrorSession(args: {
+  trackSessionId: string | null;
+  backendSessionId: string | null;
+  sessionName: string | null;
+  channel: string;
+  adapter: PlatformAdapter;
+}): Promise<void> {
+  const { trackSessionId, backendSessionId, sessionName, channel, adapter } = args;
+  // The resume target, on the record it belongs to — the failure path's half of what
+  // handleAgentSuccess does with `result.sessionId`. Best-effort: a registry hiccup must not mask
+  // the error this handler is here to report.
+  if (backendSessionId && sessionName) {
+    await sessionStore.updateSession(sessionName, {
+      backendSessionId,
+      lastUsedAt: new Date().toISOString(),
+    }).catch(() => {});
+  }
+  if (!trackSessionId) return;
   const backend = resolveBackendForChannel(channel);
-  await setSessionAsync(channel, resolvedSessionId);
+  await setSessionAsync(channel, trackSessionId);
   // Backfill the ledger's session id: a conversation opened before the backend reported one.
   const conv = await conversationLedger.getConversation(channel);
-  if (conv && !conv.sessionId) await conversationLedger.updateSessionId(channel, resolvedSessionId);
+  if (conv && !conv.sessionId) await conversationLedger.updateSessionId(channel, trackSessionId);
   if (!sessionName) return;
-  const existing = await sessionStore.lookupBySessionId(resolvedSessionId);
+  const existing = await sessionStore.lookupBySessionId(trackSessionId);
   if (!existing) {
-    await sessionStore.registerSession(sessionName, { sessionId: resolvedSessionId, channel, backend, kind: 'local', origin: 'direct', profileName: getActiveProfile(channel), projectId: (await adapter.resolveInboundProject(channel)) ?? 'general' });
+    await sessionStore.registerSession(sessionName, { sessionId: trackSessionId, channel, backend, kind: 'local', origin: 'direct', profileName: getActiveProfile(channel), projectId: (await adapter.resolveInboundProject(channel)) ?? 'general' });
   }
 }
 

@@ -31,6 +31,8 @@ export async function resumeAskUserQuestionGroup({ adapter, group, responseText 
   const startTime = Date.now();
   let executionId: string | null = null;
   let run: AgentRun | null = null;
+  // Hoisted: the failure path names the same session the success path does.
+  let askSessionName: string | null = null;
   try {
     sessionRelease = await sessionStore.acquireSessionUse(group.sessionId);
     if (!sessionRelease) {
@@ -44,7 +46,7 @@ export async function resumeAskUserQuestionGroup({ adapter, group, responseText 
     // re-derivation from the response text.
     const askRec = await sessionStore.getById(group.sessionId);
     const askBackendSessionId = askRec ? effectiveBackendSessionId(askRec) : null;
-    const askSessionName = askRec?.name ?? null;
+    askSessionName = askRec?.name ?? null;
     const askProjectId = askRec?.projectId ?? 'general';
     const askQueue = getOutboundQueue();
     const askDurable = askQueue ? buildDurableHooks(askQueue) : null;
@@ -101,7 +103,14 @@ export async function resumeAskUserQuestionGroup({ adapter, group, responseText 
     await handleAgentSuccess({ result, channel: group.channel, adapter, statusMsg, startTime, userMessage: responseText, executionId, trigger: 'ask-user-question', sessionName: askSessionName, trackSessionId: group.sessionId, projectId: askProjectId, onAssistantMessage: onAssistantMsg });
   } catch (error) {
     if (statusMsg) {
-      await handleAgentError({ error: error as { message: string; cancelled?: boolean }, channel: group.channel, adapter, statusMsg, startTime, executionId, effectiveSessionId: run?.backendSessionId ?? null });
+      // Same identity pair the success call above passes: the track id names the session (binding,
+      // registry, delivery), the backend id is only this turn's resume target.
+      await handleAgentError({
+        error: error as { message: string; cancelled?: boolean },
+        channel: group.channel, adapter, statusMsg, startTime, executionId,
+        sessionName: askSessionName, sessionId: group.sessionId,
+        effectiveSessionId: run?.backendSessionId ?? null,
+      });
     } else {
       log.error(`AskUserQuestion resume failed before status creation: ${(error as Error).message}`);
     }

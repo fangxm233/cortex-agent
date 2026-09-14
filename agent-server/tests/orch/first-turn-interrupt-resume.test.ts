@@ -201,3 +201,111 @@ test('runConversation registers both track and backend ids on the live execution
   assert.equal(live?.backendSessionId, 'B-live-1');
   await expect(pending).rejects.toMatchObject({ cancelled: true });
 });
+
+// ── (3) the resume target reaches disk MID-turn, not only on settle ─────────
+//
+// A turn that errors settles the run, so the settle-time write above covers it. A process that dies
+// mid-turn settles nothing — the pointer has to be on disk before then, or the first turn's
+// transcript is orphaned (nothing maps a track id to Claude's spawn-time UUID).
+
+/** A turn held open by the test: the run is live until `fail()` ends it. */
+function heldAttempt(backendSessionId: string | null) {
+  let fail!: () => void;
+  const promise = new Promise<never>((_resolve, reject) => {
+    fail = () => reject(Object.assign(new Error('Cancelled'), { cancelled: true }));
+  });
+  promise.catch(() => {}); // the run attaches its own handlers; keep the node warning away
+  return { attempt: makeSyntheticAttempt({ backendSessionId, foreground: promise }), fail };
+}
+
+/** `runConversation` resolves profile, project and prompt before it opens the attempt. */
+async function awaitAttemptStart(read: () => ((event: any) => void) | null, timeoutMs = 2000) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const emit = read();
+    if (emit) return emit;
+    if (Date.now() > deadline) throw new Error('the run never opened its attempt');
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
+
+/** Poll the record rather than counting ticks: the write crosses the store's own async queue. */
+async function awaitStoredBackendId(trackSessionId: string, timeoutMs = 2000): Promise<string | null> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const rec = await sessionStore.getById(trackSessionId);
+    if (rec?.backendSessionId) return rec.backendSessionId;
+    if (Date.now() > deadline) return null;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
+
+test('claude: the spawn-time backend id is stored while the first turn is still running', async () => {
+  await sessionStore.registerSession('cortex-mid1', {
+    sessionId: 'TRACK-MID1', channel: 'slack:C-interrupt', backend: 'claude', kind: 'local',
+  });
+  const held = heldAttempt('B-mid-claude');
+  mockStartAttempt.mockReturnValueOnce(held.attempt);
+
+  const pending = runConversation(baseOpts({
+    trackSessionId: 'TRACK-MID1',
+    backendSessionId: null, // fresh session — first turn
+    sessionName: 'cortex-mid1',
+  }));
+
+  assert.equal(await awaitStoredBackendId('TRACK-MID1'), 'B-mid-claude', 'stored before the turn settles');
+
+  held.fail();
+  await expect(pending).rejects.toMatchObject({ cancelled: true });
+});
+
+test('pi: the id announced by engine_started is stored while the first turn is still running', async () => {
+  await sessionStore.registerSession('cortex-mid2', {
+    sessionId: 'TRACK-MID2', channel: 'slack:C-interrupt', backend: 'pi', kind: 'local',
+  });
+  // PI names itself a tick after the attempt opens — `backendSessionId` is null at registration.
+  const held = heldAttempt(null);
+  let emit: ((event: any) => void) | null = null;
+  mockStartAttempt.mockImplementationOnce((input: StartAttemptInput) => {
+    emit = input.onEvent;
+    return held.attempt;
+  });
+
+  const pending = runConversation(baseOpts({
+    trackSessionId: 'TRACK-MID2',
+    backendSessionId: null,
+    sessionName: 'cortex-mid2',
+  }));
+  (await awaitAttemptStart(() => emit))({ type: 'engine_started', backendSessionId: 'B-mid-pi' });
+
+  assert.equal(await awaitStoredBackendId('TRACK-MID2'), 'B-mid-pi', 'stored before the turn settles');
+
+  held.fail();
+  await expect(pending).rejects.toMatchObject({ cancelled: true });
+});
+
+test('a backend that resets the session mid-turn leaves the NEW id as the resume target', async () => {
+  await sessionStore.registerSession('cortex-mid3', {
+    sessionId: 'TRACK-MID3', channel: 'slack:C-interrupt', backend: 'claude', kind: 'local',
+    backendSessionId: 'B-gone',
+  });
+  const held = heldAttempt('B-gone');
+  let emit: ((event: any) => void) | null = null;
+  mockStartAttempt.mockImplementationOnce((input: StartAttemptInput) => {
+    emit = input.onEvent;
+    return held.attempt;
+  });
+
+  const pending = runConversation(baseOpts({
+    trackSessionId: 'TRACK-MID3',
+    backendSessionId: 'B-gone', // asked to resume a transcript the backend no longer has
+    sessionName: 'cortex-mid3',
+  }));
+  (await awaitAttemptStart(() => emit))({ type: 'engine_started', backendSessionId: 'B-restarted' });
+
+  held.fail();
+  await expect(pending).rejects.toMatchObject({ cancelled: true });
+
+  const rec = await sessionStore.getById('TRACK-MID3');
+  assert.equal(rec?.backendSessionId, 'B-restarted', 'the next turn must resume where this one ended');
+});

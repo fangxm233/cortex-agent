@@ -14,10 +14,11 @@ queueing, mid-turn injection, background holds and execution lifecycle.
 | channel-queue.test.ts | test | Covers per-channel queue serialization |
 | dispatch-reconciler.test.ts | test | Covers optional stale-dispatch reconciliation |
 | edit-handler.test.ts | test | Covers PI restore identity and edit retry routing |
-| first-turn-interrupt-resume.test.ts | test | Covers attachment prompt capture and interrupt |
+| first-turn-interrupt-resume.test.ts | test | Covers attachment prompt capture, interrupt-time and mid-turn persistence of the backend resume target |
 | hook-bridge-subscribers-web.test.ts | test | Covers Web question and plan persistence |
 | interaction-records.test.ts | test | Covers interaction create and resolve lifecycle |
 | lifecycle-bg-hold.test.ts | test | Drives the hold with run events: waiting, merge, accounting, grace and cap |
+| lifecycle-error-session.test.ts | test | Covers which id a failed turn binds, registers and addresses: track id for identity, backend id only as the resume target |
 | lifecycle-rate-limit.test.ts | test | Covers provider-attributed error recovery |
 | lifecycle-session-lease.test.ts | test | Covers ask/retry session lease handoff to live executions |
 | mid-turn-inject-persistence.test.ts | test | Covers durable ordering of pending injection |
@@ -27,6 +28,7 @@ queueing, mid-turn injection, background holds and execution lifecycle.
 | plan-approvals.test.ts | test | Covers plan approval state transitions |
 | plan-response.test.ts | test | Covers Web plan approve and reject delivery |
 | resume-dispatcher.test.ts | test | Covers reset-isolated resume dispatch |
+| resume-target-sink.test.ts | test | Covers when the backend resume target is written mid-turn and when the write is skipped |
 | running-executions.test.ts | test | Covers execution registry indices and events |
 | seal-thread-status.test.ts | test | Covers terminal thread status sealing |
 | session-admission.test.ts | test | Covers send lease rejection and sweep blocking |

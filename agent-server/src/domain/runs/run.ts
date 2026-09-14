@@ -460,6 +460,7 @@ export class AgentRunImpl implements AgentRun {
    */
   private onRunEvent(event: RunEvent): void {
     if (this.terminal) return;
+    this.refreshBackendSessionId();
     switch (event.type) {
       case 'assistant_text':
         // Prose goes through the notice stage, which re-emits it (possibly later, possibly not at
@@ -523,6 +524,21 @@ export class AgentRunImpl implements AgentRun {
     if (this.terminal) return;
     this.absorbResultCounts(result);
     this.finishTerminal(result.rateLimited ? 'rate-limited' : 'completed', result);
+  }
+
+  /**
+   * Take the live attempt's backend session id while the run still has none.
+   *
+   * The id is read once when the attempt registers, which is all Claude needs (it mints
+   * `--session-id` at spawn). PI names itself when its runtime handle finishes starting — a tick
+   * later — and normally says so with `engine_started`; a session that was already up when the turn
+   * opened has no announcement left to make. Reading the attempt on each event closes that gap, so
+   * a mid-turn reader (the resume-target sink) sees the id without waiting for the turn to settle.
+   */
+  private refreshBackendSessionId(): void {
+    if (this.backendSessionIdValue) return;
+    const live = this.current?.backendSessionId;
+    if (live) this.backendSessionIdValue = live;
   }
 
   private absorb(event: RunEvent): void {
