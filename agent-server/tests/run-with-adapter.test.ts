@@ -763,6 +763,10 @@ test('attempt: the foreground cost_record is persisted under the attempt attribu
     if (existsSync(costsFile)) unlinkSync(costsFile);
     costRepo._testReset();
   });
+  // Earlier tests in this file fire-and-forget their cost writes to the default repo. Drain them
+  // before the path switch, or they append to THIS file once the mutex reaches them (the path is
+  // resolved lazily at write time), and the row count is no longer this attempt's alone.
+  await costRepo.flush();
   process.env['CORTEX_COSTS_FILE'] = costsFile;
   costRepo._testReset();
 

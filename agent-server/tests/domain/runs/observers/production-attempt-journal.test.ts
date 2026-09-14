@@ -421,9 +421,11 @@ for (const backend of ['claude', 'pi'] as const) {
       assert.equal(evidenceRecord.event_count, raw.length);
       // Literal normalized-event order per backend (the run's own raw tap is the authority for
       // content; the type order is the backend protocol fact the suite pins).
+      // PI keeps its default `streamDeltas`, so its wire record carries the per-token preview
+      // event ahead of the whole buffered assistant message; both are journaled once.
       assert.deepEqual(raw.map(event => event.type), backend === 'claude'
         ? ['assistant_text', 'turn_progress', 'cost_record', 'turn_complete']
-        : ['session_started', 'assistant_text', 'turn_progress', 'cost_record', 'turn_complete']);
+        : ['session_started', 'assistant_delta', 'assistant_text', 'turn_progress', 'cost_record', 'turn_complete']);
       assert.ok(path.isAbsolute(evidenceRecord.journal_path));
       assert.equal(evidenceRecord.journal_sha256, sha256(evidenceRecord.journal_path));
       const records = readJournal(evidenceRecord.journal_path);

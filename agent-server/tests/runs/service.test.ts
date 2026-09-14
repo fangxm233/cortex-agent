@@ -14,7 +14,7 @@ import * as executionRegistry from '../../src/domain/executions/registry.js';
 import { startRun } from '../../src/domain/runs/service.js';
 import { engines } from '../../src/domain/runs/engines.js';
 import type { RunEvent, RunPhase } from '../../src/domain/runs/events.js';
-import type { RunObserver, RunRequest } from '../../src/domain/runs/request.js';
+import type { RunObserver, RunRequest, RunResult } from '../../src/domain/runs/request.js';
 
 // ── the scripted backend ─────────────────────────────────────────────────
 //
@@ -268,6 +268,11 @@ test('startRun enters the background phase and settles after the continuation re
   assert.equal(session.isAlive(), true, 'the run holds a live backend session');
   assert.ok(runRegistry.getById(run.executionId), 'stays registered through the background phase');
 
+  // Let the foreground result settle and the engine enter its background phase before the CLI
+  // opens the spontaneous continuation turn. Feeding the notification synchronously would open
+  // that turn before `ContinuationPhase.start` runs, so `onTurnOpen` would be a no-op and the
+  // second background boundary would never be emitted (see continuation-phase.test.ts).
+  await tick();
   session.handleLine(taskNotification('bg-1'));
   session.handleLine(assistantLine('bg'));
   session.handleLine(resultLine({ result: 'bg' }));
@@ -297,6 +302,76 @@ test('startRun enters the background phase and settles after the continuation re
     ],
   );
   assert.ok(seen.events.some((event) => event.type === 'foreground_result'));
+});
+
+// ── the caller's foreground await ────────────────────────────────────────
+//
+// The whole point of `hold`: the surface gets the turn's reply while the run is STILL ALIVE, so it
+// can hold its status message open and subscribe to what the backend does next. Binding the
+// foreground await to the drained stream instead withholds an interactive reply for the entire
+// background window — and a still-running task is capped at 30 minutes whose expiry deliberately
+// does not end the run, so the reply could be withheld with no bound at all.
+
+test('hold: the foreground result lands while the background phase is still open', async () => {
+  const { run, seen } = await startHeldRun('running');
+
+  const foreground = await Promise.race([
+    run.result,
+    delay(GRACE_MS + 50).then(() => 'still-waiting' as const),
+  ]);
+  assert.notEqual(foreground, 'still-waiting', 'the caller is not held for the background phase');
+  assert.equal((foreground as RunResult).finalOutput, 'fg');
+
+  assert.equal(run.status, 'background', 'the run says what it is doing');
+  assert.equal(run.phase, 'background');
+  assert.ok(runRegistry.getById(run.executionId), 'still registered — the run is not over');
+  assert.equal(executionRegistry.getExecution(run.executionId)?.status, 'running');
+
+  // The run's own marker is fanned out before the phase it opens, so a transcript reads in order.
+  const types = seen.events.map((e) => e.type);
+  assert.ok(types.indexOf('foreground_result') < types.indexOf('phase'),
+    `foreground_result must precede the background phase: ${types.join(',')}`);
+});
+
+test('hold: a surface that subscribes on the foreground result still gets the whole background phase', async () => {
+  const { run, session } = await startHeldRun('running');
+  await run.result;
+
+  // Exactly what `holdWebSessionForBackground` / `status-renderer` do: subscribe once the turn's
+  // reply is in hand. A run that had already gone terminal would accept the observer and then
+  // never call it — the hold would publish "background running" with nothing left to seal it.
+  const late = collector();
+  run.subscribe(late.observer);
+
+  session.handleLine(taskNotification('bg-1'));
+  session.handleLine(assistantLine('bg'));
+  session.handleLine(resultLine({ result: 'bg' }));
+  await run.settled;
+
+  assert.deepEqual(
+    late.events.map((e) => e.type),
+    ['phase', 'assistant_text', 'background_result', 'phase'],
+  );
+  assert.equal(late.isClosed(), true, 'the late subscriber is closed with the run');
+});
+
+test('inline: the caller waits for the merged result, not the foreground turn', async () => {
+  const seen = collector();
+  const { run, session } = startScriptedRun(
+    { policy: { ...makeRequest().policy, background: 'inline' } }, [seen.observer],
+  );
+  session.handleLine(taskStarted('bg-1'));
+  session.handleLine(assistantLine('fg'));
+  session.handleLine(resultLine({ result: 'fg' }));
+  await tick();
+
+  const early = await Promise.race([run.result, delay(50).then(() => 'still-waiting' as const)]);
+  assert.equal(early, 'still-waiting', 'an inline caller has no status message to hold');
+
+  session.handleLine(taskNotification('bg-1'));
+  session.handleLine(assistantLine('bg'));
+  session.handleLine(resultLine({ result: 'bg' }));
+  assert.equal((await run.result).finalOutput, 'bg', 'the merged result reaches the caller');
 });
 
 // ── the background watchdog ──────────────────────────────────────────────

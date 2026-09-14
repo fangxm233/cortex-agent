@@ -12,7 +12,9 @@
 //
 // Two results, deliberately: `foreground` is the turn the caller is waiting on, `settled` is the
 // whole attempt with its background phase folded in. A terminal tally must read `settled` — reading
-// `foreground` bills a run before its background work has finished paying.
+// `foreground` bills a run before its background work has finished paying. They settle at
+// different TIMES, which is the point: under `hold` the foreground lands as soon as the engine
+// reports the turn's result, while the stream stays open for the background phase behind it.
 
 import { createLogger } from '@core/log.js';
 import type { AgentResult } from '@core/types/agent-types.js';
@@ -140,23 +142,63 @@ async function closeSinks(sinks: EventObserver[]): Promise<void> {
   }
 }
 
+/** The synchronous twin of {@link closeSinks}, for a failure that happens before the event loop
+ *  exists to await the close. The benchmark journal's `onClose` is synchronous and writes the
+ *  attempt's index row, so a zero-event attempt must still be closed/indexed here. */
+function closeSinksSync(sinks: EventObserver[]): void {
+  for (const sink of sinks) {
+    try { void sink.onClose?.(); }
+    catch (error) { log.warn('required sink close failed:', (error as Error)?.message ?? error); }
+  }
+}
+
 /**
- * Await a result and the event loop together: a rejection from either must still let the stream
- * drain (a surface may be mid-render), and a failing observer must not swallow the real error.
+ * The whole attempt: its accumulated result AND its drained stream. A rejection from either must
+ * still let the stream drain (a surface may be mid-render), and a failing observer must not
+ * swallow the real error.
  */
 async function settleWithStream(
-  engineRun: EngineRun, eventLoop: Promise<void>, which: 'result' | 'settled',
+  engineRun: EngineRun, eventLoop: Promise<void>,
 ): Promise<AgentResult> {
   let result: AgentResult | null = null;
   let failure: unknown;
   try {
-    [result] = await Promise.all([engineRun[which], eventLoop]);
+    [result] = await Promise.all([engineRun.settled, eventLoop]);
   } catch (error) {
     failure = error;
     try { await eventLoop; } catch (eventError) { failure = eventError; }
   }
   if (failure !== undefined) throw failure;
   return result as AgentResult;
+}
+
+function deferred<T>(): {
+  promise: Promise<T>; resolve: (value: T) => void; reject: (error: unknown) => void;
+} {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
+  return { promise, resolve, reject };
+}
+
+/**
+ * Whether the caller's foreground await is released at the foreground turn's own result, before
+ * the stream behind it has drained.
+ *
+ * Only `hold`. It is the one policy whose caller must have the reply while the run is STILL ALIVE:
+ * an interactive surface renders it and then holds its status message open for whatever the
+ * backend does next, so waiting for the stream to close would withhold the reply for the whole
+ * background window (see `foreground` below).
+ *
+ * Every other policy settles the engine's result through `ContinuationPhase.settleRun`, which runs
+ * at the phase's own finish — i.e. the stream is already ending — so releasing early would buy
+ * nothing and cost a real ordering guarantee: a caller that awaits `foreground` would once again
+ * see a run whose attempt sinks have not been closed (the benchmark journal writes its index row
+ * in `onClose`). `inline` / `completion-only` additionally must carry the merged result, and
+ * `none` ends at this same turn either way.
+ */
+function releasesAtForegroundResult(mode: AwaitBackground): boolean {
+  return mode === 'hold';
 }
 
 /** Open one attempt. Synchronous: the caller holds the handle before the first event lands. */
@@ -178,34 +220,67 @@ export function startAttempt(input: StartAttemptInput): RunAttempt {
   const sinks: EventObserver[] = [...(journal ? [journal] : []), ...(input.requiredSinks ?? [])];
   const tap = normalizedTap(sinks);
 
-  const engine = engines.acquire(spec);
-  const engineRun = engine.run(
-    { text: request.prompt.text, attachments: request.prompt.attachments },
-    { awaitBackground: awaitBackgroundFor(request), ...(tap ? { onNormalizedEvent: tap } : {}) },
-  );
+  const awaitBackground = awaitBackgroundFor(request);
+  const earlyRelease = releasesAtForegroundResult(awaitBackground);
+  let engine: EngineSession;
+  let engineRun: EngineRun;
+  try {
+    engine = engines.acquire(spec);
+    engineRun = engine.run(
+      { text: request.prompt.text, attachments: request.prompt.attachments },
+      { awaitBackground, ...(tap ? { onNormalizedEvent: tap } : {}) },
+    );
+  } catch (error) {
+    // A synchronous spawn/acquire failure never opens a stream, so the event loop that normally
+    // closes the wire-level sinks never starts. Close them here so a zero-event attempt is still
+    // linked (the journal's index row is written by `onClose`), exactly as the removed facade did
+    // around `adapter.spawn`.
+    closeSinksSync(sinks);
+    throw error;
+  }
 
   // The foreground turn is over when the engine says so; an attempt bills only what it started.
   let foregroundOver = false;
+  const foreground = deferred<AgentResult>();
   const eventLoop = (async (): Promise<void> => {
     try {
       for await (const event of engineRun.events) {
-        if (event.type === 'cost_record') {
-          if (!foregroundOver) recordAttemptCost(event, input, attribution);
-        } else if (event.type === 'foreground_result') {
-          foregroundOver = true;
+        if (event.type === 'cost_record' && !foregroundOver) {
+          recordAttemptCost(event, input, attribution);
         }
         input.onEvent(event);
+        if (event.type === 'foreground_result') {
+          foregroundOver = true;
+          // Released HERE — after the marker has been fanned out, and not one event later — but
+          // only under `hold` (see `releasesAtForegroundResult`). The caller's turn is over; the
+          // stream may still owe it a background phase, and the run stays alive and registered for
+          // exactly as long as that takes (see `settled`). Waiting for the stream to drain instead
+          // would hold an interactive reply for the whole background window — a still-running task
+          // caps at 30 minutes and a `max-wait` expiry deliberately does not end the run, so the
+          // reply could be withheld indefinitely.
+          if (earlyRelease) foreground.resolve(event.result);
+        }
       }
     } finally {
       await closeSinks(sinks);
     }
   })();
 
+  const settled = settleWithStream(engineRun, eventLoop);
+  // Whatever ends the attempt also ends the foreground await: a turn that failed, a stream that
+  // closed without ever reporting a foreground result (cancel), and the `inline` policies whose
+  // caller waits for the merged result all land here. Already-settled is a no-op, so the early
+  // release above wins when it happened.
+  void settled.then(foreground.resolve, foreground.reject);
+  // Neither promise may become an unhandled rejection: the run attaches its handlers only once the
+  // foreground turn has settled, and a retried attempt is abandoned without any handler at all.
+  void foreground.promise.catch(() => undefined);
+
   return {
     engine, engineRun, spec, identity,
     backend: attempt.backend,
-    foreground: settleWithStream(engineRun, eventLoop, 'result'),
-    settled: settleWithStream(engineRun, eventLoop, 'settled'),
+    foreground: foreground.promise,
+    settled,
     get backendSessionId(): string | null { return engine.backendSessionId; },
     kill: () => engine.kill(),
   };
