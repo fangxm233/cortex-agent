@@ -8,6 +8,19 @@
 // artifact, no [ABORT] protocol). These tests pin that assembly so the migration does not
 // silently change every chat turn.
 
+test('the interactive hold gate reads the continuation capability, not the backend name', () => {
+  // PI opens no turn of its own after a foreground result, so there is nothing for a hold to hold.
+  assert.ok(CAPABILITIES_BY_BACKEND.claude.has(Capability.BackgroundContinuation));
+  assert.equal(CAPABILITIES_BY_BACKEND.pi.has(Capability.BackgroundContinuation), false);
+
+  const runOf = (backend: 'claude' | 'pi') =>
+    ({ capabilities: CAPABILITIES_BY_BACKEND[backend] } as never);
+  assert.equal(supportsBackgroundContinuation(runOf('claude')), true);
+  assert.equal(supportsBackgroundContinuation(runOf('pi')), false);
+});
+
+
+
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { THREAD_PROTOCOL_PREAMBLE } from '../src/domain/threads/prompt-builder.js';
@@ -15,7 +28,9 @@ import { composeUserPrompt, userProfileBlock } from '../src/domain/runs/prompt.j
 import {
   resolveConversationCommission,
   resolveConversationProject,
+  supportsBackgroundContinuation,
 } from '../src/orchestration/conversation-runner.js';
+import { Capability, CAPABILITIES_BY_BACKEND } from '../src/agent-adapter/capabilities.js';
 import type { ActiveCommissionContext, CommissionPromptContext } from '../src/domain/commissions/commission-context.js';
 import type { AgentSlotConfig } from '../src/core/types/thread-types.js';
 import type { Project } from '../src/domain/projects/project-types.js';

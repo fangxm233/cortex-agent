@@ -32,6 +32,7 @@ import { startRun } from '@domain/runs/service.js';
 import type { AgentRun } from '@domain/runs/run.js';
 import type { AgentSpec, RunObserver, RunRequest } from '@domain/runs/request.js';
 import { buildPrompt as buildAgentPrompt } from '../agent-adapter/normalize/prompt-builder.js';
+import { Capability } from '../agent-adapter/capabilities.js';
 
 export interface RunConversationOptions {
   adapter: PlatformAdapter;
@@ -78,9 +79,13 @@ export interface RunConversationOptions {
  * Whether this run's backend can open a continuation turn of its own (Claude does; PI's runs are
  * foreground-only). The hold decision uses it as the "there is something to hold for" gate that
  * used to be `typeof proc.setBackgroundTurnSink === 'function'`.
+ *
+ * Read off the run's capability set rather than its backend name: it is the same declaration the
+ * backdrop is derived from, so a backend that grows a spontaneous turn says so in one place
+ * (`CAPABILITIES_BY_BACKEND`) instead of here.
  */
 export function supportsBackgroundContinuation(run: AgentRun): boolean {
-  return run.request.profile.backend === 'claude';
+  return run.capabilities.has(Capability.BackgroundContinuation);
 }
 
 export interface ConversationResult {

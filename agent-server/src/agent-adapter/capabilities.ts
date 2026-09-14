@@ -22,6 +22,10 @@ export enum Capability {
   MidTurnInject = 'mid-turn-inject',
   /** Backend can return scoped provider usage from a pull source or push cache. */
   Usage = 'usage',
+  /** Backend opens a continuation turn of its own after a foreground result — a background task
+   *  finishing, or an injected message consumed once the turn was over. What an interactive
+   *  surface's `hold` needs: without it there is nothing to hold a session open for. */
+  BackgroundContinuation = 'background-continuation',
   /** Backend can be the *child* of a delegated `agent` run: Cortex knows how to start a one-shot
    *  run on it, stream its events back under the parent's attribution, and collect a result.
    *  Gated on rather than branching on the backend name, so adding a third backend is a matter of
@@ -48,6 +52,9 @@ const CLAUDE_CAPS: Capability[] = [
   Capability.MidTurnInject,
   // A child is one frozen `runAgentOnce` CLI run, observed through the normalized event stream.
   Capability.Subagents,
+  // The CLI opens a turn of its own when a background task finishes (or when a message injected
+  // after the result is consumed), so a run has a background phase to hold a session for.
+  Capability.BackgroundContinuation,
 ];
 
 // PI uses --skill for plugins, --system-prompt for overrides, and adapter tool gates.
