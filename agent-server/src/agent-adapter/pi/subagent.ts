@@ -12,16 +12,17 @@ import {
 import {
   describeSubagent, type SubagentCatalog, type SubagentFieldDescriptions,
 } from '@core/agents/subagent/catalog.js';
-import { failedChildResult, runInvocation } from '@core/agents/subagent/orchestrate.js';
+import { endStatusOf, failedChildResult, runInvocation } from '@core/agents/subagent/orchestrate.js';
 import type {
-  ChildEventForwarder, Invocation, RunChildFn, SubagentDetails, SubagentResult, SubagentTask,
+  ChildEventForwarder, Invocation, RunChildFn, SubagentDetails, SubagentEndStatus, SubagentResult,
+  SubagentTask,
 } from '@core/agents/subagent/types.js';
 import type { Backend } from '../types.js';
 import type { ChildSessionFactory } from './child-session.js';
 import type {
   StartBackgroundSubagent, StopBackgroundSubagent,
 } from './background-subagent.js';
-import { subagentChannel } from './child-events.js';
+import { subagentChannel, subagentEndNotice } from './child-events.js';
 import { runPiChild, selectPiModel } from './child-runner.js';
 import type { SubagentNotice } from './event-parser.js';
 
@@ -149,31 +150,54 @@ function buildRunChild(
   ): Promise<SubagentResult> => {
     const role = findRole(roles, task.subagent_type);
     const backend = resolveBackend(task, role);
+    const ref = `${parentToolCallId}#${index}`;
+    // Seal the child's transcript block on settle — the only signal that a delegated child is
+    // over. Its own events say nothing about it (a PI child just stops forwarding), and the
+    // parent acting again proves nothing, so without this the block runs until the session idles.
+    const seal = (status: SubagentEndStatus): void => {
+      try { deps.onEvent?.(subagentEndNotice(ref, task, backend, status)); }
+      catch { /* attribution is best-effort; the run itself must not fail for it */ }
+    };
     try {
-      if (backend === 'pi') {
-        return await runPiChild({
+      const result = backend === 'pi'
+        ? await runPiChild({
           task, role, cwd: ctx.cwd, agentDir: deps.agentDir, parentEnv: deps.parentEnv,
           fallbackModel: fallbackModel(ctx), createSession: deps.createSession,
           childExtensions: deps.childExtensions, signal, forward,
-        });
-      }
-      if (!deps.runForeignSubagent) {
-        throw new Error(`Delegating to the ${backend} backend is unavailable in this session.`);
-      }
-      const parent = fallbackModel(ctx);
-      return await deps.runForeignSubagent({
-        task, role, backend, cwd: ctx.cwd, ref: `${parentToolCallId}#${index}`,
-        parent: {
-          backend: 'pi', model: parent?.id ?? null, provider: parent?.provider ?? null,
-          env: deps.parentEnv,
-        },
-        signal, onNotice: deps.onEvent,
-      });
+        })
+        : await runForeignChild(ctx, deps, task, role, backend, ref, signal);
+      seal(endStatusOf(result));
+      return result;
     } catch (error) {
-      if (signal?.aborted) throw error;
+      if (signal?.aborted) { seal('killed'); throw error; }
+      seal('failed');
       return failedChildResult(task, error);
     }
   };
+}
+
+/** A child on the other backend: same contract, run by the daemon rather than in this process. */
+function runForeignChild(
+  ctx: ExtensionContext,
+  deps: SubagentToolDeps,
+  task: SubagentTask,
+  role: AgentRole,
+  backend: Backend,
+  ref: string,
+  signal: AbortSignal | undefined,
+): Promise<SubagentResult> {
+  if (!deps.runForeignSubagent) {
+    throw new Error(`Delegating to the ${backend} backend is unavailable in this session.`);
+  }
+  const parent = fallbackModel(ctx);
+  return deps.runForeignSubagent({
+    task, role, backend, cwd: ctx.cwd, ref,
+    parent: {
+      backend: 'pi', model: parent?.id ?? null, provider: parent?.provider ?? null,
+      env: deps.parentEnv,
+    },
+    signal, onNotice: deps.onEvent,
+  });
 }
 
 function textResult(text: string): { content: Array<{ type: 'text'; text: string }>; details: undefined } {

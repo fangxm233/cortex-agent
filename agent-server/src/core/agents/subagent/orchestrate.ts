@@ -6,8 +6,8 @@
 import { MAX_SUBAGENT_CONCURRENCY } from './schema.js';
 import { aggregateUsage, emptyUsage } from './usage.js';
 import type {
-  ChildEventForwarder, Invocation, RunChildFn, SubagentDetails, SubagentMode, SubagentResult,
-  SubagentTask,
+  ChildEventForwarder, Invocation, RunChildFn, SubagentDetails, SubagentEndStatus, SubagentMode,
+  SubagentResult, SubagentTask,
 } from './types.js';
 
 /** Carries one running child's events out to the parent transcript. Built per `agent` call so it
@@ -21,6 +21,13 @@ export interface SubagentChannel {
 
 export function isFailed(result: SubagentResult): boolean {
   return result.stopReason === 'error' || result.stopReason === 'aborted';
+}
+
+/** How a settled child is reported to the parent transcript. `aborted` is `killed` rather than
+ *  `failed`: the child was stopped, it did not fall over. */
+export function endStatusOf(result: SubagentResult): SubagentEndStatus {
+  if (result.stopReason === 'aborted') return 'killed';
+  return isFailed(result) ? 'failed' : 'completed';
 }
 
 export function resultText(result: SubagentResult): string {

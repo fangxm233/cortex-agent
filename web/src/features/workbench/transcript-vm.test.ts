@@ -1387,6 +1387,46 @@ describe('buildTranscriptRows — native subagent grouping', () => {
     expect(child.status).toBe('done');
   });
 
+  it('seals both children of a batch that settle in the same millisecond', () => {
+    // The end rows carry no text and no tool name, so before they were keyed on the block they
+    // seal, two simultaneous ends deduped into one and the second child kept spinning.
+    const rows = buildTranscriptRows(
+      {
+        sessionId: 's-compact-tie',
+        turns: [{ turnIndex: 0, messages: [
+          msg({ type: 'user', text: 'go' }),
+          msg({
+            type: 'tool', toolName: 'agent', toolInput: 'Inspect renderers',
+            subagentSpawns: [
+              { id: 'child-0', type: 'explore', description: 'A', prompt: 'A.' },
+              { id: 'child-1', type: 'explore', description: 'B', prompt: 'B.' },
+            ],
+          } as any),
+        ] }],
+        subagentSummaries: [
+          { id: 'child-0', type: 'explore', description: 'A', toolCount: 0, hasDetails: true, structurallyOpen: true },
+          { id: 'child-1', type: 'explore', description: 'B', toolCount: 0, hasDetails: true, structurallyOpen: true },
+        ],
+      },
+      [
+        {
+          sessionId: 's-compact-tie', role: 'assistant', text: '',
+          subagentId: 'child-0', subagentEnded: 'completed', ts: '2026-08-01T01:00:01.000Z',
+        },
+        {
+          sessionId: 's-compact-tie', role: 'assistant', text: '',
+          subagentId: 'child-1', subagentEnded: 'failed', ts: '2026-08-01T01:00:01.000Z',
+        },
+      ],
+      { running: true },
+    );
+
+    const blocks = rows.filter((row) => row.kind === 'subagent') as Extract<ChatRow, { kind: 'subagent' }>[];
+    expect(blocks.map((block) => [block.id, block.status])).toEqual([
+      ['child-0', 'done'], ['child-1', 'done'],
+    ]);
+  });
+
   it('keeps the old embedded-child behavior when no compact summaries are present', () => {
     const rows = buildTranscriptRows(
       tx([{ turnIndex: 0, messages: [

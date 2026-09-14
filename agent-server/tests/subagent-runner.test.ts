@@ -383,6 +383,44 @@ test('each child gets its own attribution ref, keyed on the run id and its index
   assert.deepEqual(refs, [`${view.id}#0`, `${view.id}#1`]);
 });
 
+test('every child seals its block when it settles, whichever way it settled', async () => {
+  // The daemon-side `agent` tool is not one of the backend's own tasks: no task lifecycle reports
+  // it, and the parent's next row proves nothing about it. This notice is the only evidence the
+  // transcript ever gets that one of these children is over.
+  writeRole('general-purpose');
+  runSubagent.mockImplementation(async (req: any) => {
+    if (req.task.description === 'boom') throw new Error('child exploded');
+    if (req.task.description === 'refused') {
+      return { ...ok('refused'), stopReason: 'error', errorMessage: 'refused' };
+    }
+    return ok(req.task.description);
+  });
+  const notices: any[] = [];
+  const view = await startAndSettle({
+    params: {
+      parallel: [
+        task({ description: 'fine' }), task({ description: 'boom' }), task({ description: 'refused' }),
+      ],
+    },
+    background: false,
+    cwd: '/tmp',
+    parent: parentIsClaude,
+    sessionId: 's1',
+    onNotice: (notice: any) => { notices.push(notice); },
+  });
+
+  assert.deepEqual(
+    new Map(notices.map((notice) => [notice.ref, notice.status])),
+    new Map([
+      [`${view.id}#0`, 'completed'],
+      [`${view.id}#1`, 'failed'],
+      [`${view.id}#2`, 'failed'],
+    ]),
+  );
+  // The block key is the same one the child's own rows carried, and the notice is an end.
+  for (const notice of notices) assert.equal(notice.kind, 'end');
+});
+
 test('an unknown role is refused before anything is registered — no half-run fan-out', () => {
   writeRole('general-purpose');
   assert.throws(

@@ -1,9 +1,12 @@
-// input:  a parent tool-call id, a per-child task, and raw nested-session events
+// input:  a parent tool-call id, a per-child task, raw nested-session events, and how a child settled
 // output: SubagentNotices for the parent transcript, one channel per `agent` call
 // pos:    Translates a PI child's events into parent-visible attribution
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import type { ChildAccumulator, ChildEventForwarder } from '@core/agents/subagent/types.js';
+import type {
+  ChildAccumulator, ChildEventForwarder, SubagentEndStatus,
+} from '@core/agents/subagent/types.js';
+import type { Backend } from '../types.js';
 import type { SubagentChannel } from '@core/agents/subagent/orchestrate.js';
 import type { SubagentNotice } from './event-parser.js';
 
@@ -68,6 +71,35 @@ export function noticesFor(
   const model = typeof message.model === 'string' ? message.model : base.model;
   const text = textFromMessage(message);
   return text ? [{ ...base, model, kind: 'assistant_text', text }] : [];
+}
+
+/**
+ * The child's terminal notice — the one signal that seals its block in the parent transcript.
+ *
+ * A delegated child is not a backend task: neither backend reports a lifecycle for it, so nothing
+ * in its own event stream says "this one is over". Without this notice the block could only close
+ * when the whole session went idle, which is why every child of an `agent` call used to sit at
+ * "running" until its parent's turn ended. Emitted by whoever awaited the child, after its last
+ * forwarded row, exactly once per child — including the ones that failed or were aborted, which
+ * produce no rows at all.
+ */
+export function subagentEndNotice(
+  ref: string,
+  task: { description: string; subagent_type: string },
+  backend: Backend,
+  status: SubagentEndStatus,
+): SubagentNotice {
+  return {
+    ref,
+    type: task.subagent_type,
+    description: task.description,
+    // The end carries no model of its own: whichever row already reported one keeps it, and a
+    // child that never spoke has none to report.
+    model: null,
+    backend,
+    kind: 'end',
+    status,
+  };
 }
 
 export function messageEndMessage(event: Record<string, unknown>): Record<string, unknown> | null {

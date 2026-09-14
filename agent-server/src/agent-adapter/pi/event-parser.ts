@@ -7,6 +7,7 @@ import type { ContextUsage } from '@core/types/agent-types.js';
 import type { NormalizedEvent, QuestionSpec } from '../normalize/event-types.js';
 import { toCanonical } from '@core/tool-names.js';
 import { subagentNoticeEvents } from '@core/agents/subagent/attribution.js';
+import type { SubagentEndStatus } from '@core/agents/subagent/types.js';
 import type { Backend } from '../types.js';
 import { parseTodoWrite } from '../normalize/todo.js';
 
@@ -29,8 +30,9 @@ interface PIAgentEndSummary extends PIPendingCompletion {
   cacheWriteReported: boolean;
 }
 
-/** One event a PI subagent forwards for the parent's transcript. Only the three kinds the
- *  transcript renders are carried; token deltas stay with the child. */
+/** One event a PI subagent forwards for the parent's transcript. Only the kinds the transcript
+ *  renders are carried; token deltas stay with the child. Three of them are rows the child
+ *  produced; `end` is the child settling, which is a state correction rather than a row. */
 export interface SubagentNotice {
   /** Block key — `${parentToolCallId}#${childIndex}`: one Agent call may run up to 8 children. */
   ref: string;
@@ -45,7 +47,7 @@ export interface SubagentNotice {
   /** Which backend actually ran the child. Absent means `pi` — the only producer before children
    *  could cross backends. Read when a name has to be spelled the way its own backend spells it. */
   backend?: Backend;
-  kind: 'tool_use' | 'tool_result' | 'assistant_text';
+  kind: 'tool_use' | 'tool_result' | 'assistant_text' | 'end';
   /** Namespaced `${ref}:${childToolCallId}`: parallel children number their calls independently. */
   toolUseId?: string;
   /** tool_use only. */
@@ -56,6 +58,8 @@ export interface SubagentNotice {
   content?: string;
   /** assistant_text only. */
   text?: string;
+  /** end only: how the child settled. */
+  status?: SubagentEndStatus;
 }
 
 export interface PIEventParserState {
@@ -369,6 +373,10 @@ function sumNullableCosts(left: number | null, right: number | null): number | n
   return (left ?? 0) + (right ?? 0);
 }
 
+function isSubagentEndStatus(value: unknown): value is SubagentEndStatus {
+  return value === 'completed' || value === 'failed' || value === 'killed';
+}
+
 /** Shape-check a forwarded notice. Strict on purpose: a half-formed notice would produce a row
  *  attributed to a subagent that cannot be named, which is worse than dropping the row. */
 function subagentNoticeFrom(value: unknown): SubagentNotice | null {
@@ -376,7 +384,7 @@ function subagentNoticeFrom(value: unknown): SubagentNotice | null {
   const parsed = value as Record<string, unknown>;
   const { ref, kind } = parsed;
   if (typeof ref !== 'string' || !ref) return null;
-  if (kind !== 'tool_use' && kind !== 'tool_result' && kind !== 'assistant_text') return null;
+  if (kind !== 'tool_use' && kind !== 'tool_result' && kind !== 'assistant_text' && kind !== 'end') return null;
   const notice: SubagentNotice = {
     ref,
     kind,
@@ -397,6 +405,13 @@ function subagentNoticeFrom(value: unknown): SubagentNotice | null {
     notice.toolUseId = parsed.toolUseId;
     notice.ok = parsed.ok !== false;
     notice.content = typeof parsed.content === 'string' ? parsed.content : '';
+    return notice;
+  }
+  if (kind === 'end') {
+    // An unrecognised status is dropped rather than defaulted: sealing a block is a terminal
+    // claim, and "the child ended somehow" is not evidence of which way it ended.
+    if (!isSubagentEndStatus(parsed.status)) return null;
+    notice.status = parsed.status;
     return notice;
   }
   if (typeof parsed.text !== 'string' || !parsed.text) return null;

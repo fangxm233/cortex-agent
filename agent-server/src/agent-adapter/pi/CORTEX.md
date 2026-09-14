@@ -28,7 +28,7 @@ Adds Cortex MCP tools, hooks, subagents, shims, and web tools as inline extensio
 | web-search.ts | tool | routes and decodes provider-side search responses |
 | subagent.ts | tool | The PI `agent` / `agent_stop` tools: role resolution, modes, backgrounding |
 | child-runner.ts | core | Runs one nested PI child to completion, for either backend's parent |
-| child-events.ts | parser | Turns a nested child's raw session records into parent-transcript notices |
+| child-events.ts | parser | Turns a nested child's raw session records into parent-transcript notices, and mints the end notice that seals its block |
 | background-subagent.ts | contract | Port types for a backgrounded PI run; orchestration/pi-background-subagent.ts implements it |
 | subagent-bridge.ts | contract | PiSubagentBridge — the daemon collaborators the `agent` tool needs, injected by the host |
 | tool-shims.ts | bridge | gates PI-local agent/agent_stop, todo, and web tools |

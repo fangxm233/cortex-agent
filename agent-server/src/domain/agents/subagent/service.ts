@@ -5,7 +5,9 @@
 
 import type { SubagentNotice } from '../../../agent-adapter/pi/event-parser.js';
 import { findRole, loadRoles } from '@core/agents/roles.js';
-import { failedChildResult, runInvocation } from '@core/agents/subagent/orchestrate.js';
+import { endStatusOf, failedChildResult, runInvocation } from '@core/agents/subagent/orchestrate.js';
+import { subagentEndNotice } from '../../../agent-adapter/pi/child-events.js';
+import type { SubagentEndStatus } from '@core/agents/subagent/types.js';
 import { resolveInvocation } from '@core/agents/subagent/schema.js';
 import { startSubagentRun, type SubagentRunView } from './registry.js';
 import { runSubagent, type SubagentParentContext } from './runner.js';
@@ -47,19 +49,31 @@ export function startDaemonSubagentRun(request: DaemonSubagentRequest): Subagent
         const role = findRole(roles, task.subagent_type);
         // Task → role → the delegating session's own backend, so an unqualified task stays home.
         const backend = task.backend ?? role.backend ?? request.parent.backend;
+        // The run id stands in for a tool-call id: the MCP tool never learns the backend's own,
+        // so the block key the transcript groups on is minted here instead.
+        const ref = `${runId}#${index}`;
+        // Seal the child's transcript block the moment it settles. Nothing else can: this child is
+        // not one of the backend's own tasks, so no task lifecycle reports it, and the parent's
+        // next row proves nothing (a backgrounded child runs beside the parent). Every exit goes
+        // through here — including the failures and aborts that produce no rows at all.
+        const seal = (status: SubagentEndStatus): void => {
+          try { request.onNotice?.(subagentEndNotice(ref, task, backend, status)); }
+          catch { /* attribution is best-effort; the run itself must not fail for it */ }
+        };
         try {
-          return await runSubagent({
+          const result = await runSubagent({
             task, role, backend,
             cwd: request.cwd,
-            // The run id stands in for a tool-call id: the MCP tool never learns the backend's own,
-            // so the block key the transcript groups on is minted here instead.
-            ref: `${runId}#${index}`,
+            ref,
             parent: request.parent,
             signal: childSignal,
             onNotice: request.onNotice,
           });
+          seal(endStatusOf(result));
+          return result;
         } catch (error) {
-          if (childSignal?.aborted) throw error;
+          if (childSignal?.aborted) { seal('killed'); throw error; }
+          seal('failed');
           return failedChildResult(task, error);
         }
       };

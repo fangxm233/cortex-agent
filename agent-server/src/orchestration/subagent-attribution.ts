@@ -1,10 +1,12 @@
 // input:  a delegating session's id and channel, plus its children's SubagentNotices
-// output: attributed events pushed into the parent's live turn
+// output: attributed events pushed into the parent's live turn, or a child's end written direct
 // pos:    Parent-transcript side of the `agent` MCP tool
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { createLogger } from '@core/log.js';
 import { runRegistry, type RunningExecution } from '@core/run-registry.js';
+import { conversationHistory } from '@store/conversation-history-repo.js';
+import { publishSessionMessage } from './session-events.js';
 import { toRunEvent, type RunEvent, type RunPhase } from '../agent-adapter/run-events.js';
 import type { SubagentNotice } from '../agent-adapter/pi/event-parser.js';
 import { subagentNoticeEvents } from '@core/agents/subagent/attribution.js';
@@ -75,14 +77,42 @@ export function parentNoticeSink(
   if (!parentKey || !ingestTarget(runRegistry.getById(parentKey))) return undefined;
   return (notice: SubagentNotice): void => {
     const run = ingestTarget(runRegistry.getById(parentKey));
-    if (!run) return;
+    if (!run) return sealWithoutRun(sessionId, channel, notice);
     try {
       for (const event of subagentNoticeEvents(notice)) {
-        if (!run.ingestExternal(toRunEvent(event, run.phase))) return;
+        if (!run.ingestExternal(toRunEvent(event, run.phase))) {
+          return sealWithoutRun(sessionId, channel, notice);
+        }
       }
     } catch (error) {
       // Attribution is decoration: a broken transcript must never fail the delegated work.
       log.warn(`Dropping subagent notice for ${sessionId ?? channel}: ${(error as Error).message}`);
     }
   };
+}
+
+/**
+ * Write a settled child's end straight to the transcript, for the state where the live stream
+ * cannot carry it: a backgrounded child of a parallel batch finishes after its parent's turn
+ * closed, so there is no run left to push into — and the batch's delivery turn, which would close
+ * the block as a user-turn boundary, does not come until its slowest sibling is done too.
+ *
+ * Rows are still dropped in that state; they are decoration, and a finished turn is not the place
+ * for them. The end is not decoration: without it that child's block spins for as long as the rest
+ * of the batch takes. Same two writes the transcript sink performs, so the row the client receives
+ * and the history line a later reader parses are identical either way.
+ */
+function sealWithoutRun(
+  sessionId: string | null, channel: string | undefined, notice: SubagentNotice,
+): void {
+  if (notice.kind !== 'end' || !notice.status || !sessionId) return;
+  const ts = new Date().toISOString();
+  conversationHistory
+    .appendSubagentEnd(sessionId, { subagentId: notice.ref, status: notice.status, ts })
+    .catch((error) => log.warn(`subagent-end write failed: ${(error as Error).message}`));
+  if (!channel) return;
+  publishSessionMessage({
+    sessionId, channel, role: 'assistant', text: '', ts,
+    subagentId: notice.ref, subagentEnded: notice.status,
+  });
 }
