@@ -12,12 +12,13 @@ import type { Backend } from '../../../agent-adapter/types.js';
 import type { SubagentNotice } from '../../../agent-adapter/pi/event-parser.js';
 import { noticesFor } from '../../../agent-adapter/pi/child-events.js';
 import { getPiEngineAdapter } from '../../runs/adapters.js';
-import { resolveRunConfig } from '../../runs/config-resolver.js';
 import { GATEWAY_URL } from '../../costs/gateway-manager.js';
 import { type AgentRole } from '@core/agents/roles.js';
 import { buildPiGatewaySubPath } from '../../runs/engine-spec.js';
-import type { RunAttemptConfig } from '../profile-manager.js';
-import type { ResolvedProfileConfig } from '../profile-manager.js';
+import {
+  getDefaultProfileForBackend, resolveProfileConfig,
+  type RunAttemptConfig, type ResolvedProfileConfig,
+} from '../profile-manager.js';
 import { startRun } from '../../runs/service.js';
 import { fromRole } from '../../runs/spec-loader.js';
 import type { RunObserver, RunRequest } from '../../runs/request.js';
@@ -36,7 +37,7 @@ const CHILD_MCP_BUNDLES = ['cortex-core', 'cortex-tasks', 'cortex-manager-qa', '
 /** What the delegating turn already resolved. A child inherits routing from here — never a profile. */
 export interface SubagentParentContext {
   backend: Backend;
-  /** The parent run's resolved gateway route. A `claude` child reuses it verbatim. */
+  /** The parent run's resolved gateway route. A same-backend Claude child reuses it verbatim. */
   mode?: string | null;
   provider?: string | null;
   model?: string | null;
@@ -195,20 +196,33 @@ function piForwarder(request: SubagentRunRequest): ChildEventForwarder | undefin
 
 // ─── claude child ─────────────────────────────────────────────────
 
+/** The fallback route for a Claude child must itself be a Claude profile. Using the caller's
+ * channel default here can smuggle a PI gateway mode into a cross-backend Claude attempt. */
+function claudeFallbackProfile(): ResolvedProfileConfig {
+  const name = getDefaultProfileForBackend('claude');
+  if (!name) {
+    throw new Error('A claude subagent needs a configured Claude profile for routing.');
+  }
+  return resolveProfileConfig(name);
+}
+
 /**
- * No profile is consulted for the CHILD (plan §3.2): the model comes from the task or the role,
- * falling back to the parent's own when the parent is itself Claude. The last resort used to be
- * the daemon's global Claude model/mode; with D5 there is no global, so it is the profile the
- * parent's channel resolves to — the same answer whenever that global was ever correct.
- * The gateway `mode` follows the same rule, so a child bills through the parent's route.
+ * The child model comes from the task or role, then the parent's own model when that parent is
+ * Claude, and finally the configured Claude-backend default. The route follows the Claude parent
+ * when there is one; a cross-backend child uses that Claude default instead of the PI channel's
+ * mode. The fallback profile supplies routing only — the child remains an unnamed one-shot run.
  */
 function claudeChildConfig(request: SubagentRunRequest, spec: ModelSpec): RunAttemptConfig {
   const sameBackend = request.parent.backend === 'claude';
-  const channelDefault = resolveRunConfig({ channel: request.parent.channel }).profile;
+  let fallback: ResolvedProfileConfig | null = null;
+  const claudeDefault = (): ResolvedProfileConfig => fallback ??= claudeFallbackProfile();
+  const inheritedMode = sameBackend && request.parent.mode !== undefined
+    ? request.parent.mode
+    : claudeDefault().mode;
   return {
-    model: spec.model ?? (sameBackend ? request.parent.model : null) ?? channelDefault.model,
+    model: spec.model ?? (sameBackend ? request.parent.model : null) ?? claudeDefault().model,
     backend: 'claude',
-    mode: (sameBackend ? request.parent.mode : null) ?? channelDefault.mode,
+    mode: inheritedMode,
     provider: null,
     extraEnv: {},
     extraOption: {},
@@ -375,4 +389,4 @@ function claudeNoticeObserver(request: SubagentRunRequest): RunObserver {
 }
 
 /** Internals exposed for tests only. */
-export const _test = { claudeNoticeObserver };
+export const _test = { claudeChildConfig, claudeNoticeObserver };
