@@ -40,8 +40,7 @@ function makeDeps(log: Log, overrides: Partial<CompactSessionDeps> = {}): Compac
       getById: async () => ({ ...BASE_SESSION } as any),
       updateContextUsage: async (sessionId, usage) => { log.snapshots.push({ sessionId, usage }); },
     },
-    running: { hasChannel: () => false },
-    background: { has: () => false },
+    engineBusy: () => false,
     queue: {
       has: () => false,
       run: async (_channel, fn) => fn(),
@@ -93,8 +92,7 @@ test('no backend history is a harmless not-needed outcome and spawns no control 
 test('unsupported and every busy source reject before compaction', async () => {
   for (const overrides of [
     { supports: () => false },
-    { running: { hasChannel: () => true } },
-    { background: { has: () => true } },
+    { engineBusy: () => true },
     { queue: { has: () => true, run: async (_channel: string, fn: () => Promise<any>) => fn() } },
   ]) {
     const log = freshLog();

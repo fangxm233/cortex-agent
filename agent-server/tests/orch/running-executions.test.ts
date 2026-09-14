@@ -352,19 +352,18 @@ test('track/backend ids are stored separately on running executions', () => {
 
   assert.equal(exec.getById('E1')!.trackSessionId, 'track-1');
   assert.equal(exec.getById('E1')!.backendSessionId, 'backend-1');
-  assert.equal(exec.getById('E1')!.sessionId, 'track-1');
 });
 
-test('legacy sessionId field falls back to backendSessionId when trackSessionId is absent', () => {
+test('a backend session id is stored on its own field when there is no track id', () => {
   const exec = new RunRegistry();
   exec.register(makeInput({ executionId: 'E1', backendSessionId: 'backend-only' }));
-  assert.equal(exec.getById('E1')!.sessionId, 'backend-only');
+  assert.equal(exec.getById('E1')!.backendSessionId, 'backend-only');
+  assert.equal(exec.getById('E1')!.trackSessionId, null);
 });
 
-test('legacy sessionId is not copied into backendSessionId when a trackSessionId is also present', () => {
+test('a track id is never copied into backendSessionId', () => {
   const exec = new RunRegistry();
-  exec.register(makeInput({ executionId: 'E1', trackSessionId: 'track-1', sessionId: 'legacy-backend' }));
+  exec.register(makeInput({ executionId: 'E1', trackSessionId: 'track-1' }));
   assert.equal(exec.getById('E1')!.trackSessionId, 'track-1');
-  assert.equal(exec.getById('E1')!.backendSessionId, 'legacy-backend');
-  assert.equal(exec.getById('E1')!.sessionId, 'track-1');
+  assert.equal(exec.getById('E1')!.backendSessionId, null);
 });

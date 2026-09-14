@@ -74,8 +74,6 @@ export interface RunningExecution {
   trackSessionId?: string | null;
   /** Backend resume target snapshot from spawn time. */
   backendSessionId?: string | null;
-  /** Legacy compatibility alias. Prefers trackSessionId, falls back to backendSessionId. */
-  sessionId?: string | null;
   /** Live agent-turn count of the in-flight run (adapter `turn_progress`/`turn_complete`), updated
    *  in-memory via setNumTurns. Null until the first progress event. Read by sessions.list as the
    *  running-turn snapshot (snapshot + delta with the `session.turn` event) for the Web composer. */
@@ -168,8 +166,7 @@ export class RunRegistry {
       backend: exec.backend,
       run: exec.run,
       trackSessionId: exec.trackSessionId ?? null,
-      backendSessionId: exec.backendSessionId ?? exec.sessionId ?? null,
-      sessionId: exec.trackSessionId ?? exec.backendSessionId ?? exec.sessionId ?? null,
+      backendSessionId: exec.backendSessionId ?? null,
       numTurns: exec.numTurns ?? null,
     };
 
@@ -227,7 +224,7 @@ export class RunRegistry {
   getBySessionId(sessionId: string): RunningExecution | null {
     let best: RunningExecution | null = null;
     for (const entry of this.byKey.values()) {
-      if (entry.trackSessionId !== sessionId && entry.sessionId !== sessionId) continue;
+      if (entry.trackSessionId !== sessionId && entry.backendSessionId !== sessionId) continue;
       if (!best || entry.startTime >= best.startTime) best = entry;
     }
     return best;
@@ -242,7 +239,7 @@ export class RunRegistry {
     let best: RunningExecution | null = null;
     for (const entry of this.byKey.values()) {
       if (entry.threadId) continue;
-      if (entry.trackSessionId !== sessionId && entry.sessionId !== sessionId) continue;
+      if (entry.trackSessionId !== sessionId && entry.backendSessionId !== sessionId) continue;
       if (!best || entry.startTime >= best.startTime) best = entry;
     }
     return best;
@@ -457,6 +454,17 @@ export class RunRegistry {
     } else {
       this.clearBackgroundHeld(e.sessionId);
     }
+  }
+
+  /**
+   * True while a command aimed at this channel's pooled engine is unsafe: a live turn or a
+   * background hold on `sessionId` (the engine serves that session), OR any other run registered on
+   * the channel. The channel-wide half is not redundant — the conversation, edit-retry,
+   * auto-compound and subagent paths all open with `engineKey === channel`, so a second run on the
+   * same channel is a second user of the same pooled process.
+   */
+  channelEngineBusy(channel: string, sessionId: string): boolean {
+    return this.hasChannel(channel) || this.sessionState(sessionId).running;
   }
 
   /** True while the session's foreground turn is over but a background task still holds it. */

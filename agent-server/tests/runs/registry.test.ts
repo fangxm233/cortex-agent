@@ -87,9 +87,9 @@ test('sessionState: a thread execution does not make the session itself busy', (
   });
 });
 
-test('sessionState: matches the legacy sessionId alias too, and picks the newest foreground', () => {
+test('sessionState: also matches a run known only by its backend session id, and picks the newest foreground', () => {
   const r = new RunRegistry();
-  r.register(makeInput({ executionId: 'exec-old', trackSessionId: null, sessionId: 's1' }));
+  r.register(makeInput({ executionId: 'exec-old', trackSessionId: null, backendSessionId: 's1' }));
   r.register(makeInput({ executionId: 'exec-new', trackSessionId: 's1' }));
   r.setNumTurns('exec-new', 7);
 

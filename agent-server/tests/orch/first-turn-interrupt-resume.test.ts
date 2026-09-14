@@ -179,7 +179,7 @@ test('cancelChannelRuns keeps the channel bound to the stable track id', async (
     kind: 'local',
     kill: () => true,
     backend,
-    sessionId: 'B-backend-uuid', // spawn-time BACKEND id snapshot — must NOT become the binding
+    backendSessionId: 'B-backend-uuid', // spawn-time BACKEND id snapshot — must NOT become the binding
   });
 
   const n = await cancelChannelRuns('slack:C-keep');

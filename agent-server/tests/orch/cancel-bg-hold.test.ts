@@ -177,20 +177,20 @@ test('one session reached once, however many executions it has live', () => {
   assert.deepEqual(asked, ['sess-1'], 'deduped — a thread step beside its parent is still one session');
 });
 
-test('falls back to the legacy session id when there is no track id', () => {
+test('falls back to the backend session id when there is no track id', () => {
   const asked: string[] = [];
   cancelSubagentRuns('web:live', {
-    liveExecutions: () => [exec({ trackSessionId: null, sessionId: 'legacy-1' })],
+    liveExecutions: () => [exec({ trackSessionId: null, backendSessionId: 'backend-1' })],
     heldSessions: () => [],
     stopForSession: (s) => { asked.push(s); return 0; },
   });
-  assert.deepEqual(asked, ['legacy-1']);
+  assert.deepEqual(asked, ['backend-1']);
 });
 
 test('an execution with no session at all is skipped, not asked about as ""', () => {
   const asked: string[] = [];
   const n = cancelSubagentRuns('web:live', {
-    liveExecutions: () => [exec({ trackSessionId: null, sessionId: null })],
+    liveExecutions: () => [exec({ trackSessionId: null, backendSessionId: null })],
     heldSessions: () => [],
     stopForSession: (s) => { asked.push(s); return 1; },
   });

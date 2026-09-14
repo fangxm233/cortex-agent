@@ -441,7 +441,6 @@ export class AgentRunImpl implements AgentRun {
       run: this,
       trackSessionId: this.request.session.sessionId,
       backendSessionId: attempt.backendSessionId ?? this.request.session.backendSessionId,
-      sessionId: attempt.backendSessionId,
     });
     // The engine's spawn-time backend id is authoritative even when it never emits a
     // `session_started` event (an interrupted first turn). Surfaces that persist the resume target

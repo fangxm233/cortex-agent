@@ -241,7 +241,7 @@ async function handleStatusCancel(ctx: ActionContext): Promise<void> {
       log.warn('Cancel button clicked but no running execution for executionId', { channel, executionId });
       return;
     }
-    if (exec.sessionId) await setSessionAsync(exec.channel ?? channel, exec.sessionId).catch(() => {});
+    if (exec.trackSessionId) await setSessionAsync(exec.channel ?? channel, exec.trackSessionId).catch(() => {});
     // teardownExecution(cancelled): record→cancelled, kill the handle, publish a balanced event.
     executionRegistry.teardownExecution({ executionId, status: 'cancelled', durationS: 0 });
     conduitQueues.delete(exec.channel ?? channel);
@@ -263,7 +263,7 @@ async function handleStatusCancel(ctx: ActionContext): Promise<void> {
     return;
   }
   await cancelThreadById(threadId).catch(() => {});
-  if (exec.sessionId) await setSessionAsync(exec.channel ?? channel, exec.sessionId).catch(() => {});
+  if (exec.trackSessionId) await setSessionAsync(exec.channel ?? channel, exec.trackSessionId).catch(() => {});
   if (exec.executionId) {
     executionRegistry.teardownExecution({ executionId: exec.executionId, status: 'cancelled', durationS: 0 });
   } else {

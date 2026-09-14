@@ -33,10 +33,6 @@ export function buildSessionRetentionLiveness(deps: SessionRetentionLivenessDeps
     const trackId = execution.trackSessionId ?? null;
     const backendId = execution.backendSessionId ?? null;
     if (trackId) addTrack(trackId);
-    else if (!backendId) {
-      addTrack(execution.sessionId ?? null);
-      addBackend(execution.sessionId ?? null);
-    }
     addBackend(backendId);
   }
 

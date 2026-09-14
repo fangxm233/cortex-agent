@@ -45,8 +45,9 @@ export interface CompactSessionDeps {
     getById(sessionId: string): Promise<CompactSessionRecord | null>;
     updateContextUsage(sessionId: string, usage: SessionContextUsage | null): Promise<void>;
   };
-  running: { hasChannel(channel: string): boolean };
-  background: { has(sessionId: string): boolean };
+  /** The registry's one answer to "may a command touch this session's pooled engine": see
+   *  `RunRegistry.channelEngineBusy`. */
+  engineBusy(session: { sessionId: string; channel: string }): boolean;
   queue: {
     has(channel: string): boolean;
     run<T>(channel: string, fn: () => Promise<T>): Promise<T>;
@@ -64,8 +65,7 @@ export interface CompactSessionDeps {
 
 const defaultDeps: CompactSessionDeps = {
   sessions: sessionStore,
-  running: runRegistry,
-  background: runRegistry,
+  engineBusy: (session) => runRegistry.channelEngineBusy(session.channel, session.sessionId),
   queue: {
     has: (channel) => conduitQueues.has(channel),
     run: enqueueAndWait,
@@ -129,9 +129,10 @@ export async function compactSessionContext(
   const session = await deps.sessions.getById(sessionId);
   if (!session) return { ok: false, reason: 'not-found' };
   if (!deps.supports(session)) return { ok: false, reason: 'unsupported' };
-  const busy = deps.running.hasChannel(session.channel)
-    || deps.background.has(session.sessionId)
-    || deps.queue.has(session.channel);
+  // Two questions, and they are not the same one: is the engine this command targets in use
+  // (the registry), and is a compaction of this channel already queued (the conduit queue, which
+  // is what serializes two compactions). The registry used to be asked twice under two names.
+  const busy = deps.engineBusy(session) || deps.queue.has(session.channel);
   if (busy) return { ok: false, reason: 'running' };
   const backendSessionId = effectiveBackendSessionId(session as Session);
   if (!backendSessionId) {

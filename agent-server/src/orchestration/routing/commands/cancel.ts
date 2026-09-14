@@ -92,7 +92,7 @@ export function cancelSubagentRuns(channel: string, deps: SubagentCancelDeps = {
 
   const sessionIds = new Set<string>();
   for (const exec of liveExecutions(channel)) {
-    const id = exec.trackSessionId ?? exec.sessionId ?? null;
+    const id = exec.trackSessionId ?? exec.backendSessionId ?? null;
     if (id) sessionIds.add(id);
   }
   for (const id of heldSessions(channel)) if (id) sessionIds.add(id);
