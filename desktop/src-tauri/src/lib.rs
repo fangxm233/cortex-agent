@@ -39,6 +39,9 @@ mod mobile_notifications;
 // bundles for the next launch. The one platform seam is the first-run seed (see `seed` below):
 // desktop reads it from `resource_dir/frontend-seed`, Android from an `include_dir!`-embedded copy.
 mod app_update;
+// Where this build actually lives on disk (and therefore what may be done to it). Consulted by
+// app_update for asset selection and by update_checks for the silent-apply decision.
+mod install_site;
 mod setup;
 mod frontend;
 mod ota;

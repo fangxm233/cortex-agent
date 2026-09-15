@@ -150,37 +150,6 @@ pub fn select_asset<'a>(assets: &'a [Asset], os: &str, arch: &str, kind: &str) -
         .find(|a| a.os == os && a.kind == kind && (a.arch == arch || a.arch == "universal"))
 }
 
-/// Decide which Linux package kind this install uses, pure over its inputs: a set `$APPIMAGE` env
-/// (AppImage self-run path) wins; otherwise /etc/os-release ID/ID_LIKE picks deb vs rpm; unknown
-/// falls back to appimage (self-contained, always installable).
-#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
-pub fn detect_linux_kind_from(appimage_env: Option<&str>, os_release: &str) -> &'static str {
-    if appimage_env.is_some_and(|v| !v.trim().is_empty()) {
-        return "appimage";
-    }
-    const DEB_IDS: &[&str] = &["debian", "ubuntu", "linuxmint", "pop", "elementary", "kali"];
-    const RPM_IDS: &[&str] = &["rhel", "fedora", "centos", "rocky", "almalinux", "suse", "opensuse", "opensuse-leap", "opensuse-tumbleweed"];
-    let ids: Vec<String> = os_release
-        .lines()
-        .filter_map(|line| {
-            line.strip_prefix("ID=").or_else(|| line.strip_prefix("ID_LIKE="))
-        })
-        .flat_map(|v| {
-            v.trim_matches('"')
-                .split_whitespace()
-                .map(|s| s.to_ascii_lowercase())
-                .collect::<Vec<_>>()
-        })
-        .collect();
-    if ids.iter().any(|id| DEB_IDS.contains(&id.as_str())) {
-        return "deb";
-    }
-    if ids.iter().any(|id| RPM_IDS.contains(&id.as_str())) {
-        return "rpm";
-    }
-    "appimage"
-}
-
 // ─── On-disk store ──────────────────────────────────────────────────────────
 
 /// Download store under `<appDataDir>/updates`: verified installer files + the skipped-version
@@ -322,30 +291,10 @@ pub const ARCH_NAME: &str = "aarch64";
 #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
 pub const ARCH_NAME: &str = "unsupported";
 
-/// The package kind this install consumes: nsis / dmg / apk fixed per OS; Linux inspects the
-/// runtime environment ($APPIMAGE, /etc/os-release).
+/// The release asset kind this install consumes, derived from where this build actually lives
+/// (`install_site::detect`) rather than from the host distro — see install_site.rs for why.
 pub fn wanted_kind() -> String {
-    #[cfg(target_os = "windows")]
-    {
-        "nsis".to_string()
-    }
-    #[cfg(target_os = "macos")]
-    {
-        "dmg".to_string()
-    }
-    #[cfg(target_os = "android")]
-    {
-        "apk".to_string()
-    }
-    #[cfg(target_os = "linux")]
-    {
-        let os_release = std::fs::read_to_string("/etc/os-release").unwrap_or_default();
-        detect_linux_kind_from(std::env::var("APPIMAGE").ok().as_deref(), &os_release).to_string()
-    }
-    #[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos", target_os = "android")))]
-    {
-        "none".to_string()
-    }
+    crate::install_site::wanted_kind_for(&crate::install_site::detect()).to_string()
 }
 
 // ─── Check + download (network; thin wrapper over the tested pieces) ────────
@@ -640,18 +589,6 @@ mod tests {
         // Arch mismatch → no match (never offer the wrong binary).
         assert!(select_asset(&assets, "linux", "aarch64", "appimage").is_none());
         assert!(select_asset(&assets, "android", "x86_64", "apk").is_none());
-    }
-
-    #[test]
-    fn detect_linux_kind_prefers_appimage_env_then_os_release() {
-        assert_eq!(detect_linux_kind_from(Some("/opt/Cortex.AppImage"), ""), "appimage");
-        assert_eq!(detect_linux_kind_from(Some("  "), "ID=ubuntu"), "deb"); // blank env ≠ AppImage run
-        assert_eq!(detect_linux_kind_from(None, "ID=ubuntu\nID_LIKE=debian"), "deb");
-        assert_eq!(detect_linux_kind_from(None, "ID=debian"), "deb");
-        assert_eq!(detect_linux_kind_from(None, "ID=fedora"), "rpm");
-        assert_eq!(detect_linux_kind_from(None, "ID=\"opensuse-leap\"\nID_LIKE=\"suse opensuse\""), "rpm");
-        assert_eq!(detect_linux_kind_from(None, "ID=arch"), "appimage"); // unknown distro → appimage
-        assert_eq!(detect_linux_kind_from(None, ""), "appimage");
     }
 
     #[test]
