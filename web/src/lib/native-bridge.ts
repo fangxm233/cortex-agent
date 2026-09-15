@@ -54,6 +54,9 @@ interface NativeCommandMap {
   get_app_update: { args: undefined; result: unknown };
   install_app_update: { args: undefined; result: unknown };
   skip_app_update: { args: undefined; result: unknown };
+  // Shell-local update prefs (`<appDataDir>/updates/prefs.json`); both answer an UpdatePrefs object.
+  get_update_prefs: { args: undefined; result: unknown };
+  set_update_silent: { args: { silent: boolean }; result: unknown };
   get_staged_update: { args: undefined; result: unknown };
   apply_frontend_update: { args: undefined; result: unknown };
   save_download: { args: { name: string; bytes: number[] }; result: string };
