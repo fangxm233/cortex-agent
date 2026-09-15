@@ -45,6 +45,7 @@ import {
   handleSystemRateLimitStatus,
   handleSystemUsageStatus,
   handleSystemNotices,
+  handleSystemUpdateStatus,
 } from './query/system.js';
 import {
   handleConfigSet,
@@ -110,6 +111,8 @@ import {
   handleSystemRestart,
   handleSystemClearRateLimit,
   handleSystemRefreshUsage,
+  handleSystemApplyUpdate,
+  handleSystemSkipUpdate,
 } from './mutate/system.js';
 import {
   handleAuthCancelFlow,
@@ -169,6 +172,7 @@ const queryHandlers: Record<string, QueryHandler> = {
   'system.rateLimitStatus': (_deps, params) => handleSystemRateLimitStatus(params),
   'system.usageStatus': (_deps, params) => handleSystemUsageStatus(params),
   'system.notices': (_deps, params) => handleSystemNotices(params),
+  'system.updateStatus': (_deps, params) => handleSystemUpdateStatus(params),
 };
 
 const mutateHandlers: Record<string, MutateHandler> = {
@@ -242,6 +246,8 @@ const mutateHandlers: Record<string, MutateHandler> = {
   'system.restart': (_deps, args) => handleSystemRestart(args),
   'system.clearRateLimit': (_deps, args) => handleSystemClearRateLimit(args),
   'system.refreshUsage': (_deps, args) => handleSystemRefreshUsage(args),
+  'system.applyUpdate': (_deps, args) => handleSystemApplyUpdate(args),
+  'system.skipUpdate': (_deps, args) => handleSystemSkipUpdate(args),
 };
 
 export function redactMutationAuditArgs(op: MutateOp, args: unknown): unknown {

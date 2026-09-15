@@ -4,6 +4,10 @@ import * as path from 'node:path';
 import { STORE_DIR } from '@core/paths.js';
 import { clearThrottle } from '@domain/costs/rate-limit-throttle.js';
 import { usageService } from '@domain/costs/usage-service.js';
+import {
+  answerServerUpdatePrompt,
+  getServerUpdateStatus,
+} from '@domain/system/update-ui-state.js';
 import type {
   Result,
   SystemClearRateLimitArgs,
@@ -12,6 +16,9 @@ import type {
   SystemRefreshUsageReturn,
   SystemRestartArgs,
   SystemRestartReturn,
+  SystemApplyUpdateArgs,
+  SystemSkipUpdateArgs,
+  SystemUpdateDecisionReturn,
 } from '../types.js';
 
 function readChildPid(): number | null {
@@ -130,4 +137,23 @@ export async function handleSystemRestart(
       message: `Failed to send ${signal} to app.js (PID ${childPid}): ${err.message || String(err)}`,
     };
   }
+}
+
+// ── server self-update decisions ────────────────────────────────
+// Both resolve the `ask()` the dialog is waiting on (domain/system/update-ui-state.ts). The
+// install itself, and the skipped-version bookkeeping, stay in checkServerUpdate — these
+// handlers only deliver the answer.
+
+export async function handleSystemApplyUpdate(
+  _args: SystemApplyUpdateArgs,
+): Promise<Result<SystemUpdateDecisionReturn>> {
+  const accepted = answerServerUpdatePrompt('apply');
+  return { ok: true, data: { accepted, status: getServerUpdateStatus() } };
+}
+
+export async function handleSystemSkipUpdate(
+  _args: SystemSkipUpdateArgs,
+): Promise<Result<SystemUpdateDecisionReturn>> {
+  const accepted = answerServerUpdatePrompt('skip');
+  return { ok: true, data: { accepted, status: getServerUpdateStatus() } };
 }

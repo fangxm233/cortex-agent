@@ -10,6 +10,8 @@ import type { Project, CreateProjectResult } from '@domain/projects/index.js';
 import type { CostSummary } from '@domain/costs/cost-tracker.js';
 import type { ProviderUsage } from '@domain/costs/usage-store.js';
 export type { ProviderUsage, UsageBilling, UsageFreshness, UsageWindow } from '@domain/costs/usage-store.js';
+import type { ServerUpdateStatus } from '@domain/system/update-ui-state.js';
+export type { ServerUpdateState, ServerUpdateStatus } from '@domain/system/update-ui-state.js';
 import type { EventBus } from '@events/index.js';
 import type { SessionStateReader } from '@core/session-state.js';
 import type {
@@ -144,7 +146,8 @@ export type QueryScope =
   | 'system.daemonStatus'
   | 'system.rateLimitStatus'
   | 'system.usageStatus'
-  | 'system.notices';
+  | 'system.notices'
+  | 'system.updateStatus';
 
 // ── Mutate ops ────────────────────────────────────────────────────
 
@@ -218,7 +221,9 @@ export type MutateOp =
   | 'threadTemplates.remove'
   | 'system.restart'
   | 'system.clearRateLimit'
-  | 'system.refreshUsage';
+  | 'system.refreshUsage'
+  | 'system.applyUpdate'
+  | 'system.skipUpdate';
 
 // ── Subscribe ─────────────────────────────────────────────────────
 
@@ -2299,6 +2304,23 @@ export interface SystemRestartReturn {
   message: string;
 }
 
+// ── server self-update DTOs ───────────────────────────────────────
+// Mirrors domain/system/update-ui-state.ts. One npm self-update prompt is raised as a SPA dialog
+// (system.updateStatus + apply/skip) and, after a fallback delay, also as a chat message.
+
+export type SystemUpdateStatusParams = Record<string, never>;
+
+export type SystemUpdateStatus = ServerUpdateStatus;
+
+export type SystemApplyUpdateArgs = Record<string, never>;
+export type SystemSkipUpdateArgs = Record<string, never>;
+
+export interface SystemUpdateDecisionReturn {
+  /** false when no prompt was pending — a stale dialog whose answer arrived too late. */
+  accepted: boolean;
+  status: SystemUpdateStatus;
+}
+
 // ── system.clearRateLimit DTO ────────────────────────────────────
 
 export interface SystemClearRateLimitArgs {
@@ -2474,6 +2496,7 @@ export interface QueryParamMap {
   'system.rateLimitStatus': SystemRateLimitStatusParams;
   'system.usageStatus': SystemUsageStatusParams;
   'system.notices': SystemNoticesParams;
+  'system.updateStatus': SystemUpdateStatusParams;
 }
 
 export interface QueryReturnMap {
@@ -2517,6 +2540,7 @@ export interface QueryReturnMap {
   'system.rateLimitStatus': SystemRateLimitStatus;
   'system.usageStatus': SystemUsageStatus;
   'system.notices': SystemNotices;
+  'system.updateStatus': SystemUpdateStatus;
 }
 
 export interface MutateArgsMap {
@@ -2590,6 +2614,8 @@ export interface MutateArgsMap {
   'system.restart': SystemRestartArgs;
   'system.clearRateLimit': SystemClearRateLimitArgs;
   'system.refreshUsage': SystemRefreshUsageArgs;
+  'system.applyUpdate': SystemApplyUpdateArgs;
+  'system.skipUpdate': SystemSkipUpdateArgs;
 }
 
 export interface MutateReturnMap {
@@ -2663,6 +2689,8 @@ export interface MutateReturnMap {
   'system.restart': SystemRestartReturn;
   'system.clearRateLimit': SystemClearRateLimitReturn;
   'system.refreshUsage': SystemRefreshUsageReturn;
+  'system.applyUpdate': SystemUpdateDecisionReturn;
+  'system.skipUpdate': SystemUpdateDecisionReturn;
 }
 
 export type QueryParams<S extends QueryScope> = S extends keyof QueryParamMap ? QueryParamMap[S] : never;

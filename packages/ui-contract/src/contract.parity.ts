@@ -88,6 +88,9 @@ import type {
   systemRestartInput,
   systemClearRateLimitInput,
   systemRefreshUsageInput,
+  systemUpdateStatusInput,
+  systemApplyUpdateInput,
+  systemSkipUpdateInput,
 } from './schemas.js';
 
 // Mutual assignability: true only when A and B are structurally equivalent.
@@ -139,6 +142,7 @@ const _systemDaemonStatus: QueryParity<'system.daemonStatus', typeof systemDaemo
 const _systemRateLimitStatus: QueryParity<'system.rateLimitStatus', typeof systemRateLimitStatusInput> = true;
 const _systemUsageStatus: QueryParity<'system.usageStatus', typeof systemUsageStatusInput> = true;
 const _systemNotices: QueryParity<'system.notices', typeof systemNoticesInput> = true;
+const _systemUpdateStatus: QueryParity<'system.updateStatus', typeof systemUpdateStatusInput> = true;
 
 // ── Mutate ops ────────────────────────────────────────────────────
 const _projectsCreate: MutateParity<'projects.create', typeof projectsCreateInput> = true;
@@ -198,6 +202,8 @@ const _authRemoveCustomProvider: MutateParity<'auth.removeCustomProvider', typeo
 const _systemRestart: MutateParity<'system.restart', typeof systemRestartInput> = true;
 const _systemClearRateLimit: MutateParity<'system.clearRateLimit', typeof systemClearRateLimitInput> = true;
 const _systemRefreshUsage: MutateParity<'system.refreshUsage', typeof systemRefreshUsageInput> = true;
+const _systemApplyUpdate: MutateParity<'system.applyUpdate', typeof systemApplyUpdateInput> = true;
+const _systemSkipUpdate: MutateParity<'system.skipUpdate', typeof systemSkipUpdateInput> = true;
 
 // ── Subscriptions ─────────────────────────────────────────────────
 // Subscriptions have no query/mutate map entry; guard the input schema against its backend
@@ -224,4 +230,5 @@ export const _contractParityChecked = [
   _threadTemplatesDetail, _threadTemplatesValidate, _threadTemplatesSave, _threadTemplatesRemove,
   _systemDaemonStatus, _systemRateLimitStatus, _systemUsageStatus,
   _systemRestart, _systemClearRateLimit, _systemRefreshUsage,
+  _systemNotices, _systemUpdateStatus, _systemApplyUpdate, _systemSkipUpdate,
 ] as const;
