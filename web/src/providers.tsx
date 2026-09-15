@@ -6,6 +6,7 @@ import { TooltipProvider, ToastProvider } from '@/design';
 import { LangProvider, LangServerSync } from '@/i18n';
 import { ThemeProvider } from '@/theme';
 import { LoginFlowProvider } from '@/features/auth/LoginFlowProvider';
+import { UiAuthGate } from '@/features/auth/UiAuthGate';
 
 // How long the native shell will wait for its injected credentials before giving up and falling
 // back to browser mode. The Tauri shell now BAKES the credentials into the initialization_script
@@ -83,10 +84,17 @@ export function Providers({ children }: { children: ReactNode }) {
           <TooltipProvider>
             <ToastProvider>
               <LangProvider>
-                {/* Makes the server's one language knob the source of truth for this SPA's
-                    vocabulary; must sit inside both LangProvider and the tRPC/query providers. */}
-                <LangServerSync />
-                <LoginFlowProvider>{children}</LoginFlowProvider>
+                {/* Browser mode only: nothing below may talk to the server until this browser is
+                    known to pass its auth gate — including LangServerSync, whose query would
+                    otherwise be the app's first unauthenticated 401. Inside LangProvider and
+                    ThemeProvider so the login screen is themed and speaks the stored language;
+                    native shells render straight through. */}
+                <UiAuthGate>
+                  {/* Makes the server's one language knob the source of truth for this SPA's
+                      vocabulary; must sit inside both LangProvider and the tRPC/query providers. */}
+                  <LangServerSync />
+                  <LoginFlowProvider>{children}</LoginFlowProvider>
+                </UiAuthGate>
               </LangProvider>
             </ToastProvider>
           </TooltipProvider>
