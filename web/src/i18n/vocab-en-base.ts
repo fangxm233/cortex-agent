@@ -174,10 +174,10 @@ export const enBase = {
   wbFollowProfile: 'follow profile',
   wbFollowAll: 'follow the profile for everything',
   wbFilterModels: 'filter…',
-  // The picker draws nothing unpickable; these say, in one line, what was held back and why.
-  wbHiddenModels: '{n} more models run on {backend} — start a new conversation to use them',
-  wbHiddenProfiles: '{n} more profiles run on {backend} — start a new conversation to use them',
-  wbHiddenNoProfile: '{n} more models are waiting for a profile that runs their backend',
+  // The picker draws nothing unpickable; these say, in one line, how much was held back.
+  wbHiddenModels: '{n} more models not available this session',
+  wbHiddenProfiles: '{n} more profiles not available this session',
+  wbHiddenNoProfile: '{n} more models have no available profile',
   wbModelsPending: 'loading models…',
   wbNewConversation: 'New conversation',
   wbSend: 'send',

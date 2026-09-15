@@ -202,8 +202,8 @@ describe('SessionSelector', () => {
     drill(renderer, 'model');
     expect(renderer.root.findAllByProps({ 'data-selection-row': 'model:pi:openai-codex:gpt-5.4' }))
       .toHaveLength(0);
-    // Held back, not hidden away: the pane says how many and on which backend.
-    expect(JSON.stringify(renderer.toJSON())).toContain('pi');
+    // Held back, not hidden away: the pane says how many were held back.
+    expect(JSON.stringify(renderer.toJSON())).toContain('1 more models not available this session');
   });
 
   it('a draft may still cross backends, so nothing is held back', () => {

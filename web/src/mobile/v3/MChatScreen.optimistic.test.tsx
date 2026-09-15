@@ -566,9 +566,9 @@ describe('mobile engine picker', () => {
     const sheet = openSelection(mounted);
     const rows = sheet.vm.sections.flatMap((section: any) => section.rows);
     expect(rows.find((row: any) => row.id === 'model:pi:zai:glm-5')).toBeUndefined();
-    // Not silently: the model section says how many were held back, and why.
+    // Not silently: the model section says how many were held back.
     const models = sheet.vm.sections.find((section: any) => section.key === 'model');
-    expect(models.footer).toContain('pi');
+    expect(models.footer).toContain('more models not available this session');
     expect(harness.setSelectionMutate).not.toHaveBeenCalled();
   });
 
