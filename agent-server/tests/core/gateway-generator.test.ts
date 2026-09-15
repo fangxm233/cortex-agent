@@ -66,9 +66,14 @@ test('scanPiAvailableModels: no authenticated provider yields an empty list', as
   assert.deepEqual(await scanPiAvailableModels(), []);
 });
 
+/** Endpoint discovery now asks the Models API for the Anthropic list; a unit test must never
+ *  depend on this host's credential, so every call here injects an empty answer — which is
+ *  exactly the shipped-table path. */
+const NO_MODEL_DISCOVERY = { anthropicModels: async () => [] };
+
 test('discoverEndpoints: a failing PI scan yields no PI endpoints but keeps Claude ones', async () => {
   piSdkMock.loadPiSdk.mockRejectedValueOnce(new Error('sdk unavailable'));
-  const eps = await discoverEndpoints();
+  const eps = await discoverEndpoints(undefined, NO_MODEL_DISCOVERY);
   assert.ok(eps.some((e) => e.mode === 'plan'), 'claude plan endpoint survives a PI scan failure');
   assert.ok(!eps.some((e) => e.endpoint === 'deepseek'), 'no PI endpoint is invented on failure');
 });
@@ -79,7 +84,7 @@ test('discoverEndpoints: PI providers become one endpoint each, anthropic deferr
     { provider: 'deepseek', id: 'deepseek-v4-flash' },
     { provider: 'deepseek', id: 'deepseek-v4-pro' },
   ]);
-  const eps = await discoverEndpoints(['pi']);
+  const eps = await discoverEndpoints(['pi'], NO_MODEL_DISCOVERY);
   assert.deepEqual(eps.map((e) => e.mode), ['deepseek']);
   assert.deepEqual(eps[0].models, ['deepseek-v4-flash', 'deepseek-v4-pro']);
   assert.equal(eps[0].gatewayManaged, true);
@@ -178,13 +183,13 @@ test('discoverEndpoints: gateway-managed placeholder key does not enable api end
   const original = process.env.ANTHROPIC_API_KEY;
   try {
     process.env.ANTHROPIC_API_KEY = GATEWAY_MANAGED_KEY_PLACEHOLDER;
-    const withPlaceholder = await discoverEndpoints(['claude']);
+    const withPlaceholder = await discoverEndpoints(['claude'], NO_MODEL_DISCOVERY);
     assert.ok(!withPlaceholder.some((e) => e.mode === 'api'),
       'placeholder key is not a real credential — api endpoint must not be generated');
     assert.ok(withPlaceholder.some((e) => e.mode === 'plan'), 'plan endpoint is always generated');
 
     process.env.ANTHROPIC_API_KEY = 'sk-real-key';
-    const withRealKey = await discoverEndpoints(['claude']);
+    const withRealKey = await discoverEndpoints(['claude'], NO_MODEL_DISCOVERY);
     assert.ok(withRealKey.some((e) => e.mode === 'api'), 'real key enables api endpoint');
   } finally {
     if (original !== undefined) process.env.ANTHROPIC_API_KEY = original;
@@ -193,7 +198,7 @@ test('discoverEndpoints: gateway-managed placeholder key does not enable api end
 });
 
 test('discoverEndpoints: claude plan endpoint exposes canonical model ids + [1m] variants', async () => {
-  const plan = (await discoverEndpoints(['claude'])).find((e) => e.mode === 'plan');
+  const plan = (await discoverEndpoints(['claude'], NO_MODEL_DISCOVERY)).find((e) => e.mode === 'plan');
   assert.ok(plan, 'plan endpoint should be generated');
   const models = plan!.models;
 
@@ -238,7 +243,7 @@ test('discoverEndpoints: falls back to CONFIG_DIR/.env for ANTHROPIC_API_KEY', a
   // The canonical key location is ~/.cortex/.env (docs/configuration.md) — init/cli
   // processes do not run dotenv.config, so discovery must read the file itself.
   delete process.env.ANTHROPIC_API_KEY;
-  const eps = await discoverEndpoints(['claude']);
+  const eps = await discoverEndpoints(['claude'], NO_MODEL_DISCOVERY);
   assert.ok(eps.some((e) => e.mode === 'api'),
     'key present only in CONFIG_DIR/.env must still enable the api endpoint');
 });

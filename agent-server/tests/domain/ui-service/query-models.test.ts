@@ -9,6 +9,9 @@ const DEPS = {} as UiServiceDeps;
 
 function readers(overrides: Partial<ModelsCatalogReaders> = {}): ModelsCatalogReaders {
   return {
+    // Always injected: the default reader would ask the live Models API with this host's own
+    // credential, which a unit test must never depend on.
+    claudeModels: async () => [],
     piModels: async () => [],
     piPeek: () => [{ provider: 'deepseek', model: 'deepseek-v4-flash' }],
     customProviders: () => [],
@@ -23,7 +26,7 @@ function routeOf(routes: ModelCatalogRoute[], endpoint: string): ModelCatalogRou
   return route;
 }
 
-test('anthropic is always present with the built-in model table', async () => {
+test('anthropic falls back to the built-in model table when discovery answers nothing', async () => {
   const snapshot = await handleModelsCatalog(DEPS, {}, readers());
   const anthropic = routeOf(snapshot.routes, 'anthropic');
   assert.equal(anthropic.backend, 'claude');
@@ -123,4 +126,26 @@ test('a PI model\'s own thinking ladder rides along; the backend ladders are ser
   assert.ok(snapshot.thinkingLevels.claude.includes('max'));
   assert.ok(snapshot.thinkingLevels.pi.includes('xhigh'));
   assert.deepEqual(routeOf(snapshot.routes, 'anthropic').modelThinking, {});
+});
+
+test('a discovered Anthropic model joins the table, with its [1m] variant and effort ladder', async () => {
+  const snapshot = await handleModelsCatalog(DEPS, {}, readers({
+    claudeModels: async () => [
+      {
+        id: 'claude-opus-9', displayName: 'Claude Opus 9', maxInputTokens: 1_000_000,
+        effortLevels: ['low', 'high'],
+      },
+      // 200K-only ⇒ no [1m] variant, and a dated snapshot of a shipped alias folds into it.
+      { id: 'claude-haiku-4-5-20251001', displayName: null, maxInputTokens: 200_000, effortLevels: null },
+    ],
+  }));
+  const anthropic = routeOf(snapshot.routes, 'anthropic');
+  assert.deepEqual(anthropic.models.slice(0, 3),
+    ['claude-opus-9', 'claude-opus-9[1m]', 'claude-haiku-4-5-20251001']);
+  assert.equal(anthropic.models.includes('claude-haiku-4-5'), false);
+  // Everything the table shipped that discovery did not cover is still selectable.
+  assert.ok(anthropic.models.includes('claude-opus-5[1m]'));
+  assert.deepEqual(anthropic.modelThinking?.['claude-opus-9'], ['low', 'high']);
+  assert.deepEqual(anthropic.modelThinking?.['claude-opus-9[1m]'], ['low', 'high']);
+  assert.equal('claude-haiku-4-5-20251001' in (anthropic.modelThinking ?? {}), false);
 });

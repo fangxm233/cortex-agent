@@ -1,4 +1,8 @@
 import { ANTHROPIC_MODELS } from '@core/anthropic-models.js';
+import {
+  anthropicModelDiscovery, anthropicModelIds, anthropicModelThinking,
+  type DiscoveredAnthropicModel,
+} from '@core/anthropic-model-discovery.js';
 import { readGatewayYaml } from '@core/gateway-generator.js';
 import {
   defaultCustomProviderStores,
@@ -21,7 +25,7 @@ import type { ModelCatalogRoute, ModelCatalogSnapshot, ModelsCatalogParams, UiSe
  * wants the catalog should pay.
  */
 
-/** The Claude endpoint is a constant of the backend, not a discovery result. */
+/** The Claude ENDPOINT is a constant of the backend — only its model list is discovered. */
 const CLAUDE_ENDPOINT = 'anthropic';
 
 /** Mirrors gateway-generator's rule for a PI provider with no gateway section: mode = endpoint. */
@@ -79,6 +83,9 @@ class RouteBuilder {
 }
 
 export interface ModelsCatalogReaders {
+  /** The Anthropic models this account can reach, waiting out a cold fetch. Defaults to the host
+   *  discovery singleton; injected in tests so the catalog never depends on a live credential. */
+  claudeModels?: () => Promise<DiscoveredAnthropicModel[]>;
   /** The PI pairs, waiting out a cold scan. Defaults to the host discovery singleton. */
   piModels?: () => Promise<Array<{ provider: string; model: string; thinkingLevels?: string[] }>>;
   /** The cached PI pairs with NO refresh kicked — used only to report `piPending`. */
@@ -92,6 +99,7 @@ export async function handleModelsCatalog(
   _params: ModelsCatalogParams,
   readers: ModelsCatalogReaders = {},
 ): Promise<ModelCatalogSnapshot> {
+  const claudeModels = readers.claudeModels ?? (() => anthropicModelDiscovery.ensure());
   const piModels = readers.piModels ?? (() => piProviderDiscovery.ensureModels());
   const piPeek = readers.piPeek ?? (() => piProviderDiscovery.peekModels());
   const customProviders =
@@ -100,7 +108,14 @@ export async function handleModelsCatalog(
   const gatewayModes = (readers.gatewayModes ?? readGatewayModes)();
 
   const builder = new RouteBuilder(gatewayModes);
-  builder.add(CLAUDE_ENDPOINT, 'claude', 'builtin', ANTHROPIC_MODELS);
+  // Discovered ids UNIONED with the shipped table, never replacing it: a host with no credential
+  // or no network keeps the list it always had. `source` stays 'builtin' because the route's
+  // identity did not change — only how completely its models are known.
+  const claude = await claudeModels();
+  builder.add(
+    CLAUDE_ENDPOINT, 'claude', 'builtin',
+    anthropicModelIds(claude, ANTHROPIC_MODELS), anthropicModelThinking(claude),
+  );
 
   // `ensureModels()` waits out a COLD scan (bounded) and serves a warm cache at once: a picker's
   // whole purpose is the list, so an empty first answer would only become a spinner. A scan that

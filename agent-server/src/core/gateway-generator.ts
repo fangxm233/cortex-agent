@@ -4,6 +4,9 @@ import * as os from 'os';
 import { parse as yamlParse, stringify as yamlStringify } from 'yaml';
 import { parse as parseDotenv } from 'dotenv';
 import { ANTHROPIC_MODELS } from './anthropic-models.js';
+import {
+  anthropicModelDiscovery, anthropicModelIds, type DiscoveredAnthropicModel,
+} from './anthropic-model-discovery.js';
 import { createLogger } from './log.js';
 import { loadPiSdk, piUserAuthPath, piUserModelsPath } from './pi-sdk.js';
 import { CONFIG_DIR, GATEWAY_MANAGED_KEY_PLACEHOLDER } from './utils.js';
@@ -224,12 +227,28 @@ async function scanPiForEndpoints(): Promise<PiDiscoveredModel[]> {
  *   `gatewayManaged` is true only if the provider has a known upstream URL in PI_PROVIDER_UPSTREAM
  *   (otherwise profile is generated but gateway.yaml entry is skipped).
  */
-export async function discoverEndpoints(backends?: string[]): Promise<DiscoveredEndpoint[]> {
+export interface DiscoverEndpointsOptions {
+  /** The Anthropic models this account can reach. Injected by tests so endpoint discovery never
+   *  depends on a live credential; defaults to the host's cached model discovery. */
+  anthropicModels?: () => Promise<DiscoveredAnthropicModel[]>;
+}
+
+export async function discoverEndpoints(
+  backends?: string[],
+  options: DiscoverEndpointsOptions = {},
+): Promise<DiscoveredEndpoint[]> {
   const endpoints: DiscoveredEndpoint[] = [];
 
   // ── Claude Code → Anthropic plan mode ──
   // Skip if backends filter is provided and 'claude' is not included.
   const includeClaude = !backends || backends.includes('claude');
+  // The status checker reads this list to decide which models to probe for degradation; routing
+  // does not consult it, so a model missing here still answers. Discovery therefore only widens
+  // what gets watched, and `cortex init` on a host with no credential keeps the shipped table.
+  const readAnthropicModels = options.anthropicModels ?? (() => anthropicModelDiscovery.ensure());
+  const anthropicModels = includeClaude
+    ? anthropicModelIds(await readAnthropicModels())
+    : [...ANTHROPIC_MODELS];
   if (includeClaude) {
     endpoints.push({
       mode: 'plan',
@@ -238,7 +257,7 @@ export async function discoverEndpoints(backends?: string[]): Promise<Discovered
       auth_style: 'bearer',
       keys: [],
       passthrough: true,
-      models: [...ANTHROPIC_MODELS],
+      models: [...anthropicModels],
       gatewayManaged: true,
     });
 
@@ -252,7 +271,7 @@ export async function discoverEndpoints(backends?: string[]): Promise<Discovered
         auth_style: 'anthropic',
         keys: ['$ANTHROPIC_API_KEY'],
         passthrough: true,
-        models: [...ANTHROPIC_MODELS],
+        models: [...anthropicModels],
         gatewayManaged: true,
       });
     }

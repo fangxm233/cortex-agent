@@ -66,7 +66,12 @@ function describeHostCatalog(ctx: CortexToolContext): SubagentFieldDescriptions 
   try {
     return describeSubagent({
       roles: roleOptionsFrom(loadRoles()),
-      models: [...claudeModelOptions(ctx.claudeModel), ...ctx.subagentPiModels],
+      models: [
+        ...claudeModelOptions(
+          ctx.claudeModel, (ctx.subagentClaudeModels ?? []).map((model) => model.id),
+        ),
+        ...ctx.subagentPiModels,
+      ],
     });
   } catch {
     return describeSubagent({});

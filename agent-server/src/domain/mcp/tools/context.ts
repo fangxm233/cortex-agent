@@ -25,6 +25,9 @@ export interface CortexToolContext {
   claudeModel: string | null;
   /** PI provider/model pairs the daemon cached; this process cannot scan PI itself. */
   subagentPiModels: SubagentModelOption[];
+  /** The Anthropic models the daemon discovered, handed down at spawn. Empty means "the sidecar
+   *  falls back to the shipped table". */
+  subagentClaudeModels: SubagentModelOption[];
   scheduleTaskId: string | null;
   callbackSource: string | null;
   branchMachine: string | null;
@@ -68,6 +71,7 @@ export function toolContextFromEnv(env: NodeJS.ProcessEnv = process.env): Cortex
     backend: optional(env.CORTEX_BACKEND),
     claudeModel: optional(env.CORTEX_CLAUDE_MODEL),
     subagentPiModels: decodeSubagentModels(env.CORTEX_SUBAGENT_PI_MODELS),
+    subagentClaudeModels: decodeSubagentModels(env.CORTEX_SUBAGENT_CLAUDE_MODELS),
     scheduleTaskId: optional(env.CORTEX_SCHEDULE_TASK_ID),
     callbackSource: optional(env.CORTEX_CALLBACK_SOURCE),
     branchMachine: optional(env.CORTEX_BRANCH_MACHINE),

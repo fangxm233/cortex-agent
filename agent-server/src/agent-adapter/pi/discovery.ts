@@ -1,3 +1,4 @@
+import { CachedScan } from '@core/cached-scan.js';
 import { scanPiAvailableModels, type PiDiscoveredModel } from '@core/gateway-generator.js';
 import { createLogger } from '@core/log.js';
 
@@ -16,20 +17,23 @@ export const PI_PROVIDER_ENSURE_TIMEOUT_MS = 12_000;
 
 type ModelScan = () => Promise<PiDiscoveredModel[]>;
 
-/** An unref'd timer: a pending wait must never be the reason a process stays alive. */
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(resolve, ms);
-    timer.unref?.();
-  });
-}
-
 export interface PIProviderDiscovery {
   getProviders(): string[];
   getModels(): PiDiscoveredModel[];
-  /** The cached pairs with no refresh side effect — see {@link CachedPIProviderDiscovery.peekModels}. */
+  /**
+   * The cached pairs with NO scan kicked.
+   *
+   * A scan loads the PI SDK (~100 MB, seconds of module loading — see `core/pi-sdk.ts`), which a
+   * caller that merely decorates something with PI's models must not provoke: a Claude-only host
+   * would pay for a backend it never uses. Such callers peek and accept an empty answer until a
+   * path that genuinely needs PI has warmed the cache.
+   */
   peekModels(): PiDiscoveredModel[];
-  /** The pairs, waiting for a cold scan — see {@link CachedPIProviderDiscovery.ensureModels}. */
+  /**
+   * The pairs, waiting for a scan only when there is nothing to show — for callers whose whole
+   * purpose IS the list (the Web model picker), where an empty first answer would only become a
+   * spinner. A warm cache answers at once; a scan that is already failing is not waited on.
+   */
   ensureModels(timeoutMs?: number): Promise<PiDiscoveredModel[]>;
   refresh(): void;
 }
@@ -49,115 +53,29 @@ export async function discoverPIProviders(
   return Array.from(new Set(models.map((model) => model.provider)));
 }
 
-class CachedPIProviderDiscovery implements PIProviderDiscovery {
-  private models: PiDiscoveredModel[] = [];
-  private nextRefreshAt = 0;
-  private inFlight: Promise<void> | null = null;
-  private refreshQueued = false;
-
-  constructor(
-    private readonly scan: ModelScan,
-    private readonly now: () => number,
-    private readonly cacheTtlMs: number,
-    private readonly retryMs: number,
-  ) {}
-
-  getProviders(): string[] {
-    return Array.from(new Set(this.getModels().map((model) => model.provider)));
-  }
-
-  getModels(): PiDiscoveredModel[] {
-    const snapshot = this.peekModels();
-    if (this.now() >= this.nextRefreshAt && !this.inFlight) this.startRefresh();
-    return snapshot;
-  }
-
-  /**
-   * The snapshot alone, with no refresh kicked.
-   *
-   * A scan loads the PI SDK (~100 MB, seconds of module loading — see `core/pi-sdk.ts`), which a
-   * caller that merely decorates something with PI's models must not provoke: a Claude-only host
-   * would pay for a backend it never uses. Such callers peek and accept an empty answer until a
-   * path that genuinely needs PI has warmed the cache.
-   */
-  peekModels(): PiDiscoveredModel[] {
-    return this.models.map((model) => ({ ...model }));
-  }
-
-  /**
-   * The snapshot, waiting for a scan only when there is nothing to show.
-   *
-   * For callers whose whole purpose IS the list (the Web model picker): an empty answer is useless
-   * to them, so a cold cache is worth waiting on — but a warm one is returned at once, with the
-   * usual background refresh, because a picker showing five-minute-old models is right often enough
-   * that no user should watch a spinner for it. The wait is bounded: a scan that hangs must not
-   * hold a UI request open, and the caller can ask again.
-   */
-  async ensureModels(timeoutMs: number = PI_PROVIDER_ENSURE_TIMEOUT_MS): Promise<PiDiscoveredModel[]> {
-    if (this.models.length > 0) return this.getModels();
-    // A scan that just failed set `nextRefreshAt` to now + retryMs precisely so the next caller
-    // does not pay for the same failure again. Honour it: an empty answer straight away beats
-    // holding a UI request open on a scan we already know is failing.
-    if (!this.inFlight && this.now() >= this.nextRefreshAt) this.startRefresh();
-    const pending = this.inFlight;
-    if (pending) await Promise.race([pending, delay(timeoutMs)]);
-    return this.peekModels();
-  }
-
-  refresh(): void {
-    if (!this.inFlight) {
-      this.startRefresh();
-      return;
-    }
-    this.refreshQueued = true;
-  }
-
-  private startRefresh(): void {
-    const refresh = Promise.resolve()
-      .then(this.scan)
-      .then((models) => this.accept(models))
-      .catch((error: unknown) => this.reject(error))
-      .finally(() => this.finishRefresh(refresh));
-    this.inFlight = refresh;
-  }
-
-  private finishRefresh(refresh: Promise<void>): void {
-    if (this.inFlight !== refresh) return;
-    this.inFlight = null;
-    if (!this.refreshQueued) return;
-    this.refreshQueued = false;
-    this.startRefresh();
-  }
-
-  private accept(models: PiDiscoveredModel[]): void {
-    const seen = new Set<string>();
-    const deduped: PiDiscoveredModel[] = [];
-    for (const model of models) {
-      const key = `${model.provider}\u0000${model.model}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      deduped.push({ ...model });
-    }
-    this.models = deduped;
-    this.nextRefreshAt = this.now() + this.cacheTtlMs;
-  }
-
-  private reject(error: unknown): void {
-    this.nextRefreshAt = this.now() + this.retryMs;
-    const message = error instanceof Error ? error.message : 'unknown';
-    log.info(`PI provider refresh failed: ${message}`);
-  }
-}
-
 export function createPIProviderDiscovery(
   options: PIProviderDiscoveryOptions = {},
 ): PIProviderDiscovery {
-  return new CachedPIProviderDiscovery(
-    options.scan ?? scanPiAvailableModels,
-    options.now ?? Date.now,
-    options.cacheTtlMs ?? PI_PROVIDER_CACHE_TTL_MS,
-    options.retryMs ?? PI_PROVIDER_RETRY_MS,
-  );
+  // The caching itself — TTL, failure backoff, single-flight refresh, defensive copies — is
+  // `core/cached-scan`; what stays here is what is PI-specific: the scan, the provider view, and
+  // the (provider, model) identity two scans are deduplicated by.
+  const cache = new CachedScan<PiDiscoveredModel>({
+    scan: options.scan ?? scanPiAvailableModels,
+    now: options.now,
+    cacheTtlMs: options.cacheTtlMs ?? PI_PROVIDER_CACHE_TTL_MS,
+    retryMs: options.retryMs ?? PI_PROVIDER_RETRY_MS,
+    key: (model) => `${model.provider}\u0000${model.model}`,
+    clone: (model) => ({ ...model }),
+    logFailure: (message) => log.info(`PI provider refresh failed: ${message}`),
+  });
+  const getModels = (): PiDiscoveredModel[] => cache.get();
+  return {
+    getProviders: () => Array.from(new Set(getModels().map((model) => model.provider))),
+    getModels,
+    peekModels: () => cache.peek(),
+    ensureModels: (timeoutMs: number = PI_PROVIDER_ENSURE_TIMEOUT_MS) => cache.ensure(timeoutMs),
+    refresh: () => cache.refresh(),
+  };
 }
 
 export const piProviderDiscovery = createPIProviderDiscovery();

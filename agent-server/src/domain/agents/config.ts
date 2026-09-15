@@ -5,6 +5,7 @@ import * as os from 'node:os';
 import * as path from 'path';
 import * as http from 'http';
 import { CONFIG_DIR, GATEWAY_MANAGED_KEY_PLACEHOLDER } from '@core/utils.js';
+import { claudeOwnsOAuthCredential } from '@core/claude-credentials.js';
 import { resolveProfileConfig } from './profile-manager.js';
 import { GATEWAY_URL, isGatewayHealthy } from '../costs/gateway-manager.js';
 import { classifyAuthError } from '../auth/auth-events.js';
@@ -207,16 +208,19 @@ export async function removeClaudeCodeOAuthToken(): Promise<void> {
   delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
 }
 
+/**
+ * Does Claude Code hold its own OAuth credential here?
+ *
+ * Delegated to `core/claude-credentials`, which knows that the store is platform-dependent: the
+ * plaintext file on Linux and Windows, the login keychain on macOS. Reading only the file — as
+ * this did — answers "not logged in" on every Mac, and the arbitration below then projects a
+ * static .env token over a live credential, which is the exact shadowing its comment forbids.
+ */
 function hasClaudeOwnedOAuthCredential(): boolean {
   const home = process.env.HOME || os.homedir();
-  const configDir = process.env.CLAUDE_CONFIG_DIR || path.join(home, '.claude');
-  try {
-    const parsed = JSON.parse(readFileSync(path.join(configDir, '.credentials.json'), 'utf8'));
-    const oauth = parsed?.claudeAiOauth;
-    return Boolean(oauth?.accessToken || oauth?.refreshToken);
-  } catch {
-    return false;
-  }
+  return claudeOwnsOAuthCredential({
+    claudeConfigDir: process.env.CLAUDE_CONFIG_DIR || path.join(home, '.claude'),
+  });
 }
 
 /**

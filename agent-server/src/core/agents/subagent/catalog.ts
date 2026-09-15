@@ -55,14 +55,24 @@ export function roleOptionsFrom(roles: AgentRole[]): SubagentRoleOption[] {
   return options;
 }
 
-/** The claude catalog is the shipped Anthropic table plus the parent's own model when unknown.
- *  Table order is kept; an unknown current model is appended last. */
-export function claudeModelOptions(currentModel?: string | null): SubagentModelOption[] {
-  const options: SubagentModelOption[] = ANTHROPIC_MODELS.map(
+/**
+ * The claude catalog: the ids this host knows, plus the parent's own model when it is not among
+ * them. List order is kept; an unknown current model is appended last.
+ *
+ * `known` is the discovered list when the caller has one — the daemon reads its Anthropic model
+ * cache, and a spawn hands the MCP sidecar what that cache held. Omitted or empty, the shipped
+ * table answers, which is what every caller did before discovery existed.
+ */
+export function claudeModelOptions(
+  currentModel?: string | null,
+  known: readonly string[] = ANTHROPIC_MODELS,
+): SubagentModelOption[] {
+  const ids = known.length > 0 ? known : ANTHROPIC_MODELS;
+  const options: SubagentModelOption[] = ids.map(
     (id): SubagentModelOption => ({ backend: 'claude', id }),
   );
   const current = currentModel?.trim();
-  if (current && !ANTHROPIC_MODELS.includes(current)) {
+  if (current && !ids.includes(current)) {
     options.push({ backend: 'claude', id: current });
   }
   return options;

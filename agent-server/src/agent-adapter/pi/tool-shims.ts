@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import { PI_AGENT_DIR, ensurePIAgentRoles } from './agent-dir.js';
 import { loadRoles } from '@core/agents/roles.js';
 import {
-  claudeModelOptions, piModelOptions, roleOptionsFrom, type SubagentCatalog,
+  claudeModelOptions, decodeSubagentModels, piModelOptions, roleOptionsFrom, type SubagentCatalog,
 } from '@core/agents/subagent/catalog.js';
 import { createChildSession, type ChildSessionFactory } from './child-session.js';
 import type { SubagentNotice } from './event-parser.js';
@@ -90,7 +90,10 @@ function runtimeCatalog(
     return {
       roles: roleOptionsFrom(loadRoles(deps.rolesDir)),
       models: [
-        ...claudeModelOptions(env.CORTEX_CLAUDE_MODEL ?? null),
+        ...claudeModelOptions(
+          env.CORTEX_CLAUDE_MODEL ?? null,
+          decodeSubagentModels(env.CORTEX_SUBAGENT_CLAUDE_MODELS).map((model) => model.id),
+        ),
         ...piModelOptions(models),
       ],
     };

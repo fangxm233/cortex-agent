@@ -18,7 +18,7 @@ import {
   DEFAULT_TOOLS, MCP_CONFIG, subagentBridgeTools,
 } from '../src/agent-adapter/claude/defaults.js';
 import {
-  decodeSubagentModels, encodeSubagentModels,
+  decodeSubagentModels, describeSubagent, encodeSubagentModels,
 } from '@core/agents/subagent/catalog.js';
 import { SUBAGENT_MODEL_DESCRIPTION } from '@core/agents/subagent/schema.js';
 import type { CortexToolContext } from '../src/domain/mcp/tools/context.js';
@@ -60,6 +60,7 @@ function ctx(overrides: Partial<CortexToolContext> = {}): CortexToolContext {
     scheduleTaskId: null, callbackSource: null, branchMachine: null,
     webhookBaseUrl: 'http://127.0.0.1:3001', webhookToken: 'tok',
     askManagerTimeoutMs: 1000, slackBotToken: null, toolAllowlist: null,
+    subagentPiModels: [], subagentClaudeModels: [],
     ...overrides,
   } as CortexToolContext;
 }
@@ -125,7 +126,7 @@ test('the agent field descriptions name the host roles and models', () => {
   assert.match(modelDescription, /pi-two/);
 });
 
-test('an empty catalog falls back to the exact legacy field descriptions', () => {
+test('a host with no roles falls back to the legacy role descriptions', () => {
   fs.rmSync(AGENTS_DIR, { recursive: true, force: true });
   const { shape } = registerTools(null, ctx()).get('agent')!;
 
@@ -137,7 +138,19 @@ test('an empty catalog falls back to the exact legacy field descriptions', () =>
     shape.subagent_type.description,
     'Role name for single mode, such as explore, general-purpose, or plan.',
   );
-  assert.equal(shape.model.description, SUBAGENT_MODEL_DESCRIPTION);
+  // The model field does NOT fall back here: the shipped Anthropic table is always known, with or
+  // without a role file and with or without model discovery having answered.
+  assert.match(shape.model.description ?? '', /Known available — claude: claude-/);
+});
+
+test('an empty catalog falls back to the exact legacy field descriptions', () => {
+  const described = describeSubagent({});
+  assert.equal(described.model, SUBAGENT_MODEL_DESCRIPTION);
+  assert.equal(described.subagentType, 'Role name, such as explore, general-purpose, or plan.');
+  assert.equal(
+    described.subagentTypeSingle,
+    'Role name for single mode, such as explore, general-purpose, or plan.',
+  );
 });
 
 // --- registration ---

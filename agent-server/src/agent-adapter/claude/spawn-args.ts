@@ -13,7 +13,10 @@ import { getSettings } from '@core/settings.js';
 import { materializeMcpToolAllowlistConfigs } from '@core/config-generator.js';
 import { MCP_INFRASTRUCTURE_TIMEOUT_MS } from '@core/mcp-timeout.js';
 import { SUBAGENT_TOOLS } from '@core/mcp-tool-gate.js';
-import { encodeSubagentModels, piModelOptions } from '@core/agents/subagent/catalog.js';
+import {
+  claudeModelOptions, encodeSubagentModels, piModelOptions,
+} from '@core/agents/subagent/catalog.js';
+import { anthropicModelDiscovery, anthropicModelIds } from '@core/anthropic-model-discovery.js';
 import type { McpBundleName } from '@core/mcp-bundles.js';
 import type { McpComposition } from '../types.js';
 import { piProviderDiscovery } from '../pi/discovery.js';
@@ -435,6 +438,8 @@ function applyCortexContextEnv(env: NodeJS.ProcessEnv, context?: CortexAgentCont
 /** Caps the PI catalog handed to the sidecar so a pathological provider list cannot bloat the
  *  child environment. */
 const MAX_SUBAGENT_PI_MODELS = 64;
+/** The same bound on the Anthropic side: an env var, not a manifest. */
+const MAX_SUBAGENT_CLAUDE_MODELS = 64;
 
 export function buildClaudeEnv(
   channel: string,
@@ -470,6 +475,16 @@ export function buildClaudeEnv(
   );
   if (piModels.length > 0) {
     setIfPresent(env, 'CORTEX_SUBAGENT_PI_MODELS', encodeSubagentModels(piModels));
+  }
+  // Same hand-off for the Anthropic side: the sidecar has no credential of its own to ask the
+  // Models API with, so it inherits what the daemon already discovered. Never waited on — a stale
+  // cache answers now and refreshes in the background — so an empty cache writes nothing and the
+  // sidecar falls back to the shipped table, exactly as before this variable existed.
+  const discoveredClaude = anthropicModelDiscovery.get();
+  if (discoveredClaude.length > 0) {
+    const claudeModels = claudeModelOptions(null, anthropicModelIds(discoveredClaude))
+      .slice(0, MAX_SUBAGENT_CLAUDE_MODELS);
+    setIfPresent(env, 'CORTEX_SUBAGENT_CLAUDE_MODELS', encodeSubagentModels(claudeModels));
   }
   applyEnvOverrides(env, extraEnv, unsetEnv);
   applyCortexContextEnv(env, context);
