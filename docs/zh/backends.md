@@ -279,7 +279,7 @@ MiB 大小，可直接修改。网关会自己热重载配置，路由和请求�
 
 自动恢复默认开启。在 [`config/settings.json`](./configuration.md#configsettingsjson) 中设置 `"autoResume": false` 后，已经满足恢复条件的队列条目会被移除，但不会自动派发；改动无需重启守护进程即刻生效。`.env` 中的旧变量 `CORTEX_AUTO_RESUME=0` 仍作为已弃用的回退被读取。
 
-### 为什么限额信号是注入而不是事件
+### 为什么限额信号是注入而不是事件 {#why-a-rate-limit-signal-is-injected-not-streamed}
 
 适配器通过注入的回调（`RateLimitReporter`）把 provider 的限额窗口上报给宿主，而不是发一条 `RunEvent`。后端会在回合之间以及自发续跑回合期间发出 `rate_limit_event`，也就是恰好没有回合在飞的时候——如果把它塞进"按回合"的事件流，最需要这条观测的时刻反而会丢失。因此 `RunEvent` 里的 `rate_limit` 只作为转录层通知存在（`agent-runner` 忽略它），节流状态由注入的 reporter 喂给；配额观测走同一条路。
 
