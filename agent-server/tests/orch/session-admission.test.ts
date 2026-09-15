@@ -23,7 +23,7 @@ async function makeRepo() {
   return new SessionRegistryRepo(path.join(root, 'session-registry.jsonl'));
 }
 
-test('sessions.send awaits touchForUse before accepting and rejects if deletion wins before touch', async () => {
+test('sessions.send awaits touchSessionUse before accepting and rejects if deletion wins before touch', async () => {
   const repo = await makeRepo();
   await repo.registerSession('cortex-race', registerOpts('track-race'));
   await repo.updateSession('cortex-race', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
@@ -35,7 +35,7 @@ test('sessions.send awaits touchForUse before accepting and rejects if deletion 
   const result = await handleSendSession({
     sessionStore: {
       getById: async () => ({ sessionId: 'track-race', channel: 'web:track-race', kind: 'local' }),
-      touchForUse: (sessionId: string) => repo.touchForUse(sessionId),
+      touchSessionUse: (sessionId: string) => repo.touchSessionUse(sessionId),
       listByProject: async () => [], listByOrigin: async () => [], listResumable: async () => [],
     },
     sendSessionMessage: () => { sends += 1; },
@@ -46,7 +46,7 @@ test('sessions.send awaits touchForUse before accepting and rejects if deletion 
   assert.equal(sends, 0);
 });
 
-test('sessions.send accepts after touchForUse and a later sweep can select the session again', async () => {
+test('sessions.send accepts after touchSessionUse and a later sweep can select the session again', async () => {
   const repo = await makeRepo();
   await repo.registerSession('cortex-touch', registerOpts('track-touch'));
   await repo.updateSession('cortex-touch', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
@@ -55,7 +55,7 @@ test('sessions.send accepts after touchForUse and a later sweep can select the s
   const sendResult = await handleSendSession({
     sessionStore: {
       getById: async () => ({ sessionId: 'track-touch', channel: 'web:track-touch', kind: 'local' }),
-      touchForUse: async (sessionId: string) => { touched.push(sessionId); return repo.touchForUse(sessionId); },
+      touchSessionUse: async (sessionId: string) => { touched.push(sessionId); return repo.touchSessionUse(sessionId); },
       listByProject: async () => [], listByOrigin: async () => [], listResumable: async () => [],
     },
     sendSessionMessage: () => {},

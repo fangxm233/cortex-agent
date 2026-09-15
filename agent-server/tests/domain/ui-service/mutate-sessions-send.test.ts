@@ -41,7 +41,7 @@ test('sessions.send awaits admission touch before routing to the session channel
   const pending = handleSendSession(makeDeps(session('C123'), sink, {
     sessionStore: {
       listByProject: async () => [], listByOrigin: async () => [], listResumable: async () => [], getById: async () => session('C123'),
-      touchForUse: async (sessionId: string) => { touched.push(sessionId); await gate; return true; },
+      touchSessionUse: async (sessionId: string) => { touched.push(sessionId); await gate; return true; },
     } as any,
   }), { sessionId: 'sess-1', text: 'run it' });
 
@@ -92,7 +92,7 @@ test('sessions.send maps a failed admission touch to not-found without sending',
   const deps = makeDeps(session('C123'), sink, {
     sessionStore: {
       listByProject: async () => [], listByOrigin: async () => [], listResumable: async () => [], getById: async () => session('C123'),
-      touchForUse: async () => false,
+      touchSessionUse: async () => false,
     } as any,
   });
   const res = await handleSendSession(deps, { sessionId: 'sess-1', text: 'hi' });

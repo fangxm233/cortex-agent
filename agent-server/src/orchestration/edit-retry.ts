@@ -5,6 +5,7 @@ import type { Destination, PlatformAdapter, MessageRef } from '@platform/index.j
 import { trackPendingTask } from './busy-tracker.js';
 import { enqueue } from './conduit-queue.js';
 import { getSessionAsync } from '@domain/sessions/session.js';
+import { acquireSessionUse } from '@domain/sessions/session-use.js';
 import { sessionStore, effectiveBackendSessionId } from '@store/session-registry-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { getActiveProfile } from '@domain/agents/index.js';
@@ -89,7 +90,7 @@ export async function runRetryAgent({ channel, text, adapter, statusMsg, startTi
   let lease: TurnSessionLease | null = null;
   try {
     if (sessionId) {
-      const release = await sessionStore.acquireSessionUse(sessionId);
+      const release = await acquireSessionUse(sessionId);
       if (!release) throw new Error(`Session not found or pending deletion: ${sessionId}`);
       lease = { release };
     }

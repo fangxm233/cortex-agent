@@ -10,7 +10,7 @@ import { openThreadRun, type ThreadRunInput } from './thread-run/index.js';
 import { resumeThreadRunInput } from './thread-callback.js';
 import { trackPendingTask } from './busy-tracker.js';
 import { threadStore } from '@store/thread-repo.js';
-import { sessionStore } from '@store/session-registry-repo.js';
+import { acquireSessionUse } from '@domain/sessions/session-use.js';
 import { runRegistry } from '@core/run-registry.js';
 import { createLogger } from '@core/log.js';
 
@@ -70,7 +70,7 @@ function defaultDeps(): ResumeDeps {
     getThread: (id) => threadStore.get(id),
     channelBusy: (ch) => runRegistry.hasChannel(ch),
     directSessionBusy: (ch) => runRegistry.getByChannel(ch).some(e => !e.threadId),
-    acquireSessionUse: (sessionId) => sessionStore.acquireSessionUse(sessionId),
+    acquireSessionUse: (sessionId) => acquireSessionUse(sessionId),
     track: trackPendingTask,
     delay: (ms) => new Promise((r) => setTimeout(r, ms)),
   };

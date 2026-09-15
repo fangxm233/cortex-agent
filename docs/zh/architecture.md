@@ -65,9 +65,8 @@ L5  entry/         → 所有层（组合根）
 | `atomic-write.ts` | `atomicWrite(filePath, data)` — 写入 `.tmp.<pid>.<ts>` 然后 `fs.rename` |
 | `outbound-queue.ts` | 基于 WAL 的持久化出站消息队列。30 分钟 TTL，200 条目压缩，5 秒排放循环。合并对同一消息的连续更新 |
 | `thread-repo.ts` | `ThreadRepo` — 内存 `Map<string, ThreadRecord>` + 异步持久化。查询：`findByChannel`、`findActive`、`findByPlatformThread`。启动恢复：`markRunningAsFailedOnStartup`。清理：7 天前的线程（auto-records 为 24 小时） |
-| `session-repo.ts` | `SessionRepo` — `Record<string, string>` 映射 `channel → sessionId`；旧的 `backend:channel` 键仍会读取，并在写入时迁移 |
-| `conversation-ledger-repo.ts` | 每频道轮次追踪：`initConversation`、`beginTurn`、`addResponseTs`、`completeTurn`、`rollbackTo` |
-| `session-registry-repo.ts` | 基于 JSONL 的 `cortex-XXXX` 短名称注册表。回放仅追加日志、接纳会话、写入 `delete-intent`/`delete-commit` 防护，并在日志膨胀后压缩快照 |
+| `conversation-ledger-repo.ts` | `session-registry-repo.ts` 的外观层——提供相同的每频道轮次 API（`initConversation`、`beginTurn`、`addResponseTs`、`completeTurn`、`rollbackTo`），自身不再持有文件 |
+| `session-registry-repo.ts` | 基于 JSONL 的 `cortex-XXXX` 短名称注册表，也是会话记录、频道→会话绑定以及每频道对话头与轮次的唯一所有者。回放仅追加日志（`put`/`patch`/`delete-intent`/`delete-commit`/`bind`/`unbind`/`turn`/`conversation`）、接纳会话，并在日志膨胀后压缩快照 |
 | `execution-repo.ts` | 模式 B 仓库。完整 CRUD：`startLocalExecution`、`registerDispatchExecution`、`completeExecution`、`failExecution`。通过 `reconcileStaleDispatches` 进行异步陈旧检测 |
 | `channel-repo.ts` | `projectName → channelId` 映射 |
 | `project-dir-repo.ts` | `projectName → machineName → dirPath` 带反向频道查找 |
@@ -227,8 +226,7 @@ Cortex 将所有状态存储在 `~/.cortex/` 下的文件系统中。没有数�
 | `agent-state.json` | 选定的 profile、默认智能体与频道级 override（由 `mode.json` 一次性迁移而来） |
 | `profiles.json` | 命名智能体配置列表 |
 | `schedules.json` | 持久化调度任务列表 |
-| `sessions.json` | 频道到智能体会话的映射 |
-| `session-registry.jsonl` | 仅追加的紧凑 JSONL 会话注册表日志。每行都是完整记录的 `put`、`delete-intent` 或 `delete-commit` 事件；启动时通过流式回放重建 live/pending 状态 |
+| `session-registry.jsonl` | 仅追加的 JSONL 日志，也是会话记录、频道→会话绑定以及每频道对话头与轮次的唯一所有者。事件：`put`/`patch`/`delete-intent`/`delete-commit`/`bind`/`unbind`/`turn`/`conversation`；启动时通过流式回放重建 live/pending 状态。压缩保留 live 记录 + 绑定 + live 轮次（阈值 `max(512, live×4)` 个事件，16 MB 上限）。替代已退役的 `sessions.json` 与 `conversation-ledger.json`——一次性升级迁移会把它们重命名为 `*.pre-2026.9.14.bak` |
 | `retention-candidates.json` | history 与 PI 清理用的两轮确认孤儿候选表 |
 | `conversation-history/` | 以稳定 Cortex session id 为键的分会话 transcript/history JSONL |
 | `executions.json` | 统一执行注册表 |

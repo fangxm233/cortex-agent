@@ -143,7 +143,7 @@ export async function handleSendSession(
   if (!args.text.trim() && (!args.attachments || args.attachments.length === 0)) {
     return { ok: false, code: 'invalid-args', message: 'Either text or attachments required' };
   }
-  if (deps.sessionStore.touchForUse && !(await deps.sessionStore.touchForUse(args.sessionId))) {
+  if (deps.sessionStore.touchSessionUse && !(await deps.sessionStore.touchSessionUse(args.sessionId))) {
     return { ok: false, code: 'not-found', message: `Session not found: ${args.sessionId}` };
   }
   const session = await deps.sessionStore.getById(args.sessionId);

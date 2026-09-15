@@ -1,6 +1,7 @@
 import { createLogger } from '@core/log.js';
 import type { PlatformAdapter } from '@platform/index.js';
 import { sessionStore, effectiveBackendSessionId } from '@store/session-registry-repo.js';
+import { acquireSessionUse } from '@domain/sessions/session-use.js';
 import type { RunRequest } from '@domain/runs/request.js';
 import { continuationRunRequest } from '@domain/runs/builders.js';
 import { getDefaultProfileName } from '@domain/agents/profile-manager.js';
@@ -15,7 +16,7 @@ const log = createLogger('ask-user-resume');
 export async function resumeAskUserQuestionGroup({ adapter, group, responseText }: { adapter: PlatformAdapter; group: { channel: string; sessionId: string; groupId: string; threadId?: string | null }; responseText: string }): Promise<void> {
   let sessionRelease: (() => void) | null = null;
   try {
-    sessionRelease = await sessionStore.acquireSessionUse(group.sessionId);
+    sessionRelease = await acquireSessionUse(group.sessionId);
     if (!sessionRelease) {
       log.warn(`AskUserQuestion resume skipped for missing or deleting session: ${group.sessionId}`);
       return;

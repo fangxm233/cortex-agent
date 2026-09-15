@@ -58,6 +58,7 @@ import { markPendingTurnSuperseded } from '../../src/orchestration/turn/turn-tra
 import { getOrchestrationRuntime, setOrchestrationRuntime } from '../../src/orchestration/runtime.js';
 import { conversationLedger } from '../../src/store/conversation-ledger-repo.js';
 import { sessionStore } from '../../src/store/session-registry-repo.js';
+import { sessionUse } from '../../src/domain/sessions/session-use.js';
 import { setSessionAsync } from '../../src/domain/sessions/session.js';
 import { MockAdapter } from '../../src/platform/testing.js';
 
@@ -202,8 +203,8 @@ async function runTurn(testCase: TurnCase): Promise<Trace> {
   });
 
   // Wrap the real lease so its release lands in the trace at the exact point the turn drops it.
-  const realAcquire = sessionStore.acquireSessionUse.bind(sessionStore);
-  vi.spyOn(sessionStore, 'acquireSessionUse').mockImplementation(async (id: string) => {
+  const realAcquire = sessionUse.acquireSessionUse.bind(sessionUse);
+  vi.spyOn(sessionUse, 'acquireSessionUse').mockImplementation(async (id: string) => {
     const release = await realAcquire(id);
     if (!release) return null;
     return () => { trace.push('lease.release'); release(); };

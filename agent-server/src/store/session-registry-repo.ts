@@ -10,7 +10,6 @@ import { isDeepStrictEqual } from 'node:util';
 import { AsyncMutex } from '@core/async-mutex.js';
 import { STORE_DIR } from '@core/paths.js';
 import type { SessionContextUsage } from '@core/types/agent-types.js';
-import { executionRepo } from './execution-repo.js';
 import {
   appendSessionRegistryEvent,
   compactSessionRegistry,
@@ -31,7 +30,6 @@ import {
   type SessionRegistryState,
   type TurnRecord,
 } from './session-registry-journal.js';
-import { threadStore } from './thread-repo.js';
 
 export const REGISTRY_FILE = path.join(STORE_DIR, 'session-registry.jsonl');
 
@@ -180,7 +178,6 @@ export class SessionRegistryRepo {
   private readonly options: SessionRegistryRepoOptions;
   private state = createSessionRegistryState();
   private loaded = false;
-  private activeUses = new Map<string, number>();
   private conduitResolvers: ConduitResolver[] = [];
 
   constructor(private readonly filePath: string = REGISTRY_FILE, options: SessionRegistryRepoOptions = {}) {
@@ -299,42 +296,16 @@ export class SessionRegistryRepo {
     ));
   }
 
-  async touchForUse(sessionId: string): Promise<boolean> {
-    const release = await this.acquireSessionUse(sessionId);
-    if (!release) return false;
-    release();
-    return true;
-  }
-
-  async acquireSessionUse(sessionId: string): Promise<(() => void) | null> {
+  /** Storage primitive behind use-count admission — the in-memory counter and lease semantics live
+   *  in `@domain/sessions/session-use.ts`. Patches `lastUsedAt=now` iff the session is live and NOT
+   *  pending deletion; returns whether the touch landed. */
+  async touchSessionUse(sessionId: string): Promise<boolean> {
     return this.withState(async (state) => {
       const current = state.live.get(sessionId);
-      if (!current || state.pending.has(sessionId)) return null;
+      if (!current || state.pending.has(sessionId)) return false;
       await this.writePatch(state, current, { ...current, lastUsedAt: new Date().toISOString() });
-      this.activeUses.set(sessionId, (this.activeUses.get(sessionId) ?? 0) + 1);
-      let released = false;
-      return () => {
-        if (released) return;
-        released = true;
-        const next = (this.activeUses.get(sessionId) ?? 1) - 1;
-        if (next <= 0) this.activeUses.delete(sessionId);
-        else this.activeUses.set(sessionId, next);
-      };
+      return true;
     });
-  }
-
-  async withSessionUse<T>(sessionId: string, fn: () => Promise<T>): Promise<T | null> {
-    const release = await this.acquireSessionUse(sessionId);
-    if (!release) return null;
-    try {
-      return await fn();
-    } finally {
-      release();
-    }
-  }
-
-  async markUsed(sessionId: string): Promise<void> {
-    await this.touchForUse(sessionId);
   }
 
   async markRead(sessionId: string): Promise<void> {
@@ -589,7 +560,9 @@ export class SessionRegistryRepo {
       const blocked = new Set(protectedIds);
       const removed: PendingDeletion[] = [];
       for (const record of sortRecent(state.live.values())) {
-        if (blocked.has(record.sessionId) || this.activeUses.has(record.sessionId)) continue;
+        // In-use sessions are protected by the caller: `domain/sessions/session-retention.ts` unions
+        // `activeSessionUseIds()` into `protectedIds`. The store no longer keeps a use counter.
+        if (blocked.has(record.sessionId)) continue;
         const lastUsedAtMs = parseLastUsedAtMs(record.lastUsedAt);
         if (lastUsedAtMs === null || lastUsedAtMs >= toCutoffMs(cutoff)) continue;
         // Hand the callback the session's turns from the locked state directly — the ledger is now a
@@ -617,17 +590,6 @@ export class SessionRegistryRepo {
       await this.maybeCompact(state);
       return true;
     });
-  }
-
-  async pruneStale(maxAgeMs: number): Promise<number> {
-    const protectedIds = referencedSessionIds();
-    const pending = await this.beginDeleteExpired(Date.now() - maxAgeMs, protectedIds);
-    for (const entry of pending) await this.commitDeletion(entry.session.sessionId);
-    return pending.length;
-  }
-
-  setOnPruneSession(_fn: ((sessionId: string) => void) | null): void {
-    // Deprecated compatibility shim. Journal pruning no longer performs filesystem callbacks.
   }
 
   async compactNow(): Promise<void> {
@@ -742,22 +704,6 @@ function* filterLive(
   for (const record of state.live.values()) {
     if (predicate(record)) yield record;
   }
-}
-
-function referencedSessionIds(): Set<string> {
-  const ids = new Set<string>();
-  for (const exec of executionRepo.getAll()) {
-    if (exec.session.sessionId) ids.add(exec.session.sessionId);
-  }
-  for (const thread of threadStore.getAll()) {
-    for (const agent of Object.values(thread.agents)) {
-      if (agent.sessionId) ids.add(agent.sessionId);
-    }
-    for (const step of thread.steps) {
-      if (step.sessionId) ids.add(step.sessionId);
-    }
-  }
-  return ids;
 }
 
 export const sessionStore = new SessionRegistryRepo();

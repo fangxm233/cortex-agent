@@ -66,9 +66,8 @@ All write operations are serialized through `AsyncMutex` to prevent corruption f
 | `atomic-write.ts` | `atomicWrite(filePath, data)` — write to `.tmp.<pid>.<ts>` then `fs.rename` |
 | `outbound-queue.ts` | WAL-based durable outbound message queue. 30-min TTL, 200-entry compaction, 5-second drain loop. Coalesces consecutive updates to the same message |
 | `thread-repo.ts` | `ThreadRepo` — in-memory `Map<string, ThreadRecord>` + async persist. Queries: `findByChannel`, `findActive`, `findByPlatformThread`. Startup recovery: `markRunningAsFailedOnStartup`. Cleanup: 7-day old threads (24h for auto-records) |
-| `session-repo.ts` | `SessionRepo` — `Record<string, string>` mapping `channel → sessionId`; legacy `backend:channel` keys are still read and migrated on write |
-| `conversation-ledger-repo.ts` | Per-channel turn tracking: `initConversation`, `beginTurn`, `addResponseTs`, `completeTurn`, `rollbackTo` |
-| `session-registry-repo.ts` | JSONL-backed `cortex-XXXX` short-name registry. Replays an append-only journal, admits sessions, writes `delete-intent`/`delete-commit` guards, and compacts snapshots when the log grows |
+| `conversation-ledger-repo.ts` | Façade over `session-registry-repo.ts` — same per-channel turn API (`initConversation`, `beginTurn`, `addResponseTs`, `completeTurn`, `rollbackTo`) with no file of its own |
+| `session-registry-repo.ts` | JSONL-backed `cortex-XXXX` short-name registry and single owner of session records, channel→session bindings, and per-channel conversation headers and turns. Replays an append-only journal (`put`/`patch`/`delete-intent`/`delete-commit`/`bind`/`unbind`/`turn`/`conversation`), admits sessions, and compacts snapshots when the log grows |
 | `execution-repo.ts` | Pattern B repository. Full CRUD: `startLocalExecution`, `registerDispatchExecution`, `completeExecution`, `failExecution`. Async stale detection via `reconcileStaleDispatches` |
 | `channel-repo.ts` | `projectName → channelId` mapping |
 | `project-dir-repo.ts` | `projectName → machineName → dirPath` with reverse channel lookup |
@@ -239,8 +238,7 @@ Cortex stores all state on the filesystem under `~/.cortex/`. There is no databa
 | `agent-state.json` | Selected profile, default agent, and per-channel overrides (migrated once from `mode.json`) |
 | `profiles.json` | Named agent profile list |
 | `schedules.json` | Persistent scheduled task list |
-| `sessions.json` | Channel-to-agent session mapping |
-| `session-registry.jsonl` | Append-only compact JSONL session registry journal. Each line is a full-record `put`, `delete-intent`, or `delete-commit` event; startup replays the stream to rebuild live and pending state |
+| `session-registry.jsonl` | Append-only JSONL journal and single owner of session records, channel→session bindings, and per-channel conversation headers and turns. Events: `put`/`patch`/`delete-intent`/`delete-commit`/`bind`/`unbind`/`turn`/`conversation`; startup replays the stream to rebuild live and pending state. Compaction keeps live records + bindings + live turns (threshold `max(512, live×4)` events, 16 MB cap). Replaces the retired `sessions.json` and `conversation-ledger.json`, which a one-time upgrade migration renames to `*.pre-2026.9.14.bak` |
 | `retention-candidates.json` | Two-sweep orphan retention candidates for history and PI cleanup |
 | `conversation-history/` | Per-session transcript/history JSONL keyed by stable Cortex session id |
 | `executions.json` | Unified execution registry |

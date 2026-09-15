@@ -7,6 +7,7 @@ import type { ConversationLedgerRepo } from '@store/conversation-ledger-repo.js'
 import type { ConversationHistoryRepo } from '@store/conversation-history-repo.js';
 import type { RetentionCandidateRepo } from '@store/retention-candidate-repo.js';
 import { sessionTotalsCarry, type SessionTotalsCarryRepo } from '@store/session-totals-repo.js';
+import { activeSessionUseIds } from '@domain/sessions/session-use.js';
 import type { ClaudeUserSettingsSyncResult } from '@domain/auth/claude-user-settings.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -75,7 +76,10 @@ export async function runSessionRetentionSweep(deps: SessionRetentionDeps): Prom
 
   const helper = await safeClaudeSync(deps, errors);
   const committed = await retryPendingDeletes(deps, errors);
-  const protectedTracks = new Set(deps.liveness.protectedTrackSessionIds);
+  // This is the ONE place that must protect in-use sessions: the store's `beginDeleteExpired` no
+  // longer keeps a use counter, so the runtime lease set (`@domain/sessions/session-use.ts`) is
+  // unioned into the protected ids here before any delete-intent is written.
+  const protectedTracks = new Set([...deps.liveness.protectedTrackSessionIds, ...activeSessionUseIds()]);
   const pending = await safeRegistryBeginDeleteExpired(deps, cutoffMs, protectedTracks, errors);
   const newlyCommitted = await commitDeletes(deps, pending, errors);
   const registryCommitted = committed + newlyCommitted;

@@ -7,9 +7,6 @@ import path from 'node:path';
 import { SessionRegistryRepo, type Session } from '../../src/store/session-registry-repo.js';
 import { compactSessionRegistry } from '../../src/store/session-registry-journal.js';
 import { STORE_DIR } from '../../src/core/paths.js';
-import { executionRepo } from '../../src/store/execution-repo.js';
-import { threadStore } from '../../src/store/thread-repo.js';
-import type { ThreadRecord } from '../../src/core/types/thread-types.js';
 
 let tmpDir = '';
 let testId = 0;
@@ -193,66 +190,6 @@ test('session store does not fall back to legacy JSON when JSONL exists but is m
     sessionId: 'sess-new', channel: 'C001', backend: 'claude', kind: 'local', projectId: 'proj',
   }), /malformed/i);
   assert.equal(await fs.readFile(filePath, 'utf8'), '{bad json}\n');
-});
-
-test('session store pruneStale returns committed deletions and preserves referenced sessions', async () => {
-  const { filePath } = nextPaths();
-  const repo = new SessionRegistryRepo(filePath);
-  await repo.registerSession('cortex-exec-ref', {
-    sessionId: 'sess-exec-ref', channel: 'C001', backend: 'claude', kind: 'local', projectId: 'proj',
-  });
-  await repo.registerSession('cortex-thread-ref', {
-    sessionId: 'sess-thread-ref', channel: 'C001', backend: 'claude', kind: 'local', projectId: 'proj',
-  });
-  await repo.registerSession('cortex-unref', {
-    sessionId: 'sess-unref', channel: 'C001', backend: 'claude', kind: 'local', projectId: 'proj',
-  });
-  await repo.registerSession('cortex-invalid-date', {
-    sessionId: 'sess-invalid-date', channel: 'C001', backend: 'claude', kind: 'local', projectId: 'proj',
-  });
-  await repo.updateSession('cortex-exec-ref', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
-  await repo.updateSession('cortex-thread-ref', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
-  await repo.updateSession('cortex-unref', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
-  await repo.updateSession('cortex-invalid-date', { lastUsedAt: 'not-a-date' });
-
-  executionRepo.startLocalExecution({ sessionId: 'sess-exec-ref', channel: 'C001', project: 'proj' });
-  const threadRecord: ThreadRecord = {
-    id: 'thr_gc_test',
-    templateName: null,
-    status: 'running',
-    channel: 'C001',
-    projectId: 'proj',
-    platformThreadId: null,
-    userMessage: 'test',
-    userMessageTs: '1',
-    workspacePath: '/tmp/workspace',
-    artifactPath: '/tmp/workspace/artifact.md',
-    agents: {
-      agent1: {
-        slotId: 'agent1', profile: 'default', sessionId: 'sess-thread-ref', sessionName: null,
-        status: 'completed', lastOutput: null, persistSession: false,
-      },
-    },
-    activeAgent: 'agent1',
-    activeStage: null,
-    currentStepIndex: 0,
-    steps: [],
-    iterationCounts: {},
-    totalCostUsd: 0,
-    createdAt: '2025-01-01T00:00:00.000Z',
-    updatedAt: '2025-01-01T00:00:00.000Z',
-    endedAt: null,
-    error: null,
-    abortReason: null,
-  };
-  await threadStore.set(threadRecord);
-
-  const removed = await repo.pruneStale(86_400_000 * 7);
-  assert.equal(removed, 1);
-  assert.ok(await repo.getById('sess-exec-ref'));
-  assert.ok(await repo.getById('sess-thread-ref'));
-  assert.ok(await repo.getById('sess-invalid-date'));
-  assert.equal(await repo.getById('sess-unref'), null);
 });
 
 test('session store replacement failure cleans temporary files', async () => {

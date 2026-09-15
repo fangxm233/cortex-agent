@@ -140,18 +140,18 @@ test('session registry hides delete-intent sessions from normal queries and repl
   assert.deepEqual(jsonlLines(filePath).map(line => line.op), ['put', 'put', 'patch', 'delete-intent', 'delete-commit']);
 });
 
-test('session registry touchForUse and beginDeleteExpired share one admission mutex', async () => {
+test('session registry touchSessionUse bumps lastUsedAt and beginDeleteExpired share one admission mutex', async () => {
   const { filePath } = nextPaths();
   const repo = new SessionRegistryRepo(filePath);
   await repo.registerSession('cortex-touch', registerOpts('sess-touch'));
   await repo.updateSession('cortex-touch', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
 
-  assert.equal(await repo.touchForUse('sess-touch'), true);
+  assert.equal(await repo.touchSessionUse('sess-touch'), true);
   assert.deepEqual(await repo.beginDeleteExpired(Date.now() - 1_000, []), []);
 
   await repo.updateSession('cortex-touch', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
   assert.deepEqual((await repo.beginDeleteExpired(new Date(), [])).map(entry => entry.session.sessionId), ['sess-touch']);
-  assert.equal(await repo.touchForUse('sess-touch'), false);
+  assert.equal(await repo.touchSessionUse('sess-touch'), false);
   assert.equal(await repo.commitDeletion('sess-touch'), true);
 });
 
@@ -164,7 +164,7 @@ test('session registry pending delete-intent sessions cannot be revived by put-l
 
   await repo.updateSession('cortex-pending', { label: 'revive-attempt', lastUsedAt: '2030-01-01T00:00:00.000Z' });
   await assert.rejects(() => repo.registerSession('cortex-pending-new', registerOpts('sess-pending')), /pending-deletion/i);
-  assert.equal(await repo.touchForUse('sess-pending'), false);
+  assert.equal(await repo.touchSessionUse('sess-pending'), false);
   assert.equal(await repo.getById('sess-pending'), null);
   assert.deepEqual((await repo.listPendingDeletions()).map(entry => entry.session.sessionId), ['sess-pending']);
 

@@ -31,6 +31,7 @@ import type { RunAttempt, StartAttemptInput } from '../../src/domain/runs/attemp
 import { resumeAskUserQuestionGroup } from '../../src/orchestration/interactions/ask-user-resume.js';
 import { runRetryAgent } from '../../src/orchestration/edit-retry.js';
 import { sessionStore } from '../../src/store/session-registry-repo.js';
+import { sessionUse } from '../../src/domain/sessions/session-use.js';
 import { MockAdapter } from '../../src/platform/testing.js';
 import * as executionRegistry from '../../src/domain/executions/registry.js';
 import { runRegistry } from '../../src/core/run-registry.js';
@@ -65,7 +66,7 @@ function rejectedAttempt(backendSessionId: string, error: Error): RunAttempt {
 }
 
 function installLeaseOrder(trackSessionId: string, events: string[]): void {
-  vi.spyOn(sessionStore, 'acquireSessionUse').mockImplementation(async (id) => {
+  vi.spyOn(sessionUse, 'acquireSessionUse').mockImplementation(async (id) => {
     assert.equal(id, trackSessionId);
     events.push('acquire');
     return () => { events.push('release'); };

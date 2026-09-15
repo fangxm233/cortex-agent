@@ -29,8 +29,8 @@ $CORTEX_HOME/
 │   ├── schedules.json            # 持久化的调度任务列表
 │   ├── executions.json           # 统一执行注册表
 │   ├── costs.jsonl               # 90 天滚动费用记录
-│   ├── sessions.json             # 频道到智能体会话的映射
-│   ├── session-registry.jsonl    # 仅追加的会话注册表日志
+│   ├── session-registry.jsonl    # 会话记录、频道绑定、对话头与轮次（唯一所有者）
+│   ├── *.pre-2026.9.14.bak       # 已退役的 sessions.json / conversation-ledger.json，迁移后保留一个版本
 │   ├── retention-candidates.json # 两轮确认的孤儿保留标记
 │   └── conversation-history/     # 按会话分文件的 transcript/history JSONL
 ├── .claude/

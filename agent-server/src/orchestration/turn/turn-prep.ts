@@ -19,6 +19,7 @@ import { sessionStore, type Session } from '@store/session-registry-repo.js';
 import { getActiveProfile, getDefaultAgent, resolveBackendForChannel } from '@domain/agents/index.js';
 import { resolveProfileConfig } from '@domain/agents/profile-manager.js';
 import { registerNamedSession } from '@domain/sessions/session-lifecycle.js';
+import { acquireSessionUse } from '@domain/sessions/session-use.js';
 import { getAgent } from '@domain/threads/index.js';
 import { acquireBrowser, releaseBrowser, backendSupportsBrowser, BROWSER_DEVICE_SERVER } from '@platform/browser/managed-browser.js';
 import { acquireDeviceBrowser, releaseDeviceBrowser } from '@domain/remote/device-browser.js';
@@ -35,7 +36,7 @@ export interface SessionUseLease {
 export async function acquireSessionUseLease(sessionId: string): Promise<SessionUseLease | null> {
   const session = await sessionStore.getById(sessionId);
   if (!session) return null;
-  const release = await sessionStore.acquireSessionUse(sessionId);
+  const release = await acquireSessionUse(sessionId);
   if (!release) return null;
   return { session, release };
 }

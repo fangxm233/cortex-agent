@@ -30,8 +30,8 @@ $CORTEX_HOME/
 │   ├── schedules.json            # Persistent scheduled task list
 │   ├── executions.json           # Unified execution registry
 │   ├── costs.jsonl               # 90-day rolling cost records
-│   ├── sessions.json             # Channel-to-agent session mapping
-│   ├── session-registry.jsonl    # Append-only session registry journal
+│   ├── session-registry.jsonl    # Session records, channel bindings, conversation headers + turns (single owner)
+│   ├── *.pre-2026.9.14.bak       # Retired sessions.json / conversation-ledger.json, kept one release after migration
 │   ├── retention-candidates.json # Two-sweep orphan retention markers
 │   └── conversation-history/     # Per-session transcript/history JSONL
 ├── .claude/
