@@ -42,7 +42,7 @@ beforeEach(() => {
 
 describe('useUpdatePrompt', () => {
   it('owns both source hooks and gives app updates priority', () => {
-    harness.app.pending = { version: '2026.8.1', kind: 'apk' };
+    harness.app.pending = { version: '2026.8.1', kind: 'apk', apply: 'prompt' };
     harness.app.update = harness.app.pending;
     harness.hot.staged = { version: 'frontend-b7e2' };
     act(() => { create(<Probe />); });
@@ -53,11 +53,31 @@ describe('useUpdatePrompt', () => {
   });
 
   it('keeps hot updates hidden while an app update is gated or dismissed', () => {
-    harness.app.pending = { version: '2026.8.1', kind: 'apk' };
+    harness.app.pending = { version: '2026.8.1', kind: 'apk', apply: 'prompt' };
     harness.hot.staged = { version: 'frontend-b7e2' };
     act(() => { create(<Probe />); });
 
     expect(prompt).toBeNull();
+  });
+
+  it('never raises a modal for an update the shell installs on its own', () => {
+    // A silent update is announced by a toast only; a dialog would defeat the whole point.
+    harness.app.pending = { version: '2026.8.1', kind: 'nsis', apply: 'silent' };
+    harness.app.update = harness.app.pending;
+    act(() => { create(<Probe />); });
+
+    expect(prompt).toBeNull();
+  });
+
+  it('lets a hot update through while an app update installs silently', () => {
+    // The silent app update is not "an app prompt in progress", so it must not hold the
+    // frontend prompt back the way a pending dialog does.
+    harness.app.pending = { version: '2026.8.1', kind: 'nsis', apply: 'silent' };
+    harness.app.update = harness.app.pending;
+    harness.hot.staged = { version: 'frontend-b7e2' };
+    act(() => { create(<Probe />); });
+
+    expect(prompt?.kind).toBe('hot');
   });
 
   it('falls through to hot updates and then to no prompt', () => {

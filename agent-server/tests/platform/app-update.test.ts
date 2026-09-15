@@ -264,3 +264,21 @@ test('route: a failed refetch keeps serving the last good manifest', async () =>
   assert.equal(calls, 2);
   assert.deepEqual(second, first, 'stale-but-good beats empty on refetch failure');
 });
+
+test('route: a dev server advertises nothing and never calls GitHub', async () => {
+  // With silent updating on by default, a source checkout must not be able to push a shell onto a
+  // connected app — and it should not spend the unauthenticated GitHub quota finding that out.
+  let calls = 0;
+  const routes = createAppUpdateRoutes({
+    devMode: true,
+    serverVersion: '2026.7.30',
+    fetchReleases: async () => {
+      calls += 1;
+      return [release('2026.7.30', SIX_ASSETS)];
+    },
+  });
+  const res = await callManifest(routes);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(JSON.parse(res.body), {});
+  assert.equal(calls, 0, 'dev mode must short-circuit before the GitHub call');
+});

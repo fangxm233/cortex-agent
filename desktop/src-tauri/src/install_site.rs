@@ -89,6 +89,25 @@ pub enum Apply {
     Assisted(&'static str),
 }
 
+impl Apply {
+    /// Stable label for logs and for the `apply` field the SPA reads.
+    pub fn label(&self) -> &'static str {
+        match self {
+            Apply::Auto => "auto",
+            Apply::Elevated => "elevated",
+            Apply::Assisted(_) => "assisted",
+        }
+    }
+
+    /// Why this site cannot be updated silently, for logs and the SPA's explanation.
+    pub fn reason(&self) -> Option<&'static str> {
+        match self {
+            Apply::Assisted(reason) => Some(reason),
+            _ => None,
+        }
+    }
+}
+
 // ─── Pure policy ────────────────────────────────────────────────────────────
 
 /// The release asset kind this site consumes.
@@ -126,6 +145,33 @@ pub fn silent_capability(site: &InstallSite) -> Apply {
         InstallSite::Android => Apply::Auto,
         InstallSite::Unknown => Apply::Assisted("unknown_install_site"),
     }
+}
+
+/// Silent application is deliberately conservative: it happens only when nothing can go wrong
+/// unattended. `Elevated` is excluded on purpose — the quit-time path would otherwise raise a
+/// polkit password dialog at the exact moment the user is walking away from the machine.
+///
+/// `failures` is the number of consecutive silent installs that have already failed; after
+/// `MAX_SILENT_FAILURES` we stop trying quietly and let the dialog surface the problem instead of
+/// looping forever in the background.
+pub const MAX_SILENT_FAILURES: u32 = 3;
+
+pub fn should_apply_silently(
+    apply: &Apply,
+    prefs_silent: bool,
+    env_silent: Option<&str>,
+    failures: u32,
+) -> bool {
+    if env_silent == Some("0") {
+        return false;
+    }
+    if !prefs_silent {
+        return false;
+    }
+    if failures >= MAX_SILENT_FAILURES {
+        return false;
+    }
+    matches!(apply, Apply::Auto)
 }
 
 /// Path equality for install directories: trailing separators are noise, and Windows paths are
@@ -530,6 +576,21 @@ mod tests {
             Apply::Assisted("bundle_not_writable")
         );
         assert_eq!(silent_capability(&InstallSite::Unknown), Apply::Assisted("unknown_install_site"));
+    }
+
+    #[test]
+    fn silent_apply_requires_auto_an_opt_in_and_a_clean_record() {
+        assert!(should_apply_silently(&Apply::Auto, true, None, 0));
+        // Default-on: absent prefs mean `true` at the call site, so only an explicit opt-out stops it.
+        assert!(!should_apply_silently(&Apply::Auto, false, None, 0));
+        assert!(!should_apply_silently(&Apply::Auto, true, Some("0"), 0));
+        assert!(should_apply_silently(&Apply::Auto, true, Some("1"), 0));
+        // Elevated must never run unattended: no password dialog at quit time.
+        assert!(!should_apply_silently(&Apply::Elevated, true, None, 0));
+        assert!(!should_apply_silently(&Apply::Assisted("portable_copy"), true, None, 0));
+        // Repeated failures stop the quiet retry loop and hand the problem to the dialog.
+        assert!(should_apply_silently(&Apply::Auto, true, None, MAX_SILENT_FAILURES - 1));
+        assert!(!should_apply_silently(&Apply::Auto, true, None, MAX_SILENT_FAILURES));
     }
 
     #[test]

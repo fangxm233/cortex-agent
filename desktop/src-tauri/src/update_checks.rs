@@ -3,6 +3,8 @@
 // pos:    Shared manual and background update coordinator
 // >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
 
+use crate::install_site::{self, Apply};
+use crate::update_prefs::{PrefsStore, UpdatePrefs};
 use crate::{app_update, ota, AppState};
 use serde::Serialize;
 use std::sync::{Mutex, MutexGuard, TryLockError};
@@ -189,6 +191,15 @@ fn check_shell(
     if let Some(reason) = disabled {
         return ChannelOutcome::skipped(reason);
     }
+    // Where this build actually lives decides BOTH which asset to fetch and whether it may be
+    // installed without asking. Probed once per check so the two answers cannot disagree.
+    let site = install_site::detect();
+    let capability = install_site::silent_capability(&site);
+    let plan = apply_plan(&capability, &PrefsStore::new(store.root()).load());
+    shell_log!(
+        "[cortex-desktop] install site: {site:?} capability={} plan={plan}",
+        capability.label()
+    );
     let pending = app.state::<AppState>().app_update.lock().unwrap().clone();
     let pending = pending.filter(|update| app_update::verified(update));
     reconcile(
@@ -198,11 +209,28 @@ fn check_shell(
             &version,
             app_update::OS_NAME,
             app_update::ARCH_NAME,
-            &app_update::wanted_kind(),
+            install_site::wanted_kind_for(&site),
+            plan,
             store,
         ),
         pending,
     )
+}
+
+/// `silent` when this update will install itself on the next quit, `prompt` when the user has to
+/// act. The SPA keys its modal-versus-toast choice off this and nothing else.
+fn apply_plan(capability: &Apply, prefs: &UpdatePrefs) -> &'static str {
+    let silent = install_site::should_apply_silently(
+        capability,
+        prefs.silent,
+        std::env::var("CORTEX_APP_UPDATE_SILENT").ok().as_deref(),
+        prefs.failed_attempts,
+    );
+    if silent {
+        "silent"
+    } else {
+        "prompt"
+    }
 }
 
 fn publish(app: &tauri::AppHandle, report: &CheckReport) {
@@ -320,6 +348,82 @@ pub(crate) fn skip_prepared(
     persist(&update.version)?;
     *pending = None;
     Ok(())
+}
+
+/// The prefs file lives beside the downloaded installers, so it needs the same data dir.
+fn prefs_store(app: &tauri::AppHandle) -> Option<PrefsStore> {
+    let data = app.path().app_data_dir().ok()?;
+    Some(PrefsStore::new(app_update::UpdateStore::new(&data).root()))
+}
+
+#[tauri::command]
+pub fn get_update_prefs(app: tauri::AppHandle) -> UpdatePrefs {
+    prefs_store(&app).map(|s| s.load()).unwrap_or_default()
+}
+
+/// Turning silent updating back on also clears the failure counter: the user is explicitly asking
+/// for another try, and the previous failures may well have been a transient disk or network state.
+#[tauri::command]
+pub fn set_update_silent(app: tauri::AppHandle, silent: bool) -> Result<UpdatePrefs, String> {
+    let store = prefs_store(&app).ok_or("app_data_directory_unavailable")?;
+    Ok(store.update(|p| {
+        p.silent = silent;
+        if silent {
+            p.failed_attempts = 0;
+        }
+    }))
+}
+
+/// Install a prepared update on the way out, with no interaction at all.
+///
+/// Called from `RunEvent::Exit`. The user has already asked to leave, so nothing here may wait on
+/// them: only `Apply::Auto` sites qualify. An elevated (polkit) or assisted (open the file) install
+/// would put a password box or a file manager in front of someone who is closing the app, which is
+/// precisely the failure mode silent updating exists to avoid.
+pub fn apply_pending_on_exit(app: &tauri::AppHandle) {
+    // Either a check is still running or an install/restart was already confirmed. Both mean this
+    // is not our moment, and the gate is the single arbiter of that.
+    let Ok(_operation) = OPERATIONS.begin() else {
+        return;
+    };
+    let Some(update) = app.state::<AppState>().app_update.lock().unwrap().clone() else {
+        return;
+    };
+    let Some(prefs_store) = prefs_store(app) else {
+        return;
+    };
+    let prefs = prefs_store.load();
+    let site = install_site::detect();
+    let capability = install_site::silent_capability(&site);
+    if !install_site::should_apply_silently(
+        &capability,
+        prefs.silent,
+        std::env::var("CORTEX_APP_UPDATE_SILENT").ok().as_deref(),
+        prefs.failed_attempts,
+    ) {
+        return;
+    }
+    // Re-hash before replacing anything: the download has been sitting on disk since the check.
+    if !app_update::verified(&update) {
+        shell_log!("[cortex-desktop] silent install skipped: prepared file failed verification");
+        return;
+    }
+    // relaunch=false — the user asked to quit, so the new version waits for the next launch.
+    match app_update::install_auto(app, &update, &site, false) {
+        Ok(_) => {
+            shell_log!("[cortex-desktop] silent install applied: {}", update.version);
+            prefs_store.update(|p| {
+                p.failed_attempts = 0;
+                p.last_installed_version = Some(update.version.clone());
+            });
+        }
+        Err(e) => {
+            // Count it: after MAX_SILENT_FAILURES the plan flips to `prompt` and the dialog takes
+            // over, so a permanently broken site cannot loop quietly forever.
+            shell_log!("[cortex-desktop] silent install failed: {e}");
+            prefs_store.update(|p| p.failed_attempts = p.failed_attempts.saturating_add(1));
+        }
+    }
 }
 
 /// Preserve the old cadence: UI once at startup; shell at startup and daily.

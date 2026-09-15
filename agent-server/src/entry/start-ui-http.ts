@@ -17,6 +17,7 @@ import {
 } from '@platform/ui-http/ui-auth-routes.js';
 import { createOtaRoutes } from '@platform/ui-http/ui-ota.js';
 import { createAppUpdateRoutes } from '@platform/ui-http/app-update.js';
+import { isUpdateDevMode } from '@domain/system/server-update-check.js';
 import { createForwardRoutes } from '@platform/ui-http/port-forward.js';
 import { createBrowserStatusRoutes } from '@platform/ui-http/browser-status.js';
 import { createDevicePortRoutes } from '@platform/ui-http/device-ports.js';
@@ -450,7 +451,8 @@ export function startUiHttpServer(opts: StartUiHttpOptions): UiHttpServer | null
       // App shell self-update: advertises the newest GitHub release carrying native app assets
       // (capped at this server's version) so the shell can offer a one-prompt update. JSON only —
       // the binaries download straight from the GitHub CDN. Same auth gate as tRPC.
-      ...createAppUpdateRoutes(),
+      // A dev server never advertises app releases: see AppUpdateRouteOptions.devMode.
+      ...createAppUpdateRoutes({ devMode: isUpdateDevMode() }),
       // Listening-port discovery for the desktop port forward: tells the shell which loopback
       // services exist here so the Ports list can offer them. Same auth gate as tRPC.
       ...createForwardRoutes(),

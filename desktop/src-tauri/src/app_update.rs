@@ -67,6 +67,9 @@ pub struct AppUpdate {
     pub notes: Option<String>,
     pub size: u64,
     pub kind: String,
+    /// What will happen to this update: `silent` — it will be installed on its own when the app
+    /// next quits, so the SPA must NOT raise a modal; `prompt` — the user has to decide.
+    pub apply: String,
     /// Local path of the verified download — not serialized (the SPA never sees paths).
     #[serde(skip)]
     pub path: PathBuf,
@@ -174,6 +177,11 @@ impl UpdateStore {
             .map(|s| s.to_os_string())
             .unwrap_or_else(|| "update.bin".into());
         self.root.join(base)
+    }
+
+    /// The store directory itself — `update_prefs::PrefsStore` lives alongside the installers.
+    pub fn root(&self) -> &Path {
+        &self.root
     }
 
     pub fn ensure_root(&self) -> io::Result<()> {
@@ -291,12 +299,6 @@ pub const ARCH_NAME: &str = "aarch64";
 #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
 pub const ARCH_NAME: &str = "unsupported";
 
-/// The release asset kind this install consumes, derived from where this build actually lives
-/// (`install_site::detect`) rather than from the host distro — see install_site.rs for why.
-pub fn wanted_kind() -> String {
-    crate::install_site::wanted_kind_for(&crate::install_site::detect()).to_string()
-}
-
 // ─── Check + download (network; thin wrapper over the tested pieces) ────────
 
 /// Fetch fresh metadata, preserving version/asset/skip policy. The caller holds
@@ -309,6 +311,7 @@ pub fn check_and_prepare(
     os: &str,
     arch: &str,
     kind: &str,
+    apply: &str,
     store: &UpdateStore,
 ) -> Result<ChannelOutcome<AppUpdate>, String> {
     if !is_calver(own_version) {
@@ -322,7 +325,7 @@ pub fn check_and_prepare(
     if compare_calver(version, own_version) != Ordering::Greater {
         return Ok(ChannelOutcome::current());
     }
-    prepare_selected(&client, &manifest, version, (os, arch, kind), store)
+    prepare_selected(&client, &manifest, version, (os, arch, kind), apply, store)
 }
 
 fn prepare_selected(
@@ -330,6 +333,7 @@ fn prepare_selected(
     manifest: &Manifest,
     version: &str,
     platform: (&str, &str, &str),
+    apply: &str,
     store: &UpdateStore,
 ) -> Result<ChannelOutcome<AppUpdate>, String> {
     if store.skipped_version().as_deref() == Some(version) {
@@ -345,6 +349,7 @@ fn prepare_selected(
         notes: manifest.notes.clone(),
         size: asset.size,
         kind: asset.kind.clone(),
+        apply: apply.to_string(),
         path: dest,
         sha256: asset.sha256.clone(),
     }))
@@ -396,7 +401,21 @@ fn download_asset(
     std::fs::rename(&part, dest).map_err(store_error)
 }
 
-// ─── Install (platform-branched) ────────────────────────────────────────────
+// ─── Install ────────────────────────────────────────────────────────────────
+//
+// Three mechanisms, chosen by where this build actually lives (install_site.rs), never by the host
+// OS alone:
+//
+//   Auto      replace ourselves with no interaction at all — the only mechanism allowed to run
+//             unattended (at quit, or before the window opens on the next launch)
+//   Elevated  one root authorization dialog (polkit) drives the package manager; user-present only
+//   Assisted  hand the file to the user: copy into Downloads and open it
+//
+// The user-facing entry point `install` always picks the strongest mechanism available, so the
+// dialog's Install button benefits from the same in-place swap the silent path uses.
+
+use crate::install_site::{Apply, InstallSite};
+use std::ffi::OsStr;
 
 /// Copy the verified installer into the user's Downloads dir (overwrite — the name is versioned and
 /// the content sha-verified) and return the destination. Used by the assisted flows (dmg/deb/rpm)
@@ -416,68 +435,242 @@ fn copy_to_downloads(app: &tauri::AppHandle, src: &Path) -> Result<PathBuf, Stri
     Ok(dest)
 }
 
-/// Install the prepared update. `Ok(None)` = the shell handed off and is exiting (installer
-/// spawned / AppImage swapped / Android package installer raised); `Ok(Some(path))` = an installer
-/// file was opened for the user to finish (dmg / deb / rpm assisted flows).
-#[cfg(target_os = "windows")]
-pub fn install(app: &tauri::AppHandle, update: &AppUpdate) -> Result<Option<String>, String> {
-    // Hand off to the NSIS installer interactively (clear UAC provenance) and exit so the
-    // installer can replace the running binary.
-    std::process::Command::new(&update.path)
-        .spawn()
-        .map_err(|e| format!("failed to launch installer: {e}"))?;
-    app.exit(0);
-    Ok(None)
-}
-
-#[cfg(target_os = "macos")]
-pub fn install(app: &tauri::AppHandle, update: &AppUpdate) -> Result<Option<String>, String> {
-    // Unsigned builds can't safely self-replace under Gatekeeper — assisted flow: put the dmg in
-    // Downloads and open it (the user drags Cortex.app to Applications).
-    let dest = copy_to_downloads(app, &update.path)?;
-    std::process::Command::new("open")
-        .arg(&dest)
-        .spawn()
-        .map_err(|e| format!("failed to open dmg: {e}"))?;
-    Ok(Some(dest.display().to_string()))
-}
-
-#[cfg(target_os = "linux")]
-pub fn install(app: &tauri::AppHandle, update: &AppUpdate) -> Result<Option<String>, String> {
-    if update.kind == "appimage" {
-        if let Ok(current) = std::env::var("APPIMAGE") {
-            // Fully automatic: swap the AppImage file in place (previous kept as .old), relaunch
-            // the new file, exit. The running process keeps serving from its open inode.
-            let current = PathBuf::from(current);
-            swap_file_keep_old(&current, &update.path).map_err(|e| format!("swap failed: {e}"))?;
-            std::process::Command::new(&current)
-                .spawn()
-                .map_err(|e| format!("relaunch failed: {e}"))?;
-            app.exit(0);
-            return Ok(None);
-        }
-        // Not actually running from an AppImage (dev run / extracted) → assisted flow below.
+/// Run a program to completion, turning a non-zero exit into an error.
+fn run_ok(program: &str, args: &[&OsStr]) -> Result<(), String> {
+    let status = std::process::Command::new(program)
+        .args(args)
+        .status()
+        .map_err(|e| format!("{program} could not be started: {e}"))?;
+    if status.success() {
+        return Ok(());
     }
-    // deb / rpm need root — assisted flow: land the package in Downloads and open it with the
-    // GUI package installer.
+    match status.code() {
+        Some(code) => Err(format!("{program} exited with {code}")),
+        None => Err(format!("{program} was terminated by a signal")),
+    }
+}
+
+/// Command-line for a silent NSIS upgrade.
+///
+/// `/S`      NSIS silent mode. The Tauri template's `CheckIfAppIsRunning` reacts to it by killing
+///           the running Cortex itself instead of asking, and `RestorePreviousInstallLocation`
+///           reads the directory recorded at first install — so no `/D=` is needed (and passing one
+///           would be wrong: we only reach this path when we ARE the recorded install).
+/// `/UPDATE` skip the reinstall/downgrade page and the WebView2 bootstrap — this is an upgrade of a
+///           working install, the runtime is already present.
+/// `/NS`     do not (re)create shortcuts; the user may have deliberately deleted them.
+/// `/R`      relaunch the app when the installer finishes. Only read in silent/passive mode.
+pub fn nsis_args(relaunch: bool) -> Vec<&'static str> {
+    let mut args = vec!["/S", "/UPDATE", "/NS"];
+    if relaunch {
+        args.push("/R");
+    }
+    args
+}
+
+/// The single `*.app` directory at the root of a mounted disk image.
+fn find_app_bundle(mount: &Path) -> Result<PathBuf, String> {
+    let entries = std::fs::read_dir(mount).map_err(|e| format!("cannot read mounted image: {e}"))?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension() == Some(OsStr::new("app")) {
+            return Ok(path);
+        }
+    }
+    Err("no .app bundle inside the disk image".to_string())
+}
+
+/// Replace an installed `.app` with the one inside `dmg`.
+///
+/// The swap happens next to the bundle (rename, not write-in-place) so a partially copied bundle is
+/// never visible as the app, and the running process keeps its own inode either way. `ditto` is used
+/// rather than a hand-rolled recursive copy because it preserves symlinks, permissions and extended
+/// attributes — a bundle copied without them will not launch.
+///
+/// Gatekeeper: the image was downloaded by us, not by a quarantine-applying app, so the replacement
+/// carries no `com.apple.quarantine` attribute and the ad-hoc signature is enough. NOT verified on a
+/// real machine — see the plan's risk table.
+fn swap_mac_bundle(dmg: &Path, bundle: &Path) -> Result<(), String> {
+    let mount = std::env::temp_dir().join(format!("cortex-dmg-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&mount);
+    std::fs::create_dir_all(&mount).map_err(|e| format!("mount point: {e}"))?;
+
+    run_ok(
+        "hdiutil",
+        &[
+            OsStr::new("attach"),
+            OsStr::new("-nobrowse"),
+            OsStr::new("-readonly"),
+            OsStr::new("-quiet"),
+            OsStr::new("-mountpoint"),
+            mount.as_os_str(),
+            dmg.as_os_str(),
+        ],
+    )?;
+
+    let result = (|| -> Result<(), String> {
+        let source = find_app_bundle(&mount)?;
+        let staged = path_with_suffix(bundle, ".new");
+        let previous = path_with_suffix(bundle, ".old");
+        let _ = std::fs::remove_dir_all(&staged);
+        run_ok("ditto", &[source.as_os_str(), staged.as_os_str()])?;
+        let _ = std::fs::remove_dir_all(&previous);
+        std::fs::rename(bundle, &previous)
+            .map_err(|e| format!("could not move the current app aside: {e}"))?;
+        match std::fs::rename(&staged, bundle) {
+            Ok(()) => {
+                // Best effort: the old bundle is still mapped by this process, and macOS is happy
+                // to unlink it. If it will not go, next launch's swap removes it.
+                let _ = std::fs::remove_dir_all(&previous);
+                Ok(())
+            }
+            Err(e) => {
+                let _ = std::fs::rename(&previous, bundle);
+                Err(format!("could not move the new app into place: {e}"))
+            }
+        }
+    })();
+
+    let _ = run_ok("hdiutil", &[OsStr::new("detach"), mount.as_os_str(), OsStr::new("-quiet")]);
+    let _ = std::fs::remove_dir(&mount);
+    result
+}
+
+/// Put the new version in place with no user interaction. Valid only for sites whose
+/// `silent_capability` is `Apply::Auto`; the caller is responsible for that check and for exiting
+/// afterwards. `relaunch` starts the new build once it is in place — false at quit time, because
+/// the user asked to leave.
+/// Returns whether the shell must exit for the install to complete: every desktop mechanism needs
+/// the old process gone, while Android's package installer works around a live app and must NOT be
+/// killed before the system has taken the APK.
+pub fn install_auto(
+    app: &tauri::AppHandle,
+    update: &AppUpdate,
+    site: &InstallSite,
+    relaunch: bool,
+) -> Result<bool, String> {
+    match site {
+        InstallSite::WindowsNsis { .. } => {
+            // The installer replaces the binary after killing us; nothing else to do here.
+            std::process::Command::new(&update.path)
+                .args(nsis_args(relaunch))
+                .spawn()
+                .map_err(|e| format!("failed to launch installer: {e}"))?;
+            Ok(true)
+        }
+        InstallSite::MacBundle { bundle, .. } => {
+            swap_mac_bundle(&update.path, bundle)?;
+            if relaunch {
+                run_ok("open", &[OsStr::new("-n"), bundle.as_os_str()])?;
+            }
+            Ok(true)
+        }
+        InstallSite::LinuxAppImage { path } => {
+            // The running process keeps serving from its open inode, so this is safe live.
+            swap_file_keep_old(path, &update.path).map_err(|e| format!("swap failed: {e}"))?;
+            if relaunch {
+                std::process::Command::new(path)
+                    .spawn()
+                    .map_err(|e| format!("relaunch failed: {e}"))?;
+            }
+            Ok(true)
+        }
+        InstallSite::Android => install_android(app, update).map(|()| false),
+        other => Err(format!("{other:?} cannot be installed unattended")),
+    }
+}
+
+/// Android hands the APK to the system package installer. On API 31+ the plugin commits a
+/// `PackageInstaller` session that needs no user action once we are the installer of record; before
+/// that (and on the first install) the system still asks.
+#[cfg(target_os = "android")]
+fn install_android(app: &tauri::AppHandle, update: &AppUpdate) -> Result<(), String> {
+    use tauri::Manager;
+    app.state::<tauri_plugin_cortex_download::CortexDownload<tauri::Wry>>()
+        .install_apk(update.path.to_string_lossy().to_string())
+}
+
+#[cfg(not(target_os = "android"))]
+fn install_android(_app: &tauri::AppHandle, _update: &AppUpdate) -> Result<(), String> {
+    Err("not an Android build".to_string())
+}
+
+/// Drive the owning package manager through one polkit authorization dialog.
+///
+/// Never called from the quit or startup paths: raising a password dialog while the user is walking
+/// away is worse than not updating. `pkexec` needs an absolute program path and resets PATH, and it
+/// fails outright when the session has no polkit agent — both handled by the caller falling back to
+/// the assisted flow.
+pub fn install_elevated(update: &AppUpdate, site: &InstallSite) -> Result<(), String> {
+    let InstallSite::LinuxManaged { manager } = site else {
+        return Err("this install does not need elevation".to_string());
+    };
+    let file = update.path.to_string_lossy().to_string();
+    let status = std::process::Command::new("pkexec")
+        .arg(manager.program())
+        .args(manager.args(&file))
+        .status()
+        .map_err(|e| format!("pkexec could not be started: {e}"))?;
+    if status.success() {
+        return Ok(());
+    }
+    // 126: the authorization dialog was dismissed or authentication failed.
+    // 127: pkexec could not run the program — usually no polkit agent in this session.
+    match status.code() {
+        Some(code) => Err(format!("pkexec exited with {code}")),
+        None => Err("pkexec was terminated by a signal".to_string()),
+    }
+}
+
+/// Put the installer somewhere the user can find it and open it for them.
+#[cfg(target_os = "android")]
+fn install_assisted(_app: &tauri::AppHandle, _update: &AppUpdate) -> Result<Option<String>, String> {
+    Err("Android has no assisted install flow".to_string())
+}
+
+#[cfg(not(target_os = "android"))]
+fn install_assisted(app: &tauri::AppHandle, update: &AppUpdate) -> Result<Option<String>, String> {
     let dest = copy_to_downloads(app, &update.path)?;
-    let _ = std::process::Command::new("xdg-open").arg(&dest).spawn();
+    #[cfg(target_os = "windows")]
+    let opener: (&str, Vec<&OsStr>) = ("cmd", vec![OsStr::new("/C"), OsStr::new("start"), OsStr::new("")]);
+    #[cfg(target_os = "macos")]
+    let opener: (&str, Vec<&OsStr>) = ("open", vec![]);
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    let opener: (&str, Vec<&OsStr>) = ("xdg-open", vec![]);
+
+    let mut args = opener.1;
+    args.push(dest.as_os_str());
+    // Best effort: the file is already where the user was told it would be.
+    let _ = std::process::Command::new(opener.0).args(args).spawn();
     Ok(Some(dest.display().to_string()))
 }
 
-#[cfg(target_os = "android")]
+/// Install the prepared update on a user-present path (the dialog's Install button, the menu).
+/// `Ok(None)` = handled by us or handed off to an installer and the shell is about to exit;
+/// `Ok(Some(path))` = a file was opened for the user to finish.
 pub fn install(app: &tauri::AppHandle, update: &AppUpdate) -> Result<Option<String>, String> {
-    use tauri::Manager;
-    // Raise the system package installer over the verified APK (FileProvider + ACTION_VIEW inside
-    // the cortex-download plugin). The app stays up; Android replaces it on user confirm.
-    app.state::<tauri_plugin_cortex_download::CortexDownload<tauri::Wry>>()
-        .install_apk(update.path.to_string_lossy().to_string())?;
-    Ok(None)
-}
-
-#[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos", target_os = "android")))]
-pub fn install(_app: &tauri::AppHandle, _update: &AppUpdate) -> Result<Option<String>, String> {
-    Err("app update is not supported on this platform".to_string())
+    let site = crate::install_site::detect();
+    match crate::install_site::silent_capability(&site) {
+        Apply::Auto => {
+            if install_auto(app, update, &site, true)? {
+                app.exit(0);
+            }
+            Ok(None)
+        }
+        Apply::Elevated => match install_elevated(update, &site) {
+            Ok(()) => {
+                // The files on disk are new; this process is still the old build.
+                if let Ok(exe) = std::env::current_exe() {
+                    let _ = std::process::Command::new(exe).spawn();
+                }
+                app.exit(0);
+                Ok(None)
+            }
+            // No polkit agent, dialog dismissed, manager failure: fall back rather than dead-end.
+            Err(_) => install_assisted(app, update),
+        },
+        Apply::Assisted(_) => install_assisted(app, update),
+    }
 }
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
@@ -669,6 +862,7 @@ mod tests {
             notes: Some("n".to_string()),
             size: 7,
             kind: "apk".to_string(),
+            apply: "silent".to_string(),
             path: PathBuf::from("/secret/updates/x.apk"),
             sha256: "aa".repeat(32),
         };
@@ -677,5 +871,15 @@ mod tests {
         assert!(json.contains(r#""version":"2026.7.30""#));
         assert!(!json.contains("secret"), "local path must not be exposed to the SPA");
         assert!(!json.contains("sha256"), "sha256 is shell-internal");
+        assert!(json.contains(r#""apply":"silent""#));
+    }
+
+    #[test]
+    fn nsis_args_are_silent_and_only_relaunch_when_asked() {
+        // Quit-time: the user asked to leave, so the installer must not bring the app back.
+        assert_eq!(nsis_args(false), vec!["/S", "/UPDATE", "/NS"]);
+        assert_eq!(nsis_args(true), vec!["/S", "/UPDATE", "/NS", "/R"]);
+        // /R is only read in silent or passive mode, so /S must always be present.
+        assert!(nsis_args(true).contains(&"/S"));
     }
 }

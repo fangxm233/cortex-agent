@@ -20,13 +20,15 @@ export function useUpdatePrompt(): UpdatePrompt {
   const hot = useHotUpdate();
   const checking = useSyncExternalStore(subscribeManualCheck, getManualCheckBusy);
   if (checking) return null;
-  if (app.update) {
+  // A silent update is not a prompt: the shell installs it on quit, and UpdateProvider has already
+  // said so with a toast. Falling through lets the hot-update prompt keep its turn.
+  if (app.update && app.update.apply !== 'silent') {
     return {
       kind: 'app', update: app.update, busy: app.busy, error: app.error,
       install: app.install, skip: app.skip, dismiss: app.dismiss,
     };
   }
-  if (!app.pending && hot.staged) {
+  if ((!app.pending || app.pending.apply === 'silent') && hot.staged) {
     return { kind: 'hot', update: hot.staged, apply: hot.apply, dismiss: hot.dismiss };
   }
   return null;

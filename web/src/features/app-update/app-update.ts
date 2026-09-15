@@ -23,6 +23,17 @@ export interface AppUpdateInfo {
   size?: number;
   /** Package kind driving the install flow: appimage / nsis / apk / dmg / deb / rpm. */
   kind: string;
+  /**
+   * What the shell will do with this update, decided from where the app is actually installed and
+   * the user's preference (desktop/src-tauri/src/install_site.rs):
+   *
+   *   `silent` — it installs itself when the app next quits, so NO modal may be raised; a toast is
+   *              the whole notification.
+   *   `prompt` — the user has to act (portable copy, package-manager install, silent turned off).
+   *
+   * Absent on an older shell that predates silent updating, which is exactly `prompt`.
+   */
+  apply: 'silent' | 'prompt';
 }
 
 export const APP_UPDATE_AVAILABLE_EVENT = 'app-update-available';
@@ -35,11 +46,20 @@ export function parseAppUpdate(payload: unknown): AppUpdateInfo | null {
   const p = payload as Record<string, unknown>;
   if (typeof p.version !== 'string' || !p.version) return null;
   if (typeof p.kind !== 'string' || !p.kind) return null;
-  const u: AppUpdateInfo = { version: p.version, kind: p.kind };
+  // Default to `prompt`: an unknown or older shell must ask rather than silently assume consent.
+  const apply = p.apply === 'silent' ? 'silent' : 'prompt';
+  const u: AppUpdateInfo = { version: p.version, kind: p.kind, apply };
   if (typeof p.releaseUrl === 'string' && p.releaseUrl) u.releaseUrl = p.releaseUrl;
   if (typeof p.notes === 'string' && p.notes) u.notes = p.notes;
   if (typeof p.size === 'number' && p.size > 0) u.size = p.size;
   return u;
+}
+
+/** Toast copy for an update that will install itself on quit — the only notice a silent update gets. */
+export function silentUpdateNotice(update: AppUpdateInfo): string {
+  const size = formatUpdateSize(update.size);
+  const suffix = size ? ` · ${size}` : '';
+  return `Cortex ${update.version} 已下载${suffix}，关闭 App 后会自动完成更新。`;
 }
 
 /** Mono meta line under the title: `Cortex <version> · <size> · 已下载` (size omitted if unknown). */

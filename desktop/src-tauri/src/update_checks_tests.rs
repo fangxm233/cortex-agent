@@ -230,6 +230,7 @@ fn shell_request(
         "linux",
         "x86_64",
         "deb",
+        "prompt",
         store,
     )
 }
@@ -321,6 +322,7 @@ fn dev_shell_check_is_skipped_without_network() {
         "linux",
         "x86_64",
         "deb",
+        "prompt",
         &app_update::UpdateStore::new(&dir.0),
     )
     .unwrap();
@@ -416,6 +418,7 @@ fn prepared_shell() -> app_update::AppUpdate {
         notes: None,
         size: 9,
         kind: "deb".into(),
+        apply: "prompt".into(),
         path: PathBuf::from("private-installer"),
         sha256: "private-hash".into(),
     }
