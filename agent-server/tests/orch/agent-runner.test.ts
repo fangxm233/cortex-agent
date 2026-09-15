@@ -271,8 +271,8 @@ test('(a2) a refused live injection reuses its platform download in the queued f
     downloadCalls += 1;
     return { localPath: '/tmp/slack-F1.txt', mimetype: 'text/plain', name: 'report.txt' };
   };
-  let injectedFiles: any[] | undefined;
-  let queuedFiles: any[] | undefined;
+  let injectedFiles: any | undefined;
+  let queuedFiles: any | undefined;
   const runner = new AgentRunner({
     enqueue: (_ch, fn) => { enqueueFns.push(fn); return false; },
     track: () => {},

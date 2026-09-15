@@ -104,7 +104,7 @@ export function resolveMcpComposition(
 
 export interface UserMessage {
   text: string;
-  attachments?: { mimeType: string; path: string }[];
+  attachments?: { mimeType: string; path: string; name?: string }[];
 }
 
 export interface McpStdioServerConfig {

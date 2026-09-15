@@ -31,16 +31,16 @@ import {
   acquireSessionUseLease, acquireTurnBrowser, collectTurnFiles, releaseTurnBrowser, type SessionUseLease,
 } from './turn/turn-prep.js';
 import { tryConsume as tryHumanAnswerBackstop } from './human-answer-backstop.js';
-import { downloadFiles as downloadPlatformFiles } from './routing/file-handler.js';
-import { WORKSPACE_DIR } from '@core/utils.js';
+import {
+  downloadFiles as downloadPlatformFiles, inboundAttachmentKey, type InboundFiles,
+} from './routing/file-handler.js';
 import { acquireTurnMutationLock, type TurnMutationRelease } from './turn-mutation-lock.js';
 
 const log = createLogger('agent-runner');
-const TEMP_DIR = WORKSPACE_DIR;
 
 type Enqueuer = (channel: string, fn: () => Promise<void>) => boolean;
 type Tracker = (delta: number) => void;
-type PlatformFileLoader = () => Promise<DownloadedFile[]>;
+type PlatformFileLoader = () => Promise<InboundFiles>;
 type Executor = (
   ctx: AgentRunnerCtx, mutationRelease: TurnMutationRelease, loadPlatformFiles: PlatformFileLoader,
 ) => Promise<void>;
@@ -159,9 +159,10 @@ export class AgentRunner {
         ...(ctx.message.systemOrigin ? { systemOrigin: ctx.message.systemOrigin } : {}),
         messageId: ctx.message.ref.messageId,
         attachments: ctx.message.webAttachments,
-        prepareBackendAttachments: async () => (await loadPlatformFiles()).map((file) => ({
+        prepareBackendAttachments: async () => (await loadPlatformFiles()).files.map((file) => ({
           mimeType: file.mimetype,
           path: file.localPath,
+          name: file.name,
         })),
       });
     } catch (e) {
@@ -187,7 +188,7 @@ export class AgentRunner {
     loadPlatformFiles: PlatformFileLoader,
   ): Promise<void> {
     const { message, channel, adapter, threadAnchorId, userMessage, agentMessage } = ctx;
-    const allFiles = await collectTurnFiles(message, loadPlatformFiles);
+    const turnFiles = await collectTurnFiles(message, loadPlatformFiles);
     const startTime = Date.now();
     const backend = resolveBackendForChannel(channel);
     let sessionId = await getSessionAsync(channel);
@@ -235,7 +236,7 @@ export class AgentRunner {
         session: { sessionId, sessionName, backendSessionId, projectId, lease: sessionLease },
         user: {
           text: userMessage || '',
-          attachments: message.webAttachments,
+          attachments: mergeAttachments(message.webAttachments, turnFiles.platformAttachments),
           ...(message.systemOrigin ? { systemOrigin: message.systemOrigin } : {}),
         },
         ledger: { userMessageTs: message.ref.messageId },
@@ -253,7 +254,8 @@ export class AgentRunner {
           },
           channel,
           userMessage: agentMessage,
-          files: allFiles,
+          files: turnFiles.files,
+          failedFiles: turnFiles.failures,
           trigger: 'user',
           browserCdpEndpoint: browser.cdpEndpoint,
           commissionMode: !!sessionCommissionId,
@@ -275,6 +277,15 @@ export const agentRunner = new AgentRunner();
 
 // --- Helpers ---
 
+/** Web uploads and platform downloads share one attachment list on the user's transcript row. */
+function mergeAttachments(
+  web: IncomingMessage['webAttachments'],
+  platform: IncomingMessage['webAttachments'],
+): IncomingMessage['webAttachments'] {
+  const merged = [...(web ?? []), ...(platform ?? [])];
+  return merged.length > 0 ? merged : undefined;
+}
+
 // Moved to transcript-sink.ts (the one transcript observer). Re-exported here so the existing
 // agent-runner tests and importers keep their import path.
 export { persistSessionContextUsage, type SessionContextUsagePersistenceDeps };
@@ -289,14 +300,14 @@ export {
 export { resolveDefaultAgent, resolveSessionName } from './turn/turn-prep.js';
 
 function createPlatformFileLoader(ctx: AgentRunnerCtx): PlatformFileLoader {
-  let pending: Promise<DownloadedFile[]> | null = null;
+  let pending: Promise<InboundFiles> | null = null;
   return () => {
-    pending ??= downloadFiles(ctx.message.files, ctx.hasFiles, ctx.adapter);
+    pending ??= downloadFiles(ctx.message, ctx.hasFiles, ctx.adapter);
     return pending;
   };
 }
 
-async function downloadFiles(files: PlatformFileRef[] | undefined, hasFiles: boolean, adapter: PlatformAdapter): Promise<DownloadedFile[]> {
-  if (!hasFiles || !files) return [];
-  return downloadPlatformFiles(files, adapter, TEMP_DIR);
+async function downloadFiles(message: IncomingMessage, hasFiles: boolean, adapter: PlatformAdapter): Promise<InboundFiles> {
+  if (!hasFiles || !message.files) return { files: [], failures: [] };
+  return downloadPlatformFiles(message.files, adapter, inboundAttachmentKey(message));
 }

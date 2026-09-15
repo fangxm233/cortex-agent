@@ -102,6 +102,7 @@ import { sessionStore } from '@store/session-registry-repo.js';
 import { retentionCandidateRepo } from '@store/retention-candidate-repo.js';
 import { createDirectSession, adoptScheduledSession } from '@domain/sessions/session-lifecycle.js';
 import { runSessionRetentionSweep, type RetentionLivenessSnapshot } from '@domain/sessions/session-retention.js';
+import { pruneInboundAttachments } from '@orch/attachments-store.js';
 import { syncClaudeUserCleanupPeriodDays } from '@domain/auth/claude-user-settings.js';
 import { setSessionAsync, getSessionAsync } from '@domain/sessions/session.js';
 import {
@@ -189,7 +190,10 @@ async function runRetentionSweep(retentionDays: number): Promise<void> {
     },
     syncClaudeUserCleanupPeriodDays,
   });
-  log.info(`Retention sweep: registry=${result.registryCommitted} history=${result.historyOrphanDeleted} pi=${result.piOrphanDeleted} capture=${result.claudeCaptureDeleted} errors=${result.errors.length}`);
+  // Inbound platform attachments are read during the turn they arrive on; nothing links to them
+  // afterwards, and before this sweep existed they accumulated in the workspace forever.
+  const attachmentsPruned = await pruneInboundAttachments(retentionDays);
+  log.info(`Retention sweep: registry=${result.registryCommitted} history=${result.historyOrphanDeleted} pi=${result.piOrphanDeleted} capture=${result.claudeCaptureDeleted} attachments=${attachmentsPruned} errors=${result.errors.length}`);
 }
 
 const retentionController = createSessionRetentionController({

@@ -11,6 +11,7 @@
 
 import { randomUUID } from 'node:crypto';
 import type { DownloadedFile } from '@platform/index.js';
+import type { AttachmentFailure } from './routing/file-handler.js';
 import { getDefaultAgent } from '@domain/agents/index.js';
 import { getDefaultProfileName } from '@domain/agents/profile-manager.js';
 import { effectiveProfile, resolveRunConfig } from '@domain/runs/config-resolver.js';
@@ -27,7 +28,9 @@ import {
 import { sessionStore } from '@store/session-registry-repo.js';
 import { getSettings } from '@core/settings.js';
 import type { AgentSpec, RunRequest } from '@domain/runs/request.js';
-import { buildPrompt as buildAgentPrompt } from '../agent-adapter/normalize/prompt-builder.js';
+import {
+  buildPrompt as buildAgentPrompt, formatAttachmentFailures,
+} from '../agent-adapter/normalize/prompt-builder.js';
 
 /** The ids the caller has already resolved for this turn. Mirrors the plan's `prepareRequest(ids)`
  *  shape: everything else on {@link PrepareConversationRequestOptions} is per-surface turn input. */
@@ -48,6 +51,9 @@ export interface PrepareConversationRequestOptions {
   /** The raw user message (without the default agent's directive). */
   userMessage: string;
   files: DownloadedFile[];
+  /** Attachments the platform refused to hand over; named in the prompt so the agent cannot
+   *  answer as though the user had sent nothing. */
+  failedFiles?: AttachmentFailure[];
   /** Execution trigger; defaults to 'user'. Scheduled session-target dispatch passes 'scheduled'. */
   trigger?: string;
   scheduleTaskId?: string | null;
@@ -67,9 +73,13 @@ export interface PreparedRequest {
   backendPrompt: string;
 }
 
-function buildBackendPrompt(prompt: string, files: DownloadedFile[]): string {
-  const attachments = files.map((file) => ({ mimeType: file.mimetype, path: file.localPath }));
-  return buildAgentPrompt(prompt, attachments);
+function buildBackendPrompt(
+  prompt: string, files: DownloadedFile[], failures: AttachmentFailure[] = [],
+): string {
+  const attachments = files.map((file) => ({
+    mimeType: file.mimetype, path: file.localPath, name: file.name,
+  }));
+  return buildAgentPrompt(prompt, attachments, failures);
 }
 
 /**
@@ -200,7 +210,7 @@ export async function prepareConversationRequest(
   // A plain conversation turn is thread-free: no artifact, no previous step, no control-plane
   // preamble. Everything it does carry is a first-turn ambient block, and the two prompt-shaping
   // fields come from the very spec the run is opened with — one description of the agent, not two.
-  const prompt = composeUserPrompt(spec, opts.userMessage, {
+  const composedPrompt = composeUserPrompt(spec, opts.userMessage, {
     userContext: userProfileBlock(isFreshSession),
     // Web UI direct sessions are bound to a project at create time; tell the agent which one
     // on the session's first turn (see resolveConversationProject for the exact gating).
@@ -209,6 +219,9 @@ export async function prepareConversationRequest(
     // binding rather than once per session (see resolveConversationCommission).
     commission: await resolveConversationCommission(sessionId, { isFreshSession }),
   });
+  // The backend composes the real prompt from `prompt.text` + `prompt.attachments`, so a download
+  // failure has to ride the TEXT to reach the model — `backendPrompt` below is the debug echo.
+  const prompt = `${formatAttachmentFailures(opts.failedFiles ?? [])}${composedPrompt}`;
   const backendPrompt = buildBackendPrompt(prompt, opts.files);
   opts.onPromptBuilt?.(backendPrompt);
   // Attribute cost/execution to the session's bound project (from the registry record), NOT a
@@ -247,7 +260,9 @@ export async function prepareConversationRequest(
     spec,
     prompt: {
       text: prompt,
-      attachments: (opts.files || []).map((file) => ({ mimeType: file.mimetype, path: file.localPath })),
+      attachments: (opts.files || []).map((file) => ({
+        mimeType: file.mimetype, path: file.localPath, name: file.name,
+      })),
     },
     context: {
       channel: opts.channel,

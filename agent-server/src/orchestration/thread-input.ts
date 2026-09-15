@@ -5,16 +5,15 @@
 //         imports these; a back-edge, even type-only, would close a depcruise cycle).
 
 import { randomUUID } from 'node:crypto';
-import type { Destination, PlatformAdapter, DownloadedFile, IncomingMessage, PlatformFileRef } from '@platform/index.js';
+import type { Destination, PlatformAdapter, IncomingMessage } from '@platform/index.js';
 import { createLogger } from '@core/log.js';
 import { Icons } from '../core/icons.js';
 import { evictPendingUserInput, registerPendingUserInput } from '@domain/threads/pending-user-inputs.js';
-import { downloadFiles as downloadPlatformFiles } from './routing/file-handler.js';
+import {
+  downloadFiles as downloadPlatformFiles, inboundAttachmentKey, type InboundFiles,
+} from './routing/file-handler.js';
 import { threadStore } from '@store/thread-repo.js';
-import { WORKSPACE_DIR } from '@core/utils.js';
 import { buildPrompt as buildAgentPrompt } from '../agent-adapter/normalize/prompt-builder.js';
-
-const TEMP_DIR = WORKSPACE_DIR;
 // Same tag as thread-executor's logger on purpose: these lines used to be emitted from there.
 const log = createLogger('thread-executor');
 
@@ -33,9 +32,9 @@ export interface ThreadExecCtx {
 
 // --- Shared helper ---
 
-export async function downloadFiles(files: PlatformFileRef[] | undefined, hasFiles: boolean, adapter: PlatformAdapter): Promise<DownloadedFile[]> {
-  if (!hasFiles || !files) return [];
-  return downloadPlatformFiles(files, adapter, TEMP_DIR);
+export async function downloadFiles(message: IncomingMessage, hasFiles: boolean, adapter: PlatformAdapter): Promise<InboundFiles> {
+  if (!hasFiles || !message.files) return { files: [], failures: [] };
+  return downloadPlatformFiles(message.files, adapter, inboundAttachmentKey(message));
 }
 
 // --- Message buffering (Phase 6) ---
@@ -52,14 +51,15 @@ function reserveUserInput(thread: any, text: string): { inputId: string; evicted
 }
 
 async function prepareUserInput(ctx: ThreadExecCtx, inputId: string, text: string): Promise<void> {
-  const files = await downloadFiles(ctx.message.files, ctx.hasFiles, ctx.adapter);
+  const { files, failures } = await downloadFiles(ctx.message, ctx.hasFiles, ctx.adapter);
   const thread = threadStore.get(ctx.existingThread.id);
   const input = thread?.metadata?.pendingUserInputs?.find((entry) => entry.id === inputId);
   if (!thread || !input) return;
   input.text = buildAgentPrompt(text, files.map((file) => ({
     mimeType: file.mimetype,
     path: file.localPath,
-  })));
+    name: file.name,
+  })), failures);
   await threadStore.set(thread);
 }
 

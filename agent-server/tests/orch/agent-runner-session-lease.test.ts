@@ -116,7 +116,7 @@ test('AgentRunner holds session use until onExecutionRegistered then releases it
   }));
 
   const runner = new AgentRunner({ tryInject: async () => false, track: () => {} });
-  await (runner as any)._executeReal(ctx('slack:C-live'), () => {}, async () => []);
+  await (runner as any)._executeReal(ctx('slack:C-live'), () => {}, async () => ({ files: [], failures: [] }));
 
   assert.ok(getByIdSpy.mock.calls.length >= 1);
   assert.ok(touchSpy.mock.calls.length >= 1);
@@ -134,7 +134,7 @@ test('AgentRunner releases session use when the turn fails before execution regi
   mockPrepareRequest.mockRejectedValue(new Error('boom'));
 
   const runner = new AgentRunner({ tryInject: async () => false, track: () => {} });
-  await (runner as any)._executeReal(ctx('slack:C-fail'), () => {}, async () => []);
+  await (runner as any)._executeReal(ctx('slack:C-fail'), () => {}, async () => ({ files: [], failures: [] }));
 
   // The turn's finally released the lease, so the session is no longer in `activeSessionUseIds()`.
   assert.deepEqual([...activeSessionUseIds()], []);

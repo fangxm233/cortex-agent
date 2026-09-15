@@ -482,7 +482,9 @@ export function buildThreadRunRequest(
       text: stepCtx.prompt,
       // First-step files only (never re-attached on an interrupted-session resume).
       attachments: stepCtx.isFirstStep && !stepCtx.interruptedResume
-        ? (opts.files || []).map((file: any) => ({ mimeType: file.mimetype, path: file.localPath }))
+        ? (opts.files || []).map((file: any) => ({
+          mimeType: file.mimetype, path: file.localPath, name: file.name,
+        }))
         : [],
     },
     context: {

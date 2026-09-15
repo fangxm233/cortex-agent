@@ -65,7 +65,9 @@ export class ThreadExecutor {
    *  cancellation rendering (onto the live status message, with the elapsed clock) belongs to it. */
   private async _executeReal(ctx: ThreadExecCtx): Promise<void> {
     const startTime = Date.now();
-    const downloadedFiles = await downloadFiles(ctx.message.files, ctx.hasFiles, ctx.adapter);
+    // A thread's first step takes the files; a failed download is named in the buffered-input
+    // prompt instead (thread-input), and logged by the downloader either way.
+    const { files: downloadedFiles } = await downloadFiles(ctx.message, ctx.hasFiles, ctx.adapter);
     const args = { channel: ctx.channel, adapter: ctx.adapter, threadAnchorId: ctx.threadAnchorId, startTime, downloadedFiles };
     try {
       if (ctx.threadAddMatch) {

@@ -11,6 +11,18 @@ import { waitForPendingUserInputs } from '../../src/domain/threads/pending-user-
 let _seq = 0;
 function freshChannel() { return `te-test-${++_seq}`; }
 
+/** Yield until `read()` produces a value. A buffered message's download starts a few ticks into
+ *  routing (the message's own attachment directory is created first), so a single microtask is not
+ *  enough to observe the adapter being called. */
+async function until<T>(read: () => T | undefined, what = 'value'): Promise<T> {
+  for (let i = 0; i < 500; i++) {
+    const value = read();
+    if (value) return value;
+    await new Promise((resolve) => setTimeout(resolve, 1));
+  }
+  throw new Error(`timed out waiting for ${what}`);
+}
+
 function makeCtx(channel: string, overrides: Record<string, any> = {}) {
   return {
     message: { ref: { conduit: channel, messageId: 'M1', threadId: null }, text: 'hi', isBot: false, files: [], subtype: undefined } as any,
@@ -248,10 +260,10 @@ test('(g4) next-step readiness waits for the platform download registered by buf
   const inputId = runningThread.metadata.pendingUserInputs[0].id;
   let ready = false;
   const waiting = waitForPendingUserInputs(runningThread.id, [inputId]).then(() => { ready = true; });
-  await Promise.resolve();
+  const release = await until(() => releaseDownload, 'the download to start');
   assert.equal(ready, false);
 
-  releaseDownload();
+  release();
   await routing;
   await waiting;
   assert.match(runningThread.metadata.pendingUserInputs[0].text, /thread-delayed\.txt/);
@@ -330,11 +342,10 @@ test('(g6) out-of-order downloads preserve buffered user-input order', async () 
   const executor = new ThreadExecutor({ enqueue: () => false, track: () => {} });
   const first = executor.route(makeFileCtx('A', 'first') as any);
   const second = executor.route(makeFileCtx('B', 'second') as any);
-  await Promise.resolve();
 
-  releases.get('B')!();
+  (await until(() => releases.get('B'), "B's download"))();
   await second;
-  releases.get('A')!();
+  (await until(() => releases.get('A'), "A's download"))();
   await first;
 
   assert.match(runningThread.metadata.pendingUserInputs[0].text, /\/tmp\/A\.txt/);
