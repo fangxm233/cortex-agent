@@ -212,12 +212,15 @@ test('golden 2: !thread two-agent template — per-step status updates + streame
   expectOps(adapter, [
     post('interactive-reply', '⏳ Starting thread (golden-pair)...'),
     update('⏳ Starting thread (golden-pair)...', true),
-    // Bare adapter.updateMessage from runner.resolveAndNotifyStep (bypasses writeStatus — see
-    // refactor-survey-2 §A); note blocks are DROPPED here, which is why the Cancel button
-    // disappears mid-thread today.
-    update(expect.stringMatching(new RegExp(`^⏳ Thread ${threadId} \\| Step 1: \\*golden-a1\\* \\| ⏱️ \\d+s$`))),
+    // T2.1 (plan §3-2): step status lines go through status-helpers.writeStatus now, which
+    // regenerates richBlocks from the template stored by initStatusBlocks — so blocks flipped
+    // false → true here. That IS the fix: the bare adapter.updateMessage these lines used to make
+    // carried no blocks, which is why the Cancel button vanished as soon as a multi-agent thread
+    // reached its second step. (writeStatus is also serialized, so a late progress write can no
+    // longer overwrite the seal below.)
+    update(expect.stringMatching(new RegExp(`^⏳ Thread ${threadId} \\| Step 1: \\*golden-a1\\* \\| ⏱️ \\d+s$`)), true),
     post('interactive-reply', '➡️ Step 2: *golden-a2* starting (prev: golden-a1)'),
-    update(expect.stringMatching(new RegExp(`^⏳ Thread ${threadId} \\| Step 2: \\*golden-a2\\* \\| ⏱️ \\d+s$`))),
+    update(expect.stringMatching(new RegExp(`^⏳ Thread ${threadId} \\| Step 2: \\*golden-a2\\* \\| ⏱️ \\d+s$`)), true),
     post('interactive-reply', 'step2 out'),
     update(expect.stringContaining('✅ Thread complete | 2 steps | $0.0200 |'), true),
   ]);
@@ -238,7 +241,7 @@ test('golden 2: !thread two-agent template — per-step status updates + streame
 
 // --- 3. `!thread <template> msg`, second step throws -------------------------------------------
 
-test('golden 3: !thread second step throws — failure is POSTED (statusMsg is never sealed)', async () => {
+test('golden 3: !thread second step throws — failure SEALS the live status message', async () => {
   let step = 0;
   mockStartRun.mockImplementation(() => {
     step += 1;
@@ -250,17 +253,20 @@ test('golden 3: !thread second step throws — failure is POSTED (statusMsg is n
   await routeThreadStart('golden-c3', 'golden-pair', 'go');
 
   const threadId = startRunThreadId();
-  // QUIRK worth preserving in review: thread-executor._executeReal only learns `statusMsg` from
-  // the handler's RETURN value, so a throw inside handleThreadStart leaves it undefined — the
-  // error lands as a fresh postMessage WITHOUT the elapsed suffix and the live status message is
-  // left stuck on "Step 2 ...". There is no sealing update at all.
+  // The QUIRK this golden recorded is FIXED in T2.1 (plan §1.2 steps 6-7): thread-executor's catch
+  // only ever learned `statusMsg` from the handler's RETURN value, so a throw inside
+  // handleThreadStart left it undefined — the error landed as a fresh post WITHOUT the elapsed
+  // suffix and the live status message stayed stuck on "Step 2 …", never sealed. ThreadRun owns
+  // the status message across the run, so the `Thread failed (<elapsed>): …` text that was
+  // unreachable from this entrypoint now seals it (sealed blocks: Cancel removed). The two step
+  // lines carry blocks for the same reason as golden 2 (§3-2).
   expectOps(adapter, [
     post('interactive-reply', '⏳ Starting thread (golden-pair)...'),
     update('⏳ Starting thread (golden-pair)...', true),
-    update(expect.stringMatching(new RegExp(`^⏳ Thread ${threadId} \\| Step 1: \\*golden-a1\\* \\| ⏱️ \\d+s$`))),
+    update(expect.stringMatching(new RegExp(`^⏳ Thread ${threadId} \\| Step 1: \\*golden-a1\\* \\| ⏱️ \\d+s$`)), true),
     post('interactive-reply', '➡️ Step 2: *golden-a2* starting (prev: golden-a1)'),
-    update(expect.stringMatching(new RegExp(`^⏳ Thread ${threadId} \\| Step 2: \\*golden-a2\\* \\| ⏱️ \\d+s$`))),
-    post('interactive-reply', '❌ Thread failed: boom step 2'),
+    update(expect.stringMatching(new RegExp(`^⏳ Thread ${threadId} \\| Step 2: \\*golden-a2\\* \\| ⏱️ \\d+s$`)), true),
+    update(expect.stringMatching(/^❌ Thread failed \(\d+s\): boom step 2$/), true),
   ]);
   expectStartRun([
     { trigger: 'thread-step', threadId },
@@ -277,17 +283,19 @@ test('golden 3: !thread second step throws — failure is POSTED (statusMsg is n
 
 // --- 4. `!thread <agent> msg` cancelled (error.cancelled) --------------------------------------
 
-test('golden 4: !thread cancelled — "🛑 Cancelled" is POSTED with no elapsed and no seal', async () => {
+test('golden 4: !thread cancelled — "🛑 Cancelled (<elapsed>)" SEALS the status message', async () => {
   mockStartRun.mockImplementation(() => fakeRun(Promise.reject(cancelledError())));
 
   await routeThreadStart('golden-c4', 'golden-solo', 'hi');
 
-  // Same undefined-statusMsg quirk as golden 3: the `Cancelled (<elapsed>)` variant that
-  // _executeReal renders onto statusMsg is unreachable from this entrypoint today.
+  // Same fix as golden 3 (plan §1.2 steps 6-7): the `Cancelled (<elapsed>)` variant was
+  // unreachable from this entrypoint because the catch never saw a statusMsg. ThreadRun holds it,
+  // so cancellation seals the live message instead of posting a second, elapsed-less one. The
+  // no-status-message fallback (`🛑 Cancelled`, posted) survives for a channel-less run.
   expectOps(adapter, [
     post('interactive-reply', '⏳ Starting thread (agent:golden-solo)...'),
     update('⏳ Starting thread (agent:golden-solo)...', true),
-    post('interactive-reply', '🛑 Cancelled'),
+    update(expect.stringMatching(/^🛑 Cancelled \(\d+s\)$/), true),
   ]);
   expectStartRun([{ trigger: 'thread-step', threadId: expect.stringMatching(THREAD_ID) as any }]);
   expect(threadStore.get(startRunThreadId())?.status).toBe('failed');
@@ -313,7 +321,7 @@ test('golden 5: webhook thread_start with channel — inline seal then exactly o
   expect(reply.statusCode).toBe(200);
   expect(reply.json).toEqual({ success: true, data: { threadId: expect.stringMatching(THREAD_ID), status: 'running' } });
   const threadId = reply.json.data.threadId;
-  // runThreadDetached is fire-and-forget: the HTTP reply races the run, so wait on the effect.
+  // The thread runs detached: the HTTP reply races the run, so wait on the effect.
   await waitFor(() => mockDeliverToSession.mock.calls.length > 0, 'thread callback fired');
   await settleTails();
 
@@ -321,8 +329,8 @@ test('golden 5: webhook thread_start with channel — inline seal then exactly o
     post('interactive-reply', '⏳ Starting thread (agent:golden-solo)...'),
     update('⏳ Starting thread (agent:golden-solo)...', true),
     post('interactive-reply', 'child done'),
-    // Sealed INLINE by webhook.onSettled (its own buildThreadSummary +
-    // buildSealedStatusActionBlocks call — one of the 4 seal sites the refactor unifies).
+    // Sealed by ThreadRun's terminal render (T2.1). This used to be an inline buildThreadSummary +
+    // buildSealedStatusActionBlocks inside webhook.onSettled — one of the 4 seal sites now unified.
     update(expect.stringMatching(/^✅ Thread complete \| 1 steps \| \$0\.0200 \| \d+s$/), true),
   ]);
   expectStartRun([{ trigger: 'mcp-thread', threadId }]);
@@ -377,8 +385,9 @@ test('golden 6: webhook thread_start suspends on a child — statusMsgRef persis
     post('interactive-reply', '⏳ Thread suspended — waiting on 1 child thread(s)'),
     // finalizeThread still streams the step's finalOutput even though the thread suspended.
     post('interactive-reply', 'waiting now'),
-    // webhook.onSettled — "child(ren)", counted from waitingOn + waitingOnTasks, NO rich blocks
-    // (the suspended message is intentionally not sealed).
+    // ThreadRun's non-terminal render (was webhook.onSettled) — "child(ren)", counted from
+    // waitingOn + waitingOnTasks, NO rich blocks, and NOT sealed: the thread will be resumed and
+    // the resumed run keeps writing to this message (plan §1.2 step 7).
     update('⏳ Thread suspended — waiting on 1 child(ren)'),
   ]);
   expectStartRun([{ trigger: 'mcp-thread', threadId }]);

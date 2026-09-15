@@ -15,19 +15,16 @@ import { validateCommissionFinalize, finalizeCommission } from '@domain/commissi
 import { getCurrentPlanFilePath } from '../../agent-adapter/claude/event-parser.js';
 import { orchestrationAdapter, orchestrationBus } from '../runtime.js';
 import { createThread, cancelThread, readArtifact, listTemplates, listAgents, checkSpawnGuards, getRootThreadId, registerChildSpawn, buildThreadTree, getTreeThreads, buildContractPrompt, buildMissionChain, isArtifactUnchangedSinceStepStart } from '@domain/threads/index.js';
-import { runThreadDetached, createThreadStatusSurface } from '../thread-executor.js';
-import { buildThreadSummary } from '@domain/threads/runner.js';
 import { Icons } from '@core/icons.js';
-import { buildStatusActionBlocks, buildSealedStatusActionBlocks, initStatusBlocks } from '../status-helpers.js';
 import { threadStore } from '@store/thread-repo.js';
-import { fireThreadCallback } from '../thread-callback.js';
+import { openThreadRunDetached } from '../thread-run/index.js';
+import { settleThread } from '../thread-callback.js';
 import { askManager, getAnswer, submitAnswer } from '../manager-qa.js';
 import { handleSubagentWebhook } from '../subagent-webhook.js';
 import { sendAgentFile } from '../agent-file-send.js';
 import { sendAgentView } from '../agent-view-send.js';
 import { sendAgentDecisions } from '../agent-decision-send.js';
-import type { Destination, MessageRef } from '@platform/index.js';
-import type { RunThreadOptions } from '@core/types/thread-types.js';
+import type { Destination } from '@platform/index.js';
 
 const log = createLogger('webhook');
 
@@ -435,67 +432,27 @@ function createWebhookHandler(_options: {
               await registerChildSpawn(parentThread.id, thread.id, data.wait !== false);
             }
 
-            let dest: Destination;
-            let statusMsg: MessageRef | null = null;
-            if (haveChannel) {
-              dest = { type: 'interactive-reply', conduit: channel, sessionId: '' };
-              const label = template || agent;
-              const startText = `${Icons.processing} Starting thread (${template ? label : `agent:${label}`})...`;
-              try {
-                statusMsg = await adapter.postMessage(dest, { text: startText });
-                const blocksTemplate = { channel, sessionName: null, isDm: false, threadId: thread.id };
-                await adapter.updateMessage(statusMsg, {
-                  text: startText,
-                  richBlocks: buildStatusActionBlocks(startText, blocksTemplate),
-                }).catch(() => {});
-                initStatusBlocks(statusMsg, blocksTemplate);
-              } catch (e) {
-                log.warn(`thread-op start: status message post failed: ${(e as Error).message}`);
-                statusMsg = null;
-              }
-            } else {
-              dest = { type: 'project-report', projectId, trigger: 'mcp-thread', sessionId: '' };
-            }
-
-            const startTime = Date.now();
-            const runOpts: RunThreadOptions = {
-              channel,
-              startTime,
-              stream: adapter.openOutputStream(dest, { threadId: statusMsg ? statusMsg.messageId : null, anchorRef: statusMsg }),
-              // No interactive capture on the MCP path (onToolUse/onProgress were null here).
-              surface: createThreadStatusSurface({ adapter, statusMsg, startTime, threadId: thread.id, interactive: null }),
-            };
-            // Hold the daemon busy gate for the WHOLE pipeline so a deferred rebuild/restart can't
-            // SIGTERM app.ts mid-thread and stamp it "Interrupted by server restart". (Bare runThread
-            // here was invisible to the busy/idle gate — see runThreadDetached.)
-            runThreadDetached(thread.id, runOpts, {
-              onSettled: (id) => {
-                // Seal the live status message with a summary (interactive path only).
-                // A suspended parent ([WAIT_CHILDREN] → status 'waiting') is NOT sealed:
-                // it will resume; the message just reflects the suspension.
-                if (statusMsg) {
-                  const t = threadStore.get(id);
-                  if (t && t.status === 'waiting') {
-                    const n = (t.metadata?.waitingOn?.length ?? 0) + (t.metadata?.waitingOnTasks?.length ?? 0);
-                    // Persist the ref so the post-resume settle can refresh this message.
-                    void threadStore.mutate(t.id, (r) => { (r.metadata ??= {}).statusMsgRef = statusMsg; }).catch(() => {});
-                    void adapter.updateMessage(statusMsg, {
-                      text: `${Icons.processing} Thread suspended — waiting on ${n} child(ren)`,
-                    }).catch(() => {});
-                  } else if (t) {
-                    const totalNumTurns = t.steps.reduce((s, st) => s + (st.numTurns || 0), 0);
-                    const summaryText = buildThreadSummary({ thread: t, totalCostUsd: t.totalCostUsd, totalNumTurns, finalOutput: null, lastAgentResult: null, executionId: null, stopReason: null });
-                    void adapter.updateMessage(statusMsg, {
-                      text: summaryText,
-                      richBlocks: buildSealedStatusActionBlocks(summaryText, { channel, sessionName: null, isDm: false, threadId: t.id }),
-                    }).catch(() => {});
-                  }
-                }
-                // Return the promise so runThreadDetached holds the busy gate across this callback —
-                // it wakes the parent agent for a full turn, and a deferred restart firing mid-wake
-                // would drop the notification. The .catch keeps the returned promise non-rejecting.
-                return fireThreadCallback(id).catch((e) => log.error(`thread-callback ${id}: ${(e as Error).message}`));
+            // Where this thread talks, and what it opens with. With a channel we mirror the
+            // Slack `!thread` surface (live status message + Cancel button); without one we fall
+            // back to project-report routing (project conduit → admin DM) and draw no status line.
+            const label = template || agent;
+            const dest: Destination = haveChannel
+              ? { type: 'interactive-reply', conduit: channel, sessionId: '' }
+              : { type: 'project-report', projectId, trigger: 'mcp-thread', sessionId: '' };
+            // Hold the daemon busy gate for the WHOLE pipeline (run → seal → parent wake) so a
+            // deferred rebuild/restart can't SIGTERM app.ts mid-thread and stamp it "Interrupted by
+            // server restart" — see openThreadRunDetached.
+            openThreadRunDetached({
+              threadId: thread.id, mode: { kind: 'start' }, channel, adapter,
+              destination: dest, threadAnchorId: null, claimPlatformThread: false, statusMessage: null,
+              render: {
+                kind: 'summary',
+                blocks: haveChannel ? { channel, sessionName: null, isDm: false, threadId: thread.id } : null,
+                startText: haveChannel ? `${Icons.processing} Starting thread (${template ? label : `agent:${label}`})...` : null,
               },
+              // No interactive capture on the MCP path (no live user to route plan/ask dialogs to).
+              interactive: false,
+              settle: settleThread,
             });
             log.info(`thread-op start ${thread.id} (${template || agent}, depth ${curDepth + 1})`);
             return reply({ success: true, data: { threadId: thread.id, status: 'running' } });

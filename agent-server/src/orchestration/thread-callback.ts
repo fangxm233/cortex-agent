@@ -2,10 +2,8 @@ import { threadStore } from '@store/thread-repo.js';
 import { deliverToSession, type DeliveryOrigin } from './session-gateway.js';
 import { getOutboundQueue, durablePost } from '@store/outbound-queue.js';
 import { orchestrationAdapter, orchestrationBus } from './runtime.js';
-import { resumeThread } from '@domain/threads/runner.js';
-import { sealThreadStatus } from './status-helpers.js';
 import { isTerminalStatus } from '@domain/threads/tree.js';
-import { runThreadDetached, createThreadStatusSurface } from './thread-executor.js';
+import { openThreadRunDetached, type ThreadRunInput } from './thread-run/index.js';
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
 import {
@@ -14,8 +12,7 @@ import {
 import { recordDelivered, pendingDeliveries } from '@domain/tasks/acceptance-ledger.js';
 import { withTaskFileMutationLockAsync } from '@domain/tasks/system/task-lifecycle-edit.js';
 import { isTaskArtifactTemplate } from '@domain/threads/index.js';
-import type { ThreadRecord, RunThreadOptions } from '@core/types/thread-types.js';
-import type { PlatformAdapter } from '@platform/index.js';
+import type { ThreadRecord } from '@core/types/thread-types.js';
 import type { Destination } from '@platform/index.js';
 
 const log = createLogger('thread-callback');
@@ -90,41 +87,46 @@ async function postProjectNotice(t: ThreadRecord, text: string): Promise<void> {
   await postProjectNoticeTo(t.projectId, 'mcp-thread', text);
 }
 
-/** Rebuild run options for a suspended or provider-paused thread.
- *  Restore the persisted status message so resumed updates target the original message.
+/** The ThreadRunInput for re-entering a suspended (`resume`) or provider-paused
+ *  (`resume-rate-limited`) thread. Everything the surface needs was persisted at suspension:
+ *  `resumeDest` says where output goes, `statusMsgRef` is the live status message so the resumed
+ *  run refreshes the original message instead of posting a new one. Null when there is no adapter.
  *  Lifecycle hooks are resolved by the HookBus from the thread's persisted metadata. */
-export function buildResumeOptions(parent: ThreadRecord): RunThreadOptions | null {
+export function resumeThreadRunInput(parent: ThreadRecord, mode: 'resume' | 'resume-rate-limited'): ThreadRunInput | null {
   const adapter = orchestrationAdapter();
   if (!adapter) return null;
   const m = parent.metadata;
   const dest: Destination = m?.resumeDest === 'interactive-reply'
     ? { type: 'interactive-reply', conduit: parent.channel, sessionId: '' }
     : { type: 'project-report', projectId: parent.projectId, trigger: m?.trigger || 'mcp-thread', sessionId: '' };
-  const statusMsg = m?.statusMsgRef ?? null;
-  const startTime = Date.now();
   return {
+    threadId: parent.id,
+    mode: { kind: mode },
     channel: parent.channel,
-    startTime,
-    stream: adapter.openOutputStream(dest, { threadId: parent.platformThreadId ?? null, anchorRef: statusMsg }),
-    // A resumed thread has no live user to capture plan/ask dialogs for (onToolUse was null).
-    surface: createThreadStatusSurface({ adapter, statusMsg, startTime, threadId: parent.id, interactive: null }),
+    adapter,
+    destination: dest,
+    threadAnchorId: parent.platformThreadId ?? null,
+    claimPlatformThread: false,
+    statusMessage: m?.statusMsgRef ?? null,
+    // No buttons: the resumed run refreshes a message whose interactive era is over.
+    render: { kind: 'summary', blocks: null, startText: null },
+    // A resumed thread has no live user to capture plan/ask dialogs for.
+    interactive: false,
+    settle: settleThread,
   };
 }
 
-/** Refresh the status message persisted at suspension (metadata.statusMsgRef): a resumed
- *  thread's terminal summary, or the new suspension count if it suspended again. Without
- *  this, the dispatch/webhook status message reads "suspended — waiting on children"
- *  forever after the thread has finished (2026-06-11 verification finding). */
-export async function sealSuspendedStatusMsg(threadId: string, adapter?: PlatformAdapter | null): Promise<void> {
-  const t = threadStore.get(threadId);
-  const ref = t?.metadata?.statusMsgRef;
-  if (!t || !ref) return;
-  const a = adapter ?? orchestrationAdapter();
-  if (!a) return;
-  const totalNumTurns = t.steps.reduce((acc, st) => acc + (st.numTurns || 0), 0);
-  // Background seal: buildThreadSummary text, no interactive action blocks (no live user to click).
-  await sealThreadStatus(a, ref, { thread: t, totalCostUsd: t.totalCostUsd, totalNumTurns, finalOutput: null, lastAgentResult: null, executionId: null, stopReason: null })
-    .catch((e) => log.warn(`seal status msg ${threadId}: ${(e as Error).message}`));
+/** The one place a finished thread wakes whatever was waiting on it: its parent thread / session
+ *  (fireThreadCallback) and, when it was itself a dispatched task, the task loop its manager is
+ *  suspended on (closeResumedTaskLoop — a no-op for every non-dispatch thread, so the pair is
+ *  always safe to call). Injected into `ThreadRun` as `settle` rather than imported by it: this
+ *  module imports `openThreadRunDetached`, so the reverse edge would close a cycle. */
+export async function settleThread(threadId: string): Promise<void> {
+  await fireThreadCallback(threadId).catch((e) => log.error(`cascade callback ${threadId}: ${(e as Error).message}`));
+  // A resume-path worker bypasses the dispatch cycle, which is the only place
+  // task.completed/task.blocked is published — re-emit it here so a manager/session waiting on
+  // this task is woken (2026-06-29 finding: resumed leaf task left its manager suspended).
+  await closeResumedTaskLoop(threadId).catch((e) => log.error(`close task loop ${threadId}: ${(e as Error).message}`));
 }
 
 export type ResumeFn = (parentThreadId: string) => void;
@@ -132,28 +134,23 @@ export type ResumeFn = (parentThreadId: string) => void;
 const defaultResume: ResumeFn = (parentId) => {
   const parent = threadStore.get(parentId);
   if (!parent) { resuming.delete(parentId); return; }
-  const opts = buildResumeOptions(parent);
-  if (!opts) {
+  const input = resumeThreadRunInput(parent, 'resume');
+  if (!input) {
     resuming.delete(parentId);
     log.error(`cannot resume suspended parent ${parentId}: no adapter`);
     return;
   }
   log.info(`resuming suspended parent ${parentId} (all awaited children terminal)`);
-  runThreadDetached(parentId, opts, {
-    run: (tid, o) => resumeThread(tid, o),
-    onSettled: async (tid) => {
-      resuming.delete(tid);
-      // Refresh the suspension-era status message (terminal summary or new wait count).
-      await sealSuspendedStatusMsg(tid).catch(() => {});
-      // Cascade: when the resumed parent itself terminates (or suspends again and later
-      // terminates), its own parent gets notified through the same callback chain.
-      await fireThreadCallback(tid).catch((e) => log.error(`cascade callback ${tid}: ${(e as Error).message}`));
-      // A resumed manager IS itself a dispatched task; its completion must publish task.completed
-      // so ITS parent (the grandparent waiting on this task) wakes — the dispatch cycle that would
-      // have published it is bypassed on the resume path.
-      await closeResumedTaskLoop(tid).catch((e) => log.error(`close task loop ${tid}: ${(e as Error).message}`));
-    },
-  });
+  // The status refresh and the cascade (its own parent, its own task loop) are ThreadRun's:
+  // `settle` is wired in resumeThreadRunInput. Only the in-flight guard is ours to drop — and it
+  // must drop BEFORE the cascade runs: settleThread → fireThreadCallback → reconcileWaitingTasks
+  // may find this very thread re-suspended on tasks that are already done and resume it again at
+  // once, which `maybeResumeParent`'s `resuming.has()` check would otherwise refuse until the
+  // periodic sweep. The onSettled delete is the net for a run that never reached settle.
+  openThreadRunDetached(
+    { ...input, settle: async (tid) => { resuming.delete(tid); await settleThread(tid); } },
+    (tid) => { resuming.delete(tid); },
+  );
 };
 
 /** Resume a suspended manager thread to answer a subtask's question (ask_manager / DR-0016).

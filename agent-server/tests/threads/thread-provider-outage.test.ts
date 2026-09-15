@@ -266,17 +266,19 @@ async function initResumeDrain(opts: RunThreadOptions): Promise<{ finished: Prom
   });
   await initThrottle(() => {
     void dispatchPendingResumes(adapter, {
-      buildResumeOptions: () => opts,
-      resumeThread: async (id, resumeOpts) => {
+      // T2.1: the dispatcher hands ThreadRun an input, not RunThreadOptions. This test drives the
+      // runner directly, so the input only has to carry the thread id; `opts` stays the runner's.
+      buildResumeInput: (thread) => ({ threadId: thread.id }) as any,
+      resumeThread: async (input: any) => {
         try {
-          await resumeRateLimitedThread(id, resumeOpts);
+          await resumeRateLimitedThread(input.threadId, opts);
           resolveRerun();
         } catch (error) {
           rejectRerun(error);
           throw error;
         }
       },
-      settleResumedThread: async () => {}, directSessionBusy: () => false,
+      directSessionBusy: () => false,
       track: () => {}, delay: async () => {},
     });
   });

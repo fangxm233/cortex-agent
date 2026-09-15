@@ -5,11 +5,11 @@ import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const detached = vi.hoisted(() => ({ runThreadDetached: vi.fn() }));
-vi.mock('../src/orchestration/thread-executor.js', () => ({
-  runThreadDetached: detached.runThreadDetached,
-  // The webhook builds its RunThreadOptions.surface with this (T1.1).
-  createThreadStatusSurface: () => ({ onStepStarted: () => {}, onStepProgress: () => {} }),
+// thread_start hands the whole run to ThreadRun (T2.1); these tests only care about WHETHER it
+// was opened, so the module is stubbed.
+const detached = vi.hoisted(() => ({ openThreadRunDetached: vi.fn() }));
+vi.mock('../src/orchestration/thread-run/index.js', () => ({
+  openThreadRunDetached: detached.openThreadRunDetached,
 }));
 
 import { CONFIG_DIR } from '../src/core/paths.js';
@@ -53,8 +53,6 @@ beforeAll(() => {
   setOrchestrationRuntime({ adapter: {
     postMessage: vi.fn().mockResolvedValue(null),
     updateMessage: vi.fn().mockResolvedValue(undefined),
-    // thread_start now opens the thread's OutputStream itself (T1.1).
-    openOutputStream: vi.fn(() => ({ emitText: vi.fn(), flush: vi.fn().mockResolvedValue(undefined) })),
   } as any });
 });
 
@@ -142,7 +140,7 @@ test('native root start accepts one validated production evidence context', asyn
 });
 
 test('production single-root mode admits one exact attested root under a concurrent race', async () => {
-  const callsBefore = detached.runThreadDetached.mock.calls.length;
+  const callsBefore = detached.openThreadRunDetached.mock.calls.length;
   const evidence: ProductionBenchmarkEvidenceContext = {
     schema_version: 'cortex-production-benchmark-evidence-context/1',
     trial_id: 'trial-single-root', root_run_id: 'root-single-root',
@@ -173,7 +171,7 @@ test('production single-root mode admits one exact attested root under a concurr
     assert.equal(refused.length, 1);
     assert.match(refused[0].json.error, /single production root.*already started/i);
     createdThreadIds.add(admitted[0].json.data.threadId);
-    assert.equal(detached.runThreadDetached.mock.calls.length, callsBefore + 1);
+    assert.equal(detached.openThreadRunDetached.mock.calls.length, callsBefore + 1);
 
     const result = await postThreadOp({
       action: 'result', threadId: admitted[0].json.data.threadId,
@@ -235,7 +233,7 @@ test('single-root mode admits nothing when the launcher attested no template', a
 });
 
 test('native root start refuses malformed production evidence before dispatch', async () => {
-  const callsBefore = detached.runThreadDetached.mock.calls.length;
+  const callsBefore = detached.openThreadRunDetached.mock.calls.length;
   const { json } = await postThreadOp({
     action: 'start', agent: 'evidence-child-agent', message: 'root work',
     productionBenchmarkEvidenceContext: { trial_id: 'unsealed' },
@@ -243,7 +241,7 @@ test('native root start refuses malformed production evidence before dispatch', 
 
   assert.equal(json.success, false);
   assert.match(json.error, /production benchmark evidence context invalid/i);
-  assert.equal(detached.runThreadDetached.mock.calls.length, callsBefore);
+  assert.equal(detached.openThreadRunDetached.mock.calls.length, callsBefore);
 });
 
 test('native child start inherits parent evidence after thread-store reload', async () => {
@@ -277,11 +275,11 @@ test('native child start inherits parent evidence after thread-store reload', as
   assert.equal(child.metadata?.parentThreadId, parent.id);
   assert.equal(child.metadata?.rootThreadId, parent.id);
   assert.deepEqual(child.metadata?.productionBenchmarkEvidenceContext, evidence);
-  assert.equal(detached.runThreadDetached.mock.calls[0][0], child.id);
+  assert.equal(detached.openThreadRunDetached.mock.calls[0][0].threadId, child.id);
 });
 
 test('native child start refuses a missing persisted parent', async () => {
-  const callsBefore = detached.runThreadDetached.mock.calls.length;
+  const callsBefore = detached.openThreadRunDetached.mock.calls.length;
   const { json } = await postThreadOp({
     action: 'start', agent: 'evidence-child-agent', message: 'orphan work',
     projectId: 'atlas', parentThreadId: 'thr_missing_parent', wait: false,
@@ -289,7 +287,7 @@ test('native child start refuses a missing persisted parent', async () => {
 
   assert.equal(json.success, false);
   assert.match(json.error, /parent thread.*missing|not found/i);
-  assert.equal(detached.runThreadDetached.mock.calls.length, callsBefore);
+  assert.equal(detached.openThreadRunDetached.mock.calls.length, callsBefore);
 });
 
 test('control abort writes pendingControl with kind + diagnosis and returns an ack', async () => {

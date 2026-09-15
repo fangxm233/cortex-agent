@@ -1,13 +1,13 @@
 import type { PlatformAdapter } from '@platform/index.js';
 import { getSettings } from '@core/settings.js';
 import type { EventBus } from '@events/index.js';
-import type { ThreadRecord, RunThreadOptions } from '@core/types/thread-types.js';
+import type { ThreadRecord } from '@core/types/thread-types.js';
 import { recordResume, takeReadyResumes, type ResumeEntry } from '@domain/costs/resume-registry.js';
 import { getThrottleState } from '@domain/costs/rate-limit-throttle.js';
 import { agentRunner } from './agent-runner.js';
 import { deliverToSession } from './session-gateway.js';
-import { resumeRateLimitedThread } from '@domain/threads/runner.js';
-import { buildResumeOptions, sealSuspendedStatusMsg, fireThreadCallback, closeResumedTaskLoop } from './thread-callback.js';
+import { openThreadRun, type ThreadRunInput } from './thread-run/index.js';
+import { resumeThreadRunInput } from './thread-callback.js';
 import { trackPendingTask } from './busy-tracker.js';
 import { threadStore } from '@store/thread-repo.js';
 import { sessionStore } from '@store/session-registry-repo.js';
@@ -34,15 +34,14 @@ export interface ResumeDeps {
   takeReady: (activeProviders: string[]) => ResumeEntry[];
   activeProviders: () => string[];
   route: (ctx: Parameters<typeof agentRunner.route>[0]) => Promise<void>;
-  resumeThread: (threadId: string, opts: RunThreadOptions) => Promise<unknown>;
-  /** Settle a resumed thread once its run returns: refresh the live status message to its
-   *  terminal/re-suspended/re-rate-limited summary and cascade completion to any parent.
-   *  Without this the status message freezes at the last running step (the resumed run keeps
-   *  updating it mid-flight, but nothing seals it at the end). Mirrors the DR-0014
-   *  suspended-parent onSettled in thread-callback.defaultResume. */
-  settleResumedThread: (threadId: string) => Promise<void>;
+  /** Runs the thread AND everything that follows it — the status-message refresh to its
+   *  terminal/re-suspended/re-rate-limited state and the cascade to any parent (ThreadRun's
+   *  render + settle). Without that tail the status message freezes at the last running step: the
+   *  resumed run keeps updating it mid-flight, but nothing closes it out. Awaited (not detached)
+   *  so the busy-gate bracket below counts this resume exactly once. */
+  resumeThread: (input: ThreadRunInput) => Promise<unknown>;
   requeue: (entry: ResumeEntry) => void;
-  buildResumeOptions: (thread: ThreadRecord) => RunThreadOptions | null;
+  buildResumeInput: (thread: ThreadRecord) => ThreadRunInput | null;
   getThread: (threadId: string) => ThreadRecord | null;
   channelBusy: (channel: string) => boolean;
   /** True if a DIRECT (interactive) session is live on the channel — i.e. an execution with no
@@ -65,17 +64,9 @@ function defaultDeps(): ResumeDeps {
     takeReady: takeReadyResumes,
     activeProviders: () => getThrottleState().providers.map((provider) => provider.provider),
     route: (ctx) => agentRunner.route(ctx),
-    resumeThread: (id, opts) => resumeRateLimitedThread(id, opts),
-    settleResumedThread: async (id) => {
-      await sealSuspendedStatusMsg(id).catch((e) => log.warn(`seal status ${id}: ${(e as Error).message}`));
-      await fireThreadCallback(id).catch((e) => log.error(`cascade callback ${id}: ${(e as Error).message}`));
-      // A rate-limit-resumed worker bypasses the dispatch cycle, which is the only place
-      // task.completed/task.blocked is published — re-emit it here so a manager/session waiting
-      // on this task is woken (2026-06-29 finding: resumed leaf task left its manager suspended).
-      await closeResumedTaskLoop(id).catch((e) => log.error(`close task loop ${id}: ${(e as Error).message}`));
-    },
+    resumeThread: (input) => openThreadRun(input),
     requeue: recordResume,
-    buildResumeOptions: (thread) => buildResumeOptions(thread),
+    buildResumeInput: (thread) => resumeThreadRunInput(thread, 'resume-rate-limited'),
     getThread: (id) => threadStore.get(id),
     channelBusy: (ch) => runRegistry.hasChannel(ch),
     directSessionBusy: (ch) => runRegistry.getByChannel(ch).some(e => !e.threadId),
@@ -139,11 +130,12 @@ export async function dispatchPendingResumes(adapter: PlatformAdapter, overrides
       } else {
         // Threads are channel-parallel-safe: fire-and-forget so multiple rate-limited threads on
         // the same channel resume concurrently instead of serializing behind the first one.
-        // Hold the daemon busy gate for the whole detached run (incl. the settle inside
-        // resumeThread): +1 synchronously so the daemon observes busy before it can act on any
-        // idle; -1 in finally so the gate never leaks. Mirrors runThreadDetached
-        // (thread-executor.ts) — 2026-07-09: untracked resumed threads were SIGKILLed by a
-        // .restart-triggered restart that fired while they were mid-stream.
+        // Hold the daemon busy gate for the whole detached run (incl. ThreadRun's render and
+        // settle): +1 synchronously so the daemon observes busy before it can act on any idle;
+        // -1 in finally so the gate never leaks. This bracket is why the ThreadRun below is
+        // AWAITED rather than detached — openThreadRunDetached would take the gate a second time.
+        // 2026-07-09: untracked resumed threads were SIGKILLed by a .restart-triggered restart
+        // that fired while they were mid-stream.
         deps.track(+1);
         void resumeThread(entry, deps.getThread(entry.threadId)!, adapter, deps)
           .catch(e => log.error(`Resume failed (${entryKey(entry)}): ${(e as Error).message}`))
@@ -211,16 +203,13 @@ async function resumeThread(entry: Extract<ResumeEntry, { kind: 'thread' }>, thr
   // selected by the HookBus when the thread emits events. Unlike a direct session, the thread
   // re-runs its interrupted step from the original prompt, so
   // no <system-reminder> / userMessage overwrite is injected.
-  const opts = deps.buildResumeOptions(thread);
-  if (!opts) {
+  const input = deps.buildResumeInput(thread);
+  if (!input) {
     log.error(`Resume skip (thread ${entry.threadId}): could not rebuild run options (no adapter?)`);
     return;
   }
   log.info(`Resuming thread ${entry.threadId} on ${entry.channel}`);
-  await deps.resumeThread(entry.threadId, opts);
-  // The resumed run has returned terminal (or re-suspended / re-rate-limited). Seal the live
-  // status message to its final state and cascade completion to any parent — mirrors the
-  // DR-0014 suspended-parent onSettled. Without this the status message freezes at the last
-  // running step ("Step N … ⏳") even though the thread ran to completion.
-  await deps.settleResumedThread(entry.threadId);
+  // ThreadRun owns the tail: the terminal (or re-suspended / re-rate-limited) status refresh and
+  // the cascade to any parent, both inside this function's busy-gate bracket.
+  await deps.resumeThread(input);
 }

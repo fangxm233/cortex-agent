@@ -2,7 +2,7 @@ import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts 
 import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import { threadStore } from '../src/store/thread-repo.js';
-import { buildResumeOptions } from '../src/orchestration/thread-callback.js';
+import { resumeThreadRunInput } from '../src/orchestration/thread-callback.js';
 import { setOrchestrationRuntime } from '../src/orchestration/runtime.js';
 import { MockAdapter } from '../src/platform/testing.js';
 import type { ThreadRecord, ThreadStatus } from '../src/core/types/thread-types.js';
@@ -34,12 +34,12 @@ function makeThread(over: Partial<ThreadRecord> = {}): ThreadRecord {
   return rec;
 }
 
-// The persisted statusMsgRef is no longer a RunThreadOptions field (T1.1): it is captured by the
-// surface the resume path builds. These two tests assert the same property one level out — a
-// step-boundary report from the runner does / does not land on the persisted message.
-const stepInfo = { stepNumber: 1, label: 'manager', prevLabel: null, multiAgent: true, isFirstStep: true };
+// The persisted statusMsgRef is the status message a resumed run keeps updating and finally
+// refreshes. Since T2.1 it is a field of the ThreadRunInput the resume paths hand to ThreadRun
+// (it was a RunThreadOptions field before T1.1, then a closure inside the surface), so these
+// tests assert it directly.
 
-test('buildResumeOptions restores statusMsg without rebuilding dispatch hooks', async () => {
+test('resumeThreadRunInput restores the persisted statusMsg without rebuilding dispatch hooks', () => {
   const adapter = new MockAdapter();
   setOrchestrationRuntime({ adapter });
   const t = makeThread({
@@ -50,25 +50,30 @@ test('buildResumeOptions restores statusMsg without rebuilding dispatch hooks', 
       statusMsgRef: { conduit: 'C-rs-test', messageId: 'msg-42' },
     },
   });
-  const opts = buildResumeOptions(t);
-  assert.ok(opts, 'expected options to be built');
-  await opts!.surface.onStepStarted(stepInfo);
-  assert.deepEqual(adapter.updated.map((u) => u.ref), [{ conduit: 'C-rs-test', messageId: 'msg-42' }]);
-  assert.equal(opts!.extraHooks, undefined);
+  const input = resumeThreadRunInput(t, 'resume-rate-limited');
+  assert.ok(input, 'expected an input to be built');
+  assert.deepEqual(input!.statusMessage, { conduit: 'C-rs-test', messageId: 'msg-42' });
+  assert.deepEqual(input!.mode, { kind: 'resume-rate-limited' });
+  assert.equal(input!.extraHooks, undefined);
+  // project-report: the thread was dispatched, not started from a conversation.
+  assert.equal(input!.destination.type, 'project-report');
+  // No buttons and no interactive capture — nobody is watching this message any more.
+  assert.equal(input!.render.blocks, null);
+  assert.equal(input!.interactive, false);
 });
 
-test('buildResumeOptions leaves statusMsg null when no statusMsgRef was persisted', async () => {
+test('resumeThreadRunInput leaves statusMessage null when no statusMsgRef was persisted', () => {
   const adapter = new MockAdapter();
   setOrchestrationRuntime({ adapter });
   const t = makeThread({ metadata: { trigger: 'task-dispatch' } });
-  const opts = buildResumeOptions(t);
-  assert.ok(opts, 'expected options to be built');
-  await opts!.surface.onStepStarted(stepInfo);
-  assert.deepEqual(adapter.updated, []);
+  const input = resumeThreadRunInput(t, 'resume');
+  assert.ok(input, 'expected an input to be built');
+  assert.equal(input!.statusMessage, null);
+  assert.deepEqual(input!.mode, { kind: 'resume' });
 });
 
-test('buildResumeOptions returns null without an adapter', () => {
+test('resumeThreadRunInput returns null without an adapter', () => {
   setOrchestrationRuntime({ adapter: null });
   const t = makeThread();
-  assert.equal(buildResumeOptions(t), null);
+  assert.equal(resumeThreadRunInput(t, 'resume'), null);
 });

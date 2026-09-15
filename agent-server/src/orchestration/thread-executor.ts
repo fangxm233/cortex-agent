@@ -1,20 +1,16 @@
-import * as path from 'path';
 import { randomUUID } from 'node:crypto';
 import type { Destination, PlatformAdapter, MessageRef, DownloadedFile, IncomingMessage, PlatformFileRef } from '@platform/index.js';
-import type { RunThreadOptions, ThreadSurface } from '@core/types/thread-types.js';
 import { createLogger } from '@core/log.js';
 import { Icons } from '../core/icons.js';
 import { conduitQueues, enqueue } from './conduit-queue.js';
 import { trackPendingTask } from './busy-tracker.js';
 import { addAgentToThread, createThread, getTemplate, getAgent } from '@domain/threads/index.js';
 import { evictPendingUserInput, registerPendingUserInput } from '@domain/threads/pending-user-inputs.js';
-import { runThread, continueThread, getActiveHandle } from '@domain/threads/runner.js';
+import { getActiveHandle } from '@domain/threads/runner.js';
 import { downloadFiles as downloadPlatformFiles } from './routing/file-handler.js';
-import { computeElapsed, buildStatusActionBlocks, buildSealedStatusActionBlocks, initStatusBlocks, sealThreadStatus } from './status-helpers.js';
+import { openThreadRun, type ThreadRunInput } from './thread-run/index.js';
 import { threadStore } from '@store/thread-repo.js';
-import { buildThreadStatusMessage } from '@core/status-format.js';
 import { WORKSPACE_DIR } from '@core/utils.js';
-import { buildInteractiveCallbacks } from './agent-runner.js';
 import { buildPrompt as buildAgentPrompt } from '../agent-adapter/normalize/prompt-builder.js';
 
 const TEMP_DIR = WORKSPACE_DIR;
@@ -23,95 +19,6 @@ const log = createLogger('thread-executor');
 type Enqueuer = (channel: string, fn: () => Promise<void>) => boolean;
 type Tracker = (delta: number) => void;
 type Executor = (ctx: ThreadExecCtx) => Promise<void>;
-
-/** Run a thread fire-and-forget while holding the daemon busy gate for the ENTIRE pipeline.
- *  The Slack `!thread` path (ThreadExecutor.route), the scheduled-task path, and the task-dispatch
- *  path all bracket runThread with trackPendingTask(±1). The MCP `thread_start` webhook path did
- *  not — so a background thread was invisible to the busy/idle gate, and a deploy/restart deferred
- *  during the orchestrating session's turn would fire on the next idle and SIGTERM app.ts
- *  mid-thread, stamping it "Interrupted by server restart". This helper closes that gap.
- *
- *  track(+1) is synchronous so the daemon observes `busy` before it can act on any idle. The gate
- *  is held across BOTH the run AND the onSettled callback: onSettled (the MCP completion callback)
- *  may wake the parent agent for a full LLM turn, and `track(-1)` synchronously emits IPC `idle`.
- *  If we released the gate before awaiting onSettled, a deferred restart would fire mid-callback and
- *  SIGTERM app.ts, dropping the proactive completion notification. So we await onSettled first, then
- *  release. track(-1) lives in an inner `finally` so the gate never leaks. The thread runs detached:
- *  errors are logged (the caller already returned the threadId to the MCP client, which polls
- *  thread_status). `deps` is injectable for unit tests. */
-export function runThreadDetached(
-  threadId: string,
-  runOpts: RunThreadOptions,
-  deps: {
-    run?: (id: string, opts: RunThreadOptions) => Promise<unknown>;
-    track?: Tracker;
-    onSettled?: (threadId: string) => void | Promise<void>;
-  } = {},
-): void {
-  const run = deps.run ?? runThread;
-  const track = deps.track ?? trackPendingTask;
-  track(+1);
-  run(threadId, runOpts)
-    .catch((e) => log.error(`detached thread ${threadId} failed: ${(e as Error).message}`))
-    .finally(async () => {
-      // Hold the busy gate across the settle callback (which may wake the parent agent for a full
-      // turn) so the daemon doesn't observe idle — and fire a deferred restart — mid-callback.
-      // track(-1) still always runs in the inner finally, so the gate never leaks.
-      try { await deps.onSettled?.(threadId); }
-      catch (e) { log.error(`detached thread ${threadId} onSettled error: ${(e as Error).message}`); }
-      finally { track(-1); }
-    });
-}
-
-/** The status-line rendering the thread runner used to do itself (T1.1).
- *
- *  Verbatim port of the two `adapter.updateMessage(statusMsg, buildThreadStatusMessage(...))` call
- *  sites that lived in `domain/threads/runner.ts`, including their guards: the line is drawn only
- *  for a multi-agent thread that has a live status message, the step-boundary update is awaited by
- *  the runner and the in-step progress update is fire-and-forget.
- *
- *  Shared by every orchestration-side caller (thread-executor x3, webhook, thread-callback) so
- *  they stay byte-identical. `domain/scheduling`'s two jobs cannot import orchestration, so they
- *  carry their own inline surface. All of this collapses into `ThreadRun` / render-summary in T2.1. */
-export function createThreadStatusSurface({ adapter, statusMsg, startTime, threadId, interactive }: {
-  adapter: PlatformAdapter;
-  statusMsg: MessageRef | null;
-  startTime: number;
-  threadId: string;
-  /** buildInteractiveCallbacks(...) for the paths that capture plan/ask dialogs; null otherwise. */
-  interactive?: {
-    onToolUse?: ((name: string, input: any) => void) | null;
-    onPlanWritten?: ((event: { path: string; content: string; toolUseId: string }) => void) | null;
-    onAskUserQuestion?: ((event: { toolUseId: string; questions: Array<{ question: string; options?: string[]; multi?: boolean }> }) => void) | null;
-  } | null;
-}): ThreadSurface {
-  const statusText = (stepNumber: number, label: string, numTurns: number | null): string => {
-    const record = threadStore.get(threadId);
-    return buildThreadStatusMessage({
-      threadId: record?.id ?? threadId,
-      stepNumber,
-      label,
-      elapsedS: (Date.now() - startTime) / 1000,
-      numTurns,
-      taskProject: record?.metadata?.taskProject ?? null,
-      taskId: record?.metadata?.taskId ?? null,
-      taskText: record?.metadata?.taskText ?? null,
-    });
-  };
-  return {
-    onStepStarted({ stepNumber, label, multiAgent }) {
-      if (!multiAgent || !statusMsg) return;
-      return adapter.updateMessage(statusMsg, { text: statusText(stepNumber, label, null) });
-    },
-    onStepProgress({ stepNumber, label, multiAgent, numTurns }) {
-      if (!multiAgent || !statusMsg) return;
-      adapter.updateMessage(statusMsg, { text: statusText(stepNumber, label, numTurns) }).catch(() => {});
-    },
-    onToolUse: interactive?.onToolUse ?? null,
-    onPlanWritten: interactive?.onPlanWritten ?? null,
-    onAskUserQuestion: interactive?.onAskUserQuestion ?? null,
-  };
-}
 
 export interface ThreadExecCtx {
   message: IncomingMessage;
@@ -172,46 +79,31 @@ export class ThreadExecutor {
     }
   }
 
+  /** Validate, create/extend the thread record, then hand the whole run to `ThreadRun`.
+   *  The catch covers the VALIDATION phase only: once `openThreadRun` is entered, the failure /
+   *  cancellation rendering (onto the live status message, with the elapsed clock) belongs to it. */
   private async _executeReal(ctx: ThreadExecCtx): Promise<void> {
-    const { channel, adapter } = ctx;
-    const interactiveDest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: '' };
     const startTime = Date.now();
-    let statusMsg: MessageRef | undefined;
     const downloadedFiles = await downloadFiles(ctx.message.files, ctx.hasFiles, ctx.adapter);
+    const args = { channel: ctx.channel, adapter: ctx.adapter, threadAnchorId: ctx.threadAnchorId, startTime, downloadedFiles };
     try {
       if (ctx.threadAddMatch) {
-        statusMsg = await handleThreadAdd({ threadAddMatch: ctx.threadAddMatch, existingThread: ctx.existingThread, channel, adapter, threadAnchorId: ctx.threadAnchorId, startTime, downloadedFiles }) || undefined;
+        await handleThreadAdd({ ...args, threadAddMatch: ctx.threadAddMatch, existingThread: ctx.existingThread });
       } else if (ctx.isActiveThread && ctx.existingThread) {
-        statusMsg = await handleThreadContinue({ existingThread: ctx.existingThread, agentMessage: ctx.agentMessage, channel, adapter, threadAnchorId: ctx.threadAnchorId, startTime, downloadedFiles });
+        await handleThreadContinue({ ...args, existingThread: ctx.existingThread, agentMessage: ctx.agentMessage });
       } else if (ctx.threadStartMatch) {
-        statusMsg = await handleThreadStart({ threadStartMatch: ctx.threadStartMatch, messageId: ctx.message.ref.messageId, channel, adapter, threadAnchorId: ctx.threadAnchorId, startTime, downloadedFiles }) || undefined;
+        await handleThreadStart({ ...args, threadStartMatch: ctx.threadStartMatch, messageId: ctx.message.ref.messageId });
       }
     } catch (error) {
-      const { elapsedStr } = computeElapsed(startTime);
       const isCancelled = (error as any)?.cancelled;
-      const errorBlocksTemplate = { channel, sessionName: null, isDm: false };
-      if (isCancelled) {
-        if (statusMsg) {
-          const cancelText = `${Icons.stopped} Cancelled (${elapsedStr})`;
-          await adapter.updateMessage(statusMsg, {
-            text: cancelText,
-            richBlocks: buildSealedStatusActionBlocks(cancelText, errorBlocksTemplate),
-          }).catch(() => {});
-        } else {
-          await adapter.postMessage(interactiveDest, { text: `${Icons.stopped} Cancelled` }, ctx.threadAnchorId ? { threadId: ctx.threadAnchorId } : undefined).catch(() => {});
-        }
-      } else {
-        const errorMsg = (error as Error)?.message || 'Unknown error';
-        if (statusMsg) {
-          const failText = `${Icons.error} Thread failed (${elapsedStr}): ${errorMsg}`;
-          await adapter.updateMessage(statusMsg, {
-            text: failText,
-            richBlocks: buildSealedStatusActionBlocks(failText, errorBlocksTemplate),
-          }).catch(() => {});
-        } else {
-          await adapter.postMessage(interactiveDest, { text: `${Icons.error} Thread failed: ${errorMsg}` }, ctx.threadAnchorId ? { threadId: ctx.threadAnchorId } : undefined).catch(() => {});
-        }
-      }
+      const text = isCancelled
+        ? `${Icons.stopped} Cancelled`
+        : `${Icons.error} Thread failed: ${(error as Error)?.message || 'Unknown error'}`;
+      await ctx.adapter.postMessage(
+        { type: 'interactive-reply', conduit: ctx.channel, sessionId: '' },
+        { text },
+        ctx.threadAnchorId ? { threadId: ctx.threadAnchorId } : undefined,
+      ).catch(() => {});
     }
   }
 }
@@ -219,35 +111,50 @@ export class ThreadExecutor {
 export const threadExecutor = new ThreadExecutor();
 
 // --- Thread sub-handlers ---
+//
+// Each one validates, writes the thread record, and opens a ThreadRun. Nothing here posts, updates
+// or seals a status message: `render: { kind: 'summary' }` tells ThreadRun to post `startText`,
+// re-render it with the Cancel button and seal it with `buildThreadSummary` at the end.
 
-async function handleThreadAdd({ threadAddMatch, existingThread, channel, adapter, threadAnchorId, startTime, downloadedFiles }: {
-  threadAddMatch: RegExpMatchArray; existingThread: any; channel: string; adapter: PlatformAdapter;
-  threadAnchorId: string | null; startTime: number; downloadedFiles: DownloadedFile[];
-}): Promise<MessageRef | null> {
-  const interactiveDest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: '' };
-  const addAgentName = threadAddMatch[1];
-  const addMessage = threadAddMatch[2]?.trim() || null;
-  const targetThread = await validateThreadAddTarget(addAgentName, existingThread, channel, adapter, threadAnchorId);
-  if (!targetThread) return null;
+interface HandlerArgs {
+  channel: string;
+  adapter: PlatformAdapter;
+  threadAnchorId: string | null;
+  startTime: number;
+  downloadedFiles: DownloadedFile[];
+}
 
-  await addAgentToThread(targetThread.id, addAgentName, addMessage);
-  const platformThreadId = targetThread.platformThreadId || threadAnchorId;
-  const threadBlocksTemplate = { channel, sessionName: null, isDm: false, threadId: targetThread.id };
-  const addText = `${Icons.add} Adding *${addAgentName}* to thread ${targetThread.id.substring(0, 12)}...`;
-  const statusMsg = await adapter.postMessage(interactiveDest, {
-    text: addText,
-    richBlocks: buildStatusActionBlocks(addText, threadBlocksTemplate),
-  }, platformThreadId ? { threadId: platformThreadId } : undefined);
-  initStatusBlocks(statusMsg, threadBlocksTemplate);
+/** The shared half of all three ThreadRunInputs: an interactive surface, with buttons, that
+ *  captures plan/ask dialogs and settles nothing (the user is watching the status message). */
+function interactiveRunInput(args: HandlerArgs, threadId: string, startText: string): Omit<ThreadRunInput, 'mode'> {
+  return {
+    threadId, channel: args.channel, adapter: args.adapter,
+    destination: { type: 'interactive-reply', conduit: args.channel, sessionId: '' } as Destination,
+    threadAnchorId: args.threadAnchorId,
+    claimPlatformThread: true,
+    statusMessage: null,
+    render: {
+      kind: 'summary' as const,
+      blocks: { channel: args.channel, sessionName: null, isDm: false, threadId },
+      startText,
+    },
+    interactive: true, files: args.downloadedFiles, startTime: args.startTime, settle: null,
+  };
+}
 
-  const interactiveCallbacks = buildInteractiveCallbacks(channel, null);
-  const threadResult = await runThread(targetThread.id, {
-    channel, startTime, files: downloadedFiles,
-    stream: adapter.openOutputStream(interactiveDest, { threadId: platformThreadId, anchorRef: statusMsg }),
-    surface: createThreadStatusSurface({ adapter, statusMsg, startTime, threadId: targetThread.id, interactive: interactiveCallbacks }),
+async function handleThreadAdd(args: HandlerArgs & { threadAddMatch: RegExpMatchArray; existingThread: any }): Promise<void> {
+  const addAgentName = args.threadAddMatch[1];
+  const addMessage = args.threadAddMatch[2]?.trim() || null;
+  const target = await validateThreadAddTarget(addAgentName, args.existingThread, args.channel, args.adapter, args.threadAnchorId);
+  if (!target) return;
+
+  await addAgentToThread(target.id, addAgentName, addMessage);
+  const startText = `${Icons.add} Adding *${addAgentName}* to thread ${target.id.substring(0, 12)}...`;
+  await openThreadRun({
+    ...interactiveRunInput(args, target.id, startText),
+    mode: { kind: 'start' },
+    threadAnchorId: target.platformThreadId || args.threadAnchorId,
   });
-  await sealThreadStatus(adapter, statusMsg, threadResult, { blocksTemplate: threadBlocksTemplate });
-  return statusMsg;
 }
 
 async function validateThreadAddTarget(addAgentName: string, existingThread: any, channel: string, adapter: PlatformAdapter, threadAnchorId: string | null): Promise<any> {
@@ -271,70 +178,34 @@ async function validateThreadAddTarget(addAgentName: string, existingThread: any
   return targetThread;
 }
 
-async function handleThreadContinue({ existingThread, agentMessage, channel, adapter, threadAnchorId, startTime, downloadedFiles }: {
-  existingThread: any; agentMessage: string; channel: string; adapter: PlatformAdapter;
-  threadAnchorId: string | null; startTime: number; downloadedFiles: DownloadedFile[];
-}): Promise<MessageRef> {
-  const interactiveDest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: '' };
-  const continueBlocksTemplate = { channel, sessionName: null, isDm: false, threadId: existingThread.id };
-  const continueText = `${Icons.processing} Continuing thread ${existingThread.id.substring(0, 12)}...`;
-  const statusMsg = await adapter.postMessage(interactiveDest, {
-    text: continueText,
-    richBlocks: buildStatusActionBlocks(continueText, continueBlocksTemplate),
-  }, threadAnchorId ? { threadId: threadAnchorId } : undefined);
-  initStatusBlocks(statusMsg, continueBlocksTemplate);
-
-  const interactiveCallbacks = buildInteractiveCallbacks(channel, null);
-  const threadResult = await continueThread(existingThread.id, agentMessage, {
-    channel, startTime, files: downloadedFiles,
-    stream: adapter.openOutputStream(interactiveDest, { threadId: threadAnchorId, anchorRef: statusMsg }),
-    surface: createThreadStatusSurface({ adapter, statusMsg, startTime, threadId: existingThread.id, interactive: interactiveCallbacks }),
+async function handleThreadContinue(args: HandlerArgs & { existingThread: any; agentMessage: string }): Promise<void> {
+  const startText = `${Icons.processing} Continuing thread ${args.existingThread.id.substring(0, 12)}...`;
+  await openThreadRun({
+    ...interactiveRunInput(args, args.existingThread.id, startText),
+    mode: { kind: 'continue', userMessage: args.agentMessage },
   });
-
-  await sealThreadStatus(adapter, statusMsg, threadResult, { blocksTemplate: continueBlocksTemplate });
-  return statusMsg;
 }
 
-async function handleThreadStart({ threadStartMatch, messageId, channel, adapter, threadAnchorId, startTime, downloadedFiles }: {
-  threadStartMatch: RegExpMatchArray; messageId: string; channel: string; adapter: PlatformAdapter;
-  threadAnchorId: string | null; startTime: number; downloadedFiles: DownloadedFile[];
-}): Promise<MessageRef | null> {
-  const interactiveDest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: '' };
-  const name = threadStartMatch[1];
+async function handleThreadStart(args: HandlerArgs & { threadStartMatch: RegExpMatchArray; messageId: string }): Promise<void> {
+  const name = args.threadStartMatch[1];
   const template = getTemplate(name);
   const agent = getAgent(name);
   if (!template && !agent) {
-    await adapter.postMessage(interactiveDest, { text: `${Icons.error} Unknown template or agent: \`${name}\`. Use \`!thread templates\` or \`!thread agents\`.` });
-    return null;
+    await args.adapter.postMessage(
+      { type: 'interactive-reply', conduit: args.channel, sessionId: '' },
+      { text: `${Icons.error} Unknown template or agent: \`${name}\`. Use \`!thread templates\` or \`!thread agents\`.` },
+    );
+    return;
   }
-
-  const startBlocksTemplate = { channel, sessionName: null, isDm: false };
-  const startText = `${Icons.processing} Starting thread (${template ? name : `agent:${name}`})...`;
-  const statusMsg = await adapter.postMessage(interactiveDest, {
-    text: startText,
-    // No Cancel button initially — threadId needed first
-  }, threadAnchorId ? { threadId: threadAnchorId } : undefined);
-  const platformThreadId = threadAnchorId || statusMsg.messageId;
-  const thread = createThread(channel, {
+  // platformThreadId is the anchor when the user is already in a platform thread; otherwise
+  // ThreadRun stamps the status message it posts (which is what this used to pass inline).
+  const thread = createThread(args.channel, {
     templateName: template ? name : null, agentName: template ? null : name,
-    userMessage: threadStartMatch[2].trim(), userMessageTs: messageId, platformThreadId,
+    userMessage: args.threadStartMatch[2].trim(), userMessageTs: args.messageId,
+    platformThreadId: args.threadAnchorId,
   });
-  // Update status message with Cancel button now that we have thread.id
-  const startBlocksTemplateWithThread = { ...startBlocksTemplate, threadId: thread.id };
-  await adapter.updateMessage(statusMsg, {
-    text: startText,
-    richBlocks: buildStatusActionBlocks(startText, startBlocksTemplateWithThread),
-  }).catch(() => {});
-  initStatusBlocks(statusMsg, startBlocksTemplateWithThread);
-
-  const interactiveCallbacks = buildInteractiveCallbacks(channel, null);
-  const threadResult = await runThread(thread.id, {
-    channel, startTime, files: downloadedFiles,
-    stream: adapter.openOutputStream(interactiveDest, { threadId: platformThreadId, anchorRef: statusMsg }),
-    surface: createThreadStatusSurface({ adapter, statusMsg, startTime, threadId: thread.id, interactive: interactiveCallbacks }),
-  });
-  await sealThreadStatus(adapter, statusMsg, threadResult, { blocksTemplate: startBlocksTemplate });
-  return statusMsg;
+  const startText = `${Icons.processing} Starting thread (${template ? name : `agent:${name}`})...`;
+  await openThreadRun({ ...interactiveRunInput(args, thread.id, startText), mode: { kind: 'start' } });
 }
 
 

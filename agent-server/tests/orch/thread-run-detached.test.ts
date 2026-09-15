@@ -1,14 +1,16 @@
-// input:  runThreadDetached helper (orch/thread-executor)
+// input:  openThreadRunDetached (orch/thread-run) — the detached helper thread-executor owned
 // output: unit tests — fire-and-forget thread runs hold the busy gate for the whole pipeline
 // pos:    regression for "server restart kills MCP-started (thread_start) background threads":
 //         the webhook fire-and-forget path must bracket runThread with trackPendingTask(±1) so
 //         childBusy stays true across the entire thread, deferring daemon restart/rebuild. The
 //         gate is held across the onSettled callback too (test e) — it wakes the parent agent for
-//         a full turn, and a deferred restart firing mid-wake would drop the notification.
+//         a full turn, and a deferred restart firing mid-wake would drop the notification. Since
+//         T2.1 the ThreadRun the gate brackets also contains the terminal seal and the settle, so
+//         "run" below means run + render + settle.
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { runThreadDetached } from '../../src/orchestration/thread-executor.js';
+import { openThreadRunDetached } from '../../src/orchestration/thread-run/index.js';
 
 // A controllable run() so the test owns when the thread "completes".
 function deferred<T>() {
@@ -18,10 +20,10 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-test('(a) runThreadDetached calls track(+1) synchronously, before the thread settles', () => {
+test('(a) openThreadRunDetached calls track(+1) synchronously, before the thread settles', () => {
   const trackCalls: number[] = [];
   const d = deferred<any>();
-  runThreadDetached('thr_a', {} as any, {
+  openThreadRunDetached({ threadId: 'thr_a' } as any, undefined, {
     run: () => d.promise,
     track: (n) => { trackCalls.push(n); },
   });
@@ -34,10 +36,9 @@ test('(b) track(-1) and onSettled fire after a successful run', async () => {
   const trackCalls: number[] = [];
   const settled: string[] = [];
   const d = deferred<any>();
-  runThreadDetached('thr_b', {} as any, {
+  openThreadRunDetached({ threadId: 'thr_b' } as any, (id) => { settled.push(id); }, {
     run: () => d.promise,
     track: (n) => { trackCalls.push(n); },
-    onSettled: (id) => { settled.push(id); },
   });
   assert.deepEqual(trackCalls, [+1], 'before completion: only +1');
 
@@ -53,10 +54,9 @@ test('(c) track(-1) and onSettled STILL fire when the run rejects (no throw esca
   const trackCalls: number[] = [];
   const settled: string[] = [];
   const d = deferred<any>();
-  runThreadDetached('thr_c', {} as any, {
+  openThreadRunDetached({ threadId: 'thr_c' } as any, (id) => { settled.push(id); }, {
     run: () => d.promise,
     track: (n) => { trackCalls.push(n); },
-    onSettled: (id) => { settled.push(id); },
   });
 
   d.reject(new Error('boom'));
@@ -70,7 +70,7 @@ test('(d) count returns to zero exactly once across the lifecycle (balanced brac
   let count = 0;
   const observed: number[] = [];
   const d = deferred<any>();
-  runThreadDetached('thr_d', {} as any, {
+  openThreadRunDetached({ threadId: 'thr_d' } as any, undefined, {
     run: () => d.promise,
     track: (n) => { count += n; observed.push(count); },
   });
@@ -85,11 +85,11 @@ test('(e) track(-1) is deferred until the onSettled callback settles (gate held 
   const trackCalls: number[] = [];
   const cb = deferred<void>();
   const d = deferred<any>();
-  runThreadDetached('thr_e', {} as any, {
-    run: () => d.promise,
-    track: (n) => { trackCalls.push(n); },
-    onSettled: () => cb.promise, // long-running callback (e.g. waking the parent agent for a turn)
-  });
+  openThreadRunDetached(
+    { threadId: 'thr_e' } as any,
+    () => cb.promise, // long-running callback (e.g. waking the parent agent for a turn)
+    { run: () => d.promise, track: (n) => { trackCalls.push(n); } },
+  );
 
   d.resolve({});
   await new Promise((r) => setTimeout(r, 0));

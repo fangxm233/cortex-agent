@@ -24,12 +24,22 @@ function baseDeps(entries: ResumeEntry[], overrides: any = {}) {
     takeReady: (active: string[]) => { calls.taken++; calls.active = active; return entries; },
     activeProviders: () => [],
     route: async (ctx: any) => { calls.route.push(ctx); },
-    resumeThread: async (threadId: string, opts: any) => { calls.resume.push({ threadId, opts }); },
-    settleResumedThread: async (threadId: string) => { calls.settled.push(threadId); },
+    // Stands in for ThreadRun: the run AND its tail (terminal render + settle) are one awaited
+    // call now, so the fake drives the input's own settle hook to keep the ordering observable.
+    resumeThread: async (input: any) => {
+      calls.resume.push({ threadId: input.threadId, opts: input });
+      await input.settle?.(input.threadId);
+    },
     requeue: (entry: ResumeEntry) => { calls.requeued.push(entry); },
-    buildResumeOptions: (thread: any) => {
+    buildResumeInput: (thread: any) => {
       calls.built.push(thread);
-      return { adapter: {}, channel: thread.channel, destination: { type: 'project-report', projectId: thread.projectId, trigger: 'rate-limit-resume', sessionId: '' }, threadAnchorId: null, statusMsg: null, startTime: 0 };
+      return {
+        threadId: thread.id, mode: { kind: 'resume-rate-limited' }, channel: thread.channel, adapter: {},
+        destination: { type: 'project-report', projectId: thread.projectId, trigger: 'rate-limit-resume', sessionId: '' },
+        threadAnchorId: null, statusMessage: null,
+        render: { kind: 'summary', blocks: null, startText: null }, interactive: false,
+        settle: async (threadId: string) => { calls.settled.push(threadId); },
+      };
     },
     getThread: (_id: string) => ({ id: _id, status: 'rate_limited', channel: 'C1', projectId: 'proj' }) as any,
     channelBusy: (_c: string) => false,
@@ -161,13 +171,16 @@ test('resumed thread is settled after its run returns (status message sealed)', 
   const { deps, calls } = baseDeps(
     [{ kind: 'thread', threadId: 'thr_a', channel: 'C2', userMessage: 'go', recordedAt: NOW }],
     {
-      resumeThread: async (threadId: string) => { order.push(`resume:${threadId}`); },
-      settleResumedThread: async (threadId: string) => { order.push(`settle:${threadId}`); calls.settled.push(threadId); },
+      resumeThread: async (input: any) => {
+        order.push(`resume:${input.threadId}`);
+        order.push(`settle:${input.threadId}`);
+        calls.settled.push(input.threadId);
+      },
     },
   );
   await dispatchPendingResumes(adapter as any, deps);
   assert.deepEqual(calls.settled, ['thr_a'], 'settle fires exactly once for the resumed thread');
-  assert.deepEqual(order, ['resume:thr_a', 'settle:thr_a'], 'settle runs only AFTER the resumed run returns');
+  assert.deepEqual(order, ['resume:thr_a', 'settle:thr_a'], 'settle runs inside the resumed run, before it returns');
 });
 
 test('a thread that is skipped by a guard is never settled', async () => {
@@ -281,7 +294,9 @@ test('disabled flag drains the queue without dispatching', async () => {
 // A rate-limit-resumed thread ran with NO trackPendingTask bracket, so the daemon's busy/idle
 // gate saw count=0 while the thread was mid-stream; a .restart trigger then fired immediately
 // and SIGKILLed app.ts, killing 3 streaming threads. The fire-and-forget thread resume must
-// hold the busy gate (+1 sync at fire, -1 after run AND settle), mirroring runThreadDetached.
+// hold the busy gate (+1 sync at fire, -1 after run AND settle), mirroring openThreadRunDetached.
+// The settle now lives INSIDE the awaited ThreadRun, so the bracket covers it by construction —
+// and the dispatcher must NOT use the detached form, which would take the gate a second time.
 
 /** Flush the fire-and-forget resume promise chain (resume → settle → finally). */
 const flushDetached = () => new Promise((r) => setImmediate(r));
@@ -293,8 +308,10 @@ test('thread resume holds the busy gate across the run AND the settle', async ()
     [{ kind: 'thread', threadId: 'thr_a', channel: 'C2', userMessage: 'go', recordedAt: NOW }],
     {
       track: (d: number) => order.push(`track:${d}`),
-      resumeThread: async (threadId: string) => { order.push(`resume:${threadId}`); },
-      settleResumedThread: async (threadId: string) => { order.push(`settle:${threadId}`); },
+      resumeThread: async (input: any) => {
+        order.push(`resume:${input.threadId}`);
+        order.push(`settle:${input.threadId}`);
+      },
     },
   );
   await dispatchPendingResumes(adapter as any, deps);

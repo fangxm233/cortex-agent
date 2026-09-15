@@ -1,15 +1,16 @@
-// input:  sealThreadStatus (orch/status-helpers) + MockAdapter
+// input:  sealThreadSummary (orch/thread-run/render-summary) + MockAdapter
 // output: one terminal-seal function for the interactive `!thread` and background/resume paths:
 //         text is buildThreadSummary; interactive attaches SEALED action blocks (Cancel removed),
 //         background attaches none.
-// pos:    Unification regression — thread-executor (3 sites) + thread-callback.sealSuspendedStatusMsg
-//         previously each inlined buildThreadSummary + updateMessage; the missing call is what froze
-//         rate-limit-resume status messages. Funnelling them through one function makes the seal
-//         hard to forget. The dispatch seal (finalizeThreadSuccess) stays separate by layer/design.
+// pos:    Unification regression — thread-executor (3 sites) + thread-callback's suspended-status
+//         refresh previously each inlined buildThreadSummary + updateMessage; the omission froze
+//         rate-limit-resume status messages. Since T2.1 the only caller is ThreadRun's terminal
+//         render, and the seal goes through status-helpers.sealStatus (so a late progress write
+//         cannot overwrite it). The dispatch seal (render-task) stays separate by design.
 import '../_test-home.js'; // MUST be first — isolates store singletons pulled in by status-helpers
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { sealThreadStatus } from '../../src/orchestration/status-helpers.js';
+import { sealThreadSummary } from '../../src/orchestration/thread-run/index.js';
 import { buildThreadSummary } from '../../src/domain/threads/runner.js';
 import { MockAdapter } from '../../src/platform/testing.js';
 import type { RichBlock, ActionElement } from '../../src/platform/index.js';
@@ -43,13 +44,13 @@ test('background style: text is buildThreadSummary, no action blocks attached', 
   const ref = { conduit: 'C-seal', messageId: 'M1' };
   const result = makeCompletedResult();
 
-  await sealThreadStatus(adapter as any, ref, result as any);
+  await sealThreadSummary(adapter as any, ref, result as any);
 
   assert.equal(adapter.updated.length, 1);
   const update = adapter.updated[0];
   assert.deepEqual(update.ref, ref);
   assert.equal(update.content.text, buildThreadSummary(result as any), 'text is exactly buildThreadSummary');
-  assert.equal((update.content as any).richBlocks, undefined, 'no richBlocks without a blocksTemplate');
+  assert.equal((update.content as any).richBlocks, undefined, 'no richBlocks without a blocks template');
 });
 
 test('interactive style: same summary text, SEALED action blocks (Cancel button removed)', async () => {
@@ -57,9 +58,8 @@ test('interactive style: same summary text, SEALED action blocks (Cancel button 
   const ref = { conduit: 'C-seal', messageId: 'M2' };
   const result = makeCompletedResult();
 
-  await sealThreadStatus(adapter as any, ref, result as any, {
-    blocksTemplate: { channel: 'C-seal', sessionName: null, isDm: false, threadId: 'thr_seal' },
-  });
+  await sealThreadSummary(adapter as any, ref, result as any,
+    { channel: 'C-seal', sessionName: null, isDm: false, threadId: 'thr_seal' });
 
   const update = adapter.updated[0];
   assert.equal(update.content.text, buildThreadSummary(result as any), 'text identical to background style');
@@ -77,7 +77,7 @@ test('seal propagates a delivery failure to the caller (no internal swallow)', a
   const ref = { conduit: 'C-seal', messageId: 'M3' };
 
   await assert.rejects(
-    () => sealThreadStatus(adapter as any, ref, makeCompletedResult() as any),
+    () => sealThreadSummary(adapter as any, ref, makeCompletedResult() as any),
     'failure surfaces so each caller keeps its own error posture (background swallows, interactive/dispatch propagate)',
   );
 });
