@@ -4,13 +4,26 @@ on:
   push:
     tags:
       - "server-v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing server-v* tag to build
+        required: true
+      attach:
+        description: Attach the installers to that tag's release
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: native-release-${{ github.ref }}
+  group: native-release-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
+
+env:
+  # A tag push builds its own tag; a manual run builds the tag it was given.
+  REL_TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   windows:
@@ -18,12 +31,14 @@ jobs:
     steps:
       - name: Checkout tagged commit
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
 
       - name: Validate release version
         shell: bash
         run: |
-          [[ "$GITHUB_REF_NAME" =~ ^server-v[0-9]{4}\.[0-9]{1,2}\.[0-9]{1,2}(-[0-9]+)?$ ]]
-          VERSION="${GITHUB_REF_NAME#server-v}"
+          [[ "$REL_TAG" =~ ^server-v[0-9]{4}\.[0-9]{1,2}\.[0-9]{1,2}(-[0-9]+)?$ ]]
+          VERSION="${REL_TAG#server-v}"
           node -e 'const fs=require("fs"); const v=process.argv[1]; const s=require("./agent-server/package.json").version; const t=require("./desktop/src-tauri/tauri.conf.json").version; if(s!==v||t!==v) throw new Error(`tag=${v} server=${s} tauri=${t}`); fs.appendFileSync(process.env.GITHUB_ENV, `VERSION=${v}\n`)' "$VERSION"
 
       - name: Setup pnpm
@@ -83,12 +98,14 @@ jobs:
     steps:
       - name: Checkout tagged commit
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
 
       - name: Validate release version
         shell: bash
         run: |
-          [[ "$GITHUB_REF_NAME" =~ ^server-v[0-9]{4}\.[0-9]{1,2}\.[0-9]{1,2}(-[0-9]+)?$ ]]
-          VERSION="${GITHUB_REF_NAME#server-v}"
+          [[ "$REL_TAG" =~ ^server-v[0-9]{4}\.[0-9]{1,2}\.[0-9]{1,2}(-[0-9]+)?$ ]]
+          VERSION="${REL_TAG#server-v}"
           node -e 'const fs=require("fs"); const v=process.argv[1]; const s=require("./agent-server/package.json").version; const t=require("./desktop/src-tauri/tauri.conf.json").version; if(s!==v||t!==v) throw new Error(`tag=${v} server=${s} tauri=${t}`); fs.appendFileSync(process.env.GITHUB_ENV, `VERSION=${v}\n`)' "$VERSION"
 
       - name: Setup pnpm
@@ -149,3 +166,275 @@ jobs:
           name: Cortex-macOS-universal
           path: release-assets/*
           if-no-files-found: error
+
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout tagged commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+
+      - name: Validate release version
+        shell: bash
+        run: |
+          [[ "$REL_TAG" =~ ^server-v[0-9]{4}\.[0-9]{1,2}\.[0-9]{1,2}(-[0-9]+)?$ ]]
+          VERSION="${REL_TAG#server-v}"
+          node -e 'const fs=require("fs"); const v=process.argv[1]; const s=require("./agent-server/package.json").version; const t=require("./desktop/src-tauri/tauri.conf.json").version; if(s!==v||t!==v) throw new Error(`tag=${v} server=${s} tauri=${t}`); fs.appendFileSync(process.env.GITHUB_ENV, `VERSION=${v}\n`)' "$VERSION"
+
+      - name: Install Tauri system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            build-essential \
+            file \
+            patchelf \
+            rpm
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Web SPA and stage connection screen
+        run: |
+          pnpm --filter '@cortex-agent/web...' run build
+          pnpm --dir desktop run copy-connect
+
+      - name: Build Linux bundles
+        run: pnpm --dir desktop exec tauri build --bundles deb,appimage,rpm -- --locked
+
+      - name: Verify and stage Linux bundles
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle=desktop/src-tauri/target/release/bundle
+          binary=desktop/src-tauri/target/release/cortex-desktop
+          test -x "$binary"
+          mkdir -p release-assets
+
+          pick() {
+            local dir="$1" pattern="$2" dest="$3"
+            local matches=("$dir"/$pattern)
+            test "${#matches[@]}" -eq 1 || { echo "expected one $pattern in $dir, found ${#matches[@]}" >&2; exit 1; }
+            test -f "${matches[0]}"
+            # every bundler stamps the version into the file name; refuse a stale artifact
+            [[ "$(basename "${matches[0]}")" == *"$VERSION"* ]] || { echo "version missing from ${matches[0]}" >&2; exit 1; }
+            cp "${matches[0]}" "release-assets/$dest"
+          }
+
+          pick "$bundle/deb"      "*.deb"      "Cortex-$VERSION-Linux-amd64.deb"
+          pick "$bundle/appimage" "*.AppImage" "Cortex-$VERSION-Linux-x86_64.AppImage"
+          pick "$bundle/rpm"      "*.rpm"      "Cortex-$VERSION-Linux-x86_64.rpm"
+
+          chmod +x "release-assets/Cortex-$VERSION-Linux-x86_64.AppImage"
+          (cd release-assets && sha256sum ./*.deb ./*.AppImage ./*.rpm | sed 's#\./##' > SHA256SUMS-Linux.txt)
+          cat release-assets/SHA256SUMS-Linux.txt
+
+      - name: Upload Linux assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cortex-Linux-x86_64
+          path: release-assets/*
+          if-no-files-found: error
+
+  android:
+    runs-on: ubuntu-22.04
+    # The release keystore is only present when the four ANDROID_* secrets are set.
+    # Without them the job is skipped rather than producing an unsignable or
+    # differently-signed APK that existing installs could not upgrade over.
+    if: ${{ vars.BUILD_ANDROID == 'true' }}
+    steps:
+      - name: Checkout tagged commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+
+      - name: Validate release version
+        shell: bash
+        run: |
+          [[ "$REL_TAG" =~ ^server-v[0-9]{4}\.[0-9]{1,2}\.[0-9]{1,2}(-[0-9]+)?$ ]]
+          VERSION="${REL_TAG#server-v}"
+          node -e 'const fs=require("fs"); const v=process.argv[1]; const s=require("./agent-server/package.json").version; const t=require("./desktop/src-tauri/tauri.conf.json").version; if(s!==v||t!==v) throw new Error(`tag=${v} server=${s} tauri=${t}`); fs.appendFileSync(process.env.GITHUB_ENV, `VERSION=${v}\n`)' "$VERSION"
+
+      - name: Install ImageMagick
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends imagemagick
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK and build tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager --install "ndk;27.2.12479018" "build-tools;34.0.0" "platforms;android-34" "cmake;3.22.1"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+
+      - name: Add Android Rust target
+        run: rustup target add aarch64-linux-android
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Stage keystore and toolchain config
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_STORE_PASS: ${{ secrets.ANDROID_STORE_PASS }}
+          ANDROID_KEY_PASS: ${{ secrets.ANDROID_KEY_PASS }}
+        run: |
+          set -euo pipefail
+          : "${ANDROID_KEYSTORE_BASE64:?ANDROID_KEYSTORE_BASE64 secret is not set}"
+          : "${ANDROID_KEY_ALIAS:?ANDROID_KEY_ALIAS secret is not set}"
+          : "${ANDROID_STORE_PASS:?ANDROID_STORE_PASS secret is not set}"
+          : "${ANDROID_KEY_PASS:?ANDROID_KEY_PASS secret is not set}"
+          secrets_dir="$RUNNER_TEMP/android"
+          mkdir -p "$secrets_dir"
+          chmod 700 "$secrets_dir"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$secrets_dir/release.keystore"
+          test -s "$secrets_dir/release.keystore"
+          # desktop/scripts/android-release.sh sources this file; it is the same shape as the
+          # local ~/.cortex/config/android-release.env, with CI's toolchain paths filled in.
+          umask 077
+          # ${var@Q} shell-quotes each value: a password may carry $, ", \\ or a space,
+          # and the script sources this file rather than parsing it.
+          keystore_path="$secrets_dir/release.keystore"
+          {
+            printf 'JAVA_HOME=%s\n' "${JAVA_HOME@Q}"
+            printf 'ANDROID_HOME=%s\n' "${ANDROID_HOME@Q}"
+            printf 'NDK_HOME=%s\n' "${NDK_HOME@Q}"
+            printf 'CORTEX_ANDROID_KEYSTORE=%s\n' "${keystore_path@Q}"
+            printf 'CORTEX_ANDROID_KEY_ALIAS=%s\n' "${ANDROID_KEY_ALIAS@Q}"
+            printf 'CORTEX_ANDROID_STORE_PASS=%s\n' "${ANDROID_STORE_PASS@Q}"
+            printf 'CORTEX_ANDROID_KEY_PASS=%s\n' "${ANDROID_KEY_PASS@Q}"
+          } > "$secrets_dir/android-release.env"
+          echo "CORTEX_ANDROID_ENV=$secrets_dir/android-release.env" >> "$GITHUB_ENV"
+
+      - name: Build signed Android APK
+        run: bash desktop/scripts/android-release.sh --target aarch64
+
+      - name: Verify and stage Android APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=$(find desktop/src-tauri/gen/android/app/build/outputs/apk -path '*release*' -name '*.apk' -print | head -1)
+          test -n "$apk"
+          aapt2=$(find "$ANDROID_HOME/build-tools" -name aapt2 | sort -V | tail -1)
+          name=$("$aapt2" dump badging "$apk" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p" | head -1)
+          test "$name" = "$VERSION" || { echo "apk versionName $name != $VERSION" >&2; exit 1; }
+          apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
+          "$apksigner" verify --print-certs "$apk"
+          mkdir -p release-assets
+          cp "$apk" "release-assets/Cortex-$VERSION-Android-arm64.apk"
+          (cd release-assets && sha256sum ./*.apk | sed 's#\./##' > SHA256SUMS-Android.txt)
+          cat release-assets/SHA256SUMS-Android.txt
+
+      - name: Upload Android asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cortex-Android-arm64
+          path: release-assets/*
+          if-no-files-found: error
+
+  attach:
+    needs: [windows, macos, linux, android]
+    # android is conditional; attach whatever the platforms that ran produced,
+    # but never on a platform that actually failed.
+    if: >-
+      ${{ always()
+      && !contains(needs.*.result, 'failure')
+      && !contains(needs.*.result, 'cancelled')
+      && (github.event_name == 'push' || inputs.attach) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download platform artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Collect installers
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${REL_TAG#server-v}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          mkdir -p upload
+          # The per-platform SHA256SUMS-*.txt fragments stay out of the release; the
+          # digests go to the job summary instead, for the release notes.
+          find artifacts -type f ! -name 'SHA256SUMS-*.txt' -exec cp {} upload/ \;
+          test -n "$(ls -A upload)"
+          {
+            echo "### Installers for \`$REL_TAG\`"
+            echo
+            echo '| file | SHA-256 |'
+            echo '|---|---|'
+            (cd upload && sha256sum ./* | sed 's#\./##') |
+              while read -r digest name; do echo "| \`$name\` | \`$digest\` |"; done
+          } >> "$GITHUB_STEP_SUMMARY"
+          cat "$GITHUB_STEP_SUMMARY"
+
+      - name: Wait for the release to exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The release is created by hand, with its notes, after the tag is pushed.
+          # Give that up to 30 minutes rather than inventing a release with an empty body.
+          for _ in $(seq 1 60); do
+            if gh release view "$REL_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 30
+          done
+          echo "::error::No release for $REL_TAG after 30 minutes. Create it, then re-run this job to attach the installers."
+          exit 1
+
+      - name: Attach installers to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release upload "$REL_TAG" upload/* --repo "$GITHUB_REPOSITORY" --clobber
+          gh release view "$REL_TAG" --repo "$GITHUB_REPOSITORY" --json assets \
+            -q '.assets[] | .name + "  " + (.size|tostring) + " bytes"'
