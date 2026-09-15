@@ -3,10 +3,9 @@ package dev.cortex.download
 import android.app.Activity
 import android.app.DownloadManager
 import android.content.Context
-import android.content.Intent
 import android.net.Uri
 import android.os.Environment
-import androidx.core.content.FileProvider
+import android.webkit.WebView
 import app.tauri.annotation.Command
 import app.tauri.annotation.InvokeArg
 import app.tauri.annotation.TauriPlugin
@@ -34,6 +33,13 @@ class InstallApkArgs {
 // download-progress + "download complete" notification — the feedback the user asked for.
 @TauriPlugin
 class DownloadPlugin(private val activity: Activity) : Plugin(activity) {
+    // Arm the self-update watcher for the whole process, not just for the window in which an update
+    // is staged: a confirmation parked by an earlier run has to be raised the next time the user
+    // opens the app, and that can be a later process entirely (see ApkInstaller).
+    override fun load(webView: WebView) {
+        ApkInstaller.attach(activity)
+    }
+
     @Command
     fun download(invoke: Invoke) {
         val args = invoke.parseArgs(DownloadArgs::class.java)
@@ -59,31 +65,31 @@ class DownloadPlugin(private val activity: Activity) : Plugin(activity) {
         }
     }
 
-    // Raises the system package installer over a downloaded, sha256-verified APK (app shell
-    // self-update). The APK sits in the app-private data dir, so it is exposed to the installer
-    // through this plugin's FileProvider (manifest-declared, ${applicationId}.cortex.fileprovider);
-    // REQUEST_INSTALL_PACKAGES lets the install-unknown-apps consent flow run. Called from Rust via
-    // run_mobile_plugin only — never from the webview.
+    // Takes over a downloaded, sha256-verified APK for the app shell's self-update and answers with
+    // the mode it chose: "staged" (written into a PackageInstaller session that commits itself once
+    // the app goes to the background) or "prompt" (the system installer, i.e. what this command did
+    // before silent updating existed — API < 31, a session that would not stage, or a device that
+    // has refused silent commits). Rejecting is the shell's signal to count a failed attempt.
+    // Called from Rust via run_mobile_plugin only — never from the webview.
     @Command
     fun installApk(invoke: Invoke) {
         val args = invoke.parseArgs(InstallApkArgs::class.java)
-        try {
-            val file = File(args.path)
-            if (!file.exists()) {
-                invoke.reject("apk not found: ${args.path}")
-                return
-            }
-            val uri = FileProvider.getUriForFile(
-                activity, "${activity.packageName}.cortex.fileprovider", file,
-            )
-            val intent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, "application/vnd.android.package-archive")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            activity.startActivity(intent)
-            invoke.resolve()
-        } catch (e: Exception) {
-            invoke.reject(e.message ?: "apk install failed")
+        val file = File(args.path)
+        if (!file.isFile) {
+            invoke.reject("apk not found: ${args.path}")
+            return
         }
+        // Staging streams the whole APK (tens of megabytes) into the session, and Tauri runs plugin
+        // commands on the UI thread — hence the worker. The answer goes back on the UI thread it
+        // came in on, so the Rust caller is never resolved from an unexpected thread.
+        Thread {
+            val outcome = runCatching { ApkInstaller.install(activity, file) }
+            activity.runOnUiThread {
+                outcome.fold(
+                    onSuccess = { mode -> invoke.resolve(JSObject().also { it.put("mode", mode) }) },
+                    onFailure = { e -> invoke.reject(e.message ?: "apk install failed") },
+                )
+            }
+        }.start()
     }
 }

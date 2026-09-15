@@ -11,6 +11,12 @@
 // Flow: SPA (mobile shell) invokes `plugin:cortex-download|download` with the absolute file URL, the
 // `x-cortex-token`, and the file name → this Rust command → `run_mobile_plugin("download", …)` →
 // Kotlin `DownloadPlugin.download` enqueues a `DownloadManager.Request`.
+//
+// The plugin also carries the app shell's own Android self-update (`install_apk`): the Kotlin side
+// streams the verified APK into a `PackageInstaller` session and commits it when the app next goes
+// to the background, so the update lands with no confirm screen and without killing the app under
+// the user's fingers. See android/src/main/java/ApkInstaller.kt for the conditions Android puts on
+// that, and for the confirmed fallback used whenever they are not met.
 
 use serde::{Deserialize, Serialize};
 use tauri::{
@@ -42,8 +48,8 @@ struct DownloadResponse {
     id: i64,
 }
 
-/// Arguments for the Kotlin `installApk` command (app shell self-update: raise the system package
-/// installer over a downloaded, verified APK).
+/// Arguments for the Kotlin `installApk` command (app shell self-update: hand a downloaded,
+/// verified APK to the Android package installer).
 #[cfg_attr(not(target_os = "android"), allow(dead_code))]
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -52,10 +58,17 @@ pub struct InstallApkArgs {
     pub path: String,
 }
 
-/// Empty Kotlin reply for `installApk` (resolve/reject only).
+/// The Kotlin `installApk` reply: which of the two install paths the plugin took.
 #[cfg_attr(not(target_os = "android"), allow(dead_code))]
 #[derive(Debug, Clone, Deserialize)]
-struct InstallApkResponse {}
+struct InstallApkResponse {
+    /// `"staged"` — written into a `PackageInstaller` session that commits itself when the app next
+    /// goes to the background, with no confirm screen. `"prompt"` — the system package installer is
+    /// showing (or will show, the next time the app is on screen), exactly as before silent
+    /// updating existed. Defaulted so an older Kotlin side still deserializes.
+    #[serde(default)]
+    mode: String,
+}
 
 /// Handle to the registered mobile plugin (Android) — a stub marker on every other platform.
 pub struct CortexDownload<R: Runtime> {
@@ -85,15 +98,23 @@ impl<R: Runtime> CortexDownload<R> {
         }
     }
 
-    /// Raise the Android system package installer over a local APK file (app shell self-update).
-    /// Rust-only entry point — called by the app's `install_app_update` command, never invoked from
-    /// the webview, so it needs no webview ACL permission. Errors on every other platform.
-    pub fn install_apk(&self, path: String) -> Result<(), String> {
+    /// Hand a local APK to the Android package installer (app shell self-update) and report which
+    /// path it took: `"staged"` (a `PackageInstaller` session is written and will commit itself the
+    /// next time the app goes to the background — no confirm screen) or `"prompt"` (the system
+    /// installer is showing, which is what this plugin always did before).
+    ///
+    /// Rust-only entry point — called by the app's update code, never invoked from the webview, so
+    /// it needs no webview ACL permission. Errors on every other platform.
+    ///
+    /// `Ok` means the APK was accepted, NOT that it is installed: the commit happens minutes or
+    /// hours later, and the install kills this process. A commit that fails after the fact is
+    /// reported as the `Err` of the *next* call — the only seam left once this one has returned.
+    pub fn stage_apk(&self, path: String) -> Result<String, String> {
         #[cfg(target_os = "android")]
         {
             self.handle
                 .run_mobile_plugin::<InstallApkResponse>("installApk", InstallApkArgs { path })
-                .map(|_| ())
+                .map(|r| r.mode)
                 .map_err(|e| e.to_string())
         }
         #[cfg(not(target_os = "android"))]
@@ -101,6 +122,12 @@ impl<R: Runtime> CortexDownload<R> {
             let _ = path;
             Err("APK install is only supported on Android".to_string())
         }
+    }
+
+    /// [`Self::stage_apk`] without the mode, for callers that only need the success/failure seam
+    /// (the shell counts an `Err` as a failed update attempt).
+    pub fn install_apk(&self, path: String) -> Result<(), String> {
+        self.stage_apk(path).map(|_| ())
     }
 }
 

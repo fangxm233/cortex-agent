@@ -302,6 +302,13 @@ export type {
   SystemRestartReturn,
   SystemClearRateLimitArgs,
   SystemClearRateLimitReturn,
+  ServerUpdateState,
+  ServerUpdateStatus,
+  SystemUpdateStatusParams,
+  SystemUpdateStatus,
+  SystemApplyUpdateArgs,
+  SystemSkipUpdateArgs,
+  SystemUpdateDecisionReturn,
   // Mapped contract
   QueryParamMap,
   QueryReturnMap,

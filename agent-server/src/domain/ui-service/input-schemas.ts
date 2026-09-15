@@ -100,6 +100,8 @@ export const systemUsageStatusInput = z.object({});
 
 export const systemNoticesInput = z.object({ limit: z.number().int().positive().max(50).optional() });
 
+export const systemUpdateStatusInput = z.object({});
+
 // ── Subscription input schemas ────────────────────────────────────
 // Subscriptions are not part of the query/mutate keyed maps; their input schemas live here too so
 // the AppRouter and the browser (@cortex-agent/ui-contract) share one source of truth (B2-C).
@@ -808,6 +810,13 @@ export const systemClearRateLimitInput = z.object({
 
 export const systemRefreshUsageInput = z.object({});
 
+// The pending prompt is process-global (one server, one npm self-update), so neither decision
+// carries a version: answering a prompt that is no longer pending returns accepted:false rather
+// than applying a stale choice.
+export const systemApplyUpdateInput = z.object({});
+
+export const systemSkipUpdateInput = z.object({});
+
 export const approvalsRequestInput = z
   .object({
     kind: z.enum(['reconnect-platform', 'add-machine']),
@@ -866,6 +875,7 @@ export const queryInputSchemas = {
   'system.rateLimitStatus': systemRateLimitStatusInput,
   'system.usageStatus': systemUsageStatusInput,
   'system.notices': systemNoticesInput,
+  'system.updateStatus': systemUpdateStatusInput,
 } satisfies Record<QueryScope, z.ZodType>;
 
 export const mutateInputSchemas = {
@@ -939,4 +949,6 @@ export const mutateInputSchemas = {
   'system.restart': systemRestartInput,
   'system.clearRateLimit': systemClearRateLimitInput,
   'system.refreshUsage': systemRefreshUsageInput,
+  'system.applyUpdate': systemApplyUpdateInput,
+  'system.skipUpdate': systemSkipUpdateInput,
 } satisfies Record<MutateOp, z.ZodType>;

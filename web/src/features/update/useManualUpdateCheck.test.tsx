@@ -12,6 +12,14 @@ import { useManualUpdateCheck } from './useManualUpdateCheck';
 import type { NativeCheckReport } from './manual-update-check';
 
 const feedback = vi.hoisted(() => ({ toast: vi.fn(() => 'progress'), dismiss: vi.fn() }));
+// The server channel is server-backed (tRPC) and orthogonal to the shell/UI channels this file
+// specifies; stub it idle so the priority assertions below are about app vs hot only.
+vi.mock('./useServerUpdate', () => ({
+  useServerUpdate: () => ({
+    status: { available: null, state: 'idle' }, visible: false, busy: false,
+    apply: vi.fn(), skip: vi.fn(), dismiss: vi.fn(),
+  }),
+}));
 vi.mock('@/design/Toast', () => ({ useToastOptional: () => feedback }));
 vi.mock('@/i18n', async () => {
   const { en } = await import('@/i18n/vocab');

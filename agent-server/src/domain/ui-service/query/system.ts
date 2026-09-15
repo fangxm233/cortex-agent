@@ -5,6 +5,7 @@ import { getThrottleState } from '@domain/costs/rate-limit-throttle.js';
 import { getResumeCountsByProvider } from '@domain/costs/resume-registry.js';
 import { usageService } from '@domain/costs/usage-service.js';
 import { listSystemNotices, NOTICE_HISTORY_CAP } from '@domain/system/notice-history.js';
+import { getServerUpdateStatus } from '@domain/system/update-ui-state.js';
 import type {
   SystemDaemonStatus,
   DaemonProcessInfo,
@@ -15,6 +16,8 @@ import type {
   SystemUsageStatusParams,
   SystemNotices,
   SystemNoticesParams,
+  SystemUpdateStatus,
+  SystemUpdateStatusParams,
 } from '../types.js';
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -158,4 +161,10 @@ export async function handleSystemUsageStatus(
 
 export async function handleSystemNotices(params: SystemNoticesParams): Promise<SystemNotices> {
   return { entries: listSystemNotices(params.limit), cap: NOTICE_HISTORY_CAP };
+}
+
+export async function handleSystemUpdateStatus(
+  _params: SystemUpdateStatusParams,
+): Promise<SystemUpdateStatus> {
+  return getServerUpdateStatus();
 }

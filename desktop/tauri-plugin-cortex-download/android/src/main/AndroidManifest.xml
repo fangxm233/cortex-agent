@@ -3,9 +3,16 @@
          collection needs no storage permission (DownloadManager is exempt from scoped storage);
          POST_NOTIFICATIONS is declared by the app so the completion notification can show on API 33+. -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- App shell self-update: lets the app hand a downloaded APK to the system package installer
-         (the user still confirms; on first use Android walks through install-unknown-apps consent). -->
+    <!-- App shell self-update: lets the app hand a downloaded APK to the package installer, and on
+         API 31+ commit its own update without a confirm screen. Both are needed for the silent
+         path — UPDATE_PACKAGES_WITHOUT_USER_ACTION alone does nothing, and the system treats an
+         installer holding only REQUEST_INSTALL_PACKAGES as always requiring user action. It is a
+         normal permission (granted at install, no runtime prompt), and it only counts for the
+         build that declares it: the release that ships this change is itself installed the old,
+         confirmed way. Without both, and on API < 31, the install-unknown-apps consent flow and
+         the installer's confirm screen run exactly as before. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
 
     <application>
         <!-- Exposes the downloaded APK (app-private data dir) to the system package installer via a
@@ -13,7 +20,8 @@
              filesDir), so cortex_file_paths.xml includes a root-path entry. Merged into the app
              manifest at build time — survives `tauri android init` because it lives in this plugin.
              CortexFileProvider is a distinct subclass: the merger keys providers by class name and
-             the app already ships a plain androidx FileProvider. -->
+             the app already ships a plain androidx FileProvider. Still used by the confirmed
+             fallback path; the PackageInstaller session streams the bytes instead. -->
         <provider
             android:name="dev.cortex.download.CortexFileProvider"
             android:authorities="${applicationId}.cortex.fileprovider"
@@ -23,5 +31,12 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/cortex_file_paths" />
         </provider>
+        <!-- Install-session status callback. Manifest-declared (not runtime-registered) so the
+             system can restart this process to deliver a result that lands while the app is being
+             replaced or is already gone. Not exported: only the package installer can fire it, via
+             the explicit PendingIntent handed to Session.commit. -->
+        <receiver
+            android:name="dev.cortex.download.ApkInstallReceiver"
+            android:exported="false" />
     </application>
 </manifest>

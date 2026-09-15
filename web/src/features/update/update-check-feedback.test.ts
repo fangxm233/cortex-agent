@@ -31,7 +31,7 @@ describe.each([en, zh])('localized manual check feedback', (L) => {
   it('does not mistake cached fallbacks or unknown failures for fresh success', () => {
     const result = updateCheckFeedback({
       ui: { status: 'error', reason: 'secret network URL', update: { version: 'old' } },
-      shell: { status: 'skipped', reason: 'future_reason', update: { version: 'old', kind: 'nsis' } },
+      shell: { status: 'skipped', reason: 'future_reason', update: { version: 'old', kind: 'nsis', apply: 'prompt' } },
     }, L);
     expect(result[0].description).toBe(`${L.updateCheckError} ${L.updateCheckCached}`);
     expect(result[0].tone).toBe('failed');

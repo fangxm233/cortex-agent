@@ -5,6 +5,7 @@ import { useVocab } from '@/i18n';
 import { useNoticeHistory } from '@/features/notifications/useNoticeHistory';
 import { PlatformAvatar, PresencePill } from './SettingsPanels';
 import { SCard, SCardHeader, Toggle } from './settings-ui';
+import { AppUpdateCard } from './AppUpdateCard';
 import { UiSignOutCard } from './UiSignOutCard';
 import {
   ADVANCED_FLAGS,
@@ -521,6 +522,7 @@ export function AdvancedPanelView({
         <GpuMockRow snapshot={snapshot} />
       </SCard>
       <BuiltinJobsCard settings={settings} pending={pending} onToggle={onToggle} onSet={onSet} />
+      <AppUpdateCard />
       <UiSignOutCard />
     </>
   );

@@ -27,7 +27,7 @@ describe('desktop update dialogs', () => {
     const actions = [vi.fn(), vi.fn(), vi.fn()];
     const renderer = create(
       <AppUpdateDialog
-        update={{ version: '2026.8.1', kind: 'appimage', size: 1024 }}
+        update={{ version: '2026.8.1', kind: 'appimage', size: 1024, apply: 'prompt' }}
         busy error="disk full" onInstall={actions[0]} onSkip={actions[1]} onDismiss={actions[2]}
       />,
     );

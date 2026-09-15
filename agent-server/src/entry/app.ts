@@ -79,6 +79,7 @@ import { registerInteractionHandlers, initInteractionHandlers } from '@orch/inte
 import { respondToPlan } from '@orch/interactions/plan-response.js';
 import { CommandActionRouter } from '@orch/interactions/command-action-router.js';
 import { createUpdatePrompt } from '@orch/interactions/update-prompt.js';
+import { createUiUpdatePrompt } from '@orch/interactions/ui-update-prompt.js';
 import { registerMessageHandler } from '@orch/routing/message-router.js';
 import { initRateLimitThrottle, clearThrottle, RATE_LIMIT_CLEAR_ACTION_ID } from '@domain/costs/rate-limit-throttle.js';
 import { initResumeRegistry, getResumeCount, pendingDirectTrackSessionIds } from '@domain/costs/resume-registry.js';
@@ -400,7 +401,11 @@ const dispatchCommand = registerCommands({
 });
 
 // DR-0013: wire Slack update prompt BEFORE bindToAdapter (router has no unregister API)
-const updatePrompt = createUpdatePrompt(adapter, commandRouter);
+// The SPA dialog is the prompt users actually see; the chat-message prompt stays wired as the
+// fallback createUiUpdatePrompt hands the question to when nobody answers the dialog in time
+// (Slack/Feishu/headless installs have no SPA open).
+const chatUpdatePrompt = createUpdatePrompt(adapter, commandRouter);
+const updatePrompt = createUiUpdatePrompt(chatUpdatePrompt);
 
 // Bind command action handlers (buttons, modals) to the platform adapter
 commandRouter.bindToAdapter(adapter);

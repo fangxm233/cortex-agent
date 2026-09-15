@@ -26,7 +26,7 @@ describe('mobile update dialogs', () => {
     const actions = [vi.fn(), vi.fn(), vi.fn()];
     const renderer = create(
       <MAppUpdateDialog
-        update={{ version: '2026.8.1', kind: 'apk', size: 1024 }}
+        update={{ version: '2026.8.1', kind: 'apk', size: 1024, apply: 'prompt' }}
         busy error="permission denied" onInstall={actions[0]} onSkip={actions[1]} onDismiss={actions[2]}
       />,
     );

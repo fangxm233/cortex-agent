@@ -39,10 +39,15 @@ mod mobile_notifications;
 // bundles for the next launch. The one platform seam is the first-run seed (see `seed` below):
 // desktop reads it from `resource_dir/frontend-seed`, Android from an `include_dir!`-embedded copy.
 mod app_update;
+// Where this build actually lives on disk (and therefore what may be done to it). Consulted by
+// app_update for asset selection and by update_checks for the silent-apply decision.
+mod install_site;
 mod setup;
 mod frontend;
 mod ota;
 mod update_checks;
+// Shell-side update preferences (silent opt-out + failure counter), stored next to the installers.
+mod update_prefs;
 #[cfg(test)]
 mod update_checks_tests;
 // Android-only: the embedded SPA seed materialized onto disk on first run (desktop uses the real
@@ -564,6 +569,8 @@ pub fn run() {
             update_checks::get_app_update,
             update_checks::install_app_update,
             update_checks::skip_app_update,
+            update_checks::get_update_prefs,
+            update_checks::set_update_silent,
             save_download,
             open_path,
             reveal_path,
@@ -732,8 +739,16 @@ pub fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        // `Exit` rather than `ExitRequested`: it is the one event every shutdown path reaches,
+        // including `app.exit(0)` from the update commands themselves (harmless — the operation
+        // gate is already latched then, so the hook returns immediately).
+        .run(|handle, event| {
+            if let tauri::RunEvent::Exit = event {
+                update_checks::apply_pending_on_exit(handle);
+            }
+        });
 }
 
 #[cfg(test)]

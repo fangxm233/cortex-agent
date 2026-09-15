@@ -164,6 +164,17 @@ async function defaultFetchReleases(): Promise<GhRelease[]> {
 }
 
 export interface AppUpdateRouteOptions {
+  /**
+   * When true the route serves `{}` unconditionally, which the shell reads as "no update".
+   *
+   * A server running out of a source checkout (`CORTEX_REPO`) is a development install whose
+   * version bears no relation to any published release, and the shell caps itself at OUR version —
+   * so advertising releases from here would either offer nothing or offer the wrong thing, and with
+   * silent updating on it would do so without asking. Same rule the npm self-update path applies
+   * (domain/system/server-update-check.ts), decided by the caller because the platform layer may
+   * not import from domain.
+   */
+  devMode?: boolean;
   serverVersion?: string;
   fetchReleases?: () => Promise<GhRelease[]>;
   ttlMs?: number;
@@ -179,6 +190,7 @@ export function createAppUpdateRoutes(
   opts: AppUpdateRouteOptions = {},
 ): Record<string, CustomRouteHandler> {
   const serverVersion = opts.serverVersion ?? CORTEX_VERSION;
+  const devMode = opts.devMode ?? false;
   const fetchReleases = opts.fetchReleases ?? defaultFetchReleases;
   const ttlMs = opts.ttlMs ?? DEFAULT_TTL_MS;
   const now = opts.now ?? Date.now;
@@ -187,6 +199,7 @@ export function createAppUpdateRoutes(
   let fetchedAt: number | null = null;
 
   const manifest = async (): Promise<AppUpdateManifest | null> => {
+    if (devMode) return null;
     if (fetchedAt !== null && now() - fetchedAt < ttlMs) return lastGood;
     fetchedAt = now();
     try {
