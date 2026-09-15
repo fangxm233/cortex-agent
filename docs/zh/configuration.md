@@ -324,7 +324,7 @@ config 目录被监视。`settings.json` 的变更去抖 300 毫秒后重新读�
 
 - **密钥与凭据**——`SLACK_BOT_TOKEN`、`SLACK_SIGNING_SECRET`、`SLACK_APP_TOKEN`、`FEISHU_APP_ID`、`FEISHU_APP_SECRET`、`ANTHROPIC_API_KEY`、`GITHUB_WEBHOOK_SECRET`、`CORTEX_CLIENT_TOKEN`。它们广义上也是设置，但把它们挡在一个 Web UI 可读可写的文件之外，能把影响面压到最小。
 - **由子进程消费的变量**——`CORTEX_HOME`、`CORTEX_PROJECTS_DIR`、`WEBHOOK_PORT`、`DEBUG`、`CORTEX_LANG` 以及数据文件覆盖项。钩子、MCP server、CLI 和 `cortex-client` 都继承守护进程的环境；服务器侧的 JSON 文件根本传不到它们那里。
-- **启动拓扑**——`CORTEX_PLATFORM`、`CORTEX_MACHINE`、`CORTEX_UI_HTTP`、`CORTEX_UI_PORT`、`CORTEX_UI_SPA_DIR`。它们决定启动时存在哪些适配器与监听器，热更新对它们没有意义，结构上就必须重启。
+- **启动拓扑**——`CORTEX_PLATFORM`、`CORTEX_MACHINE`、`CORTEX_UI_HTTP`、`CORTEX_UI_PORT`、`CORTEX_UI_SPA_DIR`、`CORTEX_UI_TOKEN_LOGIN`。它们决定启动时存在哪些适配器与监听器，热更新对它们没有意义，结构上就必须重启。
 
 ### 与 .claude/settings.json 同名不同物 {#not-the-same-file-as-claudesettingsjson}
 

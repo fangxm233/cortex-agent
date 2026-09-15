@@ -5,11 +5,12 @@ reachable from any browser without installing anything. This page covers **both*
 deployment runbook (building the SPA and enabling the Web UI endpoint on your server) and
 the browser access path (reaching it through Cloudflare Access edge login).
 
-There are two independent ways to reach the workbench, and they authenticate differently:
+There are three independent ways to reach the workbench, and they authenticate differently:
 
 | Path | Who | Authentication | Holds `clientToken`? |
 |---|---|---|---|
-| **Browser** | Anyone with a browser | Cloudflare Access edge login (email / IdP), verified as a JWT by the server | **No** — the browser never sees the token |
+| **Browser + Access** | Anyone with a browser | Cloudflare Access edge login (email / IdP), verified as a JWT by the server | **No** — the browser never sees the token |
+| **Browser + token login** | Anyone who knows the token | The token is pasted once and exchanged for an HttpOnly session cookie | **No** — only the server sees it, and only once |
 | **Desktop (Tauri)** | The installed desktop app | Bearer `x-cortex-token` (the `clientToken`) stored in the OS keychain | Yes |
 
 This page is the browser + deployment reference. For installing the native desktop app, see
@@ -90,6 +91,10 @@ CORTEX_UI_HTTP=1          # opt-in: start the tRPC HTTP + SSE endpoint (required
 CORTEX_UI_PORT=3004       # optional; defaults to 3004
 ```
 
+This alone is enough to open the workbench from a browser: token login is on by default, so the
+SPA will ask for the `clientToken` and exchange it for a session (see
+[Browser access with a token](#browser-access-with-a-token-no-cloudflare)).
+
 `CORTEX_UI_HTTP` accepts `1`, `true`, `on`, or `yes`. With it unset, the endpoint — and the
 Web UI transport, along with `@trpc/server` / `jose` — never loads.
 
@@ -113,19 +118,29 @@ Exposing it to a browser is the next section.
 
 ## Authentication
 
-The `/trpc` auth gate accepts a request if **either** credential is valid, and returns `401`
-before tRPC runs otherwise:
+The `/trpc` auth gate accepts a request if **any** of three credentials is valid, and returns
+`401` before tRPC runs otherwise:
 
 1. **`x-cortex-token` header** equal to the server's `clientToken` — the desktop / machine
    path. Checked first, with a constant-time comparison. Unchanged from before.
-2. **A valid `Cf-Access-Jwt-Assertion` header** — the browser path. Cloudflare's edge injects
-   this JWT after it authenticates the user; the server verifies it. **The browser never holds
-   the `clientToken`.**
+2. **A live `cortex_ui` session cookie** — the token-login browser path. Minted by
+   `POST /api/ui/login` after the browser proves, once, that it knows the token.
+3. **A valid `Cf-Access-Jwt-Assertion` header** — the Cloudflare Access browser path. The edge
+   injects this JWT after it authenticates the user; the server verifies it.
+
+Either browser path keeps the `clientToken` out of the page: the cookie is `HttpOnly`, so the
+SPA's own JavaScript cannot read it, and the Access JWT is issued by the edge.
 
 The server verifies the Access JWT against your Cloudflare Access team-domain JWKS, checking
 the signature (RS256 / ES256 only), the audience (AUD) tag, the issuer, and expiry. If Access
-is **not** configured on the server, the JWT path is disabled and the gate securely degrades to
-token-only — an unconfigured Access path never admits a request.
+is **not** configured on the server, the JWT path is disabled and the gate securely degrades —
+an unconfigured Access path never admits a request.
+
+!!! warning "The port forward is token-only, on purpose"
+    `/forward` (the desktop shell's raw TCP tunnel to a loopback service on the server) accepts
+    **only** the `x-cortex-token` header. Neither browser credential opens it. A browser attaches
+    cookies to a WebSocket handshake automatically, so admitting the session cookie there would
+    hand every logged-in page a raw socket to every loopback service on the host.
 
 ## Browser access via Cloudflare Access
 
@@ -186,26 +201,82 @@ login; after you authenticate, the edge forwards every request with a verified
 `Cf-Access-Jwt-Assertion`, the server serves the same-origin SPA, and the workbench loads real
 tRPC data — no token, no local install.
 
-## Browser path vs desktop bearer-token path
+## Browser access with a token (no Cloudflare)
 
-Both paths reach the same `/trpc` API and the same workbench, but they differ in **where** and
+If you do not run Cloudflare Access — or you just want to open the workbench from a laptop on
+the LAN or through an SSH forward — a browser can authenticate itself by pasting the server's
+`clientToken` once.
+
+**This is on by default** on any server with `CORTEX_UI_HTTP=1`. Open the UI, and if the browser
+holds no session yet the SPA shows a sign-in screen instead of the workbench:
+
+```
+browser  ──POST /api/ui/login {token}──▶  server   (constant-time compare vs clientToken)
+        ◀──Set-Cookie: cortex_ui=… ; HttpOnly; SameSite=Strict; Secure──
+browser  ──every later /trpc, /api request carries the cookie──▶  server
+```
+
+What that buys, and what it costs:
+
+- **The token is submitted once.** It is exchanged for an opaque 32-byte session id. The cookie is
+  `HttpOnly`, so page JavaScript — including an XSS payload — cannot read it back out.
+- **`SameSite=Strict`** means no cross-site request ever carries the session, which is the whole
+  CSRF story. The login POST additionally refuses a request whose `Origin` is not this host.
+- **Sessions survive a daemon restart.** They live in `~/.cortex/data/ui-sessions.json` (mode
+  `0600`) and expire 30 days after they are issued. Settings → Advanced has a
+  *Sign out of this browser* button, which revokes the session server-side.
+- **A session is strictly weaker than the token.** It carries exactly the authority of a
+  Cloudflare Access login: tRPC and the `/api` routes, never `/forward`.
+- **The login endpoint is public.** It has to be — a browser with no credential must be able to
+  reach it. A wrong token costs the caller a fixed 250 ms and is logged; the token itself is 32
+  random bytes, so online guessing is not a realistic attack. There is deliberately no IP ban
+  (behind a tunnel every request appears to come from `127.0.0.1`) and no global lockout (which
+  would let anyone lock you out of your own server).
+
+### Tuning or turning it off
+
+```bash
+CORTEX_UI_TOKEN_LOGIN=0          # remove the login routes and the cookie leg entirely
+CORTEX_UI_SESSION_TTL_DAYS=30    # optional; session lifetime, default 30 days
+```
+
+With token login off, the server behaves exactly as it did before this existed: header token and
+(if configured) Cloudflare Access only. The SPA then says so on the sign-in screen rather than
+offering a form that could not work.
+
+### Where to use which
+
+Put Cloudflare Access in front of a UI hostname when you want IdP-managed access for people who
+should never see the token, or when the UI is exposed to the open internet. Use token login for
+your own access — over a tunnel, a VPN, Tailscale, an SSH forward, or plain loopback. The two
+coexist: a server can have both, and each request is admitted by whichever credential it carries.
+
+!!! note "Plain HTTP on a LAN"
+    The session cookie is marked `Secure` when the request arrived over HTTPS (or from
+    `localhost`). Over plain HTTP to a LAN address it cannot be — a browser would silently drop a
+    `Secure` cookie — so the cookie is issued without it and the daemon logs a warning. Anyone on
+    that network path can read the session. Use HTTPS for anything beyond a trusted LAN.
+
+## The three paths side by side
+
+All three reach the same `/trpc` API and the same workbench, but they differ in **where** and
 **how** they authenticate:
 
-| | Browser | Desktop (Tauri) |
-|---|---|---|
-| Hostname | Dedicated UI hostname **behind** Cloudflare Access | A hostname **not** behind Access |
-| Login | Cloudflare Access edge login (email / IdP) | Enter `serverUrl` + `clientToken` once |
-| Credential on requests | `Cf-Access-Jwt-Assertion` (issued by the edge) | `x-cortex-token` header |
-| Where auth is checked | JWT verified by the server | Token verified by the server |
-| `clientToken` exposure | **Never touches the browser** | Stored in the OS keychain |
-| SPA origin | Same-origin (SPA + `/trpc` on one host) | Direct connection to `/trpc` (CORS-enabled) |
+| | Browser + Access | Browser + token login | Desktop (Tauri) |
+|---|---|---|---|
+| Hostname | Dedicated UI hostname **behind** Cloudflare Access | Any hostname that reaches the port | A hostname **not** behind Access |
+| Login | Cloudflare Access edge login (email / IdP) | Paste the `clientToken` once | Enter `serverUrl` + `clientToken` once |
+| Credential on requests | `Cf-Access-Jwt-Assertion` (issued by the edge) | `cortex_ui` session cookie | `x-cortex-token` header |
+| Where auth is checked | JWT verified by the server | Session verified by the server | Token verified by the server |
+| `clientToken` exposure | **Never touches the browser** | Typed once, never stored in the page | Stored in the OS keychain |
+| Opens `/forward` | No | No | Yes |
+| SPA origin | Same-origin (SPA + `/trpc` on one host) | Same-origin | Direct connection to `/trpc` (CORS-enabled) |
 
 Because the desktop app sends `x-cortex-token`, it must connect through a hostname that is
-**not** behind Cloudflare Access (Access would block the bearer request at the edge). The
-browser path is the opposite: Access does the login, and the browser gets in **without** ever
-holding the token. Choose the desktop app when you want a native window and are comfortable
-storing the token locally; choose the browser path when you want zero install and IdP-managed
-access.
+**not** behind Cloudflare Access (Access would block the bearer request at the edge). Choose the
+desktop app when you want a native window, the port forward, and are comfortable storing the
+token locally; Access when other people need in and should never see the token; token login when
+it is your own browser and the path to the server is already private or encrypted.
 
 ## Troubleshooting
 
@@ -220,6 +291,19 @@ The edge authenticated you but the server rejected the JWT. Confirm on the serve
 `CORTEX_ACCESS_TEAM_DOMAIN` matches your team and `CORTEX_ACCESS_AUD` matches the Access
 application's AUD tag exactly, and that the daemon was restarted after setting them. With those
 unset, the browser path is disabled and every browser request is `401`.
+
+**The sign-in screen says token sign-in is turned off**
+
+`CORTEX_UI_TOKEN_LOGIN` is set to `0` on the server. Either remove it (token login is on by
+default) and restart, or reach the UI through Cloudflare Access / the desktop app instead.
+
+**The token is correct but signing in does nothing / it asks again on every page load**
+
+The browser is dropping the session cookie. This happens over plain HTTP to a non-loopback host
+if a proxy in front terminates TLS but does not pass `X-Forwarded-Proto: https` — the server then
+issues the cookie without `Secure`, which some browsers refuse on a page they consider secure.
+Check the daemon log for the "issued without Secure" warning, and make the proxy forward the
+header.
 
 **The page loads but `/trpc` calls `404`**
 

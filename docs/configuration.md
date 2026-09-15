@@ -474,9 +474,9 @@ Three categories of variables deliberately remain in `.env`:
   file overrides. Hooks, MCP servers, the CLI, and `cortex-client` inherit the
   daemon's environment; a server-side JSON file would never reach them.
 - **Startup topology** — `CORTEX_PLATFORM`, `CORTEX_MACHINE`, `CORTEX_UI_HTTP`,
-  `CORTEX_UI_PORT`, `CORTEX_UI_SPA_DIR`. These decide which adapters and
-  listeners exist at boot, so hot-reloading them would have no meaning; they
-  require a restart by construction.
+  `CORTEX_UI_PORT`, `CORTEX_UI_SPA_DIR`, `CORTEX_UI_TOKEN_LOGIN`. These decide
+  which adapters and listeners exist at boot, so hot-reloading them would have
+  no meaning; they require a restart by construction.
 
 ### Not the same file as .claude/settings.json
 

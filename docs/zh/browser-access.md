@@ -4,11 +4,12 @@ Cortex 提供一个浏览器工作台——与[桌面应用](desktop-app.md)所�
 无需安装任何东西，即可从任意浏览器访问。本页同时覆盖**部署运行手册**（构建 SPA、
 在服务器上启用 Web UI 端点）和**浏览器访问路径**（经 Cloudflare Access 边缘登录访问）。
 
-访问工作台有两条彼此独立的路径，它们的认证方式不同：
+访问工作台有三条彼此独立的路径，它们的认证方式不同：
 
 | 路径 | 使用者 | 认证方式 | 是否持有 `clientToken`？ |
 |---|---|---|---|
-| **浏览器** | 任何有浏览器的人 | Cloudflare Access 边缘登录（邮箱 / IdP），由服务器以 JWT 校验 | **否**——浏览器从不接触令牌 |
+| **浏览器 + Access** | 任何有浏览器的人 | Cloudflare Access 边缘登录（邮箱 / IdP），由服务器以 JWT 校验 | **否**——浏览器从不接触令牌 |
+| **浏览器 + token 登录** | 知道 token 的人 | 粘贴一次 token，换成 HttpOnly 会话 cookie | **否**——只有服务器看到，且只看到一次 |
 | **桌面（Tauri）** | 已安装的桌面应用 | 存于操作系统密钥链的 Bearer `x-cortex-token`（即 `clientToken`） | 是 |
 
 本页是浏览器访问 + 部署参考。安装原生桌面应用请见 [桌面应用](desktop-app.md)。
@@ -86,6 +87,9 @@ CORTEX_UI_PORT=3004       # 可选，默认为 3004
 `CORTEX_UI_HTTP` 接受 `1`、`true`、`on` 或 `yes`。未设置时，该端点——以及 Web UI 传输层
 连同 `@trpc/server` / `jose`——都不会加载。
 
+仅这一项就足以让浏览器打开工作台：token 登录默认开启，SPA 会询问 `clientToken` 并把它换成
+一个会话（见[用 token 登录的浏览器访问](#browser-access-with-a-token-no-cloudflare)）。
+
 ### 5. 重启守护进程以生效 {#5-restart-the-daemon-to-apply}
 
 守护进程在启动时读取 SPA 与环境变量，因此新的构建或环境变量更改需在重启后生效：
@@ -104,16 +108,26 @@ cortex daemon   # 或：systemctl --user restart cortex（如果已注册系统�
 
 ## 认证 {#authentication}
 
-`/trpc` 认证门在**任一**凭据有效时放行请求，否则在 tRPC 运行前返回 `401`：
+`/trpc` 认证门在三种凭据中**任一**有效时放行请求，否则在 tRPC 运行前返回 `401`：
 
 1. **`x-cortex-token` 头** 等于服务器的 `clientToken`——桌面 / 机器路径。优先检查，
    使用常量时间比较。与此前完全一致。
-2. **有效的 `Cf-Access-Jwt-Assertion` 头**——浏览器路径。Cloudflare 边缘在认证用户后
-   注入该 JWT，由服务器校验。**浏览器从不持有 `clientToken`。**
+2. **有效的 `cortex_ui` 会话 cookie**——token 登录的浏览器路径。浏览器通过
+   `POST /api/ui/login` 证明自己知道 token（仅一次）后由服务器签发。
+3. **有效的 `Cf-Access-Jwt-Assertion` 头**——Cloudflare Access 的浏览器路径。边缘在认证
+   用户后注入该 JWT，由服务器校验。
+
+两条浏览器路径都不会把 `clientToken` 留在页面里：cookie 是 `HttpOnly` 的，SPA 自己的
+JavaScript 读不到；Access JWT 则由边缘签发。
 
 服务器针对你的 Cloudflare Access team-domain JWKS 校验 Access JWT，检查签名（仅
 RS256 / ES256）、受众（AUD）标签、签发者与过期时间。如果服务器上**未**配置 Access，
-JWT 路径被禁用，认证门安全降级为仅令牌——未配置的 Access 路径绝不放行任何请求。
+JWT 路径被禁用，认证门安全降级——未配置的 Access 路径绝不放行任何请求。
+
+!!! warning "端口转发是有意只认 token 的"
+    `/forward`（桌面外壳到服务器 loopback 服务的裸 TCP 隧道）**只**接受 `x-cortex-token` 头，
+    两种浏览器凭据都打不开它。浏览器会自动把 cookie 附加到 WebSocket 握手上，所以一旦在这里
+    接受会话 cookie，等于把本机每个 loopback 服务的裸 socket 交给每一个已登录页面。
 
 ## 经 Cloudflare Access 的浏览器访问 {#browser-access-via-cloudflare-access}
 
@@ -170,23 +184,76 @@ CORTEX_ACCESS_AUD=<你的-Access-应用-AUD>  # Access 应用的 AUD 标签
 边缘在每个请求上转发经校验的 `Cf-Access-Jwt-Assertion`，服务器提供同源 SPA，工作台加载
 真实 tRPC 数据——无需令牌，无需本地安装。
 
-## 浏览器路径与桌面 Bearer-Token 路径的区别 {#browser-path-vs-desktop-bearer-token-path}
+## 用 token 登录的浏览器访问（不需要 Cloudflare） {#browser-access-with-a-token-no-cloudflare}
 
-两条路径都到达同一个 `/trpc` API 与同一个工作台，但在**何处**及**如何**认证上不同：
+如果你没有部署 Cloudflare Access——或者只是想从局域网里的笔记本、或经由 SSH 转发打开工作台
+——浏览器可以通过粘贴一次服务器的 `clientToken` 来完成认证。
 
-| | 浏览器 | 桌面（Tauri） |
-|---|---|---|
-| Hostname | 专用 UI hostname，**位于** Cloudflare Access 之后 | 一个**不在** Access 之后的 hostname |
-| 登录 | Cloudflare Access 边缘登录（邮箱 / IdP） | 一次性输入 `serverUrl` + `clientToken` |
-| 请求上的凭据 | `Cf-Access-Jwt-Assertion`（由边缘签发） | `x-cortex-token` 头 |
-| 何处校验认证 | 服务器校验 JWT | 服务器校验令牌 |
-| `clientToken` 暴露 | **从不接触浏览器** | 存于操作系统密钥链 |
-| SPA origin | 同源（SPA + `/trpc` 同一主机） | 直连 `/trpc`（启用 CORS） |
+只要服务器开了 `CORTEX_UI_HTTP=1`，**此功能默认开启**。打开 UI 时，如果该浏览器还没有会话，
+SPA 会先显示登录页而不是工作台：
+
+```
+浏览器  ──POST /api/ui/login {token}──▶  服务器   （与 clientToken 做常量时间比较）
+       ◀──Set-Cookie: cortex_ui=… ; HttpOnly; SameSite=Strict; Secure──
+浏览器  ──之后每个 /trpc、/api 请求都自动携带该 cookie──▶  服务器
+```
+
+它带来什么，代价是什么：
+
+- **token 只提交一次**，随即被换成一个不透明的 32 字节会话 id。cookie 是 `HttpOnly` 的，
+  页面 JavaScript——包括 XSS 注入的脚本——读不回去。
+- **`SameSite=Strict`** 意味着任何跨站请求都不会携带该会话，CSRF 问题到此为止。登录 POST 还会
+  额外拒绝 `Origin` 不是本机的请求。
+- **会话能扛过守护进程重启**：它们存放在 `~/.cortex/data/ui-sessions.json`（权限 `0600`），
+  签发 30 天后过期。设置 → 高级里有「退出此浏览器的登录」按钮，会在服务端吊销该会话。
+- **会话的权限严格弱于 token**：它与 Cloudflare Access 登录的权限完全相同——tRPC 与 `/api`
+  路由，永远不含 `/forward`。
+- **登录端点是公开的**。它必须如此：没有任何凭据的浏览器得够得着它。token 错误会让调用方固定
+  等待 250 毫秒并被记入日志；而 token 本身是 32 字节随机数，在线爆破并不现实。这里有意不做
+  IP 封禁（在隧道后面所有请求看起来都来自 `127.0.0.1`）也不做全局锁定（那会让任何人把你自己
+  锁在门外）。
+
+### 调整或关闭 {#tuning-or-turning-it-off}
+
+```bash
+CORTEX_UI_TOKEN_LOGIN=0          # 彻底移除登录路由与 cookie 这条腿
+CORTEX_UI_SESSION_TTL_DAYS=30    # 可选；会话有效期，默认 30 天
+```
+
+关闭之后，服务器的行为与本功能出现之前完全一致：只剩 header token 与（若已配置）Cloudflare
+Access。SPA 会在登录页如实说明这一点，而不是给出一个根本不可能成功的表单。
+
+### 该用哪一条 {#where-to-use-which}
+
+当你希望由 IdP 管理访问、且访问者永远不该看到 token，或者 UI 直接暴露在公网上时，
+在 UI hostname 前放 Cloudflare Access。当是你自己访问、且到服务器的通路本就私密或已加密
+（隧道、VPN、Tailscale、SSH 转发、本机 loopback）时，用 token 登录。两者可以共存：同一台
+服务器可以都开，每个请求按它携带的凭据被放行。
+
+!!! note "局域网上的纯 HTTP"
+    只有当请求经由 HTTPS 到达（或来自 `localhost`）时，会话 cookie 才会带上 `Secure`。
+    对局域网地址的纯 HTTP 访问不能带——否则浏览器会直接丢弃这个 cookie——因此服务器会不带
+    `Secure` 签发并在日志里告警。此时该网络路径上的任何人都能读到这个会话。除可信局域网外，
+    请使用 HTTPS。
+
+## 三条路径对照 {#the-three-paths-side-by-side}
+
+三条路径都到达同一个 `/trpc` API 与同一个工作台，但在**何处**及**如何**认证上不同：
+
+| | 浏览器 + Access | 浏览器 + token 登录 | 桌面（Tauri） |
+|---|---|---|---|
+| Hostname | 专用 UI hostname，**位于** Cloudflare Access 之后 | 任何能到达该端口的 hostname | 一个**不在** Access 之后的 hostname |
+| 登录 | Cloudflare Access 边缘登录（邮箱 / IdP） | 粘贴一次 `clientToken` | 一次性输入 `serverUrl` + `clientToken` |
+| 请求上的凭据 | `Cf-Access-Jwt-Assertion`（由边缘签发） | `cortex_ui` 会话 cookie | `x-cortex-token` 头 |
+| 何处校验认证 | 服务器校验 JWT | 服务器校验会话 | 服务器校验令牌 |
+| `clientToken` 暴露 | **从不接触浏览器** | 输入一次，不在页面中留存 | 存于操作系统密钥链 |
+| 能否打开 `/forward` | 否 | 否 | 是 |
+| SPA origin | 同源（SPA + `/trpc` 同一主机） | 同源 | 直连 `/trpc`（启用 CORS） |
 
 由于桌面应用发送 `x-cortex-token`，它必须通过一个**不在** Cloudflare Access 之后的
-hostname 连接（Access 会在边缘挡住 bearer 请求）。浏览器路径正相反：由 Access 完成登录，
-浏览器**无需**持有令牌即可进入。当你想要原生窗口且愿意在本地存储令牌时，选择桌面应用；
-当你想要零安装、由 IdP 管理的访问时，选择浏览器路径。
+hostname 连接（Access 会在边缘挡住 bearer 请求）。想要原生窗口、需要端口转发、且愿意在本地
+存储令牌时，选桌面应用；需要让别人进来、而他们不该看到令牌时，选 Access；只是你自己的浏览器、
+且到服务器的通路本就私密时，选 token 登录。
 
 ## 故障排查 {#troubleshooting}
 
