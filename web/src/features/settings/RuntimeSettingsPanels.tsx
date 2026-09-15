@@ -228,7 +228,7 @@ function RecentNotifications() {
     ? L.stRecentNotifRight.replace('{n}', String(cap))
     : L.stRecentNotifRightUnknown;
   return (
-    <SCard style={{ marginTop: 12, maxWidth: 760 }}>
+    <SCard style={{ marginTop: 12 }}>
       <SCardHeader title={L.stRecentNotifications} right={right} />
       {error ? <NoticeNote text={L.stRecentNotifError} /> : null}
       {!error && loading ? <NoticeNote text={L.stRecentNotifLoading} /> : null}
