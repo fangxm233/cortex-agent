@@ -75,7 +75,7 @@ export interface EngineSpec {
   tools: { canonical?: string[]; rawClaude?: string };
   plugins: { dirs?: string[]; skillDirs?: string[]; fingerprint?: string };
   mcp: { composition?: McpComposition; servers?: McpServerConfig[]; allowlist?: string[];
-         configPaths?: string[]; commissionTools?: boolean; browserCdpEndpoint?: string };
+         configPaths?: string[]; browserCdpEndpoint?: string };
   env: { sets?: Record<string, string>; unsets?: string[]; pinned?: NodeJS.ProcessEnv;
          context?: CortexContextEnv };
   route: { anthropicBaseUrl?: string; gatewayBaseUrl?: string; gatewayPath?: string };

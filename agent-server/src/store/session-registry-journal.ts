@@ -56,6 +56,13 @@ export interface SessionRecord {
    *  has not been named yet. Cleared at finalize, when commissionId is filled in. Mode is ON when
    *  either this or commissionId is set. */
   commissionDraft?: string | null;
+  /** Which commission binding the `[Commission]` prompt block has already been delivered for —
+   *  `draft:<dir>` or `active:<commissionId>` (DR-0037 v4). The block used to be a first-turn-only
+   *  injection, which meant a session that entered the mode (or bound its contract) MID-session
+   *  never received it at all. Comparing this marker against the current binding is what makes the
+   *  block follow the state instead of the session's age; compaction clears it, because compaction
+   *  is what removes the already-delivered copy from backend history. */
+  commissionBlockFor?: string | null;
   contextUsage?: unknown;
   browser?: SessionBrowserOption | null;
 }
@@ -374,6 +381,7 @@ function assertSessionRecord(raw: unknown, expectedId: string): SessionRecord {
     scheduleId: toOptionalNullableString(row?.scheduleId),
     commissionId: toOptionalNullableString(row?.commissionId),
     commissionDraft: toOptionalNullableString(row?.commissionDraft),
+    commissionBlockFor: toOptionalNullableString(row?.commissionBlockFor),
     contextUsage: row?.contextUsage,
     browser: toOptionalBrowserValue(row?.browser),
   } satisfies SessionRecord;
@@ -401,6 +409,7 @@ function assertNewFormatRecord(raw: unknown, expectedId: string): SessionRecord 
     scheduleId: toOptionalNullableString(row?.scheduleId),
     commissionId: toOptionalNullableString(row?.commissionId),
     commissionDraft: toOptionalNullableString(row?.commissionDraft),
+    commissionBlockFor: toOptionalNullableString(row?.commissionBlockFor),
     contextUsage: row?.contextUsage,
     browser: toOptionalBrowserValue(row?.browser),
   } satisfies SessionRecord;

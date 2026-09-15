@@ -32,7 +32,6 @@ export interface EngineSpecFixtureInput {
   mcpServers?: McpServerConfig[];
   mcpConfigPaths?: string[];
   mcpToolAllowlist?: string[];
-  commissionTools?: boolean;
   browserCdpEndpoint?: string;
   anthropicBaseUrl?: string;
   piGatewayBaseUrl?: string;
@@ -93,7 +92,6 @@ export function engineSpecFixture(partial: EngineSpecFixtureInput = {}): EngineS
       servers: partial.mcpServers,
       allowlist: partial.mcpToolAllowlist,
       configPaths: partial.mcpConfigPaths,
-      commissionTools: partial.commissionTools,
       browserCdpEndpoint: partial.browserCdpEndpoint,
     },
     env: {

@@ -12,6 +12,8 @@ import { registerAskQuestion, registerPlanApproval } from './hook-bridge.js';
 import { normalizeAskLevel } from '@platform/index.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { validateCommissionFinalize, finalizeCommission } from '@domain/commissions/commission-finalize.js';
+import { enterCommissionDraft } from '@domain/commissions/commission-draft.js';
+import { publishSessionCommission } from '../session-events.js';
 import { getCurrentPlanFilePath } from '../../agent-adapter/claude/event-parser.js';
 import { orchestrationAdapter, orchestrationBus } from '../runtime.js';
 import { createThread, cancelThread, readArtifact, listTemplates, listAgents, checkSpawnGuards, getRootThreadId, registerChildSpawn, buildThreadTree, getTreeThreads, buildContractPrompt, buildMissionChain, isArtifactUnchangedSinceStepStart } from '@domain/threads/index.js';
@@ -620,6 +622,41 @@ function createWebhookHandler(_options: {
       readJsonBody(req, async (error, _body, data) => {
         if (error) { res.writeHead(400); res.end('Bad JSON'); return; }
         await handleAskUserQuestion(data, res);
+      });
+      return;
+    }
+
+    // --- MCP tool: cortex_commission_start ---
+    //
+    // The tool runs in the bundled MCP process and cannot touch the registry, so entering the mode
+    // is a loopback call like every other state change an agent makes. Idempotent: a second call
+    // returns the same directory, which is what lets the [Commission] block say "call it if you
+    // have not already" without worrying about which entry the session came through.
+    if (req.method === 'POST' && req.url === '/hook/commission-start') {
+      readJsonBody(req, async (error, _body, data) => {
+        if (error) { res.writeHead(400); res.end('Bad JSON'); return; }
+        const reply = (status: number, payload: unknown) => {
+          res.writeHead(status, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(payload));
+        };
+        const sessionId = typeof data?.sessionId === 'string' ? data.sessionId : '';
+        if (!sessionId) { reply(200, { error: 'no originating session id — commission start requires CORTEX_SESSION_ID' }); return; }
+        // The kill switch has to bite HERE too: since v4 this tool is the entry point, not a
+        // capability handed only to sessions the user already opted in.
+        if (!getSettings().commissionEnabled) {
+          reply(200, { error: 'commission mode is disabled on this server (settings.commissionEnabled)' });
+          return;
+        }
+        try {
+          const result = await enterCommissionDraft(sessionId);
+          if (result.ok === false) { reply(200, { error: result.error }); return; }
+          if (!result.alreadyDrafting && typeof data?.channel === 'string' && data.channel) {
+            publishSessionCommission({ sessionId, channel: data.channel });
+          }
+          reply(200, { ok: true, dir: result.dir, draftDir: result.draftDir, alreadyDrafting: result.alreadyDrafting });
+        } catch (e) {
+          reply(500, { error: (e as Error).message });
+        }
       });
       return;
     }

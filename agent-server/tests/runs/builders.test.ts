@@ -73,7 +73,6 @@ function legacyEditRetry(i: {
       executionKind: 'local',
       isUserInitiated: true,
       commissionMode: false,
-      commissionTools: false,
       scheduleTaskId: null,
     },
     policy: {
@@ -152,7 +151,6 @@ function legacyAskUserResume(i: {
       executionKind: 'local',
       isUserInitiated: false,
       commissionMode: false,
-      commissionTools: false,
       scheduleTaskId: null,
     },
     policy: {
@@ -222,7 +220,6 @@ function legacyAutoCompound(i: {
       executionKind: 'local',
       isUserInitiated: false,
       commissionMode: false,
-      commissionTools: false,
       scheduleTaskId: null,
     },
     policy: {
@@ -307,7 +304,6 @@ function legacySessionHookInjection(i: {
       executionKind: 'local',
       isUserInitiated: false,
       commissionMode: false,
-      commissionTools: false,
       scheduleTaskId: null,
     },
     policy: {
@@ -379,7 +375,6 @@ function legacyThreadHookAgent(i: {
       executionKind: i.executionKind,
       isUserInitiated: false,
       commissionMode: false,
-      commissionTools: false,
     },
     policy: {
       background: i.background,

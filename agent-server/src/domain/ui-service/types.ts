@@ -159,6 +159,7 @@ export type MutateOp =
   | 'sessions.compact'
   | 'sessions.setProfile'
   | 'sessions.setSelection'
+  | 'sessions.setCommission'
   | 'sessions.createAndSend'
   | 'sessions.markRead'
   | 'sessions.answerQuestion'
@@ -532,6 +533,23 @@ export interface SessionSelectionOverride {
  * Naming a profile without naming anything else means "run this profile as declared", which drops
  * the session's earlier model/thinking choices.
  */
+/** Move a live session in or out of commission mode. `new` starts a contract draft, `join` attaches
+ *  to a landed commission, `off` leaves the drafting phase. A session already bound to a commission
+ *  is terminal and refuses every transition. */
+export interface SessionsSetCommissionArgs {
+  sessionId: string;
+  commission: { mode: 'off' } | { mode: 'new' } | { mode: 'join'; commissionId: string };
+}
+
+export interface SessionsSetCommissionReturn {
+  /** The session's state after the call: which half of the mode it is in, if any. */
+  phase: 'none' | 'draft' | 'active';
+  commissionId: string | null;
+  commissionDraft: string | null;
+  /** True when leaving also deleted an untouched draft directory. */
+  removedDraftDir?: boolean;
+}
+
 export interface SessionsSetSelectionArgs {
   sessionId: string;
   profileName?: string;
@@ -2551,6 +2569,7 @@ export interface MutateArgsMap {
   'sessions.compact': SessionsCompactArgs;
   'sessions.setProfile': SessionsSetProfileArgs;
   'sessions.setSelection': SessionsSetSelectionArgs;
+  'sessions.setCommission': SessionsSetCommissionArgs;
   'sessions.createAndSend': SessionsCreateAndSendArgs;
   'sessions.markRead': SessionsMarkReadArgs;
   'sessions.answerQuestion': SessionsAnswerQuestionArgs;
@@ -2626,6 +2645,7 @@ export interface MutateReturnMap {
   'sessions.compact': SessionsCompactReturn;
   'sessions.setProfile': SessionsSetProfileReturn;
   'sessions.setSelection': SessionsSetSelectionReturn;
+  'sessions.setCommission': SessionsSetCommissionReturn;
   'sessions.createAndSend': SessionsCreateAndSendReturn;
   'sessions.markRead': void;
   'sessions.answerQuestion': SessionsInteractionMutateReturn;

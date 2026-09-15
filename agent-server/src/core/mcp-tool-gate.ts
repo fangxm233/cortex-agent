@@ -30,36 +30,15 @@ export const MCP_TOOLS_BY_SERVER: Readonly<Record<string, readonly string[]>> = 
 const ALL_MCP_TOOLS = new Set(Object.values(MCP_TOOLS_BY_SERVER).flat());
 
 /**
- * The two commission-creation tools. They are standalone — they do NOT replace cortex_plan_enter /
- * cortex_plan_exit, and a session creating a commission holds both sets. They are injected only
- * while a new commission is being drafted, so no other session ever sees them (DR-0037 v3).
- */
-export const COMMISSION_TOOLS: readonly string[] = ['cortex_commission_start', 'cortex_commission_submit'];
-
-/**
- * A per-spawn allowlist with the commission tools removed.
- *
- * Only backends without a per-tool launch flag need this: Claude keeps the tools out of an ordinary
- * session through `--tools`, but PI has no equivalent, so the allowlist is its only lever. The gate
- * is fail-OPEN (see {@link parseMcpToolAllowlist}: absent env ⇒ everything registers), so exclusion
- * can never be expressed by *withholding* an allowlist — when the caller has none of its own we
- * synthesize one from the selected bundles' full surface.
- */
-export function withoutCommissionTools(
-  allowlist: readonly string[] | undefined,
-  selectedBundles: readonly string[],
-): string[] {
-  return withoutTools(allowlist, selectedBundles, COMMISSION_TOOLS);
-}
-
-/**
  * The delegation tools. A subagent is a leaf: it never gets these, on either backend, which is what
  * makes the recursion guard structural rather than a depth counter (plan §6.1).
  */
 export const SUBAGENT_TOOLS: readonly string[] = ['agent', 'agent_stop'];
 
 /** A per-spawn allowlist a subagent child runs under: everything its bundles offer, minus
- *  delegation. Same fail-open reasoning as {@link withoutCommissionTools}. */
+ *  delegation. The gate is fail-OPEN (see {@link parseMcpToolAllowlist}: absent env ⇒ everything
+ *  registers), so exclusion can never be expressed by *withholding* an allowlist — when the caller
+ *  has none of its own we synthesize one from the selected bundles' full surface. */
 export function withoutSubagentTools(
   allowlist: readonly string[] | undefined,
   selectedBundles: readonly string[],

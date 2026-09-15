@@ -31,9 +31,15 @@ interface Harness {
   bound: Array<{ sessionId: string; commissionId: string }>;
 }
 
-async function harness(opts: { draftName?: string; existingSlug?: string } = {}): Promise<Harness> {
+async function harness(opts: {
+  draftName?: string;
+  existingSlug?: string;
+  /** Overrides the session's commission state; default is "drafting this harness's draft dir". */
+  session?: { projectId?: string; commissionId?: string | null; commissionDraft?: string | null };
+} = {}): Promise<Harness> {
   const root = path.join(tmpDir, `commissions-${n++}`);
-  const draft = path.join(root, opts.draftName ?? '_draft-cortex-abc');
+  const draftName = opts.draftName ?? '_draft-cortex-abc';
+  const draft = path.join(root, draftName);
   await fsp.mkdir(draft, { recursive: true });
   const contractPath = path.join(draft, 'contract.md');
   await fsp.writeFile(contractPath, '# Contract\n');
@@ -42,7 +48,9 @@ async function harness(opts: { draftName?: string; existingSlug?: string } = {})
   return {
     root, contractPath, added, bound,
     deps: {
-      getSession: async () => ({ projectId: 'proj' }),
+      getSession: async () => ({
+        projectId: 'proj', commissionId: null, commissionDraft: draftName, ...opts.session,
+      }),
       resolveRoot: () => root,
       findBySlug: async (_p, slug) => (slug === opts.existingSlug ? { id: 'old' } : null),
       addCommission: async (r) => { added.push(r); },
@@ -104,4 +112,43 @@ test('a contract nested deeper than commissions/<dir>/ is rejected', async () =>
     h.deps,
   );
   assert.match((result as any).error, /directly under/);
+});
+
+// --- DR-0037 v4: the state check that replaced tool visibility ---------------------------------
+
+test('refuses a submit from a session that never entered commission mode', async () => {
+  // The v3 guard was "an ordinary session does not have the tool". That was never true on the
+  // Claude backend (`--tools` cannot filter MCP tools), and one such session did land a commission.
+  const h = await harness({ session: { commissionDraft: null } });
+  const result = await validateCommissionFinalize(
+    { sessionId: 'sess-1', name: 'Ship It', contractPath: h.contractPath },
+    h.deps,
+  );
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /not drafting a commission/);
+});
+
+test('refuses a second commission from a session already bound to one', async () => {
+  const h = await harness({ session: { commissionId: 'dc44f400' } });
+  const result = await validateCommissionFinalize(
+    { sessionId: 'sess-1', name: 'Ship It', contractPath: h.contractPath },
+    h.deps,
+  );
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /already bound to commission dc44f400/);
+});
+
+test('refuses a contract from another session\'s draft directory', async () => {
+  // The path-shape check accepts any `_draft-*` under the project, so without this a session could
+  // submit a neighbour's contract and rename the directory out from under it.
+  const h = await harness({ session: { commissionDraft: '_draft-cortex-other' } });
+  const result = await validateCommissionFinalize(
+    { sessionId: 'sess-1', name: 'Ship It', contractPath: h.contractPath },
+    h.deps,
+  );
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.error, /this session drafts in _draft-cortex-other/);
 });

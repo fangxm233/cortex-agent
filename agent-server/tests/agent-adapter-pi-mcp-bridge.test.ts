@@ -466,7 +466,7 @@ test('buildServerStates validates interaction tools only when the shared bridge 
   }), /Unknown MCP tool.*cortex_ask_user/);
 });
 
-test('the bundled core env carries the session env plus a commission-free gate for the bridge', () => {
+test('the bundled core env carries the session env plus the delegation gate for the bridge', () => {
   const env = coreEnv(buildServerStates({
     [PI_MCP_COMPOSITION_ENV]: 'direct',
     [PI_INTERACTION_BRIDGE_ENV]: '1',
@@ -479,12 +479,15 @@ test('the bundled core env carries the session env plus a commission-free gate f
   assert.equal(env.FEISHU_CHANNEL, '');
   const allowed = JSON.parse(env[MCP_TOOL_ALLOWLIST_ENV]) as string[];
   assert.ok(allowed.includes('cortex_plan_exit'));
-  assert.equal(allowed.includes('cortex_commission_start'), false);
+  // The commission pair rides along with the rest of the bridge since DR-0037 v4 — PI used to be
+  // the only backend where withholding it worked, which made one feature mean two things.
+  assert.ok(allowed.includes('cortex_commission_start'));
+  assert.ok(allowed.includes('cortex_commission_submit'));
 });
 
 test('PI always gates out the MCP delegation pair so its native agent tool is the only one', () => {
-  // No interaction bridge: the commission exclusion does not apply, and the allowlist exists purely
-  // to hide `agent` / `agent_stop`, which would otherwise collide with PI's in-process tool.
+  // The allowlist exists purely to hide `agent` / `agent_stop`, which would otherwise collide with
+  // PI's in-process tool of the same bare name.
   const env = coreEnv(buildServerStates({ [PI_MCP_COMPOSITION_ENV]: 'direct' }));
   const allowed = JSON.parse(env[MCP_TOOL_ALLOWLIST_ENV]) as string[];
   assert.equal(allowed.includes('agent'), false);
@@ -492,13 +495,14 @@ test('PI always gates out the MCP delegation pair so its native agent tool is th
   assert.ok(allowed.includes('current_time'));
   assert.ok(allowed.includes('task_status'));
 
-  // And the exclusion survives alongside the commission gate.
+  // And it survives when the interaction bridge widens the surface.
   const gated = coreEnv(buildServerStates({
     [PI_MCP_COMPOSITION_ENV]: 'direct', [PI_INTERACTION_BRIDGE_ENV]: '1',
   }));
   const both = JSON.parse(gated[MCP_TOOL_ALLOWLIST_ENV]) as string[];
   assert.equal(both.includes('agent'), false);
-  assert.equal(both.includes('cortex_commission_start'), false);
+  assert.equal(both.includes('agent_stop'), false);
+  assert.ok(both.includes('cortex_commission_start'));
 });
 
 test('eligible PI sessions register the three shared interaction tool names', async () => {

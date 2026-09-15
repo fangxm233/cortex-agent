@@ -20,7 +20,7 @@ import { MCP_INFRASTRUCTURE_TIMEOUT_MS } from '@core/mcp-timeout.js';
 import type { McpBundleName } from '@core/mcp-bundles.js';
 import {
   MCP_TOOL_ALLOWLIST_ENV, MCP_TOOLS_BY_SERVER, parseMcpToolAllowlist,
-  validateMcpToolAllowlist, withoutCommissionTools, withoutSubagentTools,
+  validateMcpToolAllowlist, withoutSubagentTools,
 } from '@core/mcp-tool-gate.js';
 import type { McpServerConfig } from '../types.js';
 import { createRedirectRejectingFetch } from '../mcp-remote-fetch.js';
@@ -32,7 +32,7 @@ import {
   shouldLoadWeb,
 } from './mcp-bridge-logic.js';
 import {
-  PI_COMMISSION_TOOLS_ENV, PI_INTERACTION_BRIDGE_ENV, PI_MCP_COMPOSITION_ENV,
+  PI_INTERACTION_BRIDGE_ENV, PI_MCP_COMPOSITION_ENV,
 } from './session-options.js';
 import { safeNativeComposite, safeNativeName } from '@core/native-name.js';
 
@@ -115,24 +115,23 @@ function builtinEnv(env: NodeJS.ProcessEnv): Record<string, string> {
  * bundle. This runs here rather than in the adapter because this is the first place that knows PI's
  * bundle set.
  *
- * Two exclusions are applied:
+ * One exclusion is applied: **delegation tools, always.** `agent` / `agent_stop` exist in
+ * `cortex-core` for backends that have no subagent of their own; PI registers its own in-process
+ * `agent`, and a bundled MCP tool is exposed under its bare name, so leaving them in would mean two
+ * tools called `agent`. The native one wins by construction because the MCP pair never reaches PI.
  *
- * - **Commission tools**, unless this session is drafting a commission — that one gets no allowlist
- *   at all and is therefore allowed everything, the two commission tools included.
- * - **Delegation tools, always.** `agent` / `agent_stop` exist in `cortex-core` for backends that
- *   have no subagent of their own; PI registers its own in-process `agent`, and a bundled MCP tool
- *   is exposed under its bare name, so leaving them in would mean two tools called `agent`. The
- *   native one wins by construction because the MCP pair never reaches PI at all.
+ * The commission-creation tools used to be excluded here too, which made PI the only backend where
+ * that gate actually worked — Claude's equivalent (`--tools`) cannot filter MCP tools at all. Rather
+ * than teach Claude the same trick, DR-0037 v4 dropped the gate on both: the two tools are part of
+ * the direct surface everywhere, and a submit from a session that never entered the mode is refused
+ * by `commission-finalize` instead.
  */
 function toolGatedEnv(
   bundles: readonly McpBundleName[], env: NodeJS.ProcessEnv,
 ): Record<string, string> {
   const toolEnv = builtinEnv(env);
-  const dropCommission = bundles.includes('cortex-interaction-bridge')
-    && env[PI_COMMISSION_TOOLS_ENV] !== '1';
   const declared = parseMcpToolAllowlist(env[MCP_TOOL_ALLOWLIST_ENV]);
-  let allowlist = withoutSubagentTools(declared ? [...declared] : undefined, bundles);
-  if (dropCommission) allowlist = withoutCommissionTools(allowlist, bundles);
+  const allowlist = withoutSubagentTools(declared ? [...declared] : undefined, bundles);
   toolEnv[MCP_TOOL_ALLOWLIST_ENV] = JSON.stringify(allowlist);
   return toolEnv;
 }

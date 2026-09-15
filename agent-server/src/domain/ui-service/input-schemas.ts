@@ -183,6 +183,19 @@ export const sessionCommissionInput = z.discriminatedUnion('mode', [
   z.object({ mode: z.literal('join'), commissionId: z.string() }),
 ]);
 
+/** Switching a LIVE session's commission mode (DR-0037 v4). The create-time choices plus `off`,
+ *  which creation had no need for. Spelled as a third union member rather than a nullable field so
+ *  the emitted client type keeps it: this package compiles with `strict: false`, where `X | null`
+ *  erases to `X` and a null the server accepts becomes unspellable in the strict-mode web client. */
+export const sessionsSetCommissionInput = z.object({
+  sessionId: z.string(),
+  commission: z.discriminatedUnion('mode', [
+    z.object({ mode: z.literal('off') }),
+    z.object({ mode: z.literal('new') }),
+    z.object({ mode: z.literal('join'), commissionId: z.string() }),
+  ]),
+});
+
 export const sessionsCreateInput = z.object({
   projectId: z.string().optional(),
   browser: sessionBrowserInput.nullish(),
@@ -886,6 +899,7 @@ export const mutateInputSchemas = {
   'sessions.compact': sessionsCompactInput,
   'sessions.setProfile': sessionsSetProfileInput,
   'sessions.setSelection': sessionsSetSelectionInput,
+  'sessions.setCommission': sessionsSetCommissionInput,
   'sessions.createAndSend': sessionsCreateAndSendInput,
   'sessions.markRead': sessionsMarkReadInput,
   'sessions.answerQuestion': sessionsAnswerQuestionInput,

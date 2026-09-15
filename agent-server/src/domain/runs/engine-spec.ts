@@ -17,7 +17,10 @@ import type { RunRequest } from './request.js';
 export interface PluginScope {
   channel?: string;
   feishuSkillsInWeb?: boolean;
-  /** True while the session is in commission mode, drafting or already bound. */
+  /** True once the session is BOUND to a landed commission. Drafting deliberately does not count
+   *  (DR-0037 v4): the creation protocol lives in `cortex_commission_start`'s return value, and the
+   *  skill covers maintenance only — it says so itself. Loading it during the drill would put the
+   *  wrong half of the procedure in front of the model. */
   commissionMode?: boolean;
 }
 
@@ -29,9 +32,13 @@ export const CHANNEL_SCOPED_PLUGINS: ReadonlyArray<{ plugin: string; channelPref
   { plugin: 'cortex-feishu', channelPrefix: 'feishu:' },
 ];
 
-/** Plugins that load only for sessions in commission mode. The commission skill is long and
- *  prescriptive (drill protocol, contract shape, checkpoint discipline); loading it into every
- *  session would put a procedure nobody asked for in front of the model (DR-0037 v2). */
+/** Plugins that load only for sessions BOUND to a commission. The commission skill is long and
+ *  prescriptive (ledger entries, surprise triage, checkpoint discipline); loading it into every
+ *  session would put a procedure nobody asked for in front of the model (DR-0037 v2).
+ *
+ *  Plugin dirs are part of the pool identity, so a contract landing mid-session brings the skill in
+ *  on the next turn via a fresh spawn + `--resume`. The turn the contract lands on is covered by
+ *  the protocol `cortex_commission_submit` returns on approval. */
 export const COMMISSION_SCOPED_PLUGINS: readonly string[] = ['cortex-commission'];
 
 /** Drop scoped plugin dirs the current session does not qualify for. Non-scoped plugins always pass
@@ -125,7 +132,6 @@ function spawnPolicy(request: RunRequest): Pick<EngineSpec, 'flags' | 'process' 
       allowlist: request.policy.mcpToolAllowlist === undefined
         ? undefined : canonicalizeMcpToolAllowlist(request.policy.mcpToolAllowlist),
       configPaths: request.isolation?.mcpConfigPaths,
-      commissionTools: request.context.commissionTools,
       browserCdpEndpoint: request.policy.browserCdpEndpoint ?? undefined,
     },
     flags: {

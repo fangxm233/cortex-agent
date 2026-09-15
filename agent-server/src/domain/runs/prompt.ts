@@ -135,19 +135,25 @@ const COMMISSION_PROTOCOL = `Commission protocol:
 3. Before this session ends, and at each stage boundary, append a checkpoint CP-N to ledger.md with three diffs — plan vs done, contract vs current direction, assumptions vs reality — graded ok / attention / gate. Re-read contract.md (including its Revisions section) before writing it.
 4. Contract gates are blocking: ask the user and wait. A streak of approvals never downgrades a gate.`;
 
-/** A session that is about to CREATE a commission. It has no contract and no ledger yet, so the
- *  block's whole job is to say so and hand the agent to cortex_commission_start, which carries the
- *  drill protocol. Without this the first session of every commission is the one that is told
- *  nothing (DR-0037 v3). */
+/** A session drafting a contract. It has no contract and no ledger yet, so the block's whole job is
+ *  to say so and hand the agent to cortex_commission_start, which carries the drill protocol.
+ *
+ *  Two ways in since v4 — the agent called the tool itself, or the user switched the mode on for a
+ *  session already in flight — and the block cannot tell which. It does not need to: the tool is
+ *  idempotent, so "call it if you have not already" is correct either way, and the second sentence
+ *  keeps a user-initiated entry from turning into a round of asking whether to proceed. */
 function buildDraftCommissionBlock(c: DraftCommissionContext): string {
   return [
-    '[Commission] This session was created to START a new commission: a long task anchored by '
-    + 'a contract the user approves before any work begins.',
-    `Draft directory (already created by the server): ${c.dir}`,
+    '[Commission] This session is drafting a commission contract: a long task anchored by a '
+    + 'contract the user approves before any work begins.',
+    `Draft directory: ${c.dir}`,
     '',
-    'Call cortex_commission_start now, before investigating or asking anything — it carries the '
-    + 'drill protocol and the contract structure. Implement nothing until the contract is approved '
-    + 'through cortex_commission_submit.',
+    'If you have not already received the creation protocol in this session, call '
+    + 'cortex_commission_start now, before investigating or asking anything — it carries the drill '
+    + 'protocol and the contract structure, and is idempotent. If the user turned this mode on for '
+    + 'you, that is the decision made: start drilling rather than asking whether to.',
+    'Implement nothing until the contract is approved through cortex_commission_submit. If you '
+    + 'conclude the task does not warrant a commission, say so plainly and let the user close it.',
   ].join('\n');
 }
 

@@ -1,10 +1,10 @@
 ---
 name: commission
-description: "How to work inside a commission — a contract-anchored long task. Loaded whenever this session is in commission mode. Covers maintenance: ledger entries, surprise triage, checkpoint discipline, gates. Creating a commission is not covered here — that protocol lives in the cortex_commission_start tool."
+description: "How to work inside a commission — a contract-anchored long task. Loaded once the contract lands and this session is bound to the commission; while a contract is still being drafted, the protocol lives in the cortex_commission_start tool instead. Covers maintenance: ledger entries, surprise triage, checkpoint discipline, gates."
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob, mcp__cortex-core__cortex_context, mcp__cortex-core__cortex_ask_user, mcp__cortex-core__send_decision
 metadata:
   author: "Cortex"
-  version: "3.1.0"
+  version: "3.2.0"
 ---
 
 # Working inside a commission
@@ -26,7 +26,7 @@ commissions/<slug>/
 
 The [Commission] block is only an index — it names contract.md and ledger.md, it does not carry their contents. Read both at the start of the session, and re-read contract.md (including its Revisions section) at every checkpoint; the user may have edited it.
 
-If this session is creating a new commission rather than continuing one, do not use this skill for that — call `cortex_commission_start`, which carries the whole creation protocol. Come back here once the contract has landed.
+You are reading this because a contract already exists. A session still drafting one does not load this skill at all: creation is carried entirely by `cortex_commission_start`, and this skill arrives with the contract.
 
 ## Surprise triage
 

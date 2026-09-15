@@ -5,7 +5,7 @@ import {
   EMPTY_MCP_CONFIG,
   MCP_CONFIG,
   THREAD_MCP_CONFIG,
-  interactionBridgeTools,
+  INTERACTION_BRIDGE_TOOLS,
   subagentBridgeTools,
   INTERACTION_STRIP_TOOLS,
 } from './defaults.js';
@@ -38,9 +38,6 @@ export interface ClaudeSpawnOptions {
   mcpConfigPaths?: string[] | null;
   /** Canonical per-tool MCP allowlist. */
   mcpToolAllowlist?: string[] | null;
-  /** Add the two standalone commission-creation tools. Only meaningful when the interaction bridge
-   *  is on, and set only while a NEW commission is being drafted (DR-0037 v3). */
-  commissionTools?: boolean;
   /** Supplemental Claude MCP config written from portable runtime servers. */
   supplementalMcpConfigPath?: string | null;
   /** Omit all configured ambient hooks. */
@@ -98,9 +95,9 @@ function resolveMcpConfigs(
   }
   appendBrowserMcpConfig(configs, options, composition === 'direct');
   const bundles = resolveClaudeMcpBundles(options);
-  // The commission tools need no MCP-layer gate: `--tools` is what decides which tools this spawn
-  // can call, and an ordinary session simply does not list them. Synthesizing an allowlist here
-  // would make every spawn depend on the *content* of the MCP config files rather than their paths.
+  // Only an explicitly declared allowlist materializes a gated config (subagents). A direct session
+  // declares none and therefore registers its bundles whole — deliberate since DR-0037 v4: no tool
+  // in the direct surface is hidden per session, so nothing here has to depend on config *content*.
   const allowlist = options.mcpToolAllowlist ?? undefined;
   return materializeMcpToolAllowlistConfigs(configs, allowlist, undefined, bundles);
 }
@@ -160,23 +157,23 @@ function subagentTools(options: ClaudeSpawnOptions): string[] {
  * The exact `--tools` list, after both native-for-MCP substitutions.
  *
  * `Agent` is dropped unconditionally and replaced by the MCP `agent` tool (see
- * {@link ALWAYS_STRIP_TOOLS}). The three interaction tools are dropped only where Cortex mediates
- * approvals through the bridge: `commissionTools` null means "keep the natives, add nothing back"
- * (a non-user-initiated or non-direct session), non-null means the natives are stripped, the bridge
- * tools are appended, and the commission pair is purely additive.
+ * {@link ALWAYS_STRIP_TOOLS}). The three native interaction tools are dropped only where Cortex
+ * mediates approvals through the bridge — `bridge` false (a non-user-initiated or non-direct
+ * session) means "keep the natives, add nothing back".
+ *
+ * Note what this list does NOT do: it cannot hide an MCP tool. `--tools` filters the built-in set
+ * only, so naming MCP tools here is a declaration of intent the CLI does not enforce. Anything that
+ * must be denied per session is denied at the MCP layer (`CORTEX_MCP_TOOL_ALLOWLIST`) or by the
+ * tool's own validation.
  */
-function resolveEffectiveTools(
-  options: ClaudeSpawnOptions,
-  commissionTools: boolean | null,
-): string {
-  const stripInteraction = commissionTools !== null;
+function resolveEffectiveTools(options: ClaudeSpawnOptions, bridge: boolean): string {
   const kept = (options.tools || DEFAULT_TOOLS).split(',')
     .map(tool => tool.trim())
     .filter(tool => tool
       && !ALWAYS_STRIP_TOOLS.has(tool)
-      && !(stripInteraction && INTERACTION_STRIP_TOOLS.has(tool)));
+      && !(bridge && INTERACTION_STRIP_TOOLS.has(tool)));
   const appended = [
-    ...(commissionTools !== null ? interactionBridgeTools(commissionTools) : []),
+    ...(bridge ? INTERACTION_BRIDGE_TOOLS : []),
     ...subagentTools(options),
   ];
   return [...new Set([...kept, ...appended])].join(',');
@@ -251,12 +248,9 @@ export function buildSpawnArgs(options: ClaudeSpawnOptions): string[] {
   const composition = options.mcpComposition ?? 'direct';
   const isDirect = composition === 'direct';
   const wantsInteractionBridge = isDirect && !!options.isUserInitiated;
-  const commissionTools: boolean | null = wantsInteractionBridge
-    ? !!options.commissionTools
-    : null;
   const configs = resolveMcpConfigs(options, composition);
   const args = printModeArgs(options);
-  const tools = resolveEffectiveTools(options, commissionTools);
+  const tools = resolveEffectiveTools(options, wantsInteractionBridge);
   appendCoreArgs(args, configs, composition, tools);
   appendPromptOptions(args, options);
   appendRepeatedOption(args, '--plugin-dir', options.pluginDirs);

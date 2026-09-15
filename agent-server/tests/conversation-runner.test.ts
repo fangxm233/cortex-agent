@@ -203,45 +203,98 @@ test('a session still drafting its contract is told so, and pointed at cortex_co
   const prompt = conversationPrompt(makeAgentConfig({ directive: '' }), 'go', {
     commission: { phase: 'draft', dir: '/ctx/projects/proj-a/commissions/_draft-cortex-4c80d3' },
   });
-  assert.match(prompt, /\[Commission\] This session was created to START a new commission/);
+  assert.match(prompt, /\[Commission\] This session is drafting a commission contract/);
   assert.match(prompt, /_draft-cortex-4c80d3/);
-  assert.match(prompt, /Call cortex_commission_start now/);
+  assert.match(prompt, /call cortex_commission_start now/);
+  // The block serves both entries: the agent's own call and the user switching the mode on mid
+  // conversation. The latter must not produce another round of "shall we?".
+  assert.match(prompt, /If the user turned this mode on for you/);
   // No contract exists yet, so the maintenance protocol would be noise.
   assert.ok(!prompt.includes('Commission protocol:'), 'no execution protocol before a contract');
 });
 
-test('resolveConversationCommission loads the context only for commission-bound sessions', async () => {
+test('resolveConversationCommission loads the context only for commission sessions', async () => {
   const load = (async (id: string) => ({ ...commissionCtx, id })) as typeof import('../src/domain/commissions/commission-context.js').loadCommissionPromptContext;
   const enabled = () => true;
-  const bound = await resolveConversationCommission('sess-1', {
-    getSession: async () => ({ commissionId: 'comm-9' }), load, enabled,
+  const markDelivered = async () => undefined;
+  const bound = await resolveConversationCommission('sess-1', { isFreshSession: true }, {
+    getSession: async () => ({ commissionId: 'comm-9' }), load, enabled, markDelivered,
   });
   assert.equal(bound?.phase === 'active' ? bound.id : null, 'comm-9');
 
-  const unbound = await resolveConversationCommission('sess-1', {
-    getSession: async () => ({ commissionId: null }), load, enabled,
+  const unbound = await resolveConversationCommission('sess-1', { isFreshSession: true }, {
+    getSession: async () => ({ commissionId: null }), load, enabled, markDelivered,
   });
   assert.equal(unbound, null);
 
   // The drafting window: no commission id exists yet, so the draft directory is what gets injected.
-  const drafting = await resolveConversationCommission('sess-1', {
+  const drafting = await resolveConversationCommission('sess-1', { isFreshSession: true }, {
     getSession: async () => ({ commissionId: null, commissionDraft: '_draft-cortex-4c80d3', projectId: 'proj-a' }),
-    load, enabled,
+    load, enabled, markDelivered,
     loadDraft: (projectId, draft) => ({ phase: 'draft', dir: `/ctx/${projectId}/commissions/${draft}` }),
   });
   assert.deepEqual(drafting, { phase: 'draft', dir: '/ctx/proj-a/commissions/_draft-cortex-4c80d3' });
 
-  const failing = await resolveConversationCommission('sess-1', {
-    getSession: async () => { throw new Error('registry down'); }, load, enabled,
+  const failing = await resolveConversationCommission('sess-1', { isFreshSession: true }, {
+    getSession: async () => { throw new Error('registry down'); }, load, enabled, markDelivered,
   });
   assert.equal(failing, null, 'injection is best-effort — failures inject nothing');
 });
 
+// --- DR-0037 v4: delivery follows the binding, not the session's age ----------------------------
+
+test('resolveConversationCommission delivers once per binding and records which one', async () => {
+  const load = (async (id: string) => ({ ...commissionCtx, id })) as typeof import('../src/domain/commissions/commission-context.js').loadCommissionPromptContext;
+  const enabled = () => true;
+  const marked: Array<[string, string]> = [];
+  const markDelivered = async (id: string, key: string) => { marked.push([id, key]); };
+  const deps = (session: Record<string, unknown>) => ({
+    getSession: async () => session, load, enabled, markDelivered,
+    loadDraft: (projectId: string, draft: string) => ({ phase: 'draft' as const, dir: `/ctx/${projectId}/${draft}` }),
+  });
+
+  // Entered mid-conversation (agent called cortex_commission_start, or the user switched it on):
+  // not a fresh session, nothing delivered yet — v3 injected nothing here, forever.
+  const entered = await resolveConversationCommission('sess-1', { isFreshSession: false },
+    deps({ commissionDraft: '_draft-cortex-a1', projectId: 'proj-a', commissionBlockFor: null }));
+  assert.equal(entered?.phase, 'draft');
+  assert.deepEqual(marked.at(-1), ['sess-1', 'draft:_draft-cortex-a1']);
+
+  // Same binding on a later turn: already in backend history, so nothing is re-sent.
+  const repeat = await resolveConversationCommission('sess-1', { isFreshSession: false },
+    deps({ commissionDraft: '_draft-cortex-a1', projectId: 'proj-a', commissionBlockFor: 'draft:_draft-cortex-a1' }));
+  assert.equal(repeat, null);
+
+  // The contract lands mid-conversation: the key changes, so the active block follows.
+  const boundNow = await resolveConversationCommission('sess-1', { isFreshSession: false },
+    deps({ commissionId: 'comm-9', commissionBlockFor: 'draft:_draft-cortex-a1' }));
+  assert.equal(boundNow?.phase, 'active');
+  assert.deepEqual(marked.at(-1), ['sess-1', 'active:comm-9']);
+
+  // A fresh spawn re-delivers even against a matching marker: a process that died before writing
+  // history left the marker pointing at a conversation that never contained the block.
+  const refreshed = await resolveConversationCommission('sess-1', { isFreshSession: true },
+    deps({ commissionId: 'comm-9', commissionBlockFor: 'active:comm-9' }));
+  assert.equal(refreshed?.phase, 'active');
+});
+
+test('resolveConversationCommission does not record a delivery it could not load', async () => {
+  const marked: string[] = [];
+  const nothing = await resolveConversationCommission('sess-1', { isFreshSession: true }, {
+    getSession: async () => ({ commissionId: 'comm-9' }),
+    load: (async () => null) as typeof import('../src/domain/commissions/commission-context.js').loadCommissionPromptContext,
+    enabled: () => true,
+    markDelivered: async (_id: string, key: string) => { marked.push(key); },
+  });
+  assert.equal(nothing, null);
+  assert.deepEqual(marked, [], 'an empty contract must not burn the delivery marker');
+});
+
 test('resolveConversationCommission injects nothing while the feature switch is off', async () => {
   const load = (async (id: string) => ({ ...commissionCtx, id })) as typeof import('../src/domain/commissions/commission-context.js').loadCommissionPromptContext;
-  // settings.commissionEnabled defaults to false, so a session bound while the mode was on must
-  // stop receiving its contract block the moment the switch goes off.
-  const off = await resolveConversationCommission('sess-1', {
+  // A session bound while the mode was on must stop receiving its contract block the moment the
+  // switch goes off.
+  const off = await resolveConversationCommission('sess-1', { isFreshSession: true }, {
     getSession: async () => ({ commissionId: 'comm-9' }), load, enabled: () => false,
   });
   assert.equal(off, null);

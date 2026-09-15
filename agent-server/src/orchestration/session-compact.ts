@@ -40,6 +40,9 @@ export interface CompactSessionDeps {
   sessions: {
     getById(sessionId: string): Promise<CompactSessionRecord | null>;
     updateContextUsage(sessionId: string, usage: SessionContextUsage | null): Promise<void>;
+    /** Compaction removes the already-delivered [Commission] block from backend history, so the
+     *  delivery marker has to go with it or the block is never seen again (DR-0037 v4). */
+    clearCommissionBlockDelivery(sessionId: string): Promise<unknown>;
   };
   /** The registry's one answer to "may a command touch this session's pooled engine": see
    *  `core/session-state.ts`'s `channelEngineBusy`. */
@@ -100,6 +103,7 @@ async function applyCompactResult(
     ? { ...result.contextUsage, updatedAt: deps.now() }
     : null;
   await deps.sessions.updateContextUsage(session.sessionId, contextUsage);
+  await deps.sessions.clearCommissionBlockDelivery(session.sessionId);
   deps.publish({
     sessionId: session.sessionId,
     channel: session.channel,

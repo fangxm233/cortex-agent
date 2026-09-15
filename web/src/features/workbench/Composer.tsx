@@ -30,7 +30,7 @@ import {
   ComposerActionRow, ComposerSlashMenu,
   type ComposerBrowserControl, type ComposerCommissionControl,
 } from './ComposerActionRow';
-import { commissionRequestOf, useCommissionEnabled } from './CommissionOptIn';
+import { commissionRequestOf, commissionSwitchOf, useCommissionEnabled } from './CommissionOptIn';
 import { SessionSelectorView, useSessionSelection } from './SessionSelector';
 import type { ContextCompactAction } from './ContextUsageControl';
 import type { SessionSelectionOverride, SessionTotals, TodoSnapshot } from '@cortex-agent/ui-contract';
@@ -105,8 +105,9 @@ export function Composer({
   isDraft?: boolean;
   /** Browser control an EXISTING session was created with. Read-only — fixed at spawn. */
   sessionBrowser?: { device: string } | null;
-  /** Commission mode an EXISTING session was created in. Read-only for the same reason. `label` is
-   *  the commission title once one has landed; a session still drilling has no title yet. */
+  /** Commission mode an EXISTING session is in. `label` is the commission title once one has
+   *  landed; a session still drilling has no title yet. Unlike the browser this one IS switchable
+   *  on a live session (DR-0037 v4) — the state lives in the registry, not in the spawned process. */
   sessionCommission?: { value: string; label: string | null } | null;
   currentProfile: string | null;
   /** The session's model/thinking choice on top of that profile, from its sessions.list row. */
@@ -155,6 +156,38 @@ export function Composer({
   const sendMut = useMutation(trpc.sessions.send.mutationOptions());
   const cancelMut = useMutation(trpc.sessions.cancel.mutationOptions());
   const createAndSendMut = useMutation(trpc.sessions.createAndSend.mutationOptions());
+  const setCommissionMut = useMutation(trpc.sessions.setCommission.mutationOptions());
+
+  /**
+   * The commission capsule's control, for all three states.
+   *
+   * A draft only records the choice (it is sent with sessions.create). A LIVE session switches for
+   * real: the mode is registry state, not a property of the spawned process, so a conversation that
+   * turns into a long task can be promoted where it stands (DR-0037 v4). A session already BOUND is
+   * terminal and only reports — a second contract would orphan the first.
+   */
+  const boundToCommission = !!sessionCommission && sessionCommission.value !== 'new';
+  const switchLiveCommission = useCallback((picked: null | 'new' | string) => {
+    if (!sessionId) return;
+    setCommissionMut.mutate(
+      { sessionId, commission: commissionSwitchOf(picked) },
+      {
+        onSettled: () => {
+          void queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
+          void queryClient.invalidateQueries(trpc.commissions.list.queryFilter());
+        },
+      },
+    );
+  }, [sessionId, setCommissionMut, queryClient, trpc]);
+
+  const commissionControl: ComposerCommissionControl | null = !commissionEnabled
+    // Feature off: a session bound while it was on still says what it serves, read-only.
+    ? (sessionCommission && !isDraft ? { value: sessionCommission.value, label: sessionCommission.label } : null)
+    : isDraft
+      ? { value: commissionChoice, onChange: setCommissionChoice }
+      : boundToCommission
+        ? { value: sessionCommission!.value, label: sessionCommission!.label }
+        : { value: sessionCommission?.value ?? null, label: null, onChange: switchLiveCommission };
   const [composer, setComposer] = useState('');
   const [sendError, setSendError] = useState<string | null>(null);
   const [slashErrorKey, setSlashErrorKey] = useState<ReturnType<typeof slashFeedbackKey>>(null);
@@ -586,13 +619,7 @@ export function Composer({
                     : sessionBrowser
                       ? { device: sessionBrowser.device }
                       : null}
-                  commission={isDraft
-                    ? commissionEnabled
-                      ? { value: commissionChoice, onChange: setCommissionChoice } satisfies ComposerCommissionControl
-                      : null
-                    : sessionCommission
-                      ? { value: sessionCommission.value, label: sessionCommission.label }
-                      : null}
+                  commission={commissionControl}
                   onAttach={() => fileInputRef.current?.click()}
                   onCommands={() => { setComposer('/'); setSlashOpen(true); }}
                   selectionControl={<SessionSelectorView selection={engineSelection} />}

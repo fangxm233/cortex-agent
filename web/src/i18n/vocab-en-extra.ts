@@ -132,7 +132,7 @@ export const enExtra = {
   stAdvDisableUpdateTitle: 'Disable auto-update check',
   stAdvDisableUpdateDesc: 'update check is on by default',
   stAdvCommissionTitle: 'Commission mode',
-  stAdvCommissionDesc: 'experimental · contract-anchored long tasks; off by default',
+  stAdvCommissionDesc: 'contract-anchored long tasks — the agent or you can start one in any session; turn off to disable entirely',
   stAdvRetentionTitle: 'Session retention days',
   stAdvRetentionDesc: 'cleanup window synced to Claude user settings · source shown from settings provenance',
   stAdvRetentionInvalid: 'Enter a whole number of days within the safe retention range',

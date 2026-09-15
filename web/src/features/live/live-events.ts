@@ -94,8 +94,10 @@ export const CONFIG_LIVE_EVENTS = ['config.changed'] as const;
 /** Provider rate-limit state changed; consumers refetch the authoritative snapshot. */
 export const RATE_LIMIT_LIVE_EVENTS = ['rate-limit.changed'] as const;
 
-/** Commission registry changed: approval landing, decision projection, or close. */
-export const COMMISSION_LIVE_EVENTS = ['commission.updated'] as const;
+/** Anything that changes what the commission surfaces show: the registry (approval landing,
+ *  decision projection, close) or a session's binding to it (entering/leaving the drafting phase,
+ *  joining a landed one from a live session). */
+export const COMMISSION_LIVE_EVENTS = ['commission.updated', 'session.commission'] as const;
 
 /**
  * The FIXED union the shared stream subscribes to. Fixed rather than reference-counted over the

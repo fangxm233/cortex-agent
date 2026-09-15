@@ -125,7 +125,7 @@ export async function createDirectSession(
     });
   }
 
-  // Commission mode is off by default while the feature is under test (settings.commissionEnabled).
+  // settings.commissionEnabled is the feature's kill switch (on by default since DR-0037 v4).
   // Refuse here rather than downgrade: a caller that asked for a commission and silently got an
   // ordinary session would only discover it much later. This is the server-side backstop for every
   // create path; the UI hides the opt-in and the ui-service handlers reject earlier with a 400.

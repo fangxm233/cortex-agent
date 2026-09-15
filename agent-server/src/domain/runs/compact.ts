@@ -95,7 +95,6 @@ function compactRequest(request: CompactAgentRequest, profile: ResolvedProfileCo
       executionKind: 'local',
       isUserInitiated: true,
       commissionMode: false,
-      commissionTools: false,
     },
     policy: {
       background: 'none',

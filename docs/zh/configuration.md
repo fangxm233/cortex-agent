@@ -260,7 +260,7 @@ $CORTEX_HOME/
 | `diskMonitor` | boolean | `true` | 每五分钟检查 `$CORTEX_HOME` 所在文件系统的可用空间，低于 500 MiB 时发送系统通知。设为 `false` 会停止计时器；重新设为 `true` 会立即检查一次 | `CORTEX_DISK_MONITOR` |
 | `disableUserContext` | boolean | `false` | 设为 `true` 可停止把 `USER.md` 上下文注入普通直接对话轮次（默认注入；多 agent thread 步骤不会收到） | `CORTEX_DISABLE_USER_CONTEXT` |
 | `serverUpdateDisable` | boolean | `false` | 设为 `true` 可禁用服务器自动更新检查（默认开启） | `CORTEX_SERVER_UPDATE_DISABLE` |
-| `commissionEnabled` | boolean | `false` | 委托（commission）模式的总开关——以契约锚定的长任务。功能测试期间默认关闭：输入框不提供委托入口，`sessions.create` 会拒绝委托请求，已绑定委托的会话也不再获得委托工具、技能与契约注入块。已有委托在看板上仍可查看 | `CORTEX_COMMISSION_ENABLED` |
+| `commissionEnabled` | boolean | `true` | 委托（commission）模式的总开关——以契约锚定的长任务。默认开启：任何会话都能中途进入该模式，既可以由 agent 自己调用 `cortex_commission_start`，也可以由你在输入框的委托胶囊里切换。关掉它会拒绝所有入口（创建、输入框、start webhook）并停止注入契约块；已有委托在看板上仍可查看 | `CORTEX_COMMISSION_ENABLED` |
 | `hooksLegacy` | boolean | `false` | 绕过钩子注册表，改用固定的内置表构建 Claude 的 hook 设置。参见 [hooks.md](./hooks.md) | `CORTEX_HOOKS_LEGACY` |
 | `managerRotateSteps` | number | `10` | 一个 manager 会话在被轮换成新 incarnation 之前运行的步数。参见 [threads.md](./threads.md) | `CORTEX_MANAGER_ROTATE_STEPS` |
 | `waitingSweepMs` | number | `60000` | 磁盘对账扫描的间隔（毫秒），逐个核对等待中的 manager 线程与磁盘上的任务状态。`0` 表示禁用扫描（见下文的热更新例外） | `CORTEX_WAITING_SWEEP_MS` |

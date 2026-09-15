@@ -298,7 +298,6 @@ function claudeChildRequest(request: SubagentRunRequest, config: RunAttemptConfi
       executionKind: 'local',
       isUserInitiated: false,
       commissionMode: false,
-      commissionTools: false,
       scheduleTaskId: null,
     },
     policy: {

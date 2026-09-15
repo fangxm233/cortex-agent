@@ -55,9 +55,7 @@ export interface PrepareConversationRequestOptions {
   profileOverride?: string | null;
   /** CDP endpoint of the browser this session opted into, or null for the usual no-browser session. */
   browserCdpEndpoint?: string | null;
-  /** Expose the commission-creation tools this turn — true only while a contract is being drafted. */
-  commissionTools?: boolean;
-  /** True while the session is in commission mode; loads the commission skill bundle. */
+  /** True once the session is bound to a landed commission; loads the commission skill bundle. */
   commissionMode?: boolean;
   /** Receives the backend-ready prompt after context and attachment paths are assembled. */
   onPromptBuilt?: ((prompt: string) => void) | null;
@@ -109,38 +107,71 @@ export function resolveConversationProject(args: {
   return { id: project.id, contextDir: project.contextDir };
 }
 
+/** The delivery key for a session's current commission binding, or null outside the mode. Bound
+ *  wins over drafting: finalize clears the draft, and the two are never both meaningful. */
+export function commissionBindingKey(
+  session: { commissionId?: string | null; commissionDraft?: string | null } | null,
+): string | null {
+  if (session?.commissionId) return `active:${session.commissionId}`;
+  if (session?.commissionDraft) return `draft:${session.commissionDraft}`;
+  return null;
+}
+
 /**
- * Load the [Commission] injection payload for a fresh commission-bound session, or null for
- * ordinary sessions. Same first-turn-only economics as USER.md / [Session Project]: resume keeps the
- * block in backend history, and mid-run contract edits reach the agent through the checkpoint
- * protocol's mandatory re-read, not through re-injection. Best-effort: any failure injects nothing.
+ * Load the [Commission] injection payload for this turn, or null when nothing needs delivering.
+ *
+ * Delivery follows the STATE, not the session's age (DR-0037 v4). v3 injected on the first turn
+ * only, on the same economics as USER.md / [Session Project]: resume keeps the block in backend
+ * history, so re-sending it every turn is waste. True — but it silently assumed the binding is
+ * decided before the first turn, and it is not: a session can enter the mode mid-conversation (the
+ * agent calls `cortex_commission_start`, or the user switches it on) and it always binds its
+ * contract mid-conversation. Those sessions received the block never. So the marker records WHICH
+ * binding was delivered, and a turn injects when the current binding differs from it.
+ *
+ * `isFreshSession` still forces delivery: a spawn that died before writing history leaves the
+ * marker set against a conversation that does not contain the block.
+ *
+ * Best-effort throughout: any failure injects nothing rather than failing the turn.
  */
 export async function resolveConversationCommission(
   trackSessionId: string,
+  args: { isFreshSession?: boolean } = {},
   deps: {
     getSession?: (id: string) => Promise<{
       commissionId?: string | null; commissionDraft?: string | null; projectId?: string | null;
+      commissionBlockFor?: string | null;
     } | null>;
     load?: typeof loadCommissionPromptContext;
     loadDraft?: typeof loadCommissionDraftContext;
+    markDelivered?: (sessionId: string, key: string) => Promise<unknown>;
     enabled?: () => boolean;
   } = {},
 ): Promise<CommissionPromptContext | null> {
   try {
-    // Global feature switch (off by default while commission mode is under test). Off means no
-    // contract block reaches any prompt, matching the tool/skill gate in agent-runner.
+    // Global feature switch. Off means no contract block reaches any prompt, matching the skill
+    // gate in agent-runner and the refusal in the commission tools.
     if (!(deps.enabled ?? (() => getSettings().commissionEnabled))()) return null;
     const getSession = deps.getSession ?? ((id: string) => sessionStore.getById(id));
     const session = await getSession(trackSessionId);
-    if (session?.commissionId) {
-      return await (deps.load ?? loadCommissionPromptContext)(session.commissionId);
-    }
-    // A session still drafting its contract has no commission id yet — it is the FIRST session of
-    // the commission, and the one that most needs to be told what it is here to do.
-    if (session?.commissionDraft && session.projectId) {
-      return (deps.loadDraft ?? loadCommissionDraftContext)(session.projectId, session.commissionDraft);
-    }
-    return null;
+    const key = commissionBindingKey(session ?? null);
+    if (!key) return null;
+    if (!args.isFreshSession && key === session?.commissionBlockFor) return null;
+
+    const context = session?.commissionId
+      ? await (deps.load ?? loadCommissionPromptContext)(session.commissionId)
+      // A session still drafting has no commission id yet — it is the FIRST session of the
+      // commission, and the one that most needs to be told what it is here to do.
+      : (session?.commissionDraft && session.projectId
+        ? (deps.loadDraft ?? loadCommissionDraftContext)(session.projectId, session.commissionDraft)
+        : null);
+    // Nothing loadable (contract still empty, directory gone) — leave the marker alone so the next
+    // turn tries again rather than recording a delivery that never happened.
+    if (!context) return null;
+
+    const mark = deps.markDelivered
+      ?? ((id: string, value: string) => sessionStore.markCommissionBlockDelivered(id, value));
+    await mark(trackSessionId, key);
+    return context;
   } catch {
     return null;
   }
@@ -174,9 +205,9 @@ export async function prepareConversationRequest(
     // Web UI direct sessions are bound to a project at create time; tell the agent which one
     // on the session's first turn (see resolveConversationProject for the exact gating).
     project: resolveConversationProject({ channel: opts.channel, projectId, isFreshSession }),
-    // Commission-bound sessions additionally get the contract + ledger digest + protocol block
-    // on their first turn (see resolveConversationCommission).
-    commission: isFreshSession ? await resolveConversationCommission(sessionId) : null,
+    // Commission sessions additionally get the contract + ledger index + protocol block, once per
+    // binding rather than once per session (see resolveConversationCommission).
+    commission: await resolveConversationCommission(sessionId, { isFreshSession }),
   });
   const backendPrompt = buildBackendPrompt(prompt, opts.files);
   opts.onPromptBuilt?.(backendPrompt);
@@ -226,7 +257,6 @@ export async function prepareConversationRequest(
       executionKind: trigger === 'scheduled' ? 'scheduled' : 'local',
       isUserInitiated: true,
       commissionMode: opts.commissionMode ?? false,
-      commissionTools: opts.commissionTools ?? false,
       scheduleTaskId: opts.scheduleTaskId ?? null,
     },
     // The three fields that differ from the shared direct-run policy; every field NOT named here

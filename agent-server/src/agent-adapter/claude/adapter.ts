@@ -69,8 +69,6 @@ interface ClaudeSessionOptions {
   needsResume: boolean;
   model?: string | null;
   isUserInitiated?: boolean;
-  /** Expose the commission-creation tools; set only while a contract is being drafted. */
-  commissionTools?: boolean;
   callbackSource?: string | null;
   scheduleTaskId?: string | null;
   sessionKey?: string | null;
@@ -156,9 +154,6 @@ export interface ClaudeSpawnCompatibility {
   routeIdentity: string;
   composition: McpComposition;
   interactionBridge: boolean;
-  /** Adding the commission tools rewrites `--tools`, which a live process cannot be re-pointed
-   *  at, so a change must force a fresh spawn + `--resume`. */
-  commissionTools: boolean;
   tools: string | null;
   pluginCapabilityFingerprint: string | null;
   pluginDirs: string[];
@@ -197,7 +192,6 @@ export function sameClaudeSpawnCompatibility(
     && left.routeIdentity === right.routeIdentity
     && left.composition === right.composition
     && left.interactionBridge === right.interactionBridge
-    && left.commissionTools === right.commissionTools
     && left.tools === right.tools
     && left.pluginCapabilityFingerprint === right.pluginCapabilityFingerprint
     && left.supplementalMcpConfigIdentity === right.supplementalMcpConfigIdentity
@@ -214,7 +208,6 @@ function compatibilityFromOptions(options: ClaudeSessionOptions): ClaudeSpawnCom
     routeIdentity: claudeRouteIdentity(options),
     composition,
     interactionBridge: composition === 'direct' && options.isUserInitiated === true,
-    commissionTools: options.commissionTools === true,
     tools: options.tools ?? null,
     pluginCapabilityFingerprint: options.pluginCapabilityFingerprint ?? null,
     pluginDirs: cloneTextArray(options.pluginDirs),
@@ -239,7 +232,6 @@ export function claudeCompatibilityIdentity(compatibility: ClaudeSpawnCompatibil
     ['routeIdentity', compatibility.routeIdentity],
     ['composition', compatibility.composition],
     ['interactionBridge', compatibility.interactionBridge],
-    ['commissionTools', compatibility.commissionTools],
     ['tools', compatibility.tools],
     ['pluginCapabilityFingerprint', compatibility.pluginCapabilityFingerprint],
     ['supplementalMcpConfigIdentity', compatibility.supplementalMcpConfigIdentity],
@@ -277,7 +269,6 @@ class ClaudeSession implements TurnHost {
   /** Model name requested via --model CLI arg (used as fallback for cost_record). */
   modelName: string | null;
   private isUserInitiated: boolean;
-  private commissionTools: boolean;
   private callbackSource: string | null;
   private scheduleTaskId: string | null;
   private claudeAgent: string | null;
@@ -333,7 +324,6 @@ class ClaudeSession implements TurnHost {
     this.cwd = resolveSpawnCwd(options.cwd);
     this.turns = new ClaudeTurnMachine(this, createContextUsageTracker(this.modelName, this.cwd, options));
     this.isUserInitiated = options.isUserInitiated || false;
-    this.commissionTools = options.commissionTools === true;
     this.callbackSource = options.callbackSource || null;
     this.scheduleTaskId = options.scheduleTaskId || null;
     this.claudeAgent = options.claudeAgent || null;
@@ -426,7 +416,6 @@ class ClaudeSession implements TurnHost {
     options.loadFeishuMcp = this.channel.startsWith('feishu:');
     options.loadWebMcp = this.channel.startsWith('web:');
     options.isUserInitiated = this.isUserInitiated;
-    options.commissionTools = this.commissionTools;
     const env = buildClaudeEnv(
       this.channel, this.sessionId, this.callbackSource, this.scheduleTaskId,
       this.anthropicBaseUrl, this.extraEnv, this.context, this.pinnedEnv, this.unsetEnv,
@@ -739,7 +728,6 @@ function sessionRuntimeOptions(
     mcpComposition: composition,
     mcpConfigPaths: spec.mcp.configPaths,
     mcpToolAllowlist: spec.mcp.allowlist,
-    commissionTools: spec.mcp.commissionTools === true,
     supplementalMcpConfigPath: supplemental?.path ?? null,
     supplementalMcpConfigIdentity: supplemental?.identity ?? null,
     browserMcpConfigPath: browser?.path ?? null,
@@ -797,7 +785,6 @@ function computeSpawnArgsForSpec(spec: EngineSpec): string[] {
     streamDeltas: opts.streamDeltas,
   });
   spawnOptions.isUserInitiated = spec.flags.isUserInitiated;
-  spawnOptions.commissionTools = spec.mcp.commissionTools === true;
   return buildSpawnArgs(spawnOptions);
 }
 

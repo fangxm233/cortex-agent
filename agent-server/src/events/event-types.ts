@@ -54,6 +54,10 @@ export type CortexEvent =
   // Sensitive DEBUG data stays in the authoritative transcript query. This content-free hint only
   // asks an open client to refetch after prompt/result sidecars are durably appended.
   | { type: 'session.debug.updated';  ts: string; sessionId: string; channel: string }
+  // A session's commission binding changed WITHOUT a commission record changing — it entered or
+  // left the drafting phase (DR-0037 v4). Content-free: clients refetch the session record, which
+  // is what carries commissionDraft / commissionId.
+  | { type: 'session.commission';     ts: string; sessionId: string; channel: string }
   | { type: 'plan.submitted';         ts: string; requestId: string; channel: string; sessionId: string; threadId?: string | null; planContent: string; toolInput: any; dryRun?: boolean; extensionUiId?: string }
   | { type: 'plan.approved';          ts: string; channel: string; executionId: string }
   | { type: 'ask-user.requested';     ts: string; requestId: string; channel: string; sessionId: string; threadId?: string | null; questions: any[]; level?: 'info' | 'warning' | 'error'; dryRun?: boolean; extensionUiId?: string; blocking?: boolean }

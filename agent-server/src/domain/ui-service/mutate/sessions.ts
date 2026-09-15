@@ -19,6 +19,8 @@ import type {
   SessionsSetProfileReturn,
   SessionsSetSelectionArgs,
   SessionsSetSelectionReturn,
+  SessionsSetCommissionArgs,
+  SessionsSetCommissionReturn,
   SessionsCreateAndSendArgs,
   SessionsCreateAndSendReturn,
   SessionsAnswerQuestionArgs,
@@ -33,14 +35,17 @@ import type {
 } from '../types.js';
 import { removeDirectResume } from '@domain/costs/resume-registry.js';
 import { projectCommissionDecisionAction } from '@domain/commissions/decision-projection.js';
+import { enterCommissionDraft, leaveCommissionDraft } from '@domain/commissions/commission-draft.js';
+import { commissionRepo } from '@store/commission-repo.js';
+import { sessionStore } from '@store/session-registry-repo.js';
 import { getSettings } from '@core/settings.js';
 
 // Create a fresh, live direct session for the workbench "+ New session" control. Resolves the target
 // project (falling back to the default project when omitted), delegates the real creation to the
 // injected `createDirectSession` dep (domain primitive wired in entry/app.ts), and returns the new
 // session's id.
-/** Commission mode ships behind `settings.commissionEnabled` (off by default while the feature is
- *  under test). The composer hides the opt-in when it is off, so reaching this is either a stale
+/** Commission mode ships behind `settings.commissionEnabled`, its kill switch (on by default since
+ *  DR-0037 v4). The composer hides the opt-in when it is off, so reaching this is either a stale
  *  client or a direct API call; answer with a 400 rather than letting createDirectSession throw. */
 function commissionDisabled(commission: unknown): Result<never> | null {
   if (!commission || getSettings().commissionEnabled) return null;
@@ -62,6 +67,73 @@ export async function handleCreateSession(
     projectId, browser: args.browser ?? null, commission: args.commission ?? null,
   });
   return { ok: true, data: { sessionId } };
+}
+
+/**
+ * Switch a LIVE session in or out of commission mode (DR-0037 v4).
+ *
+ * The user's half of "either side may start a commission": the agent calls
+ * `cortex_commission_start`, the user flips the composer's capsule, and both land in the same
+ * `enterCommissionDraft`. It exists for a session already in flight — creation could only ever say
+ * yes at birth, which meant a conversation that turned into a long task had no way in.
+ *
+ * `bound` is terminal: a second contract would orphan the first, so a bound session refuses every
+ * transition (open a new session and join instead).
+ */
+export async function handleSetCommission(
+  deps: UiServiceDeps,
+  args: SessionsSetCommissionArgs,
+): Promise<Result<SessionsSetCommissionReturn>> {
+  // `off` stays allowed with the feature switched off: a session left drafting when the switch
+  // flipped must still be able to get out.
+  const disabled = commissionDisabled(args.commission.mode === 'off' ? null : args.commission);
+  if (disabled) return disabled;
+  const session = await deps.sessionStore.getById(args.sessionId);
+  if (!session) return { ok: false, code: 'not-found', message: `Session not found: ${args.sessionId}` };
+  if (session.commissionId) {
+    return {
+      ok: false,
+      code: 'invalid-args',
+      message: 'This session is already bound to a commission — open a new session to work on another one',
+    };
+  }
+
+  const settled = (removedDraftDir?: boolean): Result<SessionsSetCommissionReturn> => ({
+    ok: true,
+    data: {
+      phase: 'none', commissionId: null, commissionDraft: null,
+      ...(removedDraftDir === undefined ? {} : { removedDraftDir }),
+    },
+  });
+
+  if (args.commission.mode === 'off') {
+    const left = await leaveCommissionDraft(args.sessionId);
+    if (left.ok === false) return { ok: false, code: 'invalid-args', message: left.error };
+    deps.bus.publish({ type: 'session.commission', sessionId: args.sessionId, channel: session.channel });
+    return settled(left.removed);
+  }
+
+  if (args.commission.mode === 'join') {
+    const commission = await (deps.commissionStore ?? commissionRepo).find(args.commission.commissionId);
+    if (!commission) {
+      return { ok: false, code: 'not-found', message: `Commission not found: ${args.commission.commissionId}` };
+    }
+    if (commission.status !== 'active') {
+      return { ok: false, code: 'invalid-args', message: `Commission is ${commission.status}; only an active one accepts new sessions` };
+    }
+    // Joining mid-conversation is safe because the [Commission] block follows the binding rather
+    // than the session's first turn: the next turn carries the contract index (DR-0037 v4).
+    await sessionStore.bindCommission(args.sessionId, commission.id);
+    deps.bus.publish({ type: 'commission.updated', commissionId: commission.id, projectId: commission.projectId });
+    return { ok: true, data: { phase: 'active', commissionId: commission.id, commissionDraft: null } };
+  }
+
+  const entered = await enterCommissionDraft(args.sessionId);
+  if (entered.ok === false) return { ok: false, code: 'invalid-args', message: entered.error };
+  if (!entered.alreadyDrafting) {
+    deps.bus.publish({ type: 'session.commission', sessionId: args.sessionId, channel: session.channel });
+  }
+  return { ok: true, data: { phase: 'draft', commissionId: null, commissionDraft: entered.draftDir } };
 }
 
 export async function handleSendSession(

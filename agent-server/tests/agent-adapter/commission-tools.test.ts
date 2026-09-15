@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildSpawnArgs, type ClaudeSpawnOptions } from '../../src/agent-adapter/claude/spawn-args.js';
-import { MCP_TOOL_ALLOWLIST_ENV, withoutCommissionTools } from '../../src/core/mcp-tool-gate.js';
+import { MCP_TOOL_ALLOWLIST_ENV } from '../../src/core/mcp-tool-gate.js';
 import { runCommissionStart } from '../../src/domain/mcp/tools/commission-tools.js';
 import type { InteractionToolDeps } from '../../src/domain/mcp/tools/interaction-plan.js';
 
@@ -22,57 +22,33 @@ function toolsOf(options: Partial<ClaudeSpawnOptions>): string[] {
 }
 
 describe('commission tools — Claude --tools', () => {
-  it('hides the commission tools from an ordinary user session', () => {
+  it('lists the commission tools for every direct user session', () => {
+    // DR-0037 v4. v3 listed them only while a contract was being drafted, on the theory that
+    // `--tools` decides what a spawn can call. It does not: the flag filters Claude's BUILT-IN set,
+    // so the MCP pair was callable from every direct session whatever this list said. The list now
+    // states the truth, and a submit from a session that never entered the mode is refused by
+    // commission-finalize instead.
     const tools = toolsOf({ isUserInitiated: true });
-    for (const tool of PLAN) expect(tools).toContain(tool);
-    for (const tool of COMMISSION) expect(tools).not.toContain(tool);
-  });
-
-  it('adds the commission tools without taking the plan tools away', () => {
-    // v2 swapped the two pairs; they are now independent, so a session drafting a contract can
-    // still use ordinary plan mode for the implementation work inside it.
-    const tools = toolsOf({ isUserInitiated: true, commissionTools: true });
-    for (const tool of COMMISSION) expect(tools).toContain(tool);
-    for (const tool of PLAN) expect(tools).toContain(tool);
+    for (const tool of [...PLAN, ...COMMISSION]) expect(tools).toContain(tool);
     expect(tools).toContain(`${P}cortex_ask_user`);
   });
 
   it('leaves a non-user-initiated session with no bridge tools at all', () => {
-    const tools = toolsOf({ commissionTools: true });
+    const tools = toolsOf({});
     for (const tool of [...PLAN, ...COMMISSION]) expect(tools).not.toContain(tool);
   });
 
   it('refuses them outside a direct composition', () => {
-    const tools = toolsOf({
-      isUserInitiated: true, mcpComposition: 'thread-control', commissionTools: true,
-    });
+    const tools = toolsOf({ isUserInitiated: true, mcpComposition: 'thread-control' });
     for (const tool of [...PLAN, ...COMMISSION]) expect(tools).not.toContain(tool);
   });
 
   it('does not make an ordinary spawn depend on the MCP config file contents', () => {
     // v2 synthesized a gated MCP config here, which meant reading the daemon-generated config at
     // spawn time; a bare test home has none, and 61 tests failed on it.
-    const args = buildSpawnArgs(base({ isUserInitiated: true, commissionTools: true }));
+    const args = buildSpawnArgs(base({ isUserInitiated: true }));
     expect(args).toContain('--tools');
-  });
-});
-
-describe('withoutCommissionTools', () => {
-  const bundles = ['cortex-core', 'cortex-interaction-bridge'];
-
-  it('synthesizes an allowlist from the bundles when the caller declared none', () => {
-    // The gate is fail-open on an absent allowlist, so "exclude X" has to be spelled out as
-    // "allow everything except X" — withholding the list would allow X.
-    const allowed = withoutCommissionTools(undefined, bundles);
-    expect(allowed).toContain('cortex_plan_exit');
-    expect(allowed).toContain('current_time');
-    expect(allowed).not.toContain('cortex_commission_start');
-    expect(allowed).not.toContain('cortex_commission_submit');
-  });
-
-  it('narrows a declared allowlist instead of widening it', () => {
-    const allowed = withoutCommissionTools(['current_time', 'cortex_commission_submit'], bundles);
-    expect(allowed).toEqual(['current_time']);
+    expect(args.some((a) => a.includes('mcp-tool-gates'))).toBe(false);
   });
 });
 
@@ -91,40 +67,80 @@ describe('PI bundled core tool-context env gate', () => {
     return core.source.env;
   }
 
-  it('leaves a commission session ungated so it can reach both tool sets', async () => {
-    // An allowlist is always present now — PI gates out the MCP delegation pair unconditionally,
-    // because its own `agent` tool already occupies that bare name. What matters here is that the
-    // commission pair is NOT what got withheld.
-    const env = await coreEnv({ CORTEX_PI_COMMISSION_TOOLS: '1' });
-    const allowed = JSON.parse(env[MCP_TOOL_ALLOWLIST_ENV]) as string[];
+  it('keeps the commission pair for every direct session, matching Claude', async () => {
+    // PI used to be the only backend where hiding them actually worked, which made the same
+    // feature mean two different things per backend. v4 drops the exclusion on both.
+    const allowed = JSON.parse((await coreEnv({}))[MCP_TOOL_ALLOWLIST_ENV]) as string[];
     expect(allowed).toContain('cortex_commission_start');
     expect(allowed).toContain('cortex_commission_submit');
     expect(allowed).toContain('cortex_plan_exit');
   });
 
-  it('gates an ordinary session, because PI has no --tools equivalent', async () => {
-    const env = await coreEnv({});
-    const allowed = JSON.parse(env[MCP_TOOL_ALLOWLIST_ENV]) as string[];
-    expect(allowed).toContain('cortex_plan_exit');
-    expect(allowed).not.toContain('cortex_commission_start');
-    expect(allowed).not.toContain('cortex_commission_submit');
+  it('still withholds the MCP delegation pair, which PI supplies natively', async () => {
+    const allowed = JSON.parse((await coreEnv({}))[MCP_TOOL_ALLOWLIST_ENV]) as string[];
+    expect(allowed).not.toContain('agent');
+    expect(allowed).not.toContain('agent_stop');
   });
 });
 
 describe('cortex_commission_start', () => {
-  const deps = (sessionName: string | null): InteractionToolDeps => ({
-    channel: 'web:x', sessionId: 's', sessionName, threadId: null,
-    webhookBaseUrl: 'http://127.0.0.1:1', httpPost: async () => ({ status: 200, body: {} }),
-  });
+  interface Posted { url: string; body: any }
 
-  it('names the draft directory the server already created for this session', () => {
-    const text = runCommissionStart({}, deps('cortex-a1b2')).content[0].text;
-    expect(text).toContain('commissions/_draft-cortex-a1b2/');
+  function deps(
+    over: { sessionId?: string | null; reply?: any; posted?: Posted[] } = {},
+  ): InteractionToolDeps {
+    return {
+      channel: 'web:x',
+      sessionId: over.sessionId === undefined ? 's-1' : over.sessionId,
+      sessionName: 'cortex-a1b2',
+      threadId: null,
+      webhookBaseUrl: 'http://127.0.0.1:1',
+      httpPost: async (url, body) => {
+        over.posted?.push({ url, body });
+        return { status: 200, body: over.reply ?? { ok: true, dir: '/ctx/proj/commissions/_draft-cortex-a1b2', draftDir: '_draft-cortex-a1b2' } };
+      },
+    };
+  }
+
+  const textOf = async (d: InteractionToolDeps, args: { reasoning?: string } = {}) =>
+    (await runCommissionStart(args, d)).content[0].text;
+
+  it('enters the mode through the daemon and reports the directory it made', async () => {
+    // v3 only PRINTED a path the session-create path had already made; the agent could not enter
+    // the mode itself. v4 makes the tool the entry, so the directory and the registry flag are its
+    // work — done over the loopback webhook, since the MCP process holds no registry.
+    const posted: Posted[] = [];
+    const text = await textOf(deps({ posted }));
+    expect(posted[0].url).toBe('http://127.0.0.1:1/hook/commission-start');
+    expect(posted[0].body).toMatchObject({ sessionId: 's-1', channel: 'web:x' });
+    expect(text).toContain('/ctx/proj/commissions/_draft-cortex-a1b2');
     expect(text).toContain('cortex_commission_submit');
   });
 
-  it('carries the whole creation protocol, since the skill no longer covers it', () => {
-    const text = runCommissionStart({}, deps('cortex-a1b2')).content[0].text;
+  it('is idempotent, and says so, so the [Commission] block can tell a session to call it', async () => {
+    const text = await textOf(deps({
+      reply: { ok: true, dir: '/ctx/proj/commissions/_draft-cortex-a1b2', alreadyDrafting: true },
+    }));
+    expect(text).toContain('already drafting');
+    expect(text).toContain('/ctx/proj/commissions/_draft-cortex-a1b2');
+  });
+
+  it('surfaces a refusal from the daemon instead of handing out the protocol', async () => {
+    const result = await runCommissionStart({}, deps({
+      reply: { error: 'this session is already bound to commission dc44f400 — open a new session for another one' },
+    }));
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain('already bound to commission dc44f400');
+    expect(result.content[0].text).not.toContain('Phase 1 — drill');
+  });
+
+  it('refuses without a session id rather than creating a stray directory', async () => {
+    const result = await runCommissionStart({}, deps({ sessionId: null }));
+    expect(result.isError).toBe(true);
+  });
+
+  it('carries the whole creation protocol, since the skill no longer covers it', async () => {
+    const text = await textOf(deps());
     for (const section of [
       '## Goal (user\'s words)', '## Inferences', '## Acceptance criteria',
       '## Out of scope', '## Gates', '## Revisions',
@@ -137,21 +153,24 @@ describe('cortex_commission_start', () => {
     expect(text).toContain('cortex_ask_user');
   });
 
-  it('says nothing about plan mode being replaced — the two are unrelated now', () => {
-    const text = runCommissionStart({}, deps('cortex-a1b2')).content[0].text;
+  it('states when a commission is the wrong shape, now that the agent decides', async () => {
+    const text = await textOf(deps());
+    expect(text).toContain('Phase 0');
+    expect(text).toMatch(/several sessions or\s+days/);
+    expect(text).toContain('does not fit');
+    // And it must not turn a user-initiated entry into another round of asking permission.
+    expect(text).toContain('unless the user turned this mode on themselves');
+  });
+
+  it('says nothing about plan mode being replaced — the two are unrelated now', async () => {
+    const text = await textOf(deps());
     expect(text).not.toContain('cortex_plan_exit');
     expect(text).not.toContain('cortex_plan_enter');
     expect(text).not.toContain('plan mode');
   });
 
-  it('degrades to a described location rather than a wrong path when the name is missing', () => {
-    const text = runCommissionStart({}, deps(null)).content[0].text;
-    expect(text).toContain('commissions/_draft-*');
-    expect(text).not.toContain('_draft-null');
-  });
-
-  it('records the optional reasoning', () => {
-    const text = runCommissionStart({ reasoning: 'why' }, deps('cortex-a1b2')).content[0].text;
+  it('records the optional reasoning', async () => {
+    const text = await textOf(deps(), { reasoning: 'why' });
     expect(text).toContain('Reasoning recorded: why');
   });
 });

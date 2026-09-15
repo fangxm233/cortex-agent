@@ -20,8 +20,6 @@ import { resetSettingsForTests } from '../../src/core/settings.js';
 //   - `backend.claudeBackend`: was `undefined` when a config omitted it; a ResolvedProfileConfig
 //     always resolves it, so it is now `'print'`. Read only as `=== 'tui'`, so argv is unchanged
 //     (the spawn-seam byte goldens still pass untouched).
-//   - `mcp.commissionTools`: was `undefined`; the request states it as a boolean. Read only as
-//     `=== true` / `!!`, so both backends behave identically.
 // Nothing else moved. Any further drift here is a regression, not a restatement.
 const FIXTURE_CONFIG: Partial<RunAttemptConfig> = { model: 'claude-fixture', backend: 'claude', mode: null };
 
@@ -58,7 +56,7 @@ const cases: Case[] = [
       plugins: { dirs: undefined, skillDirs: undefined, fingerprint: undefined },
       mcp: {
         composition: 'direct', servers: undefined, allowlist: undefined, configPaths: undefined,
-        commissionTools: false, browserCdpEndpoint: undefined,
+        browserCdpEndpoint: undefined,
       },
       env: {
         sets: undefined, unsets: undefined, pinned: undefined,
@@ -116,7 +114,7 @@ const cases: Case[] = [
       plugins: { dirs: undefined, skillDirs: undefined, fingerprint: undefined },
       mcp: {
         composition: 'thread-control', servers: undefined, allowlist: undefined,
-        configPaths: undefined, commissionTools: false, browserCdpEndpoint: undefined,
+        configPaths: undefined, browserCdpEndpoint: undefined,
       },
       env: {
         sets: undefined, unsets: undefined, pinned: undefined,
@@ -170,7 +168,7 @@ const cases: Case[] = [
       plugins: { dirs: undefined, skillDirs: undefined, fingerprint: undefined },
       mcp: {
         composition: 'direct', servers: undefined, allowlist: undefined, configPaths: undefined,
-        commissionTools: false, browserCdpEndpoint: undefined,
+        browserCdpEndpoint: undefined,
       },
       env: {
         sets: undefined, unsets: undefined, pinned: undefined,
@@ -230,7 +228,7 @@ const cases: Case[] = [
       plugins: { dirs: undefined, skillDirs: undefined, fingerprint: undefined },
       mcp: {
         composition: 'direct', servers: undefined, allowlist: undefined,
-        configPaths: ['/fixture/mcp-empty.json'], commissionTools: false,
+        configPaths: ['/fixture/mcp-empty.json'],
         browserCdpEndpoint: undefined,
       },
       env: {
@@ -272,7 +270,6 @@ const cases: Case[] = [
       executionId: 'exec-browser',
       browserCdpEndpoint: 'ws://127.0.0.1:9222/devtools/browser/abc',
       commissionMode: true,
-      commissionTools: true,
       isUserInitiated: true,
       callbackSource: 'web',
       scheduleTaskId: 'sched-1',
@@ -298,7 +295,7 @@ const cases: Case[] = [
       plugins: { dirs: undefined, skillDirs: undefined, fingerprint: undefined },
       mcp: {
         composition: 'direct', servers: undefined, allowlist: undefined, configPaths: undefined,
-        commissionTools: true, browserCdpEndpoint: 'ws://127.0.0.1:9222/devtools/browser/abc',
+        browserCdpEndpoint: 'ws://127.0.0.1:9222/devtools/browser/abc',
       },
       env: {
         sets: { ANTHROPIC_API_KEY: 'sk-route-fixture', EXTRA_ONE: '1' },
@@ -380,7 +377,7 @@ test('engineIdentity is independent of object key order', () => {
       trackSessionId: base.env.context.trackSessionId, sessionName: base.env.context.sessionName,
       project: base.env.context.project, profile: base.env.context.profile, threadId: base.env.context.threadId,
     } : undefined, pinned: base.env.pinned, unsets: base.env.unsets, sets: base.env.sets },
-    mcp: { browserCdpEndpoint: base.mcp.browserCdpEndpoint, commissionTools: base.mcp.commissionTools, configPaths: base.mcp.configPaths, allowlist: base.mcp.allowlist, servers: base.mcp.servers, composition: base.mcp.composition },
+    mcp: { browserCdpEndpoint: base.mcp.browserCdpEndpoint, configPaths: base.mcp.configPaths, allowlist: base.mcp.allowlist, servers: base.mcp.servers, composition: base.mcp.composition },
     plugins: { fingerprint: base.plugins.fingerprint, skillDirs: base.plugins.skillDirs, dirs: base.plugins.dirs },
     tools: { rawClaude: base.tools.rawClaude, canonical: base.tools.canonical },
     prompt: { append: base.prompt.append, system: base.prompt.system },

@@ -4,6 +4,7 @@ import { describe, it } from 'vitest';
 
 import { registerNamedSession, attachExistingSession, resetChannelSession, createDirectSession, adoptScheduledSession } from '@domain/sessions/session-lifecycle.js';
 import { sessionRepo } from '@store/session-repo.js';
+import { resetSettingsForTests } from '@core/settings.js';
 import { STORE_DIR } from '@core/paths.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join as joinPath } from 'node:path';
@@ -143,7 +144,7 @@ describe('createDirectSession', () => {
     assert.notStrictEqual(a.sessionId, b.sessionId, 'unique ids');
   });
 
-  it('refuses a commission request while settings.commissionEnabled is off, creating nothing', async () => {
+  it('refuses a commission request when settings.commissionEnabled is switched off, creating nothing', async () => {
     let registerCalls = 0;
     const deps = {
       sessionStore: {
@@ -155,18 +156,25 @@ describe('createDirectSession', () => {
       resolveBackend: () => 'claude',
     };
 
-    // The switch defaults to off. Refusing beats downgrading: a caller that asked for a commission
-    // and silently got an ordinary session would only find out much later.
-    await assert.rejects(
-      () => createDirectSession(deps, { projectId: 'p', commission: { mode: 'new' } }),
-      /Commission mode is disabled/,
-    );
-    assert.strictEqual(registerCalls, 0, 'no session registered');
+    // Refusing beats downgrading: a caller that asked for a commission and silently got an
+    // ordinary session would only find out much later.
+    process.env.CORTEX_COMMISSION_ENABLED = '0';
+    resetSettingsForTests();
+    try {
+      await assert.rejects(
+        () => createDirectSession(deps, { projectId: 'p', commission: { mode: 'new' } }),
+        /Commission mode is disabled/,
+      );
+      assert.strictEqual(registerCalls, 0, 'no session registered');
 
-    // A create without a commission is untouched by the switch.
-    const ordinary = await createDirectSession(deps, { projectId: 'p' });
-    assert.ok(ordinary.sessionId);
-    assert.strictEqual(registerCalls, 1);
+      // A create without a commission is untouched by the switch.
+      const ordinary = await createDirectSession(deps, { projectId: 'p' });
+      assert.ok(ordinary.sessionId);
+      assert.strictEqual(registerCalls, 1);
+    } finally {
+      delete process.env.CORTEX_COMMISSION_ENABLED;
+      resetSettingsForTests();
+    }
   });
 });
 

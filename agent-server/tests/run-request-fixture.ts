@@ -129,7 +129,6 @@ export function runRequestFixture(
       executionKind: 'local',
       isUserInitiated: partial.isUserInitiated ?? false,
       commissionMode: partial.commissionMode ?? false,
-      commissionTools: partial.commissionTools ?? false,
     },
     policy: {
       background: 'hold',

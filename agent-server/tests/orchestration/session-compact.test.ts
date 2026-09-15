@@ -28,6 +28,7 @@ interface Log {
   compact: unknown[];
   snapshots: unknown[];
   events: unknown[];
+  commissionBlockCleared?: string[];
 }
 
 function makeDeps(log: Log, overrides: Partial<CompactSessionDeps> = {}): CompactSessionDeps {
@@ -35,6 +36,9 @@ function makeDeps(log: Log, overrides: Partial<CompactSessionDeps> = {}): Compac
     sessions: {
       getById: async () => ({ ...BASE_SESSION } as any),
       updateContextUsage: async (sessionId, usage) => { log.snapshots.push({ sessionId, usage }); },
+      clearCommissionBlockDelivery: async (sessionId) => {
+        (log.commissionBlockCleared ??= []).push(sessionId);
+      },
     },
     engineBusy: () => false,
     queue: {
@@ -172,4 +176,21 @@ test('successful compact without post stats clears stale context, while not-need
   assert.deepEqual(noop, { ok: true, status: 'not-needed', contextUsage: BASE_SESSION.contextUsage });
   assert.deepEqual(noopLog.snapshots, []);
   assert.deepEqual(noopLog.events, []);
+});
+
+test('a real compaction forgets that the [Commission] block was already delivered', async () => {
+  // The marker means "this binding's block is in the backend conversation". Compaction rewrites
+  // that conversation, so the block may be gone — the next turn has to re-inject it (DR-0037 v4).
+  const log = freshLog();
+  await compactSessionContext('track-1', makeDeps(log));
+  assert.deepEqual(log.commissionBlockCleared, ['track-1']);
+
+  const noopLog = freshLog();
+  await compactSessionContext('track-1', makeDeps(noopLog, {
+    compactAgent: async () => ({
+      status: 'not-needed', tokensBefore: null, estimatedTokensAfter: null,
+      contextUsage: null, usage: null,
+    }),
+  }));
+  assert.equal(noopLog.commissionBlockCleared, undefined, 'nothing was rewritten, so nothing is forgotten');
 });

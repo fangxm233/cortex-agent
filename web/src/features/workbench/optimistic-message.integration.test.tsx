@@ -96,6 +96,7 @@ vi.mock('@/lib/trpc', () => ({
         rewind: mutation('sessions.rewind'),
         setProfile: mutation('sessions.setProfile'),
         setSelection: mutation('sessions.setSelection'),
+        setCommission: mutation('sessions.setCommission'),
       },
       schedules: {
         list: query('schedules.list'),

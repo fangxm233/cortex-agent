@@ -67,7 +67,6 @@ export function continuationRunRequest(o: ContinuationRunOptions): RunRequest {
       executionKind: o.executionKind ?? 'local',
       isUserInitiated: o.isUserInitiated ?? false,
       commissionMode: false,
-      commissionTools: false,
       scheduleTaskId: o.scheduleTaskId ?? null,
     },
     policy: { ...DIRECT_RUN_POLICY },

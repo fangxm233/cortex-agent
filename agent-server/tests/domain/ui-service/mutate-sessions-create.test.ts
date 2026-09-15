@@ -5,10 +5,10 @@ import { handleCreateAndSend, handleCreateSession } from '../../../src/domain/ui
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 import { resetSettingsForTests } from '../../../src/core/settings.js';
 
-/** Commission mode is behind settings.commissionEnabled, which defaults to OFF. Tests that exercise
- *  the opt-in have to turn it on the way an operator would. */
-async function withCommissionEnabled(fn: () => Promise<void>): Promise<void> {
-  process.env.CORTEX_COMMISSION_ENABLED = '1';
+/** settings.commissionEnabled is the feature's kill switch and defaults to ON (DR-0037 v4). Both
+ *  helpers set it explicitly the way an operator would, so neither test depends on the default. */
+async function withCommission(value: '1' | '0', fn: () => Promise<void>): Promise<void> {
+  process.env.CORTEX_COMMISSION_ENABLED = value;
   resetSettingsForTests();
   try {
     await fn();
@@ -17,6 +17,8 @@ async function withCommissionEnabled(fn: () => Promise<void>): Promise<void> {
     resetSettingsForTests();
   }
 }
+const withCommissionEnabled = (fn: () => Promise<void>) => withCommission('1', fn);
+const withCommissionDisabled = (fn: () => Promise<void>) => withCommission('0', fn);
 
 interface CreateCall {
   projectId: string;
@@ -69,20 +71,22 @@ test('sessions.create forwards a commission opt-in, both new and join', async ()
 });
 
 test('sessions.create refuses a commission opt-in while the feature switch is off', async () => {
-  resetSettingsForTests();
-  const sink: CreateCall[] = [];
-  const res = await handleCreateSession(makeDeps(sink), { projectId: 'nimbus', commission: { mode: 'new' } });
-  assert.equal(res.ok, false);
-  if (!res.ok) assert.equal(res.code, 'invalid-args');
-  assert.deepEqual(sink, [], 'no session is created — a refused commission must not degrade to an ordinary one');
+  await withCommissionDisabled(async () => {
+    const sink: CreateCall[] = [];
+    const res = await handleCreateSession(makeDeps(sink), { projectId: 'nimbus', commission: { mode: 'new' } });
+    assert.equal(res.ok, false);
+    if (!res.ok) assert.equal(res.code, 'invalid-args');
+    assert.deepEqual(sink, [], 'no session is created — a refused commission must not degrade to an ordinary one');
+  });
 });
 
 test('sessions.create is unaffected by the commission switch when no commission is asked for', async () => {
-  resetSettingsForTests();
-  const sink: CreateCall[] = [];
-  const res = await handleCreateSession(makeDeps(sink), { projectId: 'nimbus' });
-  assert.equal(res.ok, true);
-  assert.deepEqual(sink, [{ projectId: 'nimbus', browser: null, commission: null }]);
+  await withCommissionDisabled(async () => {
+    const sink: CreateCall[] = [];
+    const res = await handleCreateSession(makeDeps(sink), { projectId: 'nimbus' });
+    assert.equal(res.ok, true);
+    assert.deepEqual(sink, [{ projectId: 'nimbus', browser: null, commission: null }]);
+  });
 });
 
 test('sessions.create propagates a creation failure as an Err', async () => {

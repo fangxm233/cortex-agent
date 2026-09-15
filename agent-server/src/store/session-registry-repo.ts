@@ -270,13 +270,38 @@ export class SessionRegistryRepo {
 
   /** Bind (or unbind with null) a session to a commission. Called by the commission finalize path
    *  (DR-0037) and by commission-mode session creation. Binding also clears commissionDraft: once
-   *  the contract is named, the draft directory no longer exists under that name. */
+   *  the contract is named, the draft directory no longer exists under that name.
+   *
+   *  `commissionBlockFor` is deliberately left alone: binding CHANGES the key (`draft:x` →
+   *  `active:id`), and that mismatch is exactly what makes the next turn deliver the active block. */
   async bindCommission(sessionId: string, commissionId: string | null): Promise<Session | null> {
     return this.updateById(sessionId, (record) => ({
       ...record,
       commissionId,
       commissionDraft: commissionId ? null : record.commissionDraft,
     }));
+  }
+
+  /** Enter (or leave, with null) the drafting half of commission mode. Called by
+   *  `cortex_commission_start`, by the composer's "new" on a live session, and by session creation.
+   *  Refuses to touch a session already bound to a commission — that is a terminal state. */
+  async setCommissionDraft(sessionId: string, draftDir: string | null): Promise<Session | null> {
+    return this.updateById(sessionId, (record) => (
+      record.commissionId
+        ? record
+        : { ...record, commissionDraft: draftDir }
+    ));
+  }
+
+  /** Record that the `[Commission]` block for `key` is now in this session's backend history. */
+  async markCommissionBlockDelivered(sessionId: string, key: string): Promise<Session | null> {
+    return this.updateById(sessionId, (record) => ({ ...record, commissionBlockFor: key }));
+  }
+
+  /** Forget the delivery marker so the next turn re-injects the block. Called after compaction,
+   *  which drops the copy that was in backend history. */
+  async clearCommissionBlockDelivery(sessionId: string): Promise<Session | null> {
+    return this.updateById(sessionId, (record) => ({ ...record, commissionBlockFor: null }));
   }
 
   async listPendingDeletions(): Promise<PendingDeletion[]> {

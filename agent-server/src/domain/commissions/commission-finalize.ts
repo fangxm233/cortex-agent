@@ -12,9 +12,17 @@ export interface CommissionFinalizeArgs {
   contractPath: string;
 }
 
+/** The session fields finalize decides on: which project owns the directory, and which commission
+ *  state the session is in. A submit is only legal from a session that is DRAFTING (DR-0037 v4). */
+export interface CommissionFinalizeSession {
+  projectId: string;
+  commissionId?: string | null;
+  commissionDraft?: string | null;
+}
+
 /** Store seams only — path checks run against the real filesystem on purpose (tests use tmp dirs). */
 export interface CommissionFinalizeDeps {
-  getSession?: (id: string) => Promise<{ projectId: string } | null>;
+  getSession?: (id: string) => Promise<CommissionFinalizeSession | null>;
   resolveRoot?: (projectId: string) => string | null;
   findBySlug?: (projectId: string, slug: string) => Promise<unknown | null>;
   addCommission?: (record: CommissionRecord) => Promise<void>;
@@ -55,12 +63,26 @@ export async function validateCommissionFinalize(
   if (!args.sessionId) return fail('no originating session id — commission finalize requires CORTEX_SESSION_ID');
   const session = await (deps.getSession ?? ((id: string) => sessionStore.getById(id)))(args.sessionId);
   if (!session) return fail(`unknown session ${args.sessionId}`);
+  // The state check, not tool visibility, is what makes a commission impossible to bootstrap from a
+  // session that never entered the mode. Visibility was the v3 lever and it never worked on the
+  // Claude backend: `--tools` filters the built-in set only, so the MCP tools were always callable.
+  if (session.commissionId) {
+    return fail(`this session is already bound to commission ${session.commissionId} — one commission per session`);
+  }
+  if (!session.commissionDraft) {
+    return fail('this session is not drafting a commission — call cortex_commission_start first');
+  }
   const slug = slugifyCommissionName(args.name ?? '');
   if (!slug) return fail(`name "${args.name}" leaves no slug-safe characters — use an ASCII name`);
   const root = (deps.resolveRoot ?? commissionsRoot)(session.projectId);
   if (!root) return fail(`project ${session.projectId} has no context directory`);
   const draft = resolveDraftDir(root, args.contractPath);
   if (draft.ok === false) return draft;   // (=== false: truthiness narrowing is off with strict:false)
+  // Own draft only: the shape check above accepts any `_draft-*` under this project, which would let
+  // one session submit another's contract and rename a directory out from under it.
+  if (path.basename(draft.dir) !== session.commissionDraft) {
+    return fail(`contract.md is in ${path.basename(draft.dir)}, but this session drafts in ${session.commissionDraft}`);
+  }
   const targetDir = path.join(root, slug);
   if (fs.existsSync(targetDir)) return fail(`commissions/${slug} already exists — pick another name`);
   const dup = await (deps.findBySlug ?? ((p: string, s: string) => commissionRepo.findBySlug(p, s)))(session.projectId, slug);

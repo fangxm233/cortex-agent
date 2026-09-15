@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as os from 'os';
 import { DATA_DIR, CONFIG_DIR, HOOKS_DIR } from '../../core/utils.js';
-import { COMMISSION_TOOLS, SUBAGENT_TOOLS } from '../../core/mcp-tool-gate.js';
+import { SUBAGENT_TOOLS } from '../../core/mcp-tool-gate.js';
 
 export const IDLE_SESSION_TIMEOUT = 65 * 60 * 1000;
 export const TURN_IDLE_TIMEOUT = 60 * 60 * 1000;
@@ -46,23 +46,24 @@ export const DEFAULT_TOOLS = 'AskUserQuestion,Bash,Edit,EnterPlanMode,ExitPlanMo
 const MCP_PREFIX = 'mcp__cortex-core__';
 
 /**
- * The cortex-interaction-bridge MCP tools that replace the native EnterPlanMode / ExitPlanMode /
- * AskUserQuestion. Shared by user-initiated Claude print sessions and user-initiated PI sessions.
- * `commissionTools` appends the two standalone commission-creation tools — they are additive, not a
- * swap: a session drafting a commission keeps the ordinary plan tools too. Every other session
- * simply never lists them, which is what keeps them invisible (DR-0037 v3).
+ * The cortex-interaction-bridge MCP tools: the three that replace the native EnterPlanMode /
+ * ExitPlanMode / AskUserQuestion, plus the two commission-creation tools. Shared by user-initiated
+ * Claude print sessions and user-initiated PI sessions.
+ *
+ * The commission pair is listed unconditionally (DR-0037 v4). Listing it per session was v3's lever
+ * for hiding it, and that lever never existed: `--tools` filters Claude's BUILT-IN set only
+ * ("the list of available tools from the built-in set", `claude --help`), so an MCP tool registered
+ * by the bundled server was callable from every direct session whatever this list said. What keeps
+ * a commission from being bootstrapped out of an ordinary session is a state check in
+ * `commission-finalize`, not tool visibility — and a check that holds on both backends.
  */
-export function interactionBridgeTools(commissionTools = false): string[] {
-  return [
-    `${MCP_PREFIX}cortex_plan_enter`,
-    `${MCP_PREFIX}cortex_plan_exit`,
-    `${MCP_PREFIX}cortex_ask_user`,
-    ...(commissionTools ? COMMISSION_TOOLS.map(name => MCP_PREFIX + name) : []),
-  ];
-}
-
-/** Default (non-commission) bridge surface. */
-export const INTERACTION_BRIDGE_TOOLS: readonly string[] = interactionBridgeTools();
+export const INTERACTION_BRIDGE_TOOLS: readonly string[] = [
+  `${MCP_PREFIX}cortex_plan_enter`,
+  `${MCP_PREFIX}cortex_plan_exit`,
+  `${MCP_PREFIX}cortex_ask_user`,
+  `${MCP_PREFIX}cortex_commission_start`,
+  `${MCP_PREFIX}cortex_commission_submit`,
+];
 
 /** Native interaction tools that must be stripped wherever the interaction bridge replaces them —
  *  i.e. a direct, user-initiated session, which is the only composition that loads the bridge.

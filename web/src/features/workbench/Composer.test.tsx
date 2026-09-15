@@ -32,10 +32,11 @@ vi.mock('@/lib/trpc', () => ({
       send: { mutationOptions: () => ({ __kind: 'send' }) },
       cancel: { mutationOptions: () => ({ __kind: 'cancel' }) },
       createAndSend: { mutationOptions: () => ({ __kind: 'create' }) },
+      setCommission: { mutationOptions: () => ({ __kind: 'set-commission' }) },
       list: { queryFilter: () => ({}) },
     },
     commissions: {
-      list: { queryOptions: () => ({ queryKey: ['commissions.list'] }) },
+      list: { queryOptions: () => ({ queryKey: ['commissions.list'] }), queryFilter: () => ({}) },
       get: { queryOptions: () => ({ queryKey: ['commissions.get'] }) },
     },
     // The commission feature switch is read from the shared config.get snapshot; undefined data

@@ -656,7 +656,7 @@ test('buildSpawnArgs print + isUserInitiated — layers interaction MCP config a
   assert.ok(resolveClaudeMcpBundles({
     tools: null, needsResume: false, sessionId: 'uuid-print-user', isUserInitiated: true,
   }).includes('cortex-interaction-bridge'));
-  // Tools: base DEFAULT_TOOLS retained + the 3 bridge tools appended
+  // Tools: base DEFAULT_TOOLS retained + the bridge tools appended
   const tools = args[args.indexOf('--tools') + 1].split(',');
   assert.ok(tools.includes('Bash'), 'base tools retained');
   for (const native of ['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode']) {
@@ -754,9 +754,13 @@ test('buildSpawnArgs print + isUserInitiated with explicit interaction tools —
   }
 });
 
-test('INTERACTION_BRIDGE_TOOLS is exactly the three MCP replacements for the native interaction tools', () => {
+test('INTERACTION_BRIDGE_TOOLS is the three native replacements plus the commission pair', () => {
+  // The commission pair is unconditional since DR-0037 v4: `--tools` cannot filter MCP tools, so a
+  // per-session list was a fiction. Entry to the mode is gated by state, not by visibility.
   assert.deepEqual([...INTERACTION_BRIDGE_TOOLS].sort(), [
     'mcp__cortex-core__cortex_ask_user',
+    'mcp__cortex-core__cortex_commission_start',
+    'mcp__cortex-core__cortex_commission_submit',
     'mcp__cortex-core__cortex_plan_enter',
     'mcp__cortex-core__cortex_plan_exit',
   ]);

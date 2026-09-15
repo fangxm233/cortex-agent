@@ -61,7 +61,13 @@ describe('RATE_LIMIT_LIVE_EVENTS', () => {
 
 describe('COMMISSION_LIVE_EVENTS', () => {
   it('carries the registry-changed hint the board and rail refetch on', () => {
-    expect(COMMISSION_LIVE_EVENTS).toEqual(['commission.updated']);
+    expect(COMMISSION_LIVE_EVENTS).toContain('commission.updated');
+  });
+  it('also carries a session changing its own binding, which no registry event describes', () => {
+    // Entering or leaving the drafting phase writes only the SESSION record: there is no
+    // commission id yet to name in a commission.updated (DR-0037 v4).
+    expect(COMMISSION_LIVE_EVENTS).toContain('session.commission');
+    expect(SESSION_LIVE_EVENTS).not.toContain('session.commission');
   });
 });
 

@@ -358,8 +358,8 @@ export function MChatScreen(): JSX.Element {
   const [commissionSheetOpen, setCommissionSheetOpen] = useState(false);
   const commissionOptions = useCommissionOptions(commissionSheetOpen);
   const sessionCommission = useSessionCommission(active);
-  // settings.commissionEnabled — off by default while the mode is under test. A draft composer then
-  // offers no entry point; a live session's read-only capsule is unaffected.
+  // settings.commissionEnabled — the feature's kill switch. With it off a draft composer offers no
+  // entry point; a live session's read-only capsule is unaffected.
   const commissionEnabled = useCommissionEnabled();
   const [pendingCreatedSession, setPendingCreatedSession] = useState<PendingCreatedSession | null>(null);
   const transition = resolveTransitionSelection(

@@ -51,7 +51,6 @@ export interface RunRequest {
     executionKind: 'local' | 'dispatch' | 'scheduled';
     isUserInitiated: boolean;
     commissionMode: boolean;
-    commissionTools: boolean;
   };
   policy: {
     background: 'none' | 'inline' | 'hold' | 'completion-only';

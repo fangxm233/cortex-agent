@@ -132,7 +132,7 @@ export const zhExtra = {
   stAdvDisableUpdateTitle: '禁用自动更新检查',
   stAdvDisableUpdateDesc: '更新检查默认开启',
   stAdvCommissionTitle: '委托模式',
-  stAdvCommissionDesc: '实验功能 · 以契约锚定的长任务，默认关闭',
+  stAdvCommissionDesc: '以契约锚定的长任务——任何会话里 agent 或你都能开启；关掉即完全停用',
   stAdvRetentionTitle: '会话保留天数',
   stAdvRetentionDesc: '同步到 Claude 用户设置的清理周期 · 来源按 settings provenance 展示',
   stAdvRetentionInvalid: '请输入安全保留范围内的整数天数',

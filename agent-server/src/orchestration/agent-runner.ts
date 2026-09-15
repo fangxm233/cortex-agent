@@ -197,10 +197,9 @@ export class AgentRunner {
     let sessionLease: SessionUseLease | null = null;
     /** Opt-in browser access, read off the session record (plan/embedded-browser.md §17). */
     let sessionBrowser: { device: string } | null = null;
-    /** Set while the session is in commission mode but its contract has not been named yet; that
-     *  is exactly the window in which the commission-creation tools are injected (DR-0037 v3). */
-    let sessionCommissionDraft: string | null = null;
-    /** Set once a contract has landed. Either field means the session is in commission mode. */
+    /** Set once a contract has landed — the state that loads the commission skill (DR-0037 v4).
+     *  Drafting is not tracked here: the drill needs no plugin, and the [Commission] block reads the
+     *  session record itself (see resolveConversationCommission). */
     let sessionCommissionId: string | null = null;
     if (sessionId) {
       sessionLease = await acquireSessionUseLease(sessionId);
@@ -209,11 +208,10 @@ export class AgentRunner {
       backendSessionId = effectiveBackendSessionId(sessionLease.session);
       projectId = sessionLease.session.projectId ?? 'general';
       sessionBrowser = sessionLease.session.browser ?? null;
-      // settings.commissionEnabled is the global switch for the feature (off by default while it
-      // is under test). With it off, a session that was bound while it was on reverts to an
-      // ordinary session: no commission tools, no commission skill, no contract block.
+      // settings.commissionEnabled is the global switch for the feature. With it off, a session
+      // that was bound while it was on reverts to an ordinary session: no commission skill, no
+      // contract block, and the commission tools refuse.
       const commissionOn = getSettings().commissionEnabled;
-      sessionCommissionDraft = commissionOn ? sessionLease.session.commissionDraft ?? null : null;
       sessionCommissionId = commissionOn ? sessionLease.session.commissionId ?? null : null;
     } else {
       sessionId = crypto.randomUUID();
@@ -258,8 +256,7 @@ export class AgentRunner {
           files: allFiles,
           trigger: 'user',
           browserCdpEndpoint: browser.cdpEndpoint,
-          commissionTools: !!sessionCommissionDraft,
-          commissionMode: !!(sessionCommissionDraft || sessionCommissionId),
+          commissionMode: !!sessionCommissionId,
           onPromptBuilt: debugEnabled ? (prompt: string) => {
             recordHistory(
               conversationHistory.appendUserPrompt(trackSessionId, { agentMessage: prompt }),

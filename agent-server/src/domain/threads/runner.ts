@@ -501,7 +501,6 @@ export function buildThreadRunRequest(
       executionKind,
       isUserInitiated: false,
       commissionMode: false,
-      commissionTools: false,
     },
     policy: {
       background: stepBackgroundPolicy(),

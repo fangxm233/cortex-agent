@@ -193,6 +193,12 @@ export function publishSessionRewound(p: { sessionId: string; channel: string; t
  *  the model. The web hold (turn/background-hold.ts) keeps `running:true, backgroundRunning:true` for the
  *  whole wait so the session is NOT prematurely marked idle, then publishes `running:false` once the
  *  background work finishes. Omitted (undefined) on the normal turn-start / turn-end edges. */
+/** The session's commission binding moved (entered drafting, left it) without any commission
+ *  record changing, so `commission.updated` would have nothing to name. */
+export function publishSessionCommission(p: { sessionId: string; channel: string }): void {
+  orchestrationBus()?.publish({ type: 'session.commission', sessionId: p.sessionId, channel: p.channel });
+}
+
 export function publishSessionStatus(p: { sessionId: string; channel: string; running: boolean; backgroundRunning?: boolean }): void {
   orchestrationBus()?.publish({
     type: 'session.status',

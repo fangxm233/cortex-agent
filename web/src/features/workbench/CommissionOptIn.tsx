@@ -8,9 +8,9 @@ import { useVocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
 
 /**
- * The global commission feature switch (`settings.commissionEnabled`, off by default while the mode
- * is under test). Read from the shared `config.get` snapshot the workbench already holds, so this
- * costs no extra request.
+ * The global commission feature switch (`settings.commissionEnabled`, on by default — it is the
+ * kill switch, not an opt-in). Read from the shared `config.get` snapshot the workbench already
+ * holds, so this costs no extra request.
  *
  * Fail-closed: while the snapshot is loading — or if an older server omits the settings array —
  * this reports `false`. Showing the opt-in and then having the server reject the create would be a
@@ -39,14 +39,23 @@ export function commissionRequestOf(value: null | 'new' | string): CommissionReq
   return value === 'new' ? { mode: 'new' } : { mode: 'join', commissionId: value };
 }
 
+/** The same value → the switch request for a LIVE session, where "off" is a real instruction
+ *  rather than the absence of one (sessions.setCommission). */
+export function commissionSwitchOf(
+  value: null | 'new' | string,
+): { mode: 'off' } | { mode: 'new' } | { mode: 'join'; commissionId: string } {
+  return commissionRequestOf(value) ?? { mode: 'off' };
+}
+
 /**
- * Commission mode is a creation-time choice, exactly like the browser opt-in and for the same
- * reason: it changes which plan tools the agent process spawns with and which skill it loads, and
- * neither can be re-pointed once the process is alive.
+ * Commission mode is offered at creation AND on a live session (DR-0037 v4). It is not like the
+ * browser opt-in: the mode is registry state rather than a property of the spawned process, so a
+ * conversation that turns out to be a long task can be promoted where it stands — the skill arrives
+ * with the next spawn and the [Commission] block follows the binding, not the session's first turn.
  *
- * Two ways in. `new` means the user has a long task in mind but no contract yet — the server makes
- * a draft directory and the agent drills before doing anything. Picking an existing commission is
- * how a commission spans more than one session: a fresh conversation, same contract and ledger.
+ * Two ways in. `new` means a long task with no contract yet — a draft directory is created and the
+ * agent drills before doing anything. Picking an existing commission is how a commission spans more
+ * than one session: a fresh conversation, same contract and ledger.
  *
  * Only active commissions are offered; a closed one is readable but does not take new sessions.
  * The list is read when the menu opens rather than held, so it cannot offer one that has since
@@ -71,9 +80,9 @@ export function useCommissionOptions(open: boolean): CommissionOption[] {
   ];
 }
 
-/** What the read-only capsule on a LIVE session shows: which commission it serves, by title once
- *  one has landed. A session still drilling has a draft directory but no name yet — that is the
- *  point of the drill — so it reports the mode without a title. Returns null outside the mode.
+/** What the capsule on a LIVE session shows: which commission it serves, by title once one has
+ *  landed. A session still drilling has a draft directory but no name yet — that is the point of
+ *  the drill — so it reports the mode without a title. Returns null outside the mode.
  *
  *  The title query shares its key with the chat banner's, so a bound session pays for it once. */
 export function useSessionCommission(session: SessionInfo | null | undefined): {

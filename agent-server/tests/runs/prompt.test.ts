@@ -133,13 +133,16 @@ test('a draft commission is handed to cortex_commission_start, with no contract 
     composeUserPrompt({ promptTemplate: '{{input}}' }, 'go', {
       commission: { phase: 'draft', dir: '/root/c/_draft-x' },
     }),
-    '[Commission] This session was created to START a new commission: a long task anchored by '
-    + 'a contract the user approves before any work begins.\n'
-    + 'Draft directory (already created by the server): /root/c/_draft-x\n'
+    '[Commission] This session is drafting a commission contract: a long task anchored by a '
+    + 'contract the user approves before any work begins.\n'
+    + 'Draft directory: /root/c/_draft-x\n'
     + '\n'
-    + 'Call cortex_commission_start now, before investigating or asking anything — it carries the '
-    + 'drill protocol and the contract structure. Implement nothing until the contract is approved '
-    + 'through cortex_commission_submit.'
+    + 'If you have not already received the creation protocol in this session, call '
+    + 'cortex_commission_start now, before investigating or asking anything — it carries the drill '
+    + 'protocol and the contract structure, and is idempotent. If the user turned this mode on for '
+    + 'you, that is the decision made: start drilling rather than asking whether to.\n'
+    + 'Implement nothing until the contract is approved through cortex_commission_submit. If you '
+    + 'conclude the task does not warrant a commission, say so plainly and let the user close it.'
     + '\n\ngo');
 });
 
