@@ -150,13 +150,13 @@ function ExpandedToolCalls({ count, calls, unit, onCollapse }: {
   onCollapse: () => void;
 }): JSX.Element {
   return (
-    <div style={{ background: 'var(--proto-rail)', border: '1px solid var(--proto-line-2)', borderRadius: 8, overflow: 'hidden' }}>
+    <div style={{ background: 'var(--proto-rail)', border: `1px solid ${MC.cardBorder}`, borderRadius: 8, overflow: 'hidden' }}>
       <div onClick={onCollapse} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--proto-muted-3)', padding: '6px 11px', cursor: 'pointer' }}>
         <span style={{ fontSize: 8.5 }}>▾</span>
         <span>{count} {unit}</span>
       </div>
       {calls.map((call, index) => (
-        <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5.5px 11px', borderTop: '1px solid var(--proto-line-soft)' }}>
+        <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5.5px 11px', borderTop: `1px solid ${MC.divider}` }}>
           <span style={{ font: `600 9px ${MONO}`, color: 'var(--proto-muted)', background: 'var(--proto-gray)', padding: '1.5px 7px', borderRadius: 5, flex: 'none' }}>{call.kind}</span>
           <span style={{ font: `400 10.5px ${MONO}`, color: MC.body, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{call.input}</span>
         </div>
@@ -210,7 +210,7 @@ function MSubagentBlock({ row, unit, sessionId }: {
   const [expanded, setExpanded] = useState(false);
   const label = row.description || row.agentType || L.subagentFallbackLabel;
   return (
-    <div style={{ background: 'var(--proto-rail)', border: '1px solid var(--proto-line-2)', borderRadius: 8 }}>
+    <div style={{ background: 'var(--proto-rail)', border: `1px solid ${MC.cardBorder}`, borderRadius: 8 }}>
       <div
         onClick={() => setExpanded(!expanded)}
         role="button"
@@ -233,7 +233,7 @@ function MSubagentBlock({ row, unit, sessionId }: {
         <span style={{ font: `400 10px ${MONO}`, flex: 'none', marginLeft: 'auto' }}>{`${row.toolCount} ${unit}`}</span>
       </div>
       {expanded && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '8px 11px 10px', borderTop: '1px solid var(--proto-line-soft)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '8px 11px 10px', borderTop: `1px solid ${MC.hairline}` }}>
           {row.prompt ? (
             <div>
               <div style={{ font: `600 9px ${MONO}`, color: MC.faint, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '.05em' }}>
