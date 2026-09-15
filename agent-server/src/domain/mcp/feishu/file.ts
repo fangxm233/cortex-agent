@@ -3,6 +3,7 @@ import { z } from 'zod';
 import * as fs from 'fs';
 import * as path from 'path';
 import { guard, ok, unwrap, type FeishuToolDeps } from './types.js';
+import { uploadFeishuImage } from '@platform/adapters/feishu-image.js';
 import type { LarkClient } from './client.js';
 
 function resolveReadableFilePath(filePathInput: string): { resolved: string; size: number } {
@@ -48,6 +49,20 @@ function inferFeishuFileType(fileName: string): string {
   return typeMap[ext] || 'stream';
 }
 
+/** Upload as a chat file and return its file_key. */
+async function uploadFileKey(client: LarkClient, resolved: string, uploadName: string): Promise<string> {
+  const uploadRes = await (client as any).im.v1.file.create({
+    data: {
+      file_type: inferFeishuFileType(uploadName),
+      file_name: uploadName,
+      file: fs.readFileSync(resolved),
+    },
+  });
+  const fileKey = unwrap<{ file_key?: string }>(uploadRes).file_key;
+  if (!fileKey) throw new Error('Feishu file upload failed: no file_key returned');
+  return fileKey;
+}
+
 export async function uploadFileToFeishu(
   client: LarkClient,
   { channel, filePath, fileName, title }: {
@@ -55,31 +70,24 @@ export async function uploadFileToFeishu(
   },
 ): Promise<{ path: string; fileName: string; size: number }> {
   const { resolved, size } = resolveReadableFilePath(filePath);
-  const body = fs.readFileSync(resolved);
   const uploadName = fileName || path.basename(resolved);
 
   // Strip 'feishu:' prefix from channel ID for Feishu API compatibility
   const bareChannel = stripFeishuPrefix(channel);
 
-  // Upload file to get file_key
-  const uploadRes = await (client as any).im.v1.file.create({
-    data: {
-      file_type: inferFeishuFileType(uploadName),
-      file_name: uploadName,
-      file: body,
-    },
-  });
+  // An image goes into the chat as an image, so the user sees it without opening anything. The file
+  // card below stays the fallback: non-images, images over 10 MB, and apps without `im:resource`.
+  const imageKey = await uploadFeishuImage(client, resolved, size);
+  const msgType = imageKey ? 'image' : 'file';
+  const msgContent = imageKey
+    ? JSON.stringify({ image_key: imageKey })
+    : JSON.stringify({ file_key: await uploadFileKey(client, resolved, uploadName) });
 
-  const fileKey = unwrap<{ file_key?: string }>(uploadRes).file_key;
-  if (!fileKey) throw new Error('Feishu file upload failed: no file_key returned');
-
-  // Send file message to channel
-  const msgContent = JSON.stringify({ file_key: fileKey });
   await (client as any).im.v1.message.create({
     params: { receive_id_type: 'chat_id' },
     data: {
       receive_id: bareChannel,
-      msg_type: 'file',
+      msg_type: msgType,
       content: msgContent,
     },
   });

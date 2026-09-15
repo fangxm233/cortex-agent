@@ -29,6 +29,7 @@ import type { OutputStream, OpenOutputStreamOpts } from '../output-stream.js';
 import { FeishuOutputStream } from './feishu-output-stream.js';
 import { configureFeishuHttp } from './feishu-http.js';
 import { ProjectConduitsStore } from './project-conduits.js';
+import { uploadFeishuImage } from './feishu-image.js';
 import { reactionFailureReason, shouldWarnReactionFailure } from '../utils/reaction-diagnostics.js';
 
 const log = createLogger('feishu');
@@ -388,10 +389,38 @@ export class FeishuAdapter implements PlatformAdapter {
     if (!destResolved.channel) {
       return;
     }
-    const { resolved: fileResolved } = this.resolveFilePath(filePath);
+    const { resolved: fileResolved, size } = this.resolveFilePath(filePath);
     const fileName = opts?.filename || path.basename(fileResolved);
 
-    // Upload file to get file_key
+    // A picture the user can see beats a download card. Feishu shows an `image` message inline (and
+    // in the notification preview); anything it cannot — a non-image, an image over 10 MB, an app
+    // without the `im:resource` scope — falls back to the file card this always used to send.
+    const imageKey = await uploadFeishuImage(this.client, fileResolved, size);
+    const msgType = imageKey ? 'image' : 'file';
+    const msgContent = imageKey
+      ? JSON.stringify({ image_key: imageKey })
+      : JSON.stringify({ file_key: await this.uploadFeishuFile(fileResolved, fileName) });
+    const threadId = opts?.threadId;
+
+    if (threadId) {
+      await this.client.im.v1.message.reply({
+        path: { message_id: threadId },
+        data: { msg_type: msgType, content: msgContent },
+      });
+    } else {
+      await this.client.im.v1.message.create({
+        params: { receive_id_type: 'chat_id' },
+        data: {
+          receive_id: destResolved.channel,
+          msg_type: msgType,
+          content: msgContent,
+        },
+      });
+    }
+  }
+
+  /** Upload as a chat file and return its file_key. */
+  private async uploadFeishuFile(fileResolved: string, fileName: string): Promise<string> {
     const uploadRes = await this.client.im.v1.file.create({
       data: {
         file_type: this.inferFeishuFileType(fileName),
@@ -399,29 +428,9 @@ export class FeishuAdapter implements PlatformAdapter {
         file: fs.readFileSync(fileResolved),
       },
     });
-
     const fileKey = (uploadRes as any)?.data?.file_key;
     if (!fileKey) throw new Error('Feishu file upload failed: no file_key returned');
-
-    // Send file message
-    const msgContent = JSON.stringify({ file_key: fileKey });
-    const threadId = opts?.threadId;
-
-    if (threadId) {
-      await this.client.im.v1.message.reply({
-        path: { message_id: threadId },
-        data: { msg_type: 'file', content: msgContent },
-      });
-    } else {
-      await this.client.im.v1.message.create({
-        params: { receive_id_type: 'chat_id' },
-        data: {
-          receive_id: destResolved.channel,
-          msg_type: 'file',
-          content: msgContent,
-        },
-      });
-    }
+    return fileKey;
   }
 
   async downloadFile(fileRef: PlatformFileRef, destDir: string): Promise<DownloadedFile> {
