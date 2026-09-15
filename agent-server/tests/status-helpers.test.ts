@@ -200,3 +200,21 @@ test('sealStatus: in-flight failed progress write does not block final write', a
   const texts = adapter.updated.map(u => u.content.text);
   assert.deepEqual(texts, ['done'], 'failed progress write leaves no trace; final "done" lands');
 });
+
+// --- A status message that was never posted (messageId '') is a no-op target ---
+
+test('writeStatus: an empty messageId (the status post failed) never reaches the adapter', async () => {
+  const adapter = new MockAdapter();
+  const ref = { conduit: 'C-nostatus', messageId: '' };
+  await writeStatus(adapter, ref, 'progress');
+  assert.equal(adapter.updated.length, 0);
+});
+
+test('sealStatus: an empty messageId seals nothing — no update, and late progress is still dropped', async () => {
+  const adapter = new MockAdapter();
+  const ref = { conduit: 'C-nostatus-seal', messageId: '' };
+  await sealStatus(adapter, ref, 'done');
+  assert.equal(adapter.updated.length, 0);
+  await writeStatus(adapter, ref, 'late');
+  assert.equal(adapter.updated.length, 0);
+});

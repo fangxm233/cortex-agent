@@ -183,10 +183,21 @@ export class Turn {
       startTime: this.startTime, profileName: getActiveProfile(channel), sessionName, sessionId,
     });
     const blocksTemplate = { channel, sessionName, isDm: true };
-    const statusMsg = this.input.statusMessage ?? await adapter.postMessage(dest, {
-      text: statusText,
-      richBlocks: buildSealedStatusActionBlocks(statusText, blocksTemplate),
-    }, threadAnchorId ? { threadId: threadAnchorId } : undefined);
+    //    This is the turn's first platform call. When the platform is unreachable (2026-09-14:
+    //    Feishu TLS disconnects) the turn must still run — the reply goes out through the output
+    //    stream, which has its own retries and WAL — so the failure degrades to "no status
+    //    message": `messageId: ''` is the sentinel the ledger already carries for that case
+    //    (pending-injection-recovery.ts), and writeStatus / sealStatus treat it as nothing to edit.
+    let statusMsg: MessageRef;
+    try {
+      statusMsg = this.input.statusMessage ?? await adapter.postMessage(dest, {
+        text: statusText,
+        richBlocks: buildSealedStatusActionBlocks(statusText, blocksTemplate),
+      }, threadAnchorId ? { threadId: threadAnchorId } : undefined);
+    } catch (e) {
+      log.error(`status message post failed on ${channel}; running the turn without one: ${(e as Error).message}`);
+      statusMsg = { conduit: channel, messageId: '' };
+    }
 
     // 2. Ledger turn tracking (ledger begin + pre-turn snapshot + acceptUserMessage), unless this
     //    turn keeps no ledger row, or the caller already opened it.
@@ -388,10 +399,12 @@ export class Turn {
       //    earliest either is observable.
       this.executionId = run.executionId;
       const blocksTemplateWithExec = { ...blocksTemplate, executionId: run.executionId };
-      await adapter.updateMessage(statusMsg, {
-        text: statusText,
-        richBlocks: buildStatusActionBlocks(statusText, blocksTemplateWithExec),
-      }).catch(() => {});
+      if (statusMsg.messageId) {
+        await adapter.updateMessage(statusMsg, {
+          text: statusText,
+          richBlocks: buildStatusActionBlocks(statusText, blocksTemplateWithExec),
+        }).catch(() => {});
+      }
       initStatusBlocks(statusMsg, blocksTemplateWithExec);
       if (this.trackingToken) finishTurnTracking(channel, this.trackingToken);
       this.releaseLease();

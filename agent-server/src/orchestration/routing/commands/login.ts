@@ -1,5 +1,6 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { t } from '@core/i18n.js';
+import { createLogger } from '@core/log.js';
 import {
   authLoginService,
   formatAuthStatusSummary,
@@ -530,6 +531,8 @@ function submittedPromptValue(context: ModalSubmitContext): string {
     || submittedValue(context, 'login_secret', 'value');
 }
 
+const log = createLogger('login');
+
 function postBackgroundFailure(
   metadata: LoginOpenMetadata,
   dependencies: InteractiveLoginDependencies,
@@ -538,7 +541,7 @@ function postBackgroundFailure(
   if (!adapter) return;
   void adapter.postMessage(loginDestination(metadata.channel), {
     text: t('cmd.auth.loginFailed', { error: t('cmd.auth.loginUnknownFailure') }),
-  });
+  }).catch((e) => log.warn('login failure notice could not be posted:', (e as Error).message));
 }
 
 async function handoffLoginPrompt(

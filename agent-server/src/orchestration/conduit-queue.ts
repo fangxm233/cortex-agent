@@ -4,6 +4,10 @@
  * (e.g. to show a hourglass reaction), and .delete(conduitId) to discard a
  * pending tail (e.g. !cancel).
  */
+import { createLogger } from '@core/log.js';
+
+const log = createLogger('conduit-queue');
+
 export const conduitQueues = new Map<string, Promise<void>>();
 
 /**
@@ -21,9 +25,19 @@ export function enqueue(conduitId: string, fn: () => Promise<void>): boolean {
   const prev = conduitQueues.get(conduitId) || Promise.resolve();
   const next = prev.then(fn, fn);
   conduitQueues.set(conduitId, next);
-  next.finally(() => {
-    if (conduitQueues.get(conduitId) === next) conduitQueues.delete(conduitId);
-  });
+  // Nobody awaits a queued turn: the enqueue caller returns immediately and the Map entry is
+  // only read by the NEXT enqueue. A rejecting fn therefore used to surface as a process-level
+  // unhandledRejection (2026-09-14: a Feishu TLS disconnect inside the turn). The `.finally`
+  // registers a reaction on `next`, so `next` counts as observed; the `.catch` owns the derived
+  // promise. The Map still holds the raw `next`, so enqueueAndWait and awaiting callers see the
+  // rejection exactly as before.
+  next
+    .finally(() => {
+      if (conduitQueues.get(conduitId) === next) conduitQueues.delete(conduitId);
+    })
+    .catch((e) => {
+      log.error(`conduit ${conduitId}: queued work failed: ${(e as Error)?.stack ?? String(e)}`);
+    });
   return hadExisting;
 }
 

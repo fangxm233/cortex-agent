@@ -73,8 +73,11 @@ export function platformHoldRenderer(deps: PlatformHoldDeps): HoldRenderer {
   });
   const blocks = { channel, sessionName, isDm: true };
 
+  // Detached at every call site (`void seal(...)`): a seal the platform cannot take is logged here,
+  // never left as an unobserved rejection.
   const seal = (text: string): Promise<void> =>
-    sealStatus(adapter, statusMsg, text, buildSealedStatusActionBlocks(text, blocks));
+    sealStatus(adapter, statusMsg, text, buildSealedStatusActionBlocks(text, blocks))
+      .catch((e) => log.error('background seal failed:', (e as Error).message));
 
   return {
     onWaiting(remaining: number): Promise<void> {

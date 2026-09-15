@@ -206,3 +206,59 @@ test('a request that cannot be assembled still releases the lease, seals and pub
   );
   assert.equal(activeTurns.has('slack:C-turn-prepfail'), false);
 });
+
+// ── 5. The platform being unreachable does not lose the turn ─────────────────
+//    (2026-09-14: Feishu TLS disconnects turned the opening status post into a process-level
+//    unhandledRejection and the user's message into nothing.)
+
+function watchUnhandled(context: { onTestFinished: (fn: () => void) => void }): unknown[] {
+  const unhandled: unknown[] = [];
+  const onUnhandled = (e: unknown) => { unhandled.push(e); };
+  process.on('unhandledRejection', onUnhandled);
+  context.onTestFinished(() => { process.off('unhandledRejection', onUnhandled); });
+  return unhandled;
+}
+
+test('the status message post failing does not lose the turn: the run opens, the reply lands, nothing is edited', async (context) => {
+  const unhandled = watchUnhandled(context);
+  const h = harness();
+  h.adapter.failPostMessageCount = 1; // the very first post is the status message
+  answerWith(h, () => {
+    h.observers[0].onEvent({ type: 'assistant_text', text: 'the reply', phase: 'foreground' } as RunEvent);
+    return fakeRun(Promise.resolve(agentResult({ sessionId: 'backend-nostatus' })));
+  });
+
+  await openTurn(turnInput(h, 'slack:C-turn-nostatus'));
+
+  assert.equal(mockStartRun.mock.calls.length, 1, 'the run opened despite the failed status post');
+  assert.deepEqual(h.statuses.map((s) => s.running), [true, false], 'the busy bracket is closed');
+  assert.equal(h.adapter.updated.length, 0, 'nothing is edited against a message that was never posted');
+  assert.equal(
+    h.adapter.posted.some((p) => String(p.content.text).includes('the reply')),
+    true,
+    'the reply still reached the channel through the output stream',
+  );
+  assert.equal(h.leaseReleases, 1);
+  assert.equal(activeTurns.has('slack:C-turn-nostatus'), false);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(unhandled, []);
+});
+
+test('a seal the platform cannot take is logged, not escalated: a successful turn stays successful', async (context) => {
+  const unhandled = watchUnhandled(context);
+  const h = harness();
+  h.adapter.failUpdateMessageCount = 1_000; // every status edit (cancel button, seal) fails
+  answerWith(h, () => fakeRun(Promise.resolve(agentResult({ sessionId: 'backend-noseal' }))));
+
+  await openTurn(turnInput(h, 'slack:C-turn-noseal'));
+
+  assert.deepEqual(h.statuses.map((s) => s.running), [true, false]);
+  assert.equal(
+    h.adapter.posted.some((p) => String(p.content.text).includes('transient failure')),
+    false,
+    'no error body was posted for a seal failure',
+  );
+  assert.equal(activeTurns.has('slack:C-turn-noseal'), false);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(unhandled, []);
+});

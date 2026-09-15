@@ -27,6 +27,7 @@ import { STORE_DIR } from '@core/paths.js';
 import { updateSettings } from '@core/settings.js';
 import type { OutputStream, OpenOutputStreamOpts } from '../output-stream.js';
 import { FeishuOutputStream } from './feishu-output-stream.js';
+import { configureFeishuHttp } from './feishu-http.js';
 import { ProjectConduitsStore } from './project-conduits.js';
 import { reactionFailureReason, shouldWarnReactionFailure } from '../utils/reaction-diagnostics.js';
 
@@ -91,6 +92,10 @@ export class FeishuAdapter implements PlatformAdapter {
     this.config = config;
     const domain = config.domain === 'lark' ? sdk().Domain.Lark : sdk().Domain.Feishu;
     this.domain = domain;
+
+    // The SDK's shared axios instance ships bare (no timeout, no agent, no retry) and Client,
+    // TokenManager and WSClient all fall back to it — harden it once here (feishu-http.ts).
+    configureFeishuHttp(sdk().defaultHttpInstance);
 
     this.client = new (sdk().Client)({
       appId: config.appId,

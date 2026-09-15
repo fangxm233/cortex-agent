@@ -130,3 +130,27 @@ test('two channels run independently (no cross-channel serialization)', async ()
 
   assert.ok(log.includes('ch1-end'), 'ch1 completes after unblock');
 });
+
+// ── (f) a rejecting fn is owned by the queue ─────────────────────────────────
+
+test('a rejecting fn is logged by the queue — never an unhandledRejection — and the queue keeps going', async (context) => {
+  const unhandled: unknown[] = [];
+  const onUnhandled = (e: unknown) => { unhandled.push(e); };
+  process.on('unhandledRejection', onUnhandled);
+  context.onTestFinished(() => { process.off('unhandledRejection', onUnhandled); });
+
+  const channel = freshChannel();
+  enqueue(channel, async () => { throw new Error('queued work exploded'); });
+  await tick();
+  await tick();
+  assert.equal(conduitQueues.has(channel), false, 'Map entry removed after the fn rejects');
+
+  const ran: string[] = [];
+  enqueue(channel, async () => { ran.push('next'); });
+  const tail = conduitQueues.get(channel);
+  if (tail) await tail;
+  assert.deepEqual(ran, ['next'], 'a later fn runs after a rejected one');
+
+  await tick();
+  assert.deepEqual(unhandled, [], 'the rejection was observed by the queue itself');
+});

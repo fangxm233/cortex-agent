@@ -177,6 +177,7 @@ export async function sealThreadStatus(
   threadResult: ThreadRunResult,
   opts: { blocksTemplate?: StatusBlocksTemplate } = {},
 ): Promise<void> {
+  if (!statusMsg.messageId) return; // status post failed at open (see turn.ts): nothing to edit
   const text = buildThreadSummary(threadResult);
   const richBlocks = opts.blocksTemplate ? buildSealedStatusActionBlocks(text, opts.blocksTemplate) : undefined;
   await adapter.updateMessage(statusMsg, { text, ...(richBlocks && { richBlocks }) });
@@ -223,6 +224,8 @@ export function initStatusBlocks(ref: MessageRef, template: StatusBlocksTemplate
  * call sites generally ignore it, but tests can await.
  */
 export function writeStatus(adapter: PlatformAdapter, ref: MessageRef, text: string): Promise<void> {
+  // A turn whose status post failed carries `messageId: ''` (turn.ts): there is no message to edit.
+  if (!ref.messageId) return Promise.resolve();
   const s = getOrCreateStatusState(ref);
   if (s.sealed) return Promise.resolve();
   const next = s.chain
@@ -246,6 +249,13 @@ export async function sealStatus(adapter: PlatformAdapter, ref: MessageRef, text
   const s = getOrCreateStatusState(ref);
   s.sealed = true;
   try { await s.chain; } catch {}
+  // No message to seal (status post failed at open, see turn.ts). Decided BEFORE durableUpdate:
+  // the outbound WAL's drain() has no attempt cap, so an update against an empty id would be
+  // retried forever.
+  if (!ref.messageId) {
+    statusStates.delete(statusKey(ref));
+    return;
+  }
   const content = { text, ...(richBlocks && richBlocks.length > 0 && { richBlocks }) };
   const queue = getOutboundQueue();
   if (queue) {

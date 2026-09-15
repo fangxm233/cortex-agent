@@ -80,7 +80,7 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
     askCount > 0 ? { kind: 'awaiting-user' } : { kind: 'done' },
     { sessionName, sessionId, elapsedStr, metrics },
   );
-  await sealStatus(adapter, statusMsg, statusText, buildSealedStatusActionBlocks(statusText, { channel, sessionName, isDm: true }));
+  await sealQuietly(adapter, statusMsg, statusText, buildSealedStatusActionBlocks(statusText, { channel, sessionName, isDm: true }));
 
   // Push a NEW message when a long-running user turn finishes (the sealed status above is an
   // edit, which does not notify on Slack/Feishu). Only fires when no ask-user questions are
@@ -117,7 +117,7 @@ export async function handleAgentError({ error, channel, adapter, statusMsg, sta
   if (error?.cancelled && activeTurns.isSuperseded(channel, 'edit')) {
     activeTurns.clearSuperseded(channel, 'edit');
     const supersededText = renderTurnStatus({ kind: 'superseded' }, { sessionName, sessionId: resolvedSessionId, elapsedStr });
-    await sealStatus(adapter, statusMsg, supersededText, buildSealedStatusActionBlocks(supersededText, { channel, sessionName, isDm: true }));
+    await sealQuietly(adapter, statusMsg, supersededText, buildSealedStatusActionBlocks(supersededText, { channel, sessionName, isDm: true }));
     return;
   }
 
@@ -128,7 +128,7 @@ export async function handleAgentError({ error, channel, adapter, statusMsg, sta
 
   if (error?.cancelled) {
     const cancelledText = renderTurnStatus({ kind: 'cancelled' }, { sessionName, sessionId: resolvedSessionId, elapsedStr });
-    await sealStatus(adapter, statusMsg, cancelledText, buildSealedStatusActionBlocks(cancelledText, { channel, sessionName, isDm: true }));
+    await sealQuietly(adapter, statusMsg, cancelledText, buildSealedStatusActionBlocks(cancelledText, { channel, sessionName, isDm: true }));
     return;
   }
 
@@ -141,25 +141,37 @@ export async function handleAgentError({ error, channel, adapter, statusMsg, sta
   if (userMessage && isApiRateLimitError(error.message) && isProviderRateLimited(error.rateLimitProvider)) {
     recordDirectResume({ provider: error.rateLimitProvider, channel, trackSessionId: sessionId, userMessage });
     const rateLimitText = renderTurnStatus({ kind: 'rate-limited' }, { sessionName, sessionId: resolvedSessionId, elapsedStr });
-    await sealStatus(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));
+    await sealQuietly(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));
     return;
   }
 
   log.error('Agent error:', error.message);
   const errorText = renderTurnStatus({ kind: 'error' }, { sessionName, sessionId: resolvedSessionId, elapsedStr });
-  await sealStatus(adapter, statusMsg, errorText, buildSealedStatusActionBlocks(errorText, { channel, sessionName, isDm: true }));
+  await sealQuietly(adapter, statusMsg, errorText, buildSealedStatusActionBlocks(errorText, { channel, sessionName, isDm: true }));
   await maybeNotifyTurnComplete({ adapter, channel, threadAnchorId, sessionName, sessionId: resolvedSessionId, elapsedS, elapsedStr, status: 'failed' });
   // Delivery is an identity decision: the TUI gateway routes an interactive-reply by matching this
   // against a connection's session id, which is the TRACK id. Handing it a backend id matched no
   // connection, so the error body was dropped on the way to the client (an empty id falls back to a
   // conduit lookup, which is the right answer for a caller that has no track id to give).
   const errorDest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: sessionId ?? '' };
+  const errorBody = { text: t('status.errorBody', { message: error.message }) };
+  const errorOpts = threadAnchorId ? { threadId: threadAnchorId } : undefined;
   const queue = getOutboundQueue();
-  if (queue) {
-    await durablePost(queue, adapter, errorDest, { text: t('status.errorBody', { message: error.message }) }, threadAnchorId ? { threadId: threadAnchorId } : undefined);
-  } else {
-    await adapter.postMessage(errorDest, { text: t('status.errorBody', { message: error.message }) }, threadAnchorId ? { threadId: threadAnchorId } : undefined);
-  }
+  // The body is the last word of a turn that already failed. A post the platform cannot take
+  // (network) is logged — durablePost has released its WAL claim for drain() to retry — and never
+  // thrown past the Turn's catch, where it would become a process-level unhandledRejection.
+  await (queue
+    ? durablePost(queue, adapter, errorDest, errorBody, errorOpts)
+    : adapter.postMessage(errorDest, errorBody, errorOpts)
+  ).catch((e) => log.error('error body post failed:', (e as Error).message));
+}
+
+/** The terminal seal is a platform side effect of a turn that is already over: a seal the platform
+ *  cannot take is logged, never thrown (`durableUpdate` has released its WAL claim, so drain()
+ *  retries it). Throwing here used to escalate a successful turn into "error" + an error body, and
+ *  in the error path escaped the Turn's catch as an unhandledRejection (2026-09-14, Feishu TLS). */
+function sealQuietly(...args: Parameters<typeof sealStatus>): Promise<void> {
+  return sealStatus(...args).catch((e) => log.error('status seal failed:', (e as Error).message));
 }
 
 /**
@@ -231,7 +243,7 @@ export async function handleDefaultAgentResult({ result, channel, adapter, statu
     recordDirectResume({ provider: result.rateLimitProvider, channel, trackSessionId: sessionId, userMessage });
     const { elapsedStr } = computeElapsed(startTime);
     const rateLimitText = renderTurnStatus({ kind: 'rate-limited' }, { sessionName, sessionId, elapsedStr });
-    await sealStatus(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));
+    await sealQuietly(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));
     return;
   }
   await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, executionId, sessionName, threadAnchorId, userMessageTs: messageTs, onAssistantMessage: callbacks.onAssistantMsg, holdBackground });
