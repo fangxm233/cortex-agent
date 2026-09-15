@@ -6,13 +6,21 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 // localStorage keys are unchanged, so an existing install keeps its layout across this refactor.
 const RAIL_COLLAPSED_KEY = 'cortex:left-rail-collapsed';
 const PANEL_COLLAPSED_KEY = 'cortex:right-panel-collapsed';
+// The right panel starts collapsed on a fresh install: it is a secondary surface, and the chat
+// column deserves the width until the user asks for it. The rail keeps its expanded default.
+// Only the absence of a stored value takes this default — an existing install keeps its choice.
+const PANEL_COLLAPSED_DEFAULT = true;
 
-function usePersistedFlag(key: string): readonly [boolean, (next: boolean | ((prev: boolean) => boolean)) => void] {
+function usePersistedFlag(
+  key: string,
+  fallback = false,
+): readonly [boolean, (next: boolean | ((prev: boolean) => boolean)) => void] {
   const [value, setValue] = useState<boolean>(() => {
     try {
-      return window.localStorage.getItem(key) === 'true';
+      const stored = window.localStorage.getItem(key);
+      return stored === null ? fallback : stored === 'true';
     } catch {
-      return false;
+      return fallback;
     }
   });
   useEffect(() => {
@@ -38,7 +46,7 @@ const PaneStateContext = createContext<PaneStateContextValue | null>(null);
 
 export function PaneStateProvider({ children }: { children: ReactNode }) {
   const [railCollapsed, setRail] = usePersistedFlag(RAIL_COLLAPSED_KEY);
-  const [panelCollapsed, setPanel] = usePersistedFlag(PANEL_COLLAPSED_KEY);
+  const [panelCollapsed, setPanel] = usePersistedFlag(PANEL_COLLAPSED_KEY, PANEL_COLLAPSED_DEFAULT);
 
   const setRailCollapsed = useCallback((next: boolean) => setRail(next), [setRail]);
   const toggleRail = useCallback(() => setRail((prev) => !prev), [setRail]);
