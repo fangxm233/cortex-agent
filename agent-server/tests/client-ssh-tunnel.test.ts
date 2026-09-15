@@ -76,6 +76,20 @@ test('buildSshTunnelArgs binds only remote loopback and keeps host as one argv',
   assert.ok(args.includes('/tmp/control.sock'));
 });
 
+test('buildSshTunnelArgs trades -N for the marker command and keeps it last', () => {
+  const marker = "exec sh -c 'P=$PPID; while kill -0 $P 2>/dev/null; do sleep 30; done # cortex-tunnel-13002'";
+  const args = buildSshTunnelArgs({ ...SPEC, markerCommand: marker }, '/tmp/control.sock');
+  // `-N` and a remote command are mutually exclusive: ssh refuses to run one with the other.
+  assert.ok(!args.includes('-N'));
+  assert.deepEqual(args.slice(-4), [
+    '-R',
+    '127.0.0.1:13002:127.0.0.1:3002',
+    'user@worker-a',
+    marker,
+  ]);
+  assert.ok(args.includes('ExitOnForwardFailure=yes'));
+});
+
 test('concurrent ensure calls share one SSH child and wait for control readiness', async () => {
   const h = makeHarness();
   await Promise.all([h.supervisor.ensure(SPEC), h.supervisor.ensure(SPEC)]);

@@ -405,12 +405,49 @@ test('SSH-routed client waits for its tunnel and launches with the loopback URL'
 
   await startRemoteClient('worker');
 
-  assert.deepEqual(ensure.mock.calls[0][0], {
-    device: 'worker', host: 'user@worker', remotePort: 13002, serverPort: port,
-  });
+  const spec = ensure.mock.calls[0][0];
+  assert.deepEqual(
+    { device: spec.device, host: spec.host, remotePort: spec.remotePort, serverPort: spec.serverPort },
+    { device: 'worker', host: 'user@worker', remotePort: 13002, serverPort: port },
+  );
   const launch = ssh.mock.calls.find(([, command]) => command.includes('nohup'))?.[1] ?? '';
   assert.match(launch, /CORTEX_SERVER_URL='ws:\/\/127\.0\.0\.1:13002'/);
   assert.equal(clientPids.get('worker'), 4321);
+});
+
+test('a POSIX SSH-routed client marks its tunnel session so a stale one can be evicted', async (t) => {
+  const port = await findEphemeralPort();
+  const ensure = vi.fn().mockResolvedValue(undefined);
+  _setTunnelSupervisorForTesting({ ensure, stopAll: vi.fn().mockResolvedValue(undefined), resume: vi.fn() });
+  _setMachineRegistryProviderForTesting(() => ({
+    worker: {
+      cortexPath: '/home/worker', gpuCount: 1, ssh: 'user@worker',
+      clientConnection: 'ssh-reverse', clientReversePort: 13004,
+    },
+  }));
+  _setSshExecForTesting(vi.fn(async (_host: string, command: string) => (
+    command.includes('kill -0') ? 'dead' : '4321'
+  )));
+  startClientManager(port);
+  t.onTestFinished(async () => { await stopClientManager(); _testReset(); });
+
+  await startRemoteClient('worker');
+
+  const spec = ensure.mock.calls[0][0];
+  // The marker has to survive in the remote process's own argv for pgrep to find it later.
+  assert.match(spec.markerCommand, /# cortex-tunnel-13004'$/);
+  // Without a pty nothing SIGHUPs the session, so the marker has to watch its sshd parent itself
+  // or it is reparented to init and leaks one process per tunnel restart.
+  assert.match(spec.markerCommand, /P=\$PPID; while kill -0 \$P 2>\/dev\/null; do sleep 30; done/);
+  // `$PPID` must reach the remote shell unexpanded, so the command cannot be double-quoted.
+  assert.ok(!spec.markerCommand.includes('"'));
+  // Killing the marker's parent is the point: the marker itself does not hold the listener.
+  assert.match(spec.freeRemotePortCommand, /pgrep -f "cortex\[-\]tunnel-13004"/);
+  assert.match(spec.freeRemotePortCommand, /case "\$\(cat \/proc\/\$pp\/comm 2>\/dev\/null\)" in sshd\*\) kill "\$pp";; esac/);
+  // A pattern that matched the eviction command's own shell would make it kill its own session.
+  assert.ok(!new RegExp('cortex[-]tunnel-13004').test(spec.freeRemotePortCommand));
+  // Windows keeps its own eviction path and must not grow a POSIX marker.
+  assert.equal(spec.freeRemotePortCommand.includes('powershell'), false);
 });
 
 test('a Windows SSH-routed client asks the tunnel to free its remote port first', async (t) => {
@@ -435,6 +472,8 @@ test('a Windows SSH-routed client asks the tunnel to free its remote port first'
   const spec = ensure.mock.calls[0][0];
   assert.match(spec.freeRemotePortCommand, /Get-NetTCPConnection -State Listen -LocalPort 13002/);
   assert.match(spec.freeRemotePortCommand, /Stop-Process -Id \$_\.OwningProcess -Force/);
+  // cmd.exe cannot run the POSIX marker, and Windows can already find the listener by port.
+  assert.equal(spec.markerCommand, undefined);
 });
 
 test('startAllRemoteClients keeps recovery armed until a launched client connects', async (t) => {

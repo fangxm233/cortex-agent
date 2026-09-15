@@ -497,12 +497,61 @@ function windowsFreePortCommand(port: number): string {
     + 'ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }"';
 }
 
+/** Tags a POSIX tunnel's remote session so a stale one can be found by name rather than by port. */
+function posixTunnelMarker(port: number): string {
+  return `cortex-tunnel-${port}`;
+}
+
+/**
+ * The remote end of a POSIX tunnel: a shell that parks with the marker in its own argv for as long
+ * as the sshd that spawned it lives. `ssh -N` would leave nothing on the far side but sshd, and
+ * sshd marks itself non-dumpable, so `/proc/<sshd>/fd` is root-only and an unprivileged
+ * `fuser`/`lsof`/`ss -p` reports no owner for the forward listener at all — a stale one simply
+ * cannot be located from the port. This process is an ordinary child of that sshd, which turns
+ * "who holds the port" into a `pgrep`.
+ *
+ * It has to watch its parent rather than park forever: `-T` gives the session no pty, so nothing
+ * sends SIGHUP when sshd goes away, and a plain `sleep` loop would be reparented to init and leak
+ * one process per tunnel restart. Watching the parent by pid also keeps the black-hole case right
+ * — there sshd is still alive, so the marker stays put and stays findable.
+ */
+function posixTunnelCommand(port: number): string {
+  return "exec sh -c 'P=$PPID; while kill -0 $P 2>/dev/null; do sleep 30; done"
+    + ` # ${posixTunnelMarker(port)}'`;
+}
+
+/**
+ * Evict a stale POSIX tunnel by killing the sshd session that owns its listener. When the link
+ * dies without a clean close, sshd blocks writing the session's exit status into the black hole
+ * and keeps the forward bound for a full TCP retransmission timeout (~15 min); every `ssh -R` in
+ * that window dies on ExitOnForwardFailure. Killing the marker's parent needs no privilege — that
+ * sshd runs as us — but it does need care: `/proc/<pid>/stat` is read past the last `)` because a
+ * process name may contain spaces, and the kill is gated on the parent actually being an sshd, so
+ * neither a recycled PID nor a marker already reparented to init can turn this into a stray kill.
+ * The name is matched as a prefix because OpenSSH 9.8+ renamed the per-connection process to
+ * `sshd-session`. The `[-]` keeps the pattern from matching the command's own shell, which would
+ * otherwise make this hang up on itself.
+ */
+function posixFreePortCommand(port: number): string {
+  const pattern = posixTunnelMarker(port).replace('cortex-', 'cortex[-]');
+  return `for p in $(pgrep -f "${pattern}"); do `
+    + 'pp=$(sed -e "s/^.*) //" /proc/$p/stat 2>/dev/null | cut -d" " -f2); '
+    + '[ -n "$pp" ] || continue; '
+    + 'case "$(cat /proc/$pp/comm 2>/dev/null)" in sshd*) kill "$pp";; esac; '
+    + 'done; exit 0';
+}
+
 function tunnelSpec(device: string, reg: MachineEntry): SshTunnelSpec | null {
   if (reg.clientConnection !== 'ssh-reverse') return null;
   if (!reg.ssh || clientManagerPort === null) throw new Error(`SSH reverse route is not ready for ${device}`);
   const remotePort = reg.clientReversePort ?? clientManagerPort;
   const spec: SshTunnelSpec = { device, host: reg.ssh, remotePort, serverPort: clientManagerPort };
-  if (reg.win) spec.freeRemotePortCommand = windowsFreePortCommand(remotePort);
+  if (reg.win) {
+    spec.freeRemotePortCommand = windowsFreePortCommand(remotePort);
+  } else {
+    spec.markerCommand = posixTunnelCommand(remotePort);
+    spec.freeRemotePortCommand = posixFreePortCommand(remotePort);
+  }
   return spec;
 }
 

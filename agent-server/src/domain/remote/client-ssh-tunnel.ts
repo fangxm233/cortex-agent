@@ -13,12 +13,23 @@ export interface SshTunnelSpec {
   remotePort: number;
   serverPort: number;
   /**
+   * Optional remote command run for the lifetime of the tunnel, in place of `-N`. Its only job is
+   * to leave a findable process on the far side: `ssh -N` puts nothing there but sshd itself, and
+   * sshd marks itself non-dumpable, so an unprivileged `fuser`/`lsof`/`ss -p` cannot say which
+   * process owns a forward listener. A marker command gives the session an ordinary greppable
+   * child whose parent is exactly the sshd holding `remotePort`.
+   */
+  markerCommand?: string;
+  /**
    * Optional remote shell command run immediately before each `ssh -R` spawn, to release
-   * `remotePort` on the far side. Needed on Windows: OpenSSH there leaves the forward listener
-   * behind in an orphaned `sshd -z` child when our side of the tunnel dies, and it lets a second
-   * sshd bind the same loopback port instead of failing. The cortex-client then reconnects into
-   * the dead listener and the device stays offline even though a healthy tunnel exists. POSIX
-   * sshd frees the port with the session, so leave this unset there.
+   * `remotePort` on the far side. Both platforms strand the listener when our end dies without a
+   * clean close, for different reasons:
+   * - Windows OpenSSH leaves it in an orphaned `sshd -z` child and then lets a second sshd bind
+   *   the same loopback port instead of failing, so the cortex-client reconnects into the dead
+   *   listener and the device stays offline even though a healthy tunnel exists.
+   * - POSIX sshd keeps it while it blocks writing the session's exit status into the black hole,
+   *   so it outlives the session by a full TCP retransmission timeout (~15 min) and every spawn
+   *   in between dies on `ExitOnForwardFailure`.
    */
   freeRemotePortCommand?: string;
 }
@@ -65,8 +76,11 @@ function defaultSpawnSsh(args: string[]): ChildProcess {
 }
 
 export function buildSshTunnelArgs(spec: SshTunnelSpec, controlPath: string): string[] {
-  return [
-    '-M', '-S', controlPath, '-N', '-T',
+  const args = [
+    '-M', '-S', controlPath, '-T',
+    // A marker command replaces `-N`: the session has to run something for the far side to be
+    // identifiable later. Both forms keep the forward alive for the life of the ssh process.
+    ...(spec.markerCommand ? [] : ['-N']),
     '-o', 'BatchMode=yes',
     '-o', 'ConnectTimeout=5',
     '-o', 'StrictHostKeyChecking=no',
@@ -76,12 +90,15 @@ export function buildSshTunnelArgs(spec: SshTunnelSpec, controlPath: string): st
     '-R', `127.0.0.1:${spec.remotePort}:127.0.0.1:${spec.serverPort}`,
     spec.host,
   ];
+  if (spec.markerCommand) args.push(spec.markerCommand);
+  return args;
 }
 
 // Compares where the tunnel points, which is what cannot change under a live supervisor.
-// `freeRemotePortCommand` is deliberately excluded: it is derived from the ports compared here
-// plus the host's OS, so treating it as a route change would only fire on a `win` flag edit —
-// and wedging a device permanently over that is a worse failure than using a stale command.
+// `markerCommand` and `freeRemotePortCommand` are deliberately excluded: both are derived from the
+// ports compared here plus the host's OS, so treating either as a route change would only fire on
+// a `win` flag edit — and wedging a device permanently over that is a worse failure than using a
+// stale command.
 function sameSpec(a: SshTunnelSpec, b: SshTunnelSpec): boolean {
   return a.host === b.host && a.remotePort === b.remotePort && a.serverPort === b.serverPort;
 }
