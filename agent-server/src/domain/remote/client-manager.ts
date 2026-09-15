@@ -487,14 +487,27 @@ function managedServerUrl(reg: MachineEntry): string | undefined {
 }
 
 /**
- * Kill whatever still listens on the tunnel's loopback port on a Windows host. Windows OpenSSH
- * neither tears the forward listener down with the session nor refuses a duplicate bind, so a
- * dead tunnel can keep answering the cortex-client while a healthy one sits next to it unused.
+ * Kill the sshd sessions still listening on the tunnel's loopback port on a Windows host. Windows
+ * OpenSSH neither tears the forward listener down with the session nor refuses a duplicate bind,
+ * so a dead tunnel can keep answering the cortex-client while a healthy one sits next to it
+ * unused — and several can pile up on one port.
+ *
+ * It loops because `Get-NetTCPConnection` reports a single row per endpoint no matter how many
+ * sockets are bound to it: with two listeners on the port, `netstat -ano` and .NET's
+ * `GetActiveTcpListeners()` both show two and the cmdlet shows one — the oldest. One pass would
+ * evict one listener and leave the rest, so it repeats until no sshd holds the port.
+ *
+ * The owner is checked by name because the kill is otherwise indiscriminate: whatever happens to
+ * be listening on the port gets force-stopped, which is a stray kill waiting to happen if anything
+ * else ever binds it. This is the same guard the POSIX command applies through `comm`.
  */
 function windowsFreePortCommand(port: number): string {
-  return 'powershell -NoProfile -Command "Get-NetTCPConnection -State Listen -LocalPort '
-    + `${port} -ErrorAction SilentlyContinue | `
-    + 'ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }"';
+  return 'powershell -NoProfile -Command "for ($i = 0; $i -lt 8; $i++) { '
+    + `$t = @(Get-NetTCPConnection -State Listen -LocalPort ${port} -ErrorAction SilentlyContinue | `
+    + "Where-Object { (Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue).ProcessName -eq 'sshd' }); "
+    + 'if (-not $t) { break }; '
+    + '$t | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }; '
+    + 'Start-Sleep -Milliseconds 250 }"';
 }
 
 /** Tags a POSIX tunnel's remote session so a stale one can be found by name rather than by port. */

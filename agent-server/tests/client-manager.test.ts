@@ -472,6 +472,12 @@ test('a Windows SSH-routed client asks the tunnel to free its remote port first'
   const spec = ensure.mock.calls[0][0];
   assert.match(spec.freeRemotePortCommand, /Get-NetTCPConnection -State Listen -LocalPort 13002/);
   assert.match(spec.freeRemotePortCommand, /Stop-Process -Id \$_\.OwningProcess -Force/);
+  // Get-NetTCPConnection reports one row per endpoint however many sockets are bound to it, so a
+  // single pass would evict one duplicate listener and leave the rest.
+  assert.match(spec.freeRemotePortCommand, /for \(\$i = 0; \$i -lt 8; \$i\+\+\)/);
+  assert.match(spec.freeRemotePortCommand, /if \(-not \$t\) \{ break \}/);
+  // Whatever else may hold that port must survive: only sshd is ours to kill.
+  assert.match(spec.freeRemotePortCommand, /\.ProcessName -eq 'sshd'/);
   // cmd.exe cannot run the POSIX marker, and Windows can already find the listener by port.
   assert.equal(spec.markerCommand, undefined);
 });
