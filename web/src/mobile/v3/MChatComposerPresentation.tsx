@@ -1,6 +1,5 @@
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import type { SlashSuggestion } from '@/features/workbench/composer-slash';
-import { ContextUsageRing } from '@/features/workbench/ContextUsageControl';
 import { TodoRail } from '@/features/workbench/TodoRail';
 import { PlusGlyph } from '@/design';
 import { MC, MONO } from '@/mobile/ui/kit';
@@ -96,11 +95,17 @@ export function ComposerAbove({ props }: { props: MChatViewProps }): JSX.Element
   );
 }
 
-function SelectionChip({ label, onClick }: { label: string; onClick: () => void }): JSX.Element {
+/** Model and thinking level share one capsule with no separator between them — on a phone the
+ *  toolbar has no room for punctuation, so colour does the separating: the model in the accent, the
+ *  level muted beside it. The level is also what goes first when the row runs out of width (it
+ *  shrinks far faster than the model name), since the model is the fact worth keeping on screen. */
+function SelectionChip({ label, sub, onClick }: { label: string; sub?: string | null; onClick: () => void }): JSX.Element {
   return (
-    <button type="button" data-chip="selection" onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 6, border: `1.5px solid ${MC.runBorder}`, background: MC.card, borderRadius: 999, height: 34, padding: '0 13px', boxSizing: 'border-box', flex: '0 1 auto', minWidth: 0, overflow: 'hidden', cursor: 'pointer' }}>
-      <span style={{ width: 5, height: 5, borderRadius: '50%', background: MC.run, flex: 'none' }} />
-      <span style={{ minWidth: 0, font: `600 11.5px ${MONO}`, color: MC.run, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+    <button type="button" data-chip="selection" aria-label={sub ? `${label} · ${sub}` : label} onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 5, border: `1.5px solid ${MC.runBorder}`, background: MC.card, borderRadius: 999, height: 34, padding: '0 11px', boxSizing: 'border-box', flex: '0 1 auto', minWidth: 0, overflow: 'hidden', cursor: 'pointer' }}>
+      <span style={{ flex: '0 1 auto', minWidth: 0, font: `600 11.5px ${MONO}`, color: MC.run, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+      {sub ? (
+        <span data-chip-sub style={{ flex: '0 12 auto', minWidth: 0, font: `500 11.5px ${MONO}`, color: MC.muted, whiteSpace: 'nowrap', overflow: 'hidden' }}>{sub}</span>
+      ) : null}
     </button>
   );
 }
@@ -126,21 +131,26 @@ export function CommissionChip({ value, text, label, onClick }: {
 }): JSX.Element {
   return (
     <button type="button" data-chip="commission" data-commission-value={value}
-      data-editable={onClick ? 'true' : 'false'} aria-label={`${label} · ${text}`}
-      onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 5, flex: '0 1 auto',
-        minWidth: 0, maxWidth: 150, height: 34, padding: '0 11px', boxSizing: 'border-box',
-        borderRadius: 999, border: `1.5px solid ${MC.runBorder}`, background: MC.runBg,
-        color: MC.run, font: `500 11px ${MONO}`, overflow: 'hidden',
-        cursor: onClick ? 'pointer' : 'default' }}>
-      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+      data-editable={onClick ? 'true' : 'false'} aria-label={`${label} · ${text}`} title={`${label} · ${text}`}
+      onClick={onClick} style={{ ...modeChipStyle, cursor: onClick ? 'pointer' : 'default' }}>
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor"
         strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" style={{ flex: 'none' }}>
         <path d="M4.2 2.2v11.6" />
         <path d="M4.2 3.1h7.8L10.4 5.7l1.6 2.6H4.2z" />
       </svg>
-      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{text}</span>
     </button>
   );
 }
+
+/** Browser and commission report as bare icon keys, the size of ＋. The phone toolbar cannot seat
+ *  two named capsules next to the model chip and the send keys, and of the three the model is the
+ *  one that must stay legible — so the device/commission name moves into the sheet the key opens
+ *  (and into its aria-label/tooltip), while the lit key alone says the mode is on. */
+const modeChipStyle: CSSProperties = {
+  flex: 'none', width: 34, height: 34, padding: 0, boxSizing: 'border-box', borderRadius: '50%',
+  border: `1.5px solid ${MC.runBorder}`, background: MC.runBg, color: MC.run,
+  display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 0,
+};
 
 export function BrowserChip({ device, label, onClick }: {
   device: string;
@@ -149,18 +159,13 @@ export function BrowserChip({ device, label, onClick }: {
 }): JSX.Element {
   return (
     <button type="button" data-chip="browser" data-browser-device={device}
-      data-editable={onClick ? 'true' : 'false'} aria-label={`${label} · ${device}`}
-      onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 5, flex: '0 1 auto',
-        minWidth: 0, maxWidth: 132, height: 34, padding: '0 11px', boxSizing: 'border-box',
-        borderRadius: 999, border: `1.5px solid ${MC.runBorder}`, background: MC.runBg,
-        color: MC.run, font: `500 11px ${MONO}`, overflow: 'hidden',
-        cursor: onClick ? 'pointer' : 'default' }}>
-      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+      data-editable={onClick ? 'true' : 'false'} aria-label={`${label} · ${device}`} title={`${label} · ${device}`}
+      onClick={onClick} style={{ ...modeChipStyle, cursor: onClick ? 'pointer' : 'default' }}>
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor"
         strokeWidth="1.5" style={{ flex: 'none' }}>
         <circle cx="8" cy="8" r="6.5" />
         <path d="M1.5 8h13M8 1.5c-1.8 1.8-2.7 4-2.7 6.5S6.2 13.2 8 14.5c1.8-1.3 2.7-4 2.7-6.5S9.8 3.3 8 1.5z" />
       </svg>
-      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{device}</span>
     </button>
   );
 }
@@ -173,14 +178,12 @@ export function ComposerLeading({ onClick }: { onClick: () => void }): JSX.Eleme
   );
 }
 
+/** The right-hand end of the composer toolbar. Context usage used to sit here too; it moved to the
+ *  header, next to ⋯ — it reports on the session rather than on the message being written, and the
+ *  width it took was width the engine chip needed once browser/commission keys joined the row. */
 export function ComposerTools({ props }: { props: MChatViewProps }): JSX.Element | null {
   if (props.editing || props.rejectBar) return null;
-  return (
-    <>
-      <SelectionChip label={props.selectionChipLabel} onClick={props.onOpenSelection} />
-      {(props.contextUsageSupported || props.contextUsage != null) ? <span data-context-usage-position="composer-toolbar" style={{ display: 'inline-flex', flex: 'none' }}><ContextUsageRing usage={props.contextUsage ?? null} variant="mobile" lang={props.contextUsageLang ?? 'en'} onClick={props.onContextUsageOpen} data-context-compact-enabled={props.contextCompactAction ? 'true' : undefined} /></span> : null}
-    </>
-  );
+  return <SelectionChip label={props.selectionChipLabel} sub={props.selectionChipSub} onClick={props.onOpenSelection} />;
 }
 
 export function MobileSlashMenu({ suggestions, onPick }: {

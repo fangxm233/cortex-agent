@@ -300,7 +300,8 @@ describe('MChatView send controls', () => {
     expect(label.parent?.props.style.flex).toBe('0 1 auto');
     expect(label.parent?.props.style.overflow).toBe('hidden');
     expect(label.props.style).toMatchObject({ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' });
-    expect(label.parent?.children).toHaveLength(2);
+    // The chip is the label alone — no leading dot, no disclosure triangle (same as desktop).
+    expect(label.parent?.children).toHaveLength(1);
   });
 });
 
@@ -611,10 +612,13 @@ describe('MChatView browser capsule', () => {
     expect(chip(render({ browserDevice: null, onOpenBrowser: () => {} }))).toBeUndefined();
   });
 
-  it('names the chosen device beside ＋, without opening the menu', () => {
+  it('lights a key beside ＋ and names the device in its label, not on the toolbar', () => {
     const renderer = render({ browserDevice: 'my-pc', onOpenBrowser: () => {} });
     expect(chip(renderer).props['data-browser-device']).toBe('my-pc');
-    expect(JSON.stringify(renderer.toJSON())).toContain('my-pc');
+    expect(chip(renderer).props['aria-label']).toContain('my-pc');
+    // Icon only: a named capsule here would squeeze the engine chip off the row. The name still
+    // reads in the ＋ menu and in the sheet the key opens.
+    expect(chip(renderer).findAllByType('span')).toHaveLength(0);
   });
 
   it('taps straight into the device sheet, where switching and off both live', () => {
@@ -628,5 +632,47 @@ describe('MChatView browser capsule', () => {
     const renderer = render({ browserDevice: 'server' });
     expect(chip(renderer).props['data-editable']).toBe('false');
     expect(chip(renderer).props.onClick).toBeUndefined();
+  });
+});
+
+describe('MChatView context usage key', () => {
+  function render(props: Record<string, unknown>): ReactTestRenderer {
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        <MChatView
+          {...baseProps}
+          {...props}
+          status={{ running: false, tone: 'idle', text: 'status' }}
+          rows={[]}
+        />,
+      );
+    });
+    return renderer;
+  }
+
+  function ring(renderer: ReactTestRenderer) {
+    return renderer.root.findAllByProps({ 'data-context-usage-ring': 'mobile' })[0];
+  }
+
+  const usage = { usedTokens: 64_000, contextWindow: 100_000, percent: 64, accuracy: 'exact' as const, updatedAt: '2026-05-01T00:00:00Z' };
+
+  it('sits in the header beside ⋯, not in the composer toolbar', () => {
+    // It reports on the session, like the ⋯ menu's session id and stats — and the composer row has
+    // no width to spare for it once the browser and commission keys are up.
+    const renderer = render({ contextUsage: usage });
+    expect(ring(renderer).props['data-context-usage-position']).toBe('chat-header');
+    expect(renderer.root.findAllByProps({ 'data-composer-toolbar': true })[0].findAllByProps({ 'data-context-usage-ring': 'mobile' })).toHaveLength(0);
+  });
+
+  it('opens the same usage sheet on tap', () => {
+    const onContextUsageOpen = vi.fn();
+    const renderer = render({ contextUsage: usage, onContextUsageOpen });
+    act(() => ring(renderer).props.onClick());
+    expect(onContextUsageOpen).toHaveBeenCalledOnce();
+  });
+
+  it('stays away from a session that reports no window at all', () => {
+    expect(ring(render({ contextUsage: null, contextUsageSupported: false }))).toBeUndefined();
   });
 });

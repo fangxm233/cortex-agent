@@ -167,6 +167,7 @@ vi.mock('./MChatView', async () => {
         'data-status-tone': props.status.tone,
         'data-send-enabled': props.sendEnabled,
         selectionChipLabel: props.selectionChipLabel,
+        selectionChipSub: props.selectionChipSub,
         onOpenSelection: props.onOpenSelection,
         selectionSheet: props.selectionSheet,
       },
@@ -538,7 +539,10 @@ function tap(renderer: ReactTestRenderer, rowId: string): void {
 describe('mobile engine picker', () => {
   it('the chip shows what the next turn runs, not the profile name', () => {
     mounted = mountChat();
-    expect(view(mounted).props.selectionChipLabel).toBe('opus · high');
+    // Model and level are separate parts — the chip sets them apart by colour, not by a separator,
+    // and drops the level first when the toolbar is short of width.
+    expect(view(mounted).props.selectionChipLabel).toBe('opus');
+    expect(view(mounted).props.selectionChipSub).toBe('high');
   });
 
   it('sends the whole selection, so an unstated field follows the profile again', () => {

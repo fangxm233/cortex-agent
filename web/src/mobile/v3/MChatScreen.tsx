@@ -21,7 +21,7 @@ import { useSessionCompact } from '@/features/workbench/useSessionCompact';
 import { browserStartupHint, browserStartupPending } from '@/features/workbench/browser-status';
 import { deriveSessionRunStatus } from '@/features/workbench/session-run-status';
 import { sessionSpanMs, sessionStatsView } from '@/features/workbench/session-stats';
-import { buildProfileOptions, effectiveSelection, profileChange } from '@/features/workbench/selection-menu';
+import { buildProfileOptions, effectiveSelection, profileChange, selectionChipParts } from '@/features/workbench/selection-menu';
 import {
   buildSlashSuggestions, resolveSlashInput, runSlashAction, slashFeedbackKey,
   type SlashAction, type SlashActionHandlers, type SlashSuggestion,
@@ -376,6 +376,7 @@ export function MChatScreen(): JSX.Element {
   // The profile is the base; the session's own model/thinking choice sits on top of it. One shared
   // resolver with the desktop composer, so the two surfaces cannot disagree about what will run.
   const effective = effectiveSelection(profiles, effectiveProfile, selectionOverride);
+  const chipParts = selectionChipParts(effective);
   const hasHistory = transcript.turns.length > 0 || liveTail.length > 0;
   const profileOptions = buildProfileOptions(profiles, effectiveProfile, {
     currentBackend: effective.backend, hasHistory,
@@ -836,7 +837,8 @@ export function MChatScreen(): JSX.Element {
         composerPlaceholder={composerPlaceholder}
         onStop={onStop}
         stopEnabled={!cancelMut.isPending}
-        selectionChipLabel={selectionChipLabel(effective)}
+        selectionChipLabel={chipParts.main}
+        selectionChipSub={chipParts.sub}
         browserDevice={isDraft ? draftBrowserDevice : (active?.browser?.device ?? null)}
         onOpenBrowser={isDraft ? () => setBrowserSheetOpen(true) : undefined}
         browserSheet={browserSheetOpen ? {

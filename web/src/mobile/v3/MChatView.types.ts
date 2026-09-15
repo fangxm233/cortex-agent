@@ -155,8 +155,11 @@ export interface MChatViewProps {
   composerPlaceholder?: string;
   onStop?: () => void;
   stopEnabled?: boolean;
-  /** What the next turn will run — model · thinking, not the profile name. */
+  /** What the next turn will run: the model (or, with no model pinned, the profile name). */
   selectionChipLabel: string;
+  /** The thinking level beside it, rendered muted and dropped first when the toolbar is short of
+   *  width. Null when the selection has no level. */
+  selectionChipSub?: string | null;
   onOpenSelection: () => void;
   browserDevice?: string | null;
   onOpenBrowser?: () => void;

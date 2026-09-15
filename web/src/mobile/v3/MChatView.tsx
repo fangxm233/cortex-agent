@@ -14,8 +14,9 @@
 // reveal-pacing + useRevealedText) — see MAssistantBlock. A message written into a running turn that
 // the model has not read yet (`pending`) is pinned below everything, the preview included, and says
 // so with dimmed text alone: the same ink bubble, full opacity, no icon, badge or spinner.
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
+import { ContextUsageRing } from '@/features/workbench/ContextUsageControl';
 import { useRevealedText } from '@/features/workbench/useRevealedText';
 import { useToolCallOverflow } from '@/features/workbench/useToolCallOverflow';
 import { ChatNotice } from '@/features/workbench/ChatNotice';
@@ -51,11 +52,21 @@ interface MChatHeaderProps {
   status: ChatHeaderStatus;
   onBack: () => void;
   onMore: () => void;
+  /** Context usage, as a round key left of ⋯. Absent on a session that reports no window. */
+  contextControl?: ReactNode;
 }
 
 export function MChatHeader(props: MChatHeaderProps): JSX.Element {
   return (
-    <MDrillHeader onBack={props.onBack} trailing={<MMoreButton onClick={props.onMore} />}>
+    <MDrillHeader
+      onBack={props.onBack}
+      trailing={(
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          {props.contextControl}
+          <MMoreButton onClick={props.onMore} />
+        </div>
+      )}
+    >
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ fontSize: 15, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {props.title}
@@ -65,6 +76,15 @@ export function MChatHeader(props: MChatHeaderProps): JSX.Element {
     </MDrillHeader>
   );
 }
+
+/** Context usage wears the ⋯ button's shape here rather than the composer's bare ring: in the
+ *  header it is one of two round keys, and a 22px ring floating beside a 34px button would read as
+ *  an ornament rather than something to press. The ring is itself the button — nesting one inside
+ *  a round wrapper would nest a button in a button. */
+const HEADER_CONTEXT_KEY: CSSProperties = {
+  width: 34, height: 34, borderRadius: '50%', background: MC.card, border: `1px solid ${MC.hairline}`,
+  boxSizing: 'border-box', justifyContent: 'center',
+};
 
 function MChatStatusLine({ status }: MChatHeaderProps): JSX.Element {
   return (
@@ -585,6 +605,17 @@ export function MChatView(props: MChatViewProps): JSX.Element {
         status={props.status}
         onBack={props.onBack}
         onMore={props.onMoreToggle}
+        contextControl={(props.contextUsageSupported || props.contextUsage != null) ? (
+          <ContextUsageRing
+            usage={props.contextUsage ?? null}
+            variant="mobile"
+            lang={props.contextUsageLang ?? 'en'}
+            onClick={props.onContextUsageOpen}
+            data-context-usage-position="chat-header"
+            data-context-compact-enabled={props.contextCompactAction ? 'true' : undefined}
+            style={HEADER_CONTEXT_KEY}
+          />
+        ) : null}
       />
       {/* Body region — a position:relative frame holding the scroll transcript + composer. The
           full-screen editor (2b) mounts as an absolute overlay of THIS region, so it covers the

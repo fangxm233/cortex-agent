@@ -174,8 +174,10 @@ function ComposerToolbar(props: MComposerProps): JSX.Element {
   return (
     <div data-composer-toolbar style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       {props.leading}
-      <span style={{ marginLeft: 'auto' }} />
-      {props.tools}
+      {/* The right-hand group carries the push itself rather than sitting behind a spacer element:
+          an empty spacer would also claim a gap on each side, and on a phone toolbar those 8px are
+          width the engine chip needs. */}
+      <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: '0 1 auto' }}>{props.tools}</span>
       {running && <SecondarySendKey enabled={props.sendEnabled ?? true} onSend={props.onSend} />}
       <PrimaryKey running={running} enabled={running ? props.stopEnabled ?? true : props.sendEnabled ?? true} onSend={props.onSend} onStop={props.onStop} />
     </div>

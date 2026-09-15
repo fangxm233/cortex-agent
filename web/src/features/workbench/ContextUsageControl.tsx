@@ -79,8 +79,10 @@ export interface ContextUsageRingProps extends Omit<ButtonHTMLAttributes<HTMLBut
 
 const TRIGGER_STYLE: CSSProperties = { border: 0, background: 'transparent', padding: 0, display: 'inline-flex', alignItems: 'center', color: 'var(--proto-muted)', cursor: 'pointer', flex: 'none' };
 
-/** Compact circular usage gauge — the composer-toolbar form of context usage. The percent lives in
- *  the tooltip/aria label rather than beside the ring, so the control stays icon-sized. */
+/** Compact circular usage gauge — the toolbar form of context usage: the desktop composer row, and
+ *  on mobile the chat header beside ⋯. The percent lives in the tooltip/aria label rather than
+ *  beside the ring, so the control stays icon-sized. Callers may restyle it through `style`
+ *  (mobile makes it a 34px round key) — it is the button itself, so do not wrap it in one. */
 export const ContextUsageRing = forwardRef<HTMLButtonElement, ContextUsageRingProps>(function ContextUsageRing(
   { usage, variant, lang, style, ...buttonProps },
   ref,
