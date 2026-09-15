@@ -5,8 +5,16 @@ import { pipeline } from 'node:stream/promises';
 import { createWriteStream, createReadStream } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createAppRouter } from '@domain/ui-service/app-router.js';
-import { createUiHttpServer } from '@platform/ui-http/ui-http-server.js';
+import { createUiHttpServer, createAuthorizer } from '@platform/ui-http/ui-http-server.js';
 import type { UiHttpServer, CustomRouteHandler } from '@platform/ui-http/ui-http-server.js';
+import { createUiSessionStore, DEFAULT_SESSION_TTL_MS } from '@platform/ui-http/ui-session.js';
+import type { UiSessionStore } from '@platform/ui-http/ui-session.js';
+import {
+  createUiAuthRoutes,
+  createUiSessionProbeRoute,
+  UI_LOGIN_PATH,
+  UI_SESSION_PATH,
+} from '@platform/ui-http/ui-auth-routes.js';
 import { createOtaRoutes } from '@platform/ui-http/ui-ota.js';
 import { createAppUpdateRoutes } from '@platform/ui-http/app-update.js';
 import { createForwardRoutes } from '@platform/ui-http/port-forward.js';
@@ -20,7 +28,7 @@ import type { UiService } from '@domain/ui-service/types.js';
 import { getClientToken } from '@core/auth.js';
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
-import { WORKSPACE_DIR, resolveWorkspaceRelPath } from '@core/paths.js';
+import { WORKSPACE_DIR, DATA_DIR, resolveWorkspaceRelPath } from '@core/paths.js';
 import { projectStore } from '@domain/projects/project-store.js';
 import { resolveMemoryFilePath } from '@domain/ui-service/query/memory.js';
 
@@ -33,6 +41,30 @@ const DEFAULT_UI_PORT = 3004;
 function isEnabled(env: NodeJS.ProcessEnv): boolean {
   const v = (env.CORTEX_UI_HTTP || '').trim().toLowerCase();
   return v === '1' || v === 'true' || v === 'on' || v === 'yes';
+}
+
+/** Where browser sessions survive a daemon restart. Written 0600 by the store. */
+const SESSIONS_FILE = path.join(DATA_DIR, 'ui-sessions.json');
+
+/**
+ * Token login is ON unless explicitly switched off — a browser reaching this server can log in by
+ * pasting the clientToken once. Opting out (`CORTEX_UI_TOKEN_LOGIN=0`) removes the login routes and
+ * the cookie leg entirely, leaving the token header and (if configured) Cloudflare Access.
+ *
+ * Being on by default means every CORTEX_UI_HTTP deployment exposes a public POST /api/ui/login.
+ * Behind Access the edge never lets an unauthenticated request reach it; on a directly exposed
+ * port it is one more guessable door, guarded by a 32-byte random secret, a constant-time compare
+ * and a fixed per-failure delay. See docs/browser-access.md.
+ */
+function isTokenLoginEnabled(env: NodeJS.ProcessEnv): boolean {
+  const v = (env.CORTEX_UI_TOKEN_LOGIN ?? '').trim().toLowerCase();
+  return !(v === '0' || v === 'false' || v === 'off' || v === 'no');
+}
+
+/** Session lifetime from env (days), falling back to the store's 30-day default. */
+function sessionTtlMs(env: NodeJS.ProcessEnv): number {
+  const days = Number((env.CORTEX_UI_SESSION_TTL_DAYS ?? '').trim());
+  return Number.isFinite(days) && days > 0 ? days * 24 * 60 * 60 * 1000 : DEFAULT_SESSION_TTL_MS;
 }
 
 /**
@@ -79,6 +111,12 @@ export interface StartUiHttpOptions {
    * undefined and the gate degrades to token-only. Injectable for tests.
    */
   verifyAccessJwt?: AccessJwtVerifier;
+  /**
+   * Explicit session store for the browser token-login path. Production builds one backed by
+   * DATA_DIR/ui-sessions.json; tests inject a memory-only store so they never touch the real file.
+   * Ignored when CORTEX_UI_TOKEN_LOGIN is switched off.
+   */
+  sessionStore?: UiSessionStore;
 }
 
 // ── File upload route (15a attachments) ───────────────────────────────────────
@@ -364,21 +402,44 @@ export function startUiHttpServer(opts: StartUiHttpOptions): UiHttpServer | null
   const initialCorsOrigins = typeof corsOrigins === 'function' ? corsOrigins() : corsOrigins;
   const spaDir = opts.spaDir ?? env.CORTEX_UI_SPA_DIR ?? defaultSpaDir();
   const verifyAccessJwt = opts.verifyAccessJwt ?? accessVerifierFromEnv(env);
+  const getToken = opts.getToken ?? getClientToken;
+
+  // Token login: one session store, one authorizer. The authorizer is handed to BOTH the gate and
+  // the public /api/ui/session probe, so "am I authenticated?" is answered by the same predicate
+  // that decides the next request — two copies would eventually disagree.
+  const tokenLogin = isTokenLoginEnabled(env);
+  const sessionStore = tokenLogin
+    ? (opts.sessionStore ?? createUiSessionStore({ file: SESSIONS_FILE, ttlMs: sessionTtlMs(env) }))
+    : undefined;
+  const verifySession = sessionStore ? (sid: string | undefined) => sessionStore.verify(sid) : undefined;
+  const authorize = createAuthorizer({ getToken, verifySession, verifyAccessJwt });
+
   log.info(
     `Web UI enabled — starting tRPC HTTP+SSE on 127.0.0.1:${port}` +
       (spaDir ? ` (SPA: ${spaDir})` : ' (SPA: not built — non-tRPC paths 404)') +
       (initialCorsOrigins.length > 0 ? ` (CORS allow-list: ${initialCorsOrigins.join(', ')})` : '') +
-      (verifyAccessJwt ? ' (Cloudflare Access JWT path enabled)' : ''),
+      (verifyAccessJwt ? ' (Cloudflare Access JWT path enabled)' : '') +
+      (tokenLogin ? ' (browser token login enabled)' : ' (browser token login disabled)'),
   );
   return createUiHttpServer({
     router,
-    getToken: opts.getToken ?? getClientToken,
+    getToken,
     port,
     host: '127.0.0.1',
     spaDir,
     corsOrigins,
     verifyAccessJwt,
+    verifySession,
+    authorize,
+    // Reachable without a credential: the login endpoint and the boolean probe. Everything else,
+    // including logout, goes through the gate.
+    publicRoutes: tokenLogin ? [UI_LOGIN_PATH, UI_SESSION_PATH] : [UI_SESSION_PATH],
     customRoutes: {
+      // Browser token login. When disabled, only the probe remains — so the SPA can say "token
+      // login is off here" instead of showing a form that could never work.
+      ...(sessionStore
+        ? createUiAuthRoutes({ store: sessionStore, getToken, authorize, ttlMs: sessionTtlMs(env) })
+        : createUiSessionProbeRoute(authorize)),
       [UPLOAD_PATH]: handleUpload,
       [DOWNLOAD_PATH]: handleDownload,
       // Commission board assets (ledger-referenced images/html) — guarded per handler doc above.

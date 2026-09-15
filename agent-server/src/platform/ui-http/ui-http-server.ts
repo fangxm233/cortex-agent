@@ -7,6 +7,7 @@ import { AUTH_HEADER, timingSafeEqualStr } from '@core/auth.js';
 import { createLogger } from '@core/log.js';
 import type { AccessJwtVerifier } from './access-jwt.js';
 import { FORWARD_PATH, createPortForward } from './port-forward.js';
+import { sessionIdFrom } from './ui-auth-routes.js';
 
 const log = createLogger('ui-http');
 
@@ -52,10 +53,31 @@ export interface UiHttpServerOptions {
    */
   verifyAccessJwt?: AccessJwtVerifier;
   /**
+   * Optional browser-session predicate. When present, a request that fails the x-cortex-token check
+   * is admitted if it carries a live session cookie (minted by POST /api/ui/login after the browser
+   * proved it holds the token once). Absent → the cookie leg is off and nothing changes.
+   *
+   * Authority is deliberately identical to the Access-JWT leg: tRPC and the custom API routes, and
+   * NOT the /forward upgrade. That exclusion is the whole point — see the upgrade handler below.
+   */
+  verifySession?: (sid: string | undefined) => boolean;
+  /**
    * Optional map of custom API route paths to handlers (for non-tRPC endpoints like
    * file upload). Auth-gated with the same dual-path check as tRPC paths.
    */
   customRoutes?: Record<string, CustomRouteHandler>;
+  /**
+   * Custom-route paths served WITHOUT the auth gate. Only the login and session-probe routes belong
+   * here: a browser that holds no credential yet must be able to reach them, and each answers with
+   * nothing more than a boolean or a 401.
+   */
+  publicRoutes?: string[];
+  /**
+   * Optional pre-built authorizer. When omitted one is built from getToken / verifySession /
+   * verifyAccessJwt. The caller passes its own so that the public /api/ui/session probe can answer
+   * with the exact predicate the gate uses, instead of a second copy that could drift.
+   */
+  authorize?: Authorizer;
   /**
    * Mount the TCP-over-WebSocket port forward on `/forward` (desktop shell → a loopback service on
    * this host). Defaults to on; `CORTEX_PORT_FORWARD=0` at the call site turns it off.
@@ -108,6 +130,29 @@ async function isAccessAuthorized(
   const jwt = Array.isArray(provided) ? provided[0] : provided;
   if (!jwt) return false;
   return verifyAccessJwt(jwt);
+}
+
+/** Decides whether one request may pass the gate. Async only because the JWT leg is. */
+export type Authorizer = (req: http.IncomingMessage) => Promise<boolean>;
+
+/**
+ * Build the gate predicate: **token → session cookie → Access JWT**, first match wins.
+ *
+ * The order is load-bearing. The token leg is synchronous and unchanged, so the desktop/machine
+ * path never pays an await; the cookie leg is a synchronous in-memory check; only the JWT leg —
+ * which may touch a remote JWKS — can suspend. An unconfigured leg is simply absent, so a
+ * deployment that enables neither browser path degrades to token-only exactly as before.
+ */
+export function createAuthorizer(opts: {
+  getToken: () => string;
+  verifySession?: (sid: string | undefined) => boolean;
+  verifyAccessJwt?: AccessJwtVerifier;
+}): Authorizer {
+  return async (req) => {
+    if (isAuthorized(req, opts.getToken)) return true;
+    if (opts.verifySession?.(sessionIdFrom(req))) return true;
+    return isAccessAuthorized(req, opts.verifyAccessJwt);
+  };
 }
 
 /**
@@ -202,6 +247,8 @@ function serveSpaStub(req: http.IncomingMessage, res: http.ServerResponse, spaDi
  */
 export function createUiHttpServer(opts: UiHttpServerOptions): UiHttpServer {
   const host = opts.host ?? '127.0.0.1';
+  const authorize = opts.authorize ?? createAuthorizer(opts);
+  const publicRoutes = new Set(opts.publicRoutes ?? []);
 
   const server = createHTTPServer({
     router: opts.router,
@@ -237,8 +284,9 @@ export function createUiHttpServer(opts: UiHttpServerOptions): UiHttpServer {
       // Auth-gated non-tRPC endpoints (e.g. file upload). Handled BEFORE tRPC so
       // custom routes can shadow tRPC base-path prefixes if needed.
       if (isCustomRoute) {
-        const authorized =
-          isAuthorized(req, opts.getToken) || (await isAccessAuthorized(req, opts.verifyAccessJwt));
+        // The login / session-probe routes run the gate themselves (or need no credential at all),
+        // so they are reached before the check rather than through it.
+        const authorized = publicRoutes.has(pathname) || (await authorize(req));
         if (!authorized) {
           log.warn(`ui-http auth rejected (custom route): ${req.method} ${url}`);
           res.writeHead(401, { 'Content-Type': 'text/plain; charset=utf-8' });
@@ -258,12 +306,12 @@ export function createUiHttpServer(opts: UiHttpServerOptions): UiHttpServer {
       }
 
       // ── tRPC paths ────────────────────────────────────────────────────────────
-      // Dual-path auth: a matching x-cortex-token (desktop/machine — checked first, synchronous, so
-      // that path is byte-for-byte unchanged and never awaits) OR a valid Cf-Access-Jwt-Assertion
-      // (Cloudflare Access — the browser path). Neither → 401.
+      // Triple-path auth: a matching x-cortex-token (desktop/machine — checked first, synchronous,
+      // so that path is byte-for-byte unchanged and never awaits) OR a live session cookie (the
+      // token-login browser path) OR a valid Cf-Access-Jwt-Assertion (Cloudflare Access — the other
+      // browser path). None → 401.
       if (url.startsWith(TRPC_BASE_PATH)) {
-        const authorized =
-          isAuthorized(req, opts.getToken) || (await isAccessAuthorized(req, opts.verifyAccessJwt));
+        const authorized = await authorize(req);
         if (!authorized) {
           log.warn(`ui-http auth rejected: ${req.method} ${url}`);
           res.writeHead(401, { 'Content-Type': 'text/plain; charset=utf-8' });
@@ -280,9 +328,12 @@ export function createUiHttpServer(opts: UiHttpServerOptions): UiHttpServer {
   });
 
   // ── Port forward (upgrade path) ─────────────────────────────────────────────
-  // Deliberately TOKEN-ONLY: the Access-JWT leg is NOT accepted here. A browser page riding an
-  // Access SSO cookie must never be able to open a raw TCP forward, and only a native client can
-  // set `x-cortex-token` on a WebSocket handshake anyway. See plan/embedded-browser.md §10.
+  // Deliberately TOKEN-ONLY: neither browser leg is accepted here. A browser page riding an Access
+  // SSO cookie — or our own `cortex_ui` session cookie — must never be able to open a raw TCP
+  // forward, and only a native client can set `x-cortex-token` on a WebSocket handshake anyway.
+  // Note that a browser WOULD attach the session cookie to this handshake automatically: calling
+  // `authorize(req)` here instead of `isAuthorized` would silently hand every logged-in page a raw
+  // socket to any loopback service on this host. See plan/embedded-browser.md §10.
   const forward = opts.portForward === false ? null : createPortForward();
   if (forward) {
     server.on('upgrade', (req, socket, head) => {
