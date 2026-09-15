@@ -13,6 +13,7 @@ import { useTRPC } from '@/lib/trpc';
 import { useAllSessions } from '@/features/projects/useProjectSessions';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useSelectedSession } from '@/features/workbench/SelectedSessionProvider';
+import { useCommissionEnabled } from '@/features/workbench/CommissionOptIn';
 import { CommissionBoardModal } from './CommissionBoardModal';
 
 export type CommissionModalAction = { type: 'open'; commissionId: string } | { type: 'close' };
@@ -52,7 +53,9 @@ function CommissionBoardController({ commissionId, onClose }: {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { setCurrentProject } = useCurrentProject();
-  const { setSelectedSession } = useSelectedSession();
+  const { setSelectedSession, startCommissionDraft } = useSelectedSession();
+  // Off means a create would drop the binding silently, so the board offers no way to start one.
+  const commissionEnabled = useCommissionEnabled();
 
   const commissionQuery = useQuery(trpc.commissions.get.queryOptions({ commissionId }));
   const decisionsQuery = useQuery(trpc.commissions.decisions.queryOptions({ commissionId }));
@@ -90,6 +93,13 @@ function CommissionBoardController({ commissionId, onClose }: {
     onClose();
   };
 
+  const newSession = () => {
+    setCurrentProject(commission.projectId);
+    startCommissionDraft(commission.id);
+    navigate('/workbench');
+    onClose();
+  };
+
   return (
     <CommissionBoardModal
       commission={commission}
@@ -100,6 +110,7 @@ function CommissionBoardController({ commissionId, onClose }: {
       sessionLabel={sessionLabel}
       pending={close.isPending}
       onOpenSession={openSession}
+      onNewSession={commissionEnabled && commission.status === 'active' ? newSession : undefined}
       onClose={(status, note) => {
         close.mutate({ commissionId, status, note: note || undefined });
       }}

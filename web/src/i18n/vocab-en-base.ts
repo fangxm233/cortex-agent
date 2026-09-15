@@ -287,6 +287,7 @@ export const enBase = {
   wbCommissionAbandoned: 'dropped',
   wbCommissionActive: 'active',
   wbCommissionOpenBoard: 'Open board',
+  wbCommissionNewSession: 'New session on this commission',
   wbCommissionGateCount: '{n} awaiting you',
   wbCommissionContract: 'Contract',
   wbCommissionLedger: 'Ledger',

@@ -31,6 +31,15 @@ interface SelectedSessionContextValue {
   pendingCreatedSession: PendingCreatedSession | null;
   /** True when the user is in a "New Conversation" draft (no session created yet). */
   isDraft: boolean;
+  /** The commission the draft will be created in: null (off), 'new' (drill a contract) or a
+   *  commission id. Held here rather than in the composer so a surface that KNOWS the commission —
+   *  a rail row, the board — can open a draft already armed with it. */
+  draftCommission: null | 'new' | string;
+  /** The composer's own capsule writing the choice back. */
+  setDraftCommission: (value: null | 'new' | string) => void;
+  /** Open a draft already joined to an existing commission: the one-click "another session on this
+   *  contract". The caller switches project first — the draft is created in the current one. */
+  startCommissionDraft: (commissionId: string) => void;
   /** The engine the draft session will be created with: a profile (null = system default) plus the
    *  model / provider / thinking chosen on top of it. */
   draftSelection: DraftSelection;
@@ -57,6 +66,9 @@ export function SelectedSessionProvider({ children }: { children: ReactNode }) {
   const [override, setOverride] = useState<string | null>(null);
   const [draftSelection, setDraftSelectionState] = useState<DraftSelection>(EMPTY_DRAFT_SELECTION);
   const [draftReloadToken, setDraftReloadToken] = useState(0);
+  // Deliberately NOT persisted into the localStorage composer draft: reopening a tab, or starting
+  // the next draft, must not silently re-arm commission mode.
+  const [draftCommission, setDraftCommission] = useState<null | 'new' | string>(null);
   // A just-created session whose authoritative sessions.list row has not landed yet.
   const [pendingCreatedSession, setPendingCreatedSession] = useState<PendingCreatedSession | null>(null);
 
@@ -99,25 +111,37 @@ export function SelectedSessionProvider({ children }: { children: ReactNode }) {
     setDraftSelectionState((current) => applyDraftSelection(current, change));
   }, []);
 
+  // Every explicit selection — a session row, a plain new draft — disarms commission mode: it is a
+  // choice about ONE draft, and inheriting it into the next conversation would bind work to a
+  // contract the user never picked for it.
   const setSelectedSession = useCallback((id: string) => {
     setPendingCreatedSession(null);
+    setDraftCommission(null);
     setOverride(id);
   }, []);
   const selectCreatedSession = useCallback((id: string) => {
     setPendingCreatedSession({
       sessionId: id, profileName: draftSelection.profileName, override: draftSelection.override,
     });
+    setDraftCommission(null);
     setOverride(id);
   }, [draftSelection]);
+  const startCommissionDraft = useCallback((commissionId: string) => {
+    setPendingCreatedSession(null);
+    setDraftCommission(commissionId);
+    setOverride(DRAFT_SENTINEL);
+  }, []);
   const prefillDraft = useCallback((text: string) => {
     prefillProjectDraft(currentProjectId ?? 'general', text);
     setPendingCreatedSession(null);
+    setDraftCommission(null);
     setOverride(DRAFT_SENTINEL);
     setDraftReloadToken((value) => value + 1);
   }, [currentProjectId]);
   const clearDraft = useCallback(() => {
     setPendingCreatedSession(null);
     setOverride(null);
+    setDraftCommission(null);
     setDraftSelectionState(EMPTY_DRAFT_SELECTION);
   }, []);
 
@@ -128,6 +152,9 @@ export function SelectedSessionProvider({ children }: { children: ReactNode }) {
       selectCreatedSession,
       pendingCreatedSession,
       isDraft,
+      draftCommission,
+      setDraftCommission,
+      startCommissionDraft,
       draftSelection,
       setDraftSelection,
       draftReloadToken,
@@ -135,6 +162,7 @@ export function SelectedSessionProvider({ children }: { children: ReactNode }) {
       clearDraft,
     }),
     [selectedSessionId, setSelectedSession, selectCreatedSession, pendingCreatedSession, isDraft,
+      draftCommission, startCommissionDraft,
       draftSelection, setDraftSelection, draftReloadToken, prefillDraft, clearDraft],
   );
 

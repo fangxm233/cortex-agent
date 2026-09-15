@@ -143,6 +143,9 @@ export interface RailTreeProps {
   onToggleCommission: (commissionId: string) => void;
   /** Opens the commission board — the row is a board entry point, not a route. */
   onOpenCommission: (commissionId: string) => void;
+  /** Starts another session on this commission, from the row that already names it. Absent when the
+   *  commission feature is switched off — the create would then drop the binding silently. */
+  onNewCommissionSession?: (row: RailCommissionRow) => void;
   onShowAll: (id: string) => void;
   onShowFewer: (id: string) => void;
   onOpenSession: (row: RailSessionRow) => void;
@@ -408,6 +411,9 @@ export function RailTree(props: RailTreeProps): JSX.Element {
   const renderCommissionRow = (row: RailCommissionRow) => {
     const key = 'comm:' + row.commissionId;
     const closed = row.status !== 'active';
+    // Only an ACTIVE commission takes new sessions (the server refuses the rest), so a closed row
+    // keeps its status word where the ＋ would sit.
+    const canAdd = !closed && !!props.onNewCommissionSession;
     return (
       <div key={key}>
         <div
@@ -464,7 +470,17 @@ export function RailTree(props: RailTreeProps): JSX.Element {
           <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {row.title}
           </span>
-          {closed ? (
+          {canAdd && isHover(key) ? (
+            <IconButton
+              label={L.wbCommissionNewSession}
+              onClick={(e) => {
+                e.stopPropagation();
+                props.onNewCommissionSession!(row);
+              }}
+            >
+              <AddIcon />
+            </IconButton>
+          ) : closed ? (
             <span style={{ font: `500 9px ${mono}`, color: 'var(--proto-muted-3)', flex: 'none' }}>
               {row.status === 'done' ? L.wbCommissionDone : L.wbCommissionAbandoned}
             </span>

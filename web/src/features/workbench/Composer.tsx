@@ -141,16 +141,19 @@ export function Composer({
   const L = useVocab();
   const lang = useLang();
   const queryClient = useQueryClient();
-  const { selectCreatedSession, setSelectedSession } = useSelectedSession();
+  const {
+    selectCreatedSession, setSelectedSession,
+    draftCommission: commissionChoice, setDraftCommission: setCommissionChoice,
+  } = useSelectedSession();
   const engineSelection = useSessionSelection({
     sessionId, currentProfile, currentOverride, hasHistory, isDraft,
   });
   // Draft-only: the browser tool set is fixed when the agent process spawns, so this is a
   // creation-time choice, not a session setting.
   const [browserDevice, setBrowserDevice] = useState<string | null>(null);
-  // Draft-only for the same reason as the browser, and deliberately NOT persisted into the
-  // localStorage composer draft: reopening a tab must not silently re-arm commission mode.
-  const [commissionChoice, setCommissionChoice] = useState<null | 'new' | string>(null);
+  // Draft-only for the same reason as the browser, but held by SelectedSessionProvider rather than
+  // here: the rail row and the commission board open a draft already armed with their commission,
+  // and that seed has to survive the composer remounting under the new selection.
   // Commission mode is a switchable feature (settings.commissionEnabled); when it is off the
   // composer offers no way in. A live session's read-only capsule still renders, so a session bound
   // while the feature was on keeps saying what it serves.

@@ -51,12 +51,24 @@ vi.mock('@/lib/trpc', () => ({
   }),
 }));
 
-vi.mock('./SelectedSessionProvider', () => ({
-  useSelectedSession: () => ({
-    selectCreatedSession: vi.fn(),
-    setSelectedSession: harness.setSelectedSession,
-  }),
-}));
+vi.mock('./SelectedSessionProvider', async () => {
+  const React = await import('react');
+  // The draft's commission choice lives in the provider (a rail row or the board can open a draft
+  // already armed with one), so the mock holds real state: the capsule reads back what the ＋ menu
+  // wrote, exactly as it does against the real provider.
+  return {
+    useSelectedSession: () => {
+      const [draftCommission, setDraftCommission] = React.useState<null | 'new' | string>(null);
+      return {
+        selectCreatedSession: vi.fn(),
+        setSelectedSession: harness.setSelectedSession,
+        draftCommission,
+        setDraftCommission,
+        startCommissionDraft: vi.fn(),
+      };
+    },
+  };
+});
 
 vi.mock('./SessionSelector', async () => {
   const React = await import('react');

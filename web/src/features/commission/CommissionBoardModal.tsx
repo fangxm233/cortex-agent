@@ -99,6 +99,9 @@ export interface CommissionBoardModalProps {
   sessionLabel: (sessionId: string) => string;
   pending: boolean;
   onOpenSession: (session: SessionInfo) => void;
+  /** Open a draft already joined to this commission. Absent when the commission takes no new
+   *  sessions — it is closed, or the feature is switched off. */
+  onNewSession?: () => void;
   onClose: (status: 'done' | 'abandoned', note: string) => void;
   onDismiss: () => void;
 }
@@ -176,6 +179,15 @@ export function CommissionBoardModal(props: CommissionBoardModalProps): JSX.Elem
         <StatusPill status={commission.status} />
         {open && (
           <>
+            {props.onNewSession && (
+              // The board is where the user decides this contract needs more work; making them go
+              // back to the composer and re-pick the commission there is the long way round.
+              <ActionButton
+                label={L.wbCommissionNewSession}
+                tone="neutral"
+                onClick={props.onNewSession}
+              />
+            )}
             <ActionButton
               label={L.wbCommissionComplete}
               tone="neutral"

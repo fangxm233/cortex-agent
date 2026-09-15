@@ -9,6 +9,7 @@ import { projectIndexFromKey } from './left-rail-projects';
 import {
   buildRailTree,
   projectOfSession,
+  type RailCommissionRow,
   type RailSessionRow,
 } from './rail-tree';
 import {
@@ -26,6 +27,7 @@ import { useSettings } from '@/features/settings/SettingsProvider';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useCommissionBoard } from '@/features/commission/CommissionBoardModalProvider';
 import { useCommissionLiveSync } from '@/features/commission/useCommissionLiveSync';
+import { useCommissionEnabled } from './CommissionOptIn';
 import { useSelectedSession } from './SelectedSessionProvider';
 import { useVocab } from '@/i18n';
 import { useTheme, useSetTheme } from '@/theme';
@@ -196,13 +198,15 @@ export function LeftRail(): JSX.Element {
   const threadsQuery = useQuery(trpc.threads.list.queryOptions({}));
   const scheduleModal = useScheduleModal();
   const commissionBoard = useCommissionBoard();
+  // With the feature switched off a create silently drops the binding, so the row offers no ＋.
+  const commissionEnabled = useCommissionEnabled();
   // Keep every row's running dot live: one unscoped session.status subscription → refetch the list.
   useSessionsLiveSync();
   // Keep commission rows current: approval landings, decision projections and closes.
   useCommissionLiveSync();
 
   const { currentProjectId, setCurrentProject, setProjectOrder } = useCurrentProject();
-  const { selectedSessionId, setSelectedSession } = useSelectedSession();
+  const { selectedSessionId, setSelectedSession, startCommissionDraft } = useSelectedSession();
 
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data]);
   const directSessions = useMemo(() => directSessionsQuery.data ?? [], [directSessionsQuery.data]);
@@ -354,6 +358,15 @@ export function LeftRail(): JSX.Element {
   // ⌘N itself is bound by the menu registry (shell/menu/useMenuShortcuts) — File → New session —
   // so the rail no longer keeps its own listener for it.
   const onNewSession = () => newSessionIn(null);
+
+  // Another session on the same contract, from the row that already names it. The composer's ＋ menu
+  // can do this too, but only by re-picking a commission the user is already standing on.
+  const onNewCommissionSession = (row: RailCommissionRow) => {
+    setCurrentProject(row.projectId);
+    openProject(row.projectId);
+    startCommissionDraft(row.commissionId);
+    navigate('/workbench');
+  };
 
   const onOverview = (projectId: string) => {
     setCurrentProject(projectId);
@@ -601,6 +614,7 @@ export function LeftRail(): JSX.Element {
           onToggleCommissions={toggleCommissions}
           onToggleCommission={toggleCommission}
           onOpenCommission={commissionBoard.openCommission}
+          onNewCommissionSession={commissionEnabled ? onNewCommissionSession : undefined}
           onShowAll={(id) => setShowAll((prev) => new Set(prev).add(id))}
           onShowFewer={showFewer}
           onOpenSession={onOpenSession}

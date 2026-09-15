@@ -286,6 +286,7 @@ export const zhBase = {
   wbCommissionAbandoned: '已放弃',
   wbCommissionActive: '进行中',
   wbCommissionOpenBoard: '打开看板',
+  wbCommissionNewSession: '在此委托下新建会话',
   wbCommissionGateCount: '{n} 项待你确认',
   wbCommissionContract: '合约',
   wbCommissionLedger: '账本',
