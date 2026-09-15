@@ -7,11 +7,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { register, dispatch } from '../src/domain/scheduling/job-registry.js';
-import { finalizeThreadSuccess } from '../src/domain/scheduling/jobs/_shared.js';
+import { registerThreadSession } from '../src/domain/scheduling/jobs/_shared.js';
 import { resolveSyncPublicScript } from '../src/domain/scheduling/jobs/sync-public.js';
 import { sessionStore } from '../src/store/session-registry-repo.js';
-
-const stubAdapter = { updateMessage: async () => ({}) } as any;
 
 test('unknown key dispatch logs a warning and returns false', () => {
   const result = dispatch('nonexistent-key', {});
@@ -85,22 +83,21 @@ test('one job failure does not break dispatch table', async () => {
   assert.equal(successCalled, true, 'succeeding runner was called');
 });
 
-// ── finalizeThreadSuccess: session registration identity ────────
+// ── registerThreadSession: session registration identity ────────
 // The conversation transcript is recorded under the thread step's TRACK sessionId
 // (threads/runner.ts). Registering the scheduled session under the backend id instead
 // produced ghost records with no transcript — these tests pin the track-id contract.
 
-test('finalizeThreadSuccess registers under the LAST step track id with backend resume target + scheduleId', async () => {
-  await finalizeThreadSuccess(stubAdapter, 'proj-a', null, {
-    startTime: Date.now(),
+test('registerThreadSession registers under the LAST step track id with backend resume target + scheduleId', async () => {
+  await registerThreadSession('proj-a', {
     sessionName: 'cortex-fin-01',
     result: { sessionId: 'backend-uuid-1' } as any,
     threadResult: {
       thread: { steps: [{ sessionId: 'track-step-1' }, { sessionId: 'track-step-2' }] },
       totalCostUsd: 0.1, totalNumTurns: 3,
     },
-    project: 'proj-a', trigger: 'scheduled', label: 'scan arxiv',
-    sessionKind: 'scheduled', sessionOrigin: 'scheduled', statusPrefix: 'Done',
+    project: 'proj-a', label: 'scan arxiv',
+    sessionKind: 'scheduled', sessionOrigin: 'scheduled',
     scheduleId: 'sched-42',
   });
 
@@ -122,9 +119,8 @@ test('finalizeThreadSuccess registers under the LAST step track id with backend 
 // under the main step's track id. Real agent steps always carry a sessionName (minted at step
 // start), so registration must key on the last REAL step, not the last recorded step.
 
-test('finalizeThreadSuccess skips hook-injected steps when picking the run track id', async () => {
-  await finalizeThreadSuccess(stubAdapter, 'proj-d', null, {
-    startTime: Date.now(),
+test('registerThreadSession skips hook-injected steps when picking the run track id', async () => {
+  await registerThreadSession('proj-d', {
     sessionName: 'cortex-fin-04',
     result: { sessionId: 'backend-uuid-4' } as any,
     threadResult: {
@@ -139,8 +135,8 @@ test('finalizeThreadSuccess skips hook-injected steps when picking the run track
       },
       totalCostUsd: 0.1, totalNumTurns: 3,
     },
-    project: 'proj-d', trigger: 'scheduled', label: 'scan arxiv',
-    sessionKind: 'scheduled', sessionOrigin: 'scheduled', statusPrefix: 'Done',
+    project: 'proj-d', label: 'scan arxiv',
+    sessionKind: 'scheduled', sessionOrigin: 'scheduled',
     scheduleId: 'sched-43',
   });
 
@@ -153,14 +149,13 @@ test('finalizeThreadSuccess skips hook-injected steps when picking the run track
   assert.equal(await sessionStore.getById('hook-backend-id'), null, 'no ghost record under a hook: slot id');
 });
 
-test('finalizeThreadSuccess falls back to result.sessionId when the thread has no steps', async () => {
-  await finalizeThreadSuccess(stubAdapter, 'proj-b', null, {
-    startTime: Date.now(),
+test('registerThreadSession falls back to result.sessionId when the thread has no steps', async () => {
+  await registerThreadSession('proj-b', {
     sessionName: 'cortex-fin-02',
     result: { sessionId: 'backend-uuid-2' } as any,
     threadResult: { totalCostUsd: 0, totalNumTurns: 1 },
-    project: 'proj-b', trigger: 'scheduled', label: null,
-    sessionKind: 'scheduled', sessionOrigin: 'scheduled', statusPrefix: 'Done',
+    project: 'proj-b', label: null,
+    sessionKind: 'scheduled', sessionOrigin: 'scheduled',
   });
 
   const rec = await sessionStore.getById('backend-uuid-2');
@@ -168,14 +163,13 @@ test('finalizeThreadSuccess falls back to result.sessionId when the thread has n
   assert.equal(rec!.scheduleId, null, 'no scheduleId when the caller passes none');
 });
 
-test('finalizeThreadSuccess registers nothing without a result session id', async () => {
-  await finalizeThreadSuccess(stubAdapter, 'proj-c', null, {
-    startTime: Date.now(),
+test('registerThreadSession registers nothing without a result session id', async () => {
+  await registerThreadSession('proj-c', {
     sessionName: 'cortex-fin-03',
     result: null,
     threadResult: { thread: { steps: [{ sessionId: 'track-orphan' }] } },
-    project: 'proj-c', trigger: 'scheduled', label: null,
-    sessionKind: 'scheduled', sessionOrigin: 'scheduled', statusPrefix: 'Done',
+    project: 'proj-c', label: null,
+    sessionKind: 'scheduled', sessionOrigin: 'scheduled',
   });
 
   assert.equal(await sessionStore.getById('track-orphan'), null, 'no registration without an agent result');

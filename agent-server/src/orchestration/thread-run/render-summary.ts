@@ -19,6 +19,7 @@ import {
   buildSealedStatusActionBlocks, buildStatusActionBlocks, computeElapsed, initStatusBlocks,
   sealStatus, writeStatus, type StatusBlocksTemplate,
 } from '../status-helpers.js';
+import type { ProgressRenderer } from './thread-surface.js';
 import type { ThreadVerdict } from './verdict.js';
 
 /** Where a summary-style run draws itself. Assembled once by `ThreadRun`. */
@@ -84,14 +85,7 @@ export async function openSummaryStatus(
 /** The multi-agent status line, or null when this surface draws nothing for this step. Guard and
  *  text are verbatim from the two `adapter.updateMessage(buildThreadStatusMessage(...))` calls the
  *  thread runner used to make itself. */
-export function renderSummaryProgress(info: {
-  threadId: string;
-  stepNumber: number;
-  label: string;
-  multiAgent: boolean;
-  numTurns: number | null;
-  startTime: number;
-}): string | null {
+export const renderSummaryProgress: ProgressRenderer = (info) => {
   if (!info.multiAgent) return null;
   const record = threadStore.get(info.threadId);
   return buildThreadStatusMessage({
@@ -104,7 +98,7 @@ export function renderSummaryProgress(info: {
     taskId: record?.metadata?.taskId ?? null,
     taskText: record?.metadata?.taskText ?? null,
   });
-}
+};
 
 /** Seal a status message with a thread summary (the former seal helper in status-helpers).
  *  Attaches SEALED action blocks (Cancel removed) when a template is supplied. Delivery failures

@@ -70,12 +70,11 @@ import { planApprovals } from '@orch/interactions/plan-approvals.js';
 import { busyTracker } from '@orch/busy-tracker.js';
 import { buildExecutionStatusReport } from '@orch/status-helpers.js';
 import { reprocessMessage } from '@orch/edit-retry.js';
-import { initScheduledRunner, initAuthExpiryScan, createScheduler, setSchedulerRef, setBus, setInteractiveCallbacksFactory, cancelDispatchedTask } from '@domain/scheduling/runner.js';
+import { initScheduledRunner, initAuthExpiryScan, createScheduler, setSchedulerRef, setBus, cancelDispatchedTask } from '@domain/scheduling/runner.js';
 import { startBuiltinJobs, stopBuiltinJobs } from '@domain/scheduling/builtin-jobs.js';
 import { migrateBuiltinJobSchedules } from '@domain/scheduling/builtin-job-migration.js';
 import { recoverWaitingThreads, registerTaskTreeSubscribers, reconcileWaitingTasks, startWaitingManagerSweep } from '../orchestration/thread-callback.js';
 import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
-import { buildInteractiveCallbacks } from '@orch/agent-runner.js';
 import { registerInteractionHandlers, initInteractionHandlers } from '@orch/interactions/interaction-handlers.js';
 import { respondToPlan } from '@orch/interactions/plan-response.js';
 import { CommandActionRouter } from '@orch/interactions/command-action-router.js';
@@ -117,11 +116,12 @@ import { EventBus, createEventLogger } from '@events/index.js';
 import { registerHookBridgeSubscribers } from '@orch/routing/hook-bridge-subscribers.js';
 import { startDispatchReconciler } from '@orch/dispatch-reconciler.js';
 import { ensurePIAgentDirs } from '../agent-adapter/pi/agent-dir.js';
-import { initOutboundQueue, getOutboundQueue } from '@store/outbound-queue.js';
+import { initOutboundQueue, getOutboundQueue, durablePost } from '@store/outbound-queue.js';
 import { createUiService } from '@domain/ui-service/index.js';
 import { activeClaudeCaptureRegistry } from '../agent-adapter/claude/active-capture-registry.js';
 import { deliverToSessionDetached } from '@orch/session-gateway.js';
 import { setOrchestrationRuntime } from '@orch/runtime.js';
+import { openThreadRun, type ThreadRunSurfaceInput } from '@orch/thread-run/index.js';
 import { startBackgroundSubagent, stopBackgroundSubagent } from '@orch/pi-background-subagent.js';
 import { setPiBackgroundSubagentBridge } from '@domain/runs/adapters.js';
 import { resolveRunConfig } from '@domain/runs/config-resolver.js';
@@ -361,12 +361,21 @@ const oq = initOutboundQueue(adapter);
 
 // --- Init extracted modules ---
 initScheduledRunner(adapter);
+// The `domain/scheduling` → `orchestration` seam (plan §1.3): the two thread jobs hand a
+// ThreadRunInput over and render nothing themselves, and the paths that fail before a run exists
+// say their one line through `notify`. Both are injected here because domain may not import
+// orchestration.
+jobCtx.runThreadOnSurface = (input: ThreadRunSurfaceInput) => openThreadRun({ ...input, adapter });
+jobCtx.notify = async (destination, text) => {
+  const queue = getOutboundQueue();
+  if (queue) { await durablePost(queue, adapter, destination, { text }); }
+  else { await adapter.postMessage(destination, { text }); }
+};
 setBus(bus);
 registerAuthWatch(bus, adapter, {
   buildPlatformAction: buildAuthRequiredLoginAction,
 });
 initAuthExpiryScan(buildAuthRequiredLoginAction);
-setInteractiveCallbacksFactory(buildInteractiveCallbacks);
 const scheduler = createScheduler();
 scheduler.setAdminNotifier(notifyAdmin);
 setSchedulerRef(scheduler);

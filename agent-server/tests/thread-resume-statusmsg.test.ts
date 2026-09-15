@@ -58,7 +58,8 @@ test('resumeThreadRunInput restores the persisted statusMsg without rebuilding d
   // project-report: the thread was dispatched, not started from a conversation.
   assert.equal(input!.destination.type, 'project-report');
   // No buttons and no interactive capture — nobody is watching this message any more.
-  assert.equal(input!.render.blocks, null);
+  assert.equal(input!.render.kind, 'summary');
+  assert.equal((input!.render as { blocks: unknown }).blocks, null);
   assert.equal(input!.interactive, false);
 });
 

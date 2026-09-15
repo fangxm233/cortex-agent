@@ -50,6 +50,7 @@ import { ThreadExecutor } from '../../src/orchestration/thread-executor.js';
 import { createWebhookHandler } from '../../src/orchestration/routing/webhook.js';
 import { setOrchestrationRuntime } from '../../src/orchestration/runtime.js';
 import { _testResetCallbackState } from '../../src/orchestration/thread-callback.js';
+import { openThreadRun } from '../../src/orchestration/thread-run/index.js';
 import { registerChildSpawn } from '../../src/domain/threads/tree.js';
 import { threadStore } from '../../src/store/thread-repo.js';
 import { sessionStore } from '../../src/store/session-registry-repo.js';
@@ -84,7 +85,11 @@ beforeEach(() => {
   jobCtx.adapter = adapter as any;
   jobCtx.bus = bus as any;
   jobCtx.schedulerRef = null;
-  jobCtx.buildInteractiveCallbacks = null;
+  // The composition-root wiring from entry/app.ts, verbatim (T2.2): the jobs no longer draw
+  // anything themselves, they hand a ThreadRunInput to ThreadRun and notify for the paths that
+  // fail before a run exists. No outbound queue in tests, so `notify` is a plain post.
+  jobCtx.runThreadOnSurface = (input) => openThreadRun({ ...input, adapter: adapter as any });
+  jobCtx.notify = async (destination, text) => { await adapter.postMessage(destination, { text }); };
   jobCtx.onThreadSuspended = null;
   _testResetCallbackState();
 });
@@ -93,6 +98,8 @@ afterEach(() => {
   setOrchestrationRuntime({ adapter: null });
   jobCtx.adapter = null;
   jobCtx.bus = null;
+  jobCtx.runThreadOnSurface = null;
+  jobCtx.notify = null;
   _testResetDispatchCycles();
   throttle._testReset();
   resumeRegistry._testReset();
@@ -421,7 +428,7 @@ test('golden 7: task-dispatch success — Dispatching post, durableUpdate Done, 
       /^🛰️ Dispatching: \[atlas\] Run the golden dispatch task\.\.\. \| cortex-[0-9a-f]{6} \| execute$/,
     )),
     post('project-report', 'dispatch out'),
-    // _shared.finalizeThreadSuccess — no outbound queue in tests, so plain adapter.updateMessage.
+    // render-task's terminal seal — no outbound queue in tests, so plain adapter.updateMessage.
     update(expect.stringMatching(
       /^✅ Done: \[atlas\] Run the golden dispatch task \| cortex-[0-9a-f]{6} · `golden-backend` \| \(\d+s · 4 turns · \$0\.0300\)$/,
     )),
@@ -517,7 +524,7 @@ test('golden 9: scheduled fresh success — processing post, onProgress update, 
     'llm.active-count-delta',
   ]);
 
-  // finalizeThreadSuccess registers the run under the last real step's TRACK id.
+  // registerThreadSession registers the run under the last real step's TRACK id.
   const sessionName = String(adapter.posted[0].content.text).split(' | ')[1];
   expect(sessionName).toMatch(SESSION_NAME);
   const registered = await sessionStore.lookupSession(sessionName);

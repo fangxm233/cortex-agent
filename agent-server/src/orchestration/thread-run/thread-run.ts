@@ -21,12 +21,29 @@ import { trackPendingTask } from '../busy-tracker.js';
 import type { StatusBlocksTemplate } from '../status-helpers.js';
 import { createThreadSurface } from './thread-surface.js';
 import { openSummaryStatus, renderSummaryOutcome, renderSummaryProgress } from './render-summary.js';
+import {
+  makeTaskProgressRenderer, openTaskStatus, renderTaskOutcome, taskStartText,
+  type TaskRender, type TaskVerdict,
+} from './render-task.js';
 import { settleThreadRun } from './settle.js';
 import { classifyThreadVerdict, type ThreadVerdict } from './verdict.js';
 
 const log = createLogger('thread-run');
 
 export type { ThreadVerdict };
+export type { TaskRender, TaskVerdict };
+
+/** How this run draws itself. `summary` is the `!thread` / MCP / resume surface (render-summary);
+ *  `task` is the dispatch / scheduled surface (render-task), which additionally needs `decide`. */
+export type ThreadRunRender =
+  | {
+      kind: 'summary';
+      /** Action-button template, or null for a background surface with nobody to click. */
+      blocks: StatusBlocksTemplate | null;
+      /** Opening line to post when `statusMessage` is null; null ⇒ this run draws no status line. */
+      startText: string | null;
+    }
+  | TaskRender;
 
 /** How this run enters the thread. Exactly the four `domain/threads/runner` entrypoints. */
 export type ThreadRunMode =
@@ -53,13 +70,18 @@ export interface ThreadRunInput {
   /** A status message the CALLER already posted (a resume's persisted `statusMsgRef`, and in T2.2
    *  the dispatch / scheduled processing lines). Null ⇒ ThreadRun posts `render.startText` itself. */
   statusMessage: MessageRef | null;
-  render: {
-    kind: 'summary';
-    /** Action-button template, or null for a background surface with nobody to click. */
-    blocks: StatusBlocksTemplate | null;
-    /** Opening line to post when `statusMessage` is null; null ⇒ this run draws no status line. */
-    startText: string | null;
-  };
+  render: ThreadRunRender;
+  /**
+   * TASK runs only, and REQUIRED there: turn the finished run into the job's verdict about the
+   * TASK behind it. Runs after the thread has ended and BEFORE anything is rendered, because the
+   * line the user reads has to report state that already exists — the task really is blocked,
+   * unclaimed, decomposed, or its session really is registered. It is the job's own closure, so
+   * every one of those effects stays in `domain/`.
+   *
+   * A throw is contained: it is logged, rendered as the error line, and reported on
+   * `ThreadRunOutcome.error`. `openThreadRun` still resolves.
+   */
+  decide?: (outcome: ThreadRunOutcome) => Promise<TaskVerdict>;
   /** Capture plan / ask-user dialogs for a live user (`!thread`); false for background runs. */
   interactive: boolean;
   files?: DownloadedFile[];
@@ -70,6 +92,10 @@ export interface ThreadRunInput {
    *  paths; null for the interactive path (the user is already looking at the status message). */
   settle: ((threadId: string) => Promise<void>) | null;
 }
+
+/** What a caller that does NOT own the adapter hands over — the shape `job-registry`'s
+ *  `runThreadOnSurface` seam carries (app.ts fills the adapter in). */
+export type ThreadRunSurfaceInput = Omit<ThreadRunInput, 'adapter'>;
 
 export interface ThreadRunOutcome {
   verdict: ThreadVerdict;
@@ -108,6 +134,9 @@ export class ThreadRun {
 
   async run(): Promise<ThreadRunOutcome> {
     const { adapter, destination, threadAnchorId, render, threadId } = this.input;
+    if (render.kind === 'task' && !this.input.decide) {
+      throw new Error('ThreadRun: a task-style render requires `decide`');
+    }
 
     // 1. Status message: the caller's, or our own two-step post (text first, then the same text
     //    with the Cancel button once the thread id is known).
@@ -121,7 +150,7 @@ export class ThreadRun {
     const stream = adapter.openOutputStream(destination, { threadId: anchor, anchorRef: statusMsg });
     const surface = createThreadSurface({
       adapter, statusMsg, threadId, startTime: this.startTime,
-      renderProgress: renderSummaryProgress,
+      renderProgress: render.kind === 'task' ? makeTaskProgressRenderer(render) : renderSummaryProgress,
       interactive: this.input.interactive ? buildInteractiveCallbacks(this.input.channel, null) : null,
     });
 
@@ -140,17 +169,21 @@ export class ThreadRun {
       log.error(`thread ${threadId} ${(e as Error & { cancelled?: boolean }).cancelled ? 'cancelled' : 'failed'}: ${(e as Error).message}`);
     }
     const verdict = classifyThreadVerdict(result, error);
+    const outcome: ThreadRunOutcome = { verdict, result, error, statusMsg };
 
-    // 4. Render the verdict. A delivery failure must not cost the caller its outcome or the
-    //    parent its wake-up, so it is logged and swallowed here (and only here).
+    // 4. Decide (task runs) and render. A delivery failure must not cost the caller its outcome or
+    //    the parent its wake-up, so it is logged and swallowed here (and only here).
     try {
-      await renderSummaryOutcome(
-        {
-          adapter, statusMsg, blocks: render.blocks, destination, threadAnchorId,
-          startTime: this.startTime,
-        },
-        { threadId, verdict, thread: threadStore.get(threadId), result, error },
-      );
+      if (render.kind === 'task') await this.decideAndRenderTask(outcome, render);
+      else {
+        await renderSummaryOutcome(
+          {
+            adapter, statusMsg, blocks: render.blocks, destination, threadAnchorId,
+            startTime: this.startTime,
+          },
+          { threadId, verdict, thread: threadStore.get(threadId), result, error },
+        );
+      }
     } catch (e) {
       log.warn(`render ${verdict} for ${threadId}: ${(e as Error).message}`);
     }
@@ -158,13 +191,37 @@ export class ThreadRun {
     // 5. Persist the live ref for a run that will be re-entered, then wake whoever is waiting.
     await settleThreadRun({ threadId, verdict, statusMsg, settle: this.input.settle });
 
-    return { verdict, result, error, statusMsg };
+    return outcome;
+  }
+
+  /** The task surface's step 4: the owning job's domain effects first, its verdict rendered
+   *  second. A `decide` that throws becomes the error line and `outcome.error` — never a rejected
+   *  `openThreadRun`, because the job still has a dispatch cycle to close out. */
+  private async decideAndRenderTask(outcome: ThreadRunOutcome, render: TaskRender): Promise<void> {
+    let verdict: TaskVerdict;
+    try {
+      verdict = await this.input.decide!(outcome);
+    } catch (e) {
+      log.error(`decide for ${this.input.threadId}: ${(e as Error).message}`);
+      outcome.error = e as Error;
+      verdict = { kind: 'error', message: (e as Error).message };
+    }
+    await renderTaskOutcome(
+      {
+        adapter: this.input.adapter, statusMsg: outcome.statusMsg,
+        destination: this.input.destination, startTime: this.startTime, result: outcome.result,
+      },
+      render, verdict,
+    );
   }
 
   private async postStatus(): Promise<MessageRef | null> {
     const { render, adapter, destination, threadAnchorId } = this.input;
-    if (!render.startText) return null;
     try {
+      if (render.kind === 'task') {
+        return await openTaskStatus(adapter, destination, taskStartText(render, this.startTime));
+      }
+      if (!render.startText) return null;
       return await openSummaryStatus(adapter, destination, threadAnchorId, render.startText, render.blocks);
     } catch (e) {
       // The webhook's posture, now everyone's: a thread whose status line cannot be posted still

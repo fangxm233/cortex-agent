@@ -14,7 +14,8 @@ const deps = vi.hoisted(() => ({
   runThread: vi.fn(),
   processAbortOutcome: vi.fn(),
   processSplitOutcome: vi.fn(),
-  finalizeThreadSuccess: vi.fn(),
+  registerThreadSession: vi.fn(),
+  notify: vi.fn(),
   getThread: vi.fn(),
   getAllThreads: vi.fn(),
   mutateThread: vi.fn(),
@@ -88,7 +89,7 @@ vi.mock('../src/domain/tasks/dispatch-utils.js', () => ({
 }));
 
 vi.mock('../src/domain/scheduling/jobs/_shared.js', () => ({
-  finalizeThreadSuccess: deps.finalizeThreadSuccess,
+  registerThreadSession: deps.registerThreadSession,
 }));
 
 vi.mock('../src/domain/tasks/mutator.js', () => ({
@@ -169,31 +170,49 @@ beforeEach(() => {
   });
   deps.processAbortOutcome.mockResolvedValue({ handled: false });
   deps.processSplitOutcome.mockResolvedValue({ handled: false });
-  deps.finalizeThreadSuccess.mockResolvedValue(undefined);
+  deps.registerThreadSession.mockResolvedValue(undefined);
+  deps.notify.mockResolvedValue(undefined);
   deps.getThread.mockImplementation(() => threadRecord);
   deps.getAllThreads.mockReturnValue([]);
   deps.mutateThread.mockImplementation(async (_id, mutate) => { mutate(threadRecord); });
   deps.unclaim.mockResolvedValue({ success: true });
   deps.block.mockResolvedValue({ success: true });
 
-  ctx.adapter = {
-    postMessage: vi.fn().mockResolvedValue(null),
-    updateMessage: vi.fn().mockResolvedValue(undefined),
-    // The dispatch job now opens the thread's OutputStream itself (T1.1).
-    openOutputStream: vi.fn(() => ({ emitText: vi.fn(), flush: vi.fn().mockResolvedValue(undefined) })),
-  } as any;
+  ctx.adapter = null;
   ctx.schedulerRef = null;
   ctx.bus = { publish: vi.fn() } as any;
-  ctx.buildInteractiveCallbacks = null;
+  // T2.2: the dispatch job neither renders nor opens a stream any more — it hands a
+  // ThreadRunInput to the injected runner. This double is the thinnest thing that still exercises
+  // the job's contract: run the thread, classify the verdict the way ThreadRun does, then let the
+  // job's own `decide` closure perform its task effects.
+  ctx.runThreadOnSurface = fakeRunThreadOnSurface;
+  ctx.notify = deps.notify;
   ctx.onThreadSuspended = null;
 });
+
+async function fakeRunThreadOnSurface(input: any): Promise<any> {
+  let result: any = null;
+  let error: Error | null = null;
+  try { result = await deps.runThread(input.threadId, { channel: input.channel, startTime: input.startTime }); }
+  catch (e) { error = e as Error; }
+  const status = result?.thread?.status;
+  const verdict = error ? ((error as any).cancelled ? 'cancelled' : 'failed')
+    : status === 'waiting' ? 'waiting'
+      : status === 'rate_limited' ? 'rate_limited'
+        : result?.lastAgentResult?.rateLimited ? 'rate_limited_exhausted' : 'completed';
+  const outcome: any = { verdict, result, error, statusMsg: null };
+  try { await input.decide(outcome); }
+  catch (e) { outcome.error = e as Error; }
+  return outcome;
+}
 
 afterEach(() => {
   delete process.env.CORTEX_PRODUCTION_BENCHMARK_EVIDENCE_CONTEXT_FILE;
   ctx.adapter = null;
   ctx.schedulerRef = null;
   ctx.bus = null;
-  ctx.buildInteractiveCallbacks = null;
+  ctx.runThreadOnSurface = null;
+  ctx.notify = null;
   ctx.onThreadSuspended = null;
   _testResetDispatchCycles();
 });
@@ -509,6 +528,19 @@ test('third consecutive dispatch failure auto-blocks and clears the counter', as
   assert.equal(deps.block.mock.calls.length, 1);
 });
 
+test('a throwing decide still counts the dispatch failure and releases the claim', async () => {
+  selectFixture('quarantine-target');
+  deps.runThread.mockResolvedValue({ thread: { status: 'completed', metadata: {} }, lastAgentResult: null });
+  deps.registerThreadSession.mockRejectedValueOnce(new Error('registry down'));
+
+  await runDispatchCycle();
+
+  assert.deepEqual(deps.unclaim.mock.calls, [['quarantine-target', OWNERSHIP]]);
+  assert.equal(deps.block.mock.calls.length, 0);
+  const texts = deps.notify.mock.calls.map(([, text]: [unknown, string]) => text);
+  assert.equal(String(texts.at(-1)).includes('Task dispatch error: registry down'), true);
+});
+
 /** Generation-fenced task double. Mirrors the three rules the real mutator enforces:
  *  a mismatched generation is refused (task-state.ts staleOwnership), unclaim clears
  *  dispatch_generation, and block keeps the owning generation while releasing the claim. */
@@ -562,7 +594,7 @@ test('successful dispatch resets consecutive failure count', async () => {
     lastAgentResult: null,
   });
   await runDispatchCycle();
-  assert.equal(deps.finalizeThreadSuccess.mock.calls.length, 1);
+  assert.equal(deps.registerThreadSession.mock.calls.length, 1);
 
   await runDispatchCycle();
   await runDispatchCycle();
@@ -582,9 +614,9 @@ test('failed block mutation keeps the quarantine count and reports dispatch erro
   await runDispatchCycle();
 
   assert.equal(deps.block.mock.calls.length, 1);
-  const texts = (ctx.adapter!.postMessage as any).mock.calls.map(([, message]) => message.text);
+  const texts = deps.notify.mock.calls.map(([, text]: [unknown, string]) => text);
   assert.equal(texts.some((text: string) => text.includes('Auto-blocked')), false);
-  assert.equal(texts.at(-1).includes('Task dispatch error: provider unavailable'), true);
+  assert.equal(String(texts.at(-1)).includes('Task dispatch error: provider unavailable'), true);
 
   deps.block.mockResolvedValue({ success: true });
   await runDispatchCycle();

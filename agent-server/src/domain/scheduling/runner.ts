@@ -12,7 +12,6 @@ import type { PlatformAdapter } from '@platform/index.js';
 export function initScheduledRunner(adapter: PlatformAdapter): void { ctx.adapter = adapter; }
 export function setSchedulerRef(s: Scheduler): void { ctx.schedulerRef = s; }
 export function setBus(bus: EventBus): void { ctx.bus = bus; }
-export function setInteractiveCallbacksFactory(factory: import('./job-registry.js').InteractiveCallbacksFactory): void { ctx.buildInteractiveCallbacks = factory; }
 
 export function createScheduler(): Scheduler {
   const sched = new Scheduler(

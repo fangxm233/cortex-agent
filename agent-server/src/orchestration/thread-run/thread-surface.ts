@@ -16,13 +16,18 @@ export interface InteractiveCapture {
   onAskUserQuestion?: ((event: { toolUseId: string; questions: Array<{ question: string; options?: string[]; multi?: boolean }> }) => void) | null;
 }
 
-/** Renders one step report as a status line, or null to draw nothing for it. */
+/** Renders one step report as a status line, or null to draw nothing for it. `phase` separates
+ *  the two reports a renderer may treat differently: the scheduler's line is only redrawn on
+ *  in-step progress (its step boundary has always drawn nothing), while the multi-agent line is
+ *  redrawn on both. */
 export type ProgressRenderer = (info: {
   threadId: string;
+  phase: 'step-started' | 'step-progress';
   stepNumber: number;
   label: string;
   multiAgent: boolean;
   numTurns: number | null;
+  durationMs: number | null;
   startTime: number;
 }) => string | null;
 
@@ -35,18 +40,21 @@ export function createThreadSurface(opts: {
   interactive: InteractiveCapture | null;
 }): ThreadSurface {
   const { adapter, statusMsg, threadId, startTime, renderProgress, interactive } = opts;
-  const text = (stepNumber: number, label: string, multiAgent: boolean, numTurns: number | null): string | null =>
-    statusMsg ? renderProgress({ threadId, stepNumber, label, multiAgent, numTurns, startTime }) : null;
+  const text = (
+    phase: 'step-started' | 'step-progress', stepNumber: number, label: string,
+    multiAgent: boolean, numTurns: number | null, durationMs: number | null,
+  ): string | null =>
+    statusMsg ? renderProgress({ threadId, phase, stepNumber, label, multiAgent, numTurns, durationMs, startTime }) : null;
 
   return {
     onStepStarted({ stepNumber, label, multiAgent }) {
-      const line = text(stepNumber, label, multiAgent, null);
+      const line = text('step-started', stepNumber, label, multiAgent, null, null);
       if (line === null) return;
       // Returned so the runner keeps its "status line lands before the step starts" ordering.
       return writeStatus(adapter, statusMsg!, line);
     },
-    onStepProgress({ stepNumber, label, multiAgent, numTurns }) {
-      const line = text(stepNumber, label, multiAgent, numTurns);
+    onStepProgress({ stepNumber, label, multiAgent, numTurns, durationMs }) {
+      const line = text('step-progress', stepNumber, label, multiAgent, numTurns, durationMs);
       if (line === null) return;
       void writeStatus(adapter, statusMsg!, line).catch(() => {});
     },
