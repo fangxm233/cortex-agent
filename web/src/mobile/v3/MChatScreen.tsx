@@ -57,7 +57,8 @@ import { MChatView, type MChatCopy, type MChatInteractions, type MRejectBar, typ
 import { MChatInlineThreadCard } from './MChatInlineThreadCard';
 import { DEFAULT_BROWSER_DEVICE } from '@/features/workbench/BrowserOptIn';
 import {
-  commissionRequestOf, useCommissionEnabled, useCommissionOptions, useSessionCommission,
+  commissionRequestOf, useCommissionEnabled, useCommissionOptions, useCommissionTitle,
+  useSessionCommission,
 } from '@/features/workbench/CommissionOptIn';
 import { listForwardDevices, type ForwardDevice } from '@/features/browser/forward';
 import { M_INT_COPY } from './MInteractionCards';
@@ -355,6 +356,9 @@ export function MChatScreen(): JSX.Element {
   // Commission mode, same creation-time rule as the browser and for the same reason: it decides
   // which plan tools and which skill the process spawns with.
   const [draftCommission, setDraftCommission] = useState<null | 'new' | string>(null);
+  // The sheet's titles are gone once it closes, so the chip needs the chosen commission's title
+  // fetched back — otherwise it would fall back to the bare id.
+  const draftCommissionTitle = useCommissionTitle(draftCommission);
   const [commissionSheetOpen, setCommissionSheetOpen] = useState(false);
   const commissionOptions = useCommissionOptions(commissionSheetOpen);
   const sessionCommission = useSessionCommission(active);
@@ -855,7 +859,9 @@ export function MChatScreen(): JSX.Element {
           ? (commissionEnabled ? draftCommission : null)
           : (sessionCommission?.value ?? null)}
         commissionLabel={isDraft
-          ? (commissionEnabled && draftCommission === 'new' ? vocab.wbCommissionNewOption : null)
+          ? (commissionEnabled
+            ? (draftCommission === 'new' ? vocab.wbCommissionNewOption : draftCommissionTitle)
+            : null)
           : (sessionCommission?.label ?? (sessionCommission ? vocab.wbCommissionUnnamed : null))}
         onOpenCommission={isDraft && commissionEnabled ? () => setCommissionSheetOpen(true) : undefined}
         commissionSheet={commissionSheetOpen ? {

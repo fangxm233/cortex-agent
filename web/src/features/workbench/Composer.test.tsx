@@ -1,6 +1,6 @@
 import type { ComponentProps } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LangProvider } from '@/i18n';
 
 const harness = vi.hoisted(() => ({
@@ -12,6 +12,9 @@ const harness = vi.hoisted(() => ({
   attachmentItems: [] as any[],
   attachmentRetry: vi.fn(),
   createPending: false,
+  // Query data by key root, so a test can stock the active-commission list and the title behind
+  // commissions.get while every other query stays empty — this suite's ordinary case.
+  queries: {} as Record<string, unknown>,
 }));
 
 vi.mock('@tanstack/react-query', () => ({
@@ -22,8 +25,11 @@ vi.mock('@tanstack/react-query', () => ({
       : { mutateAsync: harness.send, isPending: false },
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
   // The composer's commission control reads the active-commission list; no commissions is the
-  // ordinary case here, and nothing in this suite depends on the list's contents.
-  useQuery: () => ({ data: undefined, isPending: false }),
+  // ordinary case here, and only the commission suite below stocks a result.
+  useQuery: (options: { queryKey?: unknown[] }) => ({
+    data: harness.queries[String(options?.queryKey?.[0] ?? '')],
+    isPending: false,
+  }),
 }));
 
 vi.mock('@/lib/trpc', () => ({
@@ -125,6 +131,28 @@ function enterCommand(renderer: ReactTestRenderer, command: string): void {
   act(() => renderer.root.findByProps({ 'data-composer-input': true }).props.onChange({ target: { value: command } }));
   act(() => renderer.root.findByProps({ 'data-composer-input': true }).props.onKeyDown({ key: 'Enter', shiftKey: false, preventDefault: vi.fn() }));
 }
+
+describe('Composer commission capsule', () => {
+  afterEach(() => { harness.queries = {}; });
+
+  it('names the commission a draft is joining instead of calling it unnamed', () => {
+    // The draft holds the id alone; the menu's titles are gone the moment it closes, so the capsule
+    // has to fetch the title back. "unnamed" belongs to a contract that has not been named yet.
+    harness.queries['config.get'] = { settings: [{ key: 'commissionEnabled', value: true }] };
+    harness.queries['commissions.list'] = [{ id: 'cm-1', title: 'Refactor the rail' }];
+    harness.queries['commissions.get'] = { title: 'Refactor the rail' };
+    const renderer = mountComposer(() => {}, { isDraft: true });
+
+    act(() => renderer.root.findByProps({ 'data-chip': 'plus' }).props.onClick({ stopPropagation: vi.fn() }));
+    act(() => renderer.root.findByProps({ 'data-plus-item': 'commission' }).props.onClick({ stopPropagation: vi.fn() }));
+    act(() => renderer.root.findByProps({ 'data-commission-option': 'cm-1' }).props.onClick({ stopPropagation: vi.fn() }));
+
+    const chip = renderer.root.findByProps({ 'data-chip': 'commission' });
+    expect(chip.props['data-commission-value']).toBe('cm-1');
+    expect(chip.props['aria-label']).toContain('Refactor the rail');
+    act(() => renderer.unmount());
+  });
+});
 
 describe('Composer draft project selector', () => {
   it('renders only for drafts and locks while create-and-send is pending', () => {

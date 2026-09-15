@@ -30,7 +30,9 @@ import {
   ComposerActionRow, ComposerSlashMenu,
   type ComposerBrowserControl, type ComposerCommissionControl,
 } from './ComposerActionRow';
-import { commissionRequestOf, commissionSwitchOf, useCommissionEnabled } from './CommissionOptIn';
+import {
+  commissionRequestOf, commissionSwitchOf, useCommissionEnabled, useCommissionTitle,
+} from './CommissionOptIn';
 import { SessionSelectorView, useSessionSelection } from './SessionSelector';
 import type { ContextCompactAction } from './ContextUsageControl';
 import type { SessionSelectionOverride, SessionTotals, TodoSnapshot } from '@cortex-agent/ui-contract';
@@ -153,6 +155,9 @@ export function Composer({
   // composer offers no way in. A live session's read-only capsule still renders, so a session bound
   // while the feature was on keeps saying what it serves.
   const commissionEnabled = useCommissionEnabled();
+  // A draft holds only the chosen value, so joining an existing commission needs its title fetched
+  // back or the capsule would report a named commission as unnamed.
+  const draftCommissionLabel = useCommissionTitle(commissionChoice);
   const sendMut = useMutation(trpc.sessions.send.mutationOptions());
   const cancelMut = useMutation(trpc.sessions.cancel.mutationOptions());
   const createAndSendMut = useMutation(trpc.sessions.createAndSend.mutationOptions());
@@ -184,7 +189,7 @@ export function Composer({
     // Feature off: a session bound while it was on still says what it serves, read-only.
     ? (sessionCommission && !isDraft ? { value: sessionCommission.value, label: sessionCommission.label } : null)
     : isDraft
-      ? { value: commissionChoice, onChange: setCommissionChoice }
+      ? { value: commissionChoice, label: draftCommissionLabel, onChange: setCommissionChoice }
       : boundToCommission
         ? { value: sessionCommission!.value, label: sessionCommission!.label }
         : { value: sessionCommission?.value ?? null, label: null, onChange: switchLiveCommission };

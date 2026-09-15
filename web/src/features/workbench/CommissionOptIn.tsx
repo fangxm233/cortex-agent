@@ -1,6 +1,6 @@
 // input:  active commissions from trpc.commissions.list, commissionEnabled from trpc.config.get
-// output: the commission feature switch, commission-mode options for the composer ＋ menu, and the
-//         request they encode
+// output: the commission feature switch, commission-mode options for the composer ＋ menu, the
+//         request they encode, and the title behind a chosen value
 // pos:    Commission-mode choice model (off / new / join an active one)
 import { useQuery } from '@tanstack/react-query';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
@@ -80,21 +80,36 @@ export function useCommissionOptions(open: boolean): CommissionOption[] {
   ];
 }
 
-/** What the capsule on a LIVE session shows: which commission it serves, by title once one has
- *  landed. A session still drilling has a draft directory but no name yet — that is the point of
- *  the drill — so it reports the mode without a title. Returns null outside the mode.
+/**
+ * The title behind a chosen menu value, for the capsule that reports the choice.
  *
- *  The title query shares its key with the chat banner's, so a bound session pays for it once. */
-export function useSessionCommission(session: SessionInfo | null | undefined): {
-  value: string;
-  label: string | null;
-} | null {
+ * The menu's titles are read when it opens and gone when it closes, so a surface holding only a
+ * value — a draft's local choice, a live session's binding — has an id and nothing to show. Without
+ * this the capsule falls back to "unnamed" for a commission that has a perfectly good name.
+ *
+ * `null` (off) and 'new' have no title to fetch: the first is not a commission, the second is a
+ * contract that does not exist yet — the name is fixed at approval, which is the point of the
+ * drill. The query shares its key with the chat banner's, so a chosen commission is fetched once.
+ */
+export function useCommissionTitle(value: null | 'new' | string): string | null {
   const trpc = useTRPC();
-  const commissionId = session?.commissionId ?? null;
+  const commissionId = value && value !== 'new' ? value : null;
   const query = useQuery({
     ...trpc.commissions.get.queryOptions({ commissionId: commissionId ?? '' }),
     enabled: !!commissionId,
   });
-  if (commissionId) return { value: commissionId, label: query.data?.title ?? null };
+  return commissionId ? (query.data?.title ?? null) : null;
+}
+
+/** What the capsule on a LIVE session shows: which commission it serves, by title once one has
+ *  landed. A session still drilling has a draft directory but no name yet — that is the point of
+ *  the drill — so it reports the mode without a title. Returns null outside the mode. */
+export function useSessionCommission(session: SessionInfo | null | undefined): {
+  value: string;
+  label: string | null;
+} | null {
+  const commissionId = session?.commissionId ?? null;
+  const label = useCommissionTitle(commissionId);
+  if (commissionId) return { value: commissionId, label };
   return session?.commissionDraft ? { value: 'new', label: null } : null;
 }
