@@ -151,13 +151,10 @@ function createFreshOutageThread(): ThreadRecord {
 
 function makeOptions(thread: ThreadRecord): RunThreadOptions {
   return {
-    adapter,
     channel: thread.channel,
-    destination: { type: 'interactive-reply', conduit: thread.channel, sessionId: '' },
-    threadAnchorId: null,
-    statusMsg: null,
     startTime: Date.now(),
-    onProgress: null,
+    stream: adapter.openOutputStream({ type: 'interactive-reply', conduit: thread.channel, sessionId: '' }),
+    surface: { onStepStarted() {}, onStepProgress() {} },
   };
 }
 

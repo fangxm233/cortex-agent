@@ -20,9 +20,10 @@ import {
 import { runThread as runThreadExec } from '../../threads/runner.js';
 import { processSplitOutcome, processAbortOutcome, formatWorkerAbortReason } from '../../tasks/dispatch-utils.js';
 import { threadStore } from '@store/thread-repo.js';
-import { buildUserProcessingMessage, computeElapsed, buildSessionTag } from '@core/status-format.js';
+import { buildUserProcessingMessage, computeElapsed, buildSessionTag, buildThreadStatusMessage } from '@core/status-format.js';
 import { finalizeThreadSuccess } from './_shared.js';
 import type { PlatformAdapter, MessageRef } from '@platform/index.js';
+import type { ThreadSurface } from '@core/types/thread-types.js';
 import { getOutboundQueue, durableUpdate, durablePost } from '@store/outbound-queue.js';
 
 // --- Dispatch-failure quarantine ---
@@ -198,10 +199,38 @@ async function executeDispatchTask({ selected, selectedTask, channel, profileNam
     source: 'task-dispatch',
     templateName: selected.template,
   }).catch(() => {});
-  const threadResult = await runThreadExec(thread.id, {
-    adapter, channel: channel, threadAnchorId: statusMsg?.messageId || null, statusMsg, startTime,
-    destination: { type: 'project-report', projectId: selectedTask.project || channel, trigger: 'task-dispatch', sessionId: '' },
+  // T1.1 temporary surface (folded into render-task in T2.2): a verbatim port of the two
+  // status-line updates the thread runner used to perform itself, guards included.
+  const dispatchStatusText = (stepNumber: number, label: string, numTurns: number | null): string => {
+    const record = threadStore.get(thread.id);
+    return buildThreadStatusMessage({
+      threadId: record?.id ?? thread.id,
+      stepNumber,
+      label,
+      elapsedS: (Date.now() - startTime) / 1000,
+      numTurns,
+      taskProject: record?.metadata?.taskProject ?? null,
+      taskId: record?.metadata?.taskId ?? null,
+      taskText: record?.metadata?.taskText ?? null,
+    });
+  };
+  const surface: ThreadSurface = {
+    onStepStarted({ stepNumber, label, multiAgent }) {
+      if (!multiAgent || !statusMsg) return;
+      return adapter.updateMessage(statusMsg, { text: dispatchStatusText(stepNumber, label, null) });
+    },
+    onStepProgress({ stepNumber, label, multiAgent, numTurns }) {
+      if (!multiAgent || !statusMsg) return;
+      adapter.updateMessage(statusMsg, { text: dispatchStatusText(stepNumber, label, numTurns) }).catch(() => {});
+    },
     onToolUse: icb?.onToolUse ?? null, onPlanWritten: icb?.onPlanWritten ?? null, onAskUserQuestion: icb?.onAskUserQuestion ?? null,
+  };
+  const threadResult = await runThreadExec(thread.id, {
+    channel: channel, startTime, surface,
+    stream: adapter.openOutputStream(
+      { type: 'project-report', projectId: selectedTask.project || channel, trigger: 'task-dispatch', sessionId: '' },
+      { threadId: statusMsg?.messageId || null, anchorRef: statusMsg },
+    ),
     // Block the owning task before lifecycle end hooks inspect task state.
     onAbort: async ({ taskId, reason }) => {
       await taskMutator.block(taskId, formatWorkerAbortReason(reason), { ownership });

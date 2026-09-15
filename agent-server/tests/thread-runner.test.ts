@@ -100,13 +100,10 @@ const noopStream = { emitText: () => {}, flush: async () => {} } as any;
 
 function makeRunOpts(channel: string, overrides: Partial<RunThreadOptions> = {}): RunThreadOptions {
   return {
-    adapter: new MockAdapter() as any,
     channel,
-    destination: { type: 'interactive-reply', conduit: channel, sessionId: '' },
-    threadAnchorId: null,
-    statusMsg: null,
     startTime: Date.now(),
-    onProgress: null,
+    stream: new MockAdapter().openOutputStream({ type: 'interactive-reply', conduit: channel, sessionId: '' }),
+    surface: { onStepStarted() {}, onStepProgress() {} },
     ...overrides,
   };
 }

@@ -15,7 +15,7 @@ import { validateCommissionFinalize, finalizeCommission } from '@domain/commissi
 import { getCurrentPlanFilePath } from '../../agent-adapter/claude/event-parser.js';
 import { orchestrationAdapter, orchestrationBus } from '../runtime.js';
 import { createThread, cancelThread, readArtifact, listTemplates, listAgents, checkSpawnGuards, getRootThreadId, registerChildSpawn, buildThreadTree, getTreeThreads, buildContractPrompt, buildMissionChain, isArtifactUnchangedSinceStepStart } from '@domain/threads/index.js';
-import { runThreadDetached } from '../thread-executor.js';
+import { runThreadDetached, createThreadStatusSurface } from '../thread-executor.js';
 import { buildThreadSummary } from '@domain/threads/runner.js';
 import { Icons } from '@core/icons.js';
 import { buildStatusActionBlocks, buildSealedStatusActionBlocks, initStatusBlocks } from '../status-helpers.js';
@@ -457,15 +457,13 @@ function createWebhookHandler(_options: {
               dest = { type: 'project-report', projectId, trigger: 'mcp-thread', sessionId: '' };
             }
 
+            const startTime = Date.now();
             const runOpts: RunThreadOptions = {
-              adapter,
               channel,
-              destination: dest,
-              threadAnchorId: statusMsg ? statusMsg.messageId : null,
-              statusMsg,
-              startTime: Date.now(),
-              onProgress: null,
-              onToolUse: null,
+              startTime,
+              stream: adapter.openOutputStream(dest, { threadId: statusMsg ? statusMsg.messageId : null, anchorRef: statusMsg }),
+              // No interactive capture on the MCP path (onToolUse/onProgress were null here).
+              surface: createThreadStatusSurface({ adapter, statusMsg, startTime, threadId: thread.id, interactive: null }),
             };
             // Hold the daemon busy gate for the WHOLE pipeline so a deferred rebuild/restart can't
             // SIGTERM app.ts mid-thread and stamp it "Interrupted by server restart". (Bare runThread

@@ -1,4 +1,8 @@
 import type { Backend } from './agent-types.js';
+// MessageRef: persisted on ThreadRecord.metadata.statusMsgRef (a stored reference, not a handle).
+// OutputStream: the port RunThreadOptions carries. No PlatformAdapter / Destination here.
+import type { MessageRef } from '@platform/types.js';
+import type { OutputStream } from '@platform/output-stream.js';
 import type { McpComposition } from '../../agent-adapter/types.js';
 
 // --- Thread Identity ---
@@ -491,23 +495,46 @@ export interface TransitionResult {
 // Imported here (rather than declared in thread-runner.ts) so thread-hook-runner.ts
 // can consume RunThreadOptions without creating a circular import.
 
-import type { PlatformAdapter, MessageRef, Destination } from '@platform/index.js';
-
-export interface RunThreadOptions {
-  adapter: PlatformAdapter;
-  channel: string;
-  /** Destination for the thread's OutputStream. Caller must supply — never inferred. */
-  destination: Destination;
-  threadAnchorId: string | null;
-  statusMsg: MessageRef | null;
-  startTime: number;
-  onProgress?: ((progress: any) => void) | null;
+/** The port the thread runner reports step progress on. The runner reports UNCONDITIONALLY —
+ *  the owner of the surface (an orchestration-side caller) decides whether and how to render.
+ *  Nothing here knows about a PlatformAdapter, a Destination or a status message. */
+export interface ThreadSurface {
+  /** Multi-agent step boundary. Returning a promise lets the owner keep the runner's historical
+   *  "await the status-line update before starting the step" ordering; returning nothing (the
+   *  owner declined to render) costs no extra microtask. */
+  onStepStarted(info: {
+    stepNumber: number;
+    label: string;
+    prevLabel: string | null;
+    multiAgent: boolean;
+    isFirstStep: boolean;
+  }): void | Promise<void>;
+  /** In-step progress (one per `turn_progress` RunEvent). Fire-and-forget. */
+  onStepProgress(info: {
+    stepNumber: number;
+    label: string;
+    multiAgent: boolean;
+    numTurns: number | null;
+    durationMs: number | null;
+  }): void;
+  /** Caller-supplied interactive capture — unchanged from the old RunThreadOptions fields. */
   onToolUse?: ((name: string, input: any) => void) | null;
-  files?: any[];
   /** Called from the step's observer when a `plan_written` RunEvent arrives (PI backend: during the turn, not after). */
   onPlanWritten?: ((event: { path: string; content: string; toolUseId: string }) => void) | null;
   /** Called from the step's observer when an `ask_user_question` RunEvent arrives (PI backend: during the turn). */
   onAskUserQuestion?: ((event: { toolUseId: string; questions: Array<{ question: string; options?: string[]; multi?: boolean }> }) => void) | null;
+}
+
+export interface RunThreadOptions {
+  channel: string;
+  startTime: number;
+  /** Aggregating output stream for everything the thread says. Opened by the caller
+   *  (`adapter.openOutputStream(destination, { threadId, anchorRef })`) — the runner only
+   *  emits/flushes on it. */
+  stream: OutputStream;
+  /** Where step progress is reported. See ThreadSurface. */
+  surface: ThreadSurface;
+  files?: any[];
   /** Invoked before end hooks when agent abort must block the owning dispatch task. */
   onAbort?: ((info: { taskId: string; project: string | null; reason: string | null }) => Promise<void> | void) | null;
   /** Per-call lifecycle hooks injected by the caller (task-dispatcher / scheduled-runner / etc.).

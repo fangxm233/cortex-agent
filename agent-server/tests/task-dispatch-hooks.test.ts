@@ -179,6 +179,8 @@ beforeEach(() => {
   ctx.adapter = {
     postMessage: vi.fn().mockResolvedValue(null),
     updateMessage: vi.fn().mockResolvedValue(undefined),
+    // The dispatch job now opens the thread's OutputStream itself (T1.1).
+    openOutputStream: vi.fn(() => ({ emitText: vi.fn(), flush: vi.fn().mockResolvedValue(undefined) })),
   } as any;
   ctx.schedulerRef = null;
   ctx.bus = { publish: vi.fn() } as any;

@@ -18,6 +18,7 @@ import { buildUserProcessingMessage, computeElapsed, buildSessionTag } from '@co
 import { finalizeThreadSuccess, buildProgressUpdater } from './_shared.js';
 import { planScheduledDispatch, type DispatchPlan } from './target-dispatch.js';
 import type { PlatformAdapter, MessageRef, Destination } from '@platform/index.js';
+import type { ThreadSurface } from '@core/types/thread-types.js';
 import type { ScheduleTarget, ScheduleTask } from '@store/schedule-repo.js';
 import { getOutboundQueue, durableUpdate, durablePost } from '@store/outbound-queue.js';
 
@@ -183,10 +184,19 @@ function dispatchByPlan({ plan, normalizedMessage, message, scheduleTaskId, effe
   const project = projectStore.resolveFromMessage(message)?.id ?? 'general';
   const onProgress = statusMsg ? buildProgressUpdater(ctx.adapter!, statusMsg, startTime, effectiveProfile, sessionName) : undefined;
   const icb = ctx.buildInteractiveCallbacks?.(projectId, null);
-  const baseRunOpts = {
-    adapter: ctx.adapter!, channel: projectId, threadAnchorId: statusMsg?.messageId || null, statusMsg, startTime, onProgress,
-    destination: projectReportDest,
+  // T1.1 temporary surface (folded into render-task in T2.2). The scheduler renders its own
+  // processing line, so the runner's multi-agent status line stayed suppressed here — that is
+  // why onStepStarted draws nothing; onStepProgress is the old caller-supplied `onProgress`.
+  const surface: ThreadSurface = {
+    onStepStarted() {},
+    onStepProgress({ numTurns, durationMs }) {
+      onProgress?.({ num_turns: numTurns, total_cost_usd: null, duration_ms: durationMs });
+    },
     onToolUse: icb?.onToolUse ?? null, onPlanWritten: icb?.onPlanWritten ?? null, onAskUserQuestion: icb?.onAskUserQuestion ?? null,
+  };
+  const baseRunOpts = {
+    channel: projectId, startTime, surface,
+    stream: ctx.adapter!.openOutputStream(projectReportDest, { threadId: statusMsg?.messageId || null, anchorRef: statusMsg }),
   };
 
   if (plan.kind === 'continue-thread') {

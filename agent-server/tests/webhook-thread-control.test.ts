@@ -8,6 +8,8 @@ import path from 'node:path';
 const detached = vi.hoisted(() => ({ runThreadDetached: vi.fn() }));
 vi.mock('../src/orchestration/thread-executor.js', () => ({
   runThreadDetached: detached.runThreadDetached,
+  // The webhook builds its RunThreadOptions.surface with this (T1.1).
+  createThreadStatusSurface: () => ({ onStepStarted: () => {}, onStepProgress: () => {} }),
 }));
 
 import { CONFIG_DIR } from '../src/core/paths.js';
@@ -51,6 +53,8 @@ beforeAll(() => {
   setOrchestrationRuntime({ adapter: {
     postMessage: vi.fn().mockResolvedValue(null),
     updateMessage: vi.fn().mockResolvedValue(undefined),
+    // thread_start now opens the thread's OutputStream itself (T1.1).
+    openOutputStream: vi.fn(() => ({ emitText: vi.fn(), flush: vi.fn().mockResolvedValue(undefined) })),
   } as any });
 });
 

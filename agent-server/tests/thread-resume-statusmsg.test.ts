@@ -34,8 +34,14 @@ function makeThread(over: Partial<ThreadRecord> = {}): ThreadRecord {
   return rec;
 }
 
-test('buildResumeOptions restores statusMsg without rebuilding dispatch hooks', () => {
-  setOrchestrationRuntime({ adapter: new MockAdapter() });
+// The persisted statusMsgRef is no longer a RunThreadOptions field (T1.1): it is captured by the
+// surface the resume path builds. These two tests assert the same property one level out — a
+// step-boundary report from the runner does / does not land on the persisted message.
+const stepInfo = { stepNumber: 1, label: 'manager', prevLabel: null, multiAgent: true, isFirstStep: true };
+
+test('buildResumeOptions restores statusMsg without rebuilding dispatch hooks', async () => {
+  const adapter = new MockAdapter();
+  setOrchestrationRuntime({ adapter });
   const t = makeThread({
     metadata: {
       trigger: 'task-dispatch',
@@ -46,16 +52,19 @@ test('buildResumeOptions restores statusMsg without rebuilding dispatch hooks', 
   });
   const opts = buildResumeOptions(t);
   assert.ok(opts, 'expected options to be built');
-  assert.deepEqual(opts!.statusMsg, { conduit: 'C-rs-test', messageId: 'msg-42' });
+  await opts!.surface.onStepStarted(stepInfo);
+  assert.deepEqual(adapter.updated.map((u) => u.ref), [{ conduit: 'C-rs-test', messageId: 'msg-42' }]);
   assert.equal(opts!.extraHooks, undefined);
 });
 
-test('buildResumeOptions leaves statusMsg null when no statusMsgRef was persisted', () => {
-  setOrchestrationRuntime({ adapter: new MockAdapter() });
+test('buildResumeOptions leaves statusMsg null when no statusMsgRef was persisted', async () => {
+  const adapter = new MockAdapter();
+  setOrchestrationRuntime({ adapter });
   const t = makeThread({ metadata: { trigger: 'task-dispatch' } });
   const opts = buildResumeOptions(t);
   assert.ok(opts, 'expected options to be built');
-  assert.equal(opts!.statusMsg, null);
+  await opts!.surface.onStepStarted(stepInfo);
+  assert.deepEqual(adapter.updated, []);
 });
 
 test('buildResumeOptions returns null without an adapter', () => {

@@ -5,7 +5,7 @@ import { orchestrationAdapter, orchestrationBus } from './runtime.js';
 import { resumeThread } from '@domain/threads/runner.js';
 import { sealThreadStatus } from './status-helpers.js';
 import { isTerminalStatus } from '@domain/threads/tree.js';
-import { runThreadDetached } from './thread-executor.js';
+import { runThreadDetached, createThreadStatusSurface } from './thread-executor.js';
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
 import {
@@ -100,15 +100,14 @@ export function buildResumeOptions(parent: ThreadRecord): RunThreadOptions | nul
   const dest: Destination = m?.resumeDest === 'interactive-reply'
     ? { type: 'interactive-reply', conduit: parent.channel, sessionId: '' }
     : { type: 'project-report', projectId: parent.projectId, trigger: m?.trigger || 'mcp-thread', sessionId: '' };
+  const statusMsg = m?.statusMsgRef ?? null;
+  const startTime = Date.now();
   return {
-    adapter,
     channel: parent.channel,
-    destination: dest,
-    threadAnchorId: parent.platformThreadId ?? null,
-    statusMsg: m?.statusMsgRef ?? null,
-    startTime: Date.now(),
-    onProgress: null,
-    onToolUse: null,
+    startTime,
+    stream: adapter.openOutputStream(dest, { threadId: parent.platformThreadId ?? null, anchorRef: statusMsg }),
+    // A resumed thread has no live user to capture plan/ask dialogs for (onToolUse was null).
+    surface: createThreadStatusSurface({ adapter, statusMsg, startTime, threadId: parent.id, interactive: null }),
   };
 }
 

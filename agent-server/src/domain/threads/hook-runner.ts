@@ -145,12 +145,11 @@ async function runHookAgent(
     prompt = hookResult.directive + '\n\n' + prompt;
   }
 
-  // Notify Slack
+  // Announce the hook agent on the thread's own OutputStream (T1.1: was a standalone
+  // platform post; the text is unchanged, it is now aggregated with the thread's output).
   const slackLabel = isTargetMode ? `→ ${slotId}` : `hook:${phase}`;
   try {
-    await opts.adapter.postMessage(opts.destination, {
-      text: `${Icons.hook} Hook agent (*${slackLabel}*) starting...`,
-    }, opts.threadAnchorId ? { threadId: opts.threadAnchorId } : undefined);
+    opts.stream.emitText(`${Icons.hook} Hook agent (*${slackLabel}*) starting...`);
   } catch {}
 
   const meta = thread.metadata;
@@ -200,10 +199,7 @@ async function runHookAgent(
   const run = startRun(request, [{
     onEvent(event: RunEvent): void {
       if (event.type !== 'assistant_text') return;
-      opts.adapter.postMessage(
-        opts.destination, { text: event.text },
-        opts.threadAnchorId ? { threadId: opts.threadAnchorId } : undefined,
-      ).catch(() => {});
+      opts.stream.emitText(event.text);
     },
   } satisfies RunObserver]);
 

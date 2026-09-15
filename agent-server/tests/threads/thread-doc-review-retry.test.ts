@@ -120,13 +120,10 @@ function queueStep(artifactPath: string, addition: string, sessionId: string): v
 
 function makeOptions(record: ThreadRecord): RunThreadOptions {
   return {
-    adapter: new MockAdapter(),
     channel: record.channel,
-    destination: { type: 'interactive-reply', conduit: record.channel, sessionId: '' },
-    threadAnchorId: null,
-    statusMsg: null,
     startTime: Date.now(),
-    onProgress: null,
+    stream: new MockAdapter().openOutputStream({ type: 'interactive-reply', conduit: record.channel, sessionId: '' }),
+    surface: { onStepStarted() {}, onStepProgress() {} },
   };
 }
 

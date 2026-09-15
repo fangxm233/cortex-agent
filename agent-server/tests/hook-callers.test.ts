@@ -49,12 +49,12 @@ function makeThreadRecord(id: string): ThreadRecord {
 
 function makeThreadOptions(adapter: MockAdapter): RunThreadOptions {
   return {
-    adapter,
     channel: 'C-hook-caller',
-    destination: { type: 'interactive-reply', conduit: 'C-hook-caller', sessionId: '' },
-    threadAnchorId: null,
-    statusMsg: null,
     startTime: Date.now(),
+    // The hook runner announces on the thread's OutputStream; MockOutputStream still routes
+    // through adapter.postMessage, so the posted[] assertions below keep their meaning.
+    stream: adapter.openOutputStream({ type: 'interactive-reply', conduit: 'C-hook-caller', sessionId: '' }),
+    surface: { onStepStarted() {}, onStepProgress() {} },
   };
 }
 

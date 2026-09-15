@@ -1,7 +1,7 @@
 import * as path from 'path';
 import { randomUUID } from 'node:crypto';
 import type { Destination, PlatformAdapter, MessageRef, DownloadedFile, IncomingMessage, PlatformFileRef } from '@platform/index.js';
-import type { RunThreadOptions } from '@core/types/thread-types.js';
+import type { RunThreadOptions, ThreadSurface } from '@core/types/thread-types.js';
 import { createLogger } from '@core/log.js';
 import { Icons } from '../core/icons.js';
 import { conduitQueues, enqueue } from './conduit-queue.js';
@@ -12,6 +12,7 @@ import { runThread, continueThread, getActiveHandle } from '@domain/threads/runn
 import { downloadFiles as downloadPlatformFiles } from './routing/file-handler.js';
 import { computeElapsed, buildStatusActionBlocks, buildSealedStatusActionBlocks, initStatusBlocks, sealThreadStatus } from './status-helpers.js';
 import { threadStore } from '@store/thread-repo.js';
+import { buildThreadStatusMessage } from '@core/status-format.js';
 import { WORKSPACE_DIR } from '@core/utils.js';
 import { buildInteractiveCallbacks } from './agent-runner.js';
 import { buildPrompt as buildAgentPrompt } from '../agent-adapter/normalize/prompt-builder.js';
@@ -60,6 +61,56 @@ export function runThreadDetached(
       catch (e) { log.error(`detached thread ${threadId} onSettled error: ${(e as Error).message}`); }
       finally { track(-1); }
     });
+}
+
+/** The status-line rendering the thread runner used to do itself (T1.1).
+ *
+ *  Verbatim port of the two `adapter.updateMessage(statusMsg, buildThreadStatusMessage(...))` call
+ *  sites that lived in `domain/threads/runner.ts`, including their guards: the line is drawn only
+ *  for a multi-agent thread that has a live status message, the step-boundary update is awaited by
+ *  the runner and the in-step progress update is fire-and-forget.
+ *
+ *  Shared by every orchestration-side caller (thread-executor x3, webhook, thread-callback) so
+ *  they stay byte-identical. `domain/scheduling`'s two jobs cannot import orchestration, so they
+ *  carry their own inline surface. All of this collapses into `ThreadRun` / render-summary in T2.1. */
+export function createThreadStatusSurface({ adapter, statusMsg, startTime, threadId, interactive }: {
+  adapter: PlatformAdapter;
+  statusMsg: MessageRef | null;
+  startTime: number;
+  threadId: string;
+  /** buildInteractiveCallbacks(...) for the paths that capture plan/ask dialogs; null otherwise. */
+  interactive?: {
+    onToolUse?: ((name: string, input: any) => void) | null;
+    onPlanWritten?: ((event: { path: string; content: string; toolUseId: string }) => void) | null;
+    onAskUserQuestion?: ((event: { toolUseId: string; questions: Array<{ question: string; options?: string[]; multi?: boolean }> }) => void) | null;
+  } | null;
+}): ThreadSurface {
+  const statusText = (stepNumber: number, label: string, numTurns: number | null): string => {
+    const record = threadStore.get(threadId);
+    return buildThreadStatusMessage({
+      threadId: record?.id ?? threadId,
+      stepNumber,
+      label,
+      elapsedS: (Date.now() - startTime) / 1000,
+      numTurns,
+      taskProject: record?.metadata?.taskProject ?? null,
+      taskId: record?.metadata?.taskId ?? null,
+      taskText: record?.metadata?.taskText ?? null,
+    });
+  };
+  return {
+    onStepStarted({ stepNumber, label, multiAgent }) {
+      if (!multiAgent || !statusMsg) return;
+      return adapter.updateMessage(statusMsg, { text: statusText(stepNumber, label, null) });
+    },
+    onStepProgress({ stepNumber, label, multiAgent, numTurns }) {
+      if (!multiAgent || !statusMsg) return;
+      adapter.updateMessage(statusMsg, { text: statusText(stepNumber, label, numTurns) }).catch(() => {});
+    },
+    onToolUse: interactive?.onToolUse ?? null,
+    onPlanWritten: interactive?.onPlanWritten ?? null,
+    onAskUserQuestion: interactive?.onAskUserQuestion ?? null,
+  };
 }
 
 export interface ThreadExecCtx {
@@ -191,9 +242,9 @@ async function handleThreadAdd({ threadAddMatch, existingThread, channel, adapte
 
   const interactiveCallbacks = buildInteractiveCallbacks(channel, null);
   const threadResult = await runThread(targetThread.id, {
-    adapter, channel, threadAnchorId: platformThreadId, statusMsg, startTime, files: downloadedFiles,
-    destination: interactiveDest,
-    onToolUse: interactiveCallbacks.onToolUse, onPlanWritten: interactiveCallbacks.onPlanWritten, onAskUserQuestion: interactiveCallbacks.onAskUserQuestion,
+    channel, startTime, files: downloadedFiles,
+    stream: adapter.openOutputStream(interactiveDest, { threadId: platformThreadId, anchorRef: statusMsg }),
+    surface: createThreadStatusSurface({ adapter, statusMsg, startTime, threadId: targetThread.id, interactive: interactiveCallbacks }),
   });
   await sealThreadStatus(adapter, statusMsg, threadResult, { blocksTemplate: threadBlocksTemplate });
   return statusMsg;
@@ -235,9 +286,9 @@ async function handleThreadContinue({ existingThread, agentMessage, channel, ada
 
   const interactiveCallbacks = buildInteractiveCallbacks(channel, null);
   const threadResult = await continueThread(existingThread.id, agentMessage, {
-    adapter, channel, threadAnchorId, statusMsg, startTime, files: downloadedFiles,
-    destination: interactiveDest,
-    onToolUse: interactiveCallbacks.onToolUse, onPlanWritten: interactiveCallbacks.onPlanWritten, onAskUserQuestion: interactiveCallbacks.onAskUserQuestion,
+    channel, startTime, files: downloadedFiles,
+    stream: adapter.openOutputStream(interactiveDest, { threadId: threadAnchorId, anchorRef: statusMsg }),
+    surface: createThreadStatusSurface({ adapter, statusMsg, startTime, threadId: existingThread.id, interactive: interactiveCallbacks }),
   });
 
   await sealThreadStatus(adapter, statusMsg, threadResult, { blocksTemplate: continueBlocksTemplate });
@@ -278,9 +329,9 @@ async function handleThreadStart({ threadStartMatch, messageId, channel, adapter
 
   const interactiveCallbacks = buildInteractiveCallbacks(channel, null);
   const threadResult = await runThread(thread.id, {
-    adapter, channel, threadAnchorId: platformThreadId, statusMsg, startTime, files: downloadedFiles,
-    destination: interactiveDest,
-    onToolUse: interactiveCallbacks.onToolUse, onPlanWritten: interactiveCallbacks.onPlanWritten, onAskUserQuestion: interactiveCallbacks.onAskUserQuestion,
+    channel, startTime, files: downloadedFiles,
+    stream: adapter.openOutputStream(interactiveDest, { threadId: platformThreadId, anchorRef: statusMsg }),
+    surface: createThreadStatusSurface({ adapter, statusMsg, startTime, threadId: thread.id, interactive: interactiveCallbacks }),
   });
   await sealThreadStatus(adapter, statusMsg, threadResult, { blocksTemplate: startBlocksTemplate });
   return statusMsg;

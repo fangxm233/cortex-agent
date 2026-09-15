@@ -158,13 +158,10 @@ function createTestThread(
 
 function makeOptions(channel: string): RunThreadOptions {
   return {
-    adapter: new MockAdapter(),
     channel,
-    destination: { type: 'interactive-reply', conduit: channel, sessionId: '' },
-    threadAnchorId: null,
-    statusMsg: null,
     startTime: Date.now(),
-    onProgress: null,
+    stream: new MockAdapter().openOutputStream({ type: 'interactive-reply', conduit: channel, sessionId: '' }),
+    surface: { onStepStarted() {}, onStepProgress() {} },
   };
 }
 

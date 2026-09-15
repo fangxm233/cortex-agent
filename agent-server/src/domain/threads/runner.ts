@@ -36,14 +36,12 @@ import {
 } from '../costs/rate-limit-throttle.js';
 import { removeThreadResume } from '../costs/resume-registry.js';
 import { recordThreadResume } from '../runs/observers/resume-recorder.js';
-import type { ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
 import { Icons } from '../../core/icons.js';
 import { engines } from '../runs/engines.js';
 import * as executionRegistry from '../executions/registry.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { formatDurationCompact } from '@core/utils.js';
 import type { ChatNoticeLevel } from '@core/types/agent-types.js';
-import { buildThreadStatusMessage } from '@core/status-format.js';
 import type { OutputStream } from '@platform/output-stream.js';
 import { getSettings } from '@core/settings.js';
 import { runRegistry, type RunningExecution } from '@core/run-registry.js';
@@ -65,6 +63,10 @@ import type {
   RunThreadOptions,
   TransitionResult,
 } from '@core/types/thread-types.js';
+
+/** Subagent attribution carried on the run's tool/assistant events. Derived from RunEvent so the
+ *  thread runner keeps a single upstream type dependency (the run event stream). */
+type ToolUseSubagent = NonNullable<Extract<RunEvent, { type: 'tool_use' }>['subagent']>;
 
 const log = createLogger('thread-runner');
 const OUTAGE_BACKOFF_MS = [5, 15, 45].map((minutes) => minutes * 60_000);
@@ -171,13 +173,10 @@ function initThreadContext(threadId: string, opts: RunThreadOptions): ThreadCont
   const thread = threadStore.get(threadId);
   if (!thread) throw new Error(`Thread not found: ${threadId}`);
   const template = thread.templateName ? (getTemplate(thread.templateName) || null) : null;
-  // Aggregate agent output into an OutputStream. The caller supplies the Destination
-  // (interactive-reply or project-report).
-  // Pass the full statusMsg as anchorRef so CompositeAdapter can resolve a per-platform
-  // thread anchor for each sub-stream (a Slack ts must not be used as a Feishu message_id).
-  const stream = opts.adapter.openOutputStream(opts.destination, { threadId: opts.threadAnchorId, anchorRef: opts.statusMsg });
+  // The aggregating OutputStream is opened by the caller (it owns the Destination and the
+  // anchor message); the runner only emits and flushes on it.
   return {
-    thread, template, meta: thread.metadata, stream, lastAgentResult: null, totalNumTurns: 0,
+    thread, template, meta: thread.metadata, stream: opts.stream, lastAgentResult: null, totalNumTurns: 0,
     stopReason: null,
   };
 }
@@ -218,30 +217,23 @@ async function resolveAndNotifyStep(
   const multiAgent = Object.keys(threadRecord.agents).length > 1;
   const label = formatAgentStageLabel(agentSlotId, stage);
 
+  const prevStep = threadRecord.steps[threadRecord.steps.length - 1];
+  const prevLabel = prevStep ? formatAgentStageLabel(prevStep.agentSlotId, prevStep.stage) : null;
+
   // Post step boundary notification for multi-agent threads via OutputStream
   if (ctx.stream && multiAgent && !isFirstStep) {
-    const prevStep = threadRecord.steps[threadRecord.steps.length - 1];
-    const prevLabel = prevStep ? formatAgentStageLabel(prevStep.agentSlotId, prevStep.stage) : '?';
-    ctx.stream.emitText(`${Icons.arrowRight} Step ${threadRecord.currentStepIndex + 1}: *${label}* starting (prev: ${prevLabel})`);
+    ctx.stream.emitText(`${Icons.arrowRight} Step ${threadRecord.currentStepIndex + 1}: *${label}* starting (prev: ${prevLabel ?? '?'})`);
   }
 
-  // Update status message (multi-agent thread format; skip if caller provides onProgress)
-  if (ctx.stream && multiAgent && !opts.onProgress) {
-    const elapsed = (Date.now() - opts.startTime) / 1000;
-    const statusText = buildThreadStatusMessage({
-      threadId: threadRecord.id,
-      stepNumber: threadRecord.currentStepIndex + 1,
-      label,
-      elapsedS: elapsed,
-      taskProject: threadRecord.metadata?.taskProject ?? null,
-      taskId: threadRecord.metadata?.taskId ?? null,
-      taskText: threadRecord.metadata?.taskText ?? null,
-    });
-    try {
-      if (opts.statusMsg) {
-        await opts.adapter.updateMessage(opts.statusMsg, { text: statusText });
-      }
-    } catch {}
+  // Report the step boundary. The surface owner decides whether it renders a status line
+  // (previously: multi-agent AND no caller-supplied progress renderer). Awaiting only when the
+  // owner actually returned work keeps the pre-refactor ordering byte-for-byte.
+  const rendered = opts.surface.onStepStarted({
+    stepNumber: threadRecord.currentStepIndex + 1,
+    label, prevLabel, multiAgent, isFirstStep,
+  });
+  if (rendered) {
+    try { await rendered; } catch {}
   }
 
   return { agentSlotId, agentConfig, isFirstStep, multiAgent, stage };
@@ -385,7 +377,7 @@ function setupStepCallbacks(
   // (interactive plan/ask capture). Both must run — compose, don't choose — so dispatch /
   // scheduled / webhook threads stream tool calls like a direct session. The trace fires
   // first; the caller (interactive) fires after, preserving the onToolUse-before-ask ordering.
-  const callerOnToolUse = opts.onToolUse ?? null;
+  const callerOnToolUse = opts.surface.onToolUse ?? null;
   const toolTrace = createToolTrace(stream, { slotPrefix });
   const streamAssistantMessage = toolTrace
     ? (text: string) => { toolTrace.flush(); baseAssistantMessage(text); }
@@ -431,28 +423,17 @@ function setupStepCallbacks(
     recorder.recordToolResult(toolUseId, content, isError);
   };
 
-  // onProgress: caller override (e.g. scheduler's buildUserProcessingMessage) takes precedence;
-  // fallback to thread-specific status format for multi-agent pipelines
-  const onProgress = opts.onProgress
-    || (multiAgent
-      ? (progress: any) => {
-          const elapsed = (Date.now() - opts.startTime) / 1000;
-          if (opts.statusMsg) {
-            opts.adapter.updateMessage(opts.statusMsg, {
-              text: buildThreadStatusMessage({
-                threadId: threadRecord.id,
-                stepNumber: threadRecord.currentStepIndex + 1,
-                label,
-                elapsedS: elapsed,
-                numTurns: progress?.num_turns ?? null,
-                taskProject: threadRecord.metadata?.taskProject ?? null,
-                taskId: threadRecord.metadata?.taskId ?? null,
-                taskText: threadRecord.metadata?.taskText ?? null,
-              }),
-            }).catch(() => {});
-          }
-        }
-      : null);
+  // In-step progress goes out unconditionally; the surface owner decides what (if anything) it
+  // renders — the scheduler's own progress line, the multi-agent status line, or nothing.
+  const onProgress = (progress: any) => {
+    opts.surface.onStepProgress({
+      stepNumber: threadRecord.currentStepIndex + 1,
+      label,
+      multiAgent,
+      numTurns: progress?.num_turns ?? null,
+      durationMs: progress?.duration_ms ?? null,
+    });
+  };
 
   // Mark agent slot as running
   slot.status = 'running';
@@ -575,11 +556,11 @@ export function createStepObserver(
           callbacks.onProgress?.({ num_turns: event.numTurns, total_cost_usd: null, duration_ms: null });
           return;
         case 'plan_written':
-          opts.onPlanWritten?.({ path: event.path, content: event.content, toolUseId: event.toolUseId });
+          opts.surface.onPlanWritten?.({ path: event.path, content: event.content, toolUseId: event.toolUseId });
           return;
         case 'dialog_request':
           if (event.kind === 'ask_user') {
-            opts.onAskUserQuestion?.({
+            opts.surface.onAskUserQuestion?.({
               toolUseId: event.dialogId,
               questions: event.payload as Array<{ question: string; options?: string[]; multi?: boolean }>,
             });
