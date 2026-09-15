@@ -479,7 +479,10 @@ class McpBridgeSession {
         );
         const content = (result.content as any[]).map(mapMcpContent);
         if (result.isError) {
-          const message = content.map(item => item.text).filter(Boolean).join('\n');
+          const message = content
+            .map(item => (item.type === 'text' ? item.text : ''))
+            .filter(Boolean)
+            .join('\n');
           throw new Error(message || `${exposedName} failed`);
         }
         return { content, details: undefined };

@@ -21,6 +21,7 @@ import {
   shouldLoadSlack,
   shouldLoadThreadControl,
   shouldLoadWeb,
+  type PiContent,
 } from '../src/agent-adapter/pi/mcp-bridge-logic.js';
 import {
   PI_INTERACTION_BRIDGE_ENV,
@@ -31,15 +32,40 @@ import { MCP_TOOL_ALLOWLIST_ENV, MCP_TOOLS_BY_SERVER, SUBAGENT_TOOLS } from '../
 
 // --- Test C: mapMcpContent pure unit tests ---
 
+/** Assert the item is text and hand back its string, so the union stays narrowed for TS. */
+function textOf(item: PiContent): string {
+  assert.equal(item.type, 'text');
+  return item.type === 'text' ? item.text : '';
+}
+
 test('mapMcpContent: text item passes through', () => {
   assert.deepEqual(mapMcpContent({ type: 'text', text: 'hello' }), { type: 'text', text: 'hello' });
 });
 
-test('mapMcpContent: image item produces base64-length description', () => {
-  const r = mapMcpContent({ type: 'image', data: 'abc', mimeType: 'image/png' });
-  assert.equal(r.type, 'text');
-  assert.ok(r.text.includes('image/png'), 'includes mimeType');
-  assert.ok(r.text.includes('3'), 'includes data length');
+test('mapMcpContent: image item passes through as an image block', () => {
+  assert.deepEqual(
+    mapMcpContent({ type: 'image', data: 'abc', mimeType: 'image/png' }),
+    { type: 'image', data: 'abc', mimeType: 'image/png' },
+  );
+});
+
+test('mapMcpContent: image mime is normalized and parameters are stripped', () => {
+  assert.deepEqual(
+    mapMcpContent({ type: 'image', data: 'abc', mimeType: 'IMAGE/JPG; charset=binary' }),
+    { type: 'image', data: 'abc', mimeType: 'image/jpeg' },
+  );
+});
+
+test('mapMcpContent: image PI cannot send inline degrades to a description', () => {
+  const text = textOf(mapMcpContent({ type: 'image', data: 'abc', mimeType: 'image/bmp' }));
+  assert.ok(text.includes('image/bmp'), 'includes mimeType');
+  assert.ok(text.includes('3'), 'includes data length');
+});
+
+test('mapMcpContent: image without data degrades to a description', () => {
+  const text = textOf(mapMcpContent({ type: 'image', data: '', mimeType: 'image/png' }));
+  assert.ok(text.includes('image/png'), 'includes mimeType');
+  assert.ok(text.includes('0'), 'includes data length');
 });
 
 test('mapMcpContent: resource with text passthrough', () => {
@@ -48,17 +74,23 @@ test('mapMcpContent: resource with text passthrough', () => {
 });
 
 test('mapMcpContent: resource with blob produces binary description', () => {
-  const r = mapMcpContent({ type: 'resource', resource: { uri: 'f://x', blob: 'b64', mimeType: 'application/pdf' } });
-  assert.equal(r.type, 'text');
-  assert.ok(r.text.includes('f://x'), 'includes uri');
-  assert.ok(r.text.includes('application/pdf'), 'includes mimeType');
+  const text = textOf(
+    mapMcpContent({ type: 'resource', resource: { uri: 'f://x', blob: 'b64', mimeType: 'application/pdf' } }),
+  );
+  assert.ok(text.includes('f://x'), 'includes uri');
+  assert.ok(text.includes('application/pdf'), 'includes mimeType');
+});
+
+test('mapMcpContent: resource blob carrying an image passes through as an image block', () => {
+  assert.deepEqual(
+    mapMcpContent({ type: 'resource', resource: { uri: 'f://x', blob: 'b64', mimeType: 'image/webp' } }),
+    { type: 'image', data: 'b64', mimeType: 'image/webp' },
+  );
 });
 
 test('mapMcpContent: unknown type falls back to JSON', () => {
   const item = { type: 'exotic', foo: 42 };
-  const r = mapMcpContent(item);
-  assert.equal(r.type, 'text');
-  assert.equal(r.text, JSON.stringify(item));
+  assert.equal(textOf(mapMcpContent(item)), JSON.stringify(item));
 });
 
 // --- shouldLoadFeishu: gate the cortex-feishu server on Feishu-originated sessions ---
@@ -605,6 +637,29 @@ test('bridged MCP calls use the shared 30m30s infrastructure deadline', async ()
   assert.equal(calls[0][2].maxTotalTimeout, 1_830_000);
 });
 
+test('a bridged tool result carries its image through to PI', async () => {
+  const harness = createPiHarness();
+  const deps = bridgeDeps({
+    env: { CORTEX_PI_SUBAGENT: '1' },
+    spawnClient: async (state) => fakeHandle(state.name, {
+      callTool: async () => ({
+        content: [
+          { type: 'text', text: 'Image: /tmp/shot.png' },
+          { type: 'image', data: 'AAAA', mimeType: 'image/png' },
+        ],
+      }),
+    }),
+  });
+  await installMcpBridge(harness.pi, deps);
+  await harness.fire('before_agent_start');
+  const result = await harness.tools.get('core_tool')!.execute('call-1', {}, undefined, undefined, {} as any);
+
+  assert.deepEqual(result.content, [
+    { type: 'text', text: 'Image: /tmp/shot.png' },
+    { type: 'image', data: 'AAAA', mimeType: 'image/png' },
+  ]);
+});
+
 test('bridged MCP errors reject the PI tool call with the server message', async () => {
   const harness = createPiHarness();
   const deps = bridgeDeps({
@@ -623,6 +678,28 @@ test('bridged MCP errors reject the PI tool call with the server message', async
   await assert.rejects(
     tool.execute('call-1', {}, undefined, undefined, {} as any),
     /interaction failed/,
+  );
+});
+
+test('an image beside the error text does not swallow the rejection message', async () => {
+  const harness = createPiHarness();
+  const deps = bridgeDeps({
+    env: { CORTEX_PI_SUBAGENT: '1' },
+    spawnClient: async (state) => fakeHandle(state.name, {
+      callTool: async () => ({
+        content: [
+          { type: 'image', data: 'AAAA', mimeType: 'image/png' },
+          { type: 'text', text: 'device offline' },
+        ],
+        isError: true,
+      }),
+    }),
+  });
+  await installMcpBridge(harness.pi, deps);
+  await harness.fire('before_agent_start');
+  await assert.rejects(
+    harness.tools.get('core_tool')!.execute('call-1', {}, undefined, undefined, {} as any),
+    /^Error: device offline$/,
   );
 });
 
