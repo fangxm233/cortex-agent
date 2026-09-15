@@ -17,6 +17,7 @@ import {
   deriveSessionOrigin,
   loadSessionRegistryState,
   shouldCompactSessionRegistry,
+  PATCH_KEYS,
   type ConversationFields,
   type ConversationHeader,
   type PendingSessionDelete,
@@ -45,14 +46,6 @@ export {
  *  over any persisted bind; returning `null`/`undefined` falls through to the next resolver, then to
  *  the persisted bindings index. Registered by conduit-aware platforms (TUI, app.ts). */
 export type ConduitResolver = (channel: string) => string | null | undefined;
-
-/** Record keys a `patch` may carry — identity (`name`, `sessionId`) excluded. Used to diff the live
- *  record against the mutated one so a patch line holds ONLY what changed. */
-const PATCH_KEYS: SessionPatchUnsetKey[] = [
-  'projectId', 'channel', 'backend', 'kind', 'origin', 'createdAt', 'lastUsedAt', 'label',
-  'profileName', 'backendSessionId', 'lastReadAt', 'scheduleId', 'commissionId', 'commissionDraft',
-  'contextUsage', 'browser',
-];
 
 /** Compute the minimal patch from `current` to `next`. A key present in `current` but gone from
  *  `next` (→ `undefined`) is unset; a changed key (incl. an explicit `null`) is set; unchanged keys

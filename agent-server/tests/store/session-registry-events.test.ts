@@ -75,6 +75,23 @@ test('contextUsage update appends exactly one small patch line', async () => {
   assert.ok(bytes <= 200, `contextUsage patch line is ${bytes} bytes, expected <= 200`);
 });
 
+test('commission fields written as patches survive a replay (main d2449c4f added commissionBlockFor)', async () => {
+  const filePath = nextPath();
+  const repo = new SessionRegistryRepo(filePath);
+  await repo.registerSession('cortex-cm', registerOpts('sess-cm'));
+  await repo.setCommissionDraft('sess-cm', '/draft/dir');            // patch commissionDraft
+  await repo.markCommissionBlockDelivered('sess-cm', 'draft:/draft/dir'); // patch commissionBlockFor
+  await repo.bindCommission('sess-cm', 'comm-1');                    // patch commissionId (+ clears draft)
+  const ops = rawLines(filePath).map(line => JSON.parse(line).op);
+  assert.deepEqual(ops, ['put', 'patch', 'patch', 'patch']);
+
+  const reopened = new SessionRegistryRepo(filePath);
+  const record = await reopened.getById('sess-cm');
+  assert.equal(record?.commissionId, 'comm-1');
+  assert.equal(record?.commissionDraft, null);
+  assert.equal(record?.commissionBlockFor, 'draft:/draft/dir');
+});
+
 test('an update that changes nothing appends no event', async () => {
   const filePath = nextPath();
   const repo = new SessionRegistryRepo(filePath);

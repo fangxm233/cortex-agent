@@ -631,11 +631,16 @@ const PATCH_FIELD_READERS: { [K in SessionPatchUnsetKey]: (value: unknown) => Se
   scheduleId: toOptionalNullableString,
   commissionId: toOptionalNullableString,
   commissionDraft: toOptionalNullableString,
+  commissionBlockFor: toOptionalNullableString,
   contextUsage: value => value,
   browser: toOptionalBrowserValue,
 };
 
-const PATCH_KEY_SET = new Set(Object.keys(PATCH_FIELD_READERS));
+/** Every key a `patch` may carry, derived from the exhaustive reader table so the WRITER (repo
+ *  `diffRecord`) and the READER can never disagree: adding a field to SessionRecord without a
+ *  reader is a compile error above, and the writer picks it up from here automatically. */
+export const PATCH_KEYS = Object.keys(PATCH_FIELD_READERS) as SessionPatchUnsetKey[];
+const PATCH_KEY_SET = new Set<string>(PATCH_KEYS);
 
 function assertPatchFields(raw: unknown): SessionPatchFields {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Invalid session registry patch fields');
