@@ -90,9 +90,12 @@ function CaretIcon({ open, size = 9 }: { open: boolean; size?: number }): JSX.El
   );
 }
 
-function IconButton({ label, active, onClick, children }: {
+function IconButton({ label, active, size = 22, onClick, children }: {
   label: string;
   active?: boolean;
+  /** Box side. A denser row than the project folder's gives it a smaller one, so the button still
+   *  fits inside the row's fixed height instead of stretching it under the cursor. */
+  size?: number;
   onClick: (e: React.MouseEvent) => void;
   children: ReactNode;
 }): JSX.Element {
@@ -106,8 +109,8 @@ function IconButton({ label, active, onClick, children }: {
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
-        width: 22,
-        height: 22,
+        width: size,
+        height: size,
         border: 0,
         borderRadius: 6,
         padding: 0,
@@ -425,7 +428,11 @@ export function RailTree(props: RailTreeProps): JSX.Element {
             display: 'flex',
             alignItems: 'center',
             gap: 5,
-            minHeight: 26,
+            // Fixed, not content-derived, for the reason the project row is: hovering swaps the
+            // trailing count for an icon button, and a row that follows its content would jump
+            // under the cursor. 26 = the 18px button plus the row's own 4+4 padding.
+            height: 26,
+            boxSizing: 'border-box',
             padding: '4px 8px 4px 28px',
             borderRadius: 7,
             cursor: 'pointer',
@@ -473,6 +480,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
           {canAdd && isHover(key) ? (
             <IconButton
               label={L.wbCommissionNewSession}
+              size={18}
               onClick={(e) => {
                 e.stopPropagation();
                 props.onNewCommissionSession!(row);
