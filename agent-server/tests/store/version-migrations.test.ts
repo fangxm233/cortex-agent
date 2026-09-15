@@ -6,6 +6,7 @@ import os from 'node:os';
 
 // Dynamic import of the module under test.
 const { compareCalVer, runMigrations, migrateAistatusConfigLocation, upsertMarkerBlock, applyReplacements } = await import('../../src/store/version-migrations.js');
+type StepMigration = import('../../src/store/version-migrations.js').StepMigration;
 
 // ── Shared tmp directory ───────────────────────────────────────
 
@@ -426,7 +427,9 @@ async function runSessionsMigration(
     if (saved === undefined) delete process.env.CORTEX_PLATFORM;
     else process.env.CORTEX_PLATFORM = saved;
   }
-  return await readJson(path.join(storeDir, 'sessions.json')) as Record<string, string>;
+  // The M3 file migration rewrites sessions.json in place; the S1 step migration then imports it into
+  // the registry and renames it to `<file>.pre-<version>.bak`. So the M3 output now lives in the .bak.
+  return await readJson(path.join(storeDir, 'sessions.json.pre-2026.9.14.bak')) as Record<string, string>;
 }
 
 test('runMigrations - sessions.json: prefixes backend:channel and legacy bare keys (slack)', async () => {
@@ -760,4 +763,121 @@ test('provider usage migration leaves an unrecognised file shape untouched', asy
   await runMigrations({ dataDir, storeDir, defaultsDir });
 
   assert.deepEqual(await readJson(target), { rateLimitThrottle: null, resumeQueue: [] });
+});
+
+// ── Step migrations (generic step-runner contract) ─────────────
+// The step framework is exercised via the `stepMigrations` override in MigrationOptions so we can
+// drive bump / skip / throw / ordering with probe steps rather than the real S1 import.
+
+const CURRENT_VERSION = '2026.9.14'; // = CORTEX_VERSION; a step at this version is pending from 0.0.0.
+
+test('step migration runs once and bumps versions.json under its key', async () => {
+  const idx = _testIdx++;
+  const { dataDir, storeDir, defaultsDir } = setupDirs(idx);
+
+  let runs = 0;
+  const step: StepMigration = {
+    key: 'data/probe.json',
+    version: CURRENT_VERSION,
+    run: async () => { runs += 1; },
+  };
+
+  await runMigrations({ dataDir, storeDir, defaultsDir, stepMigrations: [step] });
+  assert.equal(runs, 1, 'step ran once');
+  let versions = await readJson(path.join(storeDir, 'versions.json')) as any;
+  assert.equal(versions['data/probe.json'], CURRENT_VERSION, 'key bumped to step version');
+
+  // Second run: tracked === version → not pending → step does not run again.
+  await runMigrations({ dataDir, storeDir, defaultsDir, stepMigrations: [step] });
+  assert.equal(runs, 1, 'step skipped on second run (already tracked)');
+});
+
+test('step migration is skipped when tracked >= version', async () => {
+  const idx = _testIdx++;
+  const { dataDir, storeDir, defaultsDir } = setupDirs(idx);
+  // Pre-track a version >= the step version.
+  await writeJson(path.join(storeDir, 'versions.json'), { 'data/probe.json': CURRENT_VERSION });
+
+  let runs = 0;
+  const step: StepMigration = { key: 'data/probe.json', version: CURRENT_VERSION, run: async () => { runs += 1; } };
+  await runMigrations({ dataDir, storeDir, defaultsDir, stepMigrations: [step] });
+  assert.equal(runs, 0, 'already-tracked step must not run');
+});
+
+test('a throwing step does not bump its key and does not block file migrations', async () => {
+  const idx = _testIdx++;
+  const { dataDir, storeDir, configDir, defaultsDir } = setupDirs(idx);
+
+  // A normal file migration that must still apply despite the throwing step.
+  await writeJson(path.join(defaultsDir, 'config', 'thread-templates.json'), {
+    agents: { main: { name: 'main', systemPrompt: 'file:direct.md' } }, templates: {},
+  });
+  await writeJson(path.join(configDir, 'thread-templates.json'), {
+    agents: { main: { name: 'main' } }, templates: {},
+  });
+
+  let laterRan = 0;
+  const throwing: StepMigration = {
+    key: 'data/boom.json', version: CURRENT_VERSION,
+    run: async () => { throw new Error('boom'); },
+  };
+  const later: StepMigration = {
+    key: 'data/after-boom.json', version: CURRENT_VERSION, run: async () => { laterRan += 1; },
+  };
+
+  await runMigrations({ dataDir, storeDir, defaultsDir, stepMigrations: [throwing, later] });
+
+  // File migration applied (step throw did not abort the run — steps run after the file loop anyway).
+  const migrated = await readJson(path.join(configDir, 'thread-templates.json')) as any;
+  assert.equal(migrated.agents.main.systemPrompt, 'file:direct.md');
+
+  const versions = await readJson(path.join(storeDir, 'versions.json')) as any;
+  assert.equal(versions['data/boom.json'], undefined, 'throwing step must not bump');
+  assert.equal(versions['data/after-boom.json'], CURRENT_VERSION, 'a later step still runs');
+  assert.equal(laterRan, 1, 'a throwing step does not block subsequent steps');
+});
+
+test('steps run AFTER file migrations (a step sees the file-loop output)', async () => {
+  const idx = _testIdx++;
+  const { dataDir, storeDir, configDir, defaultsDir } = setupDirs(idx);
+
+  await writeJson(path.join(defaultsDir, 'config', 'thread-templates.json'), {
+    agents: { main: { name: 'main', systemPrompt: 'file:direct.md' } }, templates: {},
+  });
+  await writeJson(path.join(configDir, 'thread-templates.json'), {
+    agents: { main: { name: 'main' } }, templates: {},
+  });
+
+  let sawSystemPrompt: string | undefined;
+  const probe: StepMigration = {
+    key: 'data/order-probe.json', version: CURRENT_VERSION,
+    run: async ({ dataDir: dd }) => {
+      const cfg = await readJson(path.join(dd, 'config', 'thread-templates.json')) as any;
+      sawSystemPrompt = cfg.agents.main.systemPrompt;
+    },
+  };
+
+  await runMigrations({ dataDir, storeDir, defaultsDir, stepMigrations: [probe] });
+  assert.equal(sawSystemPrompt, 'file:direct.md', 'step observed the migrated file → ran after the file loop');
+});
+
+test('the registered S1 step imports the legacy session stores via runMigrations', async () => {
+  const idx = _testIdx++;
+  const { dataDir, storeDir, defaultsDir } = setupDirs(idx);
+
+  // Minimal legacy stores in storeDir (= dataDir/data).
+  await writeJson(path.join(storeDir, 'sessions.json'), { 'web:c1': 'sess-1' });
+  await writeJson(path.join(storeDir, 'conversation-ledger.json'), {
+    'web:c1': { sessionId: 'sess-1', sessionName: 'cortex-1', backend: 'pi', profileName: null, turns: [], updatedAt: '2026-09-12T00:00:00.000Z' },
+  });
+
+  // Default step list (no override) → real S1 runs.
+  await runMigrations({ dataDir, storeDir, defaultsDir });
+
+  const versions = await readJson(path.join(storeDir, 'versions.json')) as any;
+  assert.equal(versions['data/session-registry.jsonl'], CURRENT_VERSION, 'S1 bumped its key');
+  // Sources renamed aside → import happened through the real registered step.
+  await assert.rejects(fs.stat(path.join(storeDir, 'sessions.json')));
+  await assert.rejects(fs.stat(path.join(storeDir, 'conversation-ledger.json')));
+  assert.ok(await fs.stat(path.join(storeDir, `sessions.json.pre-${CURRENT_VERSION}.bak`)));
 });

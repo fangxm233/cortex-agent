@@ -7,6 +7,7 @@ import { atomicWrite } from '@core/atomic-write.js';
 import { createLogger } from '@core/log.js';
 import { validateHookEntry, type HookEntry, type HookRun } from './hook-registry.js';
 import { migrateProviderStateFromSchedules } from './provider-state-repo.js';
+import { importLegacySessionStores } from './session-registry-import.js';
 import {
   CODER_COMMIT_POLICY_REPLACEMENTS,
   CODER_REVIEWER_COMMIT_POLICY_REPLACEMENTS,
@@ -54,6 +55,24 @@ export interface Migration {
    *  defaults string. Must return the migrated data (object for json, string for text)
    *  — the runner compares before/after to decide whether to write. */
   migrate(data: unknown, defaults?: unknown): unknown;
+}
+
+// ── Step migration type ────────────────────────────────────────
+// A step migration is NOT file-centric: it owns whatever files it reads and writes and reports
+// success by returning (throwing to signal failure). It is tracked in the SAME versions.json as file
+// migrations, under an arbitrary `key`, with the SAME pending rule, and runs AFTER the file-migration
+// loop so a step can rely on any file rewrite above it (e.g. the M3 sessions.json key rewrite must
+// precede the session-store import on very old devices). Kept generic so the three un-versioned
+// one-shots that run at the top of runMigrations can be converted to steps later (area G).
+
+export interface StepMigration {
+  /** versions.json key that tracks this step (a destination file path or a sentinel string). */
+  key: string;
+  /** CalVer when this step was introduced. Same pending rule as file migrations. */
+  version: string;
+  /** Idempotent action. Resolves on success; throws to signal failure (the runner logs, does not
+   *  bump the key, and continues with the next step — the step retries next boot). */
+  run(ctx: { dataDir: string; storeDir: string }): Promise<void>;
 }
 
 // ── Marker-block helpers (text migrations) ─────────────────────
@@ -429,6 +448,23 @@ const migrations: Migration[] = [
   },
 ];
 
+// ── Step migration registry ────────────────────────────────────
+// Add step migrations here. Executed in list order AFTER the file-migration loop.
+
+const stepMigrations: StepMigration[] = [
+  // S1: fold the two flat legacy session stores — data/sessions.json (channel→sessionId bindings)
+  // and data/conversation-ledger.json (per-channel headers + turn history) — into the JSONL session
+  // registry, then rename the sources to `<file>.pre-<version>.bak`. The import writes only through
+  // the repo API (see store/session-registry-import.ts). Idempotent: after the rename a re-run finds
+  // no sources and does nothing. Depends on M3 having already prefixed sessions.json keys, which the
+  // file loop above guarantees.
+  {
+    key: 'data/session-registry.jsonl',
+    version: '2026.9.14',
+    run: async ({ storeDir }) => { await importLegacySessionStores(storeDir, { version: '2026.9.14' }); },
+  },
+];
+
 // ── Versions file I/O ──────────────────────────────────────────
 
 /** Exported for plugin-retirement.ts, which guards its own one-shot rewrite with a sentinel key
@@ -498,6 +534,10 @@ export interface MigrationOptions {
   defaultsDir?: string;
   /** Override versions.json location. Defaults to dataDir/data. */
   storeDir?: string;
+  /** Override the built-in step-migration list. Test-only: production passes nothing and gets the
+   *  real `stepMigrations`. Lets tests drive the step-runner contract (bump / skip / throw / order)
+   *  with probe steps instead of the real S1 import. */
+  stepMigrations?: StepMigration[];
 }
 
 // ── Runner ─────────────────────────────────────────────────────
@@ -591,6 +631,23 @@ export async function runMigrations(opts: MigrationOptions = {}): Promise<void> 
     // retry next boot. Idempotent migrations guarantee this is safe.
     if (!anyFailed) {
       versions[filePath] = pending[pending.length - 1].version;
+    }
+  }
+
+  // Step migrations run AFTER the file loop (so a step sees the file rewrites above) with the same
+  // pending rule and the same versions.json, keyed by `key`. A throwing step logs and is skipped
+  // WITHOUT bumping — it retries next boot — and never blocks a later step. Only a step that
+  // resolves bumps its key.
+  for (const step of opts.stepMigrations ?? stepMigrations) {
+    const tracked = versions[step.key] || '0.0.0';
+    const pending = compareCalVer(tracked, step.version) < 0 && compareCalVer(CORTEX_VERSION, step.version) >= 0;
+    if (!pending) continue;
+    try {
+      await step.run({ dataDir, storeDir });
+      versions[step.key] = step.version;
+      log.info(`Step migration ${step.version} applied for ${step.key}`);
+    } catch (err) {
+      log.error(`Step migration ${step.version} for ${step.key} failed: ${(err as Error).message}; not bumping`);
     }
   }
 
