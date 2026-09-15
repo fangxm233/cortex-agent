@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { register, dispatch } from '../src/domain/scheduling/job-registry.js';
-import { registerThreadSession } from '../src/domain/scheduling/jobs/_shared.js';
+import { registerThreadSession } from '../src/domain/scheduling/jobs/register-thread-session.js';
 import { resolveSyncPublicScript } from '../src/domain/scheduling/jobs/sync-public.js';
 import { sessionStore } from '../src/store/session-registry-repo.js';
 

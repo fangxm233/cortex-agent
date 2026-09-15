@@ -21,15 +21,6 @@ import {
 import type { ThreadRecord } from '@core/types/thread-types.js';
 import type { Destination } from '@platform/index.js';
 
-// The wake/settle protocol's leaves live next door (T3.1): notice text + read-only predicates in
-// thread-notices, terminal delivery edges in thread-delivery. Re-exported here so every existing
-// importer of this module keeps working — this file stays the protocol's single public face.
-export {
-  buildChildResultNotice, buildTaskResultNotice, buildThreadOriginTaskNotice,
-  buildRehydrationNotice, buildDeadlockNotice, computeStuckWaitSet,
-} from './thread-notices.js';
-export { wakeSession, closeResumedTaskLoop } from './thread-delivery.js';
-
 const log = createLogger('thread-callback');
 
 // Single-fire guard for the interactive-parent wake path (in-memory; resets on restart —

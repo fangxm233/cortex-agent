@@ -19,7 +19,7 @@ import {
 } from '../../threads/index.js';
 import { processSplitOutcome, processAbortOutcome, formatWorkerAbortReason } from '../../tasks/dispatch-utils.js';
 import { threadStore } from '@store/thread-repo.js';
-import { registerThreadSession } from './_shared.js';
+import { registerThreadSession } from './register-thread-session.js';
 import type { Destination } from '@platform/index.js';
 // Type-only, so `domain` still never depends on `orchestration` at runtime: the run itself
 // arrives through `ctx.runThreadOnSurface`, injected by app.ts.

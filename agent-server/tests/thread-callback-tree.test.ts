@@ -1,11 +1,11 @@
 import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import { threadStore } from '../src/store/thread-repo.js';
+import { buildChildResultNotice } from '../src/orchestration/thread-notices.js';
 import {
   fireThreadCallback,
   notifyThreadParent,
   recoverWaitingThreads,
-  buildChildResultNotice,
   _testResetCallbackState,
 } from '../src/orchestration/thread-callback.js';
 import type { ThreadRecord, ThreadStatus } from '../src/core/types/thread-types.js';

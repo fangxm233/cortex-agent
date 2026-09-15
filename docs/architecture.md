@@ -47,7 +47,7 @@ The foundation layer. Contains only pure TypeScript with no runtime dependencies
 | `session-holds.ts` | `SessionHolds` — the other half of "is this session busy": a turn that ended while background work continues, with per-owner handles, supersede and stop |
 | `session-state.ts` | `sessionState(sessionId)` / `channelEngineBusy()` — the one join of live executions and holds, and the only place that answers whether a session is busy |
 | `types/agent-types.ts` | `AgentResult`, `AgentHandle`, `AgentProgress`, `AskUserQuestionInfo` |
-| `types/thread-types.ts` | Full thread type family: `ThreadRecord`, `AgentDefinition`, `ThreadTemplate`, `TransitionRule`, `HookConfig`, `RunThreadOptions`, `AgentStep`, and more |
+| `types/thread-types.ts` | Full thread type family: `ThreadRecord`, `AgentDefinition`, `ThreadTemplate`, `TransitionRule`, `HookConfig`, `RunThreadOptions`, `ThreadSurface`, `AgentStep`, and more |
 | `config-generator.ts` | Config file initialization for new installs |
 | `gateway-generator.ts` | API gateway YAML generation |
 | `profile-generator.ts` | Profile JSON generation |
@@ -136,7 +136,18 @@ layer) is detailed in [hooks.md](./hooks.md).
 | `turn/background-hold.ts` | One hold lifecycle for "the turn is over but the session is not": busy bracket, `SessionHolds` registration, run subscription, six terminal verdicts |
 | `turn/hold-render-platform.ts` | The Slack/Feishu rendering of a held turn — the status line while the background phase runs, and its seal |
 | `turn/hold-render-web.ts` | The web rendering of a held turn — the continuation's prose, tools and notices on the session event stream |
-| `thread-executor.ts` | Thread routing: handles `!thread start`, `!thread add`, thread continuation, user message buffering during running steps |
+| `thread-executor.ts` | Routing for `!thread <template\|agent> <msg>`, `!thread add`, thread continuation, and user-message buffering during a running step; hands each run to `ThreadRun` |
+| `thread-input.ts` | The `ThreadExecCtx` shape plus the file-download and user-message buffering helpers `thread-executor` hands off to |
+| `thread-run/thread-run.ts` | `ThreadRun` / `openThreadRun()` / `openThreadRunDetached()` — the single owner of one thread run: status message, output stream, `ThreadSurface`, verdict, terminal render, statusMsgRef persistence, settle, busy bracket for detached runs |
+| `thread-run/render-summary.ts` | The `!thread` / webhook / resume rendering: opening line with buttons, multi-agent step line, sealed summary |
+| `thread-run/render-task.ts` | The task-dispatch / scheduled rendering: "Dispatching…"/"Processing…" lines, Done/Paused/Suspended/Error, byte-identical to the old job strings |
+| `thread-run/thread-surface.ts` | `ThreadSurface` built from a progress renderer + interactive callbacks |
+| `thread-run/settle.ts` | statusMsgRef persistence + the injected settle |
+| `thread-run/verdict.ts` | `classifyThreadVerdict` |
+| `thread-callback.ts` | The wake/settle protocol: `settleThread`, parent wake, manager rotation, task-tree reconciliation, waiting sweeps, `fireThreadCallback` |
+| `thread-notices.ts` | Notice text + read-only predicates the protocol asks its questions with |
+| `thread-delivery.ts` | Terminal delivery edges: project notices, `wakeSession`, `closeResumedTaskLoop` |
+| `resume-dispatcher.ts` | Rate-limit resume queue; builds a `ThreadRunInput` via `resumeThreadRunInput` |
 | `busy-tracker.ts` | Tracks active LLM count, sends IPC `busy`/`idle` to parent daemon process |
 | `human-answer-backstop.ts` | Leaf registry of channels waiting on a human's free-text reply, consulted by every entry into a session so the answer is consumed instead of opening a turn |
 | `dispatch-reconciler.ts` | Background timer for stale dispatch cleanup |

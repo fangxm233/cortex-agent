@@ -1,37 +1,18 @@
-import { randomUUID } from 'node:crypto';
-import type { Destination, PlatformAdapter, MessageRef, DownloadedFile, IncomingMessage, PlatformFileRef } from '@platform/index.js';
-import { createLogger } from '@core/log.js';
+import type { Destination, PlatformAdapter, MessageRef, DownloadedFile } from '@platform/index.js';
 import { Icons } from '../core/icons.js';
 import { conduitQueues, enqueue } from './conduit-queue.js';
 import { trackPendingTask } from './busy-tracker.js';
 import { addAgentToThread, createThread, getTemplate, getAgent } from '@domain/threads/index.js';
-import { evictPendingUserInput, registerPendingUserInput } from '@domain/threads/pending-user-inputs.js';
 import { getActiveHandle } from '@domain/threads/runner.js';
-import { downloadFiles as downloadPlatformFiles } from './routing/file-handler.js';
 import { openThreadRun, type ThreadRunInput } from './thread-run/index.js';
 import { threadStore } from '@store/thread-repo.js';
-import { WORKSPACE_DIR } from '@core/utils.js';
-import { buildPrompt as buildAgentPrompt } from '../agent-adapter/normalize/prompt-builder.js';
+import { type ThreadExecCtx, downloadFiles, bufferUserMessage } from './thread-input.js';
 
-const TEMP_DIR = WORKSPACE_DIR;
-const log = createLogger('thread-executor');
+export type { ThreadExecCtx };
 
 type Enqueuer = (channel: string, fn: () => Promise<void>) => boolean;
 type Tracker = (delta: number) => void;
 type Executor = (ctx: ThreadExecCtx) => Promise<void>;
-
-export interface ThreadExecCtx {
-  message: IncomingMessage;
-  channel: string;
-  adapter: PlatformAdapter;
-  threadAnchorId: string | null;
-  hasFiles: boolean;
-  agentMessage: string;
-  threadAddMatch: RegExpMatchArray | null;
-  threadStartMatch: RegExpMatchArray | null;
-  existingThread: any;
-  isActiveThread: boolean;
-}
 
 export class ThreadExecutor {
   readonly _enqueue: Enqueuer;
@@ -206,52 +187,4 @@ async function handleThreadStart(args: HandlerArgs & { threadStartMatch: RegExpM
   });
   const startText = `${Icons.processing} Starting thread (${template ? name : `agent:${name}`})...`;
   await openThreadRun({ ...interactiveRunInput(args, thread.id, startText), mode: { kind: 'start' } });
-}
-
-
-// --- Message buffering (Phase 6) ---
-
-/** Reserve user input synchronously so the runner sees it before the current step exits. */
-function reserveUserInput(thread: any, text: string): { inputId: string; evictedInputId: string | null } {
-  const inputId = `buf_${randomUUID()}`;
-  if (!thread.metadata) thread.metadata = {};
-  const inputs = thread.metadata.pendingUserInputs ??= [];
-  const evictedInputId = inputs.length >= 10 ? inputs.shift()?.id ?? null : null;
-  inputs.push({ id: inputId, text });
-  threadStore.set(thread).catch(() => {});
-  return { inputId, evictedInputId };
-}
-
-async function prepareUserInput(ctx: ThreadExecCtx, inputId: string, text: string): Promise<void> {
-  const files = await downloadFiles(ctx.message.files, ctx.hasFiles, ctx.adapter);
-  const thread = threadStore.get(ctx.existingThread.id);
-  const input = thread?.metadata?.pendingUserInputs?.find((entry) => entry.id === inputId);
-  if (!thread || !input) return;
-  input.text = buildAgentPrompt(text, files.map((file) => ({
-    mimeType: file.mimetype,
-    path: file.localPath,
-  })));
-  await threadStore.set(thread);
-}
-
-/** Buffer user text plus downloaded files for the next thread step. */
-async function bufferUserMessage(ctx: ThreadExecCtx): Promise<void> {
-  const { adapter, channel, threadAnchorId } = ctx;
-  const text = ctx.agentMessage || ctx.message.text || '';
-  const { inputId, evictedInputId } = reserveUserInput(ctx.existingThread, text);
-  if (evictedInputId) evictPendingUserInput(ctx.existingThread.id, evictedInputId);
-  const preparation = prepareUserInput(ctx, inputId, text);
-  registerPendingUserInput(ctx.existingThread.id, inputId, preparation);
-  await preparation.catch((error) => log.warn(`Failed to prepare buffered input: ${(error as Error).message}`));
-  const dest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: '' };
-  await adapter.postMessage(dest, {
-    text: `${Icons.inbox} Message buffered — will be included in the next step’s prompt`,
-  }, threadAnchorId ? { threadId: threadAnchorId } : undefined);
-}
-
-// --- Shared helper ---
-
-async function downloadFiles(files: PlatformFileRef[] | undefined, hasFiles: boolean, adapter: PlatformAdapter): Promise<DownloadedFile[]> {
-  if (!hasFiles || !files) return [];
-  return downloadPlatformFiles(files, adapter, TEMP_DIR);
 }

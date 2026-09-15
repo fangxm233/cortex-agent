@@ -13,7 +13,7 @@ import { normalizeSkillCommandPrefix } from '../../memory/skill-scanner.js';
 import { isValidDispatchPrompt, hasRunningExecutionForSchedule } from '../../tasks/dispatcher.js';
 import { allConfigsRateLimited } from '../../runs/fallback.js';
 import { createThread } from '../../threads/index.js';
-import { registerThreadSession } from './_shared.js';
+import { registerThreadSession } from './register-thread-session.js';
 import { planScheduledDispatch, type DispatchPlan } from './target-dispatch.js';
 import type { Destination } from '@platform/index.js';
 import type { ScheduleTarget, ScheduleTask } from '@store/schedule-repo.js';

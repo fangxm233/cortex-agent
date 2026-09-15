@@ -347,6 +347,8 @@ manager 写入的检查点始终覆盖四个部分：**当前委托及其验收�
 3. **onEnd 钩子**：主循环完成后触发
 4. 将线程标记为已完成（如果仍在运行）
 
+渲染——状态行、每步进度、封存的摘要，以及派发/调度的 "Done"/"Error" 行——由 `orchestration/thread-run/`（`ThreadRun`）拥有。`domain/threads/runner.ts` 中的运行器自身从不 post 或 update 平台消息，只通过 `ThreadSurface` 上报。四个入口（`!thread`、MCP `thread_start`、任务派发、调度任务）仅在交给 `ThreadRun` 的 `render` 上有所不同。
+
 ## 生命周期钩子 {#lifecycle-hooks}
 
 钩子是在线程生命周期的特定点执行的 shell 命令。它们通过 stdin 接收 JSON 格式的上下文，并可以通过 stdout 返回 JSON 格式的指令。线程钩子是三个钩子子系统之一——完整的钩子架构（包括智能体级和会话级钩子）参见 [hooks.md](./hooks.md)。
@@ -440,7 +442,7 @@ context/projects/{project}/manager/{taskId}/artifact.md
 !thread researcher 调研触觉感知的最新论文
 ```
 
-`!thread` 后的第一个词是模板名称（或单智能体执行的智能体名称）。其余是传递给第一个智能体的用户消息。
+入口是 `!thread <template|agent> <message>`——`!thread` 后的第一个词是模板名称（或单智能体执行的智能体名称），其余是传递给第一个智能体的用户消息。没有 `start` 子命令（代码内部把这条路径称为 "thread start"）。
 
 ### 添加智能体 {#adding-an-agent}
 
@@ -463,15 +465,14 @@ context/projects/{project}/manager/{taskId}/artifact.md
 
 ## 线程类型 {#thread-types}
 
-Cortex 内部使用三种类型的线程记录：
+Cortex 内部使用两种类型的线程记录：
 
 | 类型 | templateName | 工作区 | 使用场景 |
 |------|-------------|-----------|---------|
 | **模板线程** | 实际模板名称 | 是 | `!thread <template>`、任务调度 |
-| **默认线程** | `"default"` | 是 | 单智能体消息（正常聊天路径） |
 | **自动线程** | `null` | 否（初始） | 从单智能体运行链接的 `!thread add` |
 
-区别很重要，因为运行器对默认线程的处理不同：它们只运行一个步骤（无转换），使用频道的已有会话，并将流式输出直接转发给用户。
+普通聊天不再创建线程记录。旧的存储中可能仍残留 `templateName: "default"` 的遗留记录，`!thread add` 链接会忽略它们（`domain/threads/utils.ts` 的 `isDefaultThread`、`thread-executor.ts` 的 `validateThreadAddTarget`）。
 
 ## 线程记录 {#thread-record}
 

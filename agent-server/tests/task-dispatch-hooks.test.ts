@@ -88,7 +88,7 @@ vi.mock('../src/domain/tasks/dispatch-utils.js', () => ({
   formatWorkerAbortReason: vi.fn(),
 }));
 
-vi.mock('../src/domain/scheduling/jobs/_shared.js', () => ({
+vi.mock('../src/domain/scheduling/jobs/register-thread-session.js', () => ({
   registerThreadSession: deps.registerThreadSession,
 }));
 

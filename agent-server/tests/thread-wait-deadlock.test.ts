@@ -11,9 +11,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { PROJECTS_DIR } from '../src/core/paths.js';
 import { threadStore } from '../src/store/thread-repo.js';
+import { computeStuckWaitSet, buildDeadlockNotice } from '../src/orchestration/thread-notices.js';
 import {
-  computeStuckWaitSet,
-  buildDeadlockNotice,
   notifyTaskParentThreads,
   reconcileWaitingTasks,
   sweepWaitingManagers,

@@ -46,7 +46,7 @@ L5  entry/         → 所有层（组合根）
 | `task-parser.ts` | 任务接口定义，带 kebab↔snake_case 键映射的 YAML 解析/序列化，`scanAllTasks`、`scanAvailableTasks`、`filterTasks`、`getTaskStats` |
 | `run-registry.ts` | `RunRegistry` — 活跃运行与后台 hold 的唯一内存索引。回答 `sessionState(sessionId)`，并向 EventBus 发布 `agent.*` 生命周期事件 |
 | `types/agent-types.ts` | `AgentResult`、`AgentHandle`、`AgentProgress`、`AskUserQuestionInfo` |
-| `types/thread-types.ts` | 完整线程类型系列：`ThreadRecord`、`AgentDefinition`、`ThreadTemplate`、`TransitionRule`、`HookConfig`、`RunThreadOptions`、`AgentStep` 等 |
+| `types/thread-types.ts` | 完整线程类型系列：`ThreadRecord`、`AgentDefinition`、`ThreadTemplate`、`TransitionRule`、`HookConfig`、`RunThreadOptions`、`ThreadSurface`、`AgentStep` 等 |
 | `config-generator.ts` | 新安装的配置文件初始化 |
 | `gateway-generator.ts` | API 网关 YAML 生成 |
 | `profile-generator.ts` | 配置 JSON 生成 |
@@ -123,7 +123,18 @@ L5  entry/         → 所有层（组合根）
 | `channel-queue.ts` | 每频道串行 Promise 队列。确保每个频道一次只能运行一个智能体 |
 | `orchestrator.ts` | 两分支决策树：如果是 `!thread` 命令 → `ThreadExecutor`，否则 → `AgentRunner`（默认单智能体路径） |
 | `agent-runner.ts` | 默认智能体执行路径。在执行前创建 `default` 线程，运行它，管理流式和交互式回调 |
-| `thread-executor.ts` | 线程路由：处理 `!thread start`、`!thread add`、线程继续、运行步骤期间的用户消息缓冲 |
+| `thread-executor.ts` | 路由 `!thread <template\|agent> <msg>`、`!thread add`、线程继续，以及运行步骤期间的用户消息缓冲；把每次运行交给 `ThreadRun` |
+| `thread-input.ts` | `ThreadExecCtx` 结构，以及 `thread-executor` 交接的文件下载与用户消息缓冲辅助函数 |
+| `thread-run/thread-run.ts` | `ThreadRun` / `openThreadRun()` / `openThreadRunDetached()` —— 一次线程运行的唯一 owner：状态消息、输出流、`ThreadSurface`、verdict、终态渲染、statusMsgRef 持久化、settle，以及 detached 运行的 busy 括号 |
+| `thread-run/render-summary.ts` | `!thread` / webhook / resume 的渲染：带按钮的开场行、多 agent 步骤行、封存摘要 |
+| `thread-run/render-task.ts` | 任务派发 / 调度的渲染："Dispatching…"/"Processing…" 行、Done/Paused/Suspended/Error，与旧 job 字符串逐字一致 |
+| `thread-run/thread-surface.ts` | 由进度渲染器 + 交互式回调构建的 `ThreadSurface` |
+| `thread-run/settle.ts` | statusMsgRef 持久化 + 注入的 settle |
+| `thread-run/verdict.ts` | `classifyThreadVerdict` |
+| `thread-callback.ts` | 唤醒/settle 协议：`settleThread`、父级唤醒、manager 轮换、任务树对账、waiting 巡检、`fireThreadCallback` |
+| `thread-notices.ts` | 通知文案 + 协议用于提问的只读判定 |
+| `thread-delivery.ts` | 终态投递边界：项目通知、`wakeSession`、`closeResumedTaskLoop` |
+| `resume-dispatcher.ts` | 限流恢复队列；通过 `resumeThreadRunInput` 构建 `ThreadRunInput` |
 | `busy-tracker.ts` | 追踪活跃 LLM 数量，向父守护进程发送 IPC `busy`/`idle` |
 | `lifecycle.ts` | 智能体成功/错误处理、编辑重试、AskUserQuestion 恢复、轮次追踪 |
 | `superseded-edits.ts` | 消息编辑废弃标记 |

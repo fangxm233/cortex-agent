@@ -346,6 +346,8 @@ The main execution loop in `runner.ts` runs as follows:
 3. **onEnd hook**: Fire after the main loop completes
 4. Mark thread as completed (if still running)
 
+Rendering — the status line, per-step progress, the sealed summary, and the dispatch/scheduled "Done"/"Error" lines — is owned by `orchestration/thread-run/` (`ThreadRun`). The runner in `domain/threads/runner.ts` never posts or updates a platform message itself; it only reports through a `ThreadSurface`. The four entry points (`!thread`, MCP `thread_start`, task dispatch, scheduled task) differ only in the `render` they hand `ThreadRun`.
+
 ## Lifecycle Hooks
 
 Hooks are shell commands executed at specific points in the thread lifecycle. They receive context as JSON on stdin and can return instructions as JSON on stdout. Thread hooks are one of three hook subsystems — see [hooks.md](./hooks.md) for the full hook architecture, including agent-level and session-level hooks.
@@ -439,7 +441,7 @@ Its role is **rehydration memory**: a fresh manager incarnation (after rotation 
 !thread researcher Survey recent papers on grasp planning
 ```
 
-The first word after `!thread` is the template name (or agent name for single-agent execution). The rest is the user message passed to the first agent.
+The entry point is `!thread <template|agent> <message>` — the first word after `!thread` is the template name (or agent name for single-agent execution) and the rest is the user message passed to the first agent. There is no `start` subcommand (the code calls this path "thread start" internally).
 
 ### Adding an Agent
 
@@ -462,15 +464,14 @@ This dynamically adds an agent to an existing thread. The thread must be complet
 
 ## Thread Types
 
-Cortex uses three types of thread records internally:
+Cortex uses two types of thread records internally:
 
 | Type | templateName | Workspace | Used by |
 |------|-------------|-----------|---------|
 | **Template thread** | Actual template name | Yes | `!thread <template>`, task dispatch |
-| **Default thread** | `"default"` | Yes | Single-agent messages (the normal chat path) |
 | **Auto thread** | `null` | No (initially) | `!thread add` chaining from single-agent runs |
 
-The distinction matters because the runner treats default threads differently: they run exactly one step (no transitions), use the channel's existing session, and forward streaming output directly to the user.
+Plain chat no longer creates a thread record. Older stores may still contain legacy `templateName: "default"` records, which `!thread add` chaining ignores (`domain/threads/utils.ts` `isDefaultThread`, `thread-executor.ts` `validateThreadAddTarget`).
 
 ## Thread Record
 

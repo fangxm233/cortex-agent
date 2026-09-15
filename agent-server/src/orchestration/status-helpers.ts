@@ -52,16 +52,6 @@ export function makeFallbackLabelNotifier(statusMsg: MessageRef | null, adapter:
   };
 }
 
-export function makeFallbackNotifier(channel: string, statusMsg: MessageRef | null, adapter: PlatformAdapter) {
-  const notify = makeFallbackLabelNotifier(statusMsg, adapter);
-  return async (fromConfig: { model: string; mode?: string }, toConfig: { model: string; mode?: string }) => {
-    await notify(
-      `${fromConfig.model}/${fromConfig.mode || 'default'}`,
-      `${toConfig.model}/${toConfig.mode || 'default'}`,
-    );
-  };
-}
-
 /** Build a streaming callback that aggregates assistant messages via OutputStream. */
 export function makeStreamingMessageCallback(adapter: PlatformAdapter, destination: Destination, threadAnchorId: string | null = null, onMessagePosted: ((ref: MessageRef) => void) | null = null, durable?: import('@platform/types.js').DurableHooks | null): ((text: string) => void) & { stream: OutputStream } {
   const stream = adapter.openOutputStream(destination, { threadId: threadAnchorId, onMessagePosted, durable: durable ?? null });

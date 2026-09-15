@@ -5,8 +5,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { PROJECTS_DIR } from '../src/core/paths.js';
 import { threadStore } from '../src/store/thread-repo.js';
+import { buildTaskResultNotice } from '../src/orchestration/thread-notices.js';
 import {
-  buildTaskResultNotice,
   notifyTaskParentThreads,
   reconcileWaitingTasks,
   recoverWaitingThreads,
