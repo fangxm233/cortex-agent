@@ -178,9 +178,11 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
  *
  * The model reads these as user turns and must — but drawing them as a user bubble puts words in
  * the reader's mouth and buries the actual conversation under machine prose. So the row states the
- * FACT (what produced it, one clipped line of what it said) and nothing else: no copy, no edit, no
- * rewind — there is no human message here to restore. The complete text remains reachable through
- * the `{ }` inspector, which the server only populates while DEBUG is on.
+ * FACT (what produced it, one clipped line of what it said) and nothing else: no copy of its own,
+ * no edit, no rewind — there is no human message here to restore. The complete text remains
+ * reachable through the `{ }` inspector, which the server only populates while DEBUG is on.
+ * (Its caller may hang the whole-TURN copy action under it when the row ends a turn — that button
+ * copies the assistant's reply, not this row.)
  */
 function SystemHintRow({ origin, text, ts, pending, debug }: {
   origin: SystemTurnOrigin;
@@ -381,7 +383,14 @@ function Row({ row, interactionActions, editCopy, assistantCopyText, onStartEdit
       return <Divider text={row.text} />;
     case 'user':
       if (row.systemOrigin) {
-        return <SystemHintRow origin={row.systemOrigin} text={row.text} ts={row.ts} pending={row.pending} debug={row.debug} />;
+        // No affordance of its own (see SystemHintRow) — but it can be the last row of a running
+        // turn, and the whole-turn copy action belongs under the last row, not above the hints.
+        return (
+          <div className="group">
+            <SystemHintRow origin={row.systemOrigin} text={row.text} ts={row.ts} pending={row.pending} debug={row.debug} />
+            <TurnCopyAction text={assistantCopyText} copy={editCopy} />
+          </div>
+        );
       }
       return <UserBubble text={row.text} attachments={row.attachments} ts={row.ts} edited={row.edited} editCopy={editCopy} onStartEdit={onStartEdit} editDisabled={editDisabled} pending={row.pending} debug={row.debug} anchor={anchor} />;
     case 'tools':

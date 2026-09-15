@@ -407,6 +407,10 @@ export function MChatStream({ rows, toolCallsUnit, copyLabel, copiedLabel, inter
           {row.kind === 'user' && row.systemOrigin && (
             <div style={dimmed ? { opacity: 0.35, pointerEvents: 'none' } : undefined}>
               <MSystemHintRow row={row} />
+              {/* The hint line is the machine steering itself INSIDE the turn, so it can be the
+                  turn's last row while the reply is still running — the copy action rides it so it
+                  stays at the bottom of the answer instead of above the hints. */}
+              <AssistantTurnCopyAction text={assistantCopies.get(i)} label={copyLabel} copiedLabel={copiedLabel} />
             </div>
           )}
           {row.kind === 'user' && !row.systemOrigin && (

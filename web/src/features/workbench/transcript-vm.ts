@@ -542,8 +542,10 @@ export function regenNoteIndexes(rows: ChatRow[]): Set<number> {
  * between two human messages is one thing to copy, and its button belongs at the bottom of it.
  *
  * The key is always a row that renders the action — assistant / tools / notice / interaction /
- * subagent. Divider and user rows (system-origin included) carry no copy affordance, so landing the
- * key on one would hide the button entirely.
+ * subagent, and the system-authored hint row, which renders it precisely so it can be a turn's last
+ * row: a turn that trails off into「后台代理结果」hints would otherwise keep its button above them,
+ * stranded mid-answer again until the next assistant row pushed it down. Divider rows and real user
+ * bubbles carry no copy affordance, so landing the key on one would hide the button entirely.
  */
 export function assistantTurnCopyTargets(rows: ChatRow[]): Map<number, string> {
   const targets = new Map<number, string>();
@@ -557,7 +559,13 @@ export function assistantTurnCopyTargets(rows: ChatRow[]): Map<number, string> {
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     if (row.kind === 'user') {
-      if (!row.systemOrigin) flush();
+      if (!row.systemOrigin) {
+        flush();
+        continue;
+      }
+      // Part of the turn it lands in, and eligible to be its LAST row — the button belongs under
+      // the whole reply, hint lines included.
+      if (texts.length > 0) tailIndex = i;
       continue;
     }
     if (row.kind === 'assistant' && row.text.length > 0) texts.push(row.text);

@@ -393,6 +393,36 @@ describe('MChatStream assistant turn copy', () => {
     expect(writeText).toHaveBeenCalledWith('part one\n\npart two');
     vi.unstubAllGlobals();
   });
+
+  // A turn that ends on a system-authored hint line (a background agent reporting back, mid-run)
+  // used to leave the button on the row ABOVE it — visibly stranded in the answer until the next
+  // assistant row arrived. The hint row carries the action itself now.
+  it('hangs the button under a trailing system-authored row', () => {
+    const rows: ChatRow[] = [
+      { kind: 'user', text: 'first' },
+      { kind: 'assistant', text: 'three agents are running', streaming: false },
+      {
+        kind: 'subagent', id: 'tu_a', agentType: 'explore', description: 'design map',
+        prompt: 'map it', model: 'model-x', status: 'done', toolCount: 54,
+        children: [],
+      },
+      { kind: 'user', text: '<system-reminder>agent done</system-reminder>', systemOrigin: 'agent-result' },
+    ];
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        <LangProvider>
+          <MChatStream rows={rows} toolCallsUnit="tools" copyLabel="copy" copiedLabel="copied" />
+        </LangProvider>,
+      );
+    });
+
+    const buttons = renderer.root.findAllByProps({ 'data-assistant-turn-copy': 'true' });
+    expect(buttons).toHaveLength(1);
+    // ...and it renders AFTER the hint line, not above it.
+    const tree = JSON.stringify(renderer.toJSON());
+    expect(tree.indexOf('data-system-origin')).toBeLessThan(tree.indexOf('data-assistant-turn-copy'));
+  });
 });
 
 describe('MChatStream subagent prompt', () => {

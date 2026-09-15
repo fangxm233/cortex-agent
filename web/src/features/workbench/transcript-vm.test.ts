@@ -82,6 +82,20 @@ describe('assistantTurnCopyTargets', () => {
     ]);
   });
 
+  it('keys the trailing system row so a still-running turn keeps the button at the bottom', () => {
+    const rows: ChatRow[] = [
+      { kind: 'user', text: 'question' },
+      { kind: 'assistant', text: 'three agents are running', streaming: false },
+      {
+        kind: 'subagent', id: 'tu_a', agentType: 'explore', description: 'design map',
+        prompt: 'map it', model: 'model-x', status: 'done', toolCount: 54, children: [],
+      },
+      { kind: 'user', text: '<system-reminder>agent done</system-reminder>', systemOrigin: 'agent-result' },
+    ];
+
+    expect([...assistantTurnCopyTargets(rows)]).toEqual([[3, 'three agents are running']]);
+  });
+
   it('ignores empty assistant text and turns without assistant text', () => {
     const rows: ChatRow[] = [
       { kind: 'assistant', text: '', streaming: false },
