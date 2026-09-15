@@ -263,6 +263,8 @@ test('session store replacement failure cleans temporary files', async () => {
     live: new Map([['sess-a', liveSession('sess-a', 'cortex-a')]]),
     pending: new Map(),
     nameIndex: new Map([['cortex-a', 'sess-a']]),
+    bindings: new Map(),
+    turns: new Map(),
     eventCount: 1,
     fileSize: 0,
   }), /directory|dir|eisdir|eperm|access/i);

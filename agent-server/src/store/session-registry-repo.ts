@@ -1,10 +1,12 @@
 // input:  session-registry-journal, execution/thread stores, and AsyncMutex
 // output: SessionRegistryRepo JSONL-backed registry and admission APIs
+//         (patch-delta updates, channel bindings + conduit resolvers, turn history, batch())
 // pos:    Stable session identity store with delete-intent guards
 // >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
 
 import * as crypto from 'node:crypto';
 import * as path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import { AsyncMutex } from '@core/async-mutex.js';
 import { STORE_DIR } from '@core/paths.js';
 import type { SessionContextUsage } from '@core/types/agent-types.js';
@@ -21,15 +23,53 @@ import {
   type SessionDeleteCleanup,
   type SessionBrowserOption,
   type SessionOrigin,
+  type SessionPatchFields,
+  type SessionPatchUnsetKey,
   type SessionRecord,
   type SessionRegistryJournalOptions,
   type SessionRegistryState,
+  type TurnRecord,
 } from './session-registry-journal.js';
 import { threadStore } from './thread-repo.js';
 
 export const REGISTRY_FILE = path.join(STORE_DIR, 'session-registry.jsonl');
 
-export { deriveSessionOrigin, type SessionOrigin };
+export { deriveSessionOrigin, type SessionOrigin, type TurnRecord };
+
+/** In-memory channel→sessionId resolver (never persisted). A resolver that returns a string wins
+ *  over any persisted bind; returning `null`/`undefined` falls through to the next resolver, then to
+ *  the persisted bindings index. Registered by conduit-aware platforms (TUI, app.ts). */
+export type ConduitResolver = (channel: string) => string | null | undefined;
+
+/** Record keys a `patch` may carry — identity (`name`, `sessionId`) excluded. Used to diff the live
+ *  record against the mutated one so a patch line holds ONLY what changed. */
+const PATCH_KEYS: SessionPatchUnsetKey[] = [
+  'projectId', 'channel', 'backend', 'kind', 'origin', 'createdAt', 'lastUsedAt', 'label',
+  'profileName', 'backendSessionId', 'lastReadAt', 'scheduleId', 'commissionId', 'commissionDraft',
+  'contextUsage', 'browser',
+];
+
+/** Compute the minimal patch from `current` to `next`. A key present in `current` but gone from
+ *  `next` (→ `undefined`) is unset; a changed key (incl. an explicit `null`) is set; unchanged keys
+ *  are omitted. Returns `null` when nothing changed so the caller appends no event. */
+function diffRecord(
+  current: SessionRecord,
+  next: SessionRecord,
+): { fields: SessionPatchFields; unset: SessionPatchUnsetKey[] } | null {
+  const fields: Record<string, unknown> = {};
+  const unset: SessionPatchUnsetKey[] = [];
+  for (const key of PATCH_KEYS) {
+    const cur = current[key];
+    const nxt = next[key];
+    const curHas = cur !== undefined;
+    const nxtHas = nxt !== undefined;
+    if (!curHas && !nxtHas) continue;
+    if (curHas && !nxtHas) { unset.push(key); continue; }
+    if (!isDeepStrictEqual(cur, nxt)) fields[key] = nxt;
+  }
+  if (Object.keys(fields).length === 0 && unset.length === 0) return null;
+  return { fields: fields as SessionPatchFields, unset };
+}
 
 export interface Session extends Omit<SessionRecord, 'contextUsage'> {
   contextUsage?: SessionContextUsage;
@@ -46,6 +86,36 @@ export type SessionRegistryRepoOptions = SessionRegistryJournalOptions;
 type UpdateFields = Partial<Pick<Session,
   'lastUsedAt' | 'label' | 'profileName' | 'backendSessionId' | 'contextUsage' | 'browser'
 >> & { sessionId?: never };
+
+export interface RegisterSessionOpts {
+  sessionId: string;
+  channel: string;
+  backend: string;
+  kind: 'local' | 'scheduled';
+  origin?: SessionOrigin;
+  projectId?: string;
+  label?: string | null;
+  profileName?: string | null;
+  backendSessionId?: string | null;
+  scheduleId?: string | null;
+  browser?: SessionBrowserOption | null;
+  commissionId?: string | null;
+  commissionDraft?: string | null;
+}
+
+/** Mutators available inside `batch(fn)` — each shares the one locked state so several events land
+ *  in a single critical section (§5). Read APIs are not exposed; read from the returned records. */
+export interface SessionRegistryBatch {
+  registerSession(name: string, opts: RegisterSessionOpts): Promise<void>;
+  updateSession(name: string, updates: UpdateFields): Promise<void>;
+  updateById(sessionId: string, mutate: (record: Session) => Session): Promise<Session | null>;
+  bindChannel(channel: string, sessionId: string): Promise<void>;
+  unbindChannel(channel: string): Promise<void>;
+  beginTurn(sessionId: string, turn: TurnRecord): Promise<void>;
+  patchTurn(sessionId: string, turnIndex: number, fields: Partial<TurnRecord>): Promise<void>;
+  truncateTurns(sessionId: string, fromIndex: number): Promise<void>;
+  clearTurns(sessionId: string): Promise<void>;
+}
 
 function cloneSession(record: SessionRecord): Session {
   return { ...record } as Session;
@@ -99,6 +169,7 @@ export class SessionRegistryRepo {
   private state = createSessionRegistryState();
   private loaded = false;
   private activeUses = new Map<string, number>();
+  private conduitResolvers: ConduitResolver[] = [];
 
   constructor(private readonly filePath: string = REGISTRY_FILE, options: SessionRegistryRepoOptions = {}) {
     this.options = options;
@@ -115,23 +186,13 @@ export class SessionRegistryRepo {
     });
   }
 
-  async registerSession(name: string, opts: {
-    sessionId: string;
-    channel: string;
-    backend: string;
-    kind: 'local' | 'scheduled';
-    origin?: SessionOrigin;
-    projectId?: string;
-    label?: string | null;
-    profileName?: string | null;
-    backendSessionId?: string | null;
-    scheduleId?: string | null;
-    browser?: SessionBrowserOption | null;
-    commissionId?: string | null;
-    commissionDraft?: string | null;
-  }): Promise<void> {
+  async registerSession(name: string, opts: RegisterSessionOpts): Promise<void> {
+    await this.withState((state) => this.doRegisterSession(state, name, opts));
+  }
+
+  private async doRegisterSession(state: SessionRegistryState, name: string, opts: RegisterSessionOpts): Promise<void> {
     const now = new Date().toISOString();
-    return this.appendPut({
+    await this.writePut(state, {
       name,
       sessionId: opts.sessionId,
       projectId: opts.projectId ?? 'general',
@@ -162,22 +223,25 @@ export class SessionRegistryRepo {
 
   async updateSession(name: string, updates: UpdateFields): Promise<void> {
     if ('sessionId' in updates) throw new Error('updateSession may not change sessionId');
-    await this.withState(async (state) => {
-      const sessionId = state.nameIndex.get(name);
-      if (!sessionId) return;
-      const current = state.live.get(sessionId);
-      if (!current) return;
-      await this.writePut(state, {
-        ...current,
-        lastUsedAt: updates.lastUsedAt ?? current.lastUsedAt,
-        label: updates.label !== undefined ? trimLabel(updates.label) : current.label,
-        profileName: updates.profileName !== undefined ? updates.profileName : current.profileName,
-        backendSessionId: updates.backendSessionId !== undefined
-          ? updates.backendSessionId
-          : current.backendSessionId,
-        contextUsage: updates.contextUsage !== undefined ? updates.contextUsage : current.contextUsage,
-      } as Session);
-    });
+    await this.withState((state) => this.doUpdateSession(state, name, updates));
+  }
+
+  private async doUpdateSession(state: SessionRegistryState, name: string, updates: UpdateFields): Promise<void> {
+    const sessionId = state.nameIndex.get(name);
+    if (!sessionId) return;
+    const current = state.live.get(sessionId);
+    if (!current) return;
+    await this.writePatch(state, current, {
+      ...current,
+      lastUsedAt: updates.lastUsedAt ?? current.lastUsedAt,
+      label: updates.label !== undefined ? trimLabel(updates.label) : current.label,
+      profileName: updates.profileName !== undefined ? updates.profileName : current.profileName,
+      backendSessionId: updates.backendSessionId !== undefined
+        ? updates.backendSessionId
+        : current.backendSessionId,
+      browser: updates.browser !== undefined ? updates.browser : current.browser,
+      contextUsage: updates.contextUsage !== undefined ? updates.contextUsage : current.contextUsage,
+    } as SessionRecord);
   }
 
   async updateContextUsage(sessionId: string, usage: SessionContextUsage | null): Promise<void> {
@@ -234,7 +298,7 @@ export class SessionRegistryRepo {
     return this.withState(async (state) => {
       const current = state.live.get(sessionId);
       if (!current || state.pending.has(sessionId)) return null;
-      await this.writePut(state, { ...current, lastUsedAt: new Date().toISOString() } as Session);
+      await this.writePatch(state, current, { ...current, lastUsedAt: new Date().toISOString() });
       this.activeUses.set(sessionId, (this.activeUses.get(sessionId) ?? 0) + 1);
       let released = false;
       return () => {
@@ -302,6 +366,144 @@ export class SessionRegistryRepo {
    *  which drops the copy that was in backend history. */
   async clearCommissionBlockDelivery(sessionId: string): Promise<Session | null> {
     return this.updateById(sessionId, (record) => ({ ...record, commissionBlockFor: null }));
+  }
+
+  // --- Channel bindings (channel → conversation sessionId) ------------------------------------
+
+  /** Register an in-memory conduit resolver. Never persisted; a resolver answer wins over a
+   *  persisted bind (§6). Returns an unregister callback. */
+  registerConduitResolver(fn: ConduitResolver): () => void {
+    this.conduitResolvers.push(fn);
+    return () => {
+      const idx = this.conduitResolvers.indexOf(fn);
+      if (idx >= 0) this.conduitResolvers.splice(idx, 1);
+    };
+  }
+
+  /** Resolve the conversation session for a channel: in-memory resolvers first (a string wins),
+   *  then the persisted bindings index. */
+  async getBoundSessionId(channel: string): Promise<string | null> {
+    for (const resolve of this.conduitResolvers) {
+      const answer = resolve(channel);
+      if (typeof answer === 'string' && answer) return answer;
+    }
+    return this.withState(async (state) => state.bindings.get(channel) ?? null);
+  }
+
+  async bindChannel(channel: string, sessionId: string): Promise<void> {
+    await this.withState((state) => this.doBindChannel(state, channel, sessionId));
+  }
+
+  async unbindChannel(channel: string): Promise<void> {
+    await this.withState((state) => this.doUnbindChannel(state, channel));
+  }
+
+  /** Remove every binding pointing at one of `sessionIds`. Used when sessions are torn down. */
+  async unbindBySessionIds(sessionIds: Iterable<string>): Promise<void> {
+    const targets = new Set(sessionIds);
+    await this.withState(async (state) => {
+      for (const [channel, boundId] of state.bindings) {
+        if (targets.has(boundId)) await this.doUnbindChannel(state, channel);
+      }
+    });
+  }
+
+  async listBindings(): Promise<Array<{ channel: string; sessionId: string }>> {
+    return this.withState(async (state) =>
+      Array.from(state.bindings, ([channel, sessionId]) => ({ channel, sessionId })));
+  }
+
+  // --- Turn history (sessionId → ordered turns) -----------------------------------------------
+
+  async beginTurn(sessionId: string, turn: TurnRecord): Promise<void> {
+    await this.withState((state) => this.doBeginTurn(state, sessionId, turn));
+  }
+
+  async patchTurn(sessionId: string, turnIndex: number, fields: Partial<TurnRecord>): Promise<void> {
+    await this.withState((state) => this.doPatchTurn(state, sessionId, turnIndex, fields));
+  }
+
+  async truncateTurns(sessionId: string, fromIndex: number): Promise<void> {
+    await this.withState((state) => this.doTruncateTurns(state, sessionId, fromIndex));
+  }
+
+  async clearTurns(sessionId: string): Promise<void> {
+    await this.withState((state) => this.doClearTurns(state, sessionId));
+  }
+
+  async getTurns(sessionId: string): Promise<TurnRecord[]> {
+    return this.withState(async (state) => (state.turns.get(sessionId) ?? []).map(turn => ({ ...turn })));
+  }
+
+  async findTurn(sessionId: string, pred: (turn: TurnRecord) => boolean): Promise<TurnRecord | null> {
+    return this.withState(async (state) => {
+      const found = (state.turns.get(sessionId) ?? []).find(pred);
+      return found ? { ...found } : null;
+    });
+  }
+
+  /** Run several mutations under ONE admission lock (T2/T3 need put+bind+turn atomically — never a
+   *  put without its bind, §5). The ops mirror the top-level mutators but share the locked state. */
+  async batch<T>(fn: (ops: SessionRegistryBatch) => Promise<T>): Promise<T> {
+    return this.withState((state) => fn(this.batchOps(state)));
+  }
+
+  private batchOps(state: SessionRegistryState): SessionRegistryBatch {
+    return {
+      registerSession: (name, opts) => this.doRegisterSession(state, name, opts),
+      updateSession: (name, updates) => {
+        if ('sessionId' in updates) throw new Error('updateSession may not change sessionId');
+        return this.doUpdateSession(state, name, updates);
+      },
+      updateById: (sessionId, mutate) => this.doUpdateById(state, sessionId, mutate),
+      bindChannel: (channel, sessionId) => this.doBindChannel(state, channel, sessionId),
+      unbindChannel: (channel) => this.doUnbindChannel(state, channel),
+      beginTurn: (sessionId, turn) => this.doBeginTurn(state, sessionId, turn),
+      patchTurn: (sessionId, turnIndex, fields) => this.doPatchTurn(state, sessionId, turnIndex, fields),
+      truncateTurns: (sessionId, fromIndex) => this.doTruncateTurns(state, sessionId, fromIndex),
+      clearTurns: (sessionId) => this.doClearTurns(state, sessionId),
+    };
+  }
+
+  private async doBindChannel(state: SessionRegistryState, channel: string, sessionId: string): Promise<void> {
+    if (state.bindings.get(channel) === sessionId) return;
+    await appendSessionRegistryEvent(this.filePath, state, { v: 1, op: 'bind', channel, sessionId }, this.options);
+    await this.maybeCompact(state);
+  }
+
+  private async doUnbindChannel(state: SessionRegistryState, channel: string): Promise<void> {
+    if (!state.bindings.has(channel)) return;
+    await appendSessionRegistryEvent(this.filePath, state, { v: 1, op: 'unbind', channel }, this.options);
+    await this.maybeCompact(state);
+  }
+
+  private async doBeginTurn(state: SessionRegistryState, sessionId: string, turn: TurnRecord): Promise<void> {
+    await appendSessionRegistryEvent(this.filePath, state,
+      { v: 1, op: 'turn', id: sessionId, kind: 'begin', turn: { ...turn } }, this.options);
+    await this.maybeCompact(state);
+  }
+
+  private async doPatchTurn(
+    state: SessionRegistryState,
+    sessionId: string,
+    turnIndex: number,
+    fields: Partial<TurnRecord>,
+  ): Promise<void> {
+    await appendSessionRegistryEvent(this.filePath, state,
+      { v: 1, op: 'turn', id: sessionId, kind: 'patch', turnIndex, fields: { ...fields } }, this.options);
+    await this.maybeCompact(state);
+  }
+
+  private async doTruncateTurns(state: SessionRegistryState, sessionId: string, fromIndex: number): Promise<void> {
+    await appendSessionRegistryEvent(this.filePath, state,
+      { v: 1, op: 'turn', id: sessionId, kind: 'truncate', fromIndex }, this.options);
+    await this.maybeCompact(state);
+  }
+
+  private async doClearTurns(state: SessionRegistryState, sessionId: string): Promise<void> {
+    await appendSessionRegistryEvent(this.filePath, state,
+      { v: 1, op: 'turn', id: sessionId, kind: 'clear' }, this.options);
+    await this.maybeCompact(state);
   }
 
   async listPendingDeletions(): Promise<PendingDeletion[]> {
@@ -389,10 +591,6 @@ export class SessionRegistryRepo {
     return this.state;
   }
 
-  private async appendPut(record: Session): Promise<void> {
-    await this.withState(async (state) => { await this.writePut(state, record); });
-  }
-
   private async writePut(state: SessionRegistryState, record: Session): Promise<void> {
     await appendSessionRegistryEvent(this.filePath, state, {
       v: 1,
@@ -407,13 +605,34 @@ export class SessionRegistryRepo {
     sessionId: string,
     mutate: (record: Session) => Session,
   ): Promise<Session | null> {
-    return this.withState(async (state) => {
-      const current = state.live.get(sessionId);
-      if (!current) return null;
-      const next = mutate(cloneSession(current));
-      await this.writePut(state, next);
-      return next;
-    });
+    return this.withState((state) => this.doUpdateById(state, sessionId, mutate));
+  }
+
+  private async doUpdateById(
+    state: SessionRegistryState,
+    sessionId: string,
+    mutate: (record: Session) => Session,
+  ): Promise<Session | null> {
+    const current = state.live.get(sessionId);
+    if (!current) return null;
+    const next = mutate(cloneSession(current));
+    await this.writePatch(state, current, next as SessionRecord);
+    return next;
+  }
+
+  /** Append a `patch` for the delta between `current` (live) and `next`. No-op when nothing changed. */
+  private async writePatch(state: SessionRegistryState, current: SessionRecord, next: SessionRecord): Promise<void> {
+    const delta = diffRecord(current, next);
+    if (!delta) return;
+    await appendSessionRegistryEvent(this.filePath, state, {
+      v: 1,
+      op: 'patch',
+      id: current.sessionId,
+      name: current.name,
+      fields: delta.fields,
+      ...(delta.unset.length ? { unset: delta.unset } : {}),
+    }, this.options);
+    await this.maybeCompact(state);
   }
 
   private async maybeCompact(state: SessionRegistryState): Promise<void> {

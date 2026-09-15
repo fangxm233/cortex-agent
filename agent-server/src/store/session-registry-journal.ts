@@ -1,5 +1,6 @@
 // input:  fs, readline, STORE_DIR, and append/compact journal callers
 // output: JSONL session registry replay, append, compact, and migration helpers
+//         (records + channel bindings + per-session turn history; events: put/patch/delete-*/bind/unbind/turn)
 // pos:    Low-level journal I/O for session registry state
 // >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
 
@@ -67,15 +68,51 @@ export interface SessionRecord {
   browser?: SessionBrowserOption | null;
 }
 
+/** Copied VERBATIM from store/conversation-ledger-repo.ts:9-22 (B.T1). The journal owns turn history
+ *  now, but must NOT import the ledger module (dependency direction). Keep this in lock-step with the
+ *  ledger's LedgerTurn until the ledger is retired in a later task. */
+export type TurnStatus = 'processing' | 'completed' | 'superseded';
+
+export interface TurnRecord {
+  turnIndex: number;
+  userMessageTs: string;
+  userMessageText: string;
+  statusMessageTs: string | null;
+  responseMessageTimestamps: string[];
+  executionId: string | null;
+  backupPath: string | null;
+  status: TurnStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Patch payload: only the record keys a `patch` may carry. `name`/`sessionId` are identity and
+ *  never travel in a patch (the event keys off them). A key set to `null` means "store null"; a key
+ *  listed in `unset` is deleted (→ `undefined`); a key in neither is untouched. */
+export type SessionPatchFields = Partial<Omit<SessionRecord, 'name' | 'sessionId'>>;
+export type SessionPatchUnsetKey = keyof SessionPatchFields;
+
 export type SessionRegistryEvent =
   | { v: 1; op: 'put'; id: string; record: SessionRecord }
   | { v: 1; op: 'delete-intent'; id: string; record: SessionRecord; cleanup?: SessionDeleteCleanup }
-  | { v: 1; op: 'delete-commit'; id: string };
+  | { v: 1; op: 'delete-commit'; id: string }
+  | { v: 1; op: 'patch'; id: string; name: string; fields: SessionPatchFields; unset?: SessionPatchUnsetKey[] }
+  | { v: 1; op: 'bind'; channel: string; sessionId: string }
+  | { v: 1; op: 'unbind'; channel: string }
+  | { v: 1; op: 'turn'; id: string; kind: 'begin'; turn: TurnRecord }
+  | { v: 1; op: 'turn'; id: string; kind: 'patch'; turnIndex: number; fields: Partial<TurnRecord> }
+  | { v: 1; op: 'turn'; id: string; kind: 'truncate'; fromIndex: number }
+  | { v: 1; op: 'turn'; id: string; kind: 'clear' };
 
 export interface SessionRegistryState {
   live: Map<string, SessionRecord>;
   pending: Map<string, PendingSessionDelete>;
   nameIndex: Map<string, string>;
+  /** channel → sessionId of the conversation session hosted on that channel (an explicit index; a
+   *  channel can host several sessions but binds to one at a time). Cleared on delete-commit. */
+  bindings: Map<string, string>;
+  /** sessionId → ordered turn history. Only live sessions keep turns; dropped on delete-commit. */
+  turns: Map<string, TurnRecord[]>;
   eventCount: number;
   fileSize: number;
 }
@@ -94,6 +131,8 @@ export function createSessionRegistryState(): SessionRegistryState {
     live: new Map(),
     pending: new Map(),
     nameIndex: new Map(),
+    bindings: new Map(),
+    turns: new Map(),
     eventCount: 0,
     fileSize: 0,
   };
@@ -123,7 +162,8 @@ export function shouldCompactSessionRegistry(
     liveCount: state.live.size,
   };
   if (options.shouldCompact) return options.shouldCompact(stats);
-  const threshold = Math.max(2048, state.live.size * 4);
+  // Lowered from 2048 (B.T1): patch/turn ticks are cheap, so compact sooner to keep the tail small.
+  const threshold = Math.max(512, state.live.size * 4);
   return state.fileSize > MAX_FILE_BYTES || state.eventCount > threshold;
 }
 
@@ -163,10 +203,19 @@ export async function compactSessionRegistry(
 }
 
 function compactedEvents(state: SessionRegistryState): SessionRegistryEvent[] {
-  return [
-    ...Array.from(state.live.values(), record => putEvent(record)),
-    ...Array.from(state.pending.values(), entry => deleteIntentEvent(entry.session, entry.cleanup)),
-  ];
+  const events: SessionRegistryEvent[] = [];
+  for (const record of state.live.values()) events.push(putEvent(record));
+  for (const entry of state.pending.values()) events.push(deleteIntentEvent(entry.session, entry.cleanup));
+  // Bindings and turns are re-materialised for LIVE sessions only — a pending/committed session's
+  // index entries and turn history are dropped (§3). Order: puts → delete-intents → binds → turns.
+  for (const [channel, sessionId] of state.bindings) {
+    if (state.live.has(sessionId)) events.push({ v: 1, op: 'bind', channel, sessionId });
+  }
+  for (const [sessionId, turns] of state.turns) {
+    if (!state.live.has(sessionId)) continue;
+    for (const turn of turns) events.push({ v: 1, op: 'turn', id: sessionId, kind: 'begin', turn });
+  }
+  return events;
 }
 
 function putEvent(record: SessionRecord): SessionRegistryEvent {
@@ -337,17 +386,63 @@ function normalizeEvent(raw: unknown, lineNo: number): SessionRegistryEvent {
   const row = raw as Record<string, unknown>;
   const version = row?.v;
   const op = row?.op;
-  const id = row?.id;
   if (version !== REGISTRY_VERSION) throw new Error(`Unknown session registry version at line ${lineNo}`);
-  if (typeof id !== 'string' || !id) throw new Error(`Malformed session registry id at line ${lineNo}`);
-  if (op === 'put') return { v: 1, op, id, record: assertSessionRecord(row.record, id) };
-  if (op === 'delete-intent') return {
-    v: 1, op, id,
-    record: assertSessionRecord(row.record, id),
-    cleanup: normalizeDeleteCleanup(row.cleanup),
-  };
-  if (op === 'delete-commit') return { v: 1, op, id };
+  if (op === 'put') { const id = requireId(row, lineNo); return { v: 1, op, id, record: assertSessionRecord(row.record, id) }; }
+  if (op === 'delete-intent') {
+    const id = requireId(row, lineNo);
+    return { v: 1, op, id, record: assertSessionRecord(row.record, id), cleanup: normalizeDeleteCleanup(row.cleanup) };
+  }
+  if (op === 'delete-commit') return { v: 1, op, id: requireId(row, lineNo) };
+  if (op === 'patch') return normalizePatchEvent(row, lineNo);
+  if (op === 'bind') return normalizeBindEvent(row, lineNo);
+  if (op === 'unbind') return { v: 1, op: 'unbind', channel: requireField(row, 'channel', lineNo) };
+  if (op === 'turn') return normalizeTurnEvent(row, lineNo);
   throw new Error(`Unknown session registry op at line ${lineNo}`);
+}
+
+function requireId(row: Record<string, unknown>, lineNo: number): string {
+  const id = row?.id;
+  if (typeof id !== 'string' || !id) throw new Error(`Malformed session registry id at line ${lineNo}`);
+  return id;
+}
+
+function requireField(row: Record<string, unknown>, key: string, lineNo: number): string {
+  const value = row?.[key];
+  if (typeof value !== 'string' || !value) throw new Error(`Malformed session registry ${key} at line ${lineNo}`);
+  return value;
+}
+
+function normalizePatchEvent(row: Record<string, unknown>, lineNo: number): SessionRegistryEvent {
+  const id = requireId(row, lineNo);
+  const name = requireField(row, 'name', lineNo);
+  return { v: 1, op: 'patch', id, name, fields: assertPatchFields(row.fields), ...normalizeUnset(row.unset, lineNo) };
+}
+
+function normalizeUnset(raw: unknown, lineNo: number): { unset?: SessionPatchUnsetKey[] } {
+  if (raw === undefined) return {};
+  if (!Array.isArray(raw) || raw.some(value => !PATCH_KEY_SET.has(value as string))) {
+    throw new Error(`Invalid session registry patch unset at line ${lineNo}`);
+  }
+  return raw.length ? { unset: raw as SessionPatchUnsetKey[] } : {};
+}
+
+function normalizeBindEvent(row: Record<string, unknown>, lineNo: number): SessionRegistryEvent {
+  return {
+    v: 1,
+    op: 'bind',
+    channel: requireField(row, 'channel', lineNo),
+    sessionId: requireField(row, 'sessionId', lineNo),
+  };
+}
+
+function normalizeTurnEvent(row: Record<string, unknown>, lineNo: number): SessionRegistryEvent {
+  const id = requireId(row, lineNo);
+  const kind = row?.kind;
+  if (kind === 'begin') return { v: 1, op: 'turn', id, kind, turn: assertTurnRecord(row.turn) };
+  if (kind === 'patch') return { v: 1, op: 'turn', id, kind, turnIndex: toNumberValue(row.turnIndex), fields: assertPartialTurn(row.fields) };
+  if (kind === 'truncate') return { v: 1, op: 'turn', id, kind, fromIndex: toNumberValue(row.fromIndex) };
+  if (kind === 'clear') return { v: 1, op: 'turn', id, kind };
+  throw new Error(`Unknown session registry turn kind at line ${lineNo}`);
 }
 
 function normalizeDeleteCleanup(raw: unknown): SessionDeleteCleanup {
@@ -457,10 +552,128 @@ function toOriginValue(value: unknown): SessionOrigin {
   throw new Error('Invalid session registry origin');
 }
 
+function toNumberValue(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) throw new Error('Invalid session registry number field');
+  return value;
+}
+
+/** Strict nullable string for turn fields: `null` stays null, a string stays a string, anything
+ *  else (including undefined) is rejected. Unlike `toNullableString`, `''` is preserved. */
+function toTurnNullableString(value: unknown): string | null {
+  if (value === null) return null;
+  if (typeof value === 'string') return value;
+  throw new Error('Invalid session registry turn nullable string');
+}
+
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value) || value.some(entry => typeof entry !== 'string')) {
+    throw new Error('Invalid session registry string array');
+  }
+  return [...(value as string[])];
+}
+
+function toTurnStatus(value: unknown): TurnStatus {
+  if (value === 'processing' || value === 'completed' || value === 'superseded') return value;
+  throw new Error('Invalid session registry turn status');
+}
+
+/** Whitelist for the `patch` payload. Every field a record can carry (minus identity) has a strict
+ *  converter here; a key not listed is DROPPED on replay (the toOptionalBrowserValue trap, §8.1). */
+const PATCH_FIELD_READERS: { [K in SessionPatchUnsetKey]: (value: unknown) => SessionRecord[K] } = {
+  projectId: toStringValue,
+  channel: toStringValue,
+  backend: toStringValue,
+  kind: toKindValue,
+  origin: toOriginValue,
+  createdAt: toStringValue,
+  lastUsedAt: toStringValue,
+  label: toNullableString,
+  profileName: toNullableString,
+  backendSessionId: toOptionalNullableString,
+  lastReadAt: toOptionalNullableString,
+  scheduleId: toOptionalNullableString,
+  commissionId: toOptionalNullableString,
+  commissionDraft: toOptionalNullableString,
+  contextUsage: value => value,
+  browser: toOptionalBrowserValue,
+};
+
+const PATCH_KEY_SET = new Set(Object.keys(PATCH_FIELD_READERS));
+
+function assertPatchFields(raw: unknown): SessionPatchFields {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Invalid session registry patch fields');
+  const row = raw as Record<string, unknown>;
+  const fields: Record<string, unknown> = {};
+  for (const key of Object.keys(row)) {
+    const reader = PATCH_FIELD_READERS[key as SessionPatchUnsetKey];
+    if (!reader) throw new Error(`Unknown session registry patch field: ${key}`);
+    fields[key] = reader(row[key]);
+  }
+  return fields as SessionPatchFields;
+}
+
+function assertTurnRecord(raw: unknown): TurnRecord {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Invalid session registry turn record');
+  const row = raw as Record<string, unknown>;
+  return {
+    turnIndex: toNumberValue(row.turnIndex),
+    userMessageTs: toStringValue(row.userMessageTs),
+    userMessageText: toStringValue(row.userMessageText),
+    statusMessageTs: toTurnNullableString(row.statusMessageTs),
+    responseMessageTimestamps: toStringArray(row.responseMessageTimestamps),
+    executionId: toTurnNullableString(row.executionId),
+    backupPath: toTurnNullableString(row.backupPath),
+    status: toTurnStatus(row.status),
+    createdAt: toStringValue(row.createdAt),
+    updatedAt: toStringValue(row.updatedAt),
+  };
+}
+
+const TURN_FIELD_READERS: { [K in keyof TurnRecord]: (value: unknown) => TurnRecord[K] } = {
+  turnIndex: toNumberValue,
+  userMessageTs: toStringValue,
+  userMessageText: toStringValue,
+  statusMessageTs: toTurnNullableString,
+  responseMessageTimestamps: toStringArray,
+  executionId: toTurnNullableString,
+  backupPath: toTurnNullableString,
+  status: toTurnStatus,
+  createdAt: toStringValue,
+  updatedAt: toStringValue,
+};
+
+function assertPartialTurn(raw: unknown): Partial<TurnRecord> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Invalid session registry turn patch');
+  const row = raw as Record<string, unknown>;
+  const fields: Record<string, unknown> = {};
+  for (const key of Object.keys(row)) {
+    const reader = TURN_FIELD_READERS[key as keyof TurnRecord];
+    if (!reader) throw new Error(`Unknown session registry turn field: ${key}`);
+    fields[key] = reader(row[key]);
+  }
+  return fields as Partial<TurnRecord>;
+}
+
 function assertAppendableEvent(state: SessionRegistryState, event: SessionRegistryEvent): void {
   if (event.op === 'put') assertPutAllowed(state, event.record);
   if (event.op === 'delete-intent') assertDeleteIntentAppendable(state, event.record);
   if (event.op === 'delete-commit') assertDeleteCommitAllowed(state, event.id);
+  if (event.op === 'patch') assertPatchAppendable(state, event.id);
+  if (event.op === 'bind') assertBindAppendable(state, event.sessionId);
+  if (event.op === 'turn') assertTurnAppendable(state, event.id);
+}
+
+function assertPatchAppendable(state: SessionRegistryState, sessionId: string): void {
+  if (!state.live.has(sessionId)) throw new Error(`Patch for non-live session: ${sessionId}`);
+}
+
+function assertBindAppendable(state: SessionRegistryState, sessionId: string): void {
+  if (state.pending.has(sessionId)) throw new Error(`Cannot bind pending-deletion session: ${sessionId}`);
+  if (!state.live.has(sessionId)) throw new Error(`Cannot bind unknown session: ${sessionId}`);
+}
+
+function assertTurnAppendable(state: SessionRegistryState, sessionId: string): void {
+  if (!state.live.has(sessionId)) throw new Error(`Turn for non-live session: ${sessionId}`);
 }
 
 function assertPutAllowed(state: SessionRegistryState, record: SessionRecord): void {
@@ -491,7 +704,46 @@ function assertDeleteCommitAllowed(state: SessionRegistryState, sessionId: strin
 function applyEvent(state: SessionRegistryState, event: SessionRegistryEvent): void {
   if (event.op === 'put') return applyPut(state, event.record);
   if (event.op === 'delete-intent') return applyDeleteIntent(state, event.record, event.cleanup);
-  applyDeleteCommit(state, event.id);
+  if (event.op === 'delete-commit') return applyDeleteCommit(state, event.id);
+  if (event.op === 'patch') return applyPatch(state, event);
+  if (event.op === 'bind') return applyBind(state, event.channel, event.sessionId);
+  if (event.op === 'unbind') return applyUnbind(state, event.channel);
+  applyTurn(state, event);
+}
+
+/** Lenient replay: a patch/bind/turn whose session is no longer live (deleted later, or a torn
+ *  compaction reorder) is skipped rather than thrown — the strict guards live in the append path. */
+function applyPatch(state: SessionRegistryState, event: Extract<SessionRegistryEvent, { op: 'patch' }>): void {
+  const record = state.live.get(event.id);
+  if (!record) return;
+  const next = { ...record, ...event.fields } as Record<string, unknown>;
+  for (const key of event.unset ?? []) delete next[key];
+  state.live.set(event.id, next as unknown as SessionRecord);
+}
+
+function applyBind(state: SessionRegistryState, channel: string, sessionId: string): void {
+  if (!state.live.has(sessionId)) return;
+  state.bindings.set(channel, sessionId);
+}
+
+function applyUnbind(state: SessionRegistryState, channel: string): void {
+  state.bindings.delete(channel);
+}
+
+function applyTurn(state: SessionRegistryState, event: Extract<SessionRegistryEvent, { op: 'turn' }>): void {
+  if (!state.live.has(event.id)) return;
+  const turns = state.turns.get(event.id) ?? [];
+  if (event.kind === 'begin') {
+    turns.push(event.turn);
+    state.turns.set(event.id, turns);
+  } else if (event.kind === 'patch') {
+    const idx = turns.findIndex(turn => turn.turnIndex === event.turnIndex);
+    if (idx >= 0) turns[idx] = { ...turns[idx], ...event.fields };
+  } else if (event.kind === 'truncate') {
+    state.turns.set(event.id, turns.filter(turn => turn.turnIndex < event.fromIndex));
+  } else {
+    state.turns.set(event.id, []);
+  }
 }
 
 function applyPut(state: SessionRegistryState, record: SessionRecord): void {
@@ -516,6 +768,11 @@ function applyDeleteIntent(
 function applyDeleteCommit(state: SessionRegistryState, sessionId: string): void {
   assertDeleteCommitAllowed(state, sessionId);
   state.pending.delete(sessionId);
+  // A committed session keeps neither channel bindings nor turn history (§1, §3).
+  for (const [channel, boundId] of state.bindings) {
+    if (boundId === sessionId) state.bindings.delete(channel);
+  }
+  state.turns.delete(sessionId);
 }
 
 async function appendLineWithRollback(

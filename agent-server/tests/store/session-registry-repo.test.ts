@@ -93,7 +93,8 @@ test('session registry appends one JSONL event per mutation and keeps prior pref
   assert.ok(text.startsWith(prefix));
   const lines = jsonlLines(filePath);
   assert.equal(lines.length, 3);
-  assert.deepEqual(lines.map(line => line.op), ['put', 'put', 'put']);
+  // B.T1: updateSession now emits a delta `patch`, not a whole-record `put`.
+  assert.deepEqual(lines.map(line => line.op), ['put', 'put', 'patch']);
   assert.equal((await repo.lookupSession('cortex-a'))?.label, 'updated label');
 });
 
@@ -135,7 +136,8 @@ test('session registry hides delete-intent sessions from normal queries and repl
   const reopened = new SessionRegistryRepo(filePath);
   assert.equal(await reopened.getById('sess-stale'), null);
   assert.equal((await reopened.lookupSession('cortex-live'))?.sessionId, 'sess-live');
-  assert.deepEqual(jsonlLines(filePath).map(line => line.op), ['put', 'put', 'put', 'delete-intent', 'delete-commit']);
+  // B.T1: the stale-session lastUsedAt bump is now a `patch`, not a `put`.
+  assert.deepEqual(jsonlLines(filePath).map(line => line.op), ['put', 'put', 'patch', 'delete-intent', 'delete-commit']);
 });
 
 test('session registry touchForUse and beginDeleteExpired share one admission mutex', async () => {
