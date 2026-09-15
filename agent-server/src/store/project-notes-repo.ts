@@ -78,6 +78,11 @@ function isChromeLine(line: string): boolean {
     || line === '## Active' || line === '## Completed';
 }
 
+function excerpt(line: string): string {
+  const text = line.trim();
+  return text.length > 60 ? `${text.slice(0, 60)}...` : text;
+}
+
 export function parseNotesMarkdown(md: string): ProjectNote[] {
   if (!md.includes(FORMAT_MARKER)) throw invalidFile('Unsupported NOTES.md format');
   const lines = md.replace(/\r\n/g, '\n').split('\n');
@@ -85,7 +90,15 @@ export function parseNotesMarkdown(md: string): ProjectNote[] {
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
     if (isChromeLine(line)) continue;
-    if (!line.startsWith(META_PREFIX)) throw invalidFile(`Unexpected NOTES.md content at line ${index + 1}`);
+    // Strict on purpose: this file is machine-owned, and quietly skipping a line we do not
+    // understand would silently delete it on the next write. The excerpt is what makes the refusal
+    // actionable — hand-written prose appended below the notes is the one way this ever happens.
+    if (!line.startsWith(META_PREFIX)) {
+      throw invalidFile(
+        `Unexpected NOTES.md content at line ${index + 1}: ${JSON.stringify(excerpt(line))}. `
+        + 'NOTES.md is written by the notes UI only — move hand-written text to another file.',
+      );
+    }
     notes.push(parseEntry(lines, index));
     index += 1;
   }

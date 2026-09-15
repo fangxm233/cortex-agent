@@ -4,6 +4,9 @@ import {
   dispatchLiveEvent,
   initialConnAccum,
   isConfigSnapshotChanged,
+  liveRetryDelayMs,
+  LIVE_RETRY_BASE_MS,
+  LIVE_RETRY_MAX_MS,
   matchesLiveEvent,
   ASSISTANT_DELTA_EVENTS,
   COMMISSION_LIVE_EVENTS,
@@ -182,5 +185,22 @@ describe('applyConnState — shared reconnect epoch', () => {
     expect(s.epoch).toBe(0);
     s = applyConnState(s, 'pending');
     expect(s.epoch).toBe(1);
+  });
+});
+
+describe('liveRetryDelayMs — coming back from a terminal stream error', () => {
+  it('starts at one second and doubles per consecutive failure', () => {
+    expect(liveRetryDelayMs(0)).toBe(LIVE_RETRY_BASE_MS);
+    expect(liveRetryDelayMs(1)).toBe(2_000);
+    expect(liveRetryDelayMs(2)).toBe(4_000);
+    expect(liveRetryDelayMs(3)).toBe(8_000);
+  });
+  it('caps the wait so a tab left open overnight still finds its way back', () => {
+    expect(liveRetryDelayMs(10)).toBe(LIVE_RETRY_MAX_MS);
+    expect(liveRetryDelayMs(1_000)).toBe(LIVE_RETRY_MAX_MS);
+  });
+  it('treats a nonsensical attempt count as the first one rather than retrying instantly forever', () => {
+    expect(liveRetryDelayMs(-5)).toBe(LIVE_RETRY_BASE_MS);
+    expect(liveRetryDelayMs(0.5)).toBe(LIVE_RETRY_BASE_MS);
   });
 });

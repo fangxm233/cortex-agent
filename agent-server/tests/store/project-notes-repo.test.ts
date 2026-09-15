@@ -125,6 +125,23 @@ test('non-canonical and symlink NOTES.md are rejected rather than overwritten', 
   await assert.rejects(() => repo.list(link), (err: any) => err.code === 'invalid-notes-file');
 });
 
+test('prose appended under the notes is refused with the line and its text', async () => {
+  const file = tempNotesPath();
+  const repo = deterministicRepo();
+  await repo.add(file, 'Keep me');
+  const before = fs.readFileSync(file, 'utf8');
+  // Exactly how this breaks in the wild: someone (or an agent) appends a journal entry by hand.
+  fs.writeFileSync(file, `${before}\n## 2026-09-15 troubleshooting log\n\nsome prose\n`, 'utf8');
+
+  await assert.rejects(() => repo.list(file), (err: any) =>
+    err.code === 'invalid-notes-file'
+    && /Unexpected NOTES\.md content at line \d+/.test(err.message)
+    && err.message.includes('2026-09-15 troubleshooting log')
+    && err.message.includes('notes UI only'));
+  // The refusal must not be a silent repair: the hand-written text is still on disk.
+  assert.ok(fs.readFileSync(file, 'utf8').includes('some prose'));
+});
+
 test('concurrent adds are serialized without lost updates', async () => {
   const file = tempNotesPath();
   const repo = new ProjectNotesRepository();

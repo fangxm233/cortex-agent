@@ -8,6 +8,7 @@ import {
   initialConnAccum,
   isConfigSnapshotChanged,
   LIVE_EVENT_TYPES,
+  liveRetryDelayMs,
   type ConnAccum,
   type LiveEvent,
   type LiveListener,
@@ -30,6 +31,10 @@ import {
 //
 // NOT merged: `executions.log` (a different procedure, executionId-scoped, high-volume, and only open
 // while the log drawer is).
+//
+// Owning the only stream also means owning its recovery: a terminal error on the subscribe request
+// ends the tRPC observable for good, so this provider re-opens it on a backoff (`liveRetryDelayMs`)
+// and immediately on an `online` / tab-visible wake. Nothing else in the app can bring it back.
 
 interface LiveEventsContextValue {
   /** Register a listener; returns the unregister callback. */
@@ -61,13 +66,35 @@ export function LiveEventsProvider({ children }: { children: ReactNode }): JSX.E
     state: 'connecting',
     accum: initialConnAccum(),
   }));
+  // Bumping this generation re-runs the effect below: the dead subscription is disposed and a fresh
+  // one opened. It is the ONLY way back from a terminal transport error — tRPC ends the observable
+  // and nothing about a query's success would ever revive it.
+  const [generation, setGeneration] = useState(0);
+  // Consecutive failed attempts (backoff step), the pending retry timer, and whether the stream is
+  // currently believed dead. Refs, not state: none of them belong in a render.
+  const failuresRef = useRef(0);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const deadRef = useRef(false);
+
+  const clearRetry = useCallback(() => {
+    if (retryTimerRef.current === null) return;
+    clearTimeout(retryTimerRef.current);
+    retryTimerRef.current = null;
+  }, []);
 
   useEffect(() => {
+    let disposed = false;
     const sub = client.subscribe.subscribe(
       { events: [...LIVE_EVENT_TYPES] },
       {
         onConnectionStateChange: (s: { state: string }) => {
           const state = s.state as TrpcConnState;
+          // A completed handshake is the only proof the stream is alive again: reset the backoff so
+          // the NEXT outage starts at 1s rather than wherever the last one ended.
+          if (state === 'pending') {
+            failuresRef.current = 0;
+            deadRef.current = false;
+          }
           setConn((prev) => ({ state, accum: applyConnState(prev.accum, state) }));
         },
         onData: (raw: unknown) => {
@@ -80,14 +107,48 @@ export function LiveEventsProvider({ children }: { children: ReactNode }): JSX.E
           dispatchLiveEvent([...listenersRef.current], ev);
         },
         // A terminal (non-retryable) error tears the stream down without an `idle` state change —
-        // report it as a dropped link (the old connectivity probe did the same).
+        // report it as a dropped link, then re-open on a backoff. Before this retry existed a single
+        // 401/302/502 on the subscribe request (session expiry, SSO bounce, a server restart) left
+        // the page live-event-deaf until a manual reload, while every query kept working — the badge
+        // sat on "connecting" forever because the stream had never reached `pending`.
         onError: () => {
           setConn((prev) => ({ state: 'idle', accum: applyConnState(prev.accum, 'idle') }));
+          deadRef.current = true;
+          if (disposed || retryTimerRef.current !== null) return;
+          const delay = liveRetryDelayMs(failuresRef.current++);
+          retryTimerRef.current = setTimeout(() => {
+            retryTimerRef.current = null;
+            setGeneration((n) => n + 1);
+          }, delay);
         },
       },
     );
-    return () => sub.unsubscribe();
-  }, [client, configQueryFilter, queryClient]);
+    return () => {
+      disposed = true;
+      clearRetry();
+      sub.unsubscribe();
+    };
+  }, [client, configQueryFilter, queryClient, generation, clearRetry]);
+
+  // Wake triggers: coming back online, or returning to a tab that was backgrounded (laptop asleep,
+  // phone locked) is exactly when a dead stream should be retried NOW instead of at the end of a
+  // 30s backoff. Only acts on a stream known to be dead, so a healthy one is never disturbed.
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+    const wake = (): void => {
+      if (!deadRef.current) return;
+      if (document.visibilityState === 'hidden') return;
+      clearRetry();
+      failuresRef.current = 0; // a wake is a new situation, not the next failed attempt
+      setGeneration((n) => n + 1);
+    };
+    window.addEventListener('online', wake);
+    document.addEventListener('visibilitychange', wake);
+    return () => {
+      window.removeEventListener('online', wake);
+      document.removeEventListener('visibilitychange', wake);
+    };
+  }, [clearRetry]);
 
   // Stable across connection-state changes — otherwise every listener would re-register on each
   // connect/drop (harmless but pointless churn, and it would re-run consumers' effects).

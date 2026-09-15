@@ -213,3 +213,28 @@ export function applyConnState(prev: ConnAccum, state: TrpcConnState): ConnAccum
   if (prev.down) return { hasConnected: true, epoch: prev.epoch + 1, down: false };
   return prev;
 }
+
+/** First retry delay after the shared stream dies, in ms. */
+export const LIVE_RETRY_BASE_MS = 1_000;
+/** Ceiling for the retry backoff, in ms. A tab left open overnight must still find its way back. */
+export const LIVE_RETRY_MAX_MS = 30_000;
+
+/**
+ * Backoff for re-opening the shared stream after a TERMINAL transport error.
+ *
+ * tRPC's httpSubscriptionLink only recovers by itself INSIDE a live stream (an `error` event that
+ * leaves the EventSource in CONNECTING, or a retryable serialized error). Anything that kills the
+ * request itself — a 401 after the session expires, a 302 to an SSO login page, a 502 while the
+ * server restarts, a blocking extension — arrives as `onError` and ends the subscription for good.
+ * Without a retry the page then keeps working (queries ride a separate link) while receiving no live
+ * events at all: no streaming replies, no rail dots, and a connectivity badge stuck on "connecting"
+ * because the stream never reached `pending` even once.
+ *
+ * Doubling from 1s to a 30s ceiling: fast enough that a one-second blip is invisible, slow enough
+ * that a server that stays down is not hammered. Deterministic (no jitter) — there is ONE stream per
+ * client, so retries cannot stampede from within a page, and a predictable delay stays testable.
+ */
+export function liveRetryDelayMs(failures: number): number {
+  const step = Math.max(0, Math.floor(failures));
+  return Math.min(LIVE_RETRY_MAX_MS, LIVE_RETRY_BASE_MS * 2 ** step);
+}
