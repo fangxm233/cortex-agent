@@ -1,7 +1,5 @@
 import { threadStore } from '@store/thread-repo.js';
-import { deliverToSession, type DeliveryOrigin } from './session-gateway.js';
-import { getOutboundQueue, durablePost } from '@store/outbound-queue.js';
-import { orchestrationAdapter, orchestrationBus } from './runtime.js';
+import { orchestrationAdapter } from './runtime.js';
 import { isTerminalStatus } from '@domain/threads/tree.js';
 import { openThreadRunDetached, type ThreadRunInput } from './thread-run/index.js';
 import { createLogger } from '@core/log.js';
@@ -9,11 +7,28 @@ import { getSettings } from '@core/settings.js';
 import {
   scanAllTasks, type Task, type TaskGenerationExpectation,
 } from '@core/task-parser.js';
-import { recordDelivered, pendingDeliveries } from '@domain/tasks/acceptance-ledger.js';
+import { recordDelivered } from '@domain/tasks/acceptance-ledger.js';
 import { withTaskFileMutationLockAsync } from '@domain/tasks/system/task-lifecycle-edit.js';
 import { isTaskArtifactTemplate } from '@domain/threads/index.js';
+import {
+  buildNotice, buildChildResultNotice, buildTaskResultNotice, buildTaskOriginNotice,
+  buildThreadOriginTaskNotice, buildRehydrationNotice, buildDeadlockNotice, computeStuckWaitSet,
+  rotateStepsThreshold, matchesTaskGeneration, readTaskFromDisk, hasTaskWaitState,
+} from './thread-notices.js';
+import {
+  wakeSession, postProjectNotice, postProjectNoticeTo, closeResumedTaskLoop,
+} from './thread-delivery.js';
 import type { ThreadRecord } from '@core/types/thread-types.js';
 import type { Destination } from '@platform/index.js';
+
+// The wake/settle protocol's leaves live next door (T3.1): notice text + read-only predicates in
+// thread-notices, terminal delivery edges in thread-delivery. Re-exported here so every existing
+// importer of this module keeps working — this file stays the protocol's single public face.
+export {
+  buildChildResultNotice, buildTaskResultNotice, buildThreadOriginTaskNotice,
+  buildRehydrationNotice, buildDeadlockNotice, computeStuckWaitSet,
+} from './thread-notices.js';
+export { wakeSession, closeResumedTaskLoop } from './thread-delivery.js';
 
 const log = createLogger('thread-callback');
 
@@ -29,62 +44,6 @@ const resuming = new Set<string>();
 export function _testResetCallbackState(): void {
   fired.clear();
   resuming.clear();
-}
-
-/** Compose a short, agent-actionable completion notice from the final thread record. */
-function buildNotice(threadId: string): string {
-  const t = threadStore.get(threadId)!;
-  const cost = `$${(t.totalCostUsd || 0).toFixed(4)}`;
-  const last = t.steps.length ? t.steps[t.steps.length - 1].output : null;
-  const tail = t.abortReason || t.error || last || '(no output)';
-  const summary = tail.length > 200 ? tail.slice(0, 200) + '…' : tail;
-  const label = t.templateName || t.activeAgent || 'thread';
-  return `[Background thread done] Your thread ${threadId} (${label}) status=${t.status} | ${cost}\nSummary: ${summary}\nCall thread_result("${threadId}") to see the full output.`;
-}
-
-/** Child-result notice delivered into a suspended parent's pendingMessages. Echoes the
- *  delegation contract and demands acceptance verification before the result is trusted
- *  (DR-0014 L1 纠偏: verify the deliverable, never the child's self-report). */
-export function buildChildResultNotice(child: ThreadRecord): string {
-  const cost = `$${(child.totalCostUsd || 0).toFixed(4)}`;
-  const label = child.templateName || child.activeAgent || 'thread';
-  const contract = child.metadata?.contract;
-  const lines = [
-    `[Child thread done] ${child.id} (${label}) status=${child.status} | ${cost}`,
-  ];
-  if (child.abortReason) lines.push(`Child escalation/abort reason: ${child.abortReason}`);
-  if (child.error) lines.push(`Child error: ${child.error}`);
-  if (contract) {
-    lines.push(`Contract: ${contract.goal}`);
-    if (contract.doneWhen) lines.push(`Done when: ${contract.doneWhen}`);
-    if (contract.deliverablePath) lines.push(`Deliverable: ${contract.deliverablePath}`);
-  }
-  lines.push(`Full output: thread_result("${child.id}")${child.artifactPath ? `; artifact: ${child.artifactPath}` : ''}`);
-  lines.push('');
-  lines.push('Acceptance (mandatory — do NOT trust the child\'s self-reported summary):');
-  lines.push('1. Read the actual deliverable; check it against done_when item by item; for code, run the tests.');
-  lines.push('2. Passes → distill the key conclusions into your artifact and continue your plan.');
-  lines.push('3. Fails → write out the expected/actual gap and your failure hypothesis; if CORTEX_TASK_ID is set, use the Write tool to stage child JSON at a per-task unique path, run cortex-task spawn --task-file <path>, and call thread_wait; otherwise call thread_abort.');
-  lines.push('4. Cannot judge, or a directional question → thread_abort.');
-  return lines.join('\n');
-}
-
-/** Durable notice to a project's report channel (falls back to a direct post without a queue). */
-async function postProjectNoticeTo(projectId: string, trigger: string, text: string): Promise<void> {
-  const adapter = orchestrationAdapter();
-  if (!adapter) { log.error(`no adapter; cannot post project notice for ${projectId}`); return; }
-  const dest: Destination = { type: 'project-report', projectId, trigger, sessionId: '' };
-  const queue = getOutboundQueue();
-  if (queue) {
-    await durablePost(queue, adapter, dest, { text });
-  } else {
-    await adapter.postMessage(dest, { text });
-  }
-}
-
-/** Durable degraded-path notice to the project-report channel. */
-async function postProjectNotice(t: ThreadRecord, text: string): Promise<void> {
-  await postProjectNoticeTo(t.projectId, 'mcp-thread', text);
 }
 
 /** The ThreadRunInput for re-entering a suspended (`resume`) or provider-paused
@@ -171,36 +130,6 @@ export function resumeManagerForQuestion(managerThreadId: string, resume?: Resum
 
 // --- Manager session rotation (DR-0017 W3) ---
 
-/** Configured steps per manager session before rotation. */
-function rotateStepsThreshold(): number {
-  return getSettings().managerRotateSteps;
-}
-
-/** Rehydration notice for a freshly rotated manager incarnation: durable artifact first,
- *  tree reconcile second, ledger-pending acceptances third. Mirrors the disaster-join
- *  path — rotation IS a deliberate kill test (DR-0017 D1/D2). */
-export function buildRehydrationNotice(parent: ThreadRecord, stepsSinceRotation: number): string {
-  const m = parent.metadata;
-  const project = m?.taskProject || parent.projectId;
-  const lines = [
-    `[Manager rotation — DR-0017] You are a FRESH incarnation of this composite task node's manager. Your predecessor's session was retired after ${stepsSinceRotation} steps (context hygiene). No work is lost — the durable state lives on the task node:`,
-    `1. Read your artifact FIRST — it holds the predecessor's checkpoint (seam map, delegations & acceptance criteria, decisions made, remaining plan, assumptions): ${parent.artifactPath}`,
-    m?.taskId
-      ? `2. Reconcile the tree: cortex-task tree --task-id ${m.taskId} (cross-check child states against the checkpoint).`
-      : '2. Reconcile your child tasks against the checkpoint.',
-  ];
-  if (m?.taskId && project) {
-    try {
-      const pend = pendingDeliveries(project, m.taskId);
-      if (pend.length > 0) {
-        lines.push(`3. Deliveries still awaiting YOUR acceptance verdict (acceptance ledger): ${pend.map((e) => `#${e.child} (${e.kind}${e.rework_round ? `, rework round ${e.rework_round}` : ''})`).join(', ')} — verify each against its done_when before trusting it.`);
-      }
-    } catch { /* ledger unreadable — the tree reconcile above covers it */ }
-  }
-  lines.push('Do NOT redo completed work and do NOT re-litigate decisions recorded in the artifact — continue from the remaining plan.');
-  return lines.join('\n');
-}
-
 /** Rotate an over-threshold manager session before re-entry: retire the persisted session
  *  (clear every slot's sessionId → the next step runs on a FRESH session and gets the full
  *  directive + contract prompt), reset the step base, and queue the rehydration notice.
@@ -233,57 +162,6 @@ export async function maybeRotateManager(threadId: string): Promise<boolean> {
 // Wake-on-empty alone deadlocks: block does not cascade to dependents, so a manager waiting on
 // siblings that depend on a blocked child waits on tasks that can never turn terminal — no event
 // will ever empty its wait set. Detect that stall and wake the manager once to handle it.
-
-/** Pure: decide whether EVERY remaining awaited task is stuck behind a blocked dependency.
- *  A task is stuck iff some transitive depends_on chain reaches a currently blocked task
- *  (deps are AND-ed: one blocked dependency pins the task forever until someone acts).
- *  Returns null — no deadlock — as soon as any awaited task has a way forward: it is
- *  done/blocked itself (delivery owns it), claimed or pending (in flight), missing
- *  (reconcile owns it), or has no blocked dependency (dispatchable eventually).
- *  The key identifies the stall for the once-per-distinct-stall wake dedup. */
-export function computeStuckWaitSet(tasks: Task[], waitingIds: string[]): { stuck: string[]; blockers: string[]; key: string } | null {
-  if (!waitingIds.length) return null;
-  const byId = new Map(tasks.filter((t) => t.id).map((t) => [t.id, t]));
-  const blockers = new Set<string>();
-
-  const blockedBehind = (id: string, seen: Set<string>): boolean => {
-    if (seen.has(id)) return false; // dependency cycle — no blocked task found on this path
-    seen.add(id);
-    for (const dep of byId.get(id)?.depends_on ?? []) {
-      const d = byId.get(dep);
-      if (!d || d.status === 'done') continue; // missing dep out of scope; done dep is met
-      if (d.blocked_by) { blockers.add(dep); return true; }
-      if (blockedBehind(dep, seen)) return true;
-    }
-    return false;
-  };
-
-  const stuck: string[] = [];
-  for (const id of waitingIds) {
-    const task = byId.get(id);
-    if (!task) return null;                                   // missing → reconcile owns it
-    if (task.status === 'done' || task.blocked_by) return null; // terminal → delivery imminent
-    if (task.claimed_by || task.status === 'pending') return null; // in flight → progress possible
-    if (!blockedBehind(id, new Set())) return null;           // has a live path forward
-    stuck.push(id);
-  }
-  const stuckSorted = [...stuck].sort();
-  const blockersSorted = [...blockers].sort();
-  return { stuck: stuckSorted, blockers: blockersSorted, key: `stuck=${stuckSorted.join(',')}|blockers=${blockersSorted.join(',')}` };
-}
-
-/** Deadlock notice delivered into the woken manager's pendingMessages: names the stuck
- *  tasks and their blockers, and demands action (mirrors the blocked-escalation notice). */
-export function buildDeadlockNotice(stuck: string[], blockers: string[]): string {
-  return [
-    `[Wait-set deadlocked] Your remaining awaited subtask(s) ${stuck.map((s) => `#${s}`).join(', ')} can never start: they depend (directly or transitively) on blocked task(s) ${blockers.map((b) => `#${b}`).join(', ')}.`,
-    '',
-    'No event will ever wake you for these — you must act:',
-    '1. Diagnose the blocked task(s): read their blocked_by and outputs (cortex-task show / tree).',
-    '2. Fixable → cortex-task unblock and revise, or rebuild the subtasks (decompose --keep-parent), then call thread_wait.',
-    '3. Beyond your authority or a directional question → thread_abort.',
-  ].join('\n');
-}
 
 /** Resume `parentId` if it is suspended with nothing left to wait on — both thread children
  *  (waitingOn) and task children (waitingOnTasks, DR-0014 §8) — OR if its remaining awaited
@@ -369,53 +247,6 @@ export async function notifyThreadParent(childId: string, deps: { resume?: Resum
 }
 
 // --- Task-children bridge (DR-0014 §8: resident manager waits on child TASKS) ---
-
-const SAFE_TASK_CHILD_CREATION = 'For verifier or replacement children, use the Write tool to stage JSON at a per-task unique path, then run cortex-task spawn --task-file <path>; never place task prose in shell arguments.';
-
-/** Child-task result notice delivered into a suspended manager's pendingMessages.
- *  completed → acceptance instructions (verify the deliverable, never the report);
- *  blocked → escalation instructions (the child cannot finish on its own). */
-export function buildTaskResultNotice(task: Task, kind: 'completed' | 'blocked'): string {
-  const lines: string[] = [];
-  if (kind === 'completed') {
-    lines.push(`[Subtask done] #${task.id} ${task.text}`);
-    if (task.done_when) lines.push(`Done when: ${task.done_when}`);
-    if (task.completed_note) lines.push(`Completion note: ${task.completed_note}`);
-    lines.push('');
-    lines.push('Acceptance (mandatory — do NOT trust the completion note at face value):');
-    lines.push('1. Read the actual output (code/docs/experiment records); check it against done_when item by item; for code, run the tests.');
-    lines.push('2. Passes → distill the key conclusions into your artifact and continue your plan.');
-    lines.push(`3. Fails → cortex-task uncomplete then revise the task, or add a revision subtask with decompose --keep-parent, then call thread_wait.`);
-    lines.push('4. Directional question → thread_abort.');
-  } else {
-    lines.push(`[Subtask blocked — escalation signal] #${task.id} ${task.text}`);
-    lines.push(`Blocked by: ${task.blocked_by || '(unrecorded)'}`);
-    lines.push('');
-    lines.push('This is the subtask escalating: it cannot finish on its own. You must handle it:');
-    lines.push('1. Diagnose the cause (read its output/logs; a too-big cause = your original decomposition needs revising).');
-    lines.push('2. Fixable → cortex-task unblock and revise the task description/done_when, or rebuild a revised subtask (decompose --keep-parent), then call thread_wait.');
-    lines.push('3. Beyond your authority or a directional question → thread_abort.');
-  }
-  lines.push('', SAFE_TASK_CHILD_CREATION);
-  return lines.join('\n');
-}
-
-/** Disk-fresh read of one task (zero-dependency core parser — consistent with the
- *  suspension snapshot, immune to taskStore cache staleness). */
-function readTaskFromDisk(project: string, taskId: string): Task | null {
-  try {
-    return scanAllTasks(project).find((t) => t.id === taskId) ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function matchesTaskGeneration(
-  task: Task, ownership: TaskGenerationExpectation | undefined,
-): boolean {
-  return !ownership || task.dispatch_generation === ownership.generation
-    || (task.status === 'done' && task.dispatch_generation === null);
-}
 
 /** Deliver one child-task result to one waiting manager thread. Returns true if delivered.
  *  Same-incarnation idempotency rides the persistent deliveredChildResults array (4-hex
@@ -503,45 +334,6 @@ export async function notifyTaskParentThreads(
 
 type WakeFn = (channel: string, notice: string) => void | Promise<void>;
 
-/** The delivery origins a wake can carry — the chat hint names what woke the session. */
-type WakeOrigin = Extract<DeliveryOrigin, 'task-callback' | 'thread-callback' | 'subtask-question'>;
-
-/** Wake (or create) the session on a channel by delivering the notice as a user turn — the same
- *  mechanism the interactive thread-parent path uses. Shared by thread completion
- *  (fireThreadCallback) and task completion (notifyTaskOriginSession); top-of-tree ask_manager
- *  escalation (manager-qa) calls the gateway directly. `deliverToSession` → `agentRunner.route`
- *  find-or-creates the channel's session, so this works whether or not a live session still
- *  exists, and it is where the synthetic message shape now lives (session-gateway.ts). */
-export async function wakeSession(
-  channel: string, notice: string, tag: string,
-  origin: WakeOrigin = 'task-callback',
-): Promise<void> {
-  log.info(`waking session on ${channel} for ${tag}`);
-  await deliverToSession({ channel, text: notice, origin, tag });
-}
-
-/** Origin-session notice: a task created by an interactive session/agent finished — concise,
- *  no manager-style verification ceremony (the recipient is the requester, not a join node). */
-function buildTaskOriginNotice(task: Task, kind: 'completed' | 'blocked'): string {
-  if (kind === 'completed') {
-    const note = task.completed_note ? `\nNote: ${task.completed_note}` : '';
-    return `<system-reminder>\n[Task done] The task you dispatched #${task.id} (${task.project}) "${task.text}" is complete.${note}\nRun cortex-task show --task-id ${task.id} for details.\n</system-reminder>`;
-  }
-  return `[Task blocked] The task you dispatched #${task.id} (${task.project}) "${task.text}" is blocked.\nBlocked by: ${task.blocked_by || '(unrecorded)'}\nRun cortex-task show --task-id ${task.id} for details; once handled, cortex-task unblock.`;
-}
-
-/** Human-facing project-channel notice for a fire-and-forget task queued from inside a thread:
- *  the thread has (most likely) ended and never consumes the result, so nobody is woken —
- *  the outcome just surfaces in the project's report stream. */
-export function buildThreadOriginTaskNotice(task: Task, kind: 'completed' | 'blocked'): string {
-  const origin = `queued by thread ${task.origin_thread_id}`;
-  if (kind === 'completed') {
-    const note = task.completed_note ? `\nNote: ${task.completed_note}` : '';
-    return `[Task done] #${task.id} (${task.project}) "${task.text}" — ${origin}.${note}\nRun cortex-task show --task-id ${task.id} for details.`;
-  }
-  return `[Task blocked] #${task.id} (${task.project}) "${task.text}" — ${origin}.\nBlocked by: ${task.blocked_by || '(unrecorded)'}\nRun cortex-task show --task-id ${task.id} for details; once handled, cortex-task unblock.`;
-}
-
 type PostNoticeFn = (projectId: string, text: string) => void | Promise<void>;
 
 /** Session→task wake (Problem 1): when a task created by an interactive session/agent turns
@@ -620,47 +412,6 @@ export async function reconcileWaitingTasks(threadId: string, deps: { resume?: R
     // open/pending and unblocked → keep waiting (tasks survive restarts).
   }
   await maybeResumeParent(threadId, deps.resume);
-}
-
-/** After a resumed task-dispatch thread settles TERMINAL, publish the task-tree event that the
- *  dispatch cycle (task-dispatch.ts:281) would have published — but didn't, because the thread
- *  re-entered via a RESUME path (rate-limit resume in resume-dispatcher, OR the DR-0014
- *  child-completion resume in defaultResume) that bypasses the dispatch cycle entirely. The
- *  worker still marks its task done/blocked on disk, but without this nobody emits the event
- *  that wakes a manager/session waiting on that task — it stays suspended forever (2026-06-29
- *  finding: rate-limit-resumed leaf task ef14 left manager 5afd → e5be permanently stuck; the
- *  only accidental rescue was a later re-suspension's reconcile-on-suspend sweep). Mirrors the
- *  loose publish at task-dispatch.ts — every subscriber re-verifies disk state (notifyTaskParent
- *  rejects a not-actually-done task; deliveredChildResults dedupes), so a duplicate/stale publish
- *  is a safe no-op. No-op unless the thread is a TERMINAL task-dispatch thread whose task is
- *  done (→ task.completed) or blocked (→ task.blocked) on disk. */
-export async function closeResumedTaskLoop(
-  threadId: string,
-  deps: { publish?: (e: { type: 'task.completed'; taskId: string; dispatchGeneration?: string | null } | { type: 'task.blocked'; taskId: string; reason: string; dispatchGeneration?: string | null }) => void } = {},
-): Promise<void> {
-  const t = threadStore.get(threadId);
-  if (!t || !isTerminalStatus(t.status)) return; // suspension/rate-limit re-entry is not completion
-  const m = t.metadata;
-  if (m?.trigger !== 'task-dispatch' || !m?.taskId) return; // only dispatch threads close a task loop
-  const task = readTaskFromDisk(m.taskProject || t.projectId, m.taskId);
-  if (!task) return;
-  const publish = deps.publish ?? ((e) => orchestrationBus()?.publish(e));
-  if (task.status === 'done') {
-    publish({
-      type: 'task.completed', taskId: m.taskId,
-      dispatchGeneration: m.dispatchGeneration ?? null,
-    });
-  } else if (task.blocked_by) {
-    publish({
-      type: 'task.blocked', taskId: m.taskId, reason: task.blocked_by,
-      dispatchGeneration: m.dispatchGeneration ?? null,
-    });
-  }
-}
-
-function hasTaskWaitState(thread: ThreadRecord): boolean {
-  const metadata = thread.metadata;
-  return !!metadata?.taskId && Array.isArray(metadata.waitingOnTasks);
 }
 
 /** Periodic disk-driven backstop: reconcile EVERY suspended manager's task children against disk
