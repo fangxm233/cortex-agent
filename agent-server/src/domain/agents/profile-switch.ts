@@ -1,5 +1,5 @@
 // input:  profile-manager (resolveProfile/resolveProfileConfig) + config (resolveBackendForChannel/
-//         setActiveProfile) + conversation-ledger-repo (history) + session-registry-repo (record sync)
+//         setActiveProfile) + session-registry-repo (channel turn history + record sync)
 // output: decideProfileSwitch (pure policy) + switchChannelProfile (composed switch used by
 //         Slack/Feishu commands AND the Web UI, so the rule has ONE source of truth)
 // pos:    domain/agents — the single "switch the active profile for a channel/session" rule.
@@ -8,7 +8,6 @@
 //         history) may switch to any profile freely. A same-backend switch never resets the
 //         session — the agent runner re-resolves the profile per turn, so only the model changes.
 
-import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { resolveBackendForChannel, setActiveProfile } from './config.js';
 import { resolveProfile, resolveProfileConfig } from './profile-manager.js';
@@ -59,10 +58,9 @@ export interface SwitchProfileResult {
 }
 
 /** Does the channel's session already carry conversation history? A fresh (just-created) session has
- *  a ledger entry with zero turns; a live conversation has ≥1 turn. */
+ *  zero turns; a live conversation has ≥1 turn. Read straight from the registry's channel turns. */
 export async function channelHasHistory(channel: string): Promise<boolean> {
-  const conv = await conversationLedger.getConversation(channel);
-  return !!conv && conv.turns.length > 0;
+  return (await sessionStore.getTurns(channel)).length > 0;
 }
 
 /**

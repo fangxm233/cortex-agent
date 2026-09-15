@@ -11,7 +11,6 @@ import { AsyncMutex } from '@core/async-mutex.js';
 import { STORE_DIR } from '@core/paths.js';
 import type { SessionContextUsage } from '@core/types/agent-types.js';
 import { executionRepo } from './execution-repo.js';
-import { sessionRepo } from './session-repo.js';
 import {
   appendSessionRegistryEvent,
   compactSessionRegistry,
@@ -19,6 +18,8 @@ import {
   deriveSessionOrigin,
   loadSessionRegistryState,
   shouldCompactSessionRegistry,
+  type ConversationFields,
+  type ConversationHeader,
   type PendingSessionDelete,
   type SessionDeleteCleanup,
   type SessionBrowserOption,
@@ -34,7 +35,13 @@ import { threadStore } from './thread-repo.js';
 
 export const REGISTRY_FILE = path.join(STORE_DIR, 'session-registry.jsonl');
 
-export { deriveSessionOrigin, type SessionOrigin, type TurnRecord };
+export {
+  deriveSessionOrigin,
+  type SessionOrigin,
+  type TurnRecord,
+  type ConversationFields,
+  type ConversationHeader,
+};
 
 /** In-memory channel→sessionId resolver (never persisted). A resolver that returns a string wins
  *  over any persisted bind; returning `null`/`undefined` falls through to the next resolver, then to
@@ -111,10 +118,15 @@ export interface SessionRegistryBatch {
   updateById(sessionId: string, mutate: (record: Session) => Session): Promise<Session | null>;
   bindChannel(channel: string, sessionId: string): Promise<void>;
   unbindChannel(channel: string): Promise<void>;
-  beginTurn(sessionId: string, turn: TurnRecord): Promise<void>;
-  patchTurn(sessionId: string, turnIndex: number, fields: Partial<TurnRecord>): Promise<void>;
-  truncateTurns(sessionId: string, fromIndex: number): Promise<void>;
-  clearTurns(sessionId: string): Promise<void>;
+  beginTurn(channel: string, turn: TurnRecord): Promise<void>;
+  patchTurn(channel: string, turnIndex: number, fields: Partial<TurnRecord>): Promise<void>;
+  truncateTurns(channel: string, fromIndex: number): Promise<void>;
+  clearTurns(channel: string): Promise<void>;
+  setConversation(channel: string, fields: ConversationFields): Promise<void>;
+  clearConversation(channel: string): Promise<void>;
+  /** Synchronous reads off the shared locked state — let a façade find-turn / set-if-missing atomically. */
+  getTurns(channel: string): TurnRecord[];
+  getConversationHeader(channel: string): ConversationHeader | null;
 }
 
 function cloneSession(record: SessionRecord): Session {
@@ -398,13 +410,16 @@ export class SessionRegistryRepo {
     await this.withState((state) => this.doUnbindChannel(state, channel));
   }
 
-  /** Remove every binding pointing at one of `sessionIds`. Used when sessions are torn down. */
-  async unbindBySessionIds(sessionIds: Iterable<string>): Promise<void> {
+  /** Remove every binding pointing at one of `sessionIds`. Used when sessions are torn down.
+   *  Returns the number of bindings removed. */
+  async unbindBySessionIds(sessionIds: Iterable<string>): Promise<number> {
     const targets = new Set(sessionIds);
-    await this.withState(async (state) => {
-      for (const [channel, boundId] of state.bindings) {
-        if (targets.has(boundId)) await this.doUnbindChannel(state, channel);
-      }
+    return this.withState(async (state) => {
+      const channels = Array.from(state.bindings)
+        .filter(([, boundId]) => targets.has(boundId))
+        .map(([channel]) => channel);
+      for (const channel of channels) await this.doUnbindChannel(state, channel);
+      return channels.length;
     });
   }
 
@@ -413,33 +428,66 @@ export class SessionRegistryRepo {
       Array.from(state.bindings, ([channel, sessionId]) => ({ channel, sessionId })));
   }
 
-  // --- Turn history (sessionId → ordered turns) -----------------------------------------------
+  // --- Turn history (channel → ordered turns) -------------------------------------------------
 
-  async beginTurn(sessionId: string, turn: TurnRecord): Promise<void> {
-    await this.withState((state) => this.doBeginTurn(state, sessionId, turn));
+  async beginTurn(channel: string, turn: TurnRecord): Promise<void> {
+    await this.withState((state) => this.doBeginTurn(state, channel, turn));
   }
 
-  async patchTurn(sessionId: string, turnIndex: number, fields: Partial<TurnRecord>): Promise<void> {
-    await this.withState((state) => this.doPatchTurn(state, sessionId, turnIndex, fields));
+  async patchTurn(channel: string, turnIndex: number, fields: Partial<TurnRecord>): Promise<void> {
+    await this.withState((state) => this.doPatchTurn(state, channel, turnIndex, fields));
   }
 
-  async truncateTurns(sessionId: string, fromIndex: number): Promise<void> {
-    await this.withState((state) => this.doTruncateTurns(state, sessionId, fromIndex));
+  async truncateTurns(channel: string, fromIndex: number): Promise<void> {
+    await this.withState((state) => this.doTruncateTurns(state, channel, fromIndex));
   }
 
-  async clearTurns(sessionId: string): Promise<void> {
-    await this.withState((state) => this.doClearTurns(state, sessionId));
+  async clearTurns(channel: string): Promise<void> {
+    await this.withState((state) => this.doClearTurns(state, channel));
   }
 
-  async getTurns(sessionId: string): Promise<TurnRecord[]> {
-    return this.withState(async (state) => (state.turns.get(sessionId) ?? []).map(turn => ({ ...turn })));
+  async getTurns(channel: string): Promise<TurnRecord[]> {
+    return this.withState(async (state) => readTurns(state, channel));
   }
 
-  async findTurn(sessionId: string, pred: (turn: TurnRecord) => boolean): Promise<TurnRecord | null> {
+  async findTurn(channel: string, pred: (turn: TurnRecord) => boolean): Promise<TurnRecord | null> {
     return this.withState(async (state) => {
-      const found = (state.turns.get(sessionId) ?? []).find(pred);
+      const found = (state.turns.get(channel) ?? []).find(pred);
       return found ? { ...found } : null;
     });
+  }
+
+  // --- Conversation headers (channel → session identity of the hosted conversation) -----------
+
+  async getConversationHeader(channel: string): Promise<ConversationHeader | null> {
+    return this.withState(async (state) => readConversationHeader(state, channel));
+  }
+
+  async setConversation(channel: string, fields: ConversationFields): Promise<void> {
+    await this.withState((state) => this.doSetConversation(state, channel, fields));
+  }
+
+  async clearConversation(channel: string): Promise<void> {
+    await this.withState((state) => this.doClearConversation(state, channel));
+  }
+
+  /** Header + turns for a channel under ONE lock (or null when the channel has no header). */
+  async readConversation(channel: string): Promise<{ header: ConversationHeader; turns: TurnRecord[] } | null> {
+    return this.withState(async (state) => {
+      const header = readConversationHeader(state, channel);
+      if (!header) return null;
+      return { header, turns: readTurns(state, channel) };
+    });
+  }
+
+  /** Every channel that has a conversation header, with its turns — one lock for the whole scan. */
+  async listConversations(): Promise<Array<{ channel: string; header: ConversationHeader; turns: TurnRecord[] }>> {
+    return this.withState(async (state) =>
+      Array.from(state.conversations, ([channel, header]) => ({
+        channel,
+        header: { ...header },
+        turns: readTurns(state, channel),
+      })));
   }
 
   /** Run several mutations under ONE admission lock (T2/T3 need put+bind+turn atomically — never a
@@ -458,10 +506,14 @@ export class SessionRegistryRepo {
       updateById: (sessionId, mutate) => this.doUpdateById(state, sessionId, mutate),
       bindChannel: (channel, sessionId) => this.doBindChannel(state, channel, sessionId),
       unbindChannel: (channel) => this.doUnbindChannel(state, channel),
-      beginTurn: (sessionId, turn) => this.doBeginTurn(state, sessionId, turn),
-      patchTurn: (sessionId, turnIndex, fields) => this.doPatchTurn(state, sessionId, turnIndex, fields),
-      truncateTurns: (sessionId, fromIndex) => this.doTruncateTurns(state, sessionId, fromIndex),
-      clearTurns: (sessionId) => this.doClearTurns(state, sessionId),
+      beginTurn: (channel, turn) => this.doBeginTurn(state, channel, turn),
+      patchTurn: (channel, turnIndex, fields) => this.doPatchTurn(state, channel, turnIndex, fields),
+      truncateTurns: (channel, fromIndex) => this.doTruncateTurns(state, channel, fromIndex),
+      clearTurns: (channel) => this.doClearTurns(state, channel),
+      setConversation: (channel, fields) => this.doSetConversation(state, channel, fields),
+      clearConversation: (channel) => this.doClearConversation(state, channel),
+      getTurns: (channel) => readTurns(state, channel),
+      getConversationHeader: (channel) => readConversationHeader(state, channel),
     };
   }
 
@@ -477,32 +529,49 @@ export class SessionRegistryRepo {
     await this.maybeCompact(state);
   }
 
-  private async doBeginTurn(state: SessionRegistryState, sessionId: string, turn: TurnRecord): Promise<void> {
+  private async doBeginTurn(state: SessionRegistryState, channel: string, turn: TurnRecord): Promise<void> {
     await appendSessionRegistryEvent(this.filePath, state,
-      { v: 1, op: 'turn', id: sessionId, kind: 'begin', turn: { ...turn } }, this.options);
+      { v: 1, op: 'turn', channel, kind: 'begin', turn: { ...turn } }, this.options);
     await this.maybeCompact(state);
   }
 
   private async doPatchTurn(
     state: SessionRegistryState,
-    sessionId: string,
+    channel: string,
     turnIndex: number,
     fields: Partial<TurnRecord>,
   ): Promise<void> {
     await appendSessionRegistryEvent(this.filePath, state,
-      { v: 1, op: 'turn', id: sessionId, kind: 'patch', turnIndex, fields: { ...fields } }, this.options);
+      { v: 1, op: 'turn', channel, kind: 'patch', turnIndex, fields: { ...fields } }, this.options);
     await this.maybeCompact(state);
   }
 
-  private async doTruncateTurns(state: SessionRegistryState, sessionId: string, fromIndex: number): Promise<void> {
+  private async doTruncateTurns(state: SessionRegistryState, channel: string, fromIndex: number): Promise<void> {
     await appendSessionRegistryEvent(this.filePath, state,
-      { v: 1, op: 'turn', id: sessionId, kind: 'truncate', fromIndex }, this.options);
+      { v: 1, op: 'turn', channel, kind: 'truncate', fromIndex }, this.options);
     await this.maybeCompact(state);
   }
 
-  private async doClearTurns(state: SessionRegistryState, sessionId: string): Promise<void> {
+  private async doClearTurns(state: SessionRegistryState, channel: string): Promise<void> {
     await appendSessionRegistryEvent(this.filePath, state,
-      { v: 1, op: 'turn', id: sessionId, kind: 'clear' }, this.options);
+      { v: 1, op: 'turn', channel, kind: 'clear' }, this.options);
+    await this.maybeCompact(state);
+  }
+
+  private async doSetConversation(
+    state: SessionRegistryState,
+    channel: string,
+    fields: ConversationFields,
+  ): Promise<void> {
+    await appendSessionRegistryEvent(this.filePath, state,
+      { v: 1, op: 'conversation', channel, kind: 'set', fields: { ...fields } }, this.options);
+    await this.maybeCompact(state);
+  }
+
+  private async doClearConversation(state: SessionRegistryState, channel: string): Promise<void> {
+    if (!state.conversations.has(channel)) return;
+    await appendSessionRegistryEvent(this.filePath, state,
+      { v: 1, op: 'conversation', channel, kind: 'clear' }, this.options);
     await this.maybeCompact(state);
   }
 
@@ -513,7 +582,8 @@ export class SessionRegistryRepo {
   async beginDeleteExpired(
     cutoff: number | Date,
     protectedIds: Iterable<string>,
-    prepareCleanup: (session: Session) => Promise<SessionDeleteCleanup> = async () => ({ claudeBackupPaths: [] }),
+    prepareCleanup: (session: Session, turns: TurnRecord[]) => Promise<SessionDeleteCleanup>
+      = async () => ({ claudeBackupPaths: [] }),
   ): Promise<PendingDeletion[]> {
     return this.withState(async (state) => {
       const blocked = new Set(protectedIds);
@@ -522,7 +592,10 @@ export class SessionRegistryRepo {
         if (blocked.has(record.sessionId) || this.activeUses.has(record.sessionId)) continue;
         const lastUsedAtMs = parseLastUsedAtMs(record.lastUsedAt);
         if (lastUsedAtMs === null || lastUsedAtMs >= toCutoffMs(cutoff)) continue;
-        const cleanup = await prepareCleanup(cloneSession(record));
+        // Hand the callback the session's turns from the locked state directly — the ledger is now a
+        // façade over THIS registry, so a callback that read it back would re-enter `withState` and
+        // deadlock. (The old ledger was a separate store with its own lock.)
+        const cleanup = await prepareCleanup(cloneSession(record), collectSessionTurns(state, record.sessionId));
         await appendSessionRegistryEvent(this.filePath, state, {
           v: 1,
           op: 'delete-intent',
@@ -563,9 +636,10 @@ export class SessionRegistryRepo {
     });
   }
 
-  /** `backend` is accepted and ignored — a channel has one session. */
+  /** `backend` is accepted and ignored — a channel has one session. Pure in-registry lookup:
+   *  the channel's bound sessionId → the live record's name. */
   async getActiveSessionName(channel: string, backend?: string): Promise<string | null> {
-    const sessionId = await sessionRepo.getSessionAsync(channel);
+    const sessionId = await this.getBoundSessionId(channel);
     if (!sessionId) return null;
     return this.lookupBySessionId(sessionId);
   }
@@ -640,6 +714,25 @@ export class SessionRegistryRepo {
       await compactSessionRegistry(this.filePath, state, this.options);
     }
   }
+}
+
+function readTurns(state: SessionRegistryState, channel: string): TurnRecord[] {
+  return (state.turns.get(channel) ?? []).map(turn => ({ ...turn }));
+}
+
+function readConversationHeader(state: SessionRegistryState, channel: string): ConversationHeader | null {
+  const header = state.conversations.get(channel);
+  return header ? { ...header } : null;
+}
+
+/** Turns of every channel whose conversation header names `sessionId` — the same rows the ledger's
+ *  `listBySessionIds` would surface, read straight from the (already-locked) state. */
+function collectSessionTurns(state: SessionRegistryState, sessionId: string): TurnRecord[] {
+  const turns: TurnRecord[] = [];
+  for (const [channel, header] of state.conversations) {
+    if (header.sessionId === sessionId) turns.push(...readTurns(state, channel));
+  }
+  return turns;
 }
 
 function* filterLive(

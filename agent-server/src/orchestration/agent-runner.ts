@@ -175,7 +175,7 @@ export class AgentRunner {
    * Resolve what a turn needs but is not part of it — the files, the session record (found or
    * created) with its use lease, the browser the session opted into — and open the turn.
    *
-   * `sessionId` here is the STABLE tracking id: sessions.json binds channel → track id (not the
+   * `sessionId` here is the STABLE tracking id: the registry binds channel → track id (not the
    * backend id), and everything downstream (publish / history / status / Destination) keys on it.
    * The backend resume target is resolved separately. A channel with no bound session yet (fresh
    * Slack/Feishu/etc.) mints + registers + binds a track id up front, unifying it with the web path

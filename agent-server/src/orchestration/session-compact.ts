@@ -1,7 +1,7 @@
 import type { SessionContextUsage } from '@core/types/agent-types.js';
 import { channelEngineBusy } from '@core/session-state.js';
 import { runRegistry } from '@core/run-registry.js';
-import { sessionRepo } from '@store/session-repo.js';
+import { getSessionAsync } from '@domain/sessions/session.js';
 import {
   effectiveBackendSessionId,
   sessionStore,
@@ -117,7 +117,7 @@ export async function compactActiveSessionContext(
   opts: { channel: string },
 ): Promise<CompactActiveSessionOutcome> {
   const backend = resolveBackendForChannel(opts.channel);
-  const sessionId = await sessionRepo.getSessionAsync(opts.channel);
+  const sessionId = await getSessionAsync(opts.channel);
   if (!sessionId) return { ok: false, reason: 'no-session' };
   return compactSessionContext(sessionId);
 }

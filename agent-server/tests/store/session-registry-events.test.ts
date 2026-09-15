@@ -178,32 +178,38 @@ test('compaction keeps live bindings and turns but drops those of committed dele
   await repo.registerSession('cortex-b', registerOpts('sess-b'));
   await repo.bindChannel('web:a', 'sess-a');
   await repo.bindChannel('web:b', 'sess-b');
-  await repo.beginTurn('sess-a', fullTurn(0));
-  await repo.beginTurn('sess-b', fullTurn(0));
+  await repo.beginTurn('web:a', fullTurn(0)); // turns are channel-keyed now
+  await repo.beginTurn('web:b', fullTurn(0));
   await repo.updateSession('cortex-b', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
   await repo.beginDeleteExpired(new Date('2021-01-01T00:00:00.000Z'), []);
   await repo.commitDeletion('sess-b');
 
   await repo.compactNow();
 
-  const ops = jsonl(filePath).map(line => `${line.op}:${line.op === 'bind' ? line.channel : line.op === 'turn' ? `${line.id}/${line.kind}` : line.id}`);
-  assert.deepEqual(ops.sort(), ['bind:web:a', 'put:sess-a', 'turn:sess-a/begin']);
+  const ops = jsonl(filePath).map(line => `${line.op}:${line.op === 'bind' ? line.channel : line.op === 'turn' ? `${line.channel}/${line.kind}` : line.id}`);
+  assert.deepEqual(ops.sort(), ['bind:web:a', 'put:sess-a', 'turn:web:a/begin']);
 
   const reopened = new SessionRegistryRepo(filePath);
   assert.equal(await reopened.getBoundSessionId('web:b'), null);
-  assert.deepEqual(await reopened.getTurns('sess-b'), []);
-  assert.equal((await reopened.getTurns('sess-a')).length, 1);
+  assert.deepEqual(await reopened.getTurns('web:b'), []); // delete-commit dropped the deleted session's channel turns
+  assert.equal((await reopened.getTurns('web:a')).length, 1);
 });
 
-test('binding an unknown or pending session is rejected', async () => {
+test('binding is a free map — no liveness guard on the target session (intended behaviour change)', async () => {
+  // T2: the registry is the single owner of identity, so a bind is a plain channel→id edge with no
+  // check that the id names a live (or even existing) session — turns append the same way. This
+  // replaces the old guard that rejected binds to unknown/pending sessions; retention (delete-commit)
+  // is now what reaps dangling edges, not the append path.
   const filePath = nextPath();
   const repo = new SessionRegistryRepo(filePath);
-  await assert.rejects(repo.bindChannel('web:x', 'sess-missing'), /unknown session/i);
+  await repo.bindChannel('web:x', 'sess-missing'); // unknown session → binds
+  assert.equal(await repo.getBoundSessionId('web:x'), 'sess-missing');
 
   await repo.registerSession('cortex-p', registerOpts('sess-p'));
   await repo.updateSession('cortex-p', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
   await repo.beginDeleteExpired(new Date('2021-01-01T00:00:00.000Z'), []);
-  await assert.rejects(repo.bindChannel('web:p', 'sess-p'), /pending/i);
+  await repo.bindChannel('web:p', 'sess-p'); // pending-delete session → still binds
+  assert.equal(await repo.getBoundSessionId('web:p'), 'sess-p');
 });
 
 test('unbinding an unknown channel is a no-op that appends nothing', async () => {

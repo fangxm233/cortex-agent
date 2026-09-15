@@ -43,7 +43,6 @@ import { initClientHotReload } from '@domain/remote/client-hot-reload.js';
 import { checkServerUpdate } from '@domain/system/server-update-check.js';
 import { emitSystemNotice } from '@domain/system/system-notice.js';
 import { threadStore } from '@store/thread-repo.js';
-import { sessionRepo, registerConduitProvider } from '@store/session-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { conversationHistory } from '@store/conversation-history-repo.js';
 import { pendingInjectionRepo } from '@store/pending-injection-repo.js';
@@ -104,7 +103,7 @@ import { retentionCandidateRepo } from '@store/retention-candidate-repo.js';
 import { createDirectSession, adoptScheduledSession } from '@domain/sessions/session-lifecycle.js';
 import { runSessionRetentionSweep, type RetentionLivenessSnapshot } from '@domain/sessions/session-retention.js';
 import { syncClaudeUserCleanupPeriodDays } from '@domain/auth/claude-user-settings.js';
-import { setSessionAsync } from '@domain/sessions/session.js';
+import { setSessionAsync, getSessionAsync } from '@domain/sessions/session.js';
 import {
   applyChannelSelection, getChannelOverride, getSelectionDefault, resolveBackendForChannel,
   switchChannelProfile,
@@ -178,7 +177,6 @@ async function runRetentionSweep(retentionDays: number): Promise<void> {
   const result = await runSessionRetentionSweep({
     retentionDays,
     registry: sessionStore,
-    sessionRepo,
     ledgerRepo: conversationLedger,
     historyRepo: conversationHistory,
     candidateRepo: retentionCandidateRepo,
@@ -344,9 +342,9 @@ if (tuiGateway) {
   // Conduit-queue port — MUST wrap the shared @orch/conduit-queue singletons so TUI message
   // work serializes with the rest of the pipeline on the same conduit key.
   tuiGateway.setConduitQueue({ enqueue, remove: (id) => conduitQueues.delete(id) });
-  // Conduit provider inversion: store-layer session lookup resolves ephemeral TUI conduits
+  // Conduit resolver inversion: the registry's channel lookup resolves ephemeral TUI conduits
   // via the gateway's in-memory state (previously the gateway imported the store directly).
-  registerConduitProvider((conduitId) => tuiGateway.lookupConduit(conduitId));
+  sessionStore.registerConduitResolver((conduitId) => tuiGateway.lookupConduit(conduitId)?.sessionId ?? null);
 }
 
 // --- Wire hot-reload admin notifiers ---
@@ -463,7 +461,7 @@ process.on('SIGTERM', async () => {
   // `writeFile(tmp)` and `rename(tmp, target)` in atomic-write.ts leaves orphan .tmp.* siblings.
   // Daemon gives 5s before SIGKILL — well over the time needed to flush a few MB of JSON.
   try {
-    await Promise.allSettled([bus.close(), oq.flush(), threadStore.flush(), sessionRepo.flush(), conversationLedger.flush(), conversationHistory.flush(), pendingInjectionRepo.flush(), taskStore.flush(), executionRepo.flush(), projectDirRepo.flush(), scheduleRepo.flush(), providerStateRepo.flush(), costRepo.flush(), profileRepo.flush(), sessionStore.flush()]);
+    await Promise.allSettled([bus.close(), oq.flush(), threadStore.flush(), conversationLedger.flush(), conversationHistory.flush(), pendingInjectionRepo.flush(), taskStore.flush(), executionRepo.flush(), projectDirRepo.flush(), scheduleRepo.flush(), providerStateRepo.flush(), costRepo.flush(), profileRepo.flush(), sessionStore.flush()]);
   } catch {}
   await stopGateway(); process.exit(0);
 });
@@ -698,23 +696,6 @@ process.on('SIGTERM', async () => {
   pendingTaskTracker.init(adapter);
   taskStore.load();
 
-  // Collapse sessions.json `backend:channel` keys onto `channel`. Idempotent — a migrated
-  // file has no legacy keys left, so this is a no-op on every boot after the first.
-  try {
-    const keys = await sessionRepo.migrateSessionKeys({
-      lastUsedAt: async (sessionId) => (await sessionStore.getById(sessionId))?.lastUsedAt ?? null,
-      log: (message) => log.warn(message),
-    });
-    if (keys.migrated > 0) {
-      log.info(
-        `sessions.json: migrated ${keys.migrated} backend-prefixed key(s) to channel keys`
-        + (keys.conflicts > 0 ? ` (${keys.conflicts} channel(s) had two bindings)` : ''),
-      );
-    }
-  } catch (e) {
-    log.warn(`sessions.json key migration failed: ${(e as Error).message}`);
-  }
-
   // DR-0017 D6 Phase 2.5: migrate a legacy single thread-templates.json to the directory form,
   // then per-file copy-if-missing the shipped defaults dir (so new agents/templates/shells — e.g.
   // a new shell definition — reach existing installs). Sealed trial homes supply their complete
@@ -760,7 +741,7 @@ process.on('SIGTERM', async () => {
     save: (entries) => providerStateRepo.setResumeQueue(entries),
     load: () => providerStateRepo.getResumeQueue(),
   }, () => { bus.publish({ type: 'rate-limit.changed' }); }, async (entry) => {
-    const bound = await sessionRepo.getSessionAsync(entry.channel);
+    const bound = await getSessionAsync(entry.channel);
     return bound && await sessionStore.getById(bound) ? bound : null;
   });
   let reQueuedRateLimited = 0;

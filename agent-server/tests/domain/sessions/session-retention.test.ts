@@ -5,7 +5,6 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { SessionRegistryRepo, type Session } from '../../../src/store/session-registry-repo.js';
-import { SessionRepo } from '../../../src/store/session-repo.js';
 import { ConversationLedgerRepo } from '../../../src/store/conversation-ledger-repo.js';
 import { ConversationHistoryRepo } from '../../../src/store/conversation-history-repo.js';
 import { RetentionCandidateRepo } from '../../../src/store/retention-candidate-repo.js';
@@ -39,6 +38,14 @@ async function makeHarness() {
     fs.mkdir(captureDir, { recursive: true }),
     fs.mkdir(claudeProjectDir, { recursive: true }),
   ]);
+  // One registry owns identity now. `bindings` is a thin adapter over it that preserves the old
+  // setSessionAsync/getSessionAsync call shape the tests still use, and the ledger is a façade over
+  // the same registry (as production wires conversationLedger onto sessionStore).
+  const registry = new SessionRegistryRepo(path.join(storeDir, 'session-registry.jsonl'));
+  const bindings = {
+    setSessionAsync: (channel: string, sessionId: string, _backend?: string) => registry.bindChannel(channel, sessionId),
+    getSessionAsync: async (channel: string, _backend?: string) => (await registry.getBoundSessionId(channel)) ?? undefined,
+  };
   return {
     root,
     storeDir,
@@ -46,9 +53,9 @@ async function makeHarness() {
     piDir,
     captureDir,
     claudeProjectDir,
-    registry: new SessionRegistryRepo(path.join(storeDir, 'session-registry.jsonl')),
-    bindings: new SessionRepo(path.join(storeDir, 'sessions.json')),
-    ledger: new ConversationLedgerRepo(path.join(storeDir, 'conversation-ledger.json')),
+    registry,
+    bindings,
+    ledger: new ConversationLedgerRepo(registry),
     history: new ConversationHistoryRepo(historyDir),
     candidates: new RetentionCandidateRepo(path.join(storeDir, 'retention-candidates.json')),
   };
@@ -75,7 +82,6 @@ test('retention sweep retries pending intents, does not commit failed cleanup, t
     retentionDays: 30,
     now: () => Date.parse('2026-08-01T00:00:00.000Z'),
     registry: h.registry,
-    sessionRepo: h.bindings,
     ledgerRepo: h.ledger,
     historyRepo: {
       ...h.history,
@@ -112,7 +118,6 @@ test('retention sweep retries pending intents, does not commit failed cleanup, t
     retentionDays: 30,
     now: () => Date.parse('2026-08-01T00:00:00.000Z'),
     registry: h.registry,
-    sessionRepo: h.bindings,
     ledgerRepo: h.ledger,
     historyRepo: h.history,
     candidateRepo: h.candidates,
@@ -157,7 +162,7 @@ test('retention sweep ignores untrusted Claude ledger backup paths outside the c
   const result = await runSessionRetentionSweep({
     retentionDays: 30,
     now: () => Date.parse('2026-08-01T00:00:00.000Z'),
-    registry: h.registry, sessionRepo: h.bindings, ledgerRepo: h.ledger, historyRepo: h.history,
+    registry: h.registry, ledgerRepo: h.ledger, historyRepo: h.history,
     candidateRepo: h.candidates,
     liveness: { protectedTrackSessionIds: [], protectedBackendSessionIds: [], activeClaudeCapturePaths: [], activeClaudeCapturePairs: [] },
     paths: { historyDir: h.historyDir, piSessionsDir: h.piDir, claudeCaptureDir: h.captureDir, claudeProjectDir: h.claudeProjectDir },
@@ -185,7 +190,7 @@ test('retention sweep drops a deleted session\'s carried totals, and leaves surv
   const result = await runSessionRetentionSweep({
     retentionDays: 30,
     now: () => Date.parse('2026-08-01T00:00:00.000Z'),
-    registry: h.registry, sessionRepo: h.bindings, ledgerRepo: h.ledger, historyRepo: h.history,
+    registry: h.registry, ledgerRepo: h.ledger, historyRepo: h.history,
     candidateRepo: h.candidates,
     sessionTotals: totals,
     liveness: { protectedTrackSessionIds: [], protectedBackendSessionIds: [], activeClaudeCapturePaths: [], activeClaudeCapturePairs: [] },
@@ -227,7 +232,6 @@ test('retention sweep preserves invalid registry dates, syncs Claude helper, and
     retentionDays: 30,
     now: () => Date.parse('2026-08-01T00:00:00.000Z'),
     registry: h.registry,
-    sessionRepo: h.bindings,
     ledgerRepo: h.ledger,
     historyRepo: h.history,
     candidateRepo: h.candidates,
@@ -277,7 +281,6 @@ test('retention sweep deletes orphan history and PI transcript bundles only afte
     retentionDays: 30,
     now: () => Date.parse('2026-08-01T00:00:00.000Z'),
     registry: h.registry,
-    sessionRepo: h.bindings,
     ledgerRepo: h.ledger,
     historyRepo: h.history,
     candidateRepo: h.candidates,
@@ -329,7 +332,6 @@ test('retention sweep isolates Claude helper and registry failures from capture 
     retentionDays: 30,
     now: () => Date.parse('2026-08-01T00:00:00.000Z'),
     registry: h.registry,
-    sessionRepo: h.bindings,
     ledgerRepo: h.ledger,
     historyRepo: h.history,
     candidateRepo: h.candidates,
@@ -367,7 +369,6 @@ test('retention sweep isolates Claude helper and registry failures from capture 
       ...h.registry,
       listRecentSessions: async () => { throw new Error('registry read boom'); },
     } as any,
-    sessionRepo: h.bindings,
     ledgerRepo: h.ledger,
     historyRepo: h.history,
     candidateRepo: h.candidates,
@@ -390,7 +391,7 @@ test('retention sweep isolates Claude helper and registry failures from capture 
 });
 
 for (const failingMethod of ['listRecentSessions', 'listPendingDeletions'] as const) {
-  test(`retention sweep skips history, PI orphan, and dangling-reference repair when registry.${failingMethod} fails`, async () => {
+  test(`retention sweep skips history and PI orphan cleanup when registry.${failingMethod} fails`, async () => {
     const h = await makeHarness();
     const historyPath = path.join(h.historyDir, 'orphan-track.jsonl');
     const piPrimary = path.join(h.piDir, 'backend-orphan.jsonl');
@@ -413,10 +414,6 @@ for (const failingMethod of ['listRecentSessions', 'listPendingDeletions'] as co
       fs.utimes(staleJsonl, oldTime, oldTime),
       fs.utimes(staleTxt, oldTime, oldTime),
     ]);
-    await h.bindings.setSessionAsync('web:missing', 'track-missing', 'claude');
-    await h.ledger.initConversation('web:missing', {
-      sessionId: 'track-missing', sessionName: 'cortex-missing', backend: 'claude',
-    });
 
     const registry = {
       ...h.registry,
@@ -427,7 +424,6 @@ for (const failingMethod of ['listRecentSessions', 'listPendingDeletions'] as co
       retentionDays: 30,
       now: () => Date.parse('2026-08-01T00:00:00.000Z'),
       registry,
-      sessionRepo: h.bindings,
       ledgerRepo: h.ledger,
       historyRepo: h.history,
       candidateRepo: h.candidates,
@@ -454,52 +450,9 @@ for (const failingMethod of ['listRecentSessions', 'listPendingDeletions'] as co
     await assert.doesNotReject(() => fs.stat(historyPath));
     await assert.doesNotReject(() => fs.stat(piPrimary));
     await assert.doesNotReject(() => fs.stat(piBackup));
-    assert.equal(await h.bindings.getSessionAsync('web:missing', 'claude'), 'track-missing');
-    assert.ok(await h.ledger.getConversation('web:missing'));
     assert.ok(second.errors.some((entry) => entry.includes(`registry.${failingMethod}`)));
   });
 }
-
-test('retention sweep repairs stale session bindings and ledgers for missing registry ids while preserving live ids', async () => {
-  const h = await makeHarness();
-  await h.registry.registerSession('cortex-live', registerOpts('track-live'));
-  await h.bindings.setSessionAsync('web:live', 'track-live', 'claude');
-  await h.bindings.setSessionAsync('web:missing', 'track-missing', 'claude');
-  await h.ledger.initConversation('web:live', {
-    sessionId: 'track-live', sessionName: 'cortex-live', backend: 'claude',
-  });
-  await h.ledger.initConversation('web:missing', {
-    sessionId: 'track-missing', sessionName: 'cortex-missing', backend: 'claude',
-  });
-
-  await runSessionRetentionSweep({
-    retentionDays: 30,
-    now: () => Date.parse('2026-08-01T00:00:00.000Z'),
-    registry: h.registry,
-    sessionRepo: h.bindings,
-    ledgerRepo: h.ledger,
-    historyRepo: h.history,
-    candidateRepo: h.candidates,
-    liveness: {
-      protectedTrackSessionIds: [],
-      protectedBackendSessionIds: [],
-      activeClaudeCapturePaths: [],
-      activeClaudeCapturePairs: [],
-    },
-    paths: {
-      historyDir: h.historyDir,
-      piSessionsDir: h.piDir,
-      claudeCaptureDir: h.captureDir,
-      claudeProjectDir: h.claudeProjectDir,
-    },
-    syncClaudeUserCleanupPeriodDays: async () => ({ filePath: '/tmp/settings.json', changed: false }),
-  });
-
-  assert.equal(await h.bindings.getSessionAsync('web:live', 'claude'), 'track-live');
-  assert.equal(await h.bindings.getSessionAsync('web:missing', 'claude'), undefined);
-  assert.ok(await h.ledger.getConversation('web:live'));
-  assert.equal(await h.ledger.getConversation('web:missing'), null);
-});
 
 test('retention sweep rejects symlink cleanup and parses canonical plus timestamp-prefixed PI filenames exactly', async () => {
   const h = await makeHarness();
@@ -539,7 +492,6 @@ test('retention sweep rejects symlink cleanup and parses canonical plus timestam
     retentionDays: 30,
     now: () => Date.parse('2026-08-01T00:00:00.000Z'),
     registry: h.registry,
-    sessionRepo: h.bindings,
     ledgerRepo: h.ledger,
     historyRepo: h.history,
     candidateRepo: h.candidates,

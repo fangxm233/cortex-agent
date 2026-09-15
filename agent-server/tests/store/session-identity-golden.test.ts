@@ -6,7 +6,6 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { SessionRegistryRepo, effectiveBackendSessionId, sessionStore } from '../../src/store/session-registry-repo.js';
-import { SessionRepo, sessionRepo, registerConduitProvider } from '../../src/store/session-repo.js';
 import { ConversationLedgerRepo, conversationLedger } from '../../src/store/conversation-ledger-repo.js';
 import { profileRepo } from '../../src/store/profile-repo.js';
 import {
@@ -88,16 +87,27 @@ afterAll(async () => {
   await fs.rm(tmpDir, { recursive: true, force: true });
 });
 
-// A fresh, fully-isolated store trio backed by its own temp files. Used by every
-// golden whose write sequence can be driven through explicit store instances
-// (i.e. it does not reach the module singletons).
+// A fresh, fully-isolated store backed by its own temp journal. After B.T2 there is ONE store — the
+// session registry — that owns channel bindings, conversation headers and turns. `sessions` is a thin
+// adapter that re-exposes the old sessions.json surface (setSessionAsync/getSessionAsync/
+// deleteManyBySessionIds/registerConduitResolver) as registry calls, so the goldens keep compiling
+// while proving behaviour through the same read APIs. `ledger` is the façade over that same registry.
 function freshStores() {
   const id = testId++;
+  const registry = new SessionRegistryRepo(path.join(tmpDir, `reg-${id}.jsonl`));
+  const sessions = {
+    setSessionAsync: (channel: string, sessionId: string, _backend?: string) =>
+      registry.bindChannel(channel, sessionId),
+    getSessionAsync: async (channel: string, _backend?: string): Promise<string | undefined> =>
+      (await registry.getBoundSessionId(channel)) ?? undefined,
+    deleteManyBySessionIds: (sessionIds: Iterable<string>) => registry.unbindBySessionIds(sessionIds),
+    registerConduitResolver: (fn: (channel: string) => string | null | undefined) =>
+      registry.registerConduitResolver(fn),
+  };
   return {
-    registry: new SessionRegistryRepo(path.join(tmpDir, `reg-${id}.jsonl`)),
-    sessions: new SessionRepo(path.join(tmpDir, `sessions-${id}.json`)),
-    ledger: new ConversationLedgerRepo(path.join(tmpDir, `ledger-${id}.json`)),
-    sessionsPath: path.join(tmpDir, `sessions-${id}.json`),
+    registry,
+    sessions,
+    ledger: new ConversationLedgerRepo(registry),
   };
 }
 
@@ -526,7 +536,7 @@ test('golden 10: switchChannelProfile syncs the record on same-backend and refus
   await sessionStore.registerSession('cortex-10', {
     sessionId: sid, channel, backend: 'claude', kind: 'local', projectId: 'projX', profileName: 'plan',
   });
-  await sessionRepo.setSessionAsync(channel, sid); // so getActiveSessionName resolves the binding
+  await setSessionAsync(channel, sid); // so getActiveSessionName resolves the binding
   await conversationLedger.initConversation(channel, {
     sessionId: sid, sessionName: 'cortex-10', backend: 'claude', profileName: 'plan',
   });
@@ -577,10 +587,12 @@ test('golden 10: switchChannelProfile syncs the record on same-backend and refus
   });
 });
 
-// ── 11. resolveOnNewProfileName priority: registry → ledger → null ──
-// Pins TODAY's dual-source priority. T3 deletes the ledger fallback, so case (b)
-// will DELIBERATELY change from 'scan' to null. Cases (a) and (c) must not change.
-test('golden 11: resolveOnNewProfileName prefers the registry, falls back to the ledger, else null', async () => {
+// ── 11. resolveOnNewProfileName reads the registry ONLY ──
+// B.T2 deleted the ledger fallback: the registry record's profileName is the single source of truth.
+// Case (b) — a registry record with no profile but a ledger conversation that DOES carry one —
+// therefore resolves to null now (it was 'scan' before the fallback was removed). The ledger
+// conversations below are set up precisely to prove they no longer influence the answer.
+test('golden 11: resolveOnNewProfileName reads the registry only; the ledger no longer contributes', async () => {
   const { registry, ledger } = freshStores();
   const deps = {
     lookupRegistryProfile: async (sessionId: string) => {
@@ -588,16 +600,15 @@ test('golden 11: resolveOnNewProfileName prefers the registry, falls back to the
       if (!name) return null;
       return (await registry.lookupSession(name))?.profileName ?? null;
     },
-    lookupLedgerProfile: async (channel: string) => (await ledger.getConversation(channel))?.profileName ?? null,
   };
 
-  // (a) registry has the profile → wins.
+  // (a) registry has the profile → wins (and the disagreeing ledger profile is ignored).
   await registry.registerSession('cortex-11a', {
     sessionId: 'sid-11a', channel: 'web:11a', backend: 'claude', kind: 'local', projectId: 'projX', profileName: 'plan',
   });
   await ledger.initConversation('web:11a', { sessionId: 'sid-11a', sessionName: 'cortex-11a', backend: 'claude', profileName: 'qa' });
 
-  // (b) registry record lacks a profile → ledger fallback (DELETED in T3 → becomes null).
+  // (b) registry record lacks a profile; the ledger has one but is no longer a fallback → null.
   await registry.registerSession('cortex-11b', {
     sessionId: 'sid-11b', channel: 'web:11b', backend: 'claude', kind: 'local', projectId: 'projX', profileName: null,
   });
@@ -613,28 +624,28 @@ test('golden 11: resolveOnNewProfileName prefers the registry, falls back to the
 
   assert.deepEqual(normalize(snapshot), {
     a_registryWins: 'plan',
-    b_ledgerFallback: 'scan', // T3: becomes null
+    b_ledgerFallback: null, // B.T2: ledger fallback deleted (was 'scan')
     c_neither: null,
   });
 });
 
-// ── 12. TUI conduit precedence: an in-memory provider wins over the file; null falls through ──
-test('golden 12: a conduit provider outranks the file binding and null falls back to the file', async () => {
+// ── 12. TUI conduit precedence: an in-memory resolver wins over the persisted bind; null falls through ──
+test('golden 12: a conduit resolver outranks the persisted binding and null falls back to it', async () => {
   const { sessions } = freshStores();
 
-  // File holds a DIFFERENT binding for tui:g12, plus a file-only binding for tui:g12b.
+  // Persisted bindings: a DIFFERENT one for tui:g12, plus a bind-only channel tui:g12b.
   await sessions.setSessionAsync('tui:g12', 'file-sid-12');
   await sessions.setSessionAsync('tui:g12b', 'file-sid-12b');
 
-  // Providers are module-global; this one only claims tui:g12 and returns null for
-  // everything else, so it cannot interfere with the other goldens' channels.
-  registerConduitProvider((channel) =>
-    channel === 'tui:g12' ? { sessionId: 'conduit-sid-12', projectId: 'projX' } : null,
+  // The resolver is registered on THIS test's own registry instance (which `sessions` wraps), so it
+  // cannot leak into other goldens. It only claims tui:g12 and returns null for everything else.
+  sessions.registerConduitResolver((channel) =>
+    channel === 'tui:g12' ? 'conduit-sid-12' : null,
   );
 
   const snapshot = {
-    providerWins: await sessions.getSessionAsync('tui:g12'), // provider answer, not file-sid-12
-    providerNullFallsThrough: await sessions.getSessionAsync('tui:g12b'), // file binding
+    providerWins: await sessions.getSessionAsync('tui:g12'), // resolver answer, not file-sid-12
+    providerNullFallsThrough: await sessions.getSessionAsync('tui:g12b'), // persisted binding
   };
 
   assert.deepEqual(normalize(snapshot), {
@@ -643,18 +654,24 @@ test('golden 12: a conduit provider outranks the file binding and null falls bac
   });
 });
 
-// ── 13. Legacy key: sessions.json holding `claude:<channel>` is read by getSessionAsync(channel) ──
-// Pins TODAY's LEGACY_PREFIXES path. T2 DELETES this deliberately → this golden
-// will change (the legacy key will no longer resolve).
-test('golden 13: getSessionAsync resolves a legacy claude:<channel> key', async () => {
-  const { sessionsPath } = freshStores();
+// ── 13. No legacy-key collapse: the registry keys on the whole channel string ──
+// B.T2 DELETED the sessions.json LEGACY_PREFIXES path. A `claude:<channel>` binding is now just a
+// literal channel name; it holds its own binding but no longer resolves when the bare <channel> is
+// queried (there is no backend-prefix stripping any more).
+test('golden 13: a legacy claude:<channel> binding no longer resolves to the bare channel', async () => {
+  const { sessions } = freshStores();
   const channel = 'slack:g13-channel';
-  await fs.writeFile(sessionsPath, JSON.stringify({ [`claude:${channel}`]: 'sid-legacy-13' }));
+  await sessions.setSessionAsync(`claude:${channel}`, 'sid-legacy-13');
 
-  const repo = new SessionRepo(sessionsPath);
-  const snapshot = { binding: await repo.getSessionAsync(channel) };
+  const snapshot = {
+    legacyKeyItself: await sessions.getSessionAsync(`claude:${channel}`), // the literal key still holds it
+    bareChannel: (await sessions.getSessionAsync(channel)) ?? '<unbound>', // no prefix-strip fallback
+  };
 
-  assert.deepEqual(normalize(snapshot), { binding: 'sid-legacy-13' });
+  assert.deepEqual(normalize(snapshot), {
+    legacyKeyItself: 'sid-legacy-13',
+    bareChannel: '<unbound>',
+  });
 });
 
 // ── 14. Retention: clearBySessionIds + deleteManyBySessionIds — snapshot what remains ──

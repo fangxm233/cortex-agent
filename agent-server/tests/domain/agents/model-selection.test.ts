@@ -21,17 +21,14 @@ const PROFILES_FILE = {
   },
 };
 
-/** Turns are what makes a conversation "live"; the registry write is best-effort and irrelevant here. */
+/** Turns are what makes a conversation "live"; the registry write is best-effort and irrelevant here.
+ *  T2: channelHasHistory now reads the channel's turns straight from the registry (sessionStore.getTurns),
+ *  so the `turns` control map drives that method rather than the (removed) ledger lookup. */
 let turns: Record<string, number> = {};
-
-vi.mock('@store/conversation-ledger-repo.js', () => ({
-  conversationLedger: {
-    getConversation: async (channel: string) => ({ turns: Array(turns[channel] ?? 0).fill({}) }),
-  },
-}));
 
 vi.mock('@store/session-registry-repo.js', () => ({
   sessionStore: {
+    getTurns: async (channel: string) => Array(turns[channel] ?? 0).fill({}),
     getActiveSessionName: async () => null,
     updateSession: async () => undefined,
   },

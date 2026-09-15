@@ -347,23 +347,16 @@ async function resolveOnNewThreadAnchor(channel: string, threadAnchorId?: string
 }
 
 /** Resolve the profile name to use when injecting the onNew hook's stdout as a fresh
- *  agent turn. Priority order:
- *    1. session-registry (per-session truth — correct for thread-spawned sessions whose
- *       profile is NOT mirrored into the channel-level conversation-ledger).
- *    2. conversation-ledger (channel-level fallback — correct for user-conversation
- *       sessions where the registry may lack a profileName-bearing record).
- *
- *  The two sources can disagree on a channel that hosts both kinds of session — e.g.
- *  a thread session running profile `deepseek-pro` while the user's main conversation
- *  is on profile `plan`. Reading from the ledger alone causes Cortex to resume the
- *  thread session with the wrong profile, which routes through the wrong gateway mode
- *  and triggers Anthropic's "Invalid signature in thinking block" 400.
+ *  agent turn. The session registry is the SINGLE source of truth (B.T2): the per-session
+ *  record carries the profileName, correct for both user-conversation and thread-spawned
+ *  sessions. The old channel-level conversation-ledger fallback is gone — it could disagree
+ *  with the registry on a channel hosting both kinds of session and resume with the wrong
+ *  profile (routing through the wrong gateway mode → Anthropic 400 on thinking blocks).
  *
  *  Exported (rather than inlined) so the priority logic is unit-testable in isolation
  *  without spinning up the real repo singletons. */
 export interface ProfileLookupDeps {
   lookupRegistryProfile: (sessionId: string) => Promise<string | null>;
-  lookupLedgerProfile:   (channel: string)   => Promise<string | null>;
 }
 
 export async function resolveOnNewProfileName(
@@ -371,9 +364,7 @@ export async function resolveOnNewProfileName(
   sessionId: string,
   deps: ProfileLookupDeps,
 ): Promise<string | null> {
-  const fromRegistry = await deps.lookupRegistryProfile(sessionId);
-  if (fromRegistry) return fromRegistry;
-  return deps.lookupLedgerProfile(channel);
+  return deps.lookupRegistryProfile(sessionId);
 }
 
 /** Default binding of the registry lookup — composes lookupBySessionId + lookupSession.
@@ -383,11 +374,6 @@ async function defaultLookupRegistryProfile(sessionId: string): Promise<string |
   if (!name) return null;
   const record = await sessionStore.lookupSession(name);
   return record?.profileName ?? null;
-}
-
-async function defaultLookupLedgerProfile(channel: string): Promise<string | null> {
-  const conv = await conversationLedger.getConversation(channel);
-  return conv?.profileName ?? null;
 }
 
 /** Build the onNew SessionHookSpec + a fresh stream. Returns null when the hook isn't
@@ -407,11 +393,9 @@ async function prepareOnNewRun(
   }
   const sessionName = (await sessionStore.lookupBySessionId(sessionId)) || sessionId.slice(0, 8);
 
-  // Resolve profile BEFORE handleNewCmd clears the ledger (sync, runs after this fn returns).
-  // Registry is the per-session truth; ledger is the channel-level fallback.
+  // Registry is the single source of truth for the per-session profileName.
   const profileName = await resolveOnNewProfileName(channel, sessionId, {
     lookupRegistryProfile: defaultLookupRegistryProfile,
-    lookupLedgerProfile:   defaultLookupLedgerProfile,
   });
 
   const anchor = await resolveOnNewThreadAnchor(channel, threadAnchorId);
@@ -513,13 +497,15 @@ export async function runMessageEndForTurn(args: {
     return;
   }
   try {
-    const conv = await conversationLedger.getConversation(args.channel);
+    // Profile comes from the session registry (the single source of truth), keyed by the turn's
+    // sessionId — never from the channel-level ledger, which could name a different session.
+    const profile = await defaultLookupRegistryProfile(args.sessionId);
     await runMessageEndSessionHook({
       channel: args.channel,
       sessionId: args.sessionId,
       sessionName: args.sessionName ?? '',
       executionId: args.executionId ?? '',
-      profile: conv?.profileName ?? null,
+      profile,
       stream: args.stream,
     });
   } catch (err) {

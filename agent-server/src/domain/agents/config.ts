@@ -290,7 +290,7 @@ export function getActiveProfile(channel?: string): string | null {
  * The backend a channel runs: its profile's, falling back to the default profile's.
  *
  * DEVIATION from plan D5, which has this "degenerate into reading the session record". That was
- * the right move while sessions.json keyed on `backend:channel` and the caller had to know the
+ * the right move while the session store keyed on `backend:channel` and the caller had to know the
  * backend to find the session at all — but the backend is no longer part of the key, so no session
  * lookup needs this any more. What is left are callers asking which backend a channel runs
  * (conversation ledger, rollback, compaction support), and for them the profile is the source of

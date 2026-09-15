@@ -2,8 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createLogger } from '@core/log.js';
 import { parsePISessionFilename } from '@core/pi-session-filename.js';
-import { effectiveBackendSessionId, type PendingDeletion, type Session, type SessionRegistryRepo } from '@store/session-registry-repo.js';
-import type { SessionRepo } from '@store/session-repo.js';
+import { effectiveBackendSessionId, type PendingDeletion, type Session, type SessionRegistryRepo, type TurnRecord } from '@store/session-registry-repo.js';
 import type { ConversationLedgerRepo } from '@store/conversation-ledger-repo.js';
 import type { ConversationHistoryRepo } from '@store/conversation-history-repo.js';
 import type { RetentionCandidateRepo } from '@store/retention-candidate-repo.js';
@@ -32,8 +31,7 @@ export interface SessionRetentionDeps {
   retentionDays: number;
   now?: () => number;
   registry: SessionRegistryRepo;
-  sessionRepo: Pick<SessionRepo, 'deleteManyBySessionIds' | 'deleteExceptSessionIds'>;
-  ledgerRepo: Pick<ConversationLedgerRepo, 'listBySessionIds' | 'clearBySessionIds' | 'deleteExceptSessionIds'>;
+  ledgerRepo: Pick<ConversationLedgerRepo, 'clearBySessionIds'>;
   historyRepo: Pick<ConversationHistoryRepo, 'clearBySessionIds'>;
   /** Per-session cumulative stats carried over from archived executions. Optional so existing
    *  callers and fixtures keep working; absent ⇒ the carry is simply not pruned. */
@@ -85,9 +83,6 @@ export async function runSessionRetentionSweep(deps: SessionRetentionDeps): Prom
   const live = await safeRegistryListRecentSessions(deps, errors);
   const stillPending = await safeRegistryListPendingDeletions(deps, errors);
   const registryReadable = live.ok && stillPending.ok;
-  if (registryReadable) {
-    await repairDanglingReferences(deps, live.value, stillPending.value, errors);
-  }
   const protectedBackendIds = new Set(deps.liveness.protectedBackendSessionIds);
   const historyOrphanDeleted = registryReadable
     ? await deleteHistoryOrphans(deps, live.value, stillPending.value, cutoffMs, errors)
@@ -135,7 +130,7 @@ async function safeRegistryBeginDeleteExpired(
     return await deps.registry.beginDeleteExpired(
       cutoffMs,
       protectedTracks,
-      session => prepareDeleteCleanup(deps, session),
+      (session, turns) => prepareDeleteCleanup(deps, session, turns),
     );
   } catch (error) {
     errors.push(`registry.beginDeleteExpired: ${(error as Error).message}`);
@@ -187,12 +182,12 @@ async function commitDeletes(
 async function prepareDeleteCleanup(
   deps: SessionRetentionDeps,
   session: Session,
+  turns: TurnRecord[],
 ): Promise<PendingDeletion['cleanup']> {
   if (session.backend !== 'claude') return { claudeBackupPaths: [] };
   const backendId = effectiveBackendSessionId(session);
   if (!backendId) return { claudeBackupPaths: [] };
-  const ledgerRows = await deps.ledgerRepo.listBySessionIds([session.sessionId]);
-  const candidates = ledgerRows.flatMap(row => row.turns.map(turn => turn.backupPath));
+  const candidates = turns.map(turn => turn.backupPath);
   return {
     claudeBackupPaths: await trustedClaudeBackupPaths(deps.paths.claudeProjectDir, backendId, candidates),
   };
@@ -201,7 +196,7 @@ async function prepareDeleteCleanup(
 async function cleanupPendingDelete(deps: SessionRetentionDeps, entry: PendingDeletion): Promise<void> {
   const session = entry.session;
   const backendId = effectiveBackendSessionId(session);
-  await deps.sessionRepo.deleteManyBySessionIds([session.sessionId]);
+  await deps.registry.unbindBySessionIds([session.sessionId]);
   await deps.ledgerRepo.clearBySessionIds([session.sessionId]);
   await deps.historyRepo.clearBySessionIds([session.sessionId]);
   // Otherwise the carry would outlive every session it describes and grow without bound.
@@ -244,26 +239,6 @@ async function realpathOrNull(filePath: string): Promise<string | null> {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
     throw error;
-  }
-}
-
-async function repairDanglingReferences(
-  deps: SessionRetentionDeps,
-  live: Session[],
-  pending: PendingDeletion[],
-  errors: string[],
-): Promise<void> {
-  const liveIds = new Set(live.map((session) => session.sessionId));
-  for (const entry of pending) liveIds.add(entry.session.sessionId);
-  try {
-    await deps.sessionRepo.deleteExceptSessionIds(liveIds);
-  } catch (error) {
-    errors.push(`bindings-repair: ${(error as Error).message}`);
-  }
-  try {
-    await deps.ledgerRepo.deleteExceptSessionIds(liveIds);
-  } catch (error) {
-    errors.push(`ledger-repair: ${(error as Error).message}`);
   }
 }
 

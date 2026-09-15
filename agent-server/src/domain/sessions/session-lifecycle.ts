@@ -66,7 +66,7 @@ export async function registerNamedSession(store: SessionRegistryWriter, opts: R
 
 export interface CreateDirectSessionDeps {
   sessionStore: SessionRegistryWriter;
-  /** Point the channel's sessions.json entry at the new session (so a later send resumes it). */
+  /** Bind the channel to the new session in the registry (so a later send resumes it). */
   setChannelSession(channel: string, sessionId: string, backend: string): Promise<void>;
   /** Initialize the conversation ledger for the new channel/session. */
   initConversation(channel: string, opts: { sessionId: string; sessionName: string; backend: string }): Promise<void>;
@@ -160,8 +160,8 @@ export interface AttachExistingSessionOpts {
   profileName?: string | null;
 }
 
-/** Attach a channel to an existing session: restore its profile (if any), point sessions.json at it,
- *  and switch the conversation ledger. Mirrors the !resume switch sequence. */
+/** Attach a channel to an existing session: restore its profile (if any), bind the channel to it in
+ *  the registry, and switch the conversation ledger. Mirrors the !resume switch sequence. */
 export async function attachExistingSession(channel: string, opts: AttachExistingSessionOpts): Promise<void> {
   if (opts.profileName) setActiveProfile(opts.profileName, channel);
   await setSessionAsync(channel, opts.sessionId);
@@ -199,7 +199,7 @@ export async function adoptScheduledSession(
   return { channel };
 }
 
-/** Clear a channel's session state: drop sessions.json keys for every backend, clean session
+/** Clear a channel's session state: unbind the channel in the registry, clean session
  *  backups, and clear the conversation ledger. Mirrors the store-level half of !new. */
 export async function resetChannelSession(channel: string): Promise<void> {
   const conv = await conversationLedger.getConversation(channel);
@@ -207,7 +207,6 @@ export async function resetChannelSession(channel: string): Promise<void> {
     sessionBackup.cleanupAllBackups(conv.sessionId);
     await conversationLedger.clearConversation(channel);
   }
-  // One channel, one binding: `deleteSessionAsync` clears the key and every legacy
-  // backend-prefixed form of it, so the per-backend fan-out is gone.
+  // One channel, one binding: `deleteSessionAsync` unbinds the channel in the registry.
   await deleteSessionAsync(channel).catch(() => {});
 }

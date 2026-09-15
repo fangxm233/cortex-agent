@@ -1,7 +1,8 @@
 // input:  fs, readline, STORE_DIR, and append/compact journal callers
 // output: JSONL session registry replay, append, compact, and migration helpers
-//         (records + channel bindings + per-session turn history; events: put/patch/delete-*/bind/unbind/turn)
-// pos:    Low-level journal I/O for session registry state
+//         (records + channel bindings + per-CHANNEL conversation header & turn history;
+//          events: put/patch/delete-*/bind/unbind/turn/conversation)
+// pos:    Low-level journal I/O for session registry state — the single owner of session identity
 // >>> Once I am updated, be sure to update my header comment and the parent folder CORTEX.md <<<
 
 import fs from 'node:fs';
@@ -86,6 +87,22 @@ export interface TurnRecord {
   updatedAt: string;
 }
 
+/** Per-channel conversation header — the identity of the conversation currently hosted on a channel,
+ *  independent of the live session record. Turns live in `turns` keyed by the same channel. Both are
+ *  dropped together on `conversation clear` and on `delete-commit` (for every channel bound to the
+ *  committed session). `sessionId`/`sessionName` are null before the first backend session lands. */
+export interface ConversationHeader {
+  sessionId: string | null;
+  sessionName: string | null;
+  backend: string;
+  profileName: string | null;
+  updatedAt: string;
+}
+
+/** Header mutation payload for a `conversation set` event. A key present overwrites; a key absent is
+ *  left untouched (the reducer merges onto the previous header, or onto a null base for a new one). */
+export type ConversationFields = Partial<ConversationHeader>;
+
 /** Patch payload: only the record keys a `patch` may carry. `name`/`sessionId` are identity and
  *  never travel in a patch (the event keys off them). A key set to `null` means "store null"; a key
  *  listed in `unset` is deleted (→ `undefined`); a key in neither is untouched. */
@@ -99,20 +116,27 @@ export type SessionRegistryEvent =
   | { v: 1; op: 'patch'; id: string; name: string; fields: SessionPatchFields; unset?: SessionPatchUnsetKey[] }
   | { v: 1; op: 'bind'; channel: string; sessionId: string }
   | { v: 1; op: 'unbind'; channel: string }
-  | { v: 1; op: 'turn'; id: string; kind: 'begin'; turn: TurnRecord }
-  | { v: 1; op: 'turn'; id: string; kind: 'patch'; turnIndex: number; fields: Partial<TurnRecord> }
-  | { v: 1; op: 'turn'; id: string; kind: 'truncate'; fromIndex: number }
-  | { v: 1; op: 'turn'; id: string; kind: 'clear' };
+  | { v: 1; op: 'turn'; channel: string; kind: 'begin'; turn: TurnRecord }
+  | { v: 1; op: 'turn'; channel: string; kind: 'patch'; turnIndex: number; fields: Partial<TurnRecord> }
+  | { v: 1; op: 'turn'; channel: string; kind: 'truncate'; fromIndex: number }
+  | { v: 1; op: 'turn'; channel: string; kind: 'clear' }
+  | { v: 1; op: 'conversation'; channel: string; kind: 'set'; fields: ConversationFields }
+  | { v: 1; op: 'conversation'; channel: string; kind: 'clear' };
 
 export interface SessionRegistryState {
   live: Map<string, SessionRecord>;
   pending: Map<string, PendingSessionDelete>;
   nameIndex: Map<string, string>;
   /** channel → sessionId of the conversation session hosted on that channel (an explicit index; a
-   *  channel can host several sessions but binds to one at a time). Cleared on delete-commit. */
+   *  channel can host several sessions but binds to one at a time). A free map: bind never checks
+   *  liveness (an unknown or pending session id may be bound). Cleared on delete-commit. */
   bindings: Map<string, string>;
-  /** sessionId → ordered turn history. Only live sessions keep turns; dropped on delete-commit. */
+  /** channel → ordered turn history for the conversation hosted on that channel. Independent of
+   *  liveness; dropped on `conversation clear` and on delete-commit (for every bound channel). */
   turns: Map<string, TurnRecord[]>;
+  /** channel → conversation header (session identity of the hosted conversation). Dropped with the
+   *  turns on `conversation clear` and on delete-commit (for every bound channel). */
+  conversations: Map<string, ConversationHeader>;
   eventCount: number;
   fileSize: number;
 }
@@ -133,6 +157,7 @@ export function createSessionRegistryState(): SessionRegistryState {
     nameIndex: new Map(),
     bindings: new Map(),
     turns: new Map(),
+    conversations: new Map(),
     eventCount: 0,
     fileSize: 0,
   };
@@ -206,14 +231,17 @@ function compactedEvents(state: SessionRegistryState): SessionRegistryEvent[] {
   const events: SessionRegistryEvent[] = [];
   for (const record of state.live.values()) events.push(putEvent(record));
   for (const entry of state.pending.values()) events.push(deleteIntentEvent(entry.session, entry.cleanup));
-  // Bindings and turns are re-materialised for LIVE sessions only — a pending/committed session's
-  // index entries and turn history are dropped (§3). Order: puts → delete-intents → binds → turns.
+  // Bindings, conversation headers and turns are channel-keyed and re-materialised as-is: bind is a
+  // free map (not filtered by liveness), and headers/turns outlive the session record they name.
+  // Order: puts → delete-intents → binds → conversation headers → turns.
   for (const [channel, sessionId] of state.bindings) {
-    if (state.live.has(sessionId)) events.push({ v: 1, op: 'bind', channel, sessionId });
+    events.push({ v: 1, op: 'bind', channel, sessionId });
   }
-  for (const [sessionId, turns] of state.turns) {
-    if (!state.live.has(sessionId)) continue;
-    for (const turn of turns) events.push({ v: 1, op: 'turn', id: sessionId, kind: 'begin', turn });
+  for (const [channel, header] of state.conversations) {
+    events.push({ v: 1, op: 'conversation', channel, kind: 'set', fields: header });
+  }
+  for (const [channel, turns] of state.turns) {
+    for (const turn of turns) events.push({ v: 1, op: 'turn', channel, kind: 'begin', turn });
   }
   return events;
 }
@@ -396,6 +424,7 @@ function normalizeEvent(raw: unknown, lineNo: number): SessionRegistryEvent {
   if (op === 'patch') return normalizePatchEvent(row, lineNo);
   if (op === 'bind') return normalizeBindEvent(row, lineNo);
   if (op === 'unbind') return { v: 1, op: 'unbind', channel: requireField(row, 'channel', lineNo) };
+  if (op === 'conversation') return normalizeConversationEvent(row, lineNo);
   if (op === 'turn') return normalizeTurnEvent(row, lineNo);
   throw new Error(`Unknown session registry op at line ${lineNo}`);
 }
@@ -436,13 +465,21 @@ function normalizeBindEvent(row: Record<string, unknown>, lineNo: number): Sessi
 }
 
 function normalizeTurnEvent(row: Record<string, unknown>, lineNo: number): SessionRegistryEvent {
-  const id = requireId(row, lineNo);
+  const channel = requireField(row, 'channel', lineNo);
   const kind = row?.kind;
-  if (kind === 'begin') return { v: 1, op: 'turn', id, kind, turn: assertTurnRecord(row.turn) };
-  if (kind === 'patch') return { v: 1, op: 'turn', id, kind, turnIndex: toNumberValue(row.turnIndex), fields: assertPartialTurn(row.fields) };
-  if (kind === 'truncate') return { v: 1, op: 'turn', id, kind, fromIndex: toNumberValue(row.fromIndex) };
-  if (kind === 'clear') return { v: 1, op: 'turn', id, kind };
+  if (kind === 'begin') return { v: 1, op: 'turn', channel, kind, turn: assertTurnRecord(row.turn) };
+  if (kind === 'patch') return { v: 1, op: 'turn', channel, kind, turnIndex: toNumberValue(row.turnIndex), fields: assertPartialTurn(row.fields) };
+  if (kind === 'truncate') return { v: 1, op: 'turn', channel, kind, fromIndex: toNumberValue(row.fromIndex) };
+  if (kind === 'clear') return { v: 1, op: 'turn', channel, kind };
   throw new Error(`Unknown session registry turn kind at line ${lineNo}`);
+}
+
+function normalizeConversationEvent(row: Record<string, unknown>, lineNo: number): SessionRegistryEvent {
+  const channel = requireField(row, 'channel', lineNo);
+  const kind = row?.kind;
+  if (kind === 'set') return { v: 1, op: 'conversation', channel, kind, fields: assertConversationFields(row.fields) };
+  if (kind === 'clear') return { v: 1, op: 'conversation', channel, kind };
+  throw new Error(`Unknown session registry conversation kind at line ${lineNo}`);
 }
 
 function normalizeDeleteCleanup(raw: unknown): SessionDeleteCleanup {
@@ -654,26 +691,39 @@ function assertPartialTurn(raw: unknown): Partial<TurnRecord> {
   return fields as Partial<TurnRecord>;
 }
 
+/** Whitelist for the `conversation set` payload. A key not listed is DROPPED on replay (the same
+ *  toOptionalBrowserValue trap that silently lost fields, §8.1) — keep in lock-step with the header. */
+const CONVERSATION_FIELD_READERS: { [K in keyof ConversationHeader]: (value: unknown) => ConversationHeader[K] } = {
+  sessionId: toTurnNullableString,
+  sessionName: toTurnNullableString,
+  backend: toStringValue,
+  profileName: toTurnNullableString,
+  updatedAt: toStringValue,
+};
+
+function assertConversationFields(raw: unknown): ConversationFields {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Invalid session registry conversation fields');
+  const row = raw as Record<string, unknown>;
+  const fields: Record<string, unknown> = {};
+  for (const key of Object.keys(row)) {
+    const reader = CONVERSATION_FIELD_READERS[key as keyof ConversationHeader];
+    if (!reader) throw new Error(`Unknown session registry conversation field: ${key}`);
+    fields[key] = reader(row[key]);
+  }
+  return fields as ConversationFields;
+}
+
 function assertAppendableEvent(state: SessionRegistryState, event: SessionRegistryEvent): void {
   if (event.op === 'put') assertPutAllowed(state, event.record);
   if (event.op === 'delete-intent') assertDeleteIntentAppendable(state, event.record);
   if (event.op === 'delete-commit') assertDeleteCommitAllowed(state, event.id);
   if (event.op === 'patch') assertPatchAppendable(state, event.id);
-  if (event.op === 'bind') assertBindAppendable(state, event.sessionId);
-  if (event.op === 'turn') assertTurnAppendable(state, event.id);
+  // bind / turn / conversation carry no liveness guard: they are channel-scoped and may name a
+  // session that is unknown, pending, or already gone (the free-map contract, §1).
 }
 
 function assertPatchAppendable(state: SessionRegistryState, sessionId: string): void {
   if (!state.live.has(sessionId)) throw new Error(`Patch for non-live session: ${sessionId}`);
-}
-
-function assertBindAppendable(state: SessionRegistryState, sessionId: string): void {
-  if (state.pending.has(sessionId)) throw new Error(`Cannot bind pending-deletion session: ${sessionId}`);
-  if (!state.live.has(sessionId)) throw new Error(`Cannot bind unknown session: ${sessionId}`);
-}
-
-function assertTurnAppendable(state: SessionRegistryState, sessionId: string): void {
-  if (!state.live.has(sessionId)) throw new Error(`Turn for non-live session: ${sessionId}`);
 }
 
 function assertPutAllowed(state: SessionRegistryState, record: SessionRecord): void {
@@ -708,11 +758,12 @@ function applyEvent(state: SessionRegistryState, event: SessionRegistryEvent): v
   if (event.op === 'patch') return applyPatch(state, event);
   if (event.op === 'bind') return applyBind(state, event.channel, event.sessionId);
   if (event.op === 'unbind') return applyUnbind(state, event.channel);
+  if (event.op === 'conversation') return applyConversation(state, event);
   applyTurn(state, event);
 }
 
-/** Lenient replay: a patch/bind/turn whose session is no longer live (deleted later, or a torn
- *  compaction reorder) is skipped rather than thrown — the strict guards live in the append path. */
+/** Lenient replay: a patch whose session is no longer live (deleted later, or a torn compaction
+ *  reorder) is skipped rather than thrown — the strict guard lives in the append path. */
 function applyPatch(state: SessionRegistryState, event: Extract<SessionRegistryEvent, { op: 'patch' }>): void {
   const record = state.live.get(event.id);
   if (!record) return;
@@ -721,8 +772,9 @@ function applyPatch(state: SessionRegistryState, event: Extract<SessionRegistryE
   state.live.set(event.id, next as unknown as SessionRecord);
 }
 
+/** Free-map bind: never gated on liveness — a channel may bind to an unknown, pending, or already
+ *  committed session id, and it simply stays until unbind or delete-commit. */
 function applyBind(state: SessionRegistryState, channel: string, sessionId: string): void {
-  if (!state.live.has(sessionId)) return;
   state.bindings.set(channel, sessionId);
 }
 
@@ -730,20 +782,32 @@ function applyUnbind(state: SessionRegistryState, channel: string): void {
   state.bindings.delete(channel);
 }
 
+/** Channel-keyed turns: independent of the session record. `clear` drops the channel's list. */
 function applyTurn(state: SessionRegistryState, event: Extract<SessionRegistryEvent, { op: 'turn' }>): void {
-  if (!state.live.has(event.id)) return;
-  const turns = state.turns.get(event.id) ?? [];
+  const turns = state.turns.get(event.channel) ?? [];
   if (event.kind === 'begin') {
     turns.push(event.turn);
-    state.turns.set(event.id, turns);
+    state.turns.set(event.channel, turns);
   } else if (event.kind === 'patch') {
     const idx = turns.findIndex(turn => turn.turnIndex === event.turnIndex);
     if (idx >= 0) turns[idx] = { ...turns[idx], ...event.fields };
   } else if (event.kind === 'truncate') {
-    state.turns.set(event.id, turns.filter(turn => turn.turnIndex < event.fromIndex));
+    state.turns.set(event.channel, turns.filter(turn => turn.turnIndex < event.fromIndex));
   } else {
-    state.turns.set(event.id, []);
+    state.turns.delete(event.channel);
   }
+}
+
+/** Channel-keyed conversation header. `set` merges the payload onto the previous header (or onto a
+ *  null base if the channel had none); `clear` drops the header. */
+function applyConversation(state: SessionRegistryState, event: Extract<SessionRegistryEvent, { op: 'conversation' }>): void {
+  if (event.kind === 'clear') {
+    state.conversations.delete(event.channel);
+    return;
+  }
+  const base: ConversationHeader = state.conversations.get(event.channel)
+    ?? { sessionId: null, sessionName: null, backend: '', profileName: null, updatedAt: '' };
+  state.conversations.set(event.channel, { ...base, ...event.fields });
 }
 
 function applyPut(state: SessionRegistryState, record: SessionRecord): void {
@@ -768,11 +832,14 @@ function applyDeleteIntent(
 function applyDeleteCommit(state: SessionRegistryState, sessionId: string): void {
   assertDeleteCommitAllowed(state, sessionId);
   state.pending.delete(sessionId);
-  // A committed session keeps neither channel bindings nor turn history (§1, §3).
+  // A committed session keeps nothing on any channel bound to it: binding, turn history and the
+  // conversation header are all dropped together (§1, §3). Unbind alone never touches turns/header.
   for (const [channel, boundId] of state.bindings) {
-    if (boundId === sessionId) state.bindings.delete(channel);
+    if (boundId !== sessionId) continue;
+    state.bindings.delete(channel);
+    state.turns.delete(channel);
+    state.conversations.delete(channel);
   }
-  state.turns.delete(sessionId);
 }
 
 async function appendLineWithRollback(
