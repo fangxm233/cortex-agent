@@ -100,6 +100,19 @@ test('a non-image keeps the declared mime, and its name survives the round trip'
   expect(meta?.size).toBeGreaterThan(0);
 });
 
+test('a platform that declares no mimetype at all gets one from the filename', async () => {
+  // Feishu hands every `file` message over with an empty mimetype.
+  const { prepareInboundAttachmentDir, finalizeInboundFile, inboundAttachmentMeta } = await store();
+  const dir = await prepareInboundAttachmentDir('feishu:oc_1-om_4');
+  const written = path.join(dir, 'file_v3_00xk');
+  await fs.writeFile(written, Buffer.from('%PDF-1.7\n…'));
+
+  const settled = await finalizeInboundFile({ localPath: written, mimetype: '', name: 'contract.pdf' }, dir);
+
+  expect(settled.mimetype).toBe('application/pdf');
+  expect((await inboundAttachmentMeta(settled))?.mimeType).toBe('application/pdf');
+});
+
 test('an image download becomes an image card the Web UI can link to', async () => {
   const { prepareInboundAttachmentDir, finalizeInboundFile, inboundAttachmentMeta } = await store();
   const dir = await prepareInboundAttachmentDir('feishu:oc_1-om_3');

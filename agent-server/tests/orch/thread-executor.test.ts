@@ -269,6 +269,29 @@ test('(g4) next-step readiness waits for the platform download registered by buf
   assert.match(runningThread.metadata.pendingUserInputs[0].text, /thread-delayed\.txt/);
 });
 
+test('(g4b) an attachment that will not download is reported in the channel, not swallowed', async () => {
+  const channel = freshChannel();
+  const adapter = new MockAdapter() as any;
+  adapter.downloadFile = async () => { throw new Error('Feishu resource fetch failed: 234003'); };
+  const ctx = makeCtx(channel, {
+    adapter, hasFiles: true, agentMessage: 'look at this',
+    threadStartMatch: ['!thread coder look at this', 'coder', 'look at this'] as any,
+    message: {
+      ref: { conduit: channel, messageId: 'M-lost', threadId: null }, text: 'look at this', isBot: false,
+      files: [{ id: 'L1', name: 'photo.png', mimetype: 'image/png', url: 'https://files.invalid/L1', conduit: channel }],
+    },
+  });
+
+  // Routing goes on to fail on the unknown template; the notice is posted before that, which is
+  // the point — the user learns the picture never arrived either way.
+  await (new ThreadExecutor({ enqueue: () => false, track: () => {} }) as any)._executeReal(ctx as any);
+
+  const notice = adapter.posted.find((p: any) => String(p.content.text).includes('Could not download'));
+  assert.ok(notice, 'a failed download is reported in the channel');
+  assert.match(notice.content.text, /photo\.png/);
+  assert.match(notice.content.text, /234003/);
+});
+
 test('(g5) cap eviction releases readiness and late download completion cannot resurrect input', async () => {
   const channel = freshChannel();
   const adapter = new MockAdapter() as any;

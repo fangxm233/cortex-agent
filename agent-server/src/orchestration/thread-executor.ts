@@ -7,6 +7,7 @@ import { getActiveHandle } from '@domain/threads/runner.js';
 import { openThreadRun, type ThreadRunInput } from './thread-run/index.js';
 import { threadStore } from '@store/thread-repo.js';
 import { type ThreadExecCtx, downloadFiles, bufferUserMessage } from './thread-input.js';
+import type { AttachmentFailure } from './routing/file-handler.js';
 
 export type { ThreadExecCtx };
 
@@ -65,9 +66,11 @@ export class ThreadExecutor {
    *  cancellation rendering (onto the live status message, with the elapsed clock) belongs to it. */
   private async _executeReal(ctx: ThreadExecCtx): Promise<void> {
     const startTime = Date.now();
-    // A thread's first step takes the files; a failed download is named in the buffered-input
-    // prompt instead (thread-input), and logged by the downloader either way.
-    const { files: downloadedFiles } = await downloadFiles(ctx.message, ctx.hasFiles, ctx.adapter);
+    // A thread's first step takes the files. An attachment that would not download cannot be named
+    // in the step prompt (the template composes it), so the user is told in the channel instead —
+    // the one thing that must not happen is the whole thing passing in silence.
+    const { files: downloadedFiles, failures } = await downloadFiles(ctx.message, ctx.hasFiles, ctx.adapter);
+    if (failures.length > 0) await this._reportFailedDownloads(ctx, failures);
     const args = { channel: ctx.channel, adapter: ctx.adapter, threadAnchorId: ctx.threadAnchorId, startTime, downloadedFiles };
     try {
       if (ctx.threadAddMatch) {
@@ -88,6 +91,16 @@ export class ThreadExecutor {
         ctx.threadAnchorId ? { threadId: ctx.threadAnchorId } : undefined,
       ).catch(() => {});
     }
+  }
+
+  /** Tell the channel which attachments did not make it into the thread. */
+  private async _reportFailedDownloads(ctx: ThreadExecCtx, failures: AttachmentFailure[]): Promise<void> {
+    const list = failures.map((f) => `• ${f.name} — ${f.reason}`).join('\n');
+    await ctx.adapter.postMessage(
+      { type: 'interactive-reply', conduit: ctx.channel, sessionId: '' },
+      { text: `${Icons.warning} Could not download ${failures.length} attachment(s); the thread runs without them:\n${list}` },
+      ctx.threadAnchorId ? { threadId: ctx.threadAnchorId } : undefined,
+    ).catch(() => {});
   }
 }
 
