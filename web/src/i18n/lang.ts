@@ -1,4 +1,4 @@
-// input:  bilingual vocab tables, viewport width, cached language choice
+// input:  bilingual vocab tables, cached language choice
 // output: Lang type, vocab picker, and the local-storage CACHE of the server language
 // pos:    Language resolution helpers. The language itself is owned by the server
 //         (config/preferences.json); see LangProvider.
@@ -6,10 +6,11 @@ import { en, zh, type Vocab } from './vocab';
 
 export type Lang = 'en' | 'zh';
 
-// Mobile / desktop boundary. Matches Tailwind's default `md` breakpoint:
-// width <= 767 is mobile (→ zh); >= 768 is desktop (→ en).
+// Browser layout boundary used by useMobileLayout; matches Tailwind's default `md` breakpoint.
+// Language is independent of the current layout.
 export const MOBILE_MAX_WIDTH = 767;
 
+/** Legacy width-to-language helper; not used for the active language or layout. */
 export function deriveLang(viewportWidth: number): Lang {
   return viewportWidth <= MOBILE_MAX_WIDTH ? 'zh' : 'en';
 }

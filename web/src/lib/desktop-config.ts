@@ -59,8 +59,13 @@ export function isDesktopShell(): boolean {
 /**
  * True when running inside the dedicated mobile client shell. The mobile shell sets
  * `window.__CORTEX_MOBILE__ = true` synchronously before the bundle executes (mirrors
- * `__CORTEX_DESKTOP__`). This is the ONLY thing that selects the mobile UI — a narrow browser
- * window is NOT mobile. Browser / desktop / ui-http all return false → the desktop UI.
+ * `__CORTEX_DESKTOP__`). Browser / desktop / ui-http all return false.
+ *
+ * This predicate is about the NATIVE shell, not the rendered layout: a narrow browser window
+ * still returns false here. The mobile/desktop LAYOUT switch is `useMobileLayout()` in
+ * `lib/use-mobile-layout.ts`, which pins native shells to their own layout and lets ordinary
+ * browsers follow the viewport breakpoint. Native-only capabilities (notifications, download/upload, media
+ * session) deliberately keep using this shell predicate.
  */
 export function isMobileShell(): boolean {
   return (globalThis as unknown as { __CORTEX_MOBILE__?: boolean }).__CORTEX_MOBILE__ === true;

@@ -1,5 +1,7 @@
 import { Navigate } from 'react-router-dom';
 import { createShellRouter } from '@/router-factory';
+import { ResponsiveRoute } from '@/responsive-route';
+import { mobileRoutes } from '@/mobile/mobile-routes';
 import { AppShell } from '@/shell/AppShell';
 import { EmptyPane } from '@/shell/EmptyPane';
 import { WorkbenchPage } from '@/features/workbench/WorkbenchPage';
@@ -15,7 +17,7 @@ export const router = createShellRouter([
   { path: '/setup/providers', element: <ProviderSetupPage /> },
   {
     path: '/',
-    element: <AppShell />,
+    element: <ResponsiveRoute mobile={false}><AppShell /></ResponsiveRoute>,
     children: [
       { index: true, element: <Navigate to="/workbench" replace /> },
       { path: 'workbench', element: <WorkbenchPage /> },
@@ -28,4 +30,8 @@ export const router = createShellRouter([
       { path: 'base', element: <BaseDemoPage /> },
     ],
   },
+  ...mobileRoutes.map((route) => ({
+    ...route,
+    element: <ResponsiveRoute mobile>{route.element}</ResponsiveRoute>,
+  })),
 ]);

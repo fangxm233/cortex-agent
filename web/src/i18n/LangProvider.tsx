@@ -1,12 +1,14 @@
-// input:  shell config, cached language, and (optionally) the server language sync
+// input:  native shell flags + browser viewport, cached language, and (optionally) the server sync
 // output: LangProvider + useLang/useSetLang/useVocab/useLangSource/useIsMobile hooks
 // pos:    Holds the active language. The VALUE is owned by the server (config/preferences.json →
 //         `lang`), because the same knob decides what Cortex speaks in the conversation; this
 //         provider just holds it, caches it for first paint, and writes changes back through the
-//         sync seam. Mount <LangServerSync/> inside it wherever tRPC is available.
+//         sync seam. Mount <LangServerSync/> inside it wherever tRPC is available. `isMobile`,
+//         exposed as useIsMobile, is the LAYOUT switch (lib/use-mobile-layout.ts) and is
+//         independent of the language value.
 
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
-import { isMobileShell } from '@/lib/desktop-config';
+import { useMobileLayout } from '@/lib/use-mobile-layout';
 import { pickVocab, readStoredLang, storeLang, type Lang } from './lang';
 import { type Vocab } from './vocab';
 
@@ -46,7 +48,7 @@ export function LangProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<{ lang: Lang; source: LangSource }>(
     () => ({ lang: readStoredLang(), source: 'cache' }),
   );
-  const isMobile = isMobileShell();
+  const isMobile = useMobileLayout();
   const writerRef = useRef<((lang: Lang) => void) | null>(null);
 
   const setLang = useCallback((next: Lang) => {
@@ -116,7 +118,8 @@ export function useVocabOptional(): Vocab {
   return ctx?.vocab ?? pickVocab(readStoredLang());
 }
 
-// True only inside the dedicated mobile client shell. Drives the mobile/desktop render switch.
+// The active mobile LAYOUT: native mobile shell, or a browser viewport ≤ MOBILE_MAX_WIDTH. Native
+// desktop is always false. Language-independent — the language is a separate, server-owned knob.
 export function useIsMobile(): boolean {
   return useLangContext().isMobile;
 }
