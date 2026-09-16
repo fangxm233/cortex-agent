@@ -175,9 +175,9 @@ export const enBase = {
   wbFollowAll: 'follow the profile for everything',
   wbFilterModels: 'filter…',
   // The picker draws nothing unpickable; these say, in one line, how much was held back.
-  wbHiddenModels: '{n} more models not available this session',
-  wbHiddenProfiles: '{n} more profiles not available this session',
-  wbHiddenNoProfile: '{n} more models have no available profile',
+  wbHiddenModels: '{n} models unavailable this session',
+  wbHiddenProfiles: '{n} profiles unavailable this session',
+  wbHiddenNoProfile: '{n} models have no profile',
   wbModelsPending: 'loading models…',
   wbNewConversation: 'New conversation',
   wbSend: 'send',
