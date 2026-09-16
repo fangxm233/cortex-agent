@@ -5,7 +5,7 @@
 //         HttpOnly cookie; every later request is admitted by that id instead of the token, so the
 //         secret itself never enters the page's JavaScript. Ids are 32 random bytes with an
 //         ABSOLUTE expiry (verify never renews — that keeps verify write-free), persisted to
-//         DATA_DIR/ui-sessions.json at 0600 so a daemon restart does not log every browser out.
+//         STORE_DIR/ui-sessions.json at 0600 so a daemon restart does not log every browser out.
 //         A session id is bearer-equivalent but strictly weaker than the token: the auth gate never
 //         accepts it on the /forward WebSocket upgrade (see ui-http-server.ts).
 

@@ -2,7 +2,7 @@ import '../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts
 import { describe, test, beforeAll, afterAll, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import * as http from 'node:http';
-import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync, readFileSync, statSync, existsSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { initTRPC } from '@trpc/server';
@@ -14,7 +14,7 @@ import type { AccessJwtVerifier } from '@platform/ui-http/access-jwt.js';
 import { startUiHttpServer, resolveWorkspacePath } from '@entry/start-ui-http.js';
 import { UI_OTA_MANIFEST_PATH, UI_OTA_BUNDLE_PATH } from '@platform/ui-http/ui-ota.js';
 import { APP_UPDATE_MANIFEST_PATH } from '@platform/ui-http/app-update.js';
-import { WORKSPACE_DIR } from '@core/paths.js';
+import { WORKSPACE_DIR, DATA_DIR, STORE_DIR } from '@core/paths.js';
 import type { UiService, UiEvent } from '@domain/ui-service/types.js';
 
 const liveSettings = vi.hoisted(() => ({ uiCorsOrigins: [] as string[] }));
@@ -293,6 +293,44 @@ async function bootWiring(env: Record<string, string>, spaDir?: string, corsOrig
   const { port } = await awaitListening(inst!.server);
   return { inst: inst!, port };
 }
+
+test('default UI sessions persist under CORTEX_HOME/data, survive restart, and never read legacy sessions', async () => {
+  assert.equal(DATA_DIR, process.env.CORTEX_HOME);
+  const destination = path.join(STORE_DIR, 'ui-sessions.json');
+  const source = path.join(DATA_DIR, 'ui-sessions.json');
+  const legacy = JSON.stringify({ 'legacy-fixture': Date.now() + 60_000 });
+  writeFileSync(source, legacy, { mode: 0o600 });
+  const env = { CORTEX_UI_HTTP: '1', CORTEX_UI_PORT: '0' };
+  try {
+    const first = await bootWiring(env);
+    assert.equal(existsSync(destination), false);
+    const login = await req(first.port, 'POST', '/api/ui/login',
+      { 'content-type': 'application/json' }, JSON.stringify({ token: TOKEN }));
+    assert.equal(login.statusCode, 200);
+    const cookie = login.headers['set-cookie']![0].split(';')[0];
+    assert.equal(existsSync(destination), true);
+    assert.equal(statSync(destination).mode & 0o777, 0o600);
+    assert.equal(readFileSync(source, 'utf8'), legacy);
+    await first.inst.close();
+
+    const second = await bootWiring(env);
+    const probe = await get(second.port, '/api/ui/session', { cookie });
+    assert.equal(JSON.parse(probe.body).data.authenticated, true);
+    const legacyCookie = `${cookie.split('=')[0]}=legacy-fixture`;
+    const rejected = await get(second.port, '/api/ui/session', { cookie: legacyCookie });
+    assert.equal(JSON.parse(rejected.body).data.authenticated, false);
+    await second.inst.close();
+
+    rmSync(destination);
+    const third = await bootWiring(env);
+    const noFallback = await get(third.port, '/api/ui/session', { cookie: legacyCookie });
+    assert.equal(JSON.parse(noFallback.body).data.authenticated, false);
+    await third.inst.close();
+  } finally {
+    rmSync(source, { force: true });
+    rmSync(destination, { force: true });
+  }
+});
 
 // ── Port forward: the upgrade path is TOKEN-ONLY ──────────────────────────────
 // The forward hands out a raw TCP channel to the server's loopback. A browser page riding a

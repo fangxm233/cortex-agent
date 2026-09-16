@@ -463,6 +463,38 @@ const stepMigrations: StepMigration[] = [
     version: '2026.9.14',
     run: async ({ storeDir }) => { await importLegacySessionStores(storeDir, { version: '2026.9.14' }); },
   },
+  // S2: relocate browser credentials without parsing or logging their contents.
+  // Never merge/overwrite a destination: it may already reflect revoked sessions.
+  {
+    key: 'data/ui-sessions.json',
+    version: '2026.9.15',
+    run: async ({ dataDir, storeDir }) => {
+      const source = path.join(dataDir, 'ui-sessions.json');
+      const destination = path.join(storeDir, 'ui-sessions.json');
+      try {
+        await fs.lstat(destination);
+        return; // Keep the legacy source on conflict (including dangling symlinks).
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      }
+      try {
+        await fs.chmod(source, 0o600);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+        throw error;
+      }
+      await fs.mkdir(storeDir, { recursive: true });
+      try {
+        // COPYFILE_EXCL also protects a destination created after the check above.
+        // copyFile preserves the source mode, so credentials are never written world-readable.
+        await fs.copyFile(source, destination, fs.constants.COPYFILE_EXCL);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'EEXIST') return;
+        throw error;
+      }
+      await fs.unlink(source);
+    },
+  },
 ];
 
 // ── Versions file I/O ──────────────────────────────────────────

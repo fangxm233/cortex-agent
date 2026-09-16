@@ -765,6 +765,66 @@ test('provider usage migration leaves an unrecognised file shape untouched', asy
   assert.deepEqual(await readJson(target), { rateLimitThrottle: null, resumeQueue: [] });
 });
 
+// ── Browser session location (registered S2 step) ──────────────
+
+for (const scenario of ['absent', 'present', 'conflict'] as const) {
+  test(`UI session migration: ${scenario}, repeated with and without version tracking`, async () => {
+    const dirs = setupDirs(_testIdx++);
+    const source = path.join(dirs.dataDir, 'ui-sessions.json');
+    const destination = path.join(dirs.storeDir, 'ui-sessions.json');
+    const versionsFile = path.join(dirs.storeDir, 'versions.json');
+    const legacy = JSON.stringify({ 'fixture-browser-session': Date.now() + 60_000 });
+    // An existing, empty destination represents sessions that have been revoked.
+    if (scenario !== 'absent') {
+      await writeText(source, legacy);
+      await fs.chmod(source, 0o600);
+    }
+    if (scenario === 'conflict') await writeText(destination, '{}');
+    // Existing migration keys must not suppress this new independent step.
+    const existingVersions = { 'data/session-registry.jsonl': '2026.9.15' };
+    await writeJson(versionsFile, existingVersions);
+
+    for (let run = 0; run < 3; run++) {
+      // Also prove action-level idempotence if the tracking file is lost.
+      if (run === 2) await writeJson(versionsFile, existingVersions);
+      await runMigrations(dirs);
+      const versions = await readJson(versionsFile) as Record<string, string>;
+      assert.equal(versions['data/ui-sessions.json'], '2026.9.15');
+      if (scenario === 'absent') {
+        await assert.rejects(fs.stat(destination), { code: 'ENOENT' });
+      } else if (scenario === 'conflict') {
+        assert.equal(await readText(destination), '{}');
+        assert.equal(await readText(source), legacy);
+      } else {
+        assert.equal(await readText(destination), legacy);
+        assert.equal((await fs.stat(destination)).mode & 0o777, 0o600);
+        await assert.rejects(fs.stat(source), { code: 'ENOENT' });
+      }
+    }
+  });
+}
+
+test('UI session migration: filesystem failure leaves key pending and retries next run', async () => {
+  const dirs = setupDirs(_testIdx++);
+  const source = path.join(dirs.dataDir, 'ui-sessions.json');
+  // A directory cannot be copied as a credential file (portable failure injection).
+  await fs.mkdir(source, { recursive: true });
+  try {
+    await runMigrations(dirs);
+    const versions = await readJson(path.join(dirs.storeDir, 'versions.json')) as Record<string, string>;
+    assert.equal(versions['data/ui-sessions.json'], undefined);
+  } finally {
+    await fs.chmod(source, 0o700);
+    await fs.rmdir(source);
+  }
+  await fs.writeFile(source, '{}', { mode: 0o600 });
+  await runMigrations(dirs);
+  const versions = await readJson(path.join(dirs.storeDir, 'versions.json')) as Record<string, string>;
+  assert.equal(versions['data/ui-sessions.json'], '2026.9.15');
+  assert.equal(await readText(path.join(dirs.storeDir, 'ui-sessions.json')), '{}');
+  await assert.rejects(fs.stat(source), { code: 'ENOENT' });
+});
+
 // ── Step migrations (generic step-runner contract) ─────────────
 // The step framework is exercised via the `stepMigrations` override in MigrationOptions so we can
 // drive bump / skip / throw / ordering with probe steps rather than the real S1 import.

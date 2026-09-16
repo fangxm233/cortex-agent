@@ -29,7 +29,7 @@ import type { UiService } from '@domain/ui-service/types.js';
 import { getClientToken } from '@core/auth.js';
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
-import { WORKSPACE_DIR, DATA_DIR, resolveWorkspaceRelPath } from '@core/paths.js';
+import { WORKSPACE_DIR, STORE_DIR, resolveWorkspaceRelPath } from '@core/paths.js';
 import { projectStore } from '@domain/projects/project-store.js';
 import { resolveMemoryFilePath } from '@domain/ui-service/query/memory.js';
 
@@ -45,7 +45,7 @@ function isEnabled(env: NodeJS.ProcessEnv): boolean {
 }
 
 /** Where browser sessions survive a daemon restart. Written 0600 by the store. */
-const SESSIONS_FILE = path.join(DATA_DIR, 'ui-sessions.json');
+const SESSIONS_FILE = path.join(STORE_DIR, 'ui-sessions.json');
 
 /**
  * Token login is ON unless explicitly switched off — a browser reaching this server can log in by
@@ -114,7 +114,7 @@ export interface StartUiHttpOptions {
   verifyAccessJwt?: AccessJwtVerifier;
   /**
    * Explicit session store for the browser token-login path. Production builds one backed by
-   * DATA_DIR/ui-sessions.json; tests inject a memory-only store so they never touch the real file.
+   * STORE_DIR/ui-sessions.json; tests inject a memory-only store so they never touch the real file.
    * Ignored when CORTEX_UI_TOKEN_LOGIN is switched off.
    */
   sessionStore?: UiSessionStore;
