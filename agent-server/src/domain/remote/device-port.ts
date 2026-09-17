@@ -118,6 +118,10 @@ async function serveConnection(entry: Entry, tcp: net.Socket): Promise<void> {
     return;
   }
 
+  // The claim rejects on its own timer even if we bail out below without awaiting it, and an
+  // unobserved rejection would take the daemon down. The await further down still sees the error.
+  req.socket.catch(() => {});
+
   try {
     sendControl(device, req.message);
   } catch (err) {
