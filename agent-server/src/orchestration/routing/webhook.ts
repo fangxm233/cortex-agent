@@ -7,6 +7,7 @@ import * as crypto from 'crypto';
 import { readFileSync } from 'fs';
 import { taskMutator } from '@domain/tasks/mutator.js';
 import { sendCommand, isDeviceOnline, getOnlineDevices } from '@domain/remote/client-manager.js';
+import { stageRemoteFile } from '@domain/remote/device-file.js';
 import { registerDispatchExecution } from '@domain/executions/registry.js';
 import { registerAskQuestion, registerPlanApproval } from './hook-bridge.js';
 import { normalizeAskLevel } from '@platform/index.js';
@@ -213,6 +214,32 @@ function createWebhookHandler(_options: {
       return;
     }
 
+    // --- Remote file staging (from MCP sidecar → client-manager reverse channel) ---
+    // For senders that upload from a local path themselves (Slack, Feishu): stream the device's
+    // file into a server-local staging area and hand back the path. The Web `send_file` does NOT
+    // come through here — it passes `device` to /webhook/ui-file and the daemon streams straight
+    // into the session's outputs, saving a full copy of every transfer.
+    if (req.method === 'POST' && req.url === '/webhook/remote-fetch') {
+      readJsonBody(req, async (error, _body, data) => {
+        if (error) { res.writeHead(400); res.end('Bad JSON'); return; }
+        const { device, filePath, maxBytes } = data || {};
+        if (!device || !filePath) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, error: 'device and filePath required' }));
+          return;
+        }
+        try {
+          const staged = await stageRemoteFile({ device, filePath, maxBytes });
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, data: staged }));
+        } catch (e) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, error: (e as Error).message }));
+        }
+      });
+      return;
+    }
+
     // --- Remote task operation (from MCP sidecar on branch bases) ---
     if (req.method === 'POST' && req.url === '/webhook/task-op') {
       readJsonBody(req, async (error, _body, data) => {
@@ -246,14 +273,14 @@ function createWebhookHandler(_options: {
     if (req.method === 'POST' && req.url === '/webhook/ui-file') {
       readJsonBody(req, async (error, _body, data) => {
         if (error) { res.writeHead(400); res.end('Bad JSON'); return; }
-        const { sessionId, filePath, fileName, caption } = data || {};
+        const { sessionId, filePath, fileName, caption, device } = data || {};
         if (!sessionId || !filePath) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ success: false, error: 'sessionId and filePath required' }));
           return;
         }
         try {
-          const meta = await sendAgentFile({ sessionId, filePath, fileName, caption });
+          const meta = await sendAgentFile({ sessionId, filePath, fileName, caption, device });
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ success: true, data: meta }));
         } catch (e) {

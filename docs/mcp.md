@@ -149,7 +149,7 @@ from Slack, providing platform-specific file upload and messaging capabilities.
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `slack_send_file` | `file_path`, `file_name?`, `title?`, `comment?` | Upload a local file to Slack |
+| `slack_send_file` | `file_path`, `file_name?`, `title?`, `comment?`, `device?` | Upload a file to Slack; with `device`, the file is read on that remote device |
 
 The server implementation is at `agent-server/src/domain/mcp/slack-server.ts`.
 
@@ -160,7 +160,7 @@ originates from Feishu. It exposes a single tool — sending files to a chat.
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `feishu_send_file` | `file_path`, `file_name?`, `title?`, `channel?` | Upload a local file to a Feishu chat |
+| `feishu_send_file` | `file_path`, `file_name?`, `title?`, `channel?`, `device?` | Upload a file to a Feishu chat; with `device`, the file is read on that remote device |
 
 Document, table, spreadsheet, and knowledge-base operations are **not** MCP
 tools. They run through the official Lark/Feishu CLI (`@larksuite/cli`), driven
@@ -181,7 +181,7 @@ or Feishu-originated session never sees these tools.
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `send_file` | `file_path`, `file_name?`, `caption?` | Send a file into the chat as a downloadable card (images and video preview inline) |
+| `send_file` | `file_path`, `file_name?`, `caption?`, `device?` | Send a file into the chat as a downloadable card (images and video preview inline); with `device`, the file is read on that remote device |
 | `send_view` | `title`, `html?`, `file_path?`, `caption?`, `height?` | Render an HTML view inline in the chat as a live, interactive card |
 | `send_decision` | `decisions[]` — each `title`, `decision`, `context`, `reasoning` | Record decisions the agent just made and show them as cards in the chat |
 

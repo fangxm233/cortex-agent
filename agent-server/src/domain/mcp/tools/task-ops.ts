@@ -7,6 +7,7 @@ import { pathToFileURL } from 'url';
 import { WORKSPACE_DIR } from '@core/utils.js';
 import { requestLoopbackJson } from '@core/loopback-http.js';
 import { cortexMDContentBlocks, type CortexMDEntry } from './cortex-md.js';
+import { isAbsoluteFilePath } from './remote-file.js';
 import { webhookAuthHeaders, type CortexToolContext } from './context.js';
 
 // Remote device commands are proxied through the daemon webhook: client-manager lives in the
@@ -22,14 +23,6 @@ async function proxySendCommand(
   );
   if (!body.success) throw new Error(body.error || 'Command failed');
   return body.data;
-}
-
-/** Cross-platform absolute-path check (server runs on Linux but validates paths for Windows clients). */
-function isAbsoluteFilePath(p: string): boolean {
-  if (path.isAbsolute(p)) return true;
-  // Windows absolute: D:\, D:/, etc.
-  if (/^[A-Za-z]:[/\\]/.test(p)) return true;
-  return false;
 }
 
 // --- Tool result persistence ---

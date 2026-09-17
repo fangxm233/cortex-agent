@@ -43,24 +43,20 @@ export function parseStreamId(rawUrl: string | undefined): string | null {
   return id && /^[0-9a-f]{32}$/.test(id) ? id : null;
 }
 
-export interface StreamRequest {
+export interface StreamRequest<M = { type: 'open-stream'; streamId: string; host: string; port: number }> {
   id: string;
   /** Message to hand to the device over its control socket. */
-  message: { type: 'open-stream'; streamId: string; host: string; port: number };
+  message: M;
   /** Resolves with the device's callback socket, or rejects on timeout. */
   socket: Promise<WebSocket>;
 }
 
-/**
- * Mint a stream the device is expected to dial back for. The caller sends `message` over the
- * device's control socket and then awaits `socket`.
- */
-export function requestStream(device: string, host: string, port: number): StreamRequest {
+/** Mint a pending callback slot. `target` is for logging and the timeout message only. */
+function mintStream(device: string, target: string): { id: string; socket: Promise<WebSocket> } {
   if (pending.size >= MAX_PENDING) {
     throw new Error(`too many pending reverse streams (${pending.size})`);
   }
   const id = crypto.randomBytes(16).toString('hex');
-  const target = `${host}:${port}`;
   let resolve!: (ws: WebSocket) => void;
   let reject!: (err: Error) => void;
   const socket = new Promise<WebSocket>((res, rej) => { resolve = res; reject = rej; });
@@ -70,7 +66,28 @@ export function requestStream(device: string, host: string, port: number): Strea
   }, CLAIM_TIMEOUT_MS);
   timer.unref?.();
   pending.set(id, { device, target, resolve, reject, timer });
+  return { id, socket };
+}
+
+/**
+ * Mint a stream the device is expected to dial back for. The caller sends `message` over the
+ * device's control socket and then awaits `socket`.
+ */
+export function requestStream(device: string, host: string, port: number): StreamRequest {
+  const { id, socket } = mintStream(device, `${host}:${port}`);
   return { id, message: { type: 'open-stream', streamId: id, host, port }, socket };
+}
+
+export type OpenFileStreamMessage = { type: 'open-file-stream'; streamId: string; path: string };
+
+/**
+ * Same handshake as `requestStream`, but the device answers with the bytes of a FILE rather than a
+ * TCP connection. Both share the claim table, the cap and the callback path, so a file transfer
+ * needs no new port, credential or tunnel — only a different message on the control socket.
+ */
+export function requestFileStream(device: string, filePath: string): StreamRequest<OpenFileStreamMessage> {
+  const { id, socket } = mintStream(device, filePath);
+  return { id, message: { type: 'open-file-stream', streamId: id, path: filePath }, socket };
 }
 
 /**

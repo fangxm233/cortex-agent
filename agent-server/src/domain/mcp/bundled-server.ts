@@ -75,7 +75,7 @@ const feishuLoader: RegistrarLoader = async (ctx) => {
   ]);
   // App credentials stay process-wide (one Feishu app per daemon); only the channel is per session.
   const client = buildFeishuClientFromEnv();
-  return server => registerFeishuTools(server, { client, fallbackChannel: ctx.channel });
+  return server => registerFeishuTools(server, { client, fallbackChannel: ctx.channel, ctx });
 };
 
 const webLoader: RegistrarLoader = async (ctx) => {

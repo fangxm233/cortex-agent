@@ -108,7 +108,7 @@ Slack 平台特定的 MCP 服务器。仅当会话源自 Slack 时加载，提�
 
 | 工具 | 参数 | 描述 |
 |---|---|---|
-| `slack_send_file` | `file_path`、`file_name?`、`title?`、`comment?` | 上传本地文件到 Slack |
+| `slack_send_file` | `file_path`、`file_name?`、`title?`、`comment?`、`device?` | 上传文件到 Slack；带 `device` 时读取该远程设备上的文件 |
 
 服务器实现在 `agent-server/src/domain/mcp/slack-server.ts`。
 
@@ -118,7 +118,7 @@ Slack 平台特定的 MCP 服务器。仅当会话源自 Slack 时加载，提�
 
 | 工具 | 参数 | 描述 |
 |---|---|---|
-| `feishu_send_file` | `file_path`、`file_name?`、`title?`、`channel?` | 上传本地文件到飞书聊天 |
+| `feishu_send_file` | `file_path`、`file_name?`、`title?`、`channel?`、`device?` | 上传文件到飞书聊天；带 `device` 时读取该远程设备上的文件 |
 
 文档、表格、电子表格、知识库等操作**不再是 MCP 工具**。它们改由飞书官方 CLI
 （`@larksuite/cli`）完成，通过 `feishu-doc` skill 驱动。该 CLI 能可靠处理原生表格和
@@ -135,7 +135,7 @@ Web 工作台专属的 MCP 服务器。仅当会话源自 Web UI（频道带 `we
 
 | 工具 | 参数 | 描述 |
 |---|---|---|
-| `send_file` | `file_path`、`file_name?`、`caption?` | 把文件发进聊天，显示为可下载卡片（图片与视频内联预览） |
+| `send_file` | `file_path`、`file_name?`、`caption?`、`device?` | 把文件发进聊天，显示为可下载卡片（图片与视频内联预览）；带 `device` 时读取该远程设备上的文件 |
 | `send_view` | `title`、`html?`、`file_path?`、`caption?`、`height?` | 在聊天里内联渲染一块 HTML 视图，作为可交互卡片显示 |
 | `send_decision` | `decisions[]`——每条含 `title`、`decision`、`context`、`reasoning` | 记录 agent 刚做出的决策，并在聊天里以卡片展示 |
 

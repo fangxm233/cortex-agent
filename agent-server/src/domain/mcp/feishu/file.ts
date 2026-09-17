@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { guard, ok, unwrap, type FeishuToolDeps } from './types.js';
 import { uploadFeishuImage } from '@platform/adapters/feishu-image.js';
+import { withStagedRemoteFile } from '../tools/remote-file.js';
 import type { LarkClient } from './client.js';
 
 function resolveReadableFilePath(filePathInput: string): { resolved: string; size: number } {
@@ -98,25 +99,36 @@ export async function uploadFileToFeishu(
 export function registerFileTools(server: McpServer, deps: FeishuToolDeps): void {
   server.tool(
     'feishu_send_file',
-    'Upload a local file to Feishu. Use this when you need to share a file (document, image, archive, etc.) with users in a Feishu chat or channel.',
+    'Upload a file to Feishu. Use this when you need to share a file (document, image, archive, etc.) with users in a Feishu chat or channel. The file may be on this server or, with `device`, on a connected remote device.',
     {
-      file_path: z.string().describe('Local file path to upload'),
+      file_path: z.string().describe('File path to upload. Local path, or an absolute path on `device`.'),
       file_name: z.string().optional().describe('Optional filename override shown in Feishu'),
       title: z.string().optional().describe('Optional file title shown in Feishu'),
       channel: z.string().optional().describe('Optional chat/channel ID (uses route context if not provided)'),
+      device: z.string().optional().describe('Name of a connected remote device (as used by remote_bash). Omit for files on this server.'),
     },
-    async ({ file_path, file_name, title, channel: explicitChannel }) =>
+    async ({ file_path, file_name, title, channel: explicitChannel, device }) =>
       guard(deps.client, async (client) => {
         const channel = explicitChannel || deps.fallbackChannel || '';
         if (!channel) throw new Error('No Feishu channel available (no session channel or channel parameter)');
 
-        const uploaded = await uploadFileToFeishu(client, {
+        const upload = (filePath: string, name?: string) => uploadFileToFeishu(client, {
           channel,
-          filePath: file_path,
-          fileName: file_name,
+          filePath,
+          fileName: name,
           title,
         });
-        return ok(`File uploaded: ${uploaded.fileName} (${uploaded.size} bytes)`);
+
+        // The Feishu upload reads from a path, so a device's file is staged to disk first and
+        // removed again once the upload has taken its bytes.
+        if (!device) {
+          const uploaded = await upload(file_path, file_name);
+          return ok(`File uploaded: ${uploaded.fileName} (${uploaded.size} bytes)`);
+        }
+        if (!deps.ctx) throw new Error('`device` is not available in this context');
+        const uploaded = await withStagedRemoteFile(deps.ctx, device, file_path,
+          staged => upload(staged.localPath, file_name || staged.name));
+        return ok(`File uploaded from ${device}: ${uploaded.fileName} (${uploaded.size} bytes)`);
       }),
   );
 }

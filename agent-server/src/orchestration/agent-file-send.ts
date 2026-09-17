@@ -1,7 +1,8 @@
 import * as path from 'path';
 import { conversationHistory } from '@store/conversation-history-repo.js';
 import { publishSessionMessage, type SessionMessagePayload } from './session-events.js';
-import { copyFileIntoOutputs, type StoredOutput } from './outputs-store.js';
+import { copyFileIntoOutputs, receiveIntoOutputs, type StoredOutput } from './outputs-store.js';
+import { fetchRemoteFile, prepareRemoteFetch } from '@domain/remote/device-file.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
 
 export type { SessionMessagePayload };
@@ -41,13 +42,37 @@ export interface SendAgentFileArgs {
   fileName?: string;
   /** Optional caption shown alongside the file card. */
   caption?: string;
+  /** Name of a connected cortex-client; the path is then read on THAT device, not on the server. */
+  device?: string;
 }
 
 export interface SendAgentFileDeps {
   copyIntoOutputs?: (a: { sessionId: string; filePath: string; fileName?: string }) => Promise<StoredOutput>;
+  /** Injectable twin of `copyIntoOutputs` for the remote path. */
+  fetchIntoOutputs?: (a: { sessionId: string; device: string; filePath: string; fileName?: string }) => Promise<StoredOutput>;
   appendAssistant?: (sessionId: string, opts: { text: string; ts?: string; attachments?: AttachmentMeta[] }) => Promise<void>;
   publish?: (p: SessionMessagePayload) => void;
   now?: () => string;
+}
+
+/** Nothing the chat can usefully show is this big, and the cap is what stops one `send_file` from
+ *  filling the disk with a transfer nobody can cancel. */
+const MAX_REMOTE_FILE_BYTES = 200 * 1024 * 1024;
+
+/** Stream a device's file straight into the session's outputs area. */
+async function defaultFetchIntoOutputs(
+  a: { sessionId: string; device: string; filePath: string; fileName?: string },
+): Promise<StoredOutput> {
+  // Stat first: it is what rejects a bad path or an oversized file before anything is reserved on
+  // disk, and it supplies the default display name. The device derives that name with ITS own path
+  // rules — basename() here would mis-split a Windows path on a Linux server.
+  const stat = await prepareRemoteFetch({
+    device: a.device, filePath: a.filePath, maxBytes: MAX_REMOTE_FILE_BYTES,
+  });
+  return receiveIntoOutputs(
+    { sessionId: a.sessionId, fileName: a.fileName || stat.name },
+    destPath => fetchRemoteFile({ device: a.device, filePath: a.filePath, destPath, stat }).then(() => {}),
+  );
 }
 
 /**
@@ -59,11 +84,16 @@ export interface SendAgentFileDeps {
  */
 export async function sendAgentFile(args: SendAgentFileArgs, deps: SendAgentFileDeps = {}): Promise<AttachmentMeta> {
   const copy = deps.copyIntoOutputs ?? copyFileIntoOutputs;
+  const fetchIn = deps.fetchIntoOutputs ?? defaultFetchIntoOutputs;
   const append = deps.appendAssistant ?? ((sid, o) => conversationHistory.appendAssistant(sid, o));
   const publish = deps.publish ?? publishSessionMessage;
   const now = deps.now ?? (() => new Date().toISOString());
 
-  const { relPath, name, size } = await copy({ sessionId: args.sessionId, filePath: args.filePath, fileName: args.fileName });
+  // Only the source of the bytes differs. Once the file is in the outputs area, a device's file is
+  // an ordinary attachment — same card, same download endpoint, same transcript row.
+  const { relPath, name, size } = args.device
+    ? await fetchIn({ sessionId: args.sessionId, device: args.device, filePath: args.filePath, fileName: args.fileName })
+    : await copy({ sessionId: args.sessionId, filePath: args.filePath, fileName: args.fileName });
   const mimeType = extToMime(name);
   const meta: AttachmentMeta = { name, path: relPath, size, mimeType, type: classifyAttachment(mimeType) };
   const ts = now();

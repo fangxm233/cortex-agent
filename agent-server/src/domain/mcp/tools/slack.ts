@@ -5,6 +5,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { TokenBucketRateLimiter } from '../../../platform/utils/rate-limiter.js';
 import { Icons } from '../../../core/icons.js';
+import { withStagedRemoteFile } from './remote-file.js';
 import type { CortexToolContext } from './context.js';
 
 export interface SlackToolDeps {
@@ -12,6 +13,8 @@ export interface SlackToolDeps {
   fallbackChannel: string | undefined;
   branchMachine: string | undefined;
   callbackSource: string | undefined;
+  /** Carried so file tools can reach the daemon to stage a remote device's file. */
+  ctx?: CortexToolContext;
 }
 
 /** Production deps for one session: a WebClient when the session carries a bot token. */
@@ -21,6 +24,7 @@ export function slackDepsFor(ctx: CortexToolContext): SlackToolDeps {
     fallbackChannel: ctx.channel ?? undefined,
     branchMachine: ctx.branchMachine ?? undefined,
     callbackSource: ctx.callbackSource ?? undefined,
+    ctx,
   };
 }
 
@@ -122,35 +126,50 @@ export async function uploadFileToSlack(slack: WebClient, { channel, filePath, f
   return { path: resolved, fileName: uploadName, size };
 }
 
+/** Tests construct deps without a context; only the remote path needs one, so it is demanded here
+ *  rather than made mandatory for every Slack tool. */
+function requireCtx(deps: SlackToolDeps): CortexToolContext {
+  if (!deps.ctx) throw new Error('`device` is not available in this context');
+  return deps.ctx;
+}
+
 export function registerSlackTools(server: McpServer, deps: SlackToolDeps): void {
   server.tool(
     'slack_send_file',
-    'Upload a local file to Slack. Use this when you need to share a file (image, log, data, etc.) with the user.',
+    'Upload a file to Slack. Use this when you need to share a file (image, log, data, etc.) with the user. The file may be on this server or, with `device`, on a connected remote device.',
     {
-      file_path: z.string().describe('Local file path to upload'),
+      file_path: z.string().describe('File path to upload. Local path, or an absolute path on `device`.'),
       file_name: z.string().optional().describe('Optional filename override shown in Slack'),
       title: z.string().optional().describe('Optional file title shown in Slack'),
       comment: z.string().optional().describe('Optional comment to accompany the file'),
+      device: z.string().optional().describe('Name of a connected remote device (as used by remote_bash). Omit for files on this server.'),
     },
-    async ({ file_path, file_name, title, comment }: {
-      file_path: string; file_name?: string; title?: string; comment?: string;
+    async ({ file_path, file_name, title, comment, device }: {
+      file_path: string; file_name?: string; title?: string; comment?: string; device?: string;
     }) => {
       try {
         const channel = deps.fallbackChannel;
         if (!channel) throw new Error('No routing channel available');
         if (!deps.slack) throw new Error('Missing SLACK_BOT_TOKEN');
 
-        const uploaded = await uploadFileToSlack(deps.slack, {
+        const upload = (filePath: string, name?: string) => uploadFileToSlack(deps.slack!, {
           channel,
-          filePath: file_path,
-          fileName: file_name,
+          filePath,
+          fileName: name,
           title,
           initialComment: comment || undefined,
         });
+
+        // A device's file is fetched to disk first: the Slack SDK uploads from a path, so there is
+        // nothing to gain from streaming it anywhere else on the way.
+        const uploaded = device
+          ? await withStagedRemoteFile(requireCtx(deps), device, file_path,
+            staged => upload(staged.localPath, file_name || staged.name))
+          : await upload(file_path, file_name);
         return {
           content: [{
             type: 'text',
-            text: `File uploaded: ${uploaded.fileName} (${uploaded.size} bytes)`,
+            text: `File uploaded${device ? ` from ${device}` : ''}: ${uploaded.fileName} (${uploaded.size} bytes)`,
           }],
         };
       } catch (e) {

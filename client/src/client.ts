@@ -9,6 +9,7 @@ import { createLogger } from './log.js';
 import { CONFIG_DIR } from './paths.js';
 import { resolveClientToken, buildClientHeaders } from './auth-headers.js';
 import { isOpenStream, openReverseStream } from './reverse-stream.js';
+import { isOpenFileStream, openFileStream } from './file-stream.js';
 import { resolveServerUrl } from './server-url.js';
 import {
   handleCortexRunLaunch,
@@ -189,7 +190,10 @@ function extractImageDimensions(buf: Buffer, mime: string): { width: number; hei
 // --- Capabilities detection ---
 
 function detectCapabilities(): string[] {
-  const caps: string[] = [];
+  // `file-stream` is a protocol capability, not a probed binary: it tells the server this client
+  // is new enough to answer `file.stat` + `open-file-stream`, so the server can fail with a clear
+  // message on an old client instead of timing out waiting for a callback that never comes.
+  const caps: string[] = ['file-stream'];
   try {
     execFileSync('rg', ['--version'], { timeout: 5000, stdio: 'pipe' });
     caps.push('rg');
@@ -279,6 +283,32 @@ function handleRead(params: any): { content?: string; error?: string; image?: { 
     return { content: numbered, cortexMDs };
   } catch (err) {
     return { error: (err as Error).message };
+  }
+}
+
+// --- Tool: File stat (transfer probe) ---
+
+/**
+ * Metadata-only probe used before a file transfer (`send_file device=…`). It exists so path and
+ * size failures are reported through the ordinary command round trip — with a real error message —
+ * rather than as a mysteriously aborted stream. Deliberately not size-capped here: the cap belongs
+ * to the caller, which knows what it intends to do with the bytes.
+ */
+function handleFileStat(params: any): { size?: number; name?: string; mtimeMs?: number; error?: string } {
+  try {
+    const filePath = normalizePath(params.file_path);
+    if (!path.isAbsolute(filePath)) {
+      return { error: 'file_path must be absolute' };
+    }
+    const stat = fs.statSync(filePath);
+    if (!stat.isFile()) {
+      return { error: `Not a file: ${filePath}` };
+    }
+    return { size: stat.size, name: path.basename(filePath), mtimeMs: stat.mtimeMs };
+  } catch (err) {
+    const e = err as NodeJS.ErrnoException;
+    if (e.code === 'ENOENT') return { error: `File not found: ${params.file_path}` };
+    return { error: e.message };
   }
 }
 
@@ -528,6 +558,11 @@ async function handleCommand(action: string, params: any): Promise<{ success: bo
       if (result.error) return { success: false, error: result.error };
       return { success: true, data: result };
     }
+    case 'file.stat': {
+      const result = handleFileStat(params);
+      if (result.error) return { success: false, error: result.error };
+      return { success: true, data: result };
+    }
     case 'write': {
       const result = handleWrite(params);
       if (result.error) return { success: false, error: result.error };
@@ -617,6 +652,17 @@ function connect() {
     if (isOpenStream(msg)) {
       // Byte transport, not a command: it gets its own socket and never touches the result path.
       openReverseStream(msg, { controlUrl: SERVER_URL, headers: buildClientHeaders(CLIENT_TOKEN) });
+      return;
+    }
+
+    if (isOpenFileStream(msg)) {
+      // Same reasoning as open-stream: file bytes ride their own socket, so a large transfer never
+      // blocks commands and never has to be base64'd through the control channel.
+      openFileStream(msg, {
+        controlUrl: SERVER_URL,
+        headers: buildClientHeaders(CLIENT_TOKEN),
+        normalizePath,
+      });
       return;
     }
 

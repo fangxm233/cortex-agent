@@ -26,7 +26,7 @@ const ctx = toolContextFromEnv();
 const server = new McpServer({ name: 'cortex-feishu', version: CORTEX_VERSION });
 registerGatedMcpTools(
   server,
-  target => registerFeishuTools(target, { client, fallbackChannel: ctx.channel }),
+  target => registerFeishuTools(target, { client, fallbackChannel: ctx.channel, ctx }),
   ctx.toolAllowlist,
 );
 

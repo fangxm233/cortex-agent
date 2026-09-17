@@ -242,7 +242,7 @@ agent-server 和 cortex-client 之间的协议是 WebSocket 上的 JSON 消息�
 
 **Hello**（连接时立即发送）。`bundleHash` 标识客户端正在运行的 bundle（对 `client.mjs` + `cortex-run-watcher.mjs` 的 sha256）；服务器用它与期望 bundle 对比，决定是否推送更新：
 ```json
-{ "type": "hello", "device": "lab", "platform": "linux", "capabilities": ["rg"], "bundleHash": "cebdfcd6…" }
+{ "type": "hello", "device": "lab", "platform": "linux", "capabilities": ["file-stream", "rg"], "bundleHash": "cebdfcd6…" }
 ```
 
 **心跳**（每 5 秒）：
@@ -267,7 +267,12 @@ agent-server 和 cortex-client 之间的协议是 WebSocket 上的 JSON 消息�
 { "type": "command", "id": "cmd-abc123", "action": "bash", "params": { "command": "nvidia-smi" }, "timeout": 120000 }
 ```
 
-支持的动作：`bash`、`read`、`write`、`edit`、`glob`、`grep`、`cortex-run.launch`、`cortex-run.cancel`。
+支持的动作：`bash`、`read`、`write`、`edit`、`glob`、`grep`、`file.stat`、`cortex-run.launch`、`cortex-run.cancel`。
+
+**打开文件流**（服务器需要把设备上的整个文件取回时发送，例如 `send_file device="lab"`）。与 `open-stream` 一样，它由一条新的出站 socket 回应而不是走这条控制通道，因此大文件传输既不会阻塞命令，也不必 base64 塞进控制通道：
+```json
+{ "type": "open-file-stream", "streamId": "9f3c…", "path": "/home/x/report.csv" }
+```
 
 **更新**（当设备 hello 上报的 bundle 与期望不一致时推送；`files` 以 base64 携带完整 artifact）：
 ```json
@@ -324,6 +329,20 @@ agent-server 中的 `client-manager.ts` 模块管理远程客户端生命周期�
 ### read
 
 使用 `fs.readFileSync()` 从磁盘读取文件。支持图像文件（PNG、JPEG、WebP、GIF、BMP）的可选 `sharp` 调整大小/压缩管道（以保持在令牌预算内），以及 PDF 文件作为嵌入式资源处理。路径必须是绝对路径。
+
+### file.stat {#file-stat}
+
+只取元数据（大小、文件名、mtime）的探测，在文件传输前执行：路径错误或文件超限时以明确的错误消息失败，而不是传到一半被中断。路径必须是绝对路径。
+
+### 把设备上的文件发进聊天 {#sending-a-device-file}
+
+`send_file`（以及 `slack_send_file` / `feishu_send_file`）都接受可选的 `device`。带上它时，路径在该设备上读取，字节通过反向通道流回服务器，然后作为普通附件送达：
+
+```js
+send_file({ device: "lab", file_path: "/home/x/runs/loss.png", caption: "latest curve" })
+```
+
+设备不在线、路径不是可读文件、或超过 200 MB 上限时，服务器在传输任何字节之前就拒绝；传输提前结束也会被判为失败，而不是交付一个被截断的文件。客户端版本过旧的设备不会上报 `file-stream` 能力，会收到明确的拒绝消息，并在下一次[客户端更新](#client-updates)后获得该能力。
 
 ### write 和 edit {#write-and-edit}
 

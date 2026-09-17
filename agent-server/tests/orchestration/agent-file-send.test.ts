@@ -115,3 +115,48 @@ test('copyFileIntoOutputs throws on a missing source', async () => {
     /File not found/,
   );
 });
+
+test('sendAgentFile routes through the device fetcher when `device` is set, and lands one ordinary attachment', async () => {
+  const fetched: any[] = [];
+  const published: SessionMessagePayload[] = [];
+  const meta = await sendAgentFile(
+    { sessionId: 'sess-r', filePath: 'D:\\runs\\loss.png', device: 'win-pc', caption: 'from the box' },
+    {
+      copyIntoOutputs: async () => { throw new Error('the local copier must not be used for a device file'); },
+      fetchIntoOutputs: async (a) => {
+        fetched.push(a);
+        return { relPath: `workspace/outputs/${a.sessionId}/loss.png`, name: 'loss.png', size: 900 };
+      },
+      appendAssistant: async () => {},
+      publish: (p) => { published.push(p); },
+      now: () => 'ts-1',
+    },
+  );
+
+  assert.deepEqual(fetched, [{ sessionId: 'sess-r', device: 'win-pc', filePath: 'D:\\runs\\loss.png', fileName: undefined }]);
+  // A device's file is an ordinary attachment once landed — same card, same download path.
+  assert.deepEqual(meta, { name: 'loss.png', path: 'workspace/outputs/sess-r/loss.png', size: 900, mimeType: 'image/png', type: 'image' });
+  assert.equal(published[0].attachments![0].type, 'image');
+});
+
+test('receiveIntoOutputs reserves a collision-free path and deletes it when the transfer fails', async () => {
+  const { receiveIntoOutputs } = await import('../../src/orchestration/outputs-store.js');
+  const written = await receiveIntoOutputs(
+    { sessionId: 'recv-sess', fileName: 'run.log' },
+    async (destPath) => { await fs.writeFile(destPath, 'streamed'); },
+  );
+  assert.equal(written.name, 'run.log');
+  assert.equal(written.size, 8);
+  assert.match(written.relPath, /^workspace\/outputs\/recv-sess\/run\.log$/);
+
+  let reservedPath = '';
+  await assert.rejects(
+    () => receiveIntoOutputs(
+      { sessionId: 'recv-sess', fileName: 'run.log' },
+      async (destPath) => { reservedPath = destPath; await fs.writeFile(destPath, 'partial'); throw new Error('link died'); },
+    ),
+    /link died/,
+  );
+  assert.match(reservedPath, /run_1\.log$/, 'the second reservation avoids the first file');
+  await assert.rejects(() => fs.access(reservedPath), 'a failed transfer leaves nothing behind');
+});

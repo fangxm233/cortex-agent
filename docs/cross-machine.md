@@ -319,7 +319,7 @@ running bundle (sha256 over `client.mjs` + `cortex-run-watcher.mjs`); the
 server compares it against the desired bundle to decide whether to push an
 update:
 ```json
-{ "type": "hello", "device": "lab", "platform": "linux", "capabilities": ["rg"], "bundleHash": "cebdfcd6…" }
+{ "type": "hello", "device": "lab", "platform": "linux", "capabilities": ["file-stream", "rg"], "bundleHash": "cebdfcd6…" }
 ```
 
 **Heartbeat** (every 5 seconds):
@@ -345,7 +345,15 @@ update:
 ```
 
 Supported actions: `bash`, `read`, `write`, `edit`, `glob`, `grep`,
-`cortex-run.launch`, `cortex-run.cancel`.
+`file.stat`, `cortex-run.launch`, `cortex-run.cancel`.
+
+**Open file stream** (sent when the server wants a whole file off the device,
+e.g. `send_file device="lab"`). Like `open-stream`, it is answered on a new
+outbound socket rather than on this one, so a large transfer neither blocks
+commands nor has to be base64'd through the control channel:
+```json
+{ "type": "open-file-stream", "streamId": "9f3c…", "path": "/home/x/report.csv" }
+```
 
 **Update** (pushed when a device's hello reports a diverged bundle; `files`
 carry the complete artifact as base64):
@@ -455,6 +463,29 @@ Reads a file from disk with `fs.readFileSync()`. Supports image files (PNG,
 JPEG, WebP, GIF, BMP) with an optional `sharp`-based resize/compress pipeline
 (to stay under token budgets), and PDF files handled as embedded resources.
 Paths must be absolute.
+
+### file.stat
+
+Metadata probe — size, base name, mtime — used before a file transfer so a bad
+path or an oversized file fails with a real error message instead of an aborted
+stream. Paths must be absolute.
+
+### Sending a device's file to the chat
+
+`send_file` (and `slack_send_file` / `feishu_send_file`) take an optional
+`device`. With it, the path is read on that device and the bytes are streamed
+back over the reverse channel, then delivered as an ordinary attachment:
+
+```js
+send_file({ device: "lab", file_path: "/home/x/runs/loss.png", caption: "latest curve" })
+```
+
+The server refuses before transferring anything if the device is offline, the
+path is not a readable file, or it exceeds the 200 MB cap, and it rejects a
+transfer that ends short rather than delivering a truncated file. Devices
+running a client older than this feature report no `file-stream` capability and
+are refused with a message saying so; they gain it on their next
+[client update](#client-updates).
 
 ### write and edit
 

@@ -81,6 +81,19 @@ function outputsDir(sessionId: string, subdir?: string): { dir: string; relPrefi
   };
 }
 
+/** Claim a free destination inside the session's outputs area, creating the directory. Shared by
+ *  every lander so naming, collision handling and placement cannot drift between them. */
+async function reserveOutputPath(a: { sessionId: string; fileName: string; subdir?: string }): Promise<{
+  destPath: string; relPath: string; displayName: string;
+}> {
+  const displayName = sanitizeDisplayFilename(a.fileName);
+  const storageName = sanitizeStorageFilename(displayName);
+  const { dir, relPrefix } = outputsDir(a.sessionId, a.subdir);
+  await fs.mkdir(dir, { recursive: true });
+  const { destPath, finalName } = await resolveAvailablePath(dir, storageName);
+  return { destPath, relPath: `${relPrefix}/${finalName}`, displayName };
+}
+
 /**
  * Copy an agent-produced file into the session's `workspace/outputs/…` area and return its
  * UI-relative path + final name + byte size. Copying (rather than referencing the source in
@@ -103,14 +116,33 @@ export async function copyFileIntoOutputs(a: {
     throw new Error(`File is ${stat.size} bytes, over the ${a.maxBytes}-byte limit`);
   }
 
-  const displayName = sanitizeDisplayFilename(a.fileName || path.basename(resolvedSrc));
-  const storageName = sanitizeStorageFilename(displayName);
-  const { dir, relPrefix } = outputsDir(a.sessionId, a.subdir);
-  await fs.mkdir(dir, { recursive: true });
-  const { destPath, finalName } = await resolveAvailablePath(dir, storageName);
+  const { destPath, relPath, displayName } = await reserveOutputPath({
+    sessionId: a.sessionId, fileName: a.fileName || path.basename(resolvedSrc), subdir: a.subdir,
+  });
   await fs.copyFile(resolvedSrc, destPath);
   const outStat = await fs.stat(destPath);
-  return { relPath: `${relPrefix}/${finalName}`, name: displayName, size: outStat.size };
+  return { relPath, name: displayName, size: outStat.size };
+}
+
+/**
+ * Land a file whose bytes are produced by `receive` (a remote-device transfer) directly in the
+ * outputs area. Same placement and naming as `copyFileIntoOutputs`, but written once: staging to a
+ * temp file first and copying would double the I/O of every large transfer and leave litter behind
+ * when a send fails. A failing `receive` must leave nothing, so the reservation is removed here.
+ */
+export async function receiveIntoOutputs(
+  a: { sessionId: string; fileName: string; subdir?: string },
+  receive: (destPath: string) => Promise<void>,
+): Promise<StoredOutput> {
+  const { destPath, relPath, displayName } = await reserveOutputPath(a);
+  try {
+    await receive(destPath);
+  } catch (e) {
+    await fs.rm(destPath, { force: true }).catch(() => {});
+    throw e;
+  }
+  const outStat = await fs.stat(destPath);
+  return { relPath, name: displayName, size: outStat.size };
 }
 
 /** Write agent-authored text into the session's outputs area under `fileName`, same placement and
