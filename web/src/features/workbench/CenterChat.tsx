@@ -117,7 +117,7 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
     });
   // Waitpoints for the rail above the composer. Kept here rather than inside WaitRail so mounting a
   // composer in a test does not require the waitpoints route to be stubbed.
-  const waitpoints = useSessionWaitpoints(isDraft ? null : sessionId);
+  const waitpoints = useSessionWaitpoints(isDraft ? null : sessionId, active?.waitingOn ?? 0);
   const optimistic = useOptimisticUserMessages({
     sessionId,
     isDraft,

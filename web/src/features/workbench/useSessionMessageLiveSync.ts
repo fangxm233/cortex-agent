@@ -255,6 +255,10 @@ export function useSessionMessageLiveSync(
         // Keep the sessions.list snapshot (running dots, labels, ordering) in sync on BOTH
         // edges so the left rail reflects the turn without waiting for a focus refetch.
         queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
+        // Same reasoning for the waitpoint rail: a waitpoint is armed mid-turn and emits no event
+        // of its own, so the turn edge is the first moment we can know it exists. Without this the
+        // rail stays invisible until something else happens to refetch.
+        queryClient.invalidateQueries(trpc.waitpoints.list.queryFilter());
         return;
       }
       if (raw.type === 'session.todos') {

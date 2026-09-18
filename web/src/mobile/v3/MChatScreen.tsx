@@ -264,7 +264,7 @@ export function MChatScreen(): JSX.Element {
   // A non-blocking ask (cortex_ask_user blocking:false) never takes over the composer: the agent
   // is still working and the user must stay free to type anything. Its card still renders inline
   // in the stream and stays tappable there.
-  const waitpoints = useSessionWaitpoints(isDraft ? null : sessionId);
+  const waitpoints = useSessionWaitpoints(isDraft ? null : sessionId, active?.waitingOn ?? 0);
   const pendingInteraction = useMemo(() => {
     for (const r of rows) {
       if (r.kind !== 'interaction' || r.detail?.status !== 'pending') continue;
