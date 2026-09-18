@@ -47,7 +47,7 @@ async function harness(): Promise<Harness> {
   return {
     repo, service, sent, spoolDir,
     setNow: (t) => { clock = t; },
-    sweep: { service, notifier, ingest, now, spoolDir },
+    sweep: { service, notifier, ingest, now, spoolDir, remote: null },
   };
 }
 
@@ -73,7 +73,7 @@ test('a second sweep is a no-op once everything has been delivered', async () =>
 
   await sweepWaitpoints(h.sweep);
   const second = await sweepWaitpoints(h.sweep);
-  assert.deepEqual(second, { spooled: 0, expired: 0, delivered: 0, purged: 0 });
+  assert.deepEqual(second, { spooled: 0, fromDevices: 0, expired: 0, delivered: 0, purged: 0 });
   assert.equal(h.sent.length, 1);
 });
 

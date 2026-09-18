@@ -18,6 +18,7 @@ import {
   type WaitpointNotifierDeps,
 } from './waitpoint-notifier.js';
 import { drainLocalSpool, productionIngestDeps, type IngestDeps } from './waitpoint-ingress.js';
+import { drainDeviceSpools, productionRemoteDrainDeps, type RemoteDrainDeps } from './waitpoint-remote-drain.js';
 
 const log = createLogger('waitpoint-sweep');
 
@@ -25,6 +26,8 @@ export interface WaitpointSweepDeps {
   service: WaitpointServiceDeps;
   notifier: WaitpointNotifierDeps;
   ingest: IngestDeps;
+  /** Set to null to skip the device round trip entirely (tests, and hosts with no clients). */
+  remote: RemoteDrainDeps | null;
   now: () => number;
   /** Override the drained spool directory. Production leaves it unset (the default location). */
   spoolDir?: string;
@@ -34,11 +37,13 @@ export const productionSweepDeps: WaitpointSweepDeps = {
   service: productionWaitpointDeps,
   notifier: productionNotifierDeps,
   ingest: productionIngestDeps,
+  remote: productionRemoteDrainDeps,
   now: () => Date.now(),
 };
 
 export interface SweepResult {
   spooled: number;
+  fromDevices: number;
   expired: number;
   delivered: number;
   purged: number;
@@ -57,10 +62,16 @@ export async function sweepWaitpoints(deps: WaitpointSweepDeps = productionSweep
     log.error(`spool drain: ${(e as Error).message}`);
     return 0;
   });
+  const fromDevices = deps.remote
+    ? await drainDeviceSpools(deps.remote).catch((e) => {
+      log.error(`device drain: ${(e as Error).message}`);
+      return 0;
+    })
+    : 0;
   const { expired, purged } = await expireDueWaitpoints(deps.service);
   if (expired.length > 0) await notifyWaitpointExpiry(expired, deps.notifier);
   const delivered = await deliverPendingWaitpoints(deps.notifier);
-  return { spooled, expired: expired.length, delivered, purged };
+  return { spooled, fromDevices, expired: expired.length, delivered, purged };
 }
 
 let timer: NodeJS.Timeout | null = null;
@@ -101,6 +112,6 @@ export function stopWaitpointSweep(): void {
 export async function recoverWaitpoints(deps: WaitpointSweepDeps = productionSweepDeps): Promise<SweepResult> {
   return sweepWaitpoints(deps).catch((e) => {
     log.error(`recovery failed: ${(e as Error).message}`);
-    return { spooled: 0, expired: 0, delivered: 0, purged: 0 };
+    return { spooled: 0, fromDevices: 0, expired: 0, delivered: 0, purged: 0 };
   });
 }
