@@ -51,6 +51,7 @@ import type {
 import type { HookApplyTime, HookMountTarget } from '@domain/hooks/hook-view.js';
 export type { HookApplyTime, HookMountTarget } from '@domain/hooks/hook-view.js';
 import type { Session } from '@store/session-registry-repo.js';
+import type { Waitpoint } from '@store/waitpoint-repo.js';
 import type { SessionTotals } from '@store/session-totals.js';
 export type { SessionTotals } from '@store/session-totals.js';
 import type { ScheduleTask, ScheduleTarget } from '@store/schedule-repo.js';
@@ -146,7 +147,8 @@ export type QueryScope =
   | 'system.rateLimitStatus'
   | 'system.usageStatus'
   | 'system.notices'
-  | 'system.updateStatus';
+  | 'system.updateStatus'
+  | 'waitpoints.list';
 
 // ── Mutate ops ────────────────────────────────────────────────────
 
@@ -168,6 +170,7 @@ export type MutateOp =
   | 'sessions.rewind'
   | 'threads.cancel'
   | 'executions.cancel'
+  | 'waitpoints.cancel'
   | 'schedules.pause'
   | 'schedules.resume'
   | 'schedules.remove'
@@ -330,6 +333,12 @@ export interface ExecutionsListParams {
 
 export interface ExecutionsGetParams {
   executionId: string;
+}
+
+/** Waitpoints belonging to ONE session. Scoped server-side: the client cannot compute the match
+ *  because SessionInfo carries no `channel` (see WaitpointInfo for the ownership rule). */
+export interface WaitpointsListParams {
+  sessionId: string;
 }
 
 export interface MemoryTreeParams {
@@ -652,6 +661,10 @@ export interface ExecutionsCancelArgs {
   executionId: string;
 }
 
+export interface WaitpointsCancelArgs {
+  waitpointId: string;
+}
+
 export interface ScheduleActionArgs {
   scheduleId: string;
 }
@@ -924,6 +937,14 @@ export interface SessionInfo {
    *  blue. False when nothing is pending, and false when the pending-interaction deps are absent
    *  (fixtures / TUI). Snapshot-only, mirrored live via the `session.interaction` event stream. */
   awaitingInput: boolean;
+  /** How many waitpoints this session is still waiting on — external "wake me when X finishes"
+   *  objects that are still `armed` (docs/waitpoints.md). Distinct from `awaitingInput`: that one
+   *  means "blocked on YOU", this one means "blocked on a machine, nothing for you to do", which is
+   *  why it must never drive the amber dot. Counted with the ownership union documented on
+   *  WaitpointInfo (own sessionId OR own channel), deduped per waitpoint. 0 when nothing is pending
+   *  and 0 when the waitpoint dep is absent (fixtures / TUI). Optional for rolling compatibility
+   *  with older servers, like `totals` below — consumers read it as `?? 0`. */
+  waitingOn?: number;
   /** Real agent-turn count for the composer (NOT the number of user-message rounds). While running,
    *  the live count of the in-flight turn (from the running execution); while idle, the last run's
    *  final turn count (from the most recent non-thread execution on the session's channel). Null when
@@ -1340,6 +1361,71 @@ export interface CommissionDecisionEntry {
   /** The session that announced the decision (source row on the board card). */
   sessionId: string;
   item: DecisionItem;
+}
+
+/** One signal that has landed on a waitpoint. `message`/`member`/`source` are written by the
+ *  external process — plain text only, never interpreted. */
+export interface WaitpointSignalInfo {
+  at: number;
+  status: 'ok' | 'fail' | 'progress';
+  member: string | null;
+  message: string | null;
+  source: string;
+}
+
+/** One waitpoint a session is still waiting on (docs/waitpoints.md). Only `armed` ones are returned:
+ *  a fired or expired waitpoint has already posted its own notice into the transcript, so repeating
+ *  it in a panel would tell the same story twice.
+ *
+ *  OWNERSHIP — a waitpoint belongs to a session when EITHER holds:
+ *    `owner.sessionId === session.sessionId`  the session armed it, or
+ *    `owner.channel   === session's channel`  the wake will be delivered HERE.
+ *  Both clauses are needed. The first survives a channel rebind (`bindChannel` does not rewrite
+ *  `record.channel`); the second survives the session being recreated (`!new`, a scheduled re-run),
+ *  because delivery is channel-addressed and find-or-creates a session. A consequence worth knowing:
+ *  the second clause can legitimately surface a waitpoint armed by an EARLIER session on the same
+ *  channel — that is honest, since its wake really will land on the current one.
+ *
+ *  SECURITY: built field-by-field from the stored record, never by spreading it, so the capability
+ *  secret hash cannot leak by omission. `signals[].data` is deliberately absent — externally written
+ *  and capped at 16 KB per signal, it would bloat every list response. */
+export interface WaitpointInfo {
+  /** `wp_<12 hex>` — public, appears in notices and in the signal command line. */
+  id: string;
+  /** Agent-written short name. */
+  label: string;
+  /** What the agent said it was waiting for, in its own words. */
+  intent: string;
+  /** Always `armed` today; the wider union is carried so the shape survives if settled waitpoints
+   *  are ever surfaced. */
+  state: 'armed' | 'fired' | 'expired' | 'cancelled';
+  /** Where the signal is expected from. `device` names the machine whose spool dir the sweep drains. */
+  emitFrom: { kind: 'local' } | { kind: 'device'; device: string };
+  /** Quorum progress. `got` counts distinct REPORTER KEYS, not signals: named members are deduped,
+   *  anonymous signals take synthetic slots. So `got` can exceed `members.length`, and a per-member
+   *  checklist must never be rendered from `members` alone. */
+  quorum: { need: number; got: number; members: string[] };
+  /** A single `fail` resolves it with the quorum unmet — which is why a resolved waitpoint can
+   *  legitimately read "1 of 3". */
+  failFast: boolean;
+  /** Mailbox mode. After each fire below `maxSignals` the quorum counter resets, so progress
+   *  appearing to go backwards is not a bug — `fires`/`maxSignals` is what disambiguates it. */
+  fires: number;
+  maxSignals: number;
+  createdAt: number;
+  expiresAt: number;
+  /** Signals received so far, oldest first. Includes `progress` reports, which never resolve. */
+  signals: WaitpointSignalInfo[];
+  /** Delivery write-ahead bit. `pending && attempts > 1 && lastError` is the silent failure
+   *  "the signal landed but the wake did not, and it is being retried" — invisible everywhere else.
+   *  `lastError` is a locally generated message, not attacker input. */
+  delivery: { pending: boolean; attempts: number; lastError: string | null; lastAt: number | null };
+  /** Wakes spent in the trailing hour, and the cap they are counted against. */
+  wakesLastHour: number;
+  wakeLimit: number;
+  /** True once the rate limit has bitten: further signals are RECORDED BUT NEVER WAKE the session,
+   *  and the flag is never reset. The loudest thing this DTO carries. */
+  rateLimited: boolean;
 }
 
 export interface ExecutionInfo {
@@ -2401,6 +2487,12 @@ export interface ExecutionsCancelReturn {
   cancelled: boolean;
 }
 
+export interface WaitpointsCancelReturn {
+  cancelled: boolean;
+  /** The state that blocked the cancel when `cancelled` is false (already fired/expired/cancelled). */
+  state: string | null;
+}
+
 export interface ConfigSetReturn {
   written: true;
   section: 'budget' | 'profiles' | 'settings' | 'preferences';
@@ -2459,6 +2551,7 @@ export interface QueryParamMap {
   'commissions.get': CommissionsGetParams;
   'commissions.decisions': CommissionsDecisionsParams;
   'executions.list': ExecutionsListParams;
+  'waitpoints.list': WaitpointsListParams;
   'executions.get': ExecutionsGetParams;
   'memory.tree': MemoryTreeParams;
   'memory.file': MemoryFileParams;
@@ -2503,6 +2596,7 @@ export interface QueryReturnMap {
   'commissions.get': CommissionInfo;
   'commissions.decisions': CommissionDecisionEntry[];
   'executions.list': ExecutionInfo[];
+  'waitpoints.list': WaitpointInfo[];
   'executions.get': ExecutionDetailInfo;
   'memory.tree': MemoryTree;
   'memory.file': MemoryFile;
@@ -2549,6 +2643,7 @@ export interface MutateArgsMap {
   'sessions.rewind': SessionsRewindArgs;
   'threads.cancel': ThreadsCancelArgs;
   'executions.cancel': ExecutionsCancelArgs;
+  'waitpoints.cancel': WaitpointsCancelArgs;
   'schedules.pause': ScheduleActionArgs;
   'schedules.resume': ScheduleActionArgs;
   'schedules.remove': ScheduleActionArgs;
@@ -2625,6 +2720,7 @@ export interface MutateReturnMap {
   'sessions.rewind': SessionsRewindReturn;
   'threads.cancel': ThreadsCancelReturn;
   'executions.cancel': ExecutionsCancelReturn;
+  'waitpoints.cancel': WaitpointsCancelReturn;
   'schedules.pause': void;
   'schedules.resume': void;
   'schedules.remove': void;
@@ -2900,6 +2996,15 @@ export interface UiServiceDeps {
     getExecution(id: string): any | null;
     getAll(): any[];
     cancelExecution(id: string, metrics?: any): any | null;
+  };
+  /** Waitpoint seam (`waitpoints.*` ops and SessionInfo.waitingOn). Injected at the entry layer so
+   *  the ui-service domain never reaches into the waitpoint store itself. Optional on purpose:
+   *  absent ⇒ no waitpoints and `waitingOn: 0`, so every existing fixture keeps working unchanged.
+   *  Only `armed` records are ever listed — settled ones have already announced themselves in the
+   *  session transcript. */
+  waitpointRegistry?: {
+    listArmed(): Promise<Waitpoint[]>;
+    cancel(id: string): Promise<{ cancelled: boolean; state?: string }>;
   };
   /** Commission registry seam (commissions.* ops). Optional — handlers fall back to the
    *  commissionRepo singleton when absent, so existing fixtures/entry wiring need no change;

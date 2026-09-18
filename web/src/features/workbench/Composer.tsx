@@ -26,6 +26,8 @@ import { ComposerSendFailure } from './ComposerSendFailure';
 import { ComposerAttachmentChip } from './ComposerAttachmentChip';
 import { browserStartupHint, browserStartupPending } from './browser-status';
 import { TodoRail } from './TodoRail';
+import { WaitRail } from './WaitRail';
+import type { SessionWaitpoints } from './useSessionWaitpoints';
 import {
   ComposerActionRow, ComposerSlashMenu,
   type ComposerBrowserControl, type ComposerCommissionControl,
@@ -60,6 +62,7 @@ export function Composer({
   sessionId,
   running,
   backgroundRunning = false,
+  waitingOn = 0,
   turns,
   cost,
   elapsed,
@@ -83,6 +86,7 @@ export function Composer({
   turnProgressStarted = false,
   contextControl,
   todos,
+  waitpoints,
   compactAction,
   dropTargetRef,
   onOpenSettings = () => {},
@@ -93,6 +97,9 @@ export function Composer({
    *  true; this only re-labels the running line "background" so the user knows the turn's own
    *  reply is done while background work continues. */
   backgroundRunning?: boolean;
+  /** Armed waitpoints this session is waiting on (SessionInfo.waitingOn). Shown as an extra status
+   *  segment so an idle session that is actually waiting for a machine does not read as plain idle. */
+  waitingOn?: number;
   /** Real agent-turn count (snapshot + `session.turn` delta); null when unknown → rendered as —. */
   turns: number | null;
   /** Last run's total cost in USD (SessionInfo.costUsd snapshot); null while running / never-ran → —. */
@@ -132,6 +139,9 @@ export function Composer({
   /** Context-usage ring (modal trigger), rendered in the toolbar right cluster beside the profile. */
   contextControl?: ReactNode;
   todos?: TodoSnapshot | null;
+  /** What this session is waiting on from outside Cortex, and how to cancel one. Supplied by the
+   *  host (useSessionWaitpoints) rather than fetched here — see WaitRail. */
+  waitpoints?: SessionWaitpoints | null;
   compactAction?: ContextCompactAction;
   /** Optional larger surface that accepts file drops for this composer. */
   dropTargetRef?: RefObject<HTMLElement>;
@@ -309,8 +319,14 @@ export function Composer({
   const runStatusLabel = runStatus.phase === 'background' ? L.pillBackground
     : runStatus.phase === 'foreground' ? L.pillRunning
       : L.wbIdle;
+  // "idle" and "idle but waiting for a signal" are different states and must not read the same.
+  // Appended rather than substituted: the run status itself stays true.
+  const waitingText = waitingOn > 0 ? L.wbWaitingOn.replace('{n}', String(waitingOn)) : null;
   const statusMetrics = [runStatusLabel, elapsed, turnsText, ...(runStatus.showCost ? [costText] : [])];
-  const runStatusText = runStatus.showMetrics ? statusMetrics.join(' · ') : runStatusLabel;
+  const runStatusText = [
+    ...(runStatus.showMetrics ? [statusMetrics.join(' · ')] : [runStatusLabel]),
+    ...(waitingText ? [waitingText] : []),
+  ].join(' · ');
   // Second segment: the same three quantities for the WHOLE session. Independent of runStatus —
   // totals are finalized numbers, so they stay on screen (and stay still) while a turn runs.
   const sessionStats = useMemo(
@@ -517,6 +533,19 @@ export function Composer({
             the highest-value line on this surface and belongs at the point of gaze; it renders
             nothing at all when the session has no task list. */}
         {!isDraft && <TodoRail sessionId={sessionId} todos={todos ?? null} lang={lang} />}
+
+        {/* What the session is waiting on from OUTSIDE Cortex. Directly above the input for the same
+            reason the task list is: it answers "why is nothing happening right now". Renders nothing
+            when no waitpoint is armed. */}
+        {!isDraft && waitpoints && (
+          <WaitRail
+            sessionId={sessionId}
+            lang={lang}
+            waitpoints={waitpoints.waitpoints}
+            onCancel={waitpoints.cancel}
+            cancelling={waitpoints.cancelling}
+          />
+        )}
 
         {isDraft && <DraftProjectSelector disabled={createAndSendMut.isPending} />}
 

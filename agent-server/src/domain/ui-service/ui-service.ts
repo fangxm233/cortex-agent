@@ -22,6 +22,7 @@ import {
   handleCommissionsDecisions,
 } from './query/commissions.js';
 import { handleExecutionsList, handleExecutionsGet } from './query/executions.js';
+import { handleWaitpointsList } from './query/waitpoints.js';
 import { handleMemoryTree, handleMemoryFile } from './query/memory.js';
 import { handleApprovalsList } from './query/approvals.js';
 import { handleIssuesList } from './query/issues.js';
@@ -83,6 +84,7 @@ import { handleCreateProject } from './mutate/projects.js';
 import { handleCreateSession, handleSendSession, handleCancelSession, handleCompactSession, handleSetProfile, handleSetSelection, handleSetCommission, handleCreateAndSend, handleMarkReadSession, handleAnswerQuestion, handleRespondPlan, handleRespondDecision, handleCancelResume, handleRewindSession } from './mutate/sessions.js';
 import { handleCancelThread } from './mutate/threads.js';
 import { handleCancelExecution } from './mutate/executions.js';
+import { handleCancelWaitpoint } from './mutate/waitpoints.js';
 import {
   handlePauseSchedule,
   handleResumeSchedule,
@@ -146,6 +148,7 @@ const queryHandlers: Record<string, QueryHandler> = {
   'commissions.get': (deps, params) => handleCommissionsGet(deps, params),
   'commissions.decisions': (deps, params) => handleCommissionsDecisions(deps, params),
   'executions.list': (deps, params) => handleExecutionsList(deps, params),
+  'waitpoints.list': (deps, params) => handleWaitpointsList(deps, params),
   'executions.get': (deps, params) => handleExecutionsGet(deps, params),
   'memory.tree': (deps, params) => handleMemoryTree(deps, params),
   'memory.file': (deps, params) => handleMemoryFile(deps, params),
@@ -192,6 +195,7 @@ const mutateHandlers: Record<string, MutateHandler> = {
   'sessions.rewind': (deps, args) => handleRewindSession(deps, args),
   'threads.cancel': (deps, args) => handleCancelThread(deps, args),
   'executions.cancel': (deps, args) => handleCancelExecution(deps, args),
+  'waitpoints.cancel': (deps, args) => handleCancelWaitpoint(deps, args),
   'schedules.pause': (deps, args) => handlePauseSchedule(deps, args),
   'schedules.resume': (deps, args) => handleResumeSchedule(deps, args),
   'schedules.remove': (deps, args) => handleRemoveSchedule(deps, args),

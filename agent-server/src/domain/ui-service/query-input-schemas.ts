@@ -65,6 +65,10 @@ export const commissionsDecisionsInput = z.object({
   commissionId: z.string(),
 });
 
+export const waitpointsListInput = z.object({
+  sessionId: z.string().min(1),
+});
+
 export const executionsListInput = z.object({
   status: z.array(z.string()).optional(),
   limit: z.number().optional(),

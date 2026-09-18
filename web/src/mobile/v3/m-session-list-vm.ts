@@ -29,10 +29,10 @@ export interface MSessionGroup {
  * Background-held (web bg-hold snapshot: foreground turn done, background task still running) →
  * `background` + `后台运行`, now rendered with the SAME run-blue dot as running (background is no
  * longer amber — only a needed user action is). Running → `running · N turns` (turns only when
- * known); idle → `空闲`. Per-session cost has NO DTO source (SessionInfo carries none) →
+ * known); idle-but-waiting-on-a-waitpoint → `等 N 个信号` with a hollow ring; idle → `空闲`. Per-session cost has NO DTO source (SessionInfo carries none) →
  * deliberately omitted, never fabricated (the scheme's `· $0.31` is a design mock).
  */
-export function sessionStatusLine(s: SessionInfo): { kind: 'running' | 'background' | 'awaiting' | 'idle'; text: string } {
+export function sessionStatusLine(s: SessionInfo): { kind: 'running' | 'background' | 'awaiting' | 'waiting-external' | 'idle'; text: string } {
   if (s.awaitingInput) {
     return { kind: 'awaiting', text: '等待操作' };
   }
@@ -41,6 +41,11 @@ export function sessionStatusLine(s: SessionInfo): { kind: 'running' | 'backgrou
   }
   if (s.running) {
     return { kind: 'running', text: s.numTurns != null ? `running · ${s.numTurns} turns` : 'running' };
+  }
+  // Idle, but an external signal is still expected (an armed waitpoint). Ranked below every live
+  // state and below `awaiting`: nothing here needs the user, so it must not borrow amber.
+  if ((s.waitingOn ?? 0) > 0) {
+    return { kind: 'waiting-external', text: `等 ${s.waitingOn} 个信号` };
   }
   return { kind: 'idle', text: '空闲' };
 }

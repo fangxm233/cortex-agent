@@ -120,6 +120,40 @@ it, and it arrives in your transcript as a user turn, so it is never to be read 
 If the deadline passes with nobody reporting, you are told that instead. An agent left waiting on
 silence is worse off than one told nothing came.
 
+## Seeing it in the UI
+
+A waitpoint belongs to a session, so that is where it shows up — no separate dashboard to go
+looking at.
+
+**Above the composer.** While a session is waiting on anything, a one-line rail sits directly above
+the input: `waiting on 2 signals · train-arm2 · expires in 3h`. Click it open for the full picture —
+the intent the agent wrote, quorum progress, every signal received so far with its source, and a
+cancel button. It renders nothing at all when nothing is armed, so an ordinary session is unchanged.
+
+Only armed waitpoints appear. One that fires or expires has already posted its own notice into the
+transcript; repeating it in a panel would tell the same story twice.
+
+**In the session list.** A session waiting on an external signal carries a hollow ring next to its
+name — deliberately not the amber dot, which is reserved everywhere in Cortex for "blocked on YOU"
+(a pending question or plan approval). Waiting on a machine asks nothing of you, and should not
+compete for the attention of the one marker that does.
+
+**Three things worth looking for** in the expanded rail, each a way a wake can fail silently:
+
+| Badge | Means |
+|---|---|
+| `wake limit reached (12/h)` | The cap has latched. Signals are still recorded but **no longer wake this session**, and the latch never resets. |
+| `delivery retrying · N attempts` | A signal landed but the wake did not. Hover for the error. |
+| `N/12 wakes this hour` | The budget is nearly spent. |
+
+The signal secret is not shown: only its hash is stored, and the plaintext is handed out once when
+the waitpoint is armed. The UI can copy the id, never the credential.
+
+Which waitpoints count as "this session's" is the union of two rules: the session armed it, **or**
+its wake will be delivered here. The second is what the notifier actually uses, so a waitpoint armed
+by an earlier session on the same channel (after `!new`, or on a re-run of a schedule) shows up on
+the session that will really receive it.
+
 ## Housekeeping
 
 | | |

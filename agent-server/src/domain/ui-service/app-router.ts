@@ -39,6 +39,7 @@ import {
   commissionsDecisionsInput,
   commissionCloseInput,
   executionsListInput,
+  waitpointsListInput,
   executionsGetInput,
   memoryTreeInput,
   memoryFileInput,
@@ -57,6 +58,7 @@ import {
   costSummaryInput,
   threadsCancelInput,
   executionsCancelInput,
+  waitpointsCancelInput,
   scheduleActionInput,
   scheduleAddInput,
   scheduleUpdateInput,
@@ -270,6 +272,13 @@ function commissionsRouter(service: UiService) {
   });
 }
 
+function waitpointsRouter(service: UiService) {
+  return router({
+    list: makeQuery(service, 'waitpoints.list', waitpointsListInput),
+    cancel: makeMutation(service, 'waitpoints.cancel', waitpointsCancelInput),
+  });
+}
+
 function executionsRouter(service: UiService) {
   return router({
     list: makeQuery(service, 'executions.list', executionsListInput),
@@ -449,6 +458,7 @@ export function createAppRouter(service: UiService) {
     schedules: schedulesRouter(service),
     commissions: commissionsRouter(service),
     executions: executionsRouter(service),
+    waitpoints: waitpointsRouter(service),
     memory: memoryRouter(service),
     approvals: approvalsRouter(service),
     issues: issuesRouter(service),

@@ -9,6 +9,7 @@ import { Composer } from './Composer';
 import { ContextUsageControl } from './ContextUsageControl';
 import { useSessionCompact } from './useSessionCompact';
 import { invalidateActiveSubagentTranscriptQueries, useSessionMessageLiveSync } from './useSessionMessageLiveSync';
+import { useSessionWaitpoints } from './useSessionWaitpoints';
 import { useInteractionActions } from './useInteractionActions';
 import { useMarkSessionRead } from './useMarkSessionRead';
 import { buildTranscriptRows, turnCount, resolveTurns, currentTurnElapsedMs, formatElapsed, formatDividerFromVocab } from './transcript-vm';
@@ -114,6 +115,9 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
       contextUsage: active?.contextUsage ?? null,
       todos: active?.todos ?? null,
     });
+  // Waitpoints for the rail above the composer. Kept here rather than inside WaitRail so mounting a
+  // composer in a test does not require the waitpoints route to be stubbed.
+  const waitpoints = useSessionWaitpoints(isDraft ? null : sessionId);
   const optimistic = useOptimisticUserMessages({
     sessionId,
     isDraft,
@@ -245,6 +249,7 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
           sessionId={sessionId}
           running={running}
           backgroundRunning={backgroundRunning}
+          waitingOn={active?.waitingOn ?? 0}
           turns={agentTurns}
           cost={active?.costUsd ?? null}
           elapsed={elapsed}
@@ -268,6 +273,7 @@ export function CenterChat({ grow = 1, onOpenSettings }: {
           turnProgressStarted={liveTurns !== null || streaming}
           compactAction={active?.contextCompactionSupported ? compactAction : undefined}
           todos={todos}
+          waitpoints={waitpoints}
           dropTargetRef={chatDropTargetRef}
           onOpenSettings={onOpenSettings}
           contextControl={(active?.contextCompactionSupported || contextUsage !== null) ? (

@@ -14,6 +14,7 @@ import {
 import { scheduledRunTitle } from '@/features/workbench/schedule-rail';
 import { invalidateActiveSubagentTranscriptQueries, useSessionMessageLiveSync } from '@/features/workbench/useSessionMessageLiveSync';
 import { useOptimisticUserMessages } from '@/features/workbench/useOptimisticUserMessages';
+import { useSessionWaitpoints } from '@/features/workbench/useSessionWaitpoints';
 import { runOptimisticMutation } from '@/features/workbench/optimistic-message';
 import { useInteractionActions } from '@/features/workbench/useInteractionActions';
 import { useMarkSessionRead } from '@/features/workbench/useMarkSessionRead';
@@ -263,6 +264,7 @@ export function MChatScreen(): JSX.Element {
   // A non-blocking ask (cortex_ask_user blocking:false) never takes over the composer: the agent
   // is still working and the user must stay free to type anything. Its card still renders inline
   // in the stream and stays tappable there.
+  const waitpoints = useSessionWaitpoints(isDraft ? null : sessionId);
   const pendingInteraction = useMemo(() => {
     for (const r of rows) {
       if (r.kind !== 'interaction' || r.detail?.status !== 'pending') continue;
@@ -707,7 +709,7 @@ export function MChatScreen(): JSX.Element {
   const runStatus = deriveSessionRunStatus({
     running: running || optimistic.pendingUser.length > 0, backgroundRunning, hasRun,
   });
-  const statusCopy = { foreground: vocab.pillRunning, background: vocab.pillBackground, idle: vocab.wbIdle, turnsUnit: vocab.wbTurnsUnit };
+  const statusCopy = { foreground: vocab.pillRunning, background: vocab.pillBackground, idle: vocab.wbIdle, turnsUnit: vocab.wbTurnsUnit, waitingOn: (n: number) => (lang === 'zh' ? `等 ${n} 个信号` : `waiting on ${n}`) };
   const statusBrowserDevice = active?.browser?.device ?? draftBrowserDevice;
   const browserStarting = browserStartupPending({
     running: runStatus.active, backgroundRunning, device: statusBrowserDevice,
@@ -722,7 +724,7 @@ export function MChatScreen(): JSX.Element {
       )
     : browserStarting && statusBrowserDevice
       ? { running: true, tone: 'running' as const, text: browserStartupHint(statusBrowserDevice, vocab.wbBrowserStarting) }
-      : chatHeaderStatus(runStatus, turns, elapsed, cost, statusCopy);
+      : chatHeaderStatus(runStatus, turns, elapsed, cost, statusCopy, active?.waitingOn ?? 0);
 
   // ── interaction props for the view ──
   const intCopy = pickCopy(lang, M_INT_COPY);
@@ -832,6 +834,7 @@ export function MChatScreen(): JSX.Element {
         sessionId={sessionId}
         todos={todos}
         todoLang={lang}
+        waitpoints={waitpoints}
         composerValue={text}
         onComposerChange={setText}
         onSend={onSend}

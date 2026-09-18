@@ -329,18 +329,27 @@ export function RailTree(props: RailTreeProps): JSX.Element {
             style={{ position: 'absolute', left: indent - 16, top: 5, bottom: 5, width: 2, borderRadius: 1, background: 'var(--proto-accent)' }}
           />
         )}
-        {(row.running || row.awaitingInput) && (
+        {(row.running || row.awaitingInput || row.waitingOn) && (
           // Absolute, in the gutter between the spine and the text: in flow it pushed the title of
           // exactly the rows you are watching out of line with every other one.
+          // Three states, in priority order. A hollow, still ring means "waiting on a machine":
+          // visible, but it must not compete with amber, which is reserved everywhere in the UI for
+          // "blocked on YOU" — the only dot that asks the user to do something.
           <span
+            data-rail-dot={row.running || row.awaitingInput ? 'live' : 'waiting'}
             style={{
               position: 'absolute',
               left: indent - 11,
               width: 6,
               height: 6,
               borderRadius: '50%',
-              background: row.awaitingInput ? 'var(--proto-amber)' : 'var(--proto-accent)',
-              animation: 'cxpulse 1.6s ease-in-out infinite',
+              boxSizing: 'border-box',
+              ...(row.running || row.awaitingInput
+                ? {
+                  background: row.awaitingInput ? 'var(--proto-amber)' : 'var(--proto-accent)',
+                  animation: 'cxpulse 1.6s ease-in-out infinite',
+                }
+                : { background: 'transparent', border: '1.5px solid var(--proto-muted-3)' }),
             }}
           />
         )}

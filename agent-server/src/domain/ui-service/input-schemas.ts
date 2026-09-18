@@ -31,6 +31,7 @@ import {
   commissionsDecisionsInput,
   executionsListInput,
   executionsGetInput,
+  waitpointsListInput,
   memoryTreeInput,
   memoryFileInput,
   approvalsListInput,
@@ -53,6 +54,7 @@ export {
   commissionsDecisionsInput,
   executionsListInput,
   executionsGetInput,
+  waitpointsListInput,
   memoryTreeInput,
   memoryFileInput,
   approvalsListInput,
@@ -293,6 +295,10 @@ export const sessionsCreateAndSendInput = z.object({
 
 export const threadsCancelInput = z.object({
   threadId: z.string(),
+});
+
+export const waitpointsCancelInput = z.object({
+  waitpointId: z.string().min(1),
 });
 
 export const executionsCancelInput = z.object({
@@ -855,6 +861,7 @@ export const queryInputSchemas = {
   'commissions.get': commissionsGetInput,
   'commissions.decisions': commissionsDecisionsInput,
   'executions.list': executionsListInput,
+  'waitpoints.list': waitpointsListInput,
   'executions.get': executionsGetInput,
   'memory.tree': memoryTreeInput,
   'memory.file': memoryFileInput,
@@ -901,6 +908,7 @@ export const mutateInputSchemas = {
   'sessions.rewind': sessionsRewindInput,
   'threads.cancel': threadsCancelInput,
   'executions.cancel': executionsCancelInput,
+  'waitpoints.cancel': waitpointsCancelInput,
   'schedules.pause': scheduleActionInput,
   'schedules.resume': scheduleActionInput,
   'schedules.remove': scheduleActionInput,

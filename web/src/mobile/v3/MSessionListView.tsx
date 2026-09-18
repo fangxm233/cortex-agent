@@ -138,6 +138,10 @@ function Row({ row, byId, onOpen }: { row: MSessionGroup['rows'][number]; byId: 
         {status.kind === 'background' && <MDot color={MC.run} pulse />}
         {/* Amber is reserved for「需要你」— a pending ask-user question / plan approval. */}
         {status.kind === 'awaiting' && <MDot color={MC.amber} pulse />}
+        {/* Waiting on an external signal: a still, hollow ring. Visible, but it asks nothing of you. */}
+        {status.kind === 'waiting-external' && (
+          <span style={{ width: 7, height: 7, borderRadius: '50%', boxSizing: 'border-box', border: `1.5px solid ${MC.muted}`, flex: 'none' }} />
+        )}
         {/* The status line joins the run accent while live; unread keeps its own weight/colour on
             the title line above, so "running" never masquerades as "unread". */}
         <span style={{ font: `400 10px ${MONO}`, color: live ? MC.run : MC.muted }}>{status.text}</span>

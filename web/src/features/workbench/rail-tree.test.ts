@@ -185,6 +185,28 @@ describe('buildRailTree badges and hotkeys', () => {
     expect(tree.projects[0].attention).toBe(3);
   });
 
+  it('marks a session waiting on an external signal without claiming it needs the user', () => {
+    const tree = buildRailTree(
+      input({
+        projects: [project('nimbus')],
+        directSessions: [session('nimbus', { waitingOn: 2 })],
+      }),
+    );
+    const row = tree.projects[0].sessions[0];
+    expect(row.waitingOn).toBe(true);
+    // The amber「需要你」dot and the project attention badge are both reserved for a real user
+    // action — an external wait must not borrow either.
+    expect(row.awaitingInput).toBe(false);
+    expect(tree.projects[0].attention).toBe(0);
+  });
+
+  it('reports no external wait when the server does not send the field', () => {
+    const tree = buildRailTree(
+      input({ projects: [project('nimbus')], directSessions: [session('nimbus', {})] }),
+    );
+    expect(tree.projects[0].sessions[0].waitingOn).toBe(false);
+  });
+
   it('counts running and waiting threads as the blue pulse', () => {
     const tree = buildRailTree(
       input({

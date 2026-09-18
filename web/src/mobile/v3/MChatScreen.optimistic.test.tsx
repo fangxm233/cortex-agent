@@ -100,6 +100,8 @@ vi.mock('@/lib/trpc', () => ({
       models: { catalog: query('models.catalog') },
       threads: { list: query('threads.list'), get: query('threads.get') },
       schedules: { list: query('schedules.list') },
+      // The composer's WaitRail asks what this session is waiting on.
+      waitpoints: { list: query('waitpoints.list'), cancel: mutation('waitpoints.cancel') },
       commissions: { list: query('commissions.list'), get: query('commissions.get') },
     };
   },

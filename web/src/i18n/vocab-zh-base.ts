@@ -168,6 +168,7 @@ export const zhBase = {
   connDisconnected: '已断开',
   wbProfile: '配置',
   wbIdle: '空闲',
+  wbWaitingOn: '等 {n} 个信号',
   wbModel: '模型',
   wbThinking: '思考强度',
   wbRoute: '计费路由',

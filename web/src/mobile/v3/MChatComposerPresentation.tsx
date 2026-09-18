@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import type { SlashSuggestion } from '@/features/workbench/composer-slash';
 import { TodoRail } from '@/features/workbench/TodoRail';
+import { WaitRail } from '@/features/workbench/WaitRail';
 import { PlusGlyph } from '@/design';
 import { MC, MONO } from '@/mobile/ui/kit';
 import { ComposerAttachmentStrip } from './MChatAttachments';
@@ -90,6 +91,15 @@ export function ComposerAbove({ props }: { props: MChatViewProps }): JSX.Element
   return (
     <>
       {props.sessionId && props.todos ? <TodoRail sessionId={props.sessionId} todos={props.todos} lang={props.todoLang ?? 'en'} /> : null}
+      {props.sessionId && props.waitpoints ? (
+        <WaitRail
+          sessionId={props.sessionId}
+          lang={props.todoLang ?? 'en'}
+          waitpoints={props.waitpoints.waitpoints}
+          onCancel={props.waitpoints.cancel}
+          cancelling={props.waitpoints.cancelling}
+        />
+      ) : null}
       {mode}
     </>
   );

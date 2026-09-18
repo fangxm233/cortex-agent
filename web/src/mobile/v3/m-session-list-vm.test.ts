@@ -42,6 +42,16 @@ describe('sessionStatusLine', () => {
       sessionStatusLine(sess({ running: true, backgroundRunning: true, awaitingInput: true })).kind,
     ).toBe('awaiting');
   });
+
+  it('separates "idle" from "idle but waiting on an external signal"', () => {
+    expect(sessionStatusLine(sess({ waitingOn: 2 })).kind).toBe('waiting-external');
+    expect(sessionStatusLine(sess({ waitingOn: 2 })).text).toBe('等 2 个信号');
+    // Ranked below everything live and below a pending user action — it asks nothing of the user.
+    expect(sessionStatusLine(sess({ waitingOn: 2, running: true })).kind).toBe('running');
+    expect(sessionStatusLine(sess({ waitingOn: 2, awaitingInput: true })).kind).toBe('awaiting');
+    // An absent field (older server) must not invent a waiting state.
+    expect(sessionStatusLine(sess({})).kind).toBe('idle');
+  });
 });
 
 describe('buildSessionGroups', () => {

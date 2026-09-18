@@ -88,6 +88,8 @@ export interface ChatRunStatusCopy {
   background: string;
   idle: string;
   turnsUnit: string;
+  /** "waiting on N signals" — the caller localizes it; this module holds no literals of its own. */
+  waitingOn?: (n: number) => string;
 }
 
 /**
@@ -100,6 +102,10 @@ export function chatHeaderStatus(
   elapsed: string,
   cost: number | null,
   copy: ChatRunStatusCopy,
+  /** Armed waitpoints (SessionInfo.waitingOn). Appended, never substituted: an idle session that is
+   *  waiting for a machine is still idle, but it must not read as "nothing is happening". Tone stays
+   *  neutral — amber belongs to a pending user action alone. */
+  waitingOn = 0,
 ): ChatHeaderStatus {
   const turnsText = turns == null ? DASH : `${turns} ${copy.turnsUnit}`;
   const label = status.phase === 'background'
@@ -107,9 +113,10 @@ export function chatHeaderStatus(
     : status.phase === 'foreground'
       ? copy.foreground
       : copy.idle;
-  const text = status.showMetrics
+  const base = status.showMetrics
     ? [label, elapsed, turnsText, ...(status.showCost ? [cost == null ? DASH : formatUsd(cost)] : [])].join(' · ')
     : label;
+  const text = waitingOn > 0 && copy.waitingOn ? `${base} · ${copy.waitingOn(waitingOn)}` : base;
   return { running: status.active, tone: status.active ? 'running' : 'idle', text };
 }
 

@@ -32,6 +32,9 @@ export interface RailSessionRow {
   stamp: string;
   running: boolean;
   awaitingInput: boolean;
+  /** Waiting on an external signal (an armed waitpoint). Deliberately NOT folded into
+   *  `awaitingInput`: that one means "blocked on you", this one means "blocked on a machine". */
+  waitingOn: boolean;
   unread: boolean;
   selected: boolean;
 }
@@ -197,6 +200,7 @@ export function buildRailTree(input: RailTreeInput): RailTree {
     stamp: sessionTooltipStamp(s),
     running: !!s.running,
     awaitingInput: !!s.awaitingInput,
+    waitingOn: (s.waitingOn ?? 0) > 0,
     unread: !!s.unread,
     selected: s.sessionId === selectedSessionId,
   });

@@ -33,6 +33,7 @@ import { taskMutator } from '@domain/tasks/mutator.js';
 import { recoverOrphanedClaims } from '@domain/tasks/claim-recovery.js';
 import { projectDirRepo } from '@store/project-dir-repo.js';
 import { waitpointRepo } from '@store/waitpoint-repo.js';
+import { cancelWaitpoint } from '@domain/waitpoints/service.js';
 import { recoverWaitpoints, startWaitpointSweep, stopWaitpointSweep } from '../orchestration/waitpoint-sweep.js';
 import { projectStore } from '@domain/projects/index.js';
 import { sendStartupDmIfConfigured } from './startup-notify.js';
@@ -563,6 +564,13 @@ process.on('SIGTERM', async () => {
       update: (id, patch) => scheduler.update(id, patch),
     },
     executionRegistry,
+    // Waitpoints (SessionInfo.waitingOn + the waitpoints.* ops). Injected here, at the entry layer,
+    // so the ui-service domain never reaches into the waitpoint store. Only armed records are ever
+    // listed: a settled waitpoint has already announced itself in the session transcript.
+    waitpointRegistry: {
+      listArmed: () => waitpointRepo.listArmed(),
+      cancel: (id: string) => cancelWaitpoint(id),
+    },
     approvalsPath: path.join(CONTEXT_DIR, 'PENDING_APPROVALS.md'),
     runningExecutions: sessionStates,
     costSummary: getCostSummary,

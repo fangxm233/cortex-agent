@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { SessionContextUsage, TodoSnapshot } from '@cortex-agent/ui-contract';
 import type { SlashSuggestion } from '@/features/workbench/composer-slash';
+import type { SessionWaitpoints } from '@/features/workbench/useSessionWaitpoints';
 import type { ContextCompactAction } from '@/features/workbench/ContextUsageControl';
 import type { AskAnswerState, AskCardModel, PlanCardModel } from '@/features/workbench/interaction-vm';
 import type { ChatRow } from '@/features/workbench/transcript-vm';
@@ -146,6 +147,8 @@ export interface MChatViewProps {
   sessionId?: string;
   todos?: TodoSnapshot | null;
   todoLang?: TodoRailLanguage;
+  /** What this session is waiting on from outside Cortex (WaitRail), supplied by the screen. */
+  waitpoints?: SessionWaitpoints | null;
   composerValue: string;
   onComposerChange: (value: string) => void;
   onSend: () => void;

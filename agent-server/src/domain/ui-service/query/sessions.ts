@@ -14,6 +14,7 @@ import type {
   SessionsPendingInteraction,
 } from '../types.js';
 import { effectiveBackendSessionId } from '@store/session-registry-repo.js';
+import { countWaitingOn } from './waitpoints.js';
 import { sessionTotalsCarry } from '@store/session-totals-repo.js';
 import {
   addTotalsAcc, emptyTotalsAcc, foldExecution, toSessionTotals,
@@ -103,6 +104,15 @@ export async function handleSessionsList(
     return sessionId ? (lastRunBySession.get(sessionId)?.costUsd ?? null) : null;
   };
 
+  // Armed waitpoints, fetched once for the whole page (the repo read is an in-memory cache hit).
+  // Counted per session by the shared ownership rule so `waitingOn` and `waitpoints.list` can never
+  // disagree. Absent dep (fixtures / TUI) ⇒ every session reports 0.
+  const armedWaitpoints = deps.waitpointRegistry ? await deps.waitpointRegistry.listArmed() : [];
+  const waitingOnBySession = countWaitingOn(
+    armedWaitpoints,
+    sessions.map((s: any) => ({ sessionId: s.sessionId, channel: s.channel ?? null })),
+  );
+
   const infos = sessions.map((s: any): SessionInfo => {
     // Busy snapshot: the registry's single answer for this session. Snapshot + delta — this field
     // is the queryable snapshot, the `session.status` event stream is the delta.
@@ -153,6 +163,7 @@ export async function handleSessionsList(
       running,
       backgroundRunning: bgHeld,
       awaitingInput,
+      waitingOn: waitingOnBySession.get(s.sessionId) ?? 0,
       numTurns: resolveNumTurns(s.sessionId, inTurn, state.numTurns),
       costUsd: resolveCost(s.sessionId, inTurn),
       // Cumulative over every finished run this session has had (plus its Agent-tool children's

@@ -23,6 +23,7 @@ import type {
   commissionsDecisionsInput,
   commissionCloseInput,
   executionsListInput,
+  waitpointsListInput,
   executionsGetInput,
   memoryTreeInput,
   memoryFileInput,
@@ -41,6 +42,7 @@ import type {
   costSummaryInput,
   threadsCancelInput,
   executionsCancelInput,
+  waitpointsCancelInput,
   scheduleActionInput,
   scheduleAddInput,
   scheduleUpdateInput,
@@ -119,6 +121,7 @@ const _commissionsList: QueryParity<'commissions.list', typeof commissionsListIn
 const _commissionsGet: QueryParity<'commissions.get', typeof commissionsGetInput> = true;
 const _commissionsDecisions: QueryParity<'commissions.decisions', typeof commissionsDecisionsInput> = true;
 const _executionsList: QueryParity<'executions.list', typeof executionsListInput> = true;
+const _waitpointsList: QueryParity<'waitpoints.list', typeof waitpointsListInput> = true;
 const _executionsGet: QueryParity<'executions.get', typeof executionsGetInput> = true;
 const _memoryTree: QueryParity<'memory.tree', typeof memoryTreeInput> = true;
 const _memoryFile: QueryParity<'memory.file', typeof memoryFileInput> = true;
@@ -154,6 +157,7 @@ const _sessionsSetSelection: MutateParity<'sessions.setSelection', typeof sessio
 const _sessionsSetCommission: MutateParity<'sessions.setCommission', typeof sessionsSetCommissionInput> = true;
 const _threadsCancel: MutateParity<'threads.cancel', typeof threadsCancelInput> = true;
 const _executionsCancel: MutateParity<'executions.cancel', typeof executionsCancelInput> = true;
+const _waitpointsCancel: MutateParity<'waitpoints.cancel', typeof waitpointsCancelInput> = true;
 const _schedulesPause: MutateParity<'schedules.pause', typeof scheduleActionInput> = true;
 const _schedulesResume: MutateParity<'schedules.resume', typeof scheduleActionInput> = true;
 const _schedulesRemove: MutateParity<'schedules.remove', typeof scheduleActionInput> = true;
@@ -210,7 +214,9 @@ const _systemSkipUpdate: MutateParity<'system.skipUpdate', typeof systemSkipUpda
 // checks are not tree-shaken away by the type checker.
 export const _contractParityChecked = [
   _projectsList, _sessionsList, _sessionsTranscript, _sessionsSubagentTranscript, _threadsList, _threadsGet, _tasksList, _schedulesList,
-  _executionsList, _executionsGet, _memoryTree, _memoryFile, _approvalsList, _notesList, _costSummary, _configGet,
+  _executionsList,
+  _waitpointsList,
+  _waitpointsCancel, _executionsGet, _memoryTree, _memoryFile, _approvalsList, _notesList, _costSummary, _configGet,
   _authStatus, _authFlowState, _machinesList, _skillsList, _pluginsList, _threadTemplatesGet,
   _projectsCreate, _sessionsCreate, _sessionsSend, _sessionsCompact, _sessionsSetProfile, _sessionsSetSelection,
   _sessionsSetCommission, _threadsCancel, _executionsCancel,

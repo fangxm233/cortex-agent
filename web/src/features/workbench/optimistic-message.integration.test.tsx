@@ -45,6 +45,8 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
         return { data: { routes: [], thinkingLevels: { claude: [], pi: [] }, piPending: false } };
       }
       if (options.__kind === 'schedules.list') return { data: [], isPending: false };
+      // Nothing is waiting on an external signal in these scenarios; the rail then renders nothing.
+      if (options.__kind === 'waitpoints.list') return { data: [], isPending: false };
       // No commissions in these scenarios; the composer registers both queries either way.
       if (options.__kind === 'commissions.list') return { data: [], isPending: false };
       if (options.__kind === 'commissions.get') return { data: undefined, isPending: false };
@@ -100,6 +102,11 @@ vi.mock('@/lib/trpc', () => ({
       },
       schedules: {
         list: query('schedules.list'),
+      },
+      // The composer's WaitRail asks what this session is waiting on.
+      waitpoints: {
+        list: query('waitpoints.list'),
+        cancel: mutation('waitpoints.cancel'),
       },
       commissions: {
         list: query('commissions.list'),
