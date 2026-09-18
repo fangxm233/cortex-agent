@@ -9,6 +9,9 @@ import { taskMutator } from '@domain/tasks/mutator.js';
 import { sendCommand, isDeviceOnline, getOnlineDevices } from '@domain/remote/client-manager.js';
 import { stageRemoteFile } from '@domain/remote/device-file.js';
 import { registerDispatchExecution } from '@domain/executions/registry.js';
+import { createWaitpoint, cancelWaitpoint, listWaitpointsForSession, publicView } from '@domain/waitpoints/service.js';
+import { ingestSignal, toSignalInput } from '../waitpoint-ingress.js';
+import { waitpointRepo } from '@store/waitpoint-repo.js';
 import { registerAskQuestion, registerPlanApproval } from './hook-bridge.js';
 import { normalizeAskLevel } from '@platform/index.js';
 import { sessionStore } from '@store/session-registry-repo.js';
@@ -86,10 +89,44 @@ function isWebhookAuthorized(req): boolean {
   return timingSafeEqualStr(getWebhookToken(), headerVal);
 }
 
-function readJsonBody(req, callback) {
+/**
+ * Read and parse a JSON body.
+ *
+ * `maxBytes` is opt-in so existing trusted callers keep their behaviour, but any route reachable
+ * without the bearer token must pass one — otherwise the concatenation below is an unbounded
+ * allocation driven by an unauthenticated caller. Over the cap the request is destroyed and the
+ * callback fires with a `tooLarge` error.
+ */
+/**
+ * Routes that do NOT take the shared bearer token, because each carries a narrower credential of
+ * its own. Deliberately a Set of exact paths: handing `CORTEX_WEBHOOK_TOKEN` to a training script
+ * would give it `remote-command` on every device, which is why the signal route authenticates with
+ * a capability scoped to one waitpoint instead.
+ */
+const TOKEN_EXEMPT_ROUTES = new Set(['/webhook/github', '/webhook/signal']);
+
+/** Ceiling on an unauthenticated signal body. A signal is a summary, not a log. */
+const SIGNAL_BODY_MAX_BYTES = 64 * 1024;
+
+function readJsonBody(req, callback, maxBytes = 0) {
   let body = '';
-  req.on('data', (chunk) => { body += chunk; });
+  let size = 0;
+  let aborted = false;
+  req.on('data', (chunk) => {
+    if (aborted) return;
+    size += chunk.length;
+    if (maxBytes > 0 && size > maxBytes) {
+      aborted = true;
+      const error: any = new Error(`body exceeds ${maxBytes} bytes`);
+      error.tooLarge = true;
+      req.destroy();
+      callback(error);
+      return;
+    }
+    body += chunk;
+  });
   req.on('end', () => {
+    if (aborted) return;
     try {
       callback(null, body, JSON.parse(body));
     } catch (error) {
@@ -167,9 +204,11 @@ function createWebhookHandler(_options: {
       res.end('Forbidden');
       return;
     }
-    // --- Auth gate: every route requires the webhook bearer token, except /webhook/github
-    //     which authenticates via its own HMAC signature (GitHub cannot send our header). ---
-    if (req.url !== '/webhook/github' && !isWebhookAuthorized(req)) {
+    // --- Auth gate: every route requires the webhook bearer token, except the two that carry
+    //     their own credential — /webhook/github (HMAC; GitHub cannot send our header) and
+    //     /webhook/signal (a per-waitpoint capability in the body, checked inside the handler).
+    //     Exact string match only: a prefix test here would open every future /webhook/signal*. ---
+    if (!TOKEN_EXEMPT_ROUTES.has(req.url) && !isWebhookAuthorized(req)) {
       log.warn(`webhook auth rejected: ${req.method} ${req.url}`);
       res.writeHead(401);
       res.end('Unauthorized');
@@ -734,6 +773,114 @@ function createWebhookHandler(_options: {
       });
       return;
     }
+    // --- /webhook/signal (an external process reporting that what an agent waited for is done) ---
+    //     The only unauthenticated-by-bearer-token POST. Its credential is the per-waitpoint secret
+    //     in the body, so a training script can be handed a capability that resolves exactly one
+    //     waitpoint and can do nothing else.
+    if (req.method === 'POST' && req.url === '/webhook/signal') {
+      readJsonBody(req, async (error, _body, data) => {
+        if (error) {
+          if ((error as any).tooLarge) {
+            res.writeHead(413, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ accepted: false, error: 'signal body too large' }));
+            return;
+          }
+          res.writeHead(400);
+          res.end('Bad JSON');
+          return;
+        }
+        try {
+          const outcome = await ingestSignal(toSignalInput(data || {}, null, 'http'));
+          switch (outcome.kind) {
+            case 'accepted':
+              res.writeHead(202, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ accepted: true, fired: outcome.fired, state: outcome.waitpoint.state }));
+              return;
+            case 'duplicate':
+              res.writeHead(202, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ accepted: true, duplicate: true, state: outcome.waitpoint.state }));
+              return;
+            case 'already-resolved':
+              // 410, not 404: the caller asked about something that really existed, and echoing the
+              // original resolution lets a script log "already reported" instead of retrying forever.
+              res.writeHead(410, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ accepted: false, state: outcome.state, resolved_at: outcome.resolvedAt }));
+              return;
+            case 'bad-secret':
+              res.writeHead(401, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ accepted: false, error: 'bad secret' }));
+              return;
+            case 'rate-limited':
+              res.writeHead(429, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ accepted: false, error: 'too many signals' }));
+              return;
+            default:
+              res.writeHead(404, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ accepted: false, error: 'unknown waitpoint' }));
+              return;
+          }
+        } catch (e) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ accepted: false, error: (e as Error).message }));
+        }
+      }, SIGNAL_BODY_MAX_BYTES);
+      return;
+    }
+
+    // --- /webhook/waitpoint (agent-side ops behind the normal bearer token) ---
+    if (req.method === 'POST' && req.url === '/webhook/waitpoint') {
+      readJsonBody(req, async (error, _body, data) => {
+        if (error) { res.writeHead(400); res.end('Bad JSON'); return; }
+        const reply = (payload) => {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(payload));
+        };
+        try {
+          const action = data?.action;
+          if (action === 'create') {
+            const channel = data.channel || await resolveSessionChannel(data.sessionId);
+            if (!channel) return reply({ success: false, error: 'cannot resolve a channel for this session' });
+            if (!data.label || !data.intent) return reply({ success: false, error: 'label and intent are required' });
+            const { waitpoint, secret } = await createWaitpoint({
+              label: String(data.label),
+              intent: String(data.intent),
+              owner: {
+                sessionId: String(data.sessionId || ''),
+                channel,
+                threadId: data.threadId || null,
+                project: data.project || null,
+              },
+              quorum: data.quorum,
+              failFast: data.failFast,
+              maxSignals: data.maxSignals,
+              coalesceMs: data.coalesceMs,
+              ttlMs: data.ttlMs,
+              emitFrom: data.device ? { kind: 'device', device: String(data.device) } : { kind: 'local' },
+            });
+            return reply({ success: true, data: { ...publicView(waitpoint), secret } });
+          }
+          if (action === 'check') {
+            if (data.id) {
+              const wp = await waitpointRepo.get(String(data.id));
+              if (!wp) return reply({ success: false, error: `unknown waitpoint: ${data.id}` });
+              return reply({ success: true, data: publicView(wp) });
+            }
+            const mine = await listWaitpointsForSession(String(data.sessionId || ''));
+            return reply({ success: true, data: { waitpoints: mine.map(publicView) } });
+          }
+          if (action === 'cancel') {
+            if (!data.id) return reply({ success: false, error: 'id is required' });
+            const result = await cancelWaitpoint(String(data.id));
+            return reply({ success: true, data: result });
+          }
+          return reply({ success: false, error: `unknown action: ${action}` });
+        } catch (e) {
+          reply({ success: false, error: (e as Error).message });
+        }
+      });
+      return;
+    }
+
 
     if (req.method !== 'POST' || req.url !== '/webhook/github') {
       res.writeHead(404);

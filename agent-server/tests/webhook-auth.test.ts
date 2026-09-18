@@ -76,6 +76,42 @@ test('an unknown route without a token is rejected 401 (does not leak 404)', asy
   assert.equal(statusCode, 401);
 });
 
+test('the token exemption covers /webhook/signal and nothing adjacent to it', async () => {
+  // Reaching the handler (404 "unknown waitpoint", not 401 "Unauthorized") proves the bearer gate
+  // was skipped and the capability check inside the route is what refused the call.
+  const signal = await drive({ method: 'POST', url: '/webhook/signal', body: { id: 'wp_nope', secret: 'x' } });
+  assert.equal(signal.statusCode, 404);
+  assert.equal(JSON.parse(signal.body).accepted, false);
+
+  // Neighbours must stay gated: no prefix matching, no sibling leaking through.
+  for (const url of ['/webhook/signals', '/webhook/signal/extra', '/webhook/waitpoint', '/webhook/task-op']) {
+    const { statusCode } = await drive({ method: 'POST', url, body: {} });
+    assert.equal(statusCode, 401, `${url} must still require the bearer token`);
+  }
+});
+
+test('an oversized signal body is refused 413 without being buffered', async () => {
+  const result = await new Promise<{ statusCode: number; body: string; destroyed: boolean }>((resolve) => {
+    const req = new EventEmitter() as any;
+    req.method = 'POST';
+    req.url = '/webhook/signal';
+    req.headers = {};
+    let destroyed = false;
+    req.destroy = () => { destroyed = true; };
+    let statusCode = 200;
+    let body = '';
+    const res: any = {
+      writeHead: (code: number) => { statusCode = code; },
+      end: (chunk?: string) => { if (chunk) body += chunk; resolve({ statusCode, body, destroyed }); },
+    };
+    handler(req, res);
+    req.emit('data', 'x'.repeat(70 * 1024));
+    req.emit('end');
+  });
+  assert.equal(result.statusCode, 413);
+  assert.equal(result.destroyed, true, 'the request must be torn down, not read to completion');
+});
+
 test('thread-op-only mode refuses every broader webhook route', async () => {
   process.env.CORTEX_WEBHOOK_THREAD_OP_ONLY = '1';
   try {

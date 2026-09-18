@@ -151,7 +151,9 @@ export type ApplySignalOutcome =
   | { kind: 'not-found' }
   | { kind: 'bad-secret' }
   | { kind: 'already-resolved'; state: Waitpoint['state']; resolvedAt: number | null }
-  | { kind: 'rate-limited'; waitpoint: Waitpoint };
+  /** The signal was recorded but no wake was sent. `waitpoint` is absent when the refusal happened
+   *  before lookup (global miss budget) rather than at the per-waitpoint cap. */
+  | { kind: 'rate-limited'; waitpoint?: Waitpoint };
 
 function truncate(value: string, max: number): string {
   return value.length <= max ? value : `${value.slice(0, max)}…[truncated ${value.length - max} chars]`;
