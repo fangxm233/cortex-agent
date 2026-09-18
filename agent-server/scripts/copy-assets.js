@@ -13,6 +13,7 @@ const cliEntryPoints = [
   'dist/entry/cortex-cli.js',
   'dist/entry/production-evidence-export-cli.js',
   'dist/entry/hook-cli.js',
+  'dist/entry/signal-cli.js',
   'dist/domain/tasks/system/cortex-run.js',
   'dist/domain/tasks/system/task-cli.js',
 ];

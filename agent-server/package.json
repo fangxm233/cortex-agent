@@ -13,6 +13,7 @@
     "cortex-evidence-export": "dist/entry/production-evidence-export-cli.js",
     "cortex-hook": "dist/entry/hook-cli.js",
     "cortex-run": "dist/domain/tasks/system/cortex-run.js",
+    "cortex-signal": "dist/entry/signal-cli.js",
     "cortex-task": "dist/domain/tasks/system/task-cli.js"
   },
   "files": [
