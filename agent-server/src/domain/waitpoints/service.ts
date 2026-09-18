@@ -6,6 +6,7 @@
 
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { createLogger } from '@core/log.js';
+import { getSettings } from '@core/settings.js';
 import {
   waitpointRepo as defaultRepo,
   type Waitpoint,
@@ -32,6 +33,8 @@ export interface WaitpointServiceDeps {
   now: () => number;
   /** Sliding-window cap on wakes per waitpoint per hour. */
   maxWakesPerHour: () => number;
+  /** Lifetime applied when the caller does not ask for one. */
+  defaultTtlMs: () => number;
   newId: () => string;
   newSecret: () => string;
 }
@@ -39,7 +42,9 @@ export interface WaitpointServiceDeps {
 export const productionWaitpointDeps: WaitpointServiceDeps = {
   repo: defaultRepo,
   now: () => Date.now(),
-  maxWakesPerHour: () => 12,
+  // Read through getSettings() on every call so a live settings change takes effect without a restart.
+  maxWakesPerHour: () => getSettings().waitpointMaxWakesPerHour,
+  defaultTtlMs: () => getSettings().waitpointTtlMs,
   newId: () => `wp_${randomBytes(6).toString('hex')}`,
   newSecret: () => randomBytes(16).toString('hex'),
 };
@@ -77,8 +82,9 @@ export interface CreateWaitpointResult {
   secret: string;
 }
 
-function clampTtl(ttlMs: number | undefined): number {
-  if (typeof ttlMs !== 'number' || !Number.isFinite(ttlMs) || ttlMs <= 0) return DEFAULT_TTL_MS;
+function clampTtl(ttlMs: number | undefined, fallbackMs: number): number {
+  const fallback = Number.isFinite(fallbackMs) && fallbackMs > 0 ? Math.min(fallbackMs, MAX_TTL_MS) : DEFAULT_TTL_MS;
+  if (typeof ttlMs !== 'number' || !Number.isFinite(ttlMs) || ttlMs <= 0) return fallback;
   return Math.min(ttlMs, MAX_TTL_MS);
 }
 
@@ -118,7 +124,7 @@ export async function createWaitpoint(
       ? input.coalesceMs
       : (quorum.need > 1 ? DEFAULT_COALESCE_MS : 0),
     createdAt: now,
-    expiresAt: now + clampTtl(input.ttlMs),
+    expiresAt: now + clampTtl(input.ttlMs, deps.defaultTtlMs()),
     resolvedAt: null,
     state: 'armed',
     signals: [],

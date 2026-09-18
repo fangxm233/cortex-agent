@@ -42,6 +42,7 @@ async function harness(): Promise<Harness> {
     repo,
     now: () => BASE,
     maxWakesPerHour: () => 12,
+    defaultTtlMs: () => 7 * 24 * 60 * 60 * 1000,
     newId: () => `wp_${String(++seq).padStart(12, '0')}`,
     newSecret: () => `secret-${seq}`,
   };

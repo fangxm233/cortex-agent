@@ -46,6 +46,7 @@ function harness(): Harness {
       repo,
       now: () => clock,
       maxWakesPerHour: () => 12,
+      defaultTtlMs: () => 7 * 24 * 60 * 60 * 1000,
       newId: () => `wp_${String(++seq).padStart(12, '0')}`,
       newSecret: () => `secret-${seq}`,
     },

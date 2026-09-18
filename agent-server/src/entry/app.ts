@@ -34,6 +34,7 @@ import { taskMutator } from '@domain/tasks/mutator.js';
 import { recoverOrphanedClaims } from '@domain/tasks/claim-recovery.js';
 import { projectDirRepo } from '@store/project-dir-repo.js';
 import { waitpointRepo } from '@store/waitpoint-repo.js';
+import { recoverWaitpoints, startWaitpointSweep, stopWaitpointSweep } from '../orchestration/waitpoint-sweep.js';
 import { projectStore } from '@domain/projects/index.js';
 import { sendStartupDmIfConfigured } from './startup-notify.js';
 import { subscribeDaemonNotices } from './daemon-notice.js';
@@ -460,6 +461,7 @@ process.on('SIGTERM', async () => {
   // Stop scheduler timers BEFORE draining repo writes — otherwise a late-firing
   // timer can enqueue a mutate() after scheduleRepo.flush() resolves, losing that write.
   scheduler.stop();
+  stopWaitpointSweep();
   // Stop outbound queue drain loop (pending WAL entries survive on disk for next startup).
   await oq.stop();
   // Drain in-flight atomic writes before exiting. Without this, SIGTERM landing between
@@ -522,6 +524,14 @@ process.on('SIGTERM', async () => {
     return 0;
   });
   if (recoveredPending > 0) log.info(`Recovered ${recoveredPending} pending injected message(s)`);
+
+  // A waitpoint that fired moments before shutdown has its wake still pending on disk, and the
+  // signal spool may hold files written while the daemon was down. Reconcile both before anything
+  // else can observe a session, on the same reasoning as the injection recovery above.
+  const recoveredWaitpoints = await recoverWaitpoints();
+  if (recoveredWaitpoints.delivered > 0 || recoveredWaitpoints.spooled > 0) {
+    log.info(`Recovered ${recoveredWaitpoints.delivered} waitpoint wake(s), ${recoveredWaitpoints.spooled} spooled signal(s)`);
+  }
 
   // ── Wire UI service into the TUI gateway ────────────────────────────────
   //
@@ -872,6 +882,9 @@ process.on('SIGTERM', async () => {
   // Periodic disk-driven backstop: recover any manager left suspended on a child task that is
   // already terminal on disk but whose event/settle delivery was lost to a race (2026-06-29).
   startWaitingManagerSweep();
+  // Same shape, for waitpoints: drains the signal spool, ages out expired waitpoints and retries
+  // any wake whose delivery failed. Every in-memory fast path dies with the process; this does not.
+  startWaitpointSweep();
   startBuiltinJobs(adapter);
 
   void emitCortexEvent('cortex:server.start', {

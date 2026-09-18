@@ -37,6 +37,9 @@ export interface Settings {
   feishuSkillsInWeb: boolean;
   managerRotateSteps: number;
   waitingSweepMs: number;
+  waitpointSweepMs: number;
+  waitpointTtlMs: number;
+  waitpointMaxWakesPerHour: number;
   injectWaitMaxS: number;
   threadMaxDepth: number;
   taskArtifactTemplates: string[];
@@ -237,6 +240,33 @@ export const SETTINGS_SPEC = {
     legacyParse: (raw: string) => {
       const value = Number.parseInt(raw || '', 10);
       return Number.isFinite(value) ? value : 60_000;
+    },
+  },
+  waitpointSweepMs: {
+    envVar: 'CORTEX_WAITPOINT_SWEEP_MS',
+    type: 'number',
+    default: 30_000,
+    legacyParse: (raw: string) => {
+      const value = Number.parseInt(raw || '', 10);
+      return Number.isFinite(value) ? value : 30_000;
+    },
+  },
+  waitpointTtlMs: {
+    envVar: 'CORTEX_WAITPOINT_TTL_MS',
+    type: 'number',
+    default: 7 * 24 * 60 * 60 * 1000,
+    legacyParse: (raw: string) => {
+      const value = Number.parseInt(raw || '', 10);
+      return Number.isFinite(value) && value > 0 ? value : 7 * 24 * 60 * 60 * 1000;
+    },
+  },
+  waitpointMaxWakesPerHour: {
+    envVar: 'CORTEX_WAITPOINT_MAX_WAKES_PER_HOUR',
+    type: 'number',
+    default: 12,
+    legacyParse: (raw: string) => {
+      const value = Number.parseInt(raw || '', 10);
+      return Number.isFinite(value) && value > 0 ? value : 12;
     },
   },
   injectWaitMaxS: {

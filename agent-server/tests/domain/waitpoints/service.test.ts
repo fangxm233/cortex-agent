@@ -48,6 +48,7 @@ function harness(opts: { maxWakesPerHour?: number } = {}): Harness {
     repo,
     now: () => clock,
     maxWakesPerHour: () => opts.maxWakesPerHour ?? 12,
+    defaultTtlMs: () => 7 * 24 * 60 * 60 * 1000,
     newId: () => `wp_${String(++idSeq).padStart(12, '0')}`,
     newSecret: () => `secret-${++secretSeq}`,
   };
