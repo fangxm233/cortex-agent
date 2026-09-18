@@ -15,6 +15,7 @@ export const MCP_TOOLS_BY_SERVER: Readonly<Record<string, readonly string[]>> = 
     'cost_query', 'query_executions', 'cortex_context', 'cortex_schedule_add',
     'cortex_schedule_list', 'cortex_schedule_get', 'cortex_schedule_remove',
     'cortex_schedule_pause', 'cortex_schedule_resume',
+    'wait_create', 'wait_check', 'wait_cancel',
   ],
   'cortex-interaction-bridge': [
     'cortex_plan_enter', 'cortex_plan_exit',
