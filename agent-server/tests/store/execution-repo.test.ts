@@ -287,47 +287,6 @@ test('dispatch — registerDispatchExecution updates existing running record', a
   assert.equal(r2?.dispatch?.sessionName, 'new-session');
 });
 
-test('dispatch — registerDispatchExecution persists runName (B2-C log-ref)', async () => {
-  const repo = createRepo();
-
-  // Fresh registration carries the cortex-run --name onto dispatch.runName.
-  const r1 = repo.registerDispatchExecution({
-    taskId: 't-runname', machine: 'lab2', project: 'proj', taskText: 'tail me', runName: 'run-xyz',
-  });
-  assert.equal(r1?.dispatch?.runName, 'run-xyz');
-
-  // A later same-task registration without a runName preserves the existing one (idempotent merge).
-  const r2 = repo.registerDispatchExecution({
-    taskId: 't-runname', machine: 'lab2', project: 'proj', taskText: 'tail me',
-  });
-  assert.equal(r2?.id, r1?.id);
-  assert.equal(r2?.dispatch?.runName, 'run-xyz', 'runName is not clobbered by a runName-less re-register');
-});
-
-// ── Group 5b: Per-execution GPU capture (DR-0018 §6.3 B2-followup) ──
-
-test('gpu — setExecutionGpuByTaskId records the GPU on the dispatch record', async () => {
-  const repo = createRepo();
-  repo.registerDispatchExecution({ taskId: 't-gpu', machine: 'lab', project: 'proj', taskText: 'run', runName: 'r1' });
-
-  const updated = repo.setExecutionGpuByTaskId('t-gpu', { indices: [1], memoryMb: 49140 });
-  assert.deepEqual(updated?.gpu, { indices: [1], memoryMb: 49140 });
-
-  await repo.flush();
-  assert.deepEqual(repo.getExecutionByTaskId('t-gpu')?.gpu, { indices: [1], memoryMb: 49140 });
-});
-
-test('gpu — setExecutionGpuByTaskId records even on a terminal record (write-once metadata)', async () => {
-  const repo = createRepo();
-  repo.registerDispatchExecution({ taskId: 't-term', machine: 'lab', project: 'proj', taskText: 'run' });
-  repo.completeExecutionByTaskId('t-term', { costUsd: 0.1 });
-  assert.equal(repo.getExecutionByTaskId('t-term')?.status, 'completed');
-
-  const updated = repo.setExecutionGpuByTaskId('t-term', { indices: [0], memoryMb: null });
-  assert.deepEqual(updated?.gpu, { indices: [0], memoryMb: null });
-  assert.equal(updated?.status, 'completed', 'status is unchanged by a GPU backfill');
-});
-
 // ── Group 6: Terminal state stickiness ──
 
 test('terminal stickiness — completed record resists fail/cancel', async () => {

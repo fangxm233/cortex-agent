@@ -14,7 +14,7 @@
 #     the strict gateway loader (`launcher.deepseek_paid_smoke.load_deepseek_relay_credential`),
 #     while all-Codex campaigns read only `tokens.access_token` from the named Codex auth JSON and
 #     validate it locally as a JWT; a pre-set credential variable is always a refusal, because
-#     `cortex-run --env` persists whatever it is given into private run metadata;
+#     a launcher that persists its environment would write the value into run metadata;
 #   * it lives only in this process's environment, is never written to argv, stdout or any file,
 #     and is removed from the environment as soon as the campaign returns.
 #
@@ -40,7 +40,7 @@
 # references, parses the scan policy, verifies both artifacts against current source and dry-runs
 # the campaign, arming nothing and paying nothing.
 # `--run` writes the campaign's own JSON result to stdout and this redacted report to stderr.
-# Under cortex-run, wrap the `--run` line only — never pass a reference through `--env`.
+# Wrap the `--run` line only — never pass a reference through a launcher's environment flag.
 #
 # A paid campaign is ~40 minutes and must outlive the session that starts it: run `--run` detached
 # (`setsid`/`nohup`, output to a file). The r6 attempt was launched as a child of an agent session
@@ -198,7 +198,7 @@ def resolve_launch_environment(
         raise LaunchError(
             f"{credential_env} is already set in this environment. The credential is loaded from "
             f"the {credential_origin} source at execution time and must not be inherited: "
-            "passing it through cortex-run --env persists its value into private run metadata")
+            "passing it through a launcher environment flag persists its value into run metadata")
     credential = _credential(
         config, gateway_path=gateway_path, codex_auth_path=codex_auth_path)
     references = _reference_values(

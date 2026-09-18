@@ -88,11 +88,6 @@ function GpuRow({ gpu }: { gpu: MachineGpuRow }) {
         <span style={{ color: 'var(--proto-muted-3)' }}>{gpu.memText}</span>
         <span style={{ color: 'var(--proto-faint)' }}>{gpu.tempText}</span>
       </div>
-      {gpu.owners.length > 0 && (
-        <div style={{ font: META_FONT, color: 'var(--proto-accent)', marginTop: 3, paddingLeft: 14 }}>
-          ↳ {gpu.owners.join(' · ')}
-        </div>
-      )}
       {gpu.processes.map((proc) => (
         <div key={proc.pid} style={{ font: META_FONT, color: 'var(--proto-faint)', marginTop: 2, paddingLeft: 14 }}>
           {proc.pid} {proc.name} · {proc.memText}
@@ -113,7 +108,6 @@ function RunRow({ run }: { run: MachineRunRow }) {
         style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--proto-accent)', flexShrink: 0, animation: 'cxpulse 1.6s ease-in-out infinite' }}
       />
       <span style={{ color: 'var(--proto-ink-3)', fontWeight: 600 }}>{run.label}</span>
-      {run.gpuText && <span style={{ color: 'var(--proto-muted-3)' }}>{run.gpuText}</span>}
       {run.duration && <span style={{ marginLeft: 'auto', color: 'var(--proto-faint)' }}>{run.duration}</span>}
     </div>
   );

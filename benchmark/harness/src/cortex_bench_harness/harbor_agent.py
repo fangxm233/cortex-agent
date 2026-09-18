@@ -357,7 +357,6 @@ class CortexBenchAgent(BaseInstalledAgent):
             ("dist/entry/cortex-cli.js", "cortex"),
             ("dist/entry/production-evidence-export-cli.js", "cortex-evidence-export"),
             ("dist/entry/hook-cli.js", "cortex-hook"),
-            ("dist/domain/tasks/system/cortex-run.js", "cortex-run"),
             ("dist/domain/tasks/system/task-cli.js", "cortex-task"),
         )
         link_commands = " && ".join(

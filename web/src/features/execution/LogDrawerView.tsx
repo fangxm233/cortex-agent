@@ -1,26 +1,22 @@
-import type { CSSProperties, Ref } from 'react';
+import type { CSSProperties } from 'react';
 import { useVocab } from '@/i18n';
 
-// Pure presentational chrome for the execution log drawer (design 09-exec-logs, prototype.dc.html
+// Pure presentational chrome for the execution drawer (design 09-exec-logs, prototype.dc.html
 // L1544–1560) — hooks-free so it is render-testable and screenshottable in isolation. Exact inline
 // styles/px/hex/font from the prototype (the dark palette is not in the light proto.* tokens; raw
-// values are faithful per §8.3, matching the LeftRail/RightPanel precedent). Data wiring (executions.
-// get / executions.log / executions.cancel) lives in ExecutionLogDrawer's DrawerBody.
+// values are faithful per §8.3, matching the LeftRail/RightPanel precedent). Data wiring
+// (executions.get / executions.cancel) lives in ExecutionLogDrawer's DrawerBody.
 
 export interface LogDrawerViewProps {
   title: string;
   pill: string | null;
   meta: string;
   now: string;
-  lines: string[];
-  dropped: number;
-  /** "waiting for output…" / "no live log …" shown before any lines; null once streaming. */
+  /** Body line explaining that no output is captured for this execution. */
   notice: string | null;
   killDisabled: boolean;
   onKill: () => void;
   onClose: () => void;
-  scrollRef?: Ref<HTMLDivElement>;
-  onScroll?: () => void;
 }
 
 const HEADER_STYLE: CSSProperties = {
@@ -63,14 +59,10 @@ export function LogDrawerView({
   pill,
   meta,
   now,
-  lines,
-  dropped,
   notice,
   killDisabled,
   onKill,
   onClose,
-  scrollRef,
-  onScroll,
 }: LogDrawerViewProps) {
   const L = useVocab();
   return (
@@ -95,19 +87,9 @@ export function LogDrawerView({
         </span>
       </div>
 
-      {/* Log body (prototype L1551) */}
-      <div ref={scrollRef} onScroll={onScroll} data-execution-log style={BODY_STYLE}>
+      {/* Body (prototype L1551) */}
+      <div data-execution-log style={BODY_STYLE}>
         {notice ? <div style={{ color: 'var(--proto-muted)' }}>{notice}</div> : null}
-        {dropped > 0 ? (
-          <div style={{ color: 'var(--proto-amber)' }}>
-            … {dropped} {L.exLinesDropped}
-          </div>
-        ) : null}
-        {lines.map((line, i) => (
-          <div key={i} style={{ color: 'var(--proto-accent-bg)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-            {line}
-          </div>
-        ))}
         {/* Trailing live-clock (prototype L1555) */}
         <div>
           <span style={{ color: 'var(--proto-muted)' }}>{now}</span>

@@ -23,7 +23,7 @@ vi.mock('@domain/agents/index.js', async (importOriginal) => {
   };
 });
 
-import { CONFIG_DIR, DATA_DIR, DEFAULTS_DIR, PROJECTS_DIR } from '../src/core/paths.js';
+import { CONFIG_DIR, DEFAULTS_DIR, PROJECTS_DIR } from '../src/core/paths.js';
 import { initHookBus } from '../src/core/hook-bus.js';
 import { threadStore } from '../src/store/thread-repo.js';
 import {
@@ -567,27 +567,6 @@ test('task status script keeps argv as a fallback', () => {
   assert.equal(hookResult.targetAgent, 'alpha');
   assert.match(String(hookResult.prompt), /b9c0/);
   assert.match(String(hookResult.prompt), /argv-project/);
-});
-
-test('task status script finds cortex-run state under the data directory', () => {
-  writeClaimedTask('running-project', 'd1e2');
-  const stateDir = path.join(DATA_DIR, 'tmp', 'cortex-run', 'active-run');
-  fs.mkdirSync(stateDir, { recursive: true });
-  fs.writeFileSync(path.join(stateDir, 'state.json'), JSON.stringify({
-    task_project: 'running-project',
-    task_id: 'd1e2',
-    status: 'running',
-    pid: process.pid,
-  }));
-
-  const hookResult = runStatusCheck({
-    project: 'running-project',
-    taskId: 'd1e2',
-    previousAgent: 'alpha',
-  }, []);
-
-  assert.match(String(hookResult.prompt), /Auto-detected/);
-  assert.match(String(hookResult.prompt), /active-run/);
 });
 
 function configureOrderedHooks(capturePath: string): RunThreadOptions {

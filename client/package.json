@@ -24,7 +24,7 @@
     "build": "tsc && node scripts/copy-assets.js",
     "bundle": "node scripts/bundle.js",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test --test-force-exit --test-timeout=15000 src/cortex-run-watcher.test.ts tests/client/cortex-run-launch.test.ts tests/client/auth-headers.test.ts tests/client/command-exec.test.ts tests/client/server-url.test.ts tests/client/reverse-stream.test.ts tests/client/file-stream.test.ts tests/client/self-update.test.ts"
+    "test": "node --import tsx --test --test-force-exit --test-timeout=15000 tests/client/auth-headers.test.ts tests/client/command-exec.test.ts tests/client/server-url.test.ts tests/client/reverse-stream.test.ts tests/client/file-stream.test.ts tests/client/self-update.test.ts"
   },
   "dependencies": {
     "ws": "^8.21.1"

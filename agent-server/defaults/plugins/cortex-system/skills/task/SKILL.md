@@ -146,7 +146,7 @@ The following mutation commands **must** hold the project lock first, otherwise 
 - `decompose` — Decompose into subtasks
 - `assign-ids` — Assign task IDs
 
-Lifecycle commands (claim / complete / block / unblock / pause / resume / approval series / stop, etc.) **do not need** a lock — they are called routinely by the dispatcher and cortex-run on automated paths.
+Lifecycle commands (claim / complete / block / unblock / pause / resume / approval series / stop, etc.) **do not need** a lock — they are called routinely by the dispatcher on automated paths.
 
 ### Lock semantics
 

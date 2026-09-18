@@ -99,7 +99,7 @@ function fmtClock(totalSeconds: number): string {
   return `${pad2(Math.floor(total / 60))}:${pad2(total % 60)}`;
 }
 
-/** Compact duration `2m` / `45s` / `1m 5s` (matches thread-steps formatDuration). */
+/** Compact duration `2m` / `45s` / `1m 5s` (compact step duration format). */
 function fmtDuration(durationS: number): string {
   const total = Math.round(durationS);
   if (total < 60) return `${total}s`;
@@ -161,9 +161,9 @@ function mobileArtifacts(detail: ThreadDetail, now: number): MThreadArtifactVm[]
   }];
 }
 
-function mobileMetaParts(detail: ThreadDetail, machine: string | null): string[] {
+function mobileMetaParts(detail: ThreadDetail): string[] {
   return [
-    detail.id, detail.activeAgent ? `agent ${detail.activeAgent}` : null, machine,
+    detail.id, detail.activeAgent ? `agent ${detail.activeAgent}` : null,
   ].filter((part): part is string => !!part);
 }
 
@@ -179,7 +179,7 @@ export function buildMThreadDetailVm(
     crumbs: trail.map((item) => ({ name: item.name, accent: true })),
     selfLevel: trail.length > 0 ? trail.length + 1 : null,
     depthText: `${facts.depth.level}/${facts.depth.limit}`,
-    metaParts: mobileMetaParts(detail, facts.machine),
+    metaParts: mobileMetaParts(detail),
     elapsed: fmtClock(facts.elapsedSeconds), cost: formatUsd(detail.totalCostUsd),
     steps: facts.steps.map((item, index) => mobileStep(item, index, facts.steps.length - 1, facts)),
     artifacts, artifactCount: artifacts.length,

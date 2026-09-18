@@ -68,7 +68,7 @@ npm --version    # 应输出 10.x.y 或更高
 npm install -g @cortex-agent/server
 ```
 
-这会在你的 PATH 中放置三个命令：`cortex`、`cortex-task`、`cortex-run`。
+这会在你的 PATH 中放置三个命令：`cortex`、`cortex-task`、`cortex-signal`。
 
 如果 `npm install -g` 因权限错误而失败（Linux 上常见），请加 `sudo`，或更好的做法是配置 npm 使用用户本地前缀：
 

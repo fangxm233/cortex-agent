@@ -10,7 +10,7 @@ function mk(over: Partial<ApprovalInfo> = {}): ApprovalInfo {
     operation: 'do the thing',
     reason: 'because',
     impact: 'small',
-    command: 'cortex-run --dispatch',
+    command: 'bash scripts/dispatch.sh',
     status: 'pending',
     queuedAt: '2026-07-05',
     decidedAt: null,

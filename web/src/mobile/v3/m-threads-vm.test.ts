@@ -60,7 +60,6 @@ function detail(over: Partial<ThreadDetail>): ThreadDetail {
     totalCostUsd: 2.31,
     steps: [],
     agentFlow: null,
-    dispatches: [],
     subtasks: [],
     children: [],
     artifacts: { artifactPath: null, workspacePath: null, taskId: null, taskProject: null },

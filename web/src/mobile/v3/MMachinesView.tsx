@@ -77,7 +77,6 @@ function GpuLine({ gpu }: { gpu: MachineGpuRow }) {
       </div>
       <div style={{ ...META, color: MC.faint, paddingLeft: 14, marginTop: 2 }}>
         {gpu.memText} · {gpu.tempText} · {gpu.powerText}
-        {gpu.owners.length > 0 && <span style={{ color: MC.run }}> · {gpu.owners.join(' ')}</span>}
       </div>
       {gpu.processes.length > 0 && (
         <div style={{ ...META, color: MC.faint, paddingLeft: 14, marginTop: 2 }}>
@@ -94,7 +93,6 @@ function RunLine({ run }: { run: MachineRunRow }) {
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, ...META, marginTop: 5 }}>
       <MDot color={MC.run} size={5} pulse />
       <span style={{ color: MC.body, fontWeight: 600 }}>{run.label}</span>
-      {run.gpuText && <span style={{ color: MC.sub }}>{run.gpuText}</span>}
       {run.duration && <span style={{ marginLeft: 'auto', color: MC.faint }}>{run.duration}</span>}
     </div>
   );

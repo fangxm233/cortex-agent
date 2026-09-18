@@ -44,7 +44,6 @@ function detail(partial: Partial<ThreadDetail>): ThreadDetail {
     totalCostUsd: 0,
     steps: [],
     agentFlow: null,
-    dispatches: [],
     subtasks: [],
     children: [],
     artifacts: { artifactPath: null, workspacePath: null, taskId: null, taskProject: null },

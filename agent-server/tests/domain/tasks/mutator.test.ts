@@ -1023,7 +1023,7 @@ test('unblock — restores status pending -> open (legacy stuck state)', async (
   }
 });
 
-// reopenTask rescues an orphan pending task (lost cortex-run callback: status=pending, no blocked-by).
+// reopenTask rescues an orphan pending task (the awaited work never reported: status=pending, no blocked-by).
 test('reopenTask — transitions an orphan pending task back to open + actionable', () => {
   const fx = makeFixtureRepo();
   const proj = fx.projects[0];

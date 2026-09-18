@@ -45,7 +45,6 @@ export {
   taskActionInput,
   taskCompleteInput,
   taskBlockInput,
-  executionsLogInput,
   configGetInput,
   configSetInput,
   platformSettingsInput,

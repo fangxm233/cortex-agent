@@ -119,7 +119,7 @@ function attemptFixture(root: string, input: {
     session: { sessionId: null },
     thread: { threadId: input.threadId, agentSlotId: input.role }, dispatch: null,
     scheduleTaskId: null, runtime: { startedAt: START, updatedAt: END, endedAt: END },
-    metrics: { costUsd: 0.25, numTurns: 1, durationS: 2 }, gpu: null,
+    metrics: { costUsd: 0.25, numTurns: 1, durationS: 2 },
     text: { label: input.role, finalOutput: null, error: status === 'failed' ? 'failed' : null },
   } satisfies ExecutionRecord;
   const thread = {

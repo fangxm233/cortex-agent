@@ -106,8 +106,8 @@ export class TaskMutator {
   }
 
   /** getById with a one-shot refresh on miss: tasks created out-of-process (CLI, manager
-   *  threads) reach the in-memory cache only on refresh — callers like the cortex-run
-   *  callback may fire before any dispatch cycle has reloaded TASKS.yaml. */
+   *  threads) reach the in-memory cache only on refresh — a caller may fire before any
+   *  dispatch cycle has reloaded TASKS.yaml. */
   private getByIdFresh(taskId: string): any | null {
     let task = this.store.getById(taskId);
     if (!task) {

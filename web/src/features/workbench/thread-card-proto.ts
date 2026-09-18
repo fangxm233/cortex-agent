@@ -1,7 +1,7 @@
 // Pure mapper: ThreadDetail (threads.get, B1) → the prototype inline-thread-card row model
 // (prototype.dc.html L180–246). Frame-work-free so it is unit-tested in isolation (TDD). The card
 // is the ONE live-data surface in the center chat; it renders whatever the real DTO carries
-// (data-driven, not stage-name-string matched — same discipline as features/thread/thread-steps.ts).
+// (data-driven, not stage-name-string matched).
 
 import type {
   ThreadDetail,

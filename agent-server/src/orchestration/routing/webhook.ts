@@ -8,7 +8,6 @@ import { readFileSync } from 'fs';
 import { taskMutator } from '@domain/tasks/mutator.js';
 import { sendCommand, isDeviceOnline, getOnlineDevices } from '@domain/remote/client-manager.js';
 import { stageRemoteFile } from '@domain/remote/device-file.js';
-import { registerDispatchExecution } from '@domain/executions/registry.js';
 import { createWaitpoint, cancelWaitpoint, listWaitpointsForSession, publicView } from '@domain/waitpoints/service.js';
 import { ingestSignal, toSignalInput } from '../waitpoint-ingress.js';
 import { waitpointRepo } from '@store/waitpoint-repo.js';
@@ -46,34 +45,6 @@ function verifySignature(body, signature) {
     return crypto.timingSafeEqual(Buffer.from(signature || ''), Buffer.from(expected));
   } catch {
     return false;
-  }
-}
-
-/**
- * B2-C: a task-linked `cortex-run --name X` writes `<DATA_DIR>/tmp/cortex-run/X/output.log` on the
- * target device but, being a separate CLI process, cannot register an execution into the daemon's
- * in-memory registry. This is the daemon-side seam: on a successful launch, register (idempotent,
- * keyed by taskId) a `dispatch` execution carrying `runName` + `machine` so the Web UI can resolve
- * the run's live log by executionId (subscribeExecutionLog → resolveExecutionLogLocation). Requires
- * a taskId (the record key); a run without `--task-id` is not tailable through the UI. Best-effort —
- * never blocks or fails the launch response.
- */
-function maybeRegisterCortexRunExecution(action: string, params: any, device: string): void {
-  if (action !== 'cortex-run.launch') return;
-  const name = params?.name;
-  const taskId = params?.taskId;
-  const taskProject = params?.taskProject;
-  if (!name || !taskId) return;
-  try {
-    registerDispatchExecution({
-      taskId,
-      machine: device,
-      project: taskProject || undefined,
-      runName: name,
-    });
-    log.info(`B2-C: registered dispatch execution for cortex-run "${name}" (task ${taskId} on ${device})`);
-  } catch (e) {
-    log.warn(`B2-C: failed to register cortex-run execution for "${name}": ${(e as Error).message}`);
   }
 }
 
@@ -242,7 +213,6 @@ function createWebhookHandler(_options: {
         }
         try {
           const result = await sendCommand(device, { action, params: params || {}, timeout });
-          maybeRegisterCortexRunExecution(action, params, device);
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ success: true, data: result }));
         } catch (e) {

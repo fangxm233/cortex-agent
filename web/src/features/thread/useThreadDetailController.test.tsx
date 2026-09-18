@@ -42,7 +42,7 @@ function detail(status: ThreadDetail['status'] = 'running'): ThreadDetail {
     id: 'thr-a', templateName: 'pipeline', currentStep: null, status, projectId: 'sample',
     createdAt: '2030-01-01T00:00:00.000Z', updatedAt: '2030-01-01T00:00:00.000Z', totalSteps: 0,
     artifactPath: null, endedAt: null, error: null, abortReason: null, activeAgent: null,
-    activeStage: null, totalCostUsd: 0, steps: [], agentFlow: null, dispatches: [], subtasks: [],
+    activeStage: null, totalCostUsd: 0, steps: [], agentFlow: null, subtasks: [],
     children: [], artifacts: { artifactPath: null, workspacePath: null, taskId: null, taskProject: null },
   };
 }

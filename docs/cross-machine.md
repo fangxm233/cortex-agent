@@ -76,13 +76,15 @@ Each `cortex-client` instance:
 
 ### Installation
 
-The client ships as two self-contained bundles — `client.mjs` (the daemon) and
-`cortex-run-watcher.mjs` (the long-running-job watchdog) — that live on each
-device under the managed layout:
+The client ships as one self-contained bundle — `client.mjs` — that lives on each
+device under the managed layout. A second file, `cortex-run-watcher.mjs`, is
+shipped alongside it as an empty compatibility stub: the update package is
+validated by file name on both ends, so a client installed before `cortex-run`
+was removed would otherwise refuse every future update.
 
 ```
 ~/.cortex/client/
-├── current/    # the running version (client.mjs + cortex-run-watcher.mjs)
+├── current/    # the running version (client.mjs + a compatibility stub)
 └── previous/   # the prior version, kept for manual rollback
 ```
 
@@ -315,7 +317,7 @@ use `ws://` inside their protected transport.
 ### Client → Server
 
 **Hello** (sent immediately on connect). `bundleHash` identifies the client's
-running bundle (sha256 over `client.mjs` + `cortex-run-watcher.mjs`); the
+running bundle (sha256 over the bundle files in order); the
 server compares it against the desired bundle to decide whether to push an
 update:
 ```json
@@ -344,8 +346,7 @@ update:
 { "type": "command", "id": "cmd-abc123", "action": "bash", "params": { "command": "nvidia-smi" }, "timeout": 120000 }
 ```
 
-Supported actions: `bash`, `read`, `write`, `edit`, `glob`, `grep`,
-`file.stat`, `cortex-run.launch`, `cortex-run.cancel`.
+Supported actions: `bash`, `read`, `write`, `edit`, `glob`, `grep`, `file.stat`.
 
 **Open file stream** (sent when the server wants a whole file off the device,
 e.g. `send_file device="lab"`). Like `open-stream`, it is answered on a new
@@ -453,9 +454,10 @@ run through git-bash. The `timeout` parameter uses integer seconds from 1 to
 600 and defaults to 120. A foreground timeout returns exit code 124 and kills
 the command's process group on POSIX or its process tree on Windows.
 `run_in_background: true` returns the detached shell PID immediately and
-ignores `timeout`. Managed long-running jobs use `cortex-run`, which provides
-stall detection and callback reporting. These remote execution tools are
-exposed to agents via the `cortex-core` MCP server — see [mcp.md](./mcp.md).
+ignores `timeout`. Cortex does not supervise long-running jobs: start one
+yourself and have it report back through a [waitpoint](./waitpoints.md). These
+remote execution tools are exposed to agents via the `cortex-core` MCP server —
+see [mcp.md](./mcp.md).
 
 ### read
 
@@ -500,17 +502,14 @@ device without copying file contents.
 excluding VCS directories. `grep` uses `rg` (ripgrep) when available, with
 a fallback to `grep -rn`. Supports `head_limit` and `offset` for pagination.
 
-### cortex-run (long-running tasks)
+### Long-running jobs
 
-For training jobs and other long-running work, `cortex-run.launch` spawns a
-`cortex-run-watcher` child process that:
-- Monitors the subprocess for stalls (configurable timeout, default 10 minutes
-  of no output)
-- Writes status, output, and results to JSON files
-- Sets a `callback.pending` flag on completion
-- The main client flushes pending callbacks on connect and every 60 seconds
-
-`cortex-run.cancel` kills the tracked subprocess by PID.
+Cortex does not launch, supervise or adopt processes on a device. Start the job
+the way you normally would (`nohup`, `setsid`, tmux, a scheduler) and arm a
+[waitpoint](./waitpoints.md) so the session is woken when it finishes. On a
+device the job drops a small JSON file in `~/.cortex/tmp/signals/`; the daemon
+collects it over the connection this client already holds open, so nothing extra
+has to be installed there.
 
 ## Checking device status
 

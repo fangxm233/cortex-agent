@@ -9,8 +9,8 @@ Cortex 由两个 npm 包和一组插件组成：
 
 | 包 | 路径 | 用途 |
 |---------|------|---------|
-| `@cortex-agent/server` | `agent-server/` | 主服务器：Slack 机器人、LLM 编排、定时任务、任务系统、MCP 工具。提供三个 CLI 可执行文件：`cortex`、`cortex-task`、`cortex-run`。 |
-| `@cortex-agent/client` | `client/` | 轻量级远程智能体守护进程。通过 WebSocket 连接，在本地执行 shell/文件命令，支持用于长时间运行任务执行的 `cortex-run`。 |
+| `@cortex-agent/server` | `agent-server/` | 主服务器：Slack 机器人、LLM 编排、定时任务、任务系统、MCP 工具。提供五个 CLI 可执行文件：`cortex`、`cortex-task`、`cortex-hook`、`cortex-evidence-export`、`cortex-signal`。 |
+| `@cortex-agent/client` | `client/` | 轻量级远程智能体守护进程。通过 WebSocket 连接，在本地执行 shell/文件命令。 |
 | 插件 | `plugins/cortex-*` | 8 个角色限定的插件包，包含技能。不是 npm 包——在运行时作为目录加载。 |
 
 ## Agent-Server 架构：六层结构 {#agent-server-architecture-six-layers}
@@ -198,11 +198,11 @@ WebSocket 协议用于**远程设备命令执行**，不用于 Slack/智能体�
 
 ### 命令动作 {#command-actions}
 
-客户端支持这些远程动作：`bash`（带超时/后台的 shell 执行）、`read`（支持文本/图像/PDF 的文件读取）、`write`（带 CRLF 检测的文件写入）、`edit`（带 replace_all 的文本替换）、`glob`（带 VCS 排除的文件 glob）、`grep`（带分页的 ripgrep）、`cortex-run.launch`、`cortex-run.cancel`。
+客户端支持这些远程动作：`bash`（带超时/后台的 shell 执行）、`read`（支持文本/图像/PDF 的文件读取）、`write`（带 CRLF 检测的文件写入）、`edit`（带 replace_all 的文本替换）、`glob`（带 VCS 排除的文件 glob）、`grep`（带分页的 ripgrep）、`file.stat`（传输前的元数据探测）。
 
 ### 客户端架构 {#client-architecture}
 
-客户端（`client/src/client.ts`）是一个轻量级的 WebSocket 守护进程，维护持久连接。它支持带指数退避的自动重连（1s→30s 最大）。`cortex-run-watcher.ts` 实现客户端驻留的长时间运行任务看门狗，具有两层停滞检测（输出停滞和进度停滞）以及通过 `nvidia-smi` 的 GPU 自动检测。
+客户端（`client/src/client.ts`）是一个轻量级的 WebSocket 守护进程，维护持久连接。它支持带指数退避的自动重连（1s→30s 最大）。它不启动也不托管长任务：那类工作独立运行，并通过 [waitpoint](./waitpoints.md) 回报。
 
 ## 事件总线拓扑 {#event-bus-topology}
 

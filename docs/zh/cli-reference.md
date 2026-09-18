@@ -1,7 +1,7 @@
 # CLI 参考 {#cli-reference}
 
 
-Cortex 提供六个可执行文件，在 `agent-server/package.json` 中注册：
+Cortex 提供五个可执行文件，在 `agent-server/package.json` 中注册：
 
 | 可执行文件 | 入口点 | 用途 |
 |---|---|---|
@@ -9,10 +9,9 @@ Cortex 提供六个可执行文件，在 `agent-server/package.json` 中注册�
 | `cortex-evidence-export` | `dist/entry/production-evidence-export-cli.js` | 导出生产 benchmark evidence v2 |
 | `cortex-hook` | `dist/entry/hook-cli.js` | 检查 hook 并处理阻塞式用户询问 |
 | `cortex-task` | `dist/domain/tasks/system/task-cli.js` | 任务系统读取和修改 |
-| `cortex-run` | `dist/domain/tasks/system/cortex-run.js` | 远程命令分发 |
 | `cortex-signal` | `dist/entry/signal-cli.js` | 让外部程序解决一个 waitpoint |
 
-六个都接受 `--help`（或 `-h`）打印用法。`cortex task` 子命令直接委托给 `cortex-task`。
+五个都接受 `--help`（或 `-h`）打印用法。`cortex task` 子命令直接委托给 `cortex-task`。
 
 ---
 
@@ -266,12 +265,13 @@ cortex-task <command> [options]
 
 **`pending --project <name> (--task-id <id> | --task <text>)`**
 
-将任务标记为 pending（等待 `cortex-run` 进程完成）。
+将任务标记为 pending——本轮之外还有事情（一次长跑、一次构建）必须先结束，任务才能完成。
+配合 [waitpoint](./waitpoints.md) 使用，事情结束时 session 会被唤醒。
 
 **`reopen --project <name> (--task-id <id> | --task <text>)`**
 
-将卡住的 `pending` 任务还原为 `open`，使调度器可以重新派发。用于挽救因 `cortex-run`
-回调丢失而停留在 `pending` 的任务。对已是 open 的任务幂等，对已完成的任务则拒绝（请改用
+将卡住的 `pending` 任务还原为 `open`，使调度器可以重新派发。用于挽救因等待的东西始终
+没有回报而停留在 `pending` 的任务。对已是 open 的任务幂等，对已完成的任务则拒绝（请改用
 `uncomplete`）。
 
 **`complete --project <name> (--task-id <id> | --task <text>) [--note <text>] [--skip-verify] [--skip-verify-reason <text>]`**
@@ -389,8 +389,8 @@ blocked → open (unblock)
 approval states: request-approval → approve → clear-approval
 ```
 
-`block`/`unblock` 与 `reopen` 都会把任务状态归一回 `open`，因此在 `cortex-run` 中途失败
-（停留在 `pending`）的任务会回到可派发状态，而不会对调度器永久隐形。
+`block`/`unblock` 与 `reopen` 都会把任务状态归一回 `open`，因此因等待的东西没有回报而
+停留在 `pending` 的任务会回到可派发状态，而不会对调度器永久隐形。
 
 ### 退出码 {#exit-codes_1}
 
@@ -398,81 +398,6 @@ approval states: request-approval → approve → clear-approval
 |---|---|
 | 0 | 成功 |
 | 1 | 错误（无效参数、锁被他人持有、任务未找到） |
-
----
-
-## cortex-run
-
-```
-cortex-run [options] -- COMMAND [ARGS...]
-```
-
-通过 Cortex 守护进程在远程设备上分发命令。所有执行通过 `sendCommand` 转发到 cortex-client；本地不生成任何进程。守护进程必须正在运行（它在 `127.0.0.1:3001` 上提供 webhook 服务）。定时重复运行参见 [scheduling.md](./scheduling.md)。基于线程的执行参见 [threads.md](./threads.md)。
-
-### 启动模式 {#launch-mode}
-
-```
-cortex-run [--device <name>] --name <name> [--stall 10m] [--gpu auto]
-           [--task-project P --task-id ABCD] [--force]
-           [--env-passthrough VAR1,VAR2,...]
-           [--log-tail-bytes 5000]
-           -- COMMAND [ARGS...]
-```
-
-选项：
-- `--name <name>` — 必需，唯一的运行名称（也用作结果目录）
-- `--device <name>` — 目标设备（默认：来自 `machines.json` 的本地机器名称）
-- `--stall <duration>` — 停滞超时，如 `10m`、`1h`（默认：`10m`）
-- `--gpu <slot>` — GPU 槽位：`auto`、`none` 或数字索引（默认：`auto`）
-- `--force` — 即使存在同名运行状态目录也允许启动
-- `--task-project <name>` — 将此运行链接到项目以进行任务生命周期追踪
-- `--task-id <hash>` — 4 字符十六进制任务 ID（与 `--task-project` 一起使用）；无效 ID 在分发前导致非零退出
-- `--env-passthrough <list>` — 逗号分隔的要转发到远程的环境变量名
-- `--log-tail-bytes <n>` — 回调中返回的日志尾部字节数（默认：5000）
-
-`--` 分隔符是必需的。其后的所有内容都是要在远程设备上运行的命令。
-
-当提供 `--task-project` 和 `--task-id` 时，`cortex-run` 在分发前将任务标记为 pending，并将完成/阻塞推迟到客户端回调处理器。成功时任务自动完成；失败时自动阻塞，附带日志尾部上下文。
-
-### 取消模式 {#cancel-mode}
-
-```
-cortex-run --cancel <name> [--device <name>] [--signal SIGTERM]
-```
-
-选项：
-- `--cancel <name>` — 要取消的运行名称
-- `--device <name>` — 目标设备（默认：本地机器名称）
-- `--signal <sig>` — 要发送的信号（默认：`SIGTERM`）
-
-### 退出码 {#exit-codes_2}
-
-| 代码 | 含义 |
-|---|---|
-| 0 | 成功（已启动或已取消） |
-| 1 | 致命错误（无效 task-id、设备离线、启动/取消失败） |
-| 2 | 用法错误（缺少必需标志、`--` 后无命令） |
-
-### 示例 {#examples}
-
-```bash
-# 在本地机器上启动训练脚本
-cortex-run --name train-v2 --gpu auto -- python train.py --epochs 100
-
-# 带任务链接的启动（成功时自动完成任务）
-cortex-run --name eval-run --task-project my-project --task-id a1b2 -- python eval.py
-
-# 在远程设备上启动，带环境变量透传
-cortex-run --device lab --name remote-train --env-passthrough WANDB_API_KEY,HF_TOKEN -- python train.py
-
-# 取消运行中的作业
-cortex-run --cancel train-v2
-
-# 用特定信号取消
-cortex-run --cancel train-v2 --signal SIGKILL
-```
-
----
 
 ## cortex-signal
 
@@ -509,7 +434,7 @@ cortex-signal [--id wp_…] [--secret …] [--status ok|fail|progress] [--messag
 所以永远不会有人读到半截文件），命令仍然退出 0。守护进程会在下一个 sweep 周期收走它，
 因此重启期间发出的信号只是延迟，不会丢失。`--no-spool` 关掉这个行为，改为退出 1。
 
-### 退出码 {#exit-codes_3}
+### 退出码 {#exit-codes_2}
 
 | 代码 | 含义 |
 |---|---|
@@ -519,7 +444,7 @@ cortex-signal [--id wp_…] [--secret …] [--status ok|fail|progress] [--messag
 
 「早已被解决」故意退出 0：重试的脚本不该把「别人已经报过了」当成失败。
 
-### 示例 {#examples_1}
+### 示例 {#examples}
 
 ```bash
 # 报告刚跑完那条命令的退出码

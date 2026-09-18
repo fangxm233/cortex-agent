@@ -1,19 +1,20 @@
 import * as RadixDialog from '@radix-ui/react-dialog';
-import { useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useVocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
 import { useToast } from '@/design';
 import { LogDrawerView } from './LogDrawerView';
-import { useExecutionLogStream } from './useExecutionLogStream';
-import { execMeta, execNow, execPill, isStoppable, logStreamEnabled } from './execution-log-view';
+import { execMeta, execNow, execPill, isStoppable } from './execution-log-view';
 
-// Execution log drawer (design 09-exec-logs, prototype.dc.html L1542–1562) — a right dark slide-over
+// Execution drawer (design 09-exec-logs, prototype.dc.html L1542–1562) — a right dark slide-over
 // reproduced 1:1 from the prototype. Built on Radix Dialog for a11y (focus trap, Esc-close,
 // focus-restore) + the shared backdrop scrim (prototype L1292). Wired to real tRPC data:
-// executions.get (header + meta), executions.log (live-scrolling terminal output),
-// executions.cancel (Kill run). Replaces the old 8b execution detail page (task 2198). Opened from any
-// dispatch row via the ExecutionLogDrawerProvider. The 1:1 chrome lives in LogDrawerView (pure).
+// executions.get (header + meta) and executions.cancel (Kill run). Replaces the old 8b execution
+// detail page (task 2198). Opened from any dispatch row via the ExecutionLogDrawerProvider. The
+// 1:1 chrome lives in LogDrawerView (pure).
+//
+// The live log pane went away with cortex-run: its output.log was the only tailable source, so
+// after the removal nothing could ever fill it (see docs/waitpoints.md for the replacement path).
 
 const DRAWER_STYLE: React.CSSProperties = {
   position: 'fixed',
@@ -89,8 +90,8 @@ function DrawerBody({ executionId, onClose }: { executionId: string; onClose: ()
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  // No execution.* lifecycle bus event exists (only execution.log) — poll while running so the
-  // header pill/meta reflect a cancel; the log itself is push (SSE).
+  // No execution.* lifecycle bus event exists — poll while running so the header pill/meta
+  // reflect a cancel.
   const execQuery = useQuery(
     trpc.executions.get.queryOptions(
       { executionId },
@@ -98,9 +99,6 @@ function DrawerBody({ executionId, onClose }: { executionId: string; onClose: ()
     ),
   );
   const detail = execQuery.data;
-
-  const enabled = detail ? logStreamEnabled(detail) : false;
-  const logState = useExecutionLogStream(executionId, enabled);
 
   const cancel = useMutation(
     trpc.executions.cancel.mutationOptions({
@@ -124,44 +122,16 @@ function DrawerBody({ executionId, onClose }: { executionId: string; onClose: ()
     );
   };
 
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const stickRef = useRef(true);
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (el && stickRef.current) el.scrollTop = el.scrollHeight;
-  }, [logState.lines, logState.dropped]);
-  const onScroll = () => {
-    const el = scrollRef.current;
-    if (!el) return;
-    stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
-  };
-
-  const running = detail?.status === 'running';
-  const notice =
-    logState.lines.length > 0
-      ? null
-      : !enabled
-        ? running
-          ? L.exWaitingOutput
-          : L.exNoLiveLog
-        : running
-          ? L.exWaitingOutput
-          : L.exNoLogOutput;
-
   return (
     <LogDrawerView
       title={detail?.id ?? executionId}
       pill={detail ? execPill(detail.status) : null}
       meta={detail ? execMeta(detail) : ''}
       now={detail ? execNow(detail) : ''}
-      lines={logState.lines}
-      dropped={logState.dropped}
-      notice={notice}
+      notice={L.exNoLiveLog}
       killDisabled={cancel.isPending}
       onKill={onKill}
       onClose={onClose}
-      scrollRef={scrollRef}
-      onScroll={onScroll}
     />
   );
 }

@@ -14,7 +14,6 @@ export type {
   // Subscribe
   SubscribeFilter,
   UiEvent,
-  ExecutionsLogParams,
   // Query params
   SessionsListParams,
   SessionsTranscriptParams,
@@ -131,7 +130,6 @@ export type {
   ThreadDetail,
   ThreadStepDetail,
   ThreadAgentFlow,
-  ThreadDispatchInfo,
   ThreadChildNode,
   ThreadArtifactRefs,
   TaskInfo,

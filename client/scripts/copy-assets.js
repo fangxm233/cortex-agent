@@ -9,7 +9,6 @@ const pkgRoot = path.resolve(scriptDir, '..');
 const SHEBANG = '#!/usr/bin/env node\n';
 const cliEntryPoints = [
   'dist/client.js',
-  'dist/cortex-run-watcher.js',
 ];
 
 for (const rel of cliEntryPoints) {

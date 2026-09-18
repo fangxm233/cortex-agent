@@ -28,7 +28,7 @@ Each project's `TASKS.yaml` contains a flat list of tasks. Each task has the fol
 | `not-before` | string \| null | No | Date gate: don't dispatch before this ISO date |
 | `completed-at` | string \| null | No | ISO timestamp of completion |
 | `completed-note` | string \| null | No | Note added at completion |
-| `pending-at` | string \| null | No | ISO timestamp when marked pending (cortex-run) |
+| `pending-at` | string \| null | No | ISO timestamp when marked pending |
 
 YAML keys use kebab-case (`done-when`, `depends-on`, `claimed-by`, etc.) which are mapped to snake_case fields internally.
 
@@ -77,7 +77,7 @@ Tasks have three core states stored in YAML:
 
 - **`open`** — available to be claimed
 - **`done`** — completed (terminal)
-- **`pending`** — dispatched to a remote machine, waiting for cortex-run completion
+- **`pending`** — waiting on something outside the agent's turn (a long run, a build) before it can be completed
 
 ### Derived States (Computed)
 
@@ -104,7 +104,7 @@ open ──claim──→ in-progress ──complete──→ done
  │
  ├──request-approval──→ approval-needed ──approve──→ open (approved_at set)
  │
- └──pending──→ pending ──(cortex-run result)──→ done / open+blocked
+ └──pending──→ pending ──(the awaited work reports)──→ done / open+blocked
                   │
                   └──reopen──→ open
 ```
@@ -118,7 +118,7 @@ open ──claim──→ in-progress ──complete──→ done
 - Pausing a task clears `claimed_by` and `claimed_at`
 - `pending` clears `claimed_by` and `blocked_by`, sets `pending_at`
 - `unblock` clears `blocked_by` and restores a legacy `pending` status to `open`
-- `reopen` restores a stuck `pending` task to `open` (rescue path for a lost cortex-run callback); refuses a `done` task
+- `reopen` restores a stuck `pending` task to `open` (rescue path for work that never reported); refuses a `done` task
 
 ## Done-When Discipline
 
@@ -157,7 +157,7 @@ The task dispatch system has an automatic quarantine mechanism: if a dispatched 
 
 ## Stale Claim Detection
 
-At startup, the server reconciles dispatcher claims against their owners. A task claimed by `task-dispatcher` whose execution did not survive the restart is automatically unclaimed and returns to the dispatch queue. Claims with a surviving owner are left in place: a suspended manager thread waiting on children, a rate-limit-paused thread awaiting auto-resume, and a remote `cortex-run` tracked by the pending task tracker all legitimately hold their claim across restarts. Manual claims (any `claimed_by` other than `task-dispatcher`) are never touched.
+At startup, the server reconciles dispatcher claims against their owners. A task claimed by `task-dispatcher` whose execution did not survive the restart is automatically unclaimed and returns to the dispatch queue. Claims with a surviving owner are left in place: a suspended manager thread waiting on children, a rate-limit-paused thread awaiting auto-resume, and a remote dispatch tracked by the pending task tracker all legitimately hold their claim across restarts. Manual claims (any `claimed_by` other than `task-dispatcher`) are never touched.
 
 The 3-day rule: if a task has been `claimed_by` an agent for more than 3 days without completion, it is considered a stale/orphan claim and should be investigated. This manual convention covers the claims the automatic reconciliation deliberately respects, such as manual claims.
 
@@ -191,26 +191,10 @@ Tasks are selected in this order:
 
 ### Pending Tasks
 
-When a task is dispatched to a remote machine for long-running execution (via `cortex-run`), it is marked as `pending`. The remote machine's `cortex-run-watcher` tracks the process and reports back with success/failure via WebSocket `task-callback` messages. The server then completes or blocks the task accordingly.
-
-## Cortex-Run Watchdog (DR-0011)
-
-The `cortex-run` system handles long-running task execution on remote machines.
-See [cli-reference.md](./cli-reference.md) for the full `cortex-run` CLI
-reference, and [scheduling.md](./scheduling.md) for how the built-in task
-dispatcher is configured.
-
-- **Server side**: `cortex-run` CLI forwards to the remote client via `sendCommand`
-- **Client side**: `cortex-run-watcher.ts` spawns the user command as a detached child process, monitors it with two-layer stall detection (output byte stall and progress line stall), auto-picks GPU via `nvidia-smi`, writes state/output/result files, and sends a `task-callback` WebSocket message on completion
-- **Client side**: `cortex-run-launch.ts` handles launch/cancel/flush cycles, with orphan detection for dead processes
-
-The three-layer process model:
-
-```
-cortex-client (WebSocket connection to server)
-  └── cortex-run-watcher (detached, unref'd)
-        └── user command (e.g., python train.py)
-```
+A task is marked `pending` when it cannot be completed inside the current turn — a
+training run, a build, or an evaluation has to finish first. Cortex does not launch
+or supervise that work: start it yourself, arm a [waitpoint](./waitpoints.md), and
+complete or block the task when the signal wakes the session.
 
 ## Task Archive
 
@@ -251,8 +235,8 @@ CLI reference including every subcommand and flag, see
 | `unclaim --task-id <id>` | Remove in-progress status |
 | `pause --task-id <id>` | Pause a task (clears claim) |
 | `resume --task-id <id>` | Resume a paused task |
-| `pending --task-id <id>` | Mark as pending (waiting for cortex-run result) |
-| `reopen --task-id <id>` | Restore a stuck `pending` task back to `open` (rescue a lost cortex-run callback) |
+| `pending --task-id <id>` | Mark as pending (waiting on work outside this turn) |
+| `reopen --task-id <id>` | Restore a stuck `pending` task back to `open` (rescue work that never reported) |
 | `complete --task-id <id>` | Mark complete (`--note`, `--skip-verify` to bypass verification) |
 | `uncomplete --task-id <id>` | Reverse a completed task back to open |
 | `verdict --task-id <parent> --child <id> --verdict accepted\|rejected` | Record a manager's acceptance verdict for a delivered child into the parent's acceptance ledger (see [Manager Tasks and the Acceptance Ledger](#manager-tasks-and-the-acceptance-ledger-dr-0017); full syntax in [cli-reference.md](./cli-reference.md)) |

@@ -58,7 +58,6 @@ function detail(p: Partial<ThreadDetail>): ThreadDetail {
     totalCostUsd: p.totalCostUsd ?? 0,
     steps: p.steps ?? [],
     agentFlow: p.agentFlow ?? null,
-    dispatches: p.dispatches ?? [],
     children: p.children ?? [],
     // ThreadArtifactRefs and any trailing fields are structurally optional for these pure tests
     ...(p as object),

@@ -5,7 +5,7 @@
 //         dispatch claim whose owner died with the server would otherwise stay in-progress forever
 //         — stranding the task AND any manager thread suspended on it. Claims that legitimately
 //         survive a restart are respected: a waiting/rate_limited thread that owns the task
-//         (DR-0014 suspension, rate-limit pause), a remote cortex-run tracked in pending-tasks.json,
+//         (DR-0014 suspension, rate-limit pause), a remote dispatch tracked in pending-tasks.json,
 //         and manual (non-dispatcher) claims.
 
 import { scanAllTasks, type Task } from '@core/task-parser.js';
@@ -58,7 +58,7 @@ export async function recoverOrphanedClaims(deps: ClaimRecoveryDeps = {}): Promi
   const recovered: string[] = [];
   for (const task of tasks) {
     if (!task.id || task.claimed_by !== DISPATCHER_AGENT) continue;
-    if (task.status === 'done' || task.status === 'pending') continue; // pending → cortex-run owns it
+    if (task.status === 'done' || task.status === 'pending') continue; // pending → outside work owns it
     if (task.blocked_by) continue;              // blocked is already a terminal signal for the tree
     if (ownedByLiveThread(task)) continue;      // suspended manager / rate-limit-paused thread
     if (isTracked(task)) continue;              // remote dispatch tracked in pending-tasks.json

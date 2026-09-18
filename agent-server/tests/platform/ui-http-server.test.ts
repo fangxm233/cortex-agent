@@ -266,7 +266,6 @@ function makeFakeUiService(): UiService {
       return { ok: false, code: 'not-found', message: `unexpected op ${op}` };
     }) as UiService['mutate'],
     subscribe: () => makeOneShotStream(),
-    subscribeExecutionLog: () => makeOneShotStream(),
   };
 }
 

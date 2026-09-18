@@ -120,12 +120,12 @@ cd <cortex-repo>/agent-server && node --import tsx src/domain/remote/client-boot
 or place the bundle by hand:
 
 ```bash
-# Build from source (dev) — produces dist/client.mjs + dist/cortex-run-watcher.mjs
+# Build from source (dev) — produces dist/client.mjs (+ a cortex-run-watcher.mjs compatibility stub)
 cd <cortex-repo>/client && npm run bundle
 
 # Ship to the device
 ssh user@host "mkdir -p ~/.cortex/client/current"
-scp dist/client.mjs dist/cortex-run-watcher.mjs user@host:.cortex/client/current/
+scp dist/client.mjs dist/cortex-run-watcher.mjs user@host:.cortex/client/current/   # both files: the update protocol checks names
 ```
 
 ### 3. Write the config

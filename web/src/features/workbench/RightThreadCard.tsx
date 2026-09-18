@@ -1,11 +1,9 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ThreadInfo, ThreadDetail, ThreadStepDetail, ThreadDispatchInfo } from '@cortex-agent/ui-contract';
+import type { ThreadInfo, ThreadDetail, ThreadStepDetail } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
-import { useExecutionLogDrawer } from '@/features/execution/ExecutionLogDrawerProvider';
 import { useTaskModal } from '@/features/tasks/TaskModalProvider';
-import { dispatchesForStep } from '@/features/thread/thread-steps';
 import { useThreadGetLiveSync } from '@/features/thread/useThreadGetLiveSync';
 import { useThreadDetailModal } from '@/features/thread/ThreadDetailModal';
 import {
@@ -15,8 +13,6 @@ import {
   threadMetaLine,
   depthInfo,
   formatCost,
-  cortexRunLabel,
-  runActivity,
   subtaskActivity,
   type ActivityTone,
 } from './right-panel-vm';
@@ -111,36 +107,6 @@ function ActivityDot({ tone }: { tone: ActivityTone }) {
   );
 }
 
-function CortexRunCard({ run, onOpen }: { run: ThreadDispatchInfo; onOpen: (executionId: string) => void }) {
-  const state = runActivity(run.status);
-  const meta = [run.machine, run.taskId ? `task ${run.taskId}` : null].filter(Boolean).join(' · ');
-  return (
-    <div
-      data-cortex-run={run.runName ?? ''}
-      onClick={() => onOpen(run.executionId)}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 7,
-        border: `1px solid ${state.tone === 'running' ? 'var(--proto-accent-bg)' : 'var(--proto-line-2)'}`,
-        background: 'var(--proto-rail)',
-        borderRadius: 8,
-        padding: '7px 10px',
-        cursor: 'pointer',
-      }}
-    >
-      <ActivityDot tone={state.tone} />
-      <span style={{ minWidth: 0, font: "600 10.5px 'IBM Plex Mono',monospace", color: 'var(--proto-ink-2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-        {cortexRunLabel(run)}
-      </span>
-      {meta && <span style={{ flex: 'none', font: "400 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>{meta}</span>}
-      <span style={{ marginLeft: 'auto', flex: 'none', font: "500 9.5px 'IBM Plex Mono',monospace", color: ACTIVITY_COLORS[state.tone] }}>
-        {run.cost != null ? formatCost(run.cost) : state.label}
-      </span>
-    </div>
-  );
-}
-
 export function SubtaskCard({ task, onOpen }: {
   task: ThreadSubtaskInfo;
   onOpen: (taskId: string) => void;
@@ -170,20 +136,15 @@ export function SubtaskCard({ task, onOpen }: {
 }
 
 function ThreadActivityRows({
-  runs,
   subtasks,
-  onOpenRun,
   onOpenTask,
 }: {
-  runs: ThreadDispatchInfo[];
   subtasks: ThreadSubtaskInfo[];
-  onOpenRun: (executionId: string) => void;
   onOpenTask: (taskId: string) => void;
 }) {
-  if (runs.length === 0 && subtasks.length === 0) return null;
+  if (subtasks.length === 0) return null;
   return (
     <div style={{ marginTop: 7, display: 'flex', flexDirection: 'column', gap: 6 }}>
-      {runs.map((run) => <CortexRunCard key={run.executionId} run={run} onOpen={onOpenRun} />)}
       {subtasks.map((task) => <SubtaskCard key={task.id} task={task} onOpen={onOpenTask} />)}
     </div>
   );
@@ -193,7 +154,6 @@ interface StepRowProps {
   step: ThreadStepDetail;
   isLast: boolean;
   detail: ThreadDetail;
-  onOpenRun: (executionId: string) => void;
   onOpenTask: (taskId: string) => void;
 }
 
@@ -211,21 +171,19 @@ function StepHeader({ label, meta, active, done }: { label: string; meta: string
   );
 }
 
-export function StepRow({ step, isLast, detail, onOpenRun, onOpenTask }: StepRowProps) {
+export function StepRow({ step, isLast, detail, onOpenTask }: StepRowProps) {
   const L = useVocab();
   const kind = stepDotKind(step);
   const active = kind === 'running';
-  const runs = active ? dispatchesForStep(detail, step) : [];
   const subtasks = active ? (detail.subtasks ?? []) : [];
-  const hasActivities = runs.length > 0 || subtasks.length > 0;
+  const hasActivities = subtasks.length > 0;
   const label = step.stage ?? `${L.rpStep} ${step.stepIndex + 1}`;
   return (
     <>
       <StepDot kind={kind} hasTail={!isLast} />
       <div style={{ minWidth: 0, paddingBottom: isLast ? 4 : 9 }}>
         <StepHeader label={label} meta={stepMeta(step)} active={active} done={kind === 'done'} />
-        {hasActivities && <ThreadActivityRows runs={runs} subtasks={subtasks}
-          onOpenRun={onOpenRun} onOpenTask={onOpenTask} />}
+        {hasActivities && <ThreadActivityRows subtasks={subtasks} onOpenTask={onOpenTask} />}
       </div>
     </>
   );
@@ -253,7 +211,6 @@ function CardActions({ threadId, cost }: { threadId: string; cost: number }) {
 }
 
 function CardBody({ detail, threadId }: { detail: ThreadDetail; threadId: string }) {
-  const { open: openRun } = useExecutionLogDrawer();
   const { openTask } = useTaskModal();
   useThreadGetLiveSync(threadId);
   return (
@@ -262,7 +219,7 @@ function CardBody({ detail, threadId }: { detail: ThreadDetail; threadId: string
         <div style={{ padding: '10px 14px 4px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '16px 1fr', columnGap: 9 }}>
             {detail.steps.map((step) => <StepRow key={step.stepIndex} step={step}
-              isLast={step.stepIndex === detail.steps.length - 1} detail={detail} onOpenRun={openRun}
+              isLast={step.stepIndex === detail.steps.length - 1} detail={detail}
               onOpenTask={(taskId) => openTask(taskProjectForDetail(detail), taskId)} />)}
           </div>
         </div>

@@ -29,14 +29,6 @@ const uiService: UiService = {
       close() {},
     };
   },
-  subscribeExecutionLog() {
-    return {
-      async *[Symbol.asyncIterator](): AsyncGenerator<UiEvent> {
-        await new Promise<void>(() => {});
-      },
-      close() {},
-    };
-  },
 } as unknown as UiService;
 
 const servers: Array<{ close: () => Promise<void> }> = [];

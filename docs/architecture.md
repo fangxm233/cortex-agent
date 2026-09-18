@@ -8,8 +8,8 @@ Cortex consists of two npm packages plus a set of plugins:
 
 | Package | Path | Purpose |
 |---------|------|---------|
-| `@cortex-agent/server` | `agent-server/` | Main server: Slack bot, LLM orchestration, scheduling, task system, MCP tools. Provides three CLI binaries: `cortex`, `cortex-task`, `cortex-run`. |
-| `@cortex-agent/client` | `client/` | Lightweight remote agent daemon. Connects via WebSocket, executes shell/file commands locally, supports `cortex-run` for long-running task execution. |
+| `@cortex-agent/server` | `agent-server/` | Main server: Slack bot, LLM orchestration, scheduling, task system, MCP tools. Provides five CLI binaries: `cortex`, `cortex-task`, `cortex-hook`, `cortex-evidence-export`, `cortex-signal`. |
+| `@cortex-agent/client` | `client/` | Lightweight remote agent daemon. Connects via WebSocket and executes shell/file commands locally. |
 | Plugins | `plugins/cortex-*` | 8 role-scoped plugin bundles containing skills. Not npm packages — loaded as directories at runtime. |
 
 ## Agent-Server Architecture: Six Layers
@@ -210,11 +210,11 @@ The WebSocket protocol is used for **remote device command execution**, not for 
 
 ### Command Actions
 
-The client supports these remote actions: `bash` (shell execution with timeout/background), `read` (file read with text/image/PDF support), `write` (file write with CRLF detection), `edit` (text replacement with replace_all), `glob` (file glob with VCS exclusion), `grep` (ripgrep with pagination), `cortex-run.launch`, `cortex-run.cancel`.
+The client supports these remote actions: `bash` (shell execution with timeout/background), `read` (file read with text/image/PDF support), `write` (file write with CRLF detection), `edit` (text replacement with replace_all), `glob` (file glob with VCS exclusion), `grep` (ripgrep with pagination), `file.stat` (pre-transfer metadata probe).
 
 ### Client Architecture
 
-The client (`client/src/client.ts`) is a lightweight WebSocket daemon that maintains a persistent connection. It supports automatic reconnection with exponential backoff (1s→30s max). The `cortex-run-watcher.ts` implements a client-resident watchdog for long-running tasks with two-layer stall detection (output stall and progress stall) and GPU auto-detection via `nvidia-smi`.
+The client (`client/src/client.ts`) is a lightweight WebSocket daemon that maintains a persistent connection. It supports automatic reconnection with exponential backoff (1s→30s max). It does not launch or supervise long-running jobs: those run independently and report back through a [waitpoint](./waitpoints.md).
 
 ## Event Bus Topology
 

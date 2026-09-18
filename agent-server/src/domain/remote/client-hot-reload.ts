@@ -14,7 +14,9 @@ import { Icons } from '../../core/icons.js';
 
 const log = createLogger('client-hot-reload');
 
-/** The complete update artifact, hashed in this exact order on both ends. */
+/** The complete update artifact, hashed in this exact order on both ends.
+ *  `cortex-run-watcher.mjs` is a compatibility stub (cortex-run was removed) — see the note on
+ *  BUNDLE_FILES in client/src/self-update.ts. Both ends drop it in the same release or not at all. */
 const BUNDLE_FILES = ['client.mjs', 'cortex-run-watcher.mjs'];
 
 /** After a failed install, do not re-push the same bundle to that device for this long. */

@@ -227,13 +227,13 @@ def test_a_missing_gateway_file_is_a_launch_refusal(
 def test_an_inherited_credential_variable_is_refused(
     gateway: Path, clean_environment: dict[str, str], monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """`cortex-run --env` persists whatever it is given, so an inherited value is never used."""
+    """A launcher environment flag persists whatever it is given, so an inherited value is refused."""
     monkeypatch.setenv("CORTEX_BENCH_DEEPSEEK_CREDENTIAL", "inherited-value")
 
     with pytest.raises(launcher.LaunchError) as error:
         resolve(gateway)
 
-    assert "cortex-run --env" in str(error.value)
+    assert "launcher environment flag" in str(error.value)
 
 
 def test_a_credential_that_reached_argv_is_refused(

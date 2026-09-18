@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import type { QueryParamMap, MutateArgsMap, ExecutionsLogParams } from './dto.js';
+import type { QueryParamMap, MutateArgsMap } from './dto.js';
 import type {
   projectsListInput,
   projectsCreateInput,
@@ -47,7 +47,6 @@ import type {
   taskActionInput,
   taskCompleteInput,
   taskBlockInput,
-  executionsLogInput,
   configGetInput,
   configSetInput,
   platformSettingsInput,
@@ -207,11 +206,6 @@ const _systemRefreshUsage: MutateParity<'system.refreshUsage', typeof systemRefr
 const _systemApplyUpdate: MutateParity<'system.applyUpdate', typeof systemApplyUpdateInput> = true;
 const _systemSkipUpdate: MutateParity<'system.skipUpdate', typeof systemSkipUpdateInput> = true;
 
-// ── Subscriptions ─────────────────────────────────────────────────
-// Subscriptions have no query/mutate map entry; guard the input schema against its backend
-// param type directly (B2-C executions.log).
-const _executionsLog: Exact<z.infer<typeof executionsLogInput>, ExecutionsLogParams> = true;
-
 // Reference the guards so noUnusedLocals (if enabled) stays quiet and the
 // checks are not tree-shaken away by the type checker.
 export const _contractParityChecked = [
@@ -226,7 +220,7 @@ export const _contractParityChecked = [
   _approvalsApprove, _approvalsReject, _approvalsRequest, _issuesList, _issuesHandle, _issuesDelete,
   _notesAdd, _notesUpdate, _notesSetCompleted, _notesDelete, _notesClearCompleted,
   _configSet, _configSetProviderRateLimitPolicy,
-  _authStartLogin, _authRespondPrompt, _authCancelFlow, _authLogout, _authSyncGateway, _executionsLog,
+  _authStartLogin, _authRespondPrompt, _authCancelFlow, _authLogout, _authSyncGateway,
   _authCustomProviders, _authUpsertCustomProvider, _authRemoveCustomProvider,
   _hooksList, _hooksCreate, _hooksUpdate, _hooksSetEnabled, _hooksRemove, _hooksTest,
   _profilesCreate, _profilesUpdate, _profilesRemove, _pluginsAssign,

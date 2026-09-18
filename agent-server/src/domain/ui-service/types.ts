@@ -55,7 +55,6 @@ import type { SessionTotals } from '@store/session-totals.js';
 export type { SessionTotals } from '@store/session-totals.js';
 import type { ScheduleTask, ScheduleTarget } from '@store/schedule-repo.js';
 import type { CommissionRecord } from '@store/commission-repo.js';
-import type { LogLocation } from '@domain/executions/log-tailer.js';
 import type { SessionHistory } from '@store/conversation-history-repo.js';
 import type { Backend } from '../../agent-adapter/types.js';
 import type { ProjectNote } from '@store/project-notes-repo.js';
@@ -231,7 +230,7 @@ export type MutateOp =
 export interface SubscribeFilter {
   events: string[];
   projectId?: string | null;
-  /** Scope `execution.log` events to a single execution (B2-C live log stream). */
+  /** Scope execution-carrying events (agent.*) to a single execution. */
   executionId?: string | null;
   /** Scope `session.message` events to a single session (S4 chat live stream). REQUIRED for
    *  `session.message.delta`: token-level previews are delivered to session-scoped subscriptions
@@ -243,11 +242,6 @@ export interface UiEvent {
   type: string;
   ts: string;
   payload: unknown;
-}
-
-/** Input for the `executions.log` subscription (B2-C). Parity-guarded in @cortex-agent/ui-contract. */
-export interface ExecutionsLogParams {
-  executionId: string;
 }
 
 // ── Query params / return types ───────────────────────────────────
@@ -1172,21 +1166,6 @@ export interface ThreadAgentFlow {
   lastOutput: string | null;
 }
 
-export interface ThreadDispatchInfo {
-  executionId: string;
-  status: string;
-  machine: string | null;
-  type: 'local' | 'dispatch';
-  agentSlotId: string | null;
-  stepIndex: number | null;
-  taskId: string | null;
-  runName: string | null;
-  startedAt: string;
-  finishedAt: string | null;
-  durationMs: number | null;
-  cost: number | null;
-}
-
 export interface ThreadChildNode {
   id: string;
   templateName: string | null;
@@ -1236,7 +1215,6 @@ export interface ThreadDetail {
   totalCostUsd: number;
   steps: ThreadStepDetail[];
   agentFlow: ThreadAgentFlow | null;
-  dispatches: ThreadDispatchInfo[];
   subtasks: ThreadSubtaskInfo[];
   children: ThreadChildNode[];
   artifacts: ThreadArtifactRefs;
@@ -1380,9 +1358,7 @@ export interface ExecutionInfo {
 
 // Full single-execution detail for the execution detail screen (F3/8b right pane).
 // Superset of ExecutionInfo's identifying fields plus nested lifecycle / dispatch /
-// metrics / text. `gpu` is the real per-execution GPU captured by the cortex-run watcher
-// and delivered via task-callback (DR-0018 §6.3 B2-followup); null when unknown / not captured
-// (e.g. `--gpu none`, nvidia-smi unavailable, or a non-task-linked run).
+// metrics / text.
 export interface ExecutionDetailInfo {
   id: string;
   type: 'local' | 'dispatch';
@@ -1399,11 +1375,8 @@ export interface ExecutionDetailInfo {
     tmuxName: string | null;
     sessionName: string | null;
     scheduleTaskId: string | null;
-    /** cortex-run `--name`; non-null ⇒ a live `execution.log` stream is subscribable (B2-C 8b). */
-    runName: string | null;
   } | null;
   metrics: { costUsd: number | null; numTurns: number | null; durationS: number | null };
-  gpu: { indices: number[]; memoryMb: number | null } | null;
   text: { label: string | null; finalOutput: string | null; error: string | null };
 }
 
@@ -1716,7 +1689,7 @@ export interface MachineGpuProcess {
 }
 
 export interface MachineGpu {
-  /** CUDA device ordinal — the same index MachineLiveRun.gpuIndices refers to. */
+  /** CUDA device ordinal. */
   index: number;
   name: string;
   utilPercent: number;
@@ -1743,10 +1716,7 @@ export interface MachineVitals {
 export interface MachineLiveRun {
   executionId: string;
   taskId: string | null;
-  runName: string | null;
   project: string | null;
-  /** GPU ordinals the run actually acquired (recorded by the client watcher); [] when unknown. */
-  gpuIndices: number[];
   startedAt: string | null;
 }
 
@@ -2724,12 +2694,6 @@ export interface UiService {
   query<S extends QueryScope>(scope: S, params: QueryParams<S>): Promise<Result<QueryReturn<S>>>;
   mutate<O extends MutateOp>(op: O, args: MutateArgs<O>): Promise<Result<MutateReturn<O>>>;
   subscribe(filter: SubscribeFilter): AsyncIterable<UiEvent> & { close(): void };
-  /**
-   * Live `execution.log` stream for one running execution (B2-C). Resolves the log location from
-   * the executionId, ref-counts the shared tailer (first subscriber starts it, last stops it), and
-   * delivers lines over the same bounded queue as `subscribe`. A closed stream when unresolvable.
-   */
-  subscribeExecutionLog(executionId: string): AsyncIterable<UiEvent> & { close(): void };
 }
 
 // ── Deps ──────────────────────────────────────────────────────────
@@ -2947,12 +2911,6 @@ export interface UiServiceDeps {
   };
   /** Absolute path to PENDING_APPROVALS.md (the approval-center 7a markdown queue). */
   approvalsPath: string;
-  /** Ref-counted live log tailer (B2-C). Started/stopped around each execution.log subscription. */
-  executionLogTailer: {
-    startTail(executionId: string, location: LogLocation): void;
-    stopTail(executionId: string): void;
-    refCount(executionId: string): number;
-  };
   /** The one busy answer (core/session-state.ts): sessions.list joins on it rather than
    *  re-deriving "running" from the executions index and the hold registry separately. */
   runningExecutions: SessionStateReader;

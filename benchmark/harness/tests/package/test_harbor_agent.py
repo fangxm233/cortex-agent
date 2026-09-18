@@ -41,8 +41,6 @@ INSTALL_COMMAND = (
     " /installed-agent/npm/bin/cortex-evidence-export"
     " && ln -sfn \"$package_root/dist/entry/hook-cli.js\""
     " /installed-agent/npm/bin/cortex-hook"
-    " && ln -sfn \"$package_root/dist/domain/tasks/system/cortex-run.js\""
-    " /installed-agent/npm/bin/cortex-run"
     " && ln -sfn \"$package_root/dist/domain/tasks/system/task-cli.js\""
     " /installed-agent/npm/bin/cortex-task"
     " && ln -sfn /installed-agent/npm/bin/cortex /usr/local/bin/cortex"

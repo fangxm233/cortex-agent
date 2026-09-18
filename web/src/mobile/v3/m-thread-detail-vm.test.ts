@@ -79,9 +79,6 @@ function detail(over: Partial<ThreadDetail> = {}): ThreadDetail {
       step({ stepIndex: 2, stage: 'report', status: 'pending' }),
     ],
     agentFlow,
-    dispatches: [
-      { executionId: 'exec-1', status: 'running', machine: 'node-01', type: 'dispatch', agentSlotId: 'slot-b', stepIndex: 1, taskId: null, runName: 'audit-run', startedAt: new Date(T0).toISOString(), finishedAt: null, durationMs: null, cost: null },
-    ],
     subtasks: [],
     children: [],
     artifacts,

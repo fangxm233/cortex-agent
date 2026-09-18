@@ -23,8 +23,6 @@ export interface MachineGpuRow {
   memText: string;
   tempText: string;
   powerText: string;
-  /** Cortex runs holding this ordinal (from ExecutionGpuInfo); [] when nothing recorded it. */
-  owners: string[];
   /** Heaviest processes only — a busy host can report dozens on one card. */
   processes: MachineGpuProcessRow[];
   hiddenProcessCount: number;
@@ -34,8 +32,6 @@ export interface MachineRunRow {
   key: string;
   label: string;
   taskId: string | null;
-  /** 'GPU 0,2'; empty when the run's ordinals were never recorded. */
-  gpuText: string;
   duration: string;
 }
 
@@ -105,10 +101,10 @@ function buildMeters(vitals: MachineVitals | null): MachineMeter[] {
 }
 
 function runLabel(run: MachineLiveRun): string {
-  return run.runName ?? run.taskId ?? run.executionId;
+  return run.taskId ?? run.executionId;
 }
 
-function buildGpuRow(gpu: MachineGpu, liveRuns: MachineLiveRun[]): MachineGpuRow {
+function buildGpuRow(gpu: MachineGpu): MachineGpuRow {
   const ranked = [...gpu.processes].sort((a, b) => b.memoryMb - a.memoryMb);
   return {
     index: gpu.index,
@@ -119,7 +115,6 @@ function buildGpuRow(gpu: MachineGpu, liveRuns: MachineLiveRun[]): MachineGpuRow
     memText: `${gb(gpu.memUsedMb)} / ${gb(gpu.memTotalMb)} GB`,
     tempText: `${gpu.tempC}°C`,
     powerText: `${gpu.powerW}W`,
-    owners: liveRuns.filter((run) => run.gpuIndices.includes(gpu.index)).map(runLabel),
     processes: ranked.slice(0, MAX_PROCESS_ROWS).map((proc) => ({
       pid: proc.pid,
       name: proc.name.split(/[/\\]/).pop() || proc.name,
@@ -133,12 +128,11 @@ function buildGpuRow(gpu: MachineGpu, liveRuns: MachineLiveRun[]): MachineGpuRow
 export function buildMachineDetailVm(detail: MachineDetail, now: number = Date.now()): MachineDetailVm {
   return {
     meters: buildMeters(detail.vitals),
-    gpus: detail.gpus.map((gpu) => buildGpuRow(gpu, detail.liveRuns)),
+    gpus: detail.gpus.map((gpu) => buildGpuRow(gpu)),
     liveRuns: detail.liveRuns.map((run) => ({
       key: run.executionId,
       label: runLabel(run),
       taskId: run.taskId,
-      gpuText: run.gpuIndices.length > 0 ? `GPU ${run.gpuIndices.join(',')}` : '',
       duration: formatSince(run.startedAt, now),
     })),
     probeError: detail.probeError,

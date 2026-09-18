@@ -72,24 +72,6 @@ describe('gpu rows', () => {
       memPercent: 50,
     });
   });
-
-  it('labels a GPU with the runs that acquired it', () => {
-    const liveRuns = [
-      { executionId: 'e1', taskId: 'a3f1', runName: 'exp-042', project: 'p', gpuIndices: [0], startedAt: null },
-      { executionId: 'e2', taskId: 'bbbb', runName: null, project: 'p', gpuIndices: [0, 1], startedAt: null },
-    ];
-    const vm = buildMachineDetailVm(detail({ gpus, liveRuns }));
-    expect(vm.gpus[0].owners).toEqual(['exp-042', 'bbbb']);
-    // a multi-GPU run claims every ordinal it holds
-    expect(vm.gpus[1].owners).toEqual(['bbbb']);
-  });
-
-  it('leaves owners empty when no run recorded a GPU index', () => {
-    const liveRuns = [
-      { executionId: 'e1', taskId: 'a3f1', runName: 'exp-042', project: 'p', gpuIndices: [], startedAt: null },
-    ];
-    expect(buildMachineDetailVm(detail({ gpus, liveRuns })).gpus[0].owners).toEqual([]);
-  });
 });
 
 describe('gpu processes', () => {

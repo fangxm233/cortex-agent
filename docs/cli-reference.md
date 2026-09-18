@@ -1,6 +1,6 @@
 # CLI Reference
 
-Cortex ships six binaries, registered in `agent-server/package.json`:
+Cortex ships five binaries, registered in `agent-server/package.json`:
 
 | Binary | Entry point | Purpose |
 |---|---|---|
@@ -8,10 +8,9 @@ Cortex ships six binaries, registered in `agent-server/package.json`:
 | `cortex-evidence-export` | `dist/entry/production-evidence-export-cli.js` | Production benchmark evidence v2 export |
 | `cortex-hook` | `dist/entry/hook-cli.js` | Hook inspection and blocking user asks |
 | `cortex-task` | `dist/domain/tasks/system/task-cli.js` | Task system read and mutation |
-| `cortex-run` | `dist/domain/tasks/system/cortex-run.js` | Remote command dispatch |
 | `cortex-signal` | `dist/entry/signal-cli.js` | Resolve a waitpoint from an external program |
 
-All six accept `--help` (or `-h`) to print their usage. The `cortex task`
+All five accept `--help` (or `-h`) to print their usage. The `cortex task`
 subcommand delegates directly to `cortex-task`.
 
 ---
@@ -340,13 +339,15 @@ Resume a paused task.
 
 **`pending --project <name> (--task-id <id> | --task <text>)`**
 
-Mark a task as pending (waiting for a `cortex-run` process to complete).
+Mark a task as pending — something outside this turn (a long run, a build) has to
+finish before the task can be completed. Pair it with a
+[waitpoint](./waitpoints.md) so the session is woken when that happens.
 
 **`reopen --project <name> (--task-id <id> | --task <text>)`**
 
 Restore a stuck `pending` task back to `open` so the dispatcher can pick it up
-again. Use this to rescue a task that stayed `pending` after a lost `cortex-run`
-callback. It is idempotent on an already-open task and refuses a completed task
+again. Use this to rescue a task that stayed `pending` because whatever it was
+waiting on never reported. It is idempotent on an already-open task and refuses a completed task
 (use `uncomplete` for those).
 
 **`complete --project <name> (--task-id <id> | --task <text>) [--note <text>] [--skip-verify] [--skip-verify-reason <text>]`**
@@ -490,7 +491,7 @@ approval states: request-approval → approve → clear-approval
 ```
 
 Both `block`/`unblock` and `reopen` normalize a task's status back to `open`, so a
-task that failed mid-`cortex-run` (left as `pending`) returns to a dispatchable
+task left as `pending` by work that never reported returns to a dispatchable
 state rather than staying invisible to the dispatcher.
 
 ### Exit codes
@@ -499,90 +500,6 @@ state rather than staying invisible to the dispatcher.
 |---|---|
 | 0 | Success |
 | 1 | Error (invalid arguments, lock held by another, task not found) |
-
----
-
-## cortex-run
-
-```
-cortex-run [options] -- COMMAND [ARGS...]
-```
-
-Dispatch a command on a remote device via the Cortex daemon. All execution
-is forwarded through `sendCommand` to a cortex-client; nothing spawns
-locally. The daemon must be running (it serves the webhook on
-`127.0.0.1:3001`). For scheduling recurring runs, see
-[scheduling.md](./scheduling.md). For thread-based execution, see
-[threads.md](./threads.md).
-
-### Launch mode
-
-```
-cortex-run [--device <name>] --name <name> [--stall 10m] [--gpu auto]
-           [--task-project P --task-id ABCD] [--force]
-           [--env-passthrough VAR1,VAR2,...]
-           [--log-tail-bytes 5000]
-           -- COMMAND [ARGS...]
-```
-
-Options:
-- `--name <name>` — required, unique run name (also used as result directory)
-- `--device <name>` — target device (default: local machine name from `machines.json`)
-- `--stall <duration>` — stall timeout, e.g. `10m`, `1h` (default: `10m`)
-- `--gpu <slot>` — GPU slot: `auto`, `none`, or numeric index (default: `auto`)
-- `--force` — allow launch even if a same-name run state directory exists
-- `--task-project <name>` — link this run to a project for task lifecycle tracking
-- `--task-id <hash>` — 4-char hex task ID (used with `--task-project`); invalid IDs cause a non-zero exit before dispatch
-- `--env-passthrough <list>` — comma-separated env var names to forward to the remote
-- `--log-tail-bytes <n>` — bytes of log tail returned in callback (default: 5000)
-
-The `--` separator is required. Everything after it is the command to run
-on the remote device.
-
-When `--task-project` and `--task-id` are provided, `cortex-run` marks the
-task as pending before dispatch and defers completion/blocking to the
-client callback handler. On success the task is auto-completed; on failure
-it is auto-blocked with log tail context.
-
-### Cancel mode
-
-```
-cortex-run --cancel <name> [--device <name>] [--signal SIGTERM]
-```
-
-Options:
-- `--cancel <name>` — run name to cancel
-- `--device <name>` — target device (default: local machine name)
-- `--signal <sig>` — signal to send (default: `SIGTERM`)
-
-### Exit codes
-
-| Code | Meaning |
-|---|---|
-| 0 | Success (launched or cancelled) |
-| 1 | Fatal error (invalid task-id, device offline, launch/cancel failed) |
-| 2 | Usage error (missing required flag, no command after `--`) |
-
-### Examples
-
-```bash
-# Launch a training script on the local machine
-cortex-run --name train-v2 --gpu auto -- python train.py --epochs 100
-
-# Launch with task linkage (auto-completes task on success)
-cortex-run --name eval-run --task-project my-project --task-id a1b2 -- python eval.py
-
-# Launch on a remote device with env passthrough
-cortex-run --device lab --name remote-train --env-passthrough WANDB_API_KEY,HF_TOKEN -- python train.py
-
-# Cancel a running job
-cortex-run --cancel train-v2
-
-# Cancel with a specific signal
-cortex-run --cancel train-v2 --signal SIGKILL
-```
-
----
 
 ## cortex-signal
 

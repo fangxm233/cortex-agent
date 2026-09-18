@@ -102,14 +102,6 @@ export const systemNoticesInput = z.object({ limit: z.number().int().positive().
 
 export const systemUpdateStatusInput = z.object({});
 
-// ── Subscription input schemas ────────────────────────────────────
-// Subscriptions are not part of the query/mutate keyed maps; their input schemas live here too so
-// the AppRouter and the browser (@cortex-agent/ui-contract) share one source of truth (B2-C).
-
-export const executionsLogInput = z.object({
-  executionId: z.string(),
-});
-
 // ── Mutate input schemas ──────────────────────────────────────────
 
 export const authStartLoginInput = z.object({

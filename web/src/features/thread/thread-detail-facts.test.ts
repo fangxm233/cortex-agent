@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import type {
   ThreadChildNode,
   ThreadDetail,
-  ThreadDispatchInfo,
   ThreadStepDetail,
 } from '@cortex-agent/ui-contract';
 import { buildThreadDetailFacts, threadIsLive, threadStepKind } from './thread-detail-facts';
@@ -18,14 +17,6 @@ function step(over: Partial<ThreadStepDetail> = {}): ThreadStepDetail {
   };
 }
 
-function dispatch(over: Partial<ThreadDispatchInfo> = {}): ThreadDispatchInfo {
-  return {
-    executionId: 'exec-a', status: 'running', machine: null, type: 'dispatch', agentSlotId: null,
-    stepIndex: null, taskId: null, runName: null, startedAt: new Date(T0).toISOString(),
-    finishedAt: null, durationMs: null, cost: null, ...over,
-  };
-}
-
 function child(id: string, depth: number, children: ThreadChildNode[] = []): ThreadChildNode {
   return {
     id, templateName: id, status: 'running', activeAgent: null, costUsd: 0, depth,
@@ -38,7 +29,7 @@ function detail(over: Partial<ThreadDetail> = {}): ThreadDetail {
     id: 'thr-a', templateName: 'pipeline', currentStep: null, status: 'running', projectId: 'sample',
     createdAt: new Date(T0).toISOString(), updatedAt: new Date(T0).toISOString(), totalSteps: 0,
     artifactPath: null, endedAt: null, error: null, abortReason: null, activeAgent: null,
-    activeStage: null, totalCostUsd: 0, steps: [], agentFlow: null, dispatches: [], subtasks: [],
+    activeStage: null, totalCostUsd: 0, steps: [], agentFlow: null, subtasks: [],
     children: [], artifacts: { artifactPath: null, workspacePath: null, taskId: null, taskProject: null },
     ...over,
   };
@@ -86,21 +77,6 @@ describe('thread detail facts', () => {
 
     const withSlot = buildThreadDetailFacts(detail({ steps: [active] }), NOW);
     expect([withSlot.activeProfile, withSlot.activeOutput]).toEqual(['slot-fallback', 'step output']);
-  });
-
-  it('joins dispatches by exact step index and chooses active machine before thread fallback', () => {
-    const active = step({ stepIndex: 2, status: 'running' });
-    const facts = buildThreadDetailFacts(detail({
-      steps: [active],
-      dispatches: [
-        dispatch({ executionId: 'wrong', stepIndex: 1, machine: 'fallback-node' }),
-        dispatch({ executionId: 'exact-null', stepIndex: 2 }),
-        dispatch({ executionId: 'exact-node', stepIndex: 2, machine: 'active-node' }),
-      ],
-    }), NOW);
-    expect(facts.steps[0].dispatch?.executionId).toBe('exact-null');
-    expect(facts.steps[0].machine).toBe('active-node');
-    expect(facts.machine).toBe('active-node');
   });
 
   it('provides one bounded tree-depth fact for both surfaces', () => {

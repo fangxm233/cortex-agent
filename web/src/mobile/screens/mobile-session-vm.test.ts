@@ -49,7 +49,6 @@ function detail(over: Partial<ThreadDetail> = {}): ThreadDetail {
       step({ stepIndex: 3, stage: 'commit', status: 'pending' }),
     ],
     agentFlow: null,
-    dispatches: [],
     subtasks: [],
     children: [
       {

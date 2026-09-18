@@ -10,7 +10,7 @@ const knownRecord = {
   session: { sessionId: 's2' }, thread: { threadId: 'thr_9', agentSlotId: 'main' },
   dispatch: {
     taskId: 't1', taskHash: 'h1', machine: 'server1', scheduleTaskId: 'sch1',
-    sessionName: 'sess-1', tmuxName: 'tmux-1', pid: '4242', runName: 'run-known',
+    sessionName: 'sess-1', tmuxName: 'tmux-1', pid: '4242',
   },
   scheduleTaskId: 'sch1',
   runtime: {
@@ -19,11 +19,8 @@ const knownRecord = {
     endedAt: new Date(now - 1000).toISOString(),
   },
   metrics: { costUsd: 0.05, numTurns: 3, durationS: 119 },
-  gpu: { indices: [1], memoryMb: 49140 },
   text: { label: 'dispatch-task', finalOutput: 'done', error: null },
 };
-
-const noGpuRecord = { ...knownRecord, id: 'exec_nogpu', gpu: null };
 
 function makeDeps(overrides: Partial<UiServiceDeps> = {}): UiServiceDeps {
   return {
@@ -33,11 +30,10 @@ function makeDeps(overrides: Partial<UiServiceDeps> = {}): UiServiceDeps {
     taskStore: { getAll: () => [], getById: () => null, load: () => {}, refresh: () => {} },
     scheduler: { update: async () => null, list: async () => [], get: async () => null, pause: async () => null, resume: async () => null, remove: async () => false, add: async () => ({ id: 'sch_new' } as any) },
     executionRegistry: {
-      getExecution: (id: string) => (id === 'exec_known' ? knownRecord : id === 'exec_nogpu' ? noGpuRecord : null),
+      getExecution: (id: string) => (id === 'exec_known' ? knownRecord : null),
       getAll: () => [knownRecord],
       cancelExecution: () => null,
     },
-    executionLogTailer: { startTail: () => {}, stopTail: () => {}, refCount: () => 0 },
     conversationHistory: { getHistory: async () => null },
     sendSessionMessage: () => {},
     approvalsPath: '/tmp/nonexistent-approvals.md',
@@ -67,10 +63,9 @@ test('executions.get handler maps real ExecutionRecord fields into the detail DT
   assert.equal(dto.runtime.endedAt, knownRecord.runtime.endedAt);
   assert.deepEqual(dto.dispatch, {
     taskId: 't1', machine: 'server1', pid: '4242',
-    tmuxName: 'tmux-1', sessionName: 'sess-1', scheduleTaskId: 'sch1', runName: 'run-known',
+    tmuxName: 'tmux-1', sessionName: 'sess-1', scheduleTaskId: 'sch1',
   });
   assert.deepEqual(dto.metrics, { costUsd: 0.05, numTurns: 3, durationS: 119 });
-  assert.deepEqual(dto.gpu, { indices: [1], memoryMb: 49140 });
   assert.deepEqual(dto.text, { label: 'dispatch-task', finalOutput: 'done', error: null });
 });
 

@@ -63,7 +63,6 @@ import {
   taskActionInput,
   taskCompleteInput,
   taskBlockInput,
-  executionsLogInput,
   configGetInput,
   configSetInput,
   configSetProviderRateLimitPolicyInput,
@@ -271,24 +270,11 @@ function commissionsRouter(service: UiService) {
   });
 }
 
-function executionLogProcedure(service: UiService) {
-  return publicProcedure.input(executionsLogInput).subscription(async function* ({ input, signal }) {
-    const sub = service.subscribeExecutionLog(input.executionId);
-    signal?.addEventListener('abort', () => sub.close());
-    try {
-      for await (const event of sub) yield event;
-    } finally {
-      sub.close();
-    }
-  });
-}
-
 function executionsRouter(service: UiService) {
   return router({
     list: makeQuery(service, 'executions.list', executionsListInput),
     get: makeQuery(service, 'executions.get', executionsGetInput),
     cancel: makeMutation(service, 'executions.cancel', executionsCancelInput),
-    log: executionLogProcedure(service),
   });
 }
 

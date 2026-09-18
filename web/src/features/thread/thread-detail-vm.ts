@@ -1,6 +1,6 @@
 // Framework-free mapping from the real threads.get DTO into presentation slots.
 
-// Data-driven, not stage-name-string matched (same discipline as thread-steps.ts): the active step
+// Data-driven, not stage-name-string matched: the active step
 // surfaces whatever children the DTO carries. Flagged gaps (see features/thread/CORTEX.md):
 //   - crumb ancestor NAMES ride the drill trail (threads.get has no parent chain) → real, no new scope;
 //   - the AGENT feed is `agentFlow.lastOutput` only (no per-agent tool-call trace in the DTO — Stage 4);
@@ -199,9 +199,7 @@ function buildRunningAgent(
   facts: ThreadDetailFacts,
 ): DetailStepAgent {
   const step = item.step;
-  const execInfo = [step.executionId ?? item.dispatch?.executionId, item.machine ?? 'local']
-    .filter(Boolean)
-    .join(' · ');
+  const execInfo = [step.executionId, 'local'].filter(Boolean).join(' · ');
   return {
     profile: facts.activeProfile ?? 'agent', execInfo,
     lastOutput: facts.activeOutput, streaming: true, live: facts.live,

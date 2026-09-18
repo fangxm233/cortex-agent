@@ -2,7 +2,6 @@ import type {
   ThreadInfo,
   ThreadStepDetail,
   ThreadDetail,
-  ThreadDispatchInfo,
   MachineInfo,
 } from '@cortex-agent/ui-contract';
 import { treeMaxLevel, MAX_LEVEL } from '@/features/thread/nested-threads';
@@ -88,17 +87,6 @@ export function stepMeta(step: ThreadStepDetail): string {
 
 export type ActivityTone = 'running' | 'done' | 'failed' | 'idle';
 export interface ActivityState { label: string; tone: ActivityTone }
-
-export function cortexRunLabel(run: ThreadDispatchInfo): string {
-  return run.runName ? `cortex-run ${run.runName}` : 'cortex-run';
-}
-
-export function runActivity(status: string): ActivityState {
-  if (status === 'running') return { label: 'Running', tone: 'running' };
-  if (status === 'completed') return { label: 'Done', tone: 'done' };
-  if (status === 'failed' || status === 'cancelled') return { label: 'Failed', tone: 'failed' };
-  return { label: status || 'Unknown', tone: 'idle' };
-}
 
 export function subtaskActivity(task: ThreadSubtaskInfo): ActivityState {
   if (task.status === 'done') return { label: 'Done', tone: 'done' };

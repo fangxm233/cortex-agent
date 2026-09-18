@@ -85,7 +85,7 @@ npm install -g @cortex-agent/server
 ```
 
 This puts three commands on your PATH: `cortex`, `cortex-task`, and
-`cortex-run`.
+`cortex-signal`.
 
 If `npm install -g` fails with a permission error (common on Linux),
 prefix with `sudo`, or better, configure npm to use a user-local

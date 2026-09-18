@@ -86,7 +86,6 @@ export async function handleExecutionsGet(
           tmuxName: e.dispatch.tmuxName ?? null,
           sessionName: e.dispatch.sessionName ?? null,
           scheduleTaskId: e.dispatch.scheduleTaskId ?? null,
-          runName: e.dispatch.runName ?? null,
         }
       : null,
     metrics: {
@@ -94,7 +93,6 @@ export async function handleExecutionsGet(
       numTurns: e.metrics?.numTurns ?? null,
       durationS: e.metrics?.durationS ?? null,
     },
-    gpu: e.gpu ?? null,
     text: {
       label: e.text?.label ?? null,
       finalOutput: e.text?.finalOutput ?? null,

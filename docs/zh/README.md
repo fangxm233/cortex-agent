@@ -99,11 +99,11 @@ Cortex 按影响范围分类操作。系统在工具调用层强制执行这一�
 | [浏览器访问](https://fangxm233.github.io/cortex-agent/zh/browser-access/) | Web 工作台认证与部署 |
 | [Slack Setup](https://fangxm233.github.io/cortex-agent/zh/slack-setup/) | 应用创建、令牌收集、Socket Mode、作用域 |
 | [Configuration](https://fangxm233.github.io/cortex-agent/zh/configuration/) | 完整 `.env` 与 `config/settings.json` 参考、`profiles.json`、文件布局、热重载 |
-| [CLI Reference](https://fangxm233.github.io/cortex-agent/zh/cli-reference/) | `cortex`、`cortex-task`、`cortex-run` — 每个子命令和标志 |
+| [CLI Reference](https://fangxm233.github.io/cortex-agent/zh/cli-reference/) | `cortex`、`cortex-task`、`cortex-signal` — 每个子命令和标志 |
 | [Backends](https://fangxm233.github.io/cortex-agent/zh/backends/) | Claude Code vs PI，功能矩阵，回退，费用报告 |
 | [Architecture](https://fangxm233.github.io/cortex-agent/zh/architecture/) | 服务器层、WS 协议、事件总线 |
 | [Threads](https://fangxm233.github.io/cortex-agent/zh/threads/) | 多智能体管道、模板、转换、钩子 |
-| [Tasks](https://fangxm233.github.io/cortex-agent/zh/tasks/) | TASKS.yaml 格式、生命周期、分发、cortex-run 看门狗 |
+| [Tasks](https://fangxm233.github.io/cortex-agent/zh/tasks/) | TASKS.yaml 格式、生命周期、分发、验收账本 |
 | [Memory](https://fangxm233.github.io/cortex-agent/zh/memory/) | EXP/K/PAT 原子化知识、项目日志治理 |
 | [Skills & Plugins](https://fangxm233.github.io/cortex-agent/zh/skills-and-plugins/) | 技能编写、插件布局、第三方插件 |
 | [Scheduling](https://fangxm233.github.io/cortex-agent/zh/scheduling/) | Interval/daily/weekly/once 调度、preCheck、回退 |

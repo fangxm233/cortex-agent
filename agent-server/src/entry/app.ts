@@ -22,7 +22,6 @@ import { recoverTuiOrphans } from '../agent-adapter/claude/adapter.js';
 import { startWebhookServer } from '@orch/routing/webhook.js';
 import * as pendingTaskTracker from '@domain/tasks/pending-tracker.js';
 import * as executionRegistry from '@domain/executions/registry.js';
-import { executionLogTailer } from '@domain/executions/log-tailer.js';
 import { initHookBridge, resolveRequest as resolveHookRequest, setOnStale } from '@orch/routing/hook-bridge.js';
 import { interactionRecords } from '@orch/interactions/interaction-records.js';
 import * as askUserQuestion from '@orch/interactions/ask-user-question.js';
@@ -317,7 +316,6 @@ bus.subscribe('session.status', (e) => sessionHolds.onSessionStatus(e));
 planApprovals.setBus(bus);  // S6-A: wire plan.approved events
 busyTracker.setBus(bus);    // S6-C: wire busy/idle IPC through event bus
 taskMutator.setBus(bus);    // c39d: wire task lifecycle events
-executionLogTailer.setBus(bus); // 342f: wire execution.log live log-tail stream
 initInteractionHandlers(bus); // BLK-1: wire ask-user.answered publisher
 
 const TEMP_DIR = WORKSPACE_DIR;
@@ -565,7 +563,6 @@ process.on('SIGTERM', async () => {
       update: (id, patch) => scheduler.update(id, patch),
     },
     executionRegistry,
-    executionLogTailer,
     approvalsPath: path.join(CONTEXT_DIR, 'PENDING_APPROVALS.md'),
     runningExecutions: sessionStates,
     costSummary: getCostSummary,
@@ -740,8 +737,8 @@ process.on('SIGTERM', async () => {
   // Crash-orphan claim recovery: a dispatch claim whose owner died with the server keeps the
   // task invisible to the dispatcher forever (claimed → not actionable → never re-dispatched),
   // stranding it and any manager suspended on it. Runs after markRunningAsFailedOnStartup so
-  // surviving waiting/rate_limited threads still protect their claims; remote cortex-run tasks
-  // (status pending / pending-tracker) and manual claims are respected. Before scheduler.start
+  // surviving waiting/rate_limited threads still protect their claims; tasks waiting on outside
+  // work (status pending / pending-tracker) and manual claims are respected. Before scheduler.start
   // so recovered tasks are back in the queue for the first dispatch cycle.
   await recoverOrphanedClaims().catch((e) => log.error(`recoverOrphanedClaims failed: ${(e as Error).message}`));
 

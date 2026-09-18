@@ -126,7 +126,6 @@ import {
   handleCustomProviderUpsert,
 } from './mutate/custom-providers.js';
 import { createSubscription } from './subscribe.js';
-import { resolveExecutionLogLocation } from '@domain/executions/log-tailer.js';
 
 type QueryHandler = (deps: UiServiceDeps, params: any) => Promise<any>;
 type MutateHandler = (deps: UiServiceDeps, args: any) => Promise<Result<any>>;
@@ -314,34 +313,5 @@ export function createUiService(deps: UiServiceDeps): UiService {
       return createSubscription(deps.bus, filter);
     },
 
-    subscribeExecutionLog(executionId) {
-      // Resolve the run's log location from the persisted dispatch.runName (B2-C). When it cannot
-      // be resolved (unknown id / no runName / not a cortex-run), hand back an already-closed
-      // stream so the client ends cleanly rather than hanging on a tail that will never emit.
-      const location = resolveExecutionLogLocation(executionId, {
-        getExecution: (id) => deps.executionRegistry.getExecution(id),
-      });
-      if (!location) {
-        const empty = createSubscription(deps.bus, { events: [] });
-        empty.close();
-        return empty;
-      }
-
-      // First subscriber starts the shared tailer (ref-count +1); the last close stops it (-1).
-      deps.executionLogTailer.startTail(executionId, location);
-      const sub = createSubscription(deps.bus, { events: ['execution.log'], executionId });
-
-      let stopped = false;
-      const close = (): void => {
-        sub.close();
-        if (stopped) return;
-        stopped = true;
-        deps.executionLogTailer.stopTail(executionId);
-      };
-      return {
-        [Symbol.asyncIterator]: () => sub[Symbol.asyncIterator](),
-        close,
-      };
-    },
   };
 }

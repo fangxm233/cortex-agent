@@ -13,7 +13,11 @@ const log = createLogger('self-update');
 /** Managed install root: DATA_DIR/client/{current,previous,next}/ — fixed paths, no symlinks. */
 export const CLIENT_INSTALL_DIR = path.join(DATA_DIR, 'client');
 
-/** The complete update artifact, hashed in this exact order on both ends. */
+/** The complete update artifact, hashed in this exact order on both ends.
+ *  `cortex-run-watcher.mjs` is a compatibility stub since cortex-run was removed: a client
+ *  installed before the removal rejects any package missing that name (validateUpdate below),
+ *  so dropping it would strand every deployed client on its current version. Remove it from
+ *  both ends together once no pre-removal client is left. */
 export const BUNDLE_FILES = ['client.mjs', 'cortex-run-watcher.mjs'] as const;
 
 export interface UpdateMessage {

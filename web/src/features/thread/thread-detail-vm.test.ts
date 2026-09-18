@@ -3,7 +3,6 @@ import type {
   ThreadDetail,
   ThreadStepDetail,
   ThreadChildNode,
-  ThreadDispatchInfo,
 } from '@cortex-agent/ui-contract';
 import { buildThreadDetailVm } from './thread-detail-vm';
 
@@ -40,23 +39,6 @@ function child(p: Partial<ThreadChildNode> & { id: string }): ThreadChildNode {
   };
 }
 
-function dispatch(p: Partial<ThreadDispatchInfo> & { executionId: string }): ThreadDispatchInfo {
-  return {
-    executionId: p.executionId,
-    status: p.status ?? 'running',
-    machine: p.machine ?? null,
-    type: p.type ?? 'local',
-    agentSlotId: p.agentSlotId ?? null,
-    stepIndex: p.stepIndex ?? null,
-    taskId: p.taskId ?? null,
-    runName: p.runName ?? null,
-    startedAt: p.startedAt ?? '2026-07-06T00:00:00.000Z',
-    finishedAt: p.finishedAt ?? null,
-    durationMs: p.durationMs ?? null,
-    cost: p.cost ?? null,
-  };
-}
-
 function detail(p: Partial<ThreadDetail>): ThreadDetail {
   return {
     id: p.id ?? 'thr_test',
@@ -76,7 +58,6 @@ function detail(p: Partial<ThreadDetail>): ThreadDetail {
     totalCostUsd: p.totalCostUsd ?? 0,
     steps: p.steps ?? [],
     agentFlow: p.agentFlow ?? null,
-    dispatches: p.dispatches ?? [],
     subtasks: p.subtasks ?? [],
     children: p.children ?? [],
     artifacts: p.artifacts ?? {
@@ -116,7 +97,6 @@ describe('buildThreadDetailVm', () => {
       step({ stepIndex: 2, stage: 'Review', status: 'running', agentSlotId: 'slot-2', executionId: 'exec_31b0', costUsd: 0.38, durationS: 252, sessionId: 'cortex-review', sessionName: 'cortex-review' }),
       step({ stepIndex: 3, stage: 'Commit', status: 'pending' }),
     ],
-    dispatches: [dispatch({ executionId: 'exec_31b0', agentSlotId: 'slot-2', stepIndex: 1, machine: 'local', type: 'local' })],
     children: [
       child({ id: 'thr_b7f3', templateName: 'verify-metrics', status: 'running', depth: 0, costUsd: 0.11, activeAgent: 'analyst' }),
       child({ id: 'thr_c1', templateName: 'check-claims', status: 'completed', depth: 0, costUsd: 0.12 }),

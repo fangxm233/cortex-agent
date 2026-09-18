@@ -7,7 +7,6 @@ import type {
   ThreadDetail,
   ThreadStepDetail,
   ThreadAgentFlow,
-  ThreadDispatchInfo,
   ThreadChildNode,
   TaskInfo,
 } from '../types.js';
@@ -108,7 +107,7 @@ export async function handleThreadsGet(
     error: t.error ?? null, abortReason: t.abortReason ?? null,
     activeAgent: t.activeAgent ?? null, activeStage: t.activeStage ?? null,
     totalCostUsd: t.totalCostUsd ?? 0, steps, agentFlow: buildAgentFlow(t),
-    dispatches: buildDispatches(deps, t, steps), subtasks: buildSubtasks(deps, t),
+    subtasks: buildSubtasks(deps, t),
     children: buildChildTree(deps, t.metadata?.childThreadIds ?? [], 0, new Set([t.id])),
     artifacts: buildArtifactRefs(t, content),
   };
@@ -169,64 +168,6 @@ function buildAgentFlow(t: any): ThreadAgentFlow | null {
     sessionName: slot.sessionName ?? null,
     lastOutput: slot.lastOutput ?? null,
   };
-}
-
-function findLaunchStep(steps: ThreadStepDetail[], thread: any, startedAt: string) {
-  const launchedAt = Date.parse(startedAt);
-  if (!Number.isFinite(launchedAt)) return null;
-
-  const completed = steps.find((step) => {
-    const start = step.startedAt ? Date.parse(step.startedAt) : NaN;
-    const end = step.endedAt ? Date.parse(step.endedAt) : NaN;
-    return Number.isFinite(start) && Number.isFinite(end) && launchedAt >= start && launchedAt < end;
-  });
-  if (completed) return completed;
-
-  const active = steps.find((step) => step.status === 'running');
-  if (!active) return null;
-  const priorEnd = steps.reduce((latest, step) => {
-    const end = step.endedAt ? Date.parse(step.endedAt) : NaN;
-    return Number.isFinite(end) ? Math.max(latest, end) : latest;
-  }, Date.parse(thread.createdAt));
-  return launchedAt >= priorEnd ? active : null;
-}
-
-function toThreadDispatch(e: any, step: ThreadStepDetail): ThreadDispatchInfo {
-  const startedAt = e.runtime?.startedAt || '';
-  const finishedAt = e.runtime?.endedAt || null;
-  const endMs = finishedAt ? Date.parse(finishedAt) : null;
-  return {
-    executionId: e.id,
-    status: e.status,
-    machine: e.dispatch.machine ?? null,
-    type: 'dispatch',
-    agentSlotId: step.agentSlotId,
-    stepIndex: step.stepIndex,
-    taskId: e.dispatch.taskId,
-    runName: e.dispatch.runName,
-    startedAt,
-    finishedAt,
-    durationMs: endMs ? endMs - Date.parse(startedAt) : null,
-    cost: e.metrics?.costUsd ?? null,
-  };
-}
-
-// Real cortex-runs have a runName and owning task but no caller-thread field. Launch time is the
-// remaining provenance seam: attribute only runs launched inside one of this thread's step windows.
-function buildDispatches(
-  deps: UiServiceDeps,
-  thread: any,
-  steps: ThreadStepDetail[],
-): ThreadDispatchInfo[] {
-  const taskId = thread.metadata?.taskId;
-  if (!taskId) return [];
-  return deps.executionRegistry.getAll()
-    .filter((e: any) => e.dispatch?.taskId === taskId && e.dispatch?.runName)
-    .sort((a: any, b: any) => (a.runtime?.startedAt || '').localeCompare(b.runtime?.startedAt || ''))
-    .flatMap((e: any): ThreadDispatchInfo[] => {
-      const step = findLaunchStep(steps, thread, e.runtime?.startedAt || '');
-      return step ? [toThreadDispatch(e, step)] : [];
-    });
 }
 
 function buildSubtasks(deps: UiServiceDeps, thread: any): TaskInfo[] {

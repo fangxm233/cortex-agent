@@ -147,11 +147,11 @@ variable reference, file layout, and precedence rules are in
 | [Browser Access](./docs/browser-access.md) | Web workbench authentication and deployment |
 | [Slack Setup](./docs/slack-setup.md) | App creation, token collection, Socket Mode, scopes |
 | [Configuration](./docs/configuration.md) | Full `.env` and `config/settings.json` reference, `profiles.json`, file layout, hot-reload |
-| [CLI Reference](./docs/cli-reference.md) | `cortex`, `cortex-task`, `cortex-run` — every subcommand and flag |
+| [CLI Reference](./docs/cli-reference.md) | `cortex`, `cortex-task`, `cortex-signal` — every subcommand and flag |
 | [Backends](./docs/backends.md) | Claude Code vs PI, feature matrix, fallback, cost reporting |
 | [Architecture](./docs/architecture.md) | Server layers, WS protocol, event bus |
 | [Threads](./docs/threads.md) | Multi-agent pipelines, templates, transitions, hooks |
-| [Tasks](./docs/tasks.md) | TASKS.yaml format, lifecycle, dispatch, cortex-run watchdog |
+| [Tasks](./docs/tasks.md) | TASKS.yaml format, lifecycle, dispatch, acceptance ledger |
 | [Memory](./docs/memory.md) | EXP/K/PAT atomized knowledge, project log governance |
 | [Skills & Plugins](./docs/skills-and-plugins.md) | Skill authoring, plugin layout, third-party plugins |
 | [Scheduling](./docs/scheduling.md) | Interval/daily/weekly/once schedules, preCheck, fallback |

@@ -27,7 +27,6 @@ function makeFake(opts: FakeOpts = {}) {
   const queryCalls: QueryCall[] = [];
   const mutateCalls: MutateCall[] = [];
   let subscribeFilter: SubscribeFilter | null = null;
-  let subscribeExecutionLogId: string | null = null;
   let subscribeClosed = false;
 
   const uiService: UiService = {
@@ -50,17 +49,6 @@ function makeFake(opts: FakeOpts = {}) {
       };
       return iterable;
     },
-    subscribeExecutionLog(executionId: string) {
-      subscribeExecutionLogId = executionId;
-      const events = opts.events ?? [];
-      const iterable: AsyncIterable<UiEvent> & { close(): void } = {
-        async *[Symbol.asyncIterator]() {
-          for (const ev of events) yield ev;
-        },
-        close() { subscribeClosed = true; },
-      };
-      return iterable;
-    },
   };
 
   return {
@@ -68,7 +56,6 @@ function makeFake(opts: FakeOpts = {}) {
     queryCalls,
     mutateCalls,
     getSubscribeFilter: () => subscribeFilter,
-    getSubscribeExecutionLogId: () => subscribeExecutionLogId,
     wasSubscribeClosed: () => subscribeClosed,
   };
 }

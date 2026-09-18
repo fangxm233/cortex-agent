@@ -198,7 +198,7 @@ function blockTaskUnlocked(
   task.dispatch_generation = ownership?.generation ?? null;
   task.pending_at = null;
   task.blocked_by = reason;
-  // Normalize a 'pending' (mid cortex-run) task back to 'open'. `status === 'pending'`
+  // Normalize a 'pending' (waiting on outside work) task back to 'open'. `status === 'pending'`
   // is an independent dispatch-exclusion gate (task-parser isActionable), so leaving it
   // here would make the task invisible to the dispatcher even after it is unblocked.
   // blocked_by still gates dispatch, so this is safe. Never resurrect a done task.

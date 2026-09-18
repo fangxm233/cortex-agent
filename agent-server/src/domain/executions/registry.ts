@@ -12,7 +12,7 @@ import { createLogger } from '@core/log.js';
 import { runRegistry } from '@core/run-registry.js';
 import type { AgentResult } from '@core/types/agent-types.js';
 
-export type { ExecutionRecord, DispatchInfo, ExecutionGpuInfo } from '@store/execution-repo.js';
+export type { ExecutionRecord, DispatchInfo } from '@store/execution-repo.js';
 export { TERMINAL_STATUSES };
 
 const lockLog = createLogger('execution-lock-release');
@@ -90,10 +90,6 @@ export function registerDispatchExecution(opts: Parameters<typeof executionRepo.
 
 export function touchExecution(id: string, patch?: Parameters<typeof executionRepo.touchExecution>[1]) {
   return executionRepo.touchExecution(id, patch);
-}
-
-export function setExecutionGpuByTaskId(taskId: string, gpu: Parameters<typeof executionRepo.setExecutionGpuByTaskId>[1]) {
-  return executionRepo.setExecutionGpuByTaskId(taskId, gpu);
 }
 
 export function completeExecution(id: string, metrics?: Parameters<typeof executionRepo.completeExecution>[1]) {

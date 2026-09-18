@@ -169,7 +169,7 @@ function execution(spec: AttemptSpec): ExecutionRecord {
       startedAt: STARTED_AT, updatedAt: ENDED_AT, endedAt: ENDED_AT,
     },
     metrics: { costUsd: status === 'completed' ? 0.25 : null, numTurns: 1, durationS: 2 },
-    gpu: null, text: {
+    text: {
       label: spec.role, finalOutput: null, error: status === 'failed' ? 'failed' : null,
     },
   };

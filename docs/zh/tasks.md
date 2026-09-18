@@ -29,7 +29,7 @@
 | `not-before` | string \| null | 否 | 日期门控：在此 ISO 日期之前不分发 |
 | `completed-at` | string \| null | 否 | 完成的 ISO 时间戳 |
 | `completed-note` | string \| null | 否 | 完成时添加的备注 |
-| `pending-at` | string \| null | 否 | 标记为 pending 时的 ISO 时间戳（cortex-run） |
+| `pending-at` | string \| null | 否 | 标记为 pending 时的 ISO 时间戳 |
 
 YAML 键使用 kebab-case（`done-when`、`depends-on`、`claimed-by` 等），内部映射为 snake_case 字段。
 
@@ -78,7 +78,7 @@ lock:
 
 - **`open`** — 可被认领
 - **`done`** — 已完成（终止状态）
-- **`pending`** — 已分发到远程机器，等待 cortex-run 完成
+- **`pending`** — 在本轮之外还有事情（一次长跑、一次构建）要先结束，任务才能完成
 
 ### 派生状态（计算得出的） {#derived-states-computed}
 
@@ -105,7 +105,7 @@ open ──claim──→ in-progress ──complete──→ done
  │
  ├──request-approval──→ approval-needed ──approve──→ open（approved_at 已设置）
  │
- └──pending──→ pending ──(cortex-run 结果)──→ done / open+blocked
+ └──pending──→ pending ──(所等待的工作回报)──→ done / open+blocked
                   │
                   └──reopen──→ open
 ```
@@ -119,7 +119,7 @@ open ──claim──→ in-progress ──complete──→ done
 - 暂停任务清除 `claimed_by` 和 `claimed_at`
 - `pending` 清除 `claimed_by` 和 `blocked_by`，设置 `pending_at`
 - `unblock` 清除 `blocked_by`，并把遗留的 `pending` 状态还原为 `open`
-- `reopen` 把卡住的 `pending` 任务还原为 `open`（cortex-run 回调丢失时的挽救路径）；拒绝 `done` 任务
+- `reopen` 把卡住的 `pending` 任务还原为 `open`（所等待的工作始终没有回报时的挽救路径）；拒绝 `done` 任务
 
 ## Done-When 纪律 {#done-when-discipline}
 
@@ -158,7 +158,7 @@ open ──claim──→ in-progress ──complete──→ done
 
 ## 陈旧认领检测 {#stale-claim-detection}
 
-服务器启动时会对照认领的归属方做一次核对。被 `task-dispatcher` 认领、但其执行没有跨过重启存活下来的任务会被自动取消认领，回到分发队列。有存活归属方的认领会被保留：等待子项的挂起 manager 线程、等待自动恢复的限流暂停线程、以及由 pending 任务追踪器追踪的远程 `cortex-run`，它们都合法地跨重启持有认领。手动认领（`claimed_by` 不是 `task-dispatcher` 的任何值）永远不会被触碰。
+服务器启动时会对照认领的归属方做一次核对。被 `task-dispatcher` 认领、但其执行没有跨过重启存活下来的任务会被自动取消认领，回到分发队列。有存活归属方的认领会被保留：等待子项的挂起 manager 线程、等待自动恢复的限流暂停线程、以及由 pending 任务追踪器追踪的远程派发，它们都合法地跨重启持有认领。手动认领（`claimed_by` 不是 `task-dispatcher` 的任何值）永远不会被触碰。
 
 3 天规则：如果一个任务被智能体 `claimed_by` 超过 3 天而没有完成，它被视为陈旧/孤立认领，应进行调查。这个手动约定覆盖自动核对刻意保留的那些认领（例如手动认领）。
 
@@ -192,23 +192,8 @@ open ──claim──→ in-progress ──complete──→ done
 
 ### Pending 任务 {#pending-tasks}
 
-当任务被分发到远程机器进行长时间运行（通过 `cortex-run`）时，它被标记为 `pending`。远程机器的 `cortex-run-watcher` 追踪进程并通过 WebSocket `task-callback` 消息回报成功/失败。服务器随后相应地完成或阻塞任务。
-
-## Cortex-Run 看门狗（DR-0011） {#cortex-run-watchdog-dr-0011}
-
-`cortex-run` 系统处理远程机器上的长时间运行任务执行。完整的 `cortex-run` CLI 参考参见 [cli-reference.md](./cli-reference.md)，内置任务派发器的配置见 [scheduling.md](./scheduling.md)。
-
-- **服务器端**：`cortex-run` CLI 通过 `sendCommand` 转发到远程客户端
-- **客户端端**：`cortex-run-watcher.ts` 将用户命令作为分离的子进程生成，用两层停滞检测（输出字节停滞和进度行停滞）监控它，通过 `nvidia-smi` 自动选择 GPU，写入状态/输出/结果文件，并在完成时发送 `task-callback` WebSocket 消息
-- **客户端端**：`cortex-run-launch.ts` 处理启动/取消/刷新周期，带僵尸进程的孤立检测
-
-三层进程模型：
-
-```
-cortex-client（到服务器的 WebSocket 连接）
-  └── cortex-run-watcher（分离的，unref'd）
-        └── 用户命令（如 python train.py）
-```
+当任务无法在当前这一轮内完成时——训练、构建或评测要先跑完——它被标记为 `pending`。Cortex 不启动也不托管这类工作：
+自己把它跑起来，登记一个 [waitpoint](./waitpoints.md)，等信号唤醒 session 时再完成或阻塞该任务。
 
 ## 任务归档 {#task-archive}
 
@@ -247,8 +232,8 @@ cortex-client（到服务器的 WebSocket 连接）
 | `unclaim --task-id <id>` | 移除进行中状态 |
 | `pause --task-id <id>` | 暂停任务（清除认领） |
 | `resume --task-id <id>` | 恢复暂停的任务 |
-| `pending --task-id <id>` | 标记为 pending（等待 cortex-run 结果） |
-| `reopen --task-id <id>` | 把卡住的 `pending` 任务还原为 `open`（挽救丢失的 cortex-run 回调） |
+| `pending --task-id <id>` | 标记为 pending（等待本轮之外的工作） |
+| `reopen --task-id <id>` | 把卡住的 `pending` 任务还原为 `open`（挽救始终没有回报的工作） |
 | `complete --task-id <id>` | 标记完成（`--note`、`--skip-verify` 绕过验证） |
 | `uncomplete --task-id <id>` | 撤销已完成的任务回到 open |
 | `verdict --task-id <parent> --child <id> --verdict accepted\|rejected` | 将 manager 对已交付子任务的验收裁决记录到父任务的验收账本（见 [Manager 任务与验收账本](#manager-tasks-and-the-acceptance-ledger-dr-0017)；完整语法见 [cli-reference.md](./cli-reference.md)） |

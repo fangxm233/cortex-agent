@@ -1,9 +1,8 @@
 import type { ExecutionDetailInfo } from '@cortex-agent/ui-contract';
 
-// Pure derivations for the execution log drawer (design 09-exec-logs, prototype.dc.html L1542–1562).
-// Framework-free → unit-tested; the drawer component stays declarative. The prototype's per-line
-// timestamp/color split is mock-only — real cortex-run log lines are opaque strings — so these
-// helpers cover only the header (pill / meta) + the trailing live-clock line.
+// Pure derivations for the execution drawer (design 09-exec-logs, prototype.dc.html L1542–1562).
+// Framework-free → unit-tested; the drawer component stays declarative. These helpers cover the
+// header (pill / meta) + the trailing live-clock line.
 
 const pad2 = (n: number): string => (n < 10 ? `0${n}` : `${n}`);
 
@@ -55,10 +54,4 @@ export function execMeta(detail: ExecutionDetailInfo): string {
 // Only a running execution can be Killed (executions.cancel). Terminal states no-op with a toast.
 export function isStoppable(status: string): boolean {
   return status === 'running';
-}
-
-// A live `execution.log` stream is subscribable only for a cortex-run launch, i.e. when the daemon
-// registered a `runName` for the dispatch (B2-C). Otherwise the log location can't be resolved.
-export function logStreamEnabled(detail: ExecutionDetailInfo): boolean {
-  return detail.dispatch?.runName != null;
 }

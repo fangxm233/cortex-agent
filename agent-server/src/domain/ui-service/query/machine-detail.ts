@@ -1,12 +1,9 @@
 import type { UiServiceDeps, MachineDetail, MachineDetailParams, MachineLiveRun } from '../types.js';
 import { buildProbeCommand, parseMachineProbe, PROBE_TIMEOUT_MS } from './machine-probe.js';
 
-/**
- * Running dispatch executions on this machine. `gpuIndices` is the ordinal set the client watcher
- * actually acquired for the run — the only recorded run↔GPU link, which is what lets the UI badge a
- * GPU row with its owning run. Process pids are deliberately NOT matched: dispatch.pid is the
- * cortex-run launcher, not the CUDA process, so any such join would be fabricated.
- */
+/** Running dispatch executions on this machine. Process pids are deliberately NOT matched against
+ *  the GPU probe: dispatch.pid is the launcher, not the CUDA process, so any such join would be
+ *  fabricated. */
 function collectLiveRuns(deps: UiServiceDeps, machine: string): MachineLiveRun[] {
   return deps.executionRegistry
     .getAll()
@@ -14,9 +11,7 @@ function collectLiveRuns(deps: UiServiceDeps, machine: string): MachineLiveRun[]
     .map((exec) => ({
       executionId: String(exec.id),
       taskId: exec.dispatch?.taskId ?? null,
-      runName: exec.dispatch?.runName ?? null,
       project: exec.project ?? null,
-      gpuIndices: Array.isArray(exec.gpu?.indices) ? exec.gpu.indices : [],
       startedAt: exec.runtime?.startedAt ?? null,
     }));
 }

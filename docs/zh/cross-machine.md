@@ -64,11 +64,11 @@ Cortex 可以将工作分发到远程机器：运行命令、读写文件、搜�
 
 ### 安装 {#installation}
 
-客户端以两个自包含 bundle 的形式分发——`client.mjs`（daemon）和 `cortex-run-watcher.mjs`（长任务看护进程）——按托管布局放在每台设备上：
+客户端以一个自包含 bundle 的形式分发——`client.mjs`——按托管布局放在每台设备上。另有一个 `cortex-run-watcher.mjs` 作为空的兼容占位一同下发：更新包在两端都按文件名校验，若不带它，在 `cortex-run` 移除之前安装的客户端会拒绝之后的每一次更新。
 
 ```
 ~/.cortex/client/
-├── current/    # 正在运行的版本（client.mjs + cortex-run-watcher.mjs）
+├── current/    # 正在运行的版本（client.mjs + 兼容占位文件）
 └── previous/   # 上一个版本，保留用于手动回滚
 ```
 
@@ -240,7 +240,7 @@ agent-server 和 cortex-client 之间的协议是 WebSocket 上的 JSON 消息�
 
 ### 客户端 → 服务器 {#client-server}
 
-**Hello**（连接时立即发送）。`bundleHash` 标识客户端正在运行的 bundle（对 `client.mjs` + `cortex-run-watcher.mjs` 的 sha256）；服务器用它与期望 bundle 对比，决定是否推送更新：
+**Hello**（连接时立即发送）。`bundleHash` 标识客户端正在运行的 bundle（按顺序对 bundle 各文件求 sha256）；服务器用它与期望 bundle 对比，决定是否推送更新：
 ```json
 { "type": "hello", "device": "lab", "platform": "linux", "capabilities": ["file-stream", "rg"], "bundleHash": "cebdfcd6…" }
 ```
@@ -267,7 +267,7 @@ agent-server 和 cortex-client 之间的协议是 WebSocket 上的 JSON 消息�
 { "type": "command", "id": "cmd-abc123", "action": "bash", "params": { "command": "nvidia-smi" }, "timeout": 120000 }
 ```
 
-支持的动作：`bash`、`read`、`write`、`edit`、`glob`、`grep`、`file.stat`、`cortex-run.launch`、`cortex-run.cancel`。
+支持的动作：`bash`、`read`、`write`、`edit`、`glob`、`grep`、`file.stat`。
 
 **打开文件流**（服务器需要把设备上的整个文件取回时发送，例如 `send_file device="lab"`）。与 `open-stream` 一样，它由一条新的出站 socket 回应而不是走这条控制通道，因此大文件传输既不会阻塞命令，也不必 base64 塞进控制通道：
 ```json
@@ -324,7 +324,7 @@ agent-server 中的 `client-manager.ts` 模块管理远程客户端生命周期�
 
 ### bash
 
-在登录 shell 中执行：`/bin/bash -l -c "<command>"`。在 Windows 上，命令通过 git-bash 运行。`timeout` 参数使用 1 到 600 的整数秒，默认值为 120。前台命令超时后返回退出码 124，并在 POSIX 上终止命令的进程组，在 Windows 上终止整棵进程树。`run_in_background: true` 会立即返回 detached shell 的 PID 并忽略 `timeout`。需要停滞检测和回调报告的托管长任务使用 `cortex-run`。这些远程执行工具通过 `cortex-core` MCP 服务器暴露给智能体——参见 [mcp.md](./mcp.md)。
+在登录 shell 中执行：`/bin/bash -l -c "<command>"`。在 Windows 上，命令通过 git-bash 运行。`timeout` 参数使用 1 到 600 的整数秒，默认值为 120。前台命令超时后返回退出码 124，并在 POSIX 上终止命令的进程组，在 Windows 上终止整棵进程树。`run_in_background: true` 会立即返回 detached shell 的 PID 并忽略 `timeout`。Cortex 不托管长任务：自己把它跑起来，再让它通过 [waitpoint](./waitpoints.md) 回报。这些远程执行工具通过 `cortex-core` MCP 服务器暴露给智能体——参见 [mcp.md](./mcp.md)。
 
 ### read
 
@@ -352,15 +352,12 @@ send_file({ device: "lab", file_path: "/home/x/runs/loss.png", caption: "latest 
 
 `glob` 按模式查找文件（如 `**/*.ts`），限于 500 个结果并排除 VCS 目录。`grep` 在可用时使用 `rg`（ripgrep），回退到 `grep -rn`。支持 `head_limit` 和 `offset` 进行分页。
 
-### cortex-run（长时间运行的任务） {#cortex-run-long-running-tasks}
+### 长时间运行的任务 {#long-running-jobs}
 
-对于训练作业和其他长时间运行的工作，`cortex-run.launch` 生成一个 `cortex-run-watcher` 子进程：
-- 监控子进程的停滞（可配置超时，默认 10 分钟无输出）
-- 将状态、输出和结果写入 JSON 文件
-- 在完成时设置 `callback.pending` 标志
-- 主客户端在连接时和每 60 秒刷新挂起的回调
-
-`cortex-run.cancel` 通过 PID 终止被追踪的子进程。
+Cortex 不在设备上启动、托管或接管任何进程。照你平常的方式把任务跑起来（`nohup`、`setsid`、tmux、某个调度器），
+再登记一个 [waitpoint](./waitpoints.md)，任务结束时 session 会被唤醒。在设备上，任务只需往
+`~/.cortex/tmp/signals/` 落一个小 JSON 文件；守护进程会顺着这个客户端已经握着的连接来取，
+设备上不需要额外安装任何东西。
 
 ## 检查设备状态 {#checking-device-status}
 

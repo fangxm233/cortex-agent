@@ -184,28 +184,27 @@ test('machines.detail: a failed probe surfaces probeError instead of throwing', 
   assert.match(result.probeError ?? '', /timed out/);
 });
 
-test('machines.detail: liveRuns lists running dispatches on this machine with their GPU indices', async () => {
+test('machines.detail: liveRuns lists running dispatches on this machine', async () => {
   const deps = makeDeps({
     machines: { orchard: { cortexPath: '/home/user/.cortex', gpuCount: 4 } },
     online: [],
     executions: [
       {
         id: 'exec_1', status: 'running', project: 'dexhand',
-        dispatch: { machine: 'orchard', taskId: 'a3f1', runName: 'exp-042' },
-        gpu: { indices: [0, 1], memoryMb: 49140 },
+        dispatch: { machine: 'orchard', taskId: 'a3f1' },
         runtime: { startedAt: '2026-08-03T10:00:00.000Z' },
       },
       {
         id: 'exec_2', status: 'completed', project: 'dexhand',
-        dispatch: { machine: 'orchard', taskId: 'bbbb', runName: 'old' },
-        gpu: null, runtime: { startedAt: '2026-08-03T09:00:00.000Z' },
+        dispatch: { machine: 'orchard', taskId: 'bbbb' },
+        runtime: { startedAt: '2026-08-03T09:00:00.000Z' },
       },
       {
         id: 'exec_3', status: 'running', project: 'other',
-        dispatch: { machine: 'elsewhere', taskId: 'cccc', runName: 'nope' },
-        gpu: null, runtime: { startedAt: '2026-08-03T10:00:00.000Z' },
+        dispatch: { machine: 'elsewhere', taskId: 'cccc' },
+        runtime: { startedAt: '2026-08-03T10:00:00.000Z' },
       },
-      { id: 'exec_4', status: 'running', project: 'p', dispatch: null, gpu: null, runtime: null },
+      { id: 'exec_4', status: 'running', project: 'p', dispatch: null, runtime: null },
     ],
   });
 
@@ -215,9 +214,7 @@ test('machines.detail: liveRuns lists running dispatches on this machine with th
     {
       executionId: 'exec_1',
       taskId: 'a3f1',
-      runName: 'exp-042',
       project: 'dexhand',
-      gpuIndices: [0, 1],
       startedAt: '2026-08-03T10:00:00.000Z',
     },
   ]);

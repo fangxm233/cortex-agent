@@ -5,7 +5,7 @@
 // pos:    Checks task status after a dispatched thread terminates
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { readFileSync, existsSync, readdirSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import * as path from 'path';
 import { homedir } from 'os';
 
@@ -15,8 +15,6 @@ const DATA_DIR = process.env.CORTEX_HOME
 const PROJECTS_DIR = process.env.CORTEX_PROJECTS_DIR
   ? path.resolve(process.env.CORTEX_PROJECTS_DIR)
   : path.join(DATA_DIR, 'context', 'projects');
-
-const CORTEX_RUN_DIR = path.join(DATA_DIR, 'tmp', 'cortex-run');
 
 function noop() {
   console.log(JSON.stringify({ insertAgent: false }));
@@ -79,35 +77,6 @@ function findTaskById(content, taskId) {
   return task;
 }
 
-/** Find a cortex-run state file that references the given task. */
-function findStateFileForTask(project, taskId) {
-  try {
-    if (!existsSync(CORTEX_RUN_DIR)) return null;
-    for (const entry of readdirSync(CORTEX_RUN_DIR, { withFileTypes: true })) {
-      if (!entry.isDirectory()) continue;
-      const statePath = path.join(CORTEX_RUN_DIR, entry.name, 'state.json');
-      if (!existsSync(statePath)) continue;
-      try {
-        const state = JSON.parse(readFileSync(statePath, 'utf8'));
-        if (state.task_project === project && state.task_id === taskId) {
-          return { runName: entry.name, ...state };
-        }
-      } catch {}
-    }
-  } catch {}
-  return null;
-}
-
-/** Check if a PID is still alive. */
-function pidAlive(pid) {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 async function main() {
   let input = '';
   for await (const chunk of process.stdin) input += chunk;
@@ -146,27 +115,20 @@ async function main() {
   // Task is done — nothing to do.
   if (task.status === 'done') { noop(); return; }
 
-  // Task is pending — cortex-run is handling it. No recovery; just verify.
+  // Task is pending — something outside this thread owns its completion (a waitpoint signal, an
+  // operator). No recovery is automatic; just make the limbo visible to the agent that ran.
   if (task.status === 'pending') {
-    const stateFile = findStateFileForTask(project, taskId);
-    if (!stateFile || stateFile.status === 'failed') {
-      // cortex-run state file missing or run failed — but per design, do not auto-recover.
-      // Just report so it's visible.
-      const targetAgent = ctx.previousAgent;
-      if (targetAgent) {
-        const note = !stateFile
-          ? 'no state file found (cortex-run may not have started)'
-          : `state file shows status=${stateFile.status} (exit ${stateFile.exit_code})`;
-        console.log(JSON.stringify({
-          insertAgent: false,
-          targetAgent,
-          prompt: [
-            `FYI: task [id: ${taskId}] in project "${project}" is still [pending] but cortex-run ${note}.`,
-            'Per current policy, pending→done recovery is not automatic. Check manually if needed.',
-          ].join('\n'),
-        }));
-        return;
-      }
+    const targetAgent = ctx.previousAgent;
+    if (targetAgent) {
+      console.log(JSON.stringify({
+        insertAgent: false,
+        targetAgent,
+        prompt: [
+          `FYI: task [id: ${taskId}] in project "${project}" is still [pending] and the thread has finished.`,
+          'Per current policy, pending→done recovery is not automatic. Check manually if needed.',
+        ].join('\n'),
+      }));
+      return;
     }
     noop();
     return;
@@ -180,37 +142,17 @@ async function main() {
     const targetAgent = ctx.previousAgent;
     if (!targetAgent) { noop(); return; }
 
-    // Check if there's a cortex-run process handling this task
-    const stateFile = findStateFileForTask(project, taskId);
-
-    if (stateFile && stateFile.status === 'running') {
-      // cortex-run is running — this is a legitimate pending case.
-      // Engineer forgot to call cortex-task pending; auto-transition.
-      console.log(JSON.stringify({
-        insertAgent: false,
-        targetAgent,
-        prompt: [
-          `Auto-detected: task [id: ${taskId}] in project "${project}" is still claimed,`,
-          `but a cortex-run process "(${stateFile.runName})" is running for this task (PID ${stateFile.pid}).`,
-          `The engineer likely forgot to mark the task pending. Call:`,
-          `  cortex-task pending --project ${project} --task-id ${taskId}`,
-        ].join('\n'),
-      }));
-      return;
-    }
-
-    // No cortex-run state file — genuine orphan.
-    // Unclaim and prompt agent to resolve.
+    // The thread finished without transitioning the task — prompt the agent to resolve it.
     console.log(JSON.stringify({
       insertAgent: false,
       targetAgent,
       prompt: [
-        `Status check: task [id: ${taskId}] in project "${project}" is still marked [claimed] in TASKS.yaml, but the thread has finished. No running cortex-run process found for this task.`,
+        `Status check: task [id: ${taskId}] in project "${project}" is still marked [claimed] in TASKS.yaml, but the thread has finished.`,
         '',
         'Resolve the task status now — do not leave it in limbo:',
         `- If done-when conditions are satisfied: cortex-task complete --project ${project} --task-id ${taskId} --note "<what you did>"`,
         `- If blocked by external reasons: cortex-task block --project ${project} --task-id ${taskId} --reason "<reason>"`,
-        `- If a cortex-run is still running: cortex-task pending --project ${project} --task-id ${taskId}`,
+        `- If something outside this thread still has to finish: cortex-task pending --project ${project} --task-id ${taskId}`,
         `- If none of the above apply: cortex-task unclaim --project ${project} --task-id ${taskId}`,
         '',
         'After updating the task, commit the TASKS.yaml change.',

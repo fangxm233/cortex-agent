@@ -11,13 +11,6 @@ import { resolveClientToken, buildClientHeaders } from './auth-headers.js';
 import { isOpenStream, openReverseStream } from './reverse-stream.js';
 import { isOpenFileStream, openFileStream } from './file-stream.js';
 import { resolveServerUrl } from './server-url.js';
-import {
-  handleCortexRunLaunch,
-  handleCortexRunCancel,
-  flushPendingCallbacks,
-  findRunDirByCallbackId,
-  tryUnlink,
-} from './cortex-run-launch.js';
 import { computeSelfBundleHash, handleUpdateMessage, defaultRespawn } from './self-update.js';
 
 const log = createLogger('cortex-client');
@@ -44,7 +37,7 @@ function getClientHelp(): string {
     '',
     'Behavior:',
     '  • Opens a WebSocket to ws://<serverHost>:<serverPort> on start.',
-    '  • Receives bash/read/write/edit/glob/grep + cortex-run.* commands.',
+    '  • Receives bash/read/write/edit/glob/grep commands.',
     '  • Exits if the server rejects the handshake (e.g. device already connected).',
     '  • Reconnects automatically on transient disconnects.',
     '',
@@ -583,14 +576,6 @@ async function handleCommand(action: string, params: any): Promise<{ success: bo
       if (result.error) return { success: false, error: result.error };
       return { success: true, data: result };
     }
-    case 'cortex-run.launch': {
-      const result = await handleCortexRunLaunch(params, DEVICE_NAME);
-      return { success: true, data: result };
-    }
-    case 'cortex-run.cancel': {
-      const result = await handleCortexRunCancel(params);
-      return { success: true, data: result };
-    }
     default:
       return { success: false, error: `Unknown action: ${action}` };
   }
@@ -600,7 +585,6 @@ async function handleCommand(action: string, params: any): Promise<{ success: bo
 
 let ws: WebSocket | null = null;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
-let flushTimer: ReturnType<typeof setInterval> | null = null;
 let reconnectDelay = 1000;
 const MAX_RECONNECT_DELAY = 30000;
 
@@ -634,11 +618,6 @@ function connect() {
         }));
       }
     }, HEARTBEAT_INTERVAL_MS);
-
-    // Flush any pending cortex-run callbacks on connect (DR-0011 §4.7)
-    flushPendingCallbacks(ws!, DEVICE_NAME);
-    if (flushTimer) clearInterval(flushTimer);
-    flushTimer = setInterval(() => flushPendingCallbacks(ws!, DEVICE_NAME), 60_000);
   });
 
   ws.on('message', async (raw) => {
@@ -711,17 +690,6 @@ function connect() {
         }
       }
     }
-
-    // task-callback-ack: server confirmed receipt, remove pending marker (DR-0011 §4.7)
-    if (msg.type === 'task-callback-ack') {
-      if (msg.ok) {
-        const dir = findRunDirByCallbackId(msg.callbackId);
-        if (dir) tryUnlink(path.join(dir, 'callback.pending'));
-      } else {
-        log.warn(`task-callback rejected: ${msg.callbackId}: ${msg.message}`);
-        // Leave marker for retry on next cycle
-      }
-    }
   });
 
   ws.on('close', (code, reason) => {
@@ -744,10 +712,6 @@ function cleanup() {
     clearInterval(heartbeatTimer);
     heartbeatTimer = null;
   }
-  if (flushTimer) {
-    clearInterval(flushTimer);
-    flushTimer = null;
-  }
   ws = null;
 }
 
@@ -764,7 +728,6 @@ function scheduleReconnect() {
 function shutdown() {
   log.info('Shutting down...');
   if (heartbeatTimer) clearInterval(heartbeatTimer);
-  if (flushTimer) clearInterval(flushTimer);
   if (ws) {
     try { ws.close(1000, 'Client shutting down'); } catch {}
   }

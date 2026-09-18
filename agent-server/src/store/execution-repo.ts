@@ -22,18 +22,8 @@ export interface DispatchInfo {
   sessionName: string | null;
   tmuxName: string | null;
   pid: string | null;
-  /** cortex-run `--name` (log-ref): resolves the run's output.log for the live log tailer (B2-C). */
-  runName: string | null;
 }
 
-/** The GPU actually selected for a cortex-run/dispatch execution (DR-0018 §6.3 B2-followup).
- *  Captured by the client watcher (`resolveGpuSelection`, incl. `--gpu auto`) and delivered via
- *  task-callback. `indices` = CUDA device ordinals; `memoryMb` = the selected GPU's total memory
- *  (auto-pick only — null for an explicit `--gpu N`). Null on the record ⇒ unknown / not captured. */
-export interface ExecutionGpuInfo {
-  indices: number[];
-  memoryMb: number | null;
-}
 
 export interface ExecutionRecord {
   id: string;
@@ -60,7 +50,6 @@ export interface ExecutionRecord {
   scheduleTaskId: string | null;
   runtime: { startedAt: string; updatedAt: string; endedAt: string | null };
   metrics: { costUsd: number | null; numTurns: number | null; durationS: number | null };
-  gpu: ExecutionGpuInfo | null;
   text: { label: string | null; finalOutput: string | null; error: string | null };
 }
 
@@ -120,7 +109,6 @@ function createBaseRecord({ kind, channel, project, trigger, backend, billingMod
       numTurns: null,
       durationS: null,
     },
-    gpu: null,
     text: {
       label: label || null,
       finalOutput: null,
@@ -271,10 +259,10 @@ class ExecutionRepo {
     return record;
   }
 
-  registerDispatchExecution({ taskId, machine, channel, project, scheduleTaskId, taskText, taskHash, sessionName, tmuxName, pid, runName, backend, billingMode }: {
+  registerDispatchExecution({ taskId, machine, channel, project, scheduleTaskId, taskText, taskHash, sessionName, tmuxName, pid, backend, billingMode }: {
     taskId: string; machine?: string | null; channel?: string | null; project?: string;
     scheduleTaskId?: string | null; taskText?: string | null; taskHash?: string | null;
-    sessionName?: string | null; tmuxName?: string | null; pid?: string | null; runName?: string | null;
+    sessionName?: string | null; tmuxName?: string | null; pid?: string | null;
     backend?: string; billingMode?: string;
   }): ExecutionRecord | null {
     const existing = this.getExecutionByTaskId(taskId);
@@ -296,7 +284,6 @@ class ExecutionRepo {
           sessionName: sessionName || record.dispatch?.sessionName || null,
           tmuxName: tmuxName || record.dispatch?.tmuxName || null,
           pid: pid || record.dispatch?.pid || null,
-          runName: runName || record.dispatch?.runName || null,
         },
       }));
     }
@@ -319,7 +306,6 @@ class ExecutionRepo {
       sessionName: sessionName || null,
       tmuxName: tmuxName || null,
       pid: pid || null,
-      runName: runName || null,
     };
     this.map.set(record.id, record);
     this.queuePersist();
@@ -341,20 +327,6 @@ class ExecutionRepo {
       dispatch: patch.dispatch ? { ...(record.dispatch || {} as DispatchInfo), ...patch.dispatch } : record.dispatch,
       session: patch.session ? { ...record.session, ...patch.session } : record.session,
     }));
-  }
-
-  /** Record the per-execution GPU onto the dispatch record keyed by taskId (DR-0018 §6.3
-   *  B2-followup). GPU is write-once metadata delivered by the terminal task-callback, so —
-   *  unlike touchExecution — this bypasses the terminal-status guard (the dispatch record is
-   *  usually still 'running' at callback time, but a re-dispatched/terminal one must still learn
-   *  its GPU). Returns null when no execution is registered for the task. */
-  setExecutionGpuByTaskId(taskId: string, gpu: ExecutionGpuInfo | null): ExecutionRecord | null {
-    const record = this.getExecutionByTaskId(taskId);
-    if (!record) return null;
-    const next: ExecutionRecord = { ...record, gpu };
-    this.map.set(record.id, next);
-    this.queuePersist();
-    return next;
   }
 
   completeExecution(id: string, metrics: { costUsd?: number | null; numTurns?: number | null; durationS?: number | null; finalOutput?: string | null; error?: string | null } = {}): ExecutionRecord | null {

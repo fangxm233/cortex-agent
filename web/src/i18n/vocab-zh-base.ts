@@ -401,7 +401,7 @@ export const zhBase = {
   ovWhereItGoes: '花在哪里',
   ovNoSpend: '本周暂无支出记录',
   ovNoSchedules: '本项目暂无调度',
-  ovExecSubtitle: '每次 cortex-run 均可审计',
+  ovExecSubtitle: '每次执行均可审计',
   ovColId: 'ID',
   ovColSummary: '摘要',
   ovColMachine: '机器',

@@ -7,7 +7,7 @@ Cortex is an autonomous research agent system for robotics and AI/ML. It runs as
 | Directory | Purpose |
 |-----------|---------|
 | `agent-server/` | Main server application (TypeScript, Node.js >=20). Slack/Feishu bot, LLM orchestration, scheduling, task system, MCP tools. |
-| `client/` | Remote agent client (TypeScript, Node.js >=20). Connects to agent-server via WebSocket, executes bash/read/write/edit/glob/grep commands locally, supports cortex-run for long-running task execution. |
+| `client/` | Remote agent client (TypeScript, Node.js >=20). Connects to agent-server via WebSocket and executes bash/read/write/edit/glob/grep commands locally. |
 | `web/` | Vite + React SPA; browser-responsive desktop/mobile layouts share one router. Built to `web/dist`, served by the in-core UI host and native shells. |
 | `desktop/` | Tauri v2 desktop shell. Loads `web/dist` via asset protocol in a native webview. Exposes `get_connection_config` / `set_connection_config` Tauri commands plus `window.__CORTEX_DESKTOP_CONFIG` for injecting `{serverUrl, token}` into the SPA. |
 | `packages/` | Shared/deployment packages: `ui-contract` provides Web UI tRPC types; `deepseek-relay-worker` is the authenticated, fixed-upstream Cloudflare Worker used when lab2 cannot reach DeepSeek directly. |
@@ -36,14 +36,14 @@ The server supports two LLM backends via `agent-adapter/`: Claude Code and PI. P
 
 The client (`client/src/`) is a lightweight WebSocket daemon that:
 - Connects to agent-server and executes commands locally
-- Supports `cortex-run.launch` / `cortex-run.cancel` for long-running task management with stall detection and callback reporting
+- Does not launch or supervise long-running jobs: those run independently and report back through a waitpoint (`docs/waitpoints.md`)
 - Handles automatic reconnection on transient disconnects
 
 ## Key Configuration
 
 | File | Purpose |
 |------|---------|
-| `agent-server/package.json` | npm package, dependencies, scripts, binaries (cortex, cortex-evidence-export, cortex-hook, cortex-run, cortex-task) |
+| `agent-server/package.json` | npm package, dependencies, scripts, binaries (cortex, cortex-evidence-export, cortex-hook, cortex-signal, cortex-task) |
 | `agent-server/tsconfig.json` | TypeScript config (ES2022, NodeNext) |
 | `agent-server/defaults/` | Shipped default config, context templates, plugins, hooks, prompts, rules |
 | `agent-server/tests/` | Vitest regression suite (~510 test files) covering all major subsystems |

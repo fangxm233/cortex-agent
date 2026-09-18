@@ -402,7 +402,7 @@ export const enBase = {
   ovWhereItGoes: 'Where it goes',
   ovNoSpend: 'No spend recorded this week.',
   ovNoSchedules: 'No schedules for this project.',
-  ovExecSubtitle: 'every cortex-run, auditable',
+  ovExecSubtitle: 'every execution, auditable',
   ovColId: 'ID',
   ovColSummary: 'SUMMARY',
   ovColMachine: 'MACHINE',
